@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 See [TODO.md](TODO.md) for the production readiness checklist and performance roadmap.
 
+## [1.0.1] - 2026-03-26
+
+### Changed
+
+- Renamed crate from `thetadx` to `thetadatadx` (crates.io + PyPI)
+- Renamed repository from `thetadx` to `ThetaDataDx`
+- Switched license to GPL-3.0-or-later
+- Added disclaimer, legal considerations, and EU interoperability section
+- README updated with GitHub callouts (NOTE, TIP, IMPORTANT, WARNING, CAUTION)
+- Fixed PyPI package description (was empty — added readme field to pyproject.toml)
+
 ## [1.0.0] - 2026-03-26
 
 ### Added
@@ -54,5 +65,6 @@ See [TODO.md](TODO.md) for the production readiness checklist and performance ro
 - FIT decoder uses i64 accumulator with i32 saturation (no silent overflow)
 - Price type range enforced with `assert!` in release builds
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/userFRM/ThetaDataDx/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/userFRM/ThetaDataDx/releases/tag/v1.0.0

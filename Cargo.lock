@@ -1467,7 +1467,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "async-compression",
  "prost",
@@ -1490,7 +1490,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-ffi"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "serde_json",
  "thetadatadx",
