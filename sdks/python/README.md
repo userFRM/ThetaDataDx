@@ -8,6 +8,9 @@ Python SDK for ThetaData market data, powered by the `thetadatadx` Rust crate vi
 
 ```bash
 pip install thetadatadx
+
+# With pandas DataFrame support
+pip install thetadatadx[pandas]
 ```
 
 Or build from source (requires Rust toolchain):
@@ -85,6 +88,22 @@ All methods return lists of dicts.
 | `option_list_symbols()` | Option underlyings |
 | `index_list_symbols()` | Index symbols |
 
+### `FpssClient(creds, buffer_size=1024)`
+Real-time streaming client.
+
+| Method | Description |
+|--------|-------------|
+| `subscribe(symbol, data_type)` | Subscribe to a stream (`"QUOTE"`, `"TRADE"`, `"OI"`) |
+| `next_event(timeout_ms=5000)` | Poll for the next event (returns dict or None on timeout) |
+| `shutdown()` | Graceful shutdown |
+
+### `to_dataframe(data)`
+Convert a list of tick dicts to a pandas DataFrame. Requires `pip install thetadatadx[pandas]`.
+
+### `_df` method variants
+All `DirectClient` data methods have `_df` variants that return DataFrames directly:
+`stock_history_eod_df()`, `stock_history_ohlc_df()`, `stock_history_trade_df()`, etc.
+
 ### `all_greeks(spot, strike, rate, div_yield, tte, price, is_call)`
 Returns dict with 22 Greeks: delta, gamma, theta, vega, rho, iv, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda.
 
@@ -104,3 +123,53 @@ ThetaData servers
 ```
 
 No HTTP middleware, no Java terminal, no subprocess. Direct wire protocol access at Rust speed.
+
+## FPSS Streaming
+
+Real-time market data via ThetaData's FPSS servers:
+
+```python
+from thetadatadx import Credentials, FpssClient
+
+creds = Credentials.from_file("creds.txt")
+fpss = FpssClient(creds, buffer_size=1024)
+
+# Subscribe to real-time quotes
+fpss.subscribe("AAPL", "QUOTE")
+fpss.subscribe("SPY", "TRADE")
+
+# Poll for events
+while True:
+    event = fpss.next_event(timeout_ms=5000)
+    if event is None:
+        break  # timeout, no event received
+    if event["type"] == "quote":
+        print(f"Quote: {event['contract']} bid={event['bid']} ask={event['ask']}")
+    elif event["type"] == "trade":
+        print(f"Trade: {event['contract']} price={event['price']} size={event['size']}")
+
+fpss.shutdown()
+```
+
+## pandas DataFrame Conversion
+
+Convert any result to a pandas DataFrame:
+
+```python
+from thetadatadx import Credentials, Config, DirectClient, to_dataframe
+
+creds = Credentials.from_file("creds.txt")
+client = DirectClient(creds, Config.production())
+
+# Option 1: convert an existing result
+eod = client.stock_history_eod("AAPL", "20240101", "20240301")
+df = to_dataframe(eod)
+print(df.head())
+
+# Option 2: use _df convenience methods
+df = client.stock_history_eod_df("AAPL", "20240101", "20240301")
+df = client.stock_history_ohlc_df("AAPL", "20240315", "60000")
+df = client.option_list_expirations_df("SPY")
+```
+
+Install with: `pip install thetadatadx[pandas]`

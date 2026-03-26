@@ -4,11 +4,13 @@ package thetadatadx
 #cgo LDFLAGS: -L${SRCDIR}/../../target/release -lthetadatadx_ffi -lm -ldl -lpthread
 #cgo darwin LDFLAGS: -framework Security -framework SystemConfiguration
 #include <stdlib.h>
+#include <stdint.h>
 
 // ── Opaque handles ──
 typedef void TdxCredentials;
 typedef void TdxClient;
 typedef void TdxConfig;
+typedef void TdxFpssHandle;
 
 // ── Error ──
 extern const char* tdx_last_error();
@@ -124,6 +126,15 @@ extern char* tdx_interest_rate_history_eod(const TdxClient* client, const char* 
 // ── Greeks ──
 extern char* tdx_all_greeks(double spot, double strike, double rate, double div_yield, double tte, double option_price, int is_call);
 extern int tdx_implied_volatility(double spot, double strike, double rate, double div_yield, double tte, double option_price, int is_call, double* out_iv, double* out_error);
+
+// ── FPSS (real-time streaming) ──
+extern TdxFpssHandle* tdx_fpss_connect(const TdxCredentials* creds, const TdxConfig* config);
+extern int tdx_fpss_subscribe_quotes(const TdxFpssHandle* h, const char* symbol);
+extern int tdx_fpss_subscribe_trades(const TdxFpssHandle* h, const char* symbol);
+extern int tdx_fpss_unsubscribe_quotes(const TdxFpssHandle* h, const char* symbol);
+extern char* tdx_fpss_next_event(const TdxFpssHandle* h, uint64_t timeout_ms);
+extern void tdx_fpss_shutdown(const TdxFpssHandle* h);
+extern void tdx_fpss_free(TdxFpssHandle* h);
 */
 import "C"
 

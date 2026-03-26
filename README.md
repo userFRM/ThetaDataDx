@@ -25,7 +25,8 @@ No-JVM ThetaData Terminal — native Rust SDK for direct market data access.
 - **Async/await** throughout — built on Tokio with concurrent gRPC streaming and background heartbeat tasks
 - **Direct authentication** — handles the Nexus API auth flow, session management, and reconnection logic
 - **FIT codec** — native decoder for ThetaData's nibble-encoded delta-compressed tick format
-- **Multi-language SDKs** — Python (PyO3), Go (CGo), C++ (RAII), all powered by the Rust core
+- **Multi-language SDKs** — Python (PyO3), Go (CGo), C++ (RAII), all powered by the Rust core, all with FPSS streaming support
+- **pandas DataFrame support** — `to_dataframe()` and `_df` convenience methods in the Python SDK
 
 ## Installation
 
@@ -41,6 +42,9 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 
 ```sh
 pip install thetadatadx
+
+# With pandas DataFrame support
+pip install thetadatadx[pandas]
 ```
 
 ## Quick Start

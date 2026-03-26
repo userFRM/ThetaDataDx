@@ -31,7 +31,7 @@
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::ptr;
-use std::sync::OnceLock;
+use std::sync::{Arc, Mutex, OnceLock};
 
 // ── Global tokio runtime (same pattern as the Python bindings) ──
 
@@ -87,6 +87,137 @@ pub struct TdxClient {
 /// Opaque config handle.
 pub struct TdxConfig {
     inner: thetadatadx::DirectConfig,
+}
+
+/// Opaque FPSS streaming client handle.
+///
+/// Uses the same pattern as the Python SDK: an internal mpsc channel buffering
+/// events from the Disruptor callback, and `tdx_fpss_next_event` polls it with
+/// a timeout, returning JSON.
+pub struct TdxFpssHandle {
+    inner: Arc<Mutex<Option<thetadatadx::fpss::FpssClient>>>,
+    rx: Arc<Mutex<std::sync::mpsc::Receiver<FfiBufferedEvent>>>,
+}
+
+/// Internal buffered event — same concept as Python SDK's `BufferedEvent`.
+#[derive(Clone, Debug)]
+struct FfiBufferedEvent {
+    kind: String,
+    payload: Option<Vec<u8>>,
+    detail: Option<String>,
+    id: Option<i32>,
+}
+
+fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
+    use thetadatadx::fpss::FpssEvent;
+    match event {
+        FpssEvent::LoginSuccess { permissions } => FfiBufferedEvent {
+            kind: "login_success".to_string(),
+            payload: None,
+            detail: Some(permissions.clone()),
+            id: None,
+        },
+        FpssEvent::ContractAssigned { id, contract } => FfiBufferedEvent {
+            kind: "contract_assigned".to_string(),
+            payload: None,
+            detail: Some(format!("{contract}")),
+            id: Some(*id),
+        },
+        FpssEvent::QuoteData { payload } => FfiBufferedEvent {
+            kind: "quote_data".to_string(),
+            payload: Some(payload.clone()),
+            detail: None,
+            id: None,
+        },
+        FpssEvent::TradeData { payload } => FfiBufferedEvent {
+            kind: "trade_data".to_string(),
+            payload: Some(payload.clone()),
+            detail: None,
+            id: None,
+        },
+        FpssEvent::OpenInterestData { payload } => FfiBufferedEvent {
+            kind: "open_interest_data".to_string(),
+            payload: Some(payload.clone()),
+            detail: None,
+            id: None,
+        },
+        FpssEvent::OhlcvcData { payload } => FfiBufferedEvent {
+            kind: "ohlcvc_data".to_string(),
+            payload: Some(payload.clone()),
+            detail: None,
+            id: None,
+        },
+        FpssEvent::ReqResponse { req_id, result } => FfiBufferedEvent {
+            kind: "req_response".to_string(),
+            payload: None,
+            detail: Some(format!("{result:?}")),
+            id: Some(*req_id),
+        },
+        FpssEvent::MarketOpen => FfiBufferedEvent {
+            kind: "market_open".to_string(),
+            payload: None,
+            detail: None,
+            id: None,
+        },
+        FpssEvent::MarketClose => FfiBufferedEvent {
+            kind: "market_close".to_string(),
+            payload: None,
+            detail: None,
+            id: None,
+        },
+        FpssEvent::ServerError { message } => FfiBufferedEvent {
+            kind: "server_error".to_string(),
+            payload: None,
+            detail: Some(message.clone()),
+            id: None,
+        },
+        FpssEvent::Disconnected { reason } => FfiBufferedEvent {
+            kind: "disconnected".to_string(),
+            payload: None,
+            detail: Some(format!("{reason:?}")),
+            id: None,
+        },
+        FpssEvent::Error { message } => FfiBufferedEvent {
+            kind: "error".to_string(),
+            payload: None,
+            detail: Some(message.clone()),
+            id: None,
+        },
+        _ => FfiBufferedEvent {
+            kind: "unknown".to_string(),
+            payload: None,
+            detail: None,
+            id: None,
+        },
+    }
+}
+
+/// Serialize a buffered event to a JSON C string.
+fn buffered_event_to_cstring(event: &FfiBufferedEvent) -> *mut c_char {
+    let mut map = serde_json::Map::new();
+    map.insert(
+        "kind".to_string(),
+        serde_json::Value::String(event.kind.clone()),
+    );
+    if let Some(ref payload) = event.payload {
+        // Encode binary payload as base64 for safe JSON transport.
+        use std::fmt::Write;
+        let mut hex = String::with_capacity(payload.len() * 2);
+        for byte in payload {
+            let _ = write!(hex, "{byte:02x}");
+        }
+        map.insert("payload_hex".to_string(), serde_json::Value::String(hex));
+    }
+    if let Some(ref detail) = event.detail {
+        map.insert(
+            "detail".to_string(),
+            serde_json::Value::String(detail.clone()),
+        );
+    }
+    if let Some(id) = event.id {
+        map.insert("id".to_string(), serde_json::json!(id));
+    }
+    json_to_cstring(&serde_json::Value::Object(map))
 }
 
 // ── Helper: C string to &str ──
@@ -1135,4 +1266,216 @@ pub unsafe extern "C" fn tdx_implied_volatility(
         *out_error = err;
     }
     0
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  FPSS — Real-time streaming client
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Connect to FPSS streaming servers.
+///
+/// Events are collected in an internal queue. Call `tdx_fpss_next_event()` to poll.
+///
+/// Returns null on connection failure (check `tdx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_fpss_connect(
+    creds: *const TdxCredentials,
+    config: *const TdxConfig,
+) -> *mut TdxFpssHandle {
+    if creds.is_null() {
+        set_error("credentials handle is null");
+        return ptr::null_mut();
+    }
+    if config.is_null() {
+        set_error("config handle is null");
+        return ptr::null_mut();
+    }
+    let creds = unsafe { &*creds };
+    let config = unsafe { &*config };
+
+    let (tx, rx) = std::sync::mpsc::channel::<FfiBufferedEvent>();
+
+    let client = match thetadatadx::fpss::FpssClient::connect(
+        &creds.inner,
+        config.inner.fpss_ring_size,
+        move |event: &thetadatadx::fpss::FpssEvent| {
+            let buffered = fpss_event_to_ffi(event);
+            let _ = tx.send(buffered);
+        },
+    ) {
+        Ok(c) => c,
+        Err(e) => {
+            set_error(&e.to_string());
+            return ptr::null_mut();
+        }
+    };
+
+    Box::into_raw(Box::new(TdxFpssHandle {
+        inner: Arc::new(Mutex::new(Some(client))),
+        rx: Arc::new(Mutex::new(rx)),
+    }))
+}
+
+/// Subscribe to quote data for a stock symbol.
+///
+/// Returns the request ID on success, or -1 on error (check `tdx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_fpss_subscribe_quotes(
+    handle: *const TdxFpssHandle,
+    symbol: *const c_char,
+) -> i32 {
+    if handle.is_null() {
+        set_error("FPSS handle is null");
+        return -1;
+    }
+    let symbol = match unsafe { cstr_to_str(symbol) } {
+        Some(s) => s,
+        None => {
+            set_error("symbol is null or invalid UTF-8");
+            return -1;
+        }
+    };
+    let handle = unsafe { &*handle };
+    let guard = handle.inner.lock().unwrap();
+    let client = match guard.as_ref() {
+        Some(c) => c,
+        None => {
+            set_error("FPSS client is shut down");
+            return -1;
+        }
+    };
+    let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
+    match client.subscribe_quotes(&contract) {
+        Ok(req_id) => req_id,
+        Err(e) => {
+            set_error(&e.to_string());
+            -1
+        }
+    }
+}
+
+/// Subscribe to trade data for a stock symbol.
+///
+/// Returns the request ID on success, or -1 on error (check `tdx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_fpss_subscribe_trades(
+    handle: *const TdxFpssHandle,
+    symbol: *const c_char,
+) -> i32 {
+    if handle.is_null() {
+        set_error("FPSS handle is null");
+        return -1;
+    }
+    let symbol = match unsafe { cstr_to_str(symbol) } {
+        Some(s) => s,
+        None => {
+            set_error("symbol is null or invalid UTF-8");
+            return -1;
+        }
+    };
+    let handle = unsafe { &*handle };
+    let guard = handle.inner.lock().unwrap();
+    let client = match guard.as_ref() {
+        Some(c) => c,
+        None => {
+            set_error("FPSS client is shut down");
+            return -1;
+        }
+    };
+    let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
+    match client.subscribe_trades(&contract) {
+        Ok(req_id) => req_id,
+        Err(e) => {
+            set_error(&e.to_string());
+            -1
+        }
+    }
+}
+
+/// Unsubscribe from quote data for a stock symbol.
+///
+/// Returns the request ID on success, or -1 on error (check `tdx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_fpss_unsubscribe_quotes(
+    handle: *const TdxFpssHandle,
+    symbol: *const c_char,
+) -> i32 {
+    if handle.is_null() {
+        set_error("FPSS handle is null");
+        return -1;
+    }
+    let symbol = match unsafe { cstr_to_str(symbol) } {
+        Some(s) => s,
+        None => {
+            set_error("symbol is null or invalid UTF-8");
+            return -1;
+        }
+    };
+    let handle = unsafe { &*handle };
+    let guard = handle.inner.lock().unwrap();
+    let client = match guard.as_ref() {
+        Some(c) => c,
+        None => {
+            set_error("FPSS client is shut down");
+            return -1;
+        }
+    };
+    let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
+    match client.unsubscribe_quotes(&contract) {
+        Ok(req_id) => req_id,
+        Err(e) => {
+            set_error(&e.to_string());
+            -1
+        }
+    }
+}
+
+/// Poll for the next FPSS event.
+///
+/// Blocks for up to `timeout_ms` milliseconds. Returns a JSON string with keys
+/// `kind`, `payload_hex` (hex-encoded binary), `detail`, and `id`.
+///
+/// Returns null if no event arrived within the timeout (this is NOT an error).
+/// Caller must free the returned string with `tdx_string_free`.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_fpss_next_event(
+    handle: *const TdxFpssHandle,
+    timeout_ms: u64,
+) -> *mut c_char {
+    if handle.is_null() {
+        set_error("FPSS handle is null");
+        return ptr::null_mut();
+    }
+    let handle = unsafe { &*handle };
+    let rx = handle.rx.lock().unwrap();
+    let timeout = std::time::Duration::from_millis(timeout_ms);
+    match rx.recv_timeout(timeout) {
+        Ok(event) => buffered_event_to_cstring(&event),
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => ptr::null_mut(),
+        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => ptr::null_mut(),
+    }
+}
+
+/// Shut down the FPSS client, stopping all background threads.
+///
+/// The handle remains valid for `tdx_fpss_free()` but all subsequent operations
+/// will return errors.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_fpss_shutdown(handle: *const TdxFpssHandle) {
+    if handle.is_null() {
+        return;
+    }
+    let handle = unsafe { &*handle };
+    let mut guard = handle.inner.lock().unwrap();
+    if let Some(client) = guard.take() {
+        client.shutdown();
+    }
+}
+
+/// Free a FPSS handle. Must be called after `tdx_fpss_shutdown()`.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_fpss_free(handle: *mut TdxFpssHandle) {
+    if !handle.is_null() {
+        drop(unsafe { Box::from_raw(handle) });
+    }
 }

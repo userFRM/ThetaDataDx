@@ -62,6 +62,19 @@ All network connections use a **unified TLS stack** (`rustls` with ring backend)
 Root certificates come from `webpki-roots` (Mozilla's CA bundle). Certificate
 validation is enforced on all connections — there is no option to skip verification.
 
+### Concurrent Request Limiting
+
+DirectClient enforces a configurable semaphore (`mdds_concurrent_requests`, default 2) that
+limits the number of in-flight gRPC requests. This prevents runaway request storms from
+overwhelming the upstream MDDS server or triggering server-side rate limiting. The default
+matches the most common ThetaData tier.
+
+### FPSS Event Dispatch
+
+FPSS streaming uses a fully synchronous I/O thread with a lock-free disruptor ring buffer
+(`disruptor-rs` v4) for event dispatch. The bounded ring buffer prevents unbounded memory
+growth from unconsumed events.
+
 ### Frame Size Limits
 
 Binary frame size assertions use `assert!` (not `debug_assert!`), ensuring they

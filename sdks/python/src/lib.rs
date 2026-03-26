@@ -7,8 +7,10 @@ use pyo3::exceptions::{PyConnectionError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use std::sync::OnceLock;
+use std::sync::{Arc, Mutex};
 use thetadatadx::auth;
 use thetadatadx::config;
+use thetadatadx::fpss;
 use thetadatadx::types::tick;
 
 /// Shared tokio runtime for running async Rust from sync Python.
@@ -230,289 +232,1067 @@ impl DirectClient {
     // ── Stock — List (2) ──
 
     fn stock_list_symbols(&self, py: Python<'_>) -> PyResult<Vec<String>> {
-        py.detach(|| { runtime().block_on(self.inner.stock_list_symbols()).map_err(to_py_err) })
+        py.detach(|| {
+            runtime()
+                .block_on(self.inner.stock_list_symbols())
+                .map_err(to_py_err)
+        })
     }
-    fn stock_list_dates(&self, py: Python<'_>, request_type: &str, symbol: &str) -> PyResult<Vec<String>> {
-        py.detach(|| { runtime().block_on(self.inner.stock_list_dates(request_type, symbol)).map_err(to_py_err) })
+    fn stock_list_dates(
+        &self,
+        py: Python<'_>,
+        request_type: &str,
+        symbol: &str,
+    ) -> PyResult<Vec<String>> {
+        py.detach(|| {
+            runtime()
+                .block_on(self.inner.stock_list_dates(request_type, symbol))
+                .map_err(to_py_err)
+        })
     }
 
     // ── Stock — Snapshot (4) ──
 
-    fn stock_snapshot_ohlc(&self, py: Python<'_>, symbols: Vec<String>) -> PyResult<Vec<Py<PyAny>>> {
+    fn stock_snapshot_ohlc(
+        &self,
+        py: Python<'_>,
+        symbols: Vec<String>,
+    ) -> PyResult<Vec<Py<PyAny>>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let ticks = py.detach(|| { runtime().block_on(self.inner.stock_snapshot_ohlc(&refs)).map_err(to_py_err) })?;
+        let ticks = py.detach(|| {
+            runtime()
+                .block_on(self.inner.stock_snapshot_ohlc(&refs))
+                .map_err(to_py_err)
+        })?;
         Ok(ticks.iter().map(|t| ohlc_tick_to_dict(py, t)).collect())
     }
-    fn stock_snapshot_trade(&self, py: Python<'_>, symbols: Vec<String>) -> PyResult<Vec<Py<PyAny>>> {
+    fn stock_snapshot_trade(
+        &self,
+        py: Python<'_>,
+        symbols: Vec<String>,
+    ) -> PyResult<Vec<Py<PyAny>>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let ticks = py.detach(|| { runtime().block_on(self.inner.stock_snapshot_trade(&refs)).map_err(to_py_err) })?;
+        let ticks = py.detach(|| {
+            runtime()
+                .block_on(self.inner.stock_snapshot_trade(&refs))
+                .map_err(to_py_err)
+        })?;
         Ok(ticks.iter().map(|t| trade_tick_to_dict(py, t)).collect())
     }
-    fn stock_snapshot_quote(&self, py: Python<'_>, symbols: Vec<String>) -> PyResult<Vec<Py<PyAny>>> {
+    fn stock_snapshot_quote(
+        &self,
+        py: Python<'_>,
+        symbols: Vec<String>,
+    ) -> PyResult<Vec<Py<PyAny>>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let ticks = py.detach(|| { runtime().block_on(self.inner.stock_snapshot_quote(&refs)).map_err(to_py_err) })?;
+        let ticks = py.detach(|| {
+            runtime()
+                .block_on(self.inner.stock_snapshot_quote(&refs))
+                .map_err(to_py_err)
+        })?;
         Ok(ticks.iter().map(|t| quote_tick_to_dict(py, t)).collect())
     }
-    fn stock_snapshot_market_value(&self, py: Python<'_>, symbols: Vec<String>) -> PyResult<Vec<Py<PyAny>>> {
+    fn stock_snapshot_market_value(
+        &self,
+        py: Python<'_>,
+        symbols: Vec<String>,
+    ) -> PyResult<Vec<Py<PyAny>>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let table = py.detach(|| { runtime().block_on(self.inner.stock_snapshot_market_value(&refs)).map_err(to_py_err) })?;
+        let table = py.detach(|| {
+            runtime()
+                .block_on(self.inner.stock_snapshot_market_value(&refs))
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
 
     // ── Stock — History (5 + bonus) ──
 
-    fn stock_history_eod(&self, py: Python<'_>, symbol: &str, start_date: &str, end_date: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let ticks = py.detach(|| { runtime().block_on(self.inner.stock_history_eod(symbol, start_date, end_date)).map_err(to_py_err) })?;
+    fn stock_history_eod(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        start_date: &str,
+        end_date: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let ticks = py.detach(|| {
+            runtime()
+                .block_on(self.inner.stock_history_eod(symbol, start_date, end_date))
+                .map_err(to_py_err)
+        })?;
         Ok(ticks.iter().map(|t| eod_tick_to_dict(py, t)).collect())
     }
-    fn stock_history_ohlc(&self, py: Python<'_>, symbol: &str, date: &str, interval: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let ticks = py.detach(|| { runtime().block_on(self.inner.stock_history_ohlc(symbol, date, interval)).map_err(to_py_err) })?;
+    fn stock_history_ohlc(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        date: &str,
+        interval: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let ticks = py.detach(|| {
+            runtime()
+                .block_on(self.inner.stock_history_ohlc(symbol, date, interval))
+                .map_err(to_py_err)
+        })?;
         Ok(ticks.iter().map(|t| ohlc_tick_to_dict(py, t)).collect())
     }
-    fn stock_history_ohlc_range(&self, py: Python<'_>, symbol: &str, start_date: &str, end_date: &str, interval: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let ticks = py.detach(|| { runtime().block_on(self.inner.stock_history_ohlc_range(symbol, start_date, end_date, interval)).map_err(to_py_err) })?;
+    fn stock_history_ohlc_range(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        start_date: &str,
+        end_date: &str,
+        interval: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let ticks = py.detach(|| {
+            runtime()
+                .block_on(
+                    self.inner
+                        .stock_history_ohlc_range(symbol, start_date, end_date, interval),
+                )
+                .map_err(to_py_err)
+        })?;
         Ok(ticks.iter().map(|t| ohlc_tick_to_dict(py, t)).collect())
     }
-    fn stock_history_trade(&self, py: Python<'_>, symbol: &str, date: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let ticks = py.detach(|| { runtime().block_on(self.inner.stock_history_trade(symbol, date)).map_err(to_py_err) })?;
+    fn stock_history_trade(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        date: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let ticks = py.detach(|| {
+            runtime()
+                .block_on(self.inner.stock_history_trade(symbol, date))
+                .map_err(to_py_err)
+        })?;
         Ok(ticks.iter().map(|t| trade_tick_to_dict(py, t)).collect())
     }
-    fn stock_history_quote(&self, py: Python<'_>, symbol: &str, date: &str, interval: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let ticks = py.detach(|| { runtime().block_on(self.inner.stock_history_quote(symbol, date, interval)).map_err(to_py_err) })?;
+    fn stock_history_quote(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        date: &str,
+        interval: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let ticks = py.detach(|| {
+            runtime()
+                .block_on(self.inner.stock_history_quote(symbol, date, interval))
+                .map_err(to_py_err)
+        })?;
         Ok(ticks.iter().map(|t| quote_tick_to_dict(py, t)).collect())
     }
-    fn stock_history_trade_quote(&self, py: Python<'_>, symbol: &str, date: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.stock_history_trade_quote(symbol, date)).map_err(to_py_err) })?;
+    fn stock_history_trade_quote(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        date: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let table = py.detach(|| {
+            runtime()
+                .block_on(self.inner.stock_history_trade_quote(symbol, date))
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
 
     // ── Stock — At-Time (2) ──
 
-    fn stock_at_time_trade(&self, py: Python<'_>, symbol: &str, start_date: &str, end_date: &str, time_of_day: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let ticks = py.detach(|| { runtime().block_on(self.inner.stock_at_time_trade(symbol, start_date, end_date, time_of_day)).map_err(to_py_err) })?;
+    fn stock_at_time_trade(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        start_date: &str,
+        end_date: &str,
+        time_of_day: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let ticks = py.detach(|| {
+            runtime()
+                .block_on(
+                    self.inner
+                        .stock_at_time_trade(symbol, start_date, end_date, time_of_day),
+                )
+                .map_err(to_py_err)
+        })?;
         Ok(ticks.iter().map(|t| trade_tick_to_dict(py, t)).collect())
     }
-    fn stock_at_time_quote(&self, py: Python<'_>, symbol: &str, start_date: &str, end_date: &str, time_of_day: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let ticks = py.detach(|| { runtime().block_on(self.inner.stock_at_time_quote(symbol, start_date, end_date, time_of_day)).map_err(to_py_err) })?;
+    fn stock_at_time_quote(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        start_date: &str,
+        end_date: &str,
+        time_of_day: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let ticks = py.detach(|| {
+            runtime()
+                .block_on(
+                    self.inner
+                        .stock_at_time_quote(symbol, start_date, end_date, time_of_day),
+                )
+                .map_err(to_py_err)
+        })?;
         Ok(ticks.iter().map(|t| quote_tick_to_dict(py, t)).collect())
     }
 
     // ── Option — List (5) ──
 
     fn option_list_symbols(&self, py: Python<'_>) -> PyResult<Vec<String>> {
-        py.detach(|| { runtime().block_on(self.inner.option_list_symbols()).map_err(to_py_err) })
+        py.detach(|| {
+            runtime()
+                .block_on(self.inner.option_list_symbols())
+                .map_err(to_py_err)
+        })
     }
-    fn option_list_dates(&self, py: Python<'_>, request_type: &str, symbol: &str, expiration: &str, strike: &str, right: &str) -> PyResult<Vec<String>> {
-        py.detach(|| { runtime().block_on(self.inner.option_list_dates(request_type, symbol, expiration, strike, right)).map_err(to_py_err) })
+    fn option_list_dates(
+        &self,
+        py: Python<'_>,
+        request_type: &str,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+    ) -> PyResult<Vec<String>> {
+        py.detach(|| {
+            runtime()
+                .block_on(self.inner.option_list_dates(
+                    request_type,
+                    symbol,
+                    expiration,
+                    strike,
+                    right,
+                ))
+                .map_err(to_py_err)
+        })
     }
     fn option_list_expirations(&self, py: Python<'_>, symbol: &str) -> PyResult<Vec<String>> {
-        py.detach(|| { runtime().block_on(self.inner.option_list_expirations(symbol)).map_err(to_py_err) })
+        py.detach(|| {
+            runtime()
+                .block_on(self.inner.option_list_expirations(symbol))
+                .map_err(to_py_err)
+        })
     }
-    fn option_list_strikes(&self, py: Python<'_>, symbol: &str, expiration: &str) -> PyResult<Vec<String>> {
-        py.detach(|| { runtime().block_on(self.inner.option_list_strikes(symbol, expiration)).map_err(to_py_err) })
+    fn option_list_strikes(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+    ) -> PyResult<Vec<String>> {
+        py.detach(|| {
+            runtime()
+                .block_on(self.inner.option_list_strikes(symbol, expiration))
+                .map_err(to_py_err)
+        })
     }
-    fn option_list_contracts(&self, py: Python<'_>, request_type: &str, symbol: &str, date: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.option_list_contracts(request_type, symbol, date)).map_err(to_py_err) })?;
+    fn option_list_contracts(
+        &self,
+        py: Python<'_>,
+        request_type: &str,
+        symbol: &str,
+        date: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let table = py.detach(|| {
+            runtime()
+                .block_on(self.inner.option_list_contracts(request_type, symbol, date))
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
 
     // ── Option — Snapshot (10) ──
 
-    fn option_snapshot_ohlc(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let ticks = py.detach(|| { runtime().block_on(self.inner.option_snapshot_ohlc(symbol, expiration, strike, right)).map_err(to_py_err) })?;
+    fn option_snapshot_ohlc(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let ticks = py.detach(|| {
+            runtime()
+                .block_on(
+                    self.inner
+                        .option_snapshot_ohlc(symbol, expiration, strike, right),
+                )
+                .map_err(to_py_err)
+        })?;
         Ok(ticks.iter().map(|t| ohlc_tick_to_dict(py, t)).collect())
     }
-    fn option_snapshot_trade(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let ticks = py.detach(|| { runtime().block_on(self.inner.option_snapshot_trade(symbol, expiration, strike, right)).map_err(to_py_err) })?;
+    fn option_snapshot_trade(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let ticks = py.detach(|| {
+            runtime()
+                .block_on(
+                    self.inner
+                        .option_snapshot_trade(symbol, expiration, strike, right),
+                )
+                .map_err(to_py_err)
+        })?;
         Ok(ticks.iter().map(|t| trade_tick_to_dict(py, t)).collect())
     }
-    fn option_snapshot_quote(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let ticks = py.detach(|| { runtime().block_on(self.inner.option_snapshot_quote(symbol, expiration, strike, right)).map_err(to_py_err) })?;
+    fn option_snapshot_quote(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let ticks = py.detach(|| {
+            runtime()
+                .block_on(
+                    self.inner
+                        .option_snapshot_quote(symbol, expiration, strike, right),
+                )
+                .map_err(to_py_err)
+        })?;
         Ok(ticks.iter().map(|t| quote_tick_to_dict(py, t)).collect())
     }
-    fn option_snapshot_open_interest(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.option_snapshot_open_interest(symbol, expiration, strike, right)).map_err(to_py_err) })?;
+    fn option_snapshot_open_interest(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let table = py.detach(|| {
+            runtime()
+                .block_on(
+                    self.inner
+                        .option_snapshot_open_interest(symbol, expiration, strike, right),
+                )
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
-    fn option_snapshot_market_value(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.option_snapshot_market_value(symbol, expiration, strike, right)).map_err(to_py_err) })?;
+    fn option_snapshot_market_value(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let table = py.detach(|| {
+            runtime()
+                .block_on(
+                    self.inner
+                        .option_snapshot_market_value(symbol, expiration, strike, right),
+                )
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
-    fn option_snapshot_greeks_implied_volatility(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.option_snapshot_greeks_implied_volatility(symbol, expiration, strike, right)).map_err(to_py_err) })?;
+    fn option_snapshot_greeks_implied_volatility(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let table =
+            py.detach(|| {
+                runtime()
+                    .block_on(self.inner.option_snapshot_greeks_implied_volatility(
+                        symbol, expiration, strike, right,
+                    ))
+                    .map_err(to_py_err)
+            })?;
         Ok(data_table_to_dicts(py, &table))
     }
-    fn option_snapshot_greeks_all(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.option_snapshot_greeks_all(symbol, expiration, strike, right)).map_err(to_py_err) })?;
+    fn option_snapshot_greeks_all(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let table = py.detach(|| {
+            runtime()
+                .block_on(
+                    self.inner
+                        .option_snapshot_greeks_all(symbol, expiration, strike, right),
+                )
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
-    fn option_snapshot_greeks_first_order(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.option_snapshot_greeks_first_order(symbol, expiration, strike, right)).map_err(to_py_err) })?;
+    fn option_snapshot_greeks_first_order(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let table = py.detach(|| {
+            runtime()
+                .block_on(
+                    self.inner
+                        .option_snapshot_greeks_first_order(symbol, expiration, strike, right),
+                )
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
-    fn option_snapshot_greeks_second_order(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.option_snapshot_greeks_second_order(symbol, expiration, strike, right)).map_err(to_py_err) })?;
+    fn option_snapshot_greeks_second_order(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let table = py.detach(|| {
+            runtime()
+                .block_on(
+                    self.inner
+                        .option_snapshot_greeks_second_order(symbol, expiration, strike, right),
+                )
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
-    fn option_snapshot_greeks_third_order(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.option_snapshot_greeks_third_order(symbol, expiration, strike, right)).map_err(to_py_err) })?;
+    fn option_snapshot_greeks_third_order(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let table = py.detach(|| {
+            runtime()
+                .block_on(
+                    self.inner
+                        .option_snapshot_greeks_third_order(symbol, expiration, strike, right),
+                )
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
 
     // ── Option — History (6) ──
 
-    fn option_history_eod(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str, start_date: &str, end_date: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let ticks = py.detach(|| { runtime().block_on(self.inner.option_history_eod(symbol, expiration, strike, right, start_date, end_date)).map_err(to_py_err) })?;
+    fn option_history_eod(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+        start_date: &str,
+        end_date: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let ticks =
+            py.detach(|| {
+                runtime()
+                    .block_on(self.inner.option_history_eod(
+                        symbol, expiration, strike, right, start_date, end_date,
+                    ))
+                    .map_err(to_py_err)
+            })?;
         Ok(ticks.iter().map(|t| eod_tick_to_dict(py, t)).collect())
     }
-    fn option_history_ohlc(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str, date: &str, interval: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let ticks = py.detach(|| { runtime().block_on(self.inner.option_history_ohlc(symbol, expiration, strike, right, date, interval)).map_err(to_py_err) })?;
+    fn option_history_ohlc(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+        date: &str,
+        interval: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let ticks = py.detach(|| {
+            runtime()
+                .block_on(
+                    self.inner
+                        .option_history_ohlc(symbol, expiration, strike, right, date, interval),
+                )
+                .map_err(to_py_err)
+        })?;
         Ok(ticks.iter().map(|t| ohlc_tick_to_dict(py, t)).collect())
     }
-    fn option_history_trade(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str, date: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let ticks = py.detach(|| { runtime().block_on(self.inner.option_history_trade(symbol, expiration, strike, right, date)).map_err(to_py_err) })?;
+    fn option_history_trade(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+        date: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let ticks = py.detach(|| {
+            runtime()
+                .block_on(
+                    self.inner
+                        .option_history_trade(symbol, expiration, strike, right, date),
+                )
+                .map_err(to_py_err)
+        })?;
         Ok(ticks.iter().map(|t| trade_tick_to_dict(py, t)).collect())
     }
-    fn option_history_quote(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str, date: &str, interval: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let ticks = py.detach(|| { runtime().block_on(self.inner.option_history_quote(symbol, expiration, strike, right, date, interval)).map_err(to_py_err) })?;
+    fn option_history_quote(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+        date: &str,
+        interval: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let ticks = py.detach(|| {
+            runtime()
+                .block_on(
+                    self.inner
+                        .option_history_quote(symbol, expiration, strike, right, date, interval),
+                )
+                .map_err(to_py_err)
+        })?;
         Ok(ticks.iter().map(|t| quote_tick_to_dict(py, t)).collect())
     }
-    fn option_history_trade_quote(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str, date: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.option_history_trade_quote(symbol, expiration, strike, right, date)).map_err(to_py_err) })?;
+    fn option_history_trade_quote(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+        date: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let table = py.detach(|| {
+            runtime()
+                .block_on(
+                    self.inner
+                        .option_history_trade_quote(symbol, expiration, strike, right, date),
+                )
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
-    fn option_history_open_interest(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str, date: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.option_history_open_interest(symbol, expiration, strike, right, date)).map_err(to_py_err) })?;
+    fn option_history_open_interest(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+        date: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let table = py.detach(|| {
+            runtime()
+                .block_on(
+                    self.inner
+                        .option_history_open_interest(symbol, expiration, strike, right, date),
+                )
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
 
     // ── Option — History Greeks (11) ──
 
-    fn option_history_greeks_eod(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str, start_date: &str, end_date: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.option_history_greeks_eod(symbol, expiration, strike, right, start_date, end_date)).map_err(to_py_err) })?;
+    fn option_history_greeks_eod(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+        start_date: &str,
+        end_date: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let table = py.detach(|| {
+            runtime()
+                .block_on(self.inner.option_history_greeks_eod(
+                    symbol, expiration, strike, right, start_date, end_date,
+                ))
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
-    fn option_history_greeks_all(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str, date: &str, interval: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.option_history_greeks_all(symbol, expiration, strike, right, date, interval)).map_err(to_py_err) })?;
+    fn option_history_greeks_all(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+        date: &str,
+        interval: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let table =
+            py.detach(|| {
+                runtime()
+                    .block_on(self.inner.option_history_greeks_all(
+                        symbol, expiration, strike, right, date, interval,
+                    ))
+                    .map_err(to_py_err)
+            })?;
         Ok(data_table_to_dicts(py, &table))
     }
-    fn option_history_trade_greeks_all(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str, date: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.option_history_trade_greeks_all(symbol, expiration, strike, right, date)).map_err(to_py_err) })?;
+    fn option_history_trade_greeks_all(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+        date: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let table = py.detach(|| {
+            runtime()
+                .block_on(
+                    self.inner
+                        .option_history_trade_greeks_all(symbol, expiration, strike, right, date),
+                )
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
-    fn option_history_greeks_first_order(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str, date: &str, interval: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.option_history_greeks_first_order(symbol, expiration, strike, right, date, interval)).map_err(to_py_err) })?;
+    fn option_history_greeks_first_order(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+        date: &str,
+        interval: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let table = py.detach(|| {
+            runtime()
+                .block_on(self.inner.option_history_greeks_first_order(
+                    symbol, expiration, strike, right, date, interval,
+                ))
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
-    fn option_history_trade_greeks_first_order(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str, date: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.option_history_trade_greeks_first_order(symbol, expiration, strike, right, date)).map_err(to_py_err) })?;
+    fn option_history_trade_greeks_first_order(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+        date: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let table = py.detach(|| {
+            runtime()
+                .block_on(self.inner.option_history_trade_greeks_first_order(
+                    symbol, expiration, strike, right, date,
+                ))
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
-    fn option_history_greeks_second_order(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str, date: &str, interval: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.option_history_greeks_second_order(symbol, expiration, strike, right, date, interval)).map_err(to_py_err) })?;
+    fn option_history_greeks_second_order(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+        date: &str,
+        interval: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let table = py.detach(|| {
+            runtime()
+                .block_on(self.inner.option_history_greeks_second_order(
+                    symbol, expiration, strike, right, date, interval,
+                ))
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
-    fn option_history_trade_greeks_second_order(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str, date: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.option_history_trade_greeks_second_order(symbol, expiration, strike, right, date)).map_err(to_py_err) })?;
+    fn option_history_trade_greeks_second_order(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+        date: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let table = py.detach(|| {
+            runtime()
+                .block_on(self.inner.option_history_trade_greeks_second_order(
+                    symbol, expiration, strike, right, date,
+                ))
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
-    fn option_history_greeks_third_order(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str, date: &str, interval: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.option_history_greeks_third_order(symbol, expiration, strike, right, date, interval)).map_err(to_py_err) })?;
+    fn option_history_greeks_third_order(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+        date: &str,
+        interval: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let table = py.detach(|| {
+            runtime()
+                .block_on(self.inner.option_history_greeks_third_order(
+                    symbol, expiration, strike, right, date, interval,
+                ))
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
-    fn option_history_trade_greeks_third_order(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str, date: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.option_history_trade_greeks_third_order(symbol, expiration, strike, right, date)).map_err(to_py_err) })?;
+    fn option_history_trade_greeks_third_order(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+        date: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let table = py.detach(|| {
+            runtime()
+                .block_on(self.inner.option_history_trade_greeks_third_order(
+                    symbol, expiration, strike, right, date,
+                ))
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
-    fn option_history_greeks_implied_volatility(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str, date: &str, interval: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.option_history_greeks_implied_volatility(symbol, expiration, strike, right, date, interval)).map_err(to_py_err) })?;
+    fn option_history_greeks_implied_volatility(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+        date: &str,
+        interval: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let table = py.detach(|| {
+            runtime()
+                .block_on(self.inner.option_history_greeks_implied_volatility(
+                    symbol, expiration, strike, right, date, interval,
+                ))
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
-    fn option_history_trade_greeks_implied_volatility(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str, date: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.option_history_trade_greeks_implied_volatility(symbol, expiration, strike, right, date)).map_err(to_py_err) })?;
+    fn option_history_trade_greeks_implied_volatility(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+        date: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let table = py.detach(|| {
+            runtime()
+                .block_on(self.inner.option_history_trade_greeks_implied_volatility(
+                    symbol, expiration, strike, right, date,
+                ))
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
 
     // ── Option — At-Time (2) ──
 
-    fn option_at_time_trade(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str, start_date: &str, end_date: &str, time_of_day: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let ticks = py.detach(|| { runtime().block_on(self.inner.option_at_time_trade(symbol, expiration, strike, right, start_date, end_date, time_of_day)).map_err(to_py_err) })?;
+    #[allow(clippy::too_many_arguments)]
+    fn option_at_time_trade(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+        start_date: &str,
+        end_date: &str,
+        time_of_day: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let ticks = py.detach(|| {
+            runtime()
+                .block_on(self.inner.option_at_time_trade(
+                    symbol,
+                    expiration,
+                    strike,
+                    right,
+                    start_date,
+                    end_date,
+                    time_of_day,
+                ))
+                .map_err(to_py_err)
+        })?;
         Ok(ticks.iter().map(|t| trade_tick_to_dict(py, t)).collect())
     }
-    fn option_at_time_quote(&self, py: Python<'_>, symbol: &str, expiration: &str, strike: &str, right: &str, start_date: &str, end_date: &str, time_of_day: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let ticks = py.detach(|| { runtime().block_on(self.inner.option_at_time_quote(symbol, expiration, strike, right, start_date, end_date, time_of_day)).map_err(to_py_err) })?;
+    #[allow(clippy::too_many_arguments)]
+    fn option_at_time_quote(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+        start_date: &str,
+        end_date: &str,
+        time_of_day: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let ticks = py.detach(|| {
+            runtime()
+                .block_on(self.inner.option_at_time_quote(
+                    symbol,
+                    expiration,
+                    strike,
+                    right,
+                    start_date,
+                    end_date,
+                    time_of_day,
+                ))
+                .map_err(to_py_err)
+        })?;
         Ok(ticks.iter().map(|t| quote_tick_to_dict(py, t)).collect())
     }
 
     // ── Index — List (2) ──
 
     fn index_list_symbols(&self, py: Python<'_>) -> PyResult<Vec<String>> {
-        py.detach(|| { runtime().block_on(self.inner.index_list_symbols()).map_err(to_py_err) })
+        py.detach(|| {
+            runtime()
+                .block_on(self.inner.index_list_symbols())
+                .map_err(to_py_err)
+        })
     }
     fn index_list_dates(&self, py: Python<'_>, symbol: &str) -> PyResult<Vec<String>> {
-        py.detach(|| { runtime().block_on(self.inner.index_list_dates(symbol)).map_err(to_py_err) })
+        py.detach(|| {
+            runtime()
+                .block_on(self.inner.index_list_dates(symbol))
+                .map_err(to_py_err)
+        })
     }
 
     // ── Index — Snapshot (3) ──
 
-    fn index_snapshot_ohlc(&self, py: Python<'_>, symbols: Vec<String>) -> PyResult<Vec<Py<PyAny>>> {
+    fn index_snapshot_ohlc(
+        &self,
+        py: Python<'_>,
+        symbols: Vec<String>,
+    ) -> PyResult<Vec<Py<PyAny>>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let ticks = py.detach(|| { runtime().block_on(self.inner.index_snapshot_ohlc(&refs)).map_err(to_py_err) })?;
+        let ticks = py.detach(|| {
+            runtime()
+                .block_on(self.inner.index_snapshot_ohlc(&refs))
+                .map_err(to_py_err)
+        })?;
         Ok(ticks.iter().map(|t| ohlc_tick_to_dict(py, t)).collect())
     }
-    fn index_snapshot_price(&self, py: Python<'_>, symbols: Vec<String>) -> PyResult<Vec<Py<PyAny>>> {
+    fn index_snapshot_price(
+        &self,
+        py: Python<'_>,
+        symbols: Vec<String>,
+    ) -> PyResult<Vec<Py<PyAny>>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let table = py.detach(|| { runtime().block_on(self.inner.index_snapshot_price(&refs)).map_err(to_py_err) })?;
+        let table = py.detach(|| {
+            runtime()
+                .block_on(self.inner.index_snapshot_price(&refs))
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
-    fn index_snapshot_market_value(&self, py: Python<'_>, symbols: Vec<String>) -> PyResult<Vec<Py<PyAny>>> {
+    fn index_snapshot_market_value(
+        &self,
+        py: Python<'_>,
+        symbols: Vec<String>,
+    ) -> PyResult<Vec<Py<PyAny>>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let table = py.detach(|| { runtime().block_on(self.inner.index_snapshot_market_value(&refs)).map_err(to_py_err) })?;
+        let table = py.detach(|| {
+            runtime()
+                .block_on(self.inner.index_snapshot_market_value(&refs))
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
 
     // ── Index — History (3) ──
 
-    fn index_history_eod(&self, py: Python<'_>, symbol: &str, start_date: &str, end_date: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let ticks = py.detach(|| { runtime().block_on(self.inner.index_history_eod(symbol, start_date, end_date)).map_err(to_py_err) })?;
+    fn index_history_eod(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        start_date: &str,
+        end_date: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let ticks = py.detach(|| {
+            runtime()
+                .block_on(self.inner.index_history_eod(symbol, start_date, end_date))
+                .map_err(to_py_err)
+        })?;
         Ok(ticks.iter().map(|t| eod_tick_to_dict(py, t)).collect())
     }
-    fn index_history_ohlc(&self, py: Python<'_>, symbol: &str, start_date: &str, end_date: &str, interval: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let ticks = py.detach(|| { runtime().block_on(self.inner.index_history_ohlc(symbol, start_date, end_date, interval)).map_err(to_py_err) })?;
+    fn index_history_ohlc(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        start_date: &str,
+        end_date: &str,
+        interval: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let ticks = py.detach(|| {
+            runtime()
+                .block_on(
+                    self.inner
+                        .index_history_ohlc(symbol, start_date, end_date, interval),
+                )
+                .map_err(to_py_err)
+        })?;
         Ok(ticks.iter().map(|t| ohlc_tick_to_dict(py, t)).collect())
     }
-    fn index_history_price(&self, py: Python<'_>, symbol: &str, date: &str, interval: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.index_history_price(symbol, date, interval)).map_err(to_py_err) })?;
+    fn index_history_price(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        date: &str,
+        interval: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let table = py.detach(|| {
+            runtime()
+                .block_on(self.inner.index_history_price(symbol, date, interval))
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
 
     // ── Index — At-Time (1) ──
 
-    fn index_at_time_price(&self, py: Python<'_>, symbol: &str, start_date: &str, end_date: &str, time_of_day: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.index_at_time_price(symbol, start_date, end_date, time_of_day)).map_err(to_py_err) })?;
+    fn index_at_time_price(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        start_date: &str,
+        end_date: &str,
+        time_of_day: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let table = py.detach(|| {
+            runtime()
+                .block_on(
+                    self.inner
+                        .index_at_time_price(symbol, start_date, end_date, time_of_day),
+                )
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
 
     // ── Calendar (3) ──
 
     fn calendar_open_today(&self, py: Python<'_>) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.calendar_open_today()).map_err(to_py_err) })?;
+        let table = py.detach(|| {
+            runtime()
+                .block_on(self.inner.calendar_open_today())
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
     fn calendar_on_date(&self, py: Python<'_>, date: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.calendar_on_date(date)).map_err(to_py_err) })?;
+        let table = py.detach(|| {
+            runtime()
+                .block_on(self.inner.calendar_on_date(date))
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
     fn calendar_year(&self, py: Python<'_>, year: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.calendar_year(year)).map_err(to_py_err) })?;
+        let table = py.detach(|| {
+            runtime()
+                .block_on(self.inner.calendar_year(year))
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
     }
 
     // ── Interest Rate (1) ──
 
-    fn interest_rate_history_eod(&self, py: Python<'_>, symbol: &str, start_date: &str, end_date: &str) -> PyResult<Vec<Py<PyAny>>> {
-        let table = py.detach(|| { runtime().block_on(self.inner.interest_rate_history_eod(symbol, start_date, end_date)).map_err(to_py_err) })?;
+    fn interest_rate_history_eod(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        start_date: &str,
+        end_date: &str,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        let table = py.detach(|| {
+            runtime()
+                .block_on(
+                    self.inner
+                        .interest_rate_history_eod(symbol, start_date, end_date),
+                )
+                .map_err(to_py_err)
+        })?;
         Ok(data_table_to_dicts(py, &table))
+    }
+
+    // ── DataFrame convenience wrappers ──
+    //
+    // These call the underlying method and wrap the result in a pandas DataFrame.
+    // Requires pandas to be installed (`pip install pandas`).
+
+    /// Fetch stock EOD history and return a pandas DataFrame.
+    fn stock_history_eod_df(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        start_date: &str,
+        end_date: &str,
+    ) -> PyResult<Py<PyAny>> {
+        let ticks = self.stock_history_eod(py, symbol, start_date, end_date)?;
+        dicts_to_dataframe(py, ticks)
+    }
+
+    /// Fetch stock OHLC history and return a pandas DataFrame.
+    fn stock_history_ohlc_df(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        date: &str,
+        interval: &str,
+    ) -> PyResult<Py<PyAny>> {
+        let ticks = self.stock_history_ohlc(py, symbol, date, interval)?;
+        dicts_to_dataframe(py, ticks)
+    }
+
+    /// Fetch stock trade history and return a pandas DataFrame.
+    fn stock_history_trade_df(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        date: &str,
+    ) -> PyResult<Py<PyAny>> {
+        let ticks = self.stock_history_trade(py, symbol, date)?;
+        dicts_to_dataframe(py, ticks)
+    }
+
+    /// Fetch stock quote history and return a pandas DataFrame.
+    fn stock_history_quote_df(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        date: &str,
+        interval: &str,
+    ) -> PyResult<Py<PyAny>> {
+        let ticks = self.stock_history_quote(py, symbol, date, interval)?;
+        dicts_to_dataframe(py, ticks)
     }
 
     fn __repr__(&self) -> String {
@@ -549,7 +1329,8 @@ fn all_greeks(
     option_price: f64,
     is_call: bool,
 ) -> Py<PyAny> {
-    let g = thetadatadx::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, is_call);
+    let g =
+        thetadatadx::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, is_call);
     let dict = PyDict::new(py);
     dict.set_item("value", g.value).unwrap();
     dict.set_item("delta", g.delta).unwrap();
@@ -591,7 +1372,355 @@ fn implied_volatility(
     option_price: f64,
     is_call: bool,
 ) -> (f64, f64) {
-    thetadatadx::greeks::implied_volatility(spot, strike, rate, div_yield, tte, option_price, is_call)
+    thetadatadx::greeks::implied_volatility(
+        spot,
+        strike,
+        rate,
+        div_yield,
+        tte,
+        option_price,
+        is_call,
+    )
+}
+
+// ── FPSS streaming client ──
+
+/// A buffered FPSS event ready for Python consumption.
+///
+/// We extract event data into this simple struct so it is Clone + Send and
+/// can travel through an `mpsc` channel from the Disruptor callback thread
+/// to the Python polling thread.
+#[derive(Clone, Debug)]
+struct BufferedEvent {
+    /// Event kind as a string (e.g. "quote_data", "trade_data", "login_success").
+    kind: String,
+    /// Serialized payload bytes (for data events) or human-readable string.
+    payload: Option<Vec<u8>>,
+    /// Additional metadata (permissions, error messages, contract info, etc.).
+    detail: Option<String>,
+    /// Numeric ID if applicable (req_id, contract_id).
+    id: Option<i32>,
+}
+
+fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
+    match event {
+        fpss::FpssEvent::LoginSuccess { permissions } => BufferedEvent {
+            kind: "login_success".to_string(),
+            payload: None,
+            detail: Some(permissions.clone()),
+            id: None,
+        },
+        fpss::FpssEvent::ContractAssigned { id, contract } => BufferedEvent {
+            kind: "contract_assigned".to_string(),
+            payload: None,
+            detail: Some(format!("{contract}")),
+            id: Some(*id),
+        },
+        fpss::FpssEvent::QuoteData { payload } => BufferedEvent {
+            kind: "quote_data".to_string(),
+            payload: Some(payload.clone()),
+            detail: None,
+            id: None,
+        },
+        fpss::FpssEvent::TradeData { payload } => BufferedEvent {
+            kind: "trade_data".to_string(),
+            payload: Some(payload.clone()),
+            detail: None,
+            id: None,
+        },
+        fpss::FpssEvent::OpenInterestData { payload } => BufferedEvent {
+            kind: "open_interest_data".to_string(),
+            payload: Some(payload.clone()),
+            detail: None,
+            id: None,
+        },
+        fpss::FpssEvent::OhlcvcData { payload } => BufferedEvent {
+            kind: "ohlcvc_data".to_string(),
+            payload: Some(payload.clone()),
+            detail: None,
+            id: None,
+        },
+        fpss::FpssEvent::ReqResponse { req_id, result } => BufferedEvent {
+            kind: "req_response".to_string(),
+            payload: None,
+            detail: Some(format!("{result:?}")),
+            id: Some(*req_id),
+        },
+        fpss::FpssEvent::MarketOpen => BufferedEvent {
+            kind: "market_open".to_string(),
+            payload: None,
+            detail: None,
+            id: None,
+        },
+        fpss::FpssEvent::MarketClose => BufferedEvent {
+            kind: "market_close".to_string(),
+            payload: None,
+            detail: None,
+            id: None,
+        },
+        fpss::FpssEvent::ServerError { message } => BufferedEvent {
+            kind: "server_error".to_string(),
+            payload: None,
+            detail: Some(message.clone()),
+            id: None,
+        },
+        fpss::FpssEvent::Disconnected { reason } => BufferedEvent {
+            kind: "disconnected".to_string(),
+            payload: None,
+            detail: Some(format!("{reason:?}")),
+            id: None,
+        },
+        fpss::FpssEvent::Error { message } => BufferedEvent {
+            kind: "error".to_string(),
+            payload: None,
+            detail: Some(message.clone()),
+            id: None,
+        },
+        _ => BufferedEvent {
+            kind: "unknown".to_string(),
+            payload: None,
+            detail: None,
+            id: None,
+        },
+    }
+}
+
+fn buffered_event_to_py(py: Python<'_>, event: &BufferedEvent) -> Py<PyAny> {
+    let dict = PyDict::new(py);
+    dict.set_item("kind", &event.kind).unwrap();
+    if let Some(ref payload) = event.payload {
+        dict.set_item("payload", pyo3::types::PyBytes::new(py, payload))
+            .unwrap();
+    } else {
+        dict.set_item("payload", py.None()).unwrap();
+    }
+    if let Some(ref detail) = event.detail {
+        dict.set_item("detail", detail.as_str()).unwrap();
+    } else {
+        dict.set_item("detail", py.None()).unwrap();
+    }
+    if let Some(id) = event.id {
+        dict.set_item("id", id).unwrap();
+    } else {
+        dict.set_item("id", py.None()).unwrap();
+    }
+    dict.into_any().unbind()
+}
+
+/// Real-time FPSS streaming client.
+///
+/// Events are buffered in an internal queue. Call `next_event()` to poll.
+///
+/// Example::
+///
+///     client = FpssClient(creds, config)
+///     req_id = client.subscribe_quotes("AAPL")
+///     while True:
+///         event = client.next_event(timeout_ms=1000)
+///         if event is not None:
+///             print(event["kind"], event.get("payload"))
+#[pyclass]
+struct FpssClient {
+    inner: Arc<Mutex<Option<fpss::FpssClient>>>,
+    rx: Arc<Mutex<std::sync::mpsc::Receiver<BufferedEvent>>>,
+}
+
+#[pymethods]
+impl FpssClient {
+    /// Connect to FPSS streaming servers.
+    ///
+    /// Events are collected in an internal queue. Call `next_event()` to poll.
+    #[new]
+    fn new(creds: &Credentials, config: &Config) -> PyResult<Self> {
+        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();
+
+        let client = fpss::FpssClient::connect(
+            &creds.inner,
+            config.inner.fpss_ring_size,
+            move |event: &fpss::FpssEvent| {
+                let buffered = fpss_event_to_buffered(event);
+                let _ = tx.send(buffered);
+            },
+        )
+        .map_err(to_py_err)?;
+
+        Ok(Self {
+            inner: Arc::new(Mutex::new(Some(client))),
+            rx: Arc::new(Mutex::new(rx)),
+        })
+    }
+
+    /// Subscribe to quote data for a stock symbol.
+    ///
+    /// Returns the request ID for this subscription.
+    fn subscribe_quotes(&self, symbol: &str) -> PyResult<i32> {
+        let guard = self.inner.lock().unwrap();
+        let client = guard
+            .as_ref()
+            .ok_or_else(|| PyRuntimeError::new_err("FpssClient is shut down"))?;
+        let contract = fpss::protocol::Contract::stock(symbol);
+        client.subscribe_quotes(&contract).map_err(to_py_err)
+    }
+
+    /// Subscribe to trade data for a stock symbol.
+    ///
+    /// Returns the request ID for this subscription.
+    fn subscribe_trades(&self, symbol: &str) -> PyResult<i32> {
+        let guard = self.inner.lock().unwrap();
+        let client = guard
+            .as_ref()
+            .ok_or_else(|| PyRuntimeError::new_err("FpssClient is shut down"))?;
+        let contract = fpss::protocol::Contract::stock(symbol);
+        client.subscribe_trades(&contract).map_err(to_py_err)
+    }
+
+    /// Subscribe to open interest data for a stock symbol.
+    ///
+    /// Returns the request ID for this subscription.
+    fn subscribe_open_interest(&self, symbol: &str) -> PyResult<i32> {
+        let guard = self.inner.lock().unwrap();
+        let client = guard
+            .as_ref()
+            .ok_or_else(|| PyRuntimeError::new_err("FpssClient is shut down"))?;
+        let contract = fpss::protocol::Contract::stock(symbol);
+        client.subscribe_open_interest(&contract).map_err(to_py_err)
+    }
+
+    /// Subscribe to quote data for an option contract.
+    ///
+    /// Args:
+    ///     symbol: Underlying ticker (e.g. "AAPL")
+    ///     exp_date: Expiration as YYYYMMDD integer (e.g. 20260320)
+    ///     is_call: True for call, False for put
+    ///     strike: Strike price in ThetaData integer encoding
+    ///
+    /// Returns the request ID for this subscription.
+    fn subscribe_option_quotes(
+        &self,
+        symbol: &str,
+        exp_date: i32,
+        is_call: bool,
+        strike: i32,
+    ) -> PyResult<i32> {
+        let guard = self.inner.lock().unwrap();
+        let client = guard
+            .as_ref()
+            .ok_or_else(|| PyRuntimeError::new_err("FpssClient is shut down"))?;
+        let contract = fpss::protocol::Contract::option(symbol, exp_date, is_call, strike);
+        client.subscribe_quotes(&contract).map_err(to_py_err)
+    }
+
+    /// Subscribe to trade data for an option contract.
+    fn subscribe_option_trades(
+        &self,
+        symbol: &str,
+        exp_date: i32,
+        is_call: bool,
+        strike: i32,
+    ) -> PyResult<i32> {
+        let guard = self.inner.lock().unwrap();
+        let client = guard
+            .as_ref()
+            .ok_or_else(|| PyRuntimeError::new_err("FpssClient is shut down"))?;
+        let contract = fpss::protocol::Contract::option(symbol, exp_date, is_call, strike);
+        client.subscribe_trades(&contract).map_err(to_py_err)
+    }
+
+    /// Unsubscribe from quote data for a stock symbol.
+    fn unsubscribe_quotes(&self, symbol: &str) -> PyResult<i32> {
+        let guard = self.inner.lock().unwrap();
+        let client = guard
+            .as_ref()
+            .ok_or_else(|| PyRuntimeError::new_err("FpssClient is shut down"))?;
+        let contract = fpss::protocol::Contract::stock(symbol);
+        client.unsubscribe_quotes(&contract).map_err(to_py_err)
+    }
+
+    /// Unsubscribe from trade data for a stock symbol.
+    fn unsubscribe_trades(&self, symbol: &str) -> PyResult<i32> {
+        let guard = self.inner.lock().unwrap();
+        let client = guard
+            .as_ref()
+            .ok_or_else(|| PyRuntimeError::new_err("FpssClient is shut down"))?;
+        let contract = fpss::protocol::Contract::stock(symbol);
+        client.unsubscribe_trades(&contract).map_err(to_py_err)
+    }
+
+    /// Poll for the next FPSS event.
+    ///
+    /// Args:
+    ///     timeout_ms: Maximum time to wait in milliseconds.
+    ///
+    /// Returns:
+    ///     A dict with keys ``kind``, ``payload``, ``detail``, ``id``, or ``None``
+    ///     if no event arrived within the timeout.
+    fn next_event(&self, py: Python<'_>, timeout_ms: u64) -> PyResult<Option<Py<PyAny>>> {
+        let rx_arc = Arc::clone(&self.rx);
+        let timeout = std::time::Duration::from_millis(timeout_ms);
+        // Release the GIL while waiting so other Python threads can run.
+        let result = py.detach(move || {
+            let rx = rx_arc.lock().unwrap();
+            rx.recv_timeout(timeout).ok()
+        });
+        match result {
+            Some(event) => Ok(Some(buffered_event_to_py(py, &event))),
+            None => Ok(None),
+        }
+    }
+
+    /// Check if the FPSS client is currently authenticated and connected.
+    fn is_authenticated(&self) -> bool {
+        let guard = self.inner.lock().unwrap();
+        guard
+            .as_ref()
+            .map(|c| c.is_authenticated())
+            .unwrap_or(false)
+    }
+
+    /// Shut down the FPSS client, stopping all background threads.
+    fn shutdown(&self) -> PyResult<()> {
+        let mut guard = self.inner.lock().unwrap();
+        if let Some(client) = guard.take() {
+            client.shutdown();
+            // Drop triggers thread join via FpssClient::drop
+        }
+        Ok(())
+    }
+
+    fn __repr__(&self) -> String {
+        let guard = self.inner.lock().unwrap();
+        if guard.is_some() {
+            "FpssClient(connected)".to_string()
+        } else {
+            "FpssClient(shutdown)".to_string()
+        }
+    }
+}
+
+// ── pandas DataFrame helpers ──
+
+/// Internal helper: convert a Vec of Python dicts into a pandas DataFrame.
+fn dicts_to_dataframe(py: Python<'_>, dicts: Vec<Py<PyAny>>) -> PyResult<Py<PyAny>> {
+    let pandas = py.import("pandas").map_err(|_| {
+        PyRuntimeError::new_err(
+            "pandas is required for DataFrame conversion. Install with: pip install pandas",
+        )
+    })?;
+    let df = pandas.call_method1("DataFrame", (dicts,))?;
+    Ok(df.unbind())
+}
+
+/// Convert a list of tick dicts to a pandas DataFrame.
+///
+/// Requires pandas to be installed (``pip install pandas``).
+///
+/// Example::
+///
+///     ticks = client.stock_history_eod("AAPL", "20240101", "20240301")
+///     df = thetadatadx.to_dataframe(ticks)
+#[pyfunction]
+fn to_dataframe(py: Python<'_>, ticks: Vec<Py<PyAny>>) -> PyResult<Py<PyAny>> {
+    dicts_to_dataframe(py, ticks)
 }
 
 // ── Module ──
@@ -607,7 +1736,9 @@ fn thetadatadx_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Credentials>()?;
     m.add_class::<Config>()?;
     m.add_class::<DirectClient>()?;
+    m.add_class::<FpssClient>()?;
     m.add_function(wrap_pyfunction!(all_greeks, m)?)?;
     m.add_function(wrap_pyfunction!(implied_volatility, m)?)?;
+    m.add_function(wrap_pyfunction!(to_dataframe, m)?)?;
     Ok(())
 }

@@ -15,6 +15,8 @@
 #ifndef THETADX_H
 #define THETADX_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -23,6 +25,7 @@ extern "C" {
 typedef struct TdxCredentials TdxCredentials;
 typedef struct TdxClient TdxClient;
 typedef struct TdxConfig TdxConfig;
+typedef struct TdxFpssHandle TdxFpssHandle;
 
 /* ── Error ── */
 
@@ -381,6 +384,31 @@ char* tdx_all_greeks(double spot, double strike, double rate, double div_yield,
 int tdx_implied_volatility(double spot, double strike, double rate, double div_yield,
                            double tte, double option_price, int is_call,
                            double* out_iv, double* out_error);
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/*  FPSS — Real-time streaming client                                     */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+/** Connect to FPSS streaming servers. Returns NULL on failure. */
+TdxFpssHandle* tdx_fpss_connect(const TdxCredentials* creds, const TdxConfig* config);
+
+/** Subscribe to quote data. Returns request ID or -1 on error. */
+int tdx_fpss_subscribe_quotes(const TdxFpssHandle* h, const char* symbol);
+
+/** Subscribe to trade data. Returns request ID or -1 on error. */
+int tdx_fpss_subscribe_trades(const TdxFpssHandle* h, const char* symbol);
+
+/** Unsubscribe from quote data. Returns request ID or -1 on error. */
+int tdx_fpss_unsubscribe_quotes(const TdxFpssHandle* h, const char* symbol);
+
+/** Poll for the next event. Returns JSON string or NULL on timeout. Caller must free with tdx_string_free. */
+char* tdx_fpss_next_event(const TdxFpssHandle* h, uint64_t timeout_ms);
+
+/** Shut down the FPSS client. */
+void tdx_fpss_shutdown(const TdxFpssHandle* h);
+
+/** Free the FPSS handle. Must be called after tdx_fpss_shutdown. */
+void tdx_fpss_free(TdxFpssHandle* h);
 
 #ifdef __cplusplus
 }

@@ -797,6 +797,51 @@ std::string Client::interest_rate_history_eod(
 //  Greeks (standalone)
 // ═══════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════
+//  FPSS — Real-time streaming client
+// ═══════════════════════════════════════════════════════════════════════
+
+FpssClient::FpssClient(const Credentials& creds, const Config& config) {
+    TdxFpssHandle* h = tdx_fpss_connect(creds.get(), config.get());
+    if (!h) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+    handle_.reset(h);
+}
+
+int FpssClient::subscribe_quotes(const std::string& symbol) {
+    int rc = tdx_fpss_subscribe_quotes(handle_.get(), symbol.c_str());
+    if (rc < 0) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+    return rc;
+}
+
+int FpssClient::subscribe_trades(const std::string& symbol) {
+    int rc = tdx_fpss_subscribe_trades(handle_.get(), symbol.c_str());
+    if (rc < 0) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+    return rc;
+}
+
+std::string FpssClient::next_event(uint64_t timeout_ms) {
+    detail::FfiString result(tdx_fpss_next_event(handle_.get(), timeout_ms));
+    if (!result.ok()) return "";  // Timeout — not an error.
+    return result.str();
+}
+
+void FpssClient::shutdown() {
+    if (handle_) {
+        tdx_fpss_shutdown(handle_.get());
+    }
+}
+
+FpssClient::~FpssClient() {
+    if (handle_) {
+        tdx_fpss_shutdown(handle_.get());
+    }
+    // handle_ unique_ptr destructor calls tdx_fpss_free via FpssHandleDeleter
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  Standalone Greeks
+// ═══════════════════════════════════════════════════════════════════════
+
 Greeks all_greeks(double spot, double strike, double rate, double div_yield,
                   double tte, double option_price, bool is_call)
 {

@@ -101,6 +101,12 @@ pub struct DirectConfig {
     pub fpss_connect_timeout_ms: u64,
 
     // ── MDDS tuning ──
+    /// Max concurrent in-flight gRPC requests.
+    ///
+    /// JVM equivalent: `2^subscription_tier` (Free=1, Value=2, Standard=4, Pro=16).
+    /// Set to 0 for unlimited.
+    pub mdds_concurrent_requests: usize,
+
     /// Max inbound gRPC message size in bytes.
     ///
     /// JVM equivalent: `maxInboundMessageSize(0x100000 * config.messageSize())`,
@@ -171,6 +177,9 @@ impl DirectConfig {
             fpss_ping_interval_ms: 100,     // FPSSClient.startPinging()
             fpss_connect_timeout_ms: 2_000, // FPSSClient socket.connect timeout
 
+            // Concurrency: safe for Value tier and above (2^1 = 2)
+            mdds_concurrent_requests: 2,
+
             // Source: ChannelProvider in decompiled terminal
             mdds_max_message_size: 4 * 1024 * 1024, // 4MB default
             mdds_keepalive_secs: 30,
@@ -205,6 +214,9 @@ impl DirectConfig {
             fpss_ring_size: 65_536, // 2^16, smaller for dev
             fpss_ping_interval_ms: 100,
             fpss_connect_timeout_ms: 2_000,
+
+            // Dev: conservative concurrency (Free tier)
+            mdds_concurrent_requests: 1,
 
             mdds_max_message_size: 4 * 1024 * 1024,
             mdds_keepalive_secs: 30,

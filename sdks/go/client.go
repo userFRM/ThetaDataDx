@@ -2,11 +2,13 @@ package thetadatadx
 
 /*
 #include <stdlib.h>
+#include <stdint.h>
 
 // Forward declarations (already defined in thetadatadx.go, but CGo needs them per file).
 typedef void TdxCredentials;
 typedef void TdxClient;
 typedef void TdxConfig;
+typedef void TdxFpssHandle;
 
 extern TdxClient* tdx_client_connect(const TdxCredentials* creds, const TdxConfig* config);
 extern void tdx_client_free(TdxClient* client);
@@ -106,6 +108,15 @@ extern char* tdx_interest_rate_history_eod(const TdxClient* client, const char* 
 extern char* tdx_all_greeks(double spot, double strike, double rate, double div_yield, double tte, double option_price, int is_call);
 extern int tdx_implied_volatility(double spot, double strike, double rate, double div_yield, double tte, double option_price, int is_call, double* out_iv, double* out_error);
 extern void tdx_string_free(char* s);
+
+// FPSS (real-time streaming)
+extern TdxFpssHandle* tdx_fpss_connect(const TdxCredentials* creds, const TdxConfig* config);
+extern int tdx_fpss_subscribe_quotes(const TdxFpssHandle* h, const char* symbol);
+extern int tdx_fpss_subscribe_trades(const TdxFpssHandle* h, const char* symbol);
+extern int tdx_fpss_unsubscribe_quotes(const TdxFpssHandle* h, const char* symbol);
+extern char* tdx_fpss_next_event(const TdxFpssHandle* h, uint64_t timeout_ms);
+extern void tdx_fpss_shutdown(const TdxFpssHandle* h);
+extern void tdx_fpss_free(TdxFpssHandle* h);
 */
 import "C"
 
@@ -757,4 +768,87 @@ func ImpliedVolatility(spot, strike, rate, divYield, tte, optionPrice float64, i
 		return 0, 0, fmt.Errorf("thetadatadx: %s", lastError())
 	}
 	return float64(outIV), float64(outErr), nil
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  FPSS — Real-time streaming client
+// ═══════════════════════════════════════════════════════════════════════
+
+// FpssClient is a real-time FPSS streaming client.
+//
+// Events are buffered internally. Call NextEvent() to poll for events.
+type FpssClient struct {
+	handle *C.TdxFpssHandle
+}
+
+// NewFpssClient connects to FPSS streaming servers.
+//
+// Events are collected in an internal queue. Call NextEvent() to poll.
+func NewFpssClient(creds *Credentials, config *Config) (*FpssClient, error) {
+	if creds == nil || creds.handle == nil {
+		return nil, fmt.Errorf("thetadatadx: credentials handle is nil")
+	}
+	if config == nil || config.handle == nil {
+		return nil, fmt.Errorf("thetadatadx: config handle is nil")
+	}
+	h := C.tdx_fpss_connect(creds.handle, config.handle)
+	if h == nil {
+		return nil, fmt.Errorf("thetadatadx: %s", lastError())
+	}
+	return &FpssClient{handle: h}, nil
+}
+
+// SubscribeQuotes subscribes to quote data for a stock symbol.
+//
+// Returns the request ID for this subscription.
+func (f *FpssClient) SubscribeQuotes(symbol string) (int, error) {
+	cSym := C.CString(symbol)
+	defer C.free(unsafe.Pointer(cSym))
+	rc := C.tdx_fpss_subscribe_quotes(f.handle, cSym)
+	if rc < 0 {
+		return 0, fmt.Errorf("thetadatadx: %s", lastError())
+	}
+	return int(rc), nil
+}
+
+// SubscribeTrades subscribes to trade data for a stock symbol.
+//
+// Returns the request ID for this subscription.
+func (f *FpssClient) SubscribeTrades(symbol string) (int, error) {
+	cSym := C.CString(symbol)
+	defer C.free(unsafe.Pointer(cSym))
+	rc := C.tdx_fpss_subscribe_trades(f.handle, cSym)
+	if rc < 0 {
+		return 0, fmt.Errorf("thetadatadx: %s", lastError())
+	}
+	return int(rc), nil
+}
+
+// NextEvent polls for the next FPSS event with a timeout.
+//
+// Returns nil (not an error) if no event arrived within the timeout.
+func (f *FpssClient) NextEvent(timeoutMs uint64) (json.RawMessage, error) {
+	cstr := C.tdx_fpss_next_event(f.handle, C.uint64_t(timeoutMs))
+	if cstr == nil {
+		// Timeout — not an error.
+		return nil, nil
+	}
+	goStr := C.GoString(cstr)
+	C.tdx_string_free(cstr)
+	return json.RawMessage(goStr), nil
+}
+
+// Shutdown stops the FPSS client and all background threads.
+func (f *FpssClient) Shutdown() {
+	if f.handle != nil {
+		C.tdx_fpss_shutdown(f.handle)
+	}
+}
+
+// Close frees the FPSS handle. Must be called after Shutdown().
+func (f *FpssClient) Close() {
+	if f.handle != nil {
+		C.tdx_fpss_free(f.handle)
+		f.handle = nil
+	}
 }

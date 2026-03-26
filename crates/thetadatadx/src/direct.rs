@@ -20,6 +20,7 @@
 //! compressed `DataTable` payloads decoded by [`crate::decode`].
 
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 
 use tokio_stream::StreamExt;
@@ -59,6 +60,8 @@ macro_rules! list_endpoint {
         $(#[$meta])*
         pub async fn $name(&self, $($arg : $arg_ty),*) -> Result<Vec<String>, Error> {
             tracing::debug!(endpoint = stringify!($name), "gRPC request");
+            let _permit = self.request_semaphore.acquire().await
+                .map_err(|_| Error::Fpss("request semaphore closed".into()))?;
             let request = proto_v3::$req {
                 query_info: Some(self.query_info()),
                 params: Some(proto_v3::$query { $($field : $val),* }),
@@ -93,6 +96,8 @@ macro_rules! parsed_endpoint {
         pub async fn $name(&self, $($arg : $arg_ty),*) -> Result<$ret, Error> {
             $($(validate_date($date_arg)?;)+)?
             tracing::debug!(endpoint = stringify!($name), "gRPC request");
+            let _permit = self.request_semaphore.acquire().await
+                .map_err(|_| Error::Fpss("request semaphore closed".into()))?;
             let request = proto_v3::$req {
                 query_info: Some(self.query_info()),
                 params: Some(proto_v3::$query { $($field : $val),* }),
@@ -121,6 +126,8 @@ macro_rules! raw_endpoint {
         pub async fn $name(&self, $($arg : $arg_ty),*) -> Result<proto::DataTable, Error> {
             $($(validate_date($date_arg)?;)+)?
             tracing::debug!(endpoint = stringify!($name), "gRPC request");
+            let _permit = self.request_semaphore.acquire().await
+                .map_err(|_| Error::Fpss("request semaphore closed".into()))?;
             let request = proto_v3::$req {
                 query_info: Some(self.query_info()),
                 params: Some(proto_v3::$query { $($field : $val),* }),
@@ -173,6 +180,12 @@ pub struct DirectClient {
     /// Pre-built QueryInfo template — cloned per-request instead of allocating
     /// new Strings each time.
     query_info_template: proto_v3::QueryInfo,
+    /// Semaphore limiting concurrent in-flight gRPC requests.
+    ///
+    /// The Java terminal limits concurrent requests to `2^subscription_tier`
+    /// (Free=1, Value=2, Standard=4, Pro=16). This semaphore enforces the same
+    /// bound to prevent server-side rate limiting / 429 disconnects.
+    request_semaphore: Arc<tokio::sync::Semaphore>,
 }
 
 impl DirectClient {
@@ -224,11 +237,23 @@ impl DirectClient {
             terminal_version: TERMINAL_VERSION.to_string(),
         };
 
+        let request_semaphore = if config.mdds_concurrent_requests > 0 {
+            Arc::new(tokio::sync::Semaphore::new(config.mdds_concurrent_requests))
+        } else {
+            Arc::new(tokio::sync::Semaphore::new(usize::MAX))
+        };
+
+        tracing::debug!(
+            mdds_concurrent_requests = config.mdds_concurrent_requests,
+            "request semaphore initialized"
+        );
+
         Ok(Self {
             session,
             channel,
             config,
             query_info_template,
+            request_semaphore,
         })
     }
 
@@ -258,10 +283,14 @@ impl DirectClient {
     /// MDDS returns server-streaming responses where each chunk is a zstd-
     /// compressed `DataTable`. This helper decompresses, decodes, and merges
     /// all chunks into one contiguous table.
-    // TODO(perf): Replace collect-then-parse with a streaming iterator that decodes
-    // and yields ticks on-the-fly, avoiding the intermediate merged DataTable
-    // allocation. This would cut peak memory by ~50% for large responses (e.g.
-    // full-day trade history can be 500K+ rows).
+    ///
+    /// Pre-allocates the row buffer based on the `original_size` hint from the
+    /// first response, reducing reallocations for large responses.
+    ///
+    /// For truly large responses (millions of rows), prefer [`for_each_chunk`]
+    /// which processes each chunk without materializing all rows in memory.
+    ///
+    /// [`for_each_chunk`]: Self::for_each_chunk
     async fn collect_stream(
         &self,
         mut stream: tonic::Streaming<proto::ResponseData>,
@@ -271,6 +300,14 @@ impl DirectClient {
 
         while let Some(response) = stream.next().await {
             let response = response?;
+
+            // Use original_size as a rough pre-allocation hint on the first chunk.
+            // Each DataValueList row is ~64 bytes on average (header-dependent),
+            // so original_size / 64 gives a reasonable row-count estimate.
+            if all_rows.is_empty() && response.original_size > 0 {
+                all_rows.reserve(response.original_size as usize / 64);
+            }
+
             let table = decode::decode_data_table(&response)?;
             if headers.is_empty() {
                 headers = table.headers;
@@ -286,6 +323,41 @@ impl DirectClient {
             headers,
             data_table: all_rows,
         })
+    }
+
+    /// Process streamed responses chunk-by-chunk without materializing all rows.
+    ///
+    /// Each gRPC `ResponseData` message is decoded independently and passed to
+    /// the callback as `(headers, rows)`. This keeps peak memory proportional to
+    /// a single chunk rather than the entire result set — critical for endpoints
+    /// that return millions of rows (e.g. full-day trade history).
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let request = /* build your gRPC request */;
+    /// let stream = client.stub().get_stock_history_trade(request).await?.into_inner();
+    ///
+    /// let mut count = 0usize;
+    /// client.for_each_chunk(stream, |_headers, rows| {
+    ///     count += rows.len();
+    /// }).await?;
+    /// println!("processed {count} rows without buffering them all");
+    /// ```
+    pub async fn for_each_chunk<F>(
+        &self,
+        mut stream: tonic::Streaming<proto::ResponseData>,
+        mut f: F,
+    ) -> Result<(), Error>
+    where
+        F: FnMut(&[String], &[proto::DataValueList]),
+    {
+        while let Some(response) = stream.next().await {
+            let response = response?;
+            let table = decode::decode_data_table(&response)?;
+            f(&table.headers, &table.data_table);
+        }
+        Ok(())
     }
 
     /// Return a reference to the underlying config for diagnostics.

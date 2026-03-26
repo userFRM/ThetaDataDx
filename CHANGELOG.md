@@ -9,6 +9,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 See [TODO.md](TODO.md) for the production readiness checklist and performance roadmap.
 
+## [1.1.1] - 2026-03-26
+
+### Added
+
+- **`mdds_concurrent_requests` semaphore** on DirectClient — configurable limit on in-flight
+  gRPC requests (default 2), exposed via `DirectConfig.mdds_concurrent_requests`
+- **Streaming `for_each_chunk` method** on DirectClient — process gRPC response chunks via
+  callback without materializing the full response in memory
+- **Pre-allocation hint in `collect_stream`** — uses `original_size` from `ResponseData` to
+  pre-allocate the decompression buffer, reducing reallocations
+- **Horner-form `norm_cdf`** — replaced Abramowitz & Stegun polynomial approximation with
+  Zelen & Severo Horner-form evaluation (~1e-7 accuracy, fewer multiplications)
+- **Python SDK: FPSS streaming** — `FpssClient` class with `subscribe()`, `next_event()`,
+  and `shutdown()` methods for real-time market data in Python
+- **Python SDK: pandas DataFrame conversion** — `to_dataframe()` function and `_df` method
+  variants on DirectClient (e.g. `stock_history_eod_df()`); install with
+  `pip install thetadatadx[pandas]`
+- **FFI crate: FPSS support** — 7 new `extern "C"` functions for FPSS lifecycle
+  (`fpss_connect`, `fpss_subscribe_quotes`, `fpss_subscribe_trades`,
+  `fpss_subscribe_open_interest`, `fpss_next_event`, `fpss_shutdown`, `fpss_free_event`)
+- **Go SDK: FPSS streaming** — `FpssClient` Go struct wrapping the FFI FPSS functions
+- **C++ SDK: FPSS streaming** — `FpssClient` C++ RAII class wrapping the FFI FPSS functions
+
+### Fixed
+
+- Version bump for crates.io/PyPI publish (v1.1.0 tag was re-pushed during history restore)
+
+### Performance
+
+- All TODO performance items now complete: streaming iterator (`for_each_chunk`),
+  faster `norm_cdf` (Horner-form), concurrent request semaphore (`mdds_concurrent_requests`)
+
 ## [1.1.0] - 2026-03-26
 
 ### Added
@@ -94,7 +126,8 @@ See [TODO.md](TODO.md) for the production readiness checklist and performance ro
 - FIT decoder uses i64 accumulator with i32 saturation (no silent overflow)
 - Price type range enforced with `assert!` in release builds
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/userFRM/ThetaDataDx/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/userFRM/ThetaDataDx/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/userFRM/ThetaDataDx/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/userFRM/ThetaDataDx/releases/tag/v1.0.0

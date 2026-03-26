@@ -29,6 +29,31 @@ let client = DirectClient::connect(&creds, DirectConfig::production()).await?;
 | `channel()` | `&self -> &tonic::transport::Channel` | Access the underlying gRPC channel |
 | `raw_query_info()` | `&self -> proto_v3::QueryInfo` | Get a QueryInfo for use with raw_query |
 
+### Streaming Response Processing
+
+```rust
+pub async fn for_each_chunk<F>(
+    &self,
+    stream: tonic::Streaming<ResponseData>,
+    mut callback: F,
+) -> Result<(), Error>
+where
+    F: FnMut(proto::DataTable) -> Result<(), Error>,
+```
+
+Process gRPC response chunks one at a time via a callback, without materializing the entire response in memory. Each chunk is decompressed and decoded into a `DataTable` before being passed to the callback. Useful for large responses where holding all data in memory is undesirable.
+
+```rust
+client.for_each_chunk(stream, |table| {
+    for tick in parse_trade_ticks(&table) {
+        println!("{}: {}", tick.date, tick.get_price());
+    }
+    Ok(())
+}).await?;
+```
+
+The standard `collect_stream` method now uses `original_size` from the `ResponseData` compression description as a pre-allocation hint for the decompression buffer, reducing intermediate reallocations.
+
 ### Stock -- List (2)
 
 ```rust
@@ -570,7 +595,86 @@ All 61 DirectClient endpoints are exposed through the `thetadatadx-ffi` C ABI cr
 
 ### Python SDK Coverage
 
-All 61 DirectClient endpoints are available in the Python SDK via PyO3 bindings (e.g., `client.stock_history_eod(...)`). FPSS streaming is not yet exposed in Python (see TODO.md).
+All 61 DirectClient endpoints are available in the Python SDK via PyO3 bindings (e.g., `client.stock_history_eod(...)`). FPSS streaming is available via `FpssClient`. DataFrame conversion is available via `to_dataframe()` and `_df` method variants (requires `pip install thetadatadx[pandas]`).
+
+### Python SDK: FpssClient
+
+```python
+from thetadatadx import Credentials, FpssClient
+
+creds = Credentials.from_file("creds.txt")
+fpss = FpssClient(creds, buffer_size=1024)
+
+fpss.subscribe("AAPL", "QUOTE")
+while True:
+    event = fpss.next_event(timeout_ms=5000)
+    if event is None:
+        break
+    print(event)
+
+fpss.shutdown()
+```
+
+### Python SDK: pandas DataFrame Conversion
+
+```python
+from thetadatadx import Credentials, Config, DirectClient, to_dataframe
+
+creds = Credentials.from_file("creds.txt")
+client = DirectClient(creds, Config.production())
+
+# Convert any result to a DataFrame
+eod = client.stock_history_eod("AAPL", "20240101", "20240301")
+df = to_dataframe(eod)
+
+# Or use the _df convenience methods directly
+df = client.stock_history_eod_df("AAPL", "20240101", "20240301")
+```
+
+Install with pandas support: `pip install thetadatadx[pandas]`
+
+### FFI FPSS Functions
+
+7 `extern "C"` functions for FPSS lifecycle management:
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `thetadatadx_fpss_connect` | `(creds, buffer_size) -> *mut FpssHandle` | Connect and authenticate |
+| `thetadatadx_fpss_subscribe_quotes` | `(handle, root, sec_type) -> i32` | Subscribe to quotes |
+| `thetadatadx_fpss_subscribe_trades` | `(handle, root, sec_type) -> i32` | Subscribe to trades |
+| `thetadatadx_fpss_subscribe_open_interest` | `(handle, root, sec_type) -> i32` | Subscribe to OI |
+| `thetadatadx_fpss_next_event` | `(handle, timeout_ms) -> *mut FpssEventC` | Poll next event |
+| `thetadatadx_fpss_shutdown` | `(handle) -> i32` | Graceful shutdown |
+| `thetadatadx_fpss_free_event` | `(event) -> void` | Free an event |
+
+### Go SDK: FpssClient
+
+```go
+fpss, _ := thetadatadx.FpssConnect(creds, 1024)
+defer fpss.Shutdown()
+
+fpss.SubscribeQuotes("AAPL", thetadatadx.SecTypeStock)
+for {
+    event, _ := fpss.NextEvent(5000)
+    if event == nil {
+        break
+    }
+    fmt.Println(event)
+}
+```
+
+### C++ SDK: FpssClient
+
+```cpp
+auto fpss = tdx::FpssClient::connect(creds, 1024);
+
+fpss.subscribe_quotes("AAPL", tdx::SecType::Stock);
+while (auto event = fpss.next_event(5000)) {
+    std::cout << event->type() << std::endl;
+}
+
+fpss.shutdown();
+```
 
 ---
 
@@ -1206,6 +1310,8 @@ pub struct DirectConfig {
     // Reconnection
     pub reconnect_wait_ms: u64,
     pub reconnect_wait_rate_limited_ms: u64,
+    // Concurrency
+    pub mdds_concurrent_requests: usize,   // max in-flight gRPC requests (default 2)
     // Threading
     pub tokio_worker_threads: Option<usize>,
 }

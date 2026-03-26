@@ -88,6 +88,60 @@ All data methods return typed Go structs (deserialized from JSON over FFI).
 - `AllGreeks(spot, strike, rate, divYield, tte, price, isCall)` -- returns `*Greeks` with 22 fields
 - `ImpliedVolatility(spot, strike, rate, divYield, tte, price, isCall)` -- returns `(iv, error, err)`
 
+## FPSS Streaming
+
+Real-time market data via ThetaData's FPSS servers:
+
+```go
+package main
+
+import (
+    "fmt"
+    "log"
+
+    thetadatadx "github.com/userFRM/ThetaDataDx/sdks/go"
+)
+
+func main() {
+    creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
+    defer creds.Close()
+
+    fpss, err := thetadatadx.FpssConnect(creds, 1024)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer fpss.Shutdown()
+
+    // Subscribe to real-time quotes
+    reqID, _ := fpss.SubscribeQuotes("AAPL", thetadatadx.SecTypeStock)
+    fmt.Printf("Subscribed (req_id=%d)\n", reqID)
+
+    // Poll for events
+    for {
+        event, err := fpss.NextEvent(5000) // 5s timeout
+        if err != nil {
+            log.Println("Error:", err)
+            break
+        }
+        if event == nil {
+            continue // timeout, no event
+        }
+        fmt.Printf("Event: %+v\n", event)
+    }
+}
+```
+
+### FpssClient API
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `FpssConnect` | `(creds, bufSize) (*FpssClient, error)` | Connect and authenticate |
+| `SubscribeQuotes` | `(root, secType) (int32, error)` | Subscribe to quotes |
+| `SubscribeTrades` | `(root, secType) (int32, error)` | Subscribe to trades |
+| `SubscribeOpenInterest` | `(root, secType) (int32, error)` | Subscribe to open interest |
+| `NextEvent` | `(timeoutMs) (*FpssEvent, error)` | Poll next event |
+| `Shutdown` | `() error` | Graceful shutdown |
+
 ## Architecture
 
 ```

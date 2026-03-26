@@ -16,13 +16,13 @@ Intentional differences between this Rust implementation and the decompiled Java
 | **Source** | Individual handler classes under `net.thetadata.providers` | `direct.rs:define_endpoint!` macro | |
 | **Rationale** | The Java terminal duplicates boilerplate across 60 handlers (auth injection, QueryInfo setup, response streaming, zstd decompression). The Rust macro eliminates this duplication: each endpoint is a single macro invocation specifying the gRPC method name, request type, and response parser. Adding a new endpoint requires one line instead of ~50. The generated code is wire-identical to hand-written equivalents. |
 
-### FPSS Dispatch: Disruptor Ring Buffer (perf branch)
+### FPSS Dispatch: Disruptor Ring Buffer
 
-| | Java | Rust (main) | Rust (perf branch) | Impact |
-|---|---|---|---|---|
-| **Behavior** | LMAX Disruptor ring buffer for event dispatch | `tokio::mpsc` bounded channel | `disruptor-rs` v4 lock-free ring buffer | Latency improvement on perf branch |
-| **Source** | `FPSSClient` internal event queue | `fpss/mod.rs` | `fpss/mod.rs` (perf branch) | |
-| **Rationale** | Java uses the LMAX Disruptor for mechanical-sympathy event dispatch. The `main` branch uses `tokio::mpsc` for simplicity and async compatibility. The `perf` branch switches to `disruptor-rs` v4, which directly matches Java's LMAX Disruptor pattern -- lock-free, bounded-latency, cache-line-padded sequence counters. This closes the last major dispatch-latency gap with the Java terminal. |
+| | Java | Rust | Impact |
+|---|---|---|---|
+| **Behavior** | LMAX Disruptor ring buffer for event dispatch | `disruptor-rs` v4 lock-free ring buffer | Matched Java's dispatch model |
+| **Source** | `FPSSClient` internal event queue | `fpss/mod.rs` | |
+| **Rationale** | Java uses the LMAX Disruptor for mechanical-sympathy event dispatch. Rust uses `disruptor-rs` v4, which directly matches Java's LMAX Disruptor pattern -- lock-free, bounded-latency, cache-line-padded sequence counters. The FPSS I/O thread is fully synchronous (no tokio in the streaming hot path). This closes the dispatch-latency gap with the Java terminal. |
 
 ### FIT Codec: Overflow Saturation vs Silent Wrapping
 
@@ -101,6 +101,30 @@ Intentional differences between this Rust implementation and the decompiled Java
 | **Behavior** | Accepts any string, server rejects bad dates | Validates 8 ASCII digits client-side before sending | Fails fast |
 | **Source** | REST/gRPC request handlers in decompiled terminal | `direct.rs:validate_date()` | |
 | **Rationale** | Client-side validation catches typos (`"2024-01-01"`, `"Jan 1"`) before they hit the network. Server still validates on its end. | |
+
+### Concurrent Request Limiting
+
+| | Java | Rust | Impact |
+|---|---|---|---|
+| **Behavior** | `2^tier` concurrent requests with per-user whitelisting | Configurable semaphore (`mdds_concurrent_requests`, default 2) | Same effective throttling |
+| **Source** | `MddsClient` internal concurrency logic | `direct.rs` + `config.rs` |
+| **Rationale** | Java's tier-based model requires server-side whitelisting metadata. The Rust approach exposes a simple numeric knob that the user sets directly, defaulting to the most common tier (2 = 2^1). Users on higher tiers can raise the limit without needing server-side coordination. |
+
+### norm_cdf Implementation
+
+| | Java | Rust | Impact |
+|---|---|---|---|
+| **Behavior** | `NormalDistribution.cumulativeProbability()` from Apache Commons Math | Horner-form Zelen & Severo approximation (~1e-7 accuracy) | Numerically equivalent for all practical inputs |
+| **Source** | `Greeks.java` via Apache Commons Math 3.x | `greeks.rs:norm_cdf()` |
+| **Rationale** | Apache Commons Math uses a continued-fraction expansion (Abramowitz & Stegun 26.2.17). The Horner-form evaluation achieves ~1e-7 accuracy with fewer multiplications and no external dependency. Both are accurate to well beyond the precision needed for Greeks computation. The Horner form is also branch-free in the core polynomial, improving throughput on modern pipelines. |
+
+### Streaming Response Processing
+
+| | Java | Rust | Impact |
+|---|---|---|---|
+| **Behavior** | `ArrayBlockingQueue(2)` between gRPC and HTTP response writer | `collect_stream` (materialize) and `for_each_chunk` (streaming callback) | More flexible consumer model |
+| **Source** | `MddsClient` response pipeline | `direct.rs:collect_stream()` + `direct.rs:for_each_chunk()` |
+| **Rationale** | Java's `ArrayBlockingQueue(2)` acts as a bounded buffer between the gRPC response thread and the HTTP servlet writer. In the Rust implementation, there is no HTTP servlet layer, so the consumer model is different. `collect_stream` materializes all chunks into a merged `DataTable` (with `original_size` pre-allocation hint). `for_each_chunk` provides a streaming callback that processes each chunk without full materialization, useful for very large responses. |
 
 ### Greeks: `.exp()` vs `E.powf()`
 

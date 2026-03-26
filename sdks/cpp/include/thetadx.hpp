@@ -111,6 +111,10 @@ struct ClientDeleter {
     void operator()(TdxClient* p) const { if (p) tdx_client_free(p); }
 };
 
+struct FpssHandleDeleter {
+    void operator()(TdxFpssHandle* p) const { if (p) tdx_fpss_free(p); }
+};
+
 // ── Credentials ──
 
 class Credentials {
@@ -487,6 +491,41 @@ public:
 private:
     explicit Client(TdxClient* h) : handle_(h) {}
     std::unique_ptr<TdxClient, ClientDeleter> handle_;
+};
+
+// ── FPSS real-time streaming client ──
+
+class FpssClient {
+public:
+    /** Connect to FPSS streaming servers. Throws on failure. */
+    FpssClient(const Credentials& creds, const Config& config);
+
+    /** Subscribe to quote data for a stock symbol. Returns request ID. */
+    int subscribe_quotes(const std::string& symbol);
+
+    /** Subscribe to trade data for a stock symbol. Returns request ID. */
+    int subscribe_trades(const std::string& symbol);
+
+    /** Poll for the next event. Returns JSON string, or empty string on timeout. */
+    std::string next_event(uint64_t timeout_ms);
+
+    /** Shut down the FPSS client. */
+    void shutdown();
+
+    /** Destructor: shuts down and frees the handle. */
+    ~FpssClient();
+
+    // Non-copyable, movable.
+    FpssClient(const FpssClient&) = delete;
+    FpssClient& operator=(const FpssClient&) = delete;
+    FpssClient(FpssClient&& other) noexcept : handle_(std::move(other.handle_)) {}
+    FpssClient& operator=(FpssClient&& other) noexcept {
+        handle_ = std::move(other.handle_);
+        return *this;
+    }
+
+private:
+    std::unique_ptr<TdxFpssHandle, FpssHandleDeleter> handle_;
 };
 
 // ── Standalone Greeks functions ──

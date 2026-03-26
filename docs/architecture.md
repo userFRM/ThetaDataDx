@@ -92,6 +92,10 @@ graph TD
 
 Authentication is **in-band** -- the session UUID is inside the protobuf message, not in gRPC metadata headers.
 
+### Concurrent Request Limiting
+
+DirectClient enforces a configurable semaphore (`mdds_concurrent_requests`, default 2) that limits the number of in-flight gRPC requests. This prevents overwhelming the MDDS server and mirrors the Java terminal's `2^tier` concurrency model. Each endpoint method acquires a permit before sending and releases it when the response is fully consumed.
+
 ### Response Structure
 
 ```mermaid
@@ -129,11 +133,15 @@ graph TD
 
 ```mermaid
 flowchart TD
-    A["gRPC stream<br/>(multiple ResponseData chunks)"] --> B["Decompress<br/>zstd::bulk::decompress"]
+    A["gRPC stream<br/>(multiple ResponseData chunks)"] --> B["Decompress<br/>zstd::bulk::decompress<br/>(pre-allocated via original_size hint)"]
     B --> C["Decode protobuf<br/>prost::Message::decode → DataTable"]
     C --> D["Merge chunks<br/>concatenate rows, keep first headers"]
     D --> E["Parse to typed ticks<br/>DataTable → Vec&lt;TradeTick / QuoteTick / ...&gt;"]
 ```
+
+Two response processing modes are available:
+- **`collect_stream`** (default): materializes all chunks into a single merged `DataTable`. Uses `original_size` from the compression description as a pre-allocation hint for the decompression buffer.
+- **`for_each_chunk`**: streaming callback that processes each chunk individually without accumulating the full response in memory.
 
 ## FPSS Protocol (Real-Time Streaming)
 
@@ -265,9 +273,16 @@ Security type codes: Stock=0, Option=1, Index=2, Rate=3.
 
 After successful authentication, the client must send a PING (code 0x0A) with payload `[0x00]` every 100ms. Failure to send pings causes the server to disconnect.
 
-### Disruptor Ring Buffer (perf branch)
+### Disruptor Ring Buffer
 
-The `perf` branch replaces the default `tokio::mpsc` channel for FPSS event dispatch with a lock-free disruptor ring buffer (`disruptor-rs` v4), matching Java's LMAX Disruptor pattern. This eliminates channel overhead on the hot path and provides bounded-latency event delivery. The `main` branch retains `tokio::mpsc` for simplicity.
+FPSS event dispatch uses a lock-free disruptor ring buffer (`disruptor-rs` v4), matching Java's LMAX Disruptor pattern. This eliminates channel overhead on the hot path and provides bounded-latency event delivery. The FPSS I/O thread is fully synchronous -- no tokio in the streaming hot path.
+
+FPSS streaming is available in all SDKs:
+- **Rust**: `FpssClient::connect()` returns a disruptor-backed event receiver
+- **Python**: `FpssClient` class with `subscribe()`, `next_event()`, `shutdown()`
+- **Go**: `FpssClient` struct wrapping 7 FFI FPSS functions
+- **C++**: `FpssClient` RAII class wrapping 7 FFI FPSS functions
+- **C FFI**: 7 `extern "C"` functions (`fpss_connect`, `fpss_subscribe_*`, `fpss_next_event`, `fpss_shutdown`, `fpss_free_event`)
 
 ### Reconnection
 
