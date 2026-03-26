@@ -96,11 +96,11 @@ async fn main() -> Result<(), thetadatadx::Error> {
 
     while let Some(event) = events.recv().await {
         match event {
-            FpssEvent::QuoteData { payload } => {
-                println!("Quote data: {} bytes", payload.len());
+            FpssEvent::Quote { contract_id, bid, ask, .. } => {
+                println!("Quote: contract={contract_id} bid={bid} ask={ask}");
             }
-            FpssEvent::TradeData { payload } => {
-                println!("Trade data: {} bytes", payload.len());
+            FpssEvent::Trade { contract_id, price, size, .. } => {
+                println!("Trade: contract={contract_id} price={price} size={size}");
             }
             FpssEvent::ContractAssigned { id, contract } => {
                 println!("Contract {id} = {contract}");

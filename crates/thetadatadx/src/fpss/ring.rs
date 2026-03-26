@@ -248,10 +248,20 @@ mod tests {
             )
             .build();
 
-        let payload = vec![1u8, 2, 3, 4, 5];
         producer.publish(|slot| {
-            slot.event = Some(FpssEvent::QuoteData {
-                payload: payload.clone(),
+            slot.event = Some(FpssEvent::Quote {
+                contract_id: 42,
+                ms_of_day: 34200000,
+                bid_size: 100,
+                bid_exchange: 1,
+                bid: 15025,
+                bid_condition: 0,
+                ask_size: 200,
+                ask_exchange: 1,
+                ask: 15030,
+                ask_condition: 0,
+                price_type: 8,
+                date: 20240315,
             });
         });
 
@@ -260,8 +270,17 @@ mod tests {
         let events = received.lock().unwrap();
         assert_eq!(events.len(), 1);
         match &events[0] {
-            FpssEvent::QuoteData { payload: p } => assert_eq!(p, &payload),
-            other => panic!("expected QuoteData, got {other:?}"),
+            FpssEvent::Quote {
+                contract_id,
+                bid,
+                ask,
+                ..
+            } => {
+                assert_eq!(*contract_id, 42);
+                assert_eq!(*bid, 15025);
+                assert_eq!(*ask, 15030);
+            }
+            other => panic!("expected Quote, got {other:?}"),
         }
     }
 
@@ -324,8 +343,19 @@ mod tests {
         let count = 1000usize;
         for i in 0..count {
             producer.publish(|slot| {
-                slot.event = Some(FpssEvent::QuoteData {
-                    payload: vec![i as u8],
+                slot.event = Some(FpssEvent::Quote {
+                    contract_id: i as i32,
+                    ms_of_day: 0,
+                    bid_size: 0,
+                    bid_exchange: 0,
+                    bid: 0,
+                    bid_condition: 0,
+                    ask_size: 0,
+                    ask_exchange: 0,
+                    ask: 0,
+                    ask_condition: 0,
+                    price_type: 0,
+                    date: 0,
                 });
             });
         }

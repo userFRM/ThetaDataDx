@@ -99,125 +99,165 @@ pub struct TdxFpssHandle {
     rx: Arc<Mutex<std::sync::mpsc::Receiver<FfiBufferedEvent>>>,
 }
 
-/// Internal buffered event — same concept as Python SDK's `BufferedEvent`.
+/// Internal buffered event — carries decoded tick fields as JSON-ready data.
+///
+/// Tick data events carry all decoded fields directly. No raw payloads.
 #[derive(Clone, Debug)]
 struct FfiBufferedEvent {
-    kind: String,
-    payload: Option<Vec<u8>>,
-    detail: Option<String>,
-    id: Option<i32>,
+    /// JSON object containing all event fields.
+    json: serde_json::Value,
+}
+
+/// Convert raw integer price to f64 using ThetaData's price_type encoding.
+fn ffi_price_to_f64(value: i32, price_type: i32) -> f64 {
+    thetadatadx::types::price::Price::new(value, price_type).to_f64()
 }
 
 fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
     use thetadatadx::fpss::FpssEvent;
-    match event {
-        FpssEvent::LoginSuccess { permissions } => FfiBufferedEvent {
-            kind: "login_success".to_string(),
-            payload: None,
-            detail: Some(permissions.clone()),
-            id: None,
-        },
-        FpssEvent::ContractAssigned { id, contract } => FfiBufferedEvent {
-            kind: "contract_assigned".to_string(),
-            payload: None,
-            detail: Some(format!("{contract}")),
-            id: Some(*id),
-        },
-        FpssEvent::QuoteData { payload } => FfiBufferedEvent {
-            kind: "quote_data".to_string(),
-            payload: Some(payload.clone()),
-            detail: None,
-            id: None,
-        },
-        FpssEvent::TradeData { payload } => FfiBufferedEvent {
-            kind: "trade_data".to_string(),
-            payload: Some(payload.clone()),
-            detail: None,
-            id: None,
-        },
-        FpssEvent::OpenInterestData { payload } => FfiBufferedEvent {
-            kind: "open_interest_data".to_string(),
-            payload: Some(payload.clone()),
-            detail: None,
-            id: None,
-        },
-        FpssEvent::OhlcvcData { payload } => FfiBufferedEvent {
-            kind: "ohlcvc_data".to_string(),
-            payload: Some(payload.clone()),
-            detail: None,
-            id: None,
-        },
-        FpssEvent::ReqResponse { req_id, result } => FfiBufferedEvent {
-            kind: "req_response".to_string(),
-            payload: None,
-            detail: Some(format!("{result:?}")),
-            id: Some(*req_id),
-        },
-        FpssEvent::MarketOpen => FfiBufferedEvent {
-            kind: "market_open".to_string(),
-            payload: None,
-            detail: None,
-            id: None,
-        },
-        FpssEvent::MarketClose => FfiBufferedEvent {
-            kind: "market_close".to_string(),
-            payload: None,
-            detail: None,
-            id: None,
-        },
-        FpssEvent::ServerError { message } => FfiBufferedEvent {
-            kind: "server_error".to_string(),
-            payload: None,
-            detail: Some(message.clone()),
-            id: None,
-        },
-        FpssEvent::Disconnected { reason } => FfiBufferedEvent {
-            kind: "disconnected".to_string(),
-            payload: None,
-            detail: Some(format!("{reason:?}")),
-            id: None,
-        },
-        FpssEvent::Error { message } => FfiBufferedEvent {
-            kind: "error".to_string(),
-            payload: None,
-            detail: Some(message.clone()),
-            id: None,
-        },
-        _ => FfiBufferedEvent {
-            kind: "unknown".to_string(),
-            payload: None,
-            detail: None,
-            id: None,
-        },
-    }
+    let json = match event {
+        FpssEvent::Quote {
+            contract_id,
+            ms_of_day,
+            bid_size,
+            bid_exchange,
+            bid,
+            bid_condition,
+            ask_size,
+            ask_exchange,
+            ask,
+            ask_condition,
+            price_type,
+            date,
+        } => serde_json::json!({
+            "kind": "quote",
+            "contract_id": contract_id,
+            "ms_of_day": ms_of_day,
+            "bid_size": bid_size,
+            "bid_exchange": bid_exchange,
+            "bid": ffi_price_to_f64(*bid, *price_type),
+            "bid_condition": bid_condition,
+            "ask_size": ask_size,
+            "ask_exchange": ask_exchange,
+            "ask": ffi_price_to_f64(*ask, *price_type),
+            "ask_condition": ask_condition,
+            "date": date,
+        }),
+        FpssEvent::Trade {
+            contract_id,
+            ms_of_day,
+            sequence,
+            condition,
+            size,
+            exchange,
+            price,
+            condition_flags,
+            price_flags,
+            volume_type,
+            records_back,
+            price_type,
+            date,
+            ..
+        } => serde_json::json!({
+            "kind": "trade",
+            "contract_id": contract_id,
+            "ms_of_day": ms_of_day,
+            "sequence": sequence,
+            "condition": condition,
+            "size": size,
+            "exchange": exchange,
+            "price": ffi_price_to_f64(*price, *price_type),
+            "price_raw": price,
+            "price_type": price_type,
+            "condition_flags": condition_flags,
+            "price_flags": price_flags,
+            "volume_type": volume_type,
+            "records_back": records_back,
+            "date": date,
+        }),
+        FpssEvent::OpenInterest {
+            contract_id,
+            ms_of_day,
+            open_interest,
+            date,
+        } => serde_json::json!({
+            "kind": "open_interest",
+            "contract_id": contract_id,
+            "ms_of_day": ms_of_day,
+            "open_interest": open_interest,
+            "date": date,
+        }),
+        FpssEvent::Ohlcvc {
+            contract_id,
+            ms_of_day,
+            open,
+            high,
+            low,
+            close,
+            volume,
+            count,
+            price_type,
+            date,
+        } => serde_json::json!({
+            "kind": "ohlcvc",
+            "contract_id": contract_id,
+            "ms_of_day": ms_of_day,
+            "open": ffi_price_to_f64(*open, *price_type),
+            "high": ffi_price_to_f64(*high, *price_type),
+            "low": ffi_price_to_f64(*low, *price_type),
+            "close": ffi_price_to_f64(*close, *price_type),
+            "volume": volume,
+            "count": count,
+            "date": date,
+        }),
+        FpssEvent::RawData { code, payload } => {
+            use std::fmt::Write;
+            let mut hex = String::with_capacity(payload.len() * 2);
+            for byte in payload {
+                let _ = write!(hex, "{byte:02x}");
+            }
+            serde_json::json!({
+                "kind": "raw_data",
+                "code": code,
+                "payload_hex": hex,
+            })
+        }
+        FpssEvent::LoginSuccess { permissions } => serde_json::json!({
+            "kind": "login_success",
+            "detail": permissions,
+        }),
+        FpssEvent::ContractAssigned { id, contract } => serde_json::json!({
+            "kind": "contract_assigned",
+            "id": id,
+            "detail": format!("{contract}"),
+        }),
+        FpssEvent::ReqResponse { req_id, result } => serde_json::json!({
+            "kind": "req_response",
+            "id": req_id,
+            "detail": format!("{result:?}"),
+        }),
+        FpssEvent::MarketOpen => serde_json::json!({ "kind": "market_open" }),
+        FpssEvent::MarketClose => serde_json::json!({ "kind": "market_close" }),
+        FpssEvent::ServerError { message } => serde_json::json!({
+            "kind": "server_error",
+            "detail": message,
+        }),
+        FpssEvent::Disconnected { reason } => serde_json::json!({
+            "kind": "disconnected",
+            "detail": format!("{reason:?}"),
+        }),
+        FpssEvent::Error { message } => serde_json::json!({
+            "kind": "error",
+            "detail": message,
+        }),
+        _ => serde_json::json!({ "kind": "unknown" }),
+    };
+    FfiBufferedEvent { json }
 }
 
 /// Serialize a buffered event to a JSON C string.
 fn buffered_event_to_cstring(event: &FfiBufferedEvent) -> *mut c_char {
-    let mut map = serde_json::Map::new();
-    map.insert(
-        "kind".to_string(),
-        serde_json::Value::String(event.kind.clone()),
-    );
-    if let Some(ref payload) = event.payload {
-        // Encode binary payload as base64 for safe JSON transport.
-        use std::fmt::Write;
-        let mut hex = String::with_capacity(payload.len() * 2);
-        for byte in payload {
-            let _ = write!(hex, "{byte:02x}");
-        }
-        map.insert("payload_hex".to_string(), serde_json::Value::String(hex));
-    }
-    if let Some(ref detail) = event.detail {
-        map.insert(
-            "detail".to_string(),
-            serde_json::Value::String(detail.clone()),
-        );
-    }
-    if let Some(id) = event.id {
-        map.insert("id".to_string(), serde_json::json!(id));
-    }
-    json_to_cstring(&serde_json::Value::Object(map))
+    json_to_cstring(&event.json)
 }
 
 // ── Helper: C string to &str ──

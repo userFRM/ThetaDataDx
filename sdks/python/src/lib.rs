@@ -1387,98 +1387,219 @@ fn implied_volatility(
 
 /// A buffered FPSS event ready for Python consumption.
 ///
-/// We extract event data into this simple struct so it is Clone + Send and
-/// can travel through an `mpsc` channel from the Disruptor callback thread
-/// to the Python polling thread.
+/// Buffered FPSS event that can travel through an `mpsc` channel from the
+/// Disruptor callback thread to the Python polling thread.
+///
+/// Tick data events carry decoded, named fields as key-value pairs.
+/// Price fields are pre-converted to `f64` using `Price::to_f64()`.
 #[derive(Clone, Debug)]
-struct BufferedEvent {
-    /// Event kind as a string (e.g. "quote_data", "trade_data", "login_success").
-    kind: String,
-    /// Serialized payload bytes (for data events) or human-readable string.
-    payload: Option<Vec<u8>>,
-    /// Additional metadata (permissions, error messages, contract info, etc.).
-    detail: Option<String>,
-    /// Numeric ID if applicable (req_id, contract_id).
-    id: Option<i32>,
+enum BufferedEvent {
+    /// Quote tick with decoded fields.
+    Quote {
+        contract_id: i32,
+        ms_of_day: i32,
+        bid_size: i32,
+        bid_exchange: i32,
+        bid: f64,
+        bid_condition: i32,
+        ask_size: i32,
+        ask_exchange: i32,
+        ask: f64,
+        ask_condition: i32,
+        date: i32,
+    },
+    /// Trade tick with decoded fields.
+    Trade {
+        contract_id: i32,
+        ms_of_day: i32,
+        sequence: i32,
+        condition: i32,
+        size: i32,
+        exchange: i32,
+        price: f64,
+        price_raw: i32,
+        price_type: i32,
+        condition_flags: i32,
+        price_flags: i32,
+        volume_type: i32,
+        records_back: i32,
+        date: i32,
+    },
+    /// Open interest tick.
+    OpenInterest {
+        contract_id: i32,
+        ms_of_day: i32,
+        open_interest: i32,
+        date: i32,
+    },
+    /// OHLCVC bar with decoded fields.
+    Ohlcvc {
+        contract_id: i32,
+        ms_of_day: i32,
+        open: f64,
+        high: f64,
+        low: f64,
+        close: f64,
+        volume: i32,
+        count: i32,
+        date: i32,
+    },
+    /// Raw undecoded data (fallback).
+    RawData {
+        code: u8,
+        payload: Vec<u8>,
+    },
+    /// Non-tick events (login, contract, response, errors, etc.).
+    Simple {
+        kind: String,
+        detail: Option<String>,
+        id: Option<i32>,
+    },
+}
+
+/// Convert raw integer price to f64 using ThetaData's price_type encoding.
+fn price_to_f64(value: i32, price_type: i32) -> f64 {
+    thetadatadx::types::price::Price::new(value, price_type).to_f64()
 }
 
 fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
     match event {
-        fpss::FpssEvent::LoginSuccess { permissions } => BufferedEvent {
+        fpss::FpssEvent::Quote {
+            contract_id,
+            ms_of_day,
+            bid_size,
+            bid_exchange,
+            bid,
+            bid_condition,
+            ask_size,
+            ask_exchange,
+            ask,
+            ask_condition,
+            price_type,
+            date,
+        } => BufferedEvent::Quote {
+            contract_id: *contract_id,
+            ms_of_day: *ms_of_day,
+            bid_size: *bid_size,
+            bid_exchange: *bid_exchange,
+            bid: price_to_f64(*bid, *price_type),
+            bid_condition: *bid_condition,
+            ask_size: *ask_size,
+            ask_exchange: *ask_exchange,
+            ask: price_to_f64(*ask, *price_type),
+            ask_condition: *ask_condition,
+            date: *date,
+        },
+        fpss::FpssEvent::Trade {
+            contract_id,
+            ms_of_day,
+            sequence,
+            condition,
+            size,
+            exchange,
+            price,
+            condition_flags,
+            price_flags,
+            volume_type,
+            records_back,
+            price_type,
+            date,
+            ..
+        } => BufferedEvent::Trade {
+            contract_id: *contract_id,
+            ms_of_day: *ms_of_day,
+            sequence: *sequence,
+            condition: *condition,
+            size: *size,
+            exchange: *exchange,
+            price: price_to_f64(*price, *price_type),
+            price_raw: *price,
+            price_type: *price_type,
+            condition_flags: *condition_flags,
+            price_flags: *price_flags,
+            volume_type: *volume_type,
+            records_back: *records_back,
+            date: *date,
+        },
+        fpss::FpssEvent::OpenInterest {
+            contract_id,
+            ms_of_day,
+            open_interest,
+            date,
+        } => BufferedEvent::OpenInterest {
+            contract_id: *contract_id,
+            ms_of_day: *ms_of_day,
+            open_interest: *open_interest,
+            date: *date,
+        },
+        fpss::FpssEvent::Ohlcvc {
+            contract_id,
+            ms_of_day,
+            open,
+            high,
+            low,
+            close,
+            volume,
+            count,
+            price_type,
+            date,
+        } => BufferedEvent::Ohlcvc {
+            contract_id: *contract_id,
+            ms_of_day: *ms_of_day,
+            open: price_to_f64(*open, *price_type),
+            high: price_to_f64(*high, *price_type),
+            low: price_to_f64(*low, *price_type),
+            close: price_to_f64(*close, *price_type),
+            volume: *volume,
+            count: *count,
+            date: *date,
+        },
+        fpss::FpssEvent::RawData { code, payload } => BufferedEvent::RawData {
+            code: *code,
+            payload: payload.clone(),
+        },
+        fpss::FpssEvent::LoginSuccess { permissions } => BufferedEvent::Simple {
             kind: "login_success".to_string(),
-            payload: None,
             detail: Some(permissions.clone()),
             id: None,
         },
-        fpss::FpssEvent::ContractAssigned { id, contract } => BufferedEvent {
+        fpss::FpssEvent::ContractAssigned { id, contract } => BufferedEvent::Simple {
             kind: "contract_assigned".to_string(),
-            payload: None,
             detail: Some(format!("{contract}")),
             id: Some(*id),
         },
-        fpss::FpssEvent::QuoteData { payload } => BufferedEvent {
-            kind: "quote_data".to_string(),
-            payload: Some(payload.clone()),
-            detail: None,
-            id: None,
-        },
-        fpss::FpssEvent::TradeData { payload } => BufferedEvent {
-            kind: "trade_data".to_string(),
-            payload: Some(payload.clone()),
-            detail: None,
-            id: None,
-        },
-        fpss::FpssEvent::OpenInterestData { payload } => BufferedEvent {
-            kind: "open_interest_data".to_string(),
-            payload: Some(payload.clone()),
-            detail: None,
-            id: None,
-        },
-        fpss::FpssEvent::OhlcvcData { payload } => BufferedEvent {
-            kind: "ohlcvc_data".to_string(),
-            payload: Some(payload.clone()),
-            detail: None,
-            id: None,
-        },
-        fpss::FpssEvent::ReqResponse { req_id, result } => BufferedEvent {
+        fpss::FpssEvent::ReqResponse { req_id, result } => BufferedEvent::Simple {
             kind: "req_response".to_string(),
-            payload: None,
             detail: Some(format!("{result:?}")),
             id: Some(*req_id),
         },
-        fpss::FpssEvent::MarketOpen => BufferedEvent {
+        fpss::FpssEvent::MarketOpen => BufferedEvent::Simple {
             kind: "market_open".to_string(),
-            payload: None,
             detail: None,
             id: None,
         },
-        fpss::FpssEvent::MarketClose => BufferedEvent {
+        fpss::FpssEvent::MarketClose => BufferedEvent::Simple {
             kind: "market_close".to_string(),
-            payload: None,
             detail: None,
             id: None,
         },
-        fpss::FpssEvent::ServerError { message } => BufferedEvent {
+        fpss::FpssEvent::ServerError { message } => BufferedEvent::Simple {
             kind: "server_error".to_string(),
-            payload: None,
             detail: Some(message.clone()),
             id: None,
         },
-        fpss::FpssEvent::Disconnected { reason } => BufferedEvent {
+        fpss::FpssEvent::Disconnected { reason } => BufferedEvent::Simple {
             kind: "disconnected".to_string(),
-            payload: None,
             detail: Some(format!("{reason:?}")),
             id: None,
         },
-        fpss::FpssEvent::Error { message } => BufferedEvent {
+        fpss::FpssEvent::Error { message } => BufferedEvent::Simple {
             kind: "error".to_string(),
-            payload: None,
             detail: Some(message.clone()),
             id: None,
         },
-        _ => BufferedEvent {
+        _ => BufferedEvent::Simple {
             kind: "unknown".to_string(),
-            payload: None,
             detail: None,
             id: None,
         },
@@ -1487,38 +1608,135 @@ fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
 
 fn buffered_event_to_py(py: Python<'_>, event: &BufferedEvent) -> Py<PyAny> {
     let dict = PyDict::new(py);
-    dict.set_item("kind", &event.kind).unwrap();
-    if let Some(ref payload) = event.payload {
-        dict.set_item("payload", pyo3::types::PyBytes::new(py, payload))
-            .unwrap();
-    } else {
-        dict.set_item("payload", py.None()).unwrap();
-    }
-    if let Some(ref detail) = event.detail {
-        dict.set_item("detail", detail.as_str()).unwrap();
-    } else {
-        dict.set_item("detail", py.None()).unwrap();
-    }
-    if let Some(id) = event.id {
-        dict.set_item("id", id).unwrap();
-    } else {
-        dict.set_item("id", py.None()).unwrap();
+    match event {
+        BufferedEvent::Quote {
+            contract_id,
+            ms_of_day,
+            bid_size,
+            bid_exchange,
+            bid,
+            bid_condition,
+            ask_size,
+            ask_exchange,
+            ask,
+            ask_condition,
+            date,
+        } => {
+            dict.set_item("kind", "quote").unwrap();
+            dict.set_item("contract_id", contract_id).unwrap();
+            dict.set_item("ms_of_day", ms_of_day).unwrap();
+            dict.set_item("bid_size", bid_size).unwrap();
+            dict.set_item("bid_exchange", bid_exchange).unwrap();
+            dict.set_item("bid", bid).unwrap();
+            dict.set_item("bid_condition", bid_condition).unwrap();
+            dict.set_item("ask_size", ask_size).unwrap();
+            dict.set_item("ask_exchange", ask_exchange).unwrap();
+            dict.set_item("ask", ask).unwrap();
+            dict.set_item("ask_condition", ask_condition).unwrap();
+            dict.set_item("date", date).unwrap();
+        }
+        BufferedEvent::Trade {
+            contract_id,
+            ms_of_day,
+            sequence,
+            condition,
+            size,
+            exchange,
+            price,
+            price_raw,
+            price_type,
+            condition_flags,
+            price_flags,
+            volume_type,
+            records_back,
+            date,
+        } => {
+            dict.set_item("kind", "trade").unwrap();
+            dict.set_item("contract_id", contract_id).unwrap();
+            dict.set_item("ms_of_day", ms_of_day).unwrap();
+            dict.set_item("sequence", sequence).unwrap();
+            dict.set_item("condition", condition).unwrap();
+            dict.set_item("size", size).unwrap();
+            dict.set_item("exchange", exchange).unwrap();
+            dict.set_item("price", price).unwrap();
+            dict.set_item("price_raw", price_raw).unwrap();
+            dict.set_item("price_type", price_type).unwrap();
+            dict.set_item("condition_flags", condition_flags).unwrap();
+            dict.set_item("price_flags", price_flags).unwrap();
+            dict.set_item("volume_type", volume_type).unwrap();
+            dict.set_item("records_back", records_back).unwrap();
+            dict.set_item("date", date).unwrap();
+        }
+        BufferedEvent::OpenInterest {
+            contract_id,
+            ms_of_day,
+            open_interest,
+            date,
+        } => {
+            dict.set_item("kind", "open_interest").unwrap();
+            dict.set_item("contract_id", contract_id).unwrap();
+            dict.set_item("ms_of_day", ms_of_day).unwrap();
+            dict.set_item("open_interest", open_interest).unwrap();
+            dict.set_item("date", date).unwrap();
+        }
+        BufferedEvent::Ohlcvc {
+            contract_id,
+            ms_of_day,
+            open,
+            high,
+            low,
+            close,
+            volume,
+            count,
+            date,
+        } => {
+            dict.set_item("kind", "ohlcvc").unwrap();
+            dict.set_item("contract_id", contract_id).unwrap();
+            dict.set_item("ms_of_day", ms_of_day).unwrap();
+            dict.set_item("open", open).unwrap();
+            dict.set_item("high", high).unwrap();
+            dict.set_item("low", low).unwrap();
+            dict.set_item("close", close).unwrap();
+            dict.set_item("volume", volume).unwrap();
+            dict.set_item("count", count).unwrap();
+            dict.set_item("date", date).unwrap();
+        }
+        BufferedEvent::RawData { code, payload } => {
+            dict.set_item("kind", "raw_data").unwrap();
+            dict.set_item("code", code).unwrap();
+            dict.set_item("payload", pyo3::types::PyBytes::new(py, payload))
+                .unwrap();
+        }
+        BufferedEvent::Simple { kind, detail, id } => {
+            dict.set_item("kind", kind.as_str()).unwrap();
+            if let Some(ref d) = detail {
+                dict.set_item("detail", d.as_str()).unwrap();
+            } else {
+                dict.set_item("detail", py.None()).unwrap();
+            }
+            if let Some(i) = id {
+                dict.set_item("id", i).unwrap();
+            } else {
+                dict.set_item("id", py.None()).unwrap();
+            }
+        }
     }
     dict.into_any().unbind()
 }
 
 /// Real-time FPSS streaming client.
 ///
+/// Tick data is decoded from FIT wire format in Rust before reaching Python.
 /// Events are buffered in an internal queue. Call `next_event()` to poll.
 ///
 /// Example::
 ///
 ///     client = FpssClient(creds, config)
-///     req_id = client.subscribe_quotes("AAPL")
+///     req_id = client.subscribe_trades("AAPL")
 ///     while True:
 ///         event = client.next_event(timeout_ms=1000)
-///         if event is not None:
-///             print(event["kind"], event.get("payload"))
+///         if event and event["kind"] == "trade":
+///             print(f"{event['price']:.2f} x {event['size']}")
 #[pyclass]
 struct FpssClient {
     inner: Arc<Mutex<Option<fpss::FpssClient>>>,
@@ -1652,8 +1870,16 @@ impl FpssClient {
     ///     timeout_ms: Maximum time to wait in milliseconds.
     ///
     /// Returns:
-    ///     A dict with keys ``kind``, ``payload``, ``detail``, ``id``, or ``None``
-    ///     if no event arrived within the timeout.
+    ///     A dict with ``kind`` key indicating event type, or ``None`` if timeout.
+    ///
+    ///     Tick events have decoded fields directly in the dict:
+    ///       - ``kind="quote"``: contract_id, ms_of_day, bid, ask, bid_size, ask_size, ...
+    ///       - ``kind="trade"``: contract_id, ms_of_day, price, size, exchange, condition, ...
+    ///       - ``kind="open_interest"``: contract_id, ms_of_day, open_interest, date
+    ///       - ``kind="ohlcvc"``: contract_id, ms_of_day, open, high, low, close, volume, count, date
+    ///
+    ///     Control events have ``detail`` and ``id`` keys:
+    ///       - ``kind="login_success"``, ``kind="contract_assigned"``, etc.
     fn next_event(&self, py: Python<'_>, timeout_ms: u64) -> PyResult<Option<Py<PyAny>>> {
         let rx_arc = Arc::clone(&self.rx);
         let timeout = std::time::Duration::from_millis(timeout_ms);

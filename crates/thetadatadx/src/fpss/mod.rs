@@ -32,7 +32,8 @@
 //!     // Runs on the Disruptor consumer thread -- keep it fast.
 //!     // Push to your own queue for heavy processing.
 //!     match event {
-//!         FpssEvent::QuoteData { payload } => { /* update atomic, push to ring */ }
+//!         FpssEvent::Quote { contract_id, bid, ask, .. } => { /* decoded fields */ }
+//!         FpssEvent::Trade { contract_id, price, size, .. } => { /* decoded fields */ }
 //!         _ => {}
 //!     }
 //! })?;
@@ -95,6 +96,7 @@ use disruptor::{build_single_producer, Producer, Sequence};
 use self::ring::{AdaptiveWaitStrategy, RingEvent};
 
 use crate::auth::Credentials;
+use crate::codec::fit::{apply_deltas, FitReader};
 use crate::error::Error;
 use crate::types::enums::{RemoveReason, StreamMsgType, StreamResponseType};
 
@@ -109,6 +111,11 @@ use self::protocol::{
 ///
 /// Subscribers receive these through the Disruptor callback. The enum is
 /// non-exhaustive to allow adding new event types without breaking downstream.
+///
+/// Tick data events (`Quote`, `Trade`, `OpenInterest`, `Ohlcvc`) are decoded
+/// from FIT wire format and delta-decompressed before reaching consumers.
+/// All fields are raw integer values; use `Price::new(price, price_type).to_f64()`
+/// for human-readable prices.
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
 pub enum FpssEvent {
@@ -125,28 +132,83 @@ pub enum FpssEvent {
     /// Source: `FPSSClient.onContract()`.
     ContractAssigned { id: i32, contract: Contract },
 
-    /// Raw quote data arrived (code 21, server->client direction).
+    /// Decoded quote tick from FPSS stream (code 21).
     ///
-    /// Payload is the raw FIT-encoded bytes. The caller must decode using
-    /// `codec::fit::FitReader` once that module is available.
+    /// 11 FIT fields + contract_id. Already delta-decompressed.
     ///
-    /// Source: `FPSSClient.onQuote()` -- dispatches to registered listeners.
-    QuoteData { payload: Vec<u8> },
+    /// Source: `FPSSClient.onQuote()`.
+    Quote {
+        contract_id: i32,
+        ms_of_day: i32,
+        bid_size: i32,
+        bid_exchange: i32,
+        bid: i32,
+        bid_condition: i32,
+        ask_size: i32,
+        ask_exchange: i32,
+        ask: i32,
+        ask_condition: i32,
+        price_type: i32,
+        date: i32,
+    },
 
-    /// Raw trade data arrived (code 22, server->client direction).
+    /// Decoded trade tick from FPSS stream (code 22).
+    ///
+    /// 16 FIT fields + contract_id. Already delta-decompressed.
     ///
     /// Source: `FPSSClient.onTrade()`.
-    TradeData { payload: Vec<u8> },
+    Trade {
+        contract_id: i32,
+        ms_of_day: i32,
+        sequence: i32,
+        ext_condition1: i32,
+        ext_condition2: i32,
+        ext_condition3: i32,
+        ext_condition4: i32,
+        condition: i32,
+        size: i32,
+        exchange: i32,
+        price: i32,
+        condition_flags: i32,
+        price_flags: i32,
+        volume_type: i32,
+        records_back: i32,
+        price_type: i32,
+        date: i32,
+    },
 
-    /// Raw open interest data arrived (code 23, server->client direction).
+    /// Decoded open interest tick from FPSS stream (code 23).
+    ///
+    /// 3 FIT fields + contract_id. Already delta-decompressed.
     ///
     /// Source: `FPSSClient.onOpenInterest()`.
-    OpenInterestData { payload: Vec<u8> },
+    OpenInterest {
+        contract_id: i32,
+        ms_of_day: i32,
+        open_interest: i32,
+        date: i32,
+    },
 
-    /// Raw OHLCVC snapshot arrived (code 24, server->client direction).
+    /// Decoded OHLCVC bar from FPSS stream (code 24).
+    ///
+    /// 9 FIT fields + contract_id. Already delta-decompressed.
     ///
     /// Source: `FPSSClient.onOHLCVC()`.
-    OhlcvcData { payload: Vec<u8> },
+    Ohlcvc {
+        contract_id: i32,
+        ms_of_day: i32,
+        open: i32,
+        high: i32,
+        low: i32,
+        close: i32,
+        volume: i32,
+        count: i32,
+        price_type: i32,
+        date: i32,
+    },
+
+    /// Raw undecoded data (fallback for payloads too short or corrupt to decode).
+    RawData { code: u8, payload: Vec<u8> },
 
     /// Subscription response (code 40).
     ///
@@ -671,6 +733,12 @@ fn io_loop<F>(
     let max_consecutive_timeouts = (protocol::READ_TIMEOUT_MS / 50).max(1);
     let mut consecutive_timeouts: u64 = 0;
 
+    // Per-contract delta state for FIT decompression.
+    // Key: (msg_type_code, contract_id), Value: previous absolute tick fields.
+    // Each tick type has its own field count:
+    //   Quote=11, Trade=16, OpenInterest=3, Ohlcvc=9
+    let mut delta_state: DeltaState = DeltaState::new();
+
     loop {
         if shutdown.load(Ordering::Relaxed) {
             break;
@@ -681,7 +749,13 @@ fn io_loop<F>(
             Ok(Some(frame)) => {
                 consecutive_timeouts = 0;
 
-                let event = decode_frame(&frame, &authenticated, &contract_map, &shutdown);
+                let event = decode_frame(
+                    &frame,
+                    &authenticated,
+                    &contract_map,
+                    &shutdown,
+                    &mut delta_state,
+                );
 
                 if let Some(evt) = event {
                     producer.publish(|slot| {
@@ -782,14 +856,87 @@ fn is_read_timeout(e: &Error) -> bool {
     }
 }
 
+// ---------------------------------------------------------------------------
+// FIT delta state for tick decompression
+// ---------------------------------------------------------------------------
+
+/// Number of FIT fields per tick type (excluding the 4-byte contract_id prefix).
+const QUOTE_FIELDS: usize = 11;
+const TRADE_FIELDS: usize = 16;
+const OI_FIELDS: usize = 3;
+const OHLCVC_FIELDS: usize = 9;
+
+/// Per-contract, per-message-type delta decompression state.
+///
+/// FIT uses delta compression: the first tick for a contract is absolute,
+/// subsequent ticks carry only the difference from the previous tick.
+/// We maintain the last absolute values per `(msg_type, contract_id)`.
+struct DeltaState {
+    /// Key: `(StreamMsgType as u8, contract_id)`, Value: last absolute field values.
+    prev: HashMap<(u8, i32), Vec<i32>>,
+}
+
+impl DeltaState {
+    fn new() -> Self {
+        Self {
+            prev: HashMap::new(),
+        }
+    }
+
+    /// Decode FIT payload and apply delta decompression.
+    ///
+    /// `payload` is the raw frame payload: first 4 bytes are contract_id (BE i32),
+    /// remaining bytes are FIT-encoded fields.
+    ///
+    /// Returns `(contract_id, absolute_fields)` or `None` if payload is too short
+    /// or the FIT row is a DATE marker.
+    fn decode_tick(
+        &mut self,
+        msg_code: u8,
+        payload: &[u8],
+        expected_fields: usize,
+    ) -> Option<(i32, Vec<i32>)> {
+        if payload.len() < 5 {
+            // Need at least 4 bytes for contract_id + 1 byte of FIT data.
+            return None;
+        }
+
+        let contract_id = i32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]);
+
+        let mut reader = FitReader::new(&payload[4..]);
+        let mut fields = vec![0i32; expected_fields];
+        let n = reader.read_changes(&mut fields);
+
+        if reader.is_date {
+            // DATE marker row -- skip (no user-visible data).
+            return None;
+        }
+
+        let key = (msg_code, contract_id);
+        if let Some(prev) = self.prev.get(&key) {
+            // Delta row: accumulate onto previous absolute values.
+            apply_deltas(&mut fields, prev, n);
+        }
+        // else: first row for this contract -- values are already absolute.
+
+        // Store as the new previous state.
+        self.prev.insert(key, fields.clone());
+
+        Some((contract_id, fields))
+    }
+}
+
 /// Decode a frame into an FpssEvent (if it maps to one).
 ///
 /// This is the frame dispatch logic from `FPSSClient.java`'s reader thread.
+/// Tick data frames (Quote, Trade, OpenInterest, Ohlcvc) are FIT-decoded and
+/// delta-decompressed before being emitted as typed events.
 fn decode_frame(
     frame: &Frame,
     authenticated: &AtomicBool,
     contract_map: &Mutex<HashMap<i32, Contract>>,
     shutdown: &AtomicBool,
+    delta_state: &mut DeltaState,
 ) -> Option<FpssEvent> {
     match frame.code {
         StreamMsgType::Metadata => {
@@ -814,21 +961,96 @@ fn decode_frame(
             }
         },
 
-        StreamMsgType::Quote => Some(FpssEvent::QuoteData {
-            payload: frame.payload.clone(),
-        }),
+        StreamMsgType::Quote => {
+            let code = frame.code as u8;
+            match delta_state.decode_tick(code, &frame.payload, QUOTE_FIELDS) {
+                Some((contract_id, f)) => Some(FpssEvent::Quote {
+                    contract_id,
+                    ms_of_day: f[0],
+                    bid_size: f[1],
+                    bid_exchange: f[2],
+                    bid: f[3],
+                    bid_condition: f[4],
+                    ask_size: f[5],
+                    ask_exchange: f[6],
+                    ask: f[7],
+                    ask_condition: f[8],
+                    price_type: f[9],
+                    date: f[10],
+                }),
+                None => Some(FpssEvent::RawData {
+                    code: frame.code as u8,
+                    payload: frame.payload.clone(),
+                }),
+            }
+        }
 
-        StreamMsgType::Trade => Some(FpssEvent::TradeData {
-            payload: frame.payload.clone(),
-        }),
+        StreamMsgType::Trade => {
+            let code = frame.code as u8;
+            match delta_state.decode_tick(code, &frame.payload, TRADE_FIELDS) {
+                Some((contract_id, f)) => Some(FpssEvent::Trade {
+                    contract_id,
+                    ms_of_day: f[0],
+                    sequence: f[1],
+                    ext_condition1: f[2],
+                    ext_condition2: f[3],
+                    ext_condition3: f[4],
+                    ext_condition4: f[5],
+                    condition: f[6],
+                    size: f[7],
+                    exchange: f[8],
+                    price: f[9],
+                    condition_flags: f[10],
+                    price_flags: f[11],
+                    volume_type: f[12],
+                    records_back: f[13],
+                    price_type: f[14],
+                    date: f[15],
+                }),
+                None => Some(FpssEvent::RawData {
+                    code: frame.code as u8,
+                    payload: frame.payload.clone(),
+                }),
+            }
+        }
 
-        StreamMsgType::OpenInterest => Some(FpssEvent::OpenInterestData {
-            payload: frame.payload.clone(),
-        }),
+        StreamMsgType::OpenInterest => {
+            let code = frame.code as u8;
+            match delta_state.decode_tick(code, &frame.payload, OI_FIELDS) {
+                Some((contract_id, f)) => Some(FpssEvent::OpenInterest {
+                    contract_id,
+                    ms_of_day: f[0],
+                    open_interest: f[1],
+                    date: f[2],
+                }),
+                None => Some(FpssEvent::RawData {
+                    code: frame.code as u8,
+                    payload: frame.payload.clone(),
+                }),
+            }
+        }
 
-        StreamMsgType::Ohlcvc => Some(FpssEvent::OhlcvcData {
-            payload: frame.payload.clone(),
-        }),
+        StreamMsgType::Ohlcvc => {
+            let code = frame.code as u8;
+            match delta_state.decode_tick(code, &frame.payload, OHLCVC_FIELDS) {
+                Some((contract_id, f)) => Some(FpssEvent::Ohlcvc {
+                    contract_id,
+                    ms_of_day: f[0],
+                    open: f[1],
+                    high: f[2],
+                    low: f[3],
+                    close: f[4],
+                    volume: f[5],
+                    count: f[6],
+                    price_type: f[7],
+                    date: f[8],
+                }),
+                None => Some(FpssEvent::RawData {
+                    code: frame.code as u8,
+                    payload: frame.payload.clone(),
+                }),
+            }
+        }
 
         StreamMsgType::ReqResponse => match parse_req_response(&frame.payload) {
             Ok((req_id, result)) => {
