@@ -1,0 +1,666 @@
+// Reconstructed from ThetaTerminalv3.jar via protobuf descriptor reflection.
+// Wire-compatible with ThetaData Terminal gRPC service.
+syntax = "proto3";
+package endpoints;
+
+enum CompressionAlgo {
+  NONE = 0;
+  ZSTD = 1;
+}
+
+enum TimeZone {
+  NEW_YORK = 0;
+  UTC = 1;
+}
+
+message AuthToken {
+  string session_uuid = 1;
+}
+
+message ContractSpec {
+  string symbol = 1;
+  string expiration = 2;
+  optional string strike = 3;
+  optional string right = 4;
+}
+
+message CompressionDescription {
+  CompressionAlgo algo = 1;
+  int32 level = 2;
+}
+
+message Price {
+  int32 value = 1;
+  int32 type = 2;
+}
+
+message ZonedDateTime {
+  uint64 epoch_ms = 1;
+  TimeZone zone = 2;
+}
+
+message DataValue {
+  oneof data_type {
+    string text = 1;
+    int64 number = 2;
+    Price price = 3;
+    ZonedDateTime timestamp = 4;
+  }
+}
+
+message DataValueList {
+  repeated DataValue values = 1;
+}
+
+message DataTable {
+  repeated string headers = 1;
+  repeated DataValueList data_table = 2;
+}
+
+message ResponseData {
+  bytes compressed_data = 1;
+  CompressionDescription compression_description = 2;
+  int32 original_size = 3;
+}
+
+// --- Stock requests ---
+
+message StockListSymbolsRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  string terminal_git_commit = 3;
+}
+
+message StockListDatesRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  string request_type = 3;
+  repeated string symbol = 4;
+  string terminal_git_commit = 5;
+}
+
+message StockSnapshotOhlcRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  repeated string symbol = 3;
+  optional string venue = 4;
+  string terminal_git_commit = 5;
+}
+
+message StockSnapshotTradeRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  repeated string symbol = 3;
+  optional string venue = 4;
+  string terminal_git_commit = 5;
+}
+
+message StockSnapshotQuoteRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  repeated string symbol = 3;
+  optional string venue = 4;
+  string terminal_git_commit = 5;
+}
+
+message StockHistoryEodRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  string symbol = 3;
+  string start_date = 4;
+  string end_date = 5;
+  string terminal_git_commit = 6;
+}
+
+message StockHistoryOhlcRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  string symbol = 3;
+  string date = 4;
+  string interval = 5;
+  optional string start_time = 6;
+  optional string end_time = 7;
+  optional string venue = 8;
+  string terminal_git_commit = 9;
+}
+
+message StockHistoryTradeRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  string symbol = 3;
+  string date = 4;
+  optional string start_time = 5;
+  optional string end_time = 6;
+  optional string venue = 7;
+  string terminal_git_commit = 8;
+}
+
+message StockHistoryQuoteRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  string symbol = 3;
+  string date = 4;
+  string interval = 5;
+  optional string start_time = 6;
+  optional string end_time = 7;
+  optional string venue = 8;
+  string terminal_git_commit = 9;
+}
+
+message StockHistoryTradeQuoteRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  string symbol = 3;
+  string date = 4;
+  optional string start_time = 5;
+  optional string end_time = 6;
+  optional bool exclusive = 7;
+  optional string venue = 8;
+  string terminal_git_commit = 9;
+}
+
+message StockAtTimeTradeRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  string symbol = 3;
+  string start_date = 4;
+  string end_date = 5;
+  string time_of_day = 6;
+  optional string venue = 7;
+  string terminal_git_commit = 8;
+}
+
+message StockAtTimeQuoteRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  string symbol = 3;
+  string start_date = 4;
+  string end_date = 5;
+  string time_of_day = 6;
+  optional string venue = 7;
+  string terminal_git_commit = 8;
+}
+
+// --- Option requests ---
+
+message OptionListSymbolsRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  string terminal_git_commit = 3;
+}
+
+message OptionListDatesRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  string request_type = 3;
+  ContractSpec contract_spec = 4;
+  string terminal_git_commit = 5;
+}
+
+message OptionListExpirationsRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  repeated string symbol = 3;
+  string terminal_git_commit = 4;
+}
+
+message OptionListStrikesRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  repeated string symbol = 3;
+  string expiration = 4;
+  string terminal_git_commit = 5;
+}
+
+message OptionListContractsRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  string request_type = 3;
+  repeated string symbol = 4;
+  string date = 5;
+  string terminal_git_commit = 6;
+}
+
+message OptionSnapshotOhlcRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  string terminal_git_commit = 4;
+}
+
+message OptionSnapshotTradeRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  string terminal_git_commit = 4;
+}
+
+message OptionSnapshotQuoteRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  string terminal_git_commit = 4;
+}
+
+message OptionSnapshotOpenInterestRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  string terminal_git_commit = 4;
+}
+
+message OptionSnapshotGreeksImpliedVolatilityRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  optional double annual_dividend = 4;
+  optional string rate_type = 5;
+  optional double rate_value = 6;
+  optional double stock_price = 7;
+  string terminal_git_commit = 8;
+}
+
+message OptionSnapshotGreeksAllRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  optional double annual_dividend = 4;
+  optional string rate_type = 5;
+  optional double rate_value = 6;
+  optional double stock_price = 7;
+  string terminal_git_commit = 8;
+}
+
+message OptionSnapshotGreeksFirstOrderRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  optional double annual_dividend = 4;
+  optional string rate_type = 5;
+  optional double rate_value = 6;
+  optional double stock_price = 7;
+  string terminal_git_commit = 8;
+}
+
+message OptionSnapshotGreeksSecondOrderRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  optional double annual_dividend = 4;
+  optional string rate_type = 5;
+  optional double rate_value = 6;
+  optional double stock_price = 7;
+  string terminal_git_commit = 8;
+}
+
+message OptionSnapshotGreeksThirdOrderRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  optional double annual_dividend = 4;
+  optional string rate_type = 5;
+  optional double rate_value = 6;
+  optional double stock_price = 7;
+  string terminal_git_commit = 8;
+}
+
+message OptionHistoryEodRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  string start_date = 4;
+  string end_date = 5;
+  string terminal_git_commit = 6;
+}
+
+message OptionHistoryOhlcRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  string date = 4;
+  string interval = 5;
+  optional string start_time = 6;
+  optional string end_time = 7;
+  string terminal_git_commit = 8;
+}
+
+message OptionHistoryTradeRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  string date = 4;
+  optional string start_time = 5;
+  optional string end_time = 6;
+  string terminal_git_commit = 7;
+}
+
+message OptionHistoryQuoteRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  string date = 4;
+  optional string start_time = 5;
+  optional string end_time = 6;
+  string interval = 7;
+  string terminal_git_commit = 8;
+}
+
+message OptionHistoryTradeQuoteRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  string date = 4;
+  optional string start_time = 5;
+  optional string end_time = 6;
+  optional bool exclusive = 7;
+  string terminal_git_commit = 8;
+}
+
+message OptionHistoryOpenInterestRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  string date = 4;
+  string terminal_git_commit = 5;
+}
+
+message OptionHistoryGreeksEodRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  string start_date = 4;
+  string end_date = 5;
+  optional double annual_dividend = 6;
+  optional string rate_type = 7;
+  optional double rate_value = 8;
+  string terminal_git_commit = 9;
+}
+
+message OptionHistoryGreeksAllRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  string date = 4;
+  optional string start_time = 5;
+  optional string end_time = 6;
+  string interval = 7;
+  optional double annual_dividend = 8;
+  optional string rate_type = 9;
+  optional double rate_value = 10;
+  string terminal_git_commit = 11;
+}
+
+message OptionHistoryTradeGreeksAllRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  string date = 4;
+  optional string start_time = 5;
+  optional string end_time = 6;
+  string interval = 7;
+  optional double annual_dividend = 8;
+  optional string rate_type = 9;
+  optional double rate_value = 10;
+  string terminal_git_commit = 11;
+}
+
+message OptionHistoryGreeksFirstOrderRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  string date = 4;
+  optional string start_time = 5;
+  optional string end_time = 6;
+  string interval = 7;
+  optional double annual_dividend = 8;
+  optional string rate_type = 9;
+  optional double rate_value = 10;
+  string terminal_git_commit = 11;
+}
+
+message OptionHistoryTradeGreeksFirstOrderRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  string date = 4;
+  optional string start_time = 5;
+  optional string end_time = 6;
+  optional double annual_dividend = 7;
+  optional string rate_type = 8;
+  optional double rate_value = 9;
+  string terminal_git_commit = 10;
+}
+
+message OptionHistoryGreeksSecondOrderRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  string date = 4;
+  optional string start_time = 5;
+  optional string end_time = 6;
+  string interval = 7;
+  optional double annual_dividend = 8;
+  optional string rate_type = 9;
+  optional double rate_value = 10;
+  string terminal_git_commit = 11;
+}
+
+message OptionHistoryTradeGreeksSecondOrderRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  string date = 4;
+  optional string start_time = 5;
+  optional string end_time = 6;
+  optional double annual_dividend = 7;
+  optional string rate_type = 8;
+  optional double rate_value = 9;
+  string terminal_git_commit = 10;
+}
+
+message OptionHistoryGreeksThirdOrderRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  string date = 4;
+  optional string start_time = 5;
+  optional string end_time = 6;
+  string interval = 7;
+  optional double annual_dividend = 8;
+  optional string rate_type = 9;
+  optional double rate_value = 10;
+  string terminal_git_commit = 11;
+}
+
+message OptionHistoryTradeGreeksThirdOrderRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  string date = 4;
+  optional string start_time = 5;
+  optional string end_time = 6;
+  optional double annual_dividend = 7;
+  optional string rate_type = 8;
+  optional double rate_value = 9;
+  string terminal_git_commit = 10;
+}
+
+message OptionHistoryGreeksImpliedVolatilityRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  string date = 4;
+  optional string start_time = 5;
+  optional string end_time = 6;
+  string interval = 7;
+  optional double annual_dividend = 8;
+  optional string rate_type = 9;
+  optional double rate_value = 10;
+  string terminal_git_commit = 11;
+}
+
+message OptionHistoryTradeGreeksImpliedVolatilityRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  string date = 4;
+  optional string start_time = 5;
+  optional string end_time = 6;
+  string interval = 7;
+  optional double annual_dividend = 8;
+  optional string rate_type = 9;
+  optional double rate_value = 10;
+  string terminal_git_commit = 11;
+}
+
+message OptionAtTimeTradeRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  string start_date = 4;
+  string end_date = 5;
+  string time_of_day = 6;
+  string terminal_git_commit = 7;
+}
+
+message OptionAtTimeQuoteRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  ContractSpec contract_spec = 3;
+  string start_date = 4;
+  string end_date = 5;
+  string time_of_day = 6;
+  string terminal_git_commit = 7;
+}
+
+// --- Index requests ---
+
+message IndexListSymbolsRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  string terminal_git_commit = 3;
+}
+
+message IndexListDatesRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  repeated string symbol = 3;
+  string terminal_git_commit = 4;
+}
+
+message IndexSnapshotOhlcRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  repeated string symbol = 3;
+  string terminal_git_commit = 4;
+}
+
+message IndexSnapshotPriceRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  repeated string symbol = 3;
+  string terminal_git_commit = 4;
+}
+
+message IndexHistoryEodRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  string symbol = 3;
+  string start_date = 4;
+  string end_date = 5;
+  string terminal_git_commit = 6;
+}
+
+message IndexHistoryOhlcRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  string symbol = 3;
+  string start_date = 4;
+  string end_date = 5;
+  string interval = 6;
+  optional string start_time = 7;
+  optional string end_time = 8;
+  string terminal_git_commit = 9;
+}
+
+message IndexHistoryPriceRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  string date = 3;
+  string symbol = 4;
+  optional string start_time = 5;
+  optional string end_time = 6;
+  string interval = 7;
+  string terminal_git_commit = 8;
+}
+
+message IndexAtTimePriceRequest {
+  AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  string symbol = 3;
+  string start_date = 4;
+  string end_date = 5;
+  string time_of_day = 6;
+  string terminal_git_commit = 7;
+}
+
+// --- Service ---
+
+service ThetaTerminal {
+  // Stock
+  rpc GetStockListSymbols (StockListSymbolsRequest) returns (stream ResponseData);
+  rpc GetStockListDates (StockListDatesRequest) returns (stream ResponseData);
+  rpc GetStockSnapshotOhlc (StockSnapshotOhlcRequest) returns (stream ResponseData);
+  rpc GetStockSnapshotTrade (StockSnapshotTradeRequest) returns (stream ResponseData);
+  rpc GetStockSnapshotQuote (StockSnapshotQuoteRequest) returns (stream ResponseData);
+  rpc GetStockHistoryEod (StockHistoryEodRequest) returns (stream ResponseData);
+  rpc GetStockHistoryOhlc (StockHistoryOhlcRequest) returns (stream ResponseData);
+  rpc GetStockHistoryTrade (StockHistoryTradeRequest) returns (stream ResponseData);
+  rpc GetStockHistoryQuote (StockHistoryQuoteRequest) returns (stream ResponseData);
+  rpc GetStockHistoryTradeQuote (StockHistoryTradeQuoteRequest) returns (stream ResponseData);
+  rpc GetStockAtTimeTrade (StockAtTimeTradeRequest) returns (stream ResponseData);
+  rpc GetStockAtTimeQuote (StockAtTimeQuoteRequest) returns (stream ResponseData);
+  // Option
+  rpc GetOptionListSymbols (OptionListSymbolsRequest) returns (stream ResponseData);
+  rpc GetOptionListDates (OptionListDatesRequest) returns (stream ResponseData);
+  rpc GetOptionListExpirations (OptionListExpirationsRequest) returns (stream ResponseData);
+  rpc GetOptionListStrikes (OptionListStrikesRequest) returns (stream ResponseData);
+  rpc GetOptionListContracts (OptionListContractsRequest) returns (stream ResponseData);
+  rpc GetOptionSnapshotOhlc (OptionSnapshotOhlcRequest) returns (stream ResponseData);
+  rpc GetOptionSnapshotTrade (OptionSnapshotTradeRequest) returns (stream ResponseData);
+  rpc GetOptionSnapshotQuote (OptionSnapshotQuoteRequest) returns (stream ResponseData);
+  rpc GetOptionSnapshotOpenInterest (OptionSnapshotOpenInterestRequest) returns (stream ResponseData);
+  rpc GetOptionSnapshotGreeksImpliedVolatility (OptionSnapshotGreeksImpliedVolatilityRequest) returns (stream ResponseData);
+  rpc GetOptionSnapshotGreeksAll (OptionSnapshotGreeksAllRequest) returns (stream ResponseData);
+  rpc GetOptionSnapshotGreeksFirstOrder (OptionSnapshotGreeksFirstOrderRequest) returns (stream ResponseData);
+  rpc GetOptionSnapshotGreeksSecondOrder (OptionSnapshotGreeksSecondOrderRequest) returns (stream ResponseData);
+  rpc GetOptionSnapshotGreeksThirdOrder (OptionSnapshotGreeksThirdOrderRequest) returns (stream ResponseData);
+  rpc GetOptionHistoryEod (OptionHistoryEodRequest) returns (stream ResponseData);
+  rpc GetOptionHistoryOhlc (OptionHistoryOhlcRequest) returns (stream ResponseData);
+  rpc GetOptionHistoryTrade (OptionHistoryTradeRequest) returns (stream ResponseData);
+  rpc GetOptionHistoryQuote (OptionHistoryQuoteRequest) returns (stream ResponseData);
+  rpc GetOptionHistoryTradeQuote (OptionHistoryTradeQuoteRequest) returns (stream ResponseData);
+  rpc GetOptionHistoryOpenInterest (OptionHistoryOpenInterestRequest) returns (stream ResponseData);
+  rpc GetOptionHistoryGreeksEod (OptionHistoryGreeksEodRequest) returns (stream ResponseData);
+  rpc GetOptionHistoryGreeksAll (OptionHistoryGreeksAllRequest) returns (stream ResponseData);
+  rpc GetOptionHistoryTradeGreeksAll (OptionHistoryTradeGreeksAllRequest) returns (stream ResponseData);
+  rpc GetOptionHistoryGreeksFirstOrder (OptionHistoryGreeksFirstOrderRequest) returns (stream ResponseData);
+  rpc GetOptionHistoryTradeGreeksFirstOrder (OptionHistoryTradeGreeksFirstOrderRequest) returns (stream ResponseData);
+  rpc GetOptionHistoryGreeksSecondOrder (OptionHistoryGreeksSecondOrderRequest) returns (stream ResponseData);
+  rpc GetOptionHistoryTradeGreeksSecondOrder (OptionHistoryTradeGreeksSecondOrderRequest) returns (stream ResponseData);
+  rpc GetOptionHistoryGreeksThirdOrder (OptionHistoryGreeksThirdOrderRequest) returns (stream ResponseData);
+  rpc GetOptionHistoryTradeGreeksThirdOrder (OptionHistoryTradeGreeksThirdOrderRequest) returns (stream ResponseData);
+  rpc GetOptionHistoryGreeksImpliedVolatility (OptionHistoryGreeksImpliedVolatilityRequest) returns (stream ResponseData);
+  rpc GetOptionHistoryTradeGreeksImpliedVolatility (OptionHistoryTradeGreeksImpliedVolatilityRequest) returns (stream ResponseData);
+  rpc GetOptionAtTimeTrade (OptionAtTimeTradeRequest) returns (stream ResponseData);
+  rpc GetOptionAtTimeQuote (OptionAtTimeQuoteRequest) returns (stream ResponseData);
+  // Index
+  rpc GetIndexListSymbols (IndexListSymbolsRequest) returns (stream ResponseData);
+  rpc GetIndexListDates (IndexListDatesRequest) returns (stream ResponseData);
+  rpc GetIndexSnapshotOhlc (IndexSnapshotOhlcRequest) returns (stream ResponseData);
+  rpc GetIndexSnapshotPrice (IndexSnapshotPriceRequest) returns (stream ResponseData);
+  rpc GetIndexHistoryEod (IndexHistoryEodRequest) returns (stream ResponseData);
+  rpc GetIndexHistoryOhlc (IndexHistoryOhlcRequest) returns (stream ResponseData);
+  rpc GetIndexHistoryPrice (IndexHistoryPriceRequest) returns (stream ResponseData);
+  rpc GetIndexAtTimePrice (IndexAtTimePriceRequest) returns (stream ResponseData);
+}

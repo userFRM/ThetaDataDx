@@ -1,0 +1,33 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "thetadatadx"
+version = "1.1.0"
+description = "No-JVM ThetaData Terminal — native Rust SDK for direct market data access (Python bindings)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "userFRM" }]
+keywords = ["thetadata", "market-data", "options", "streaming", "grpc"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+]
+
+[project.urls]
+Homepage = "https://github.com/userFRM/ThetaDataDx"
+Repository = "https://github.com/userFRM/ThetaDataDx"
+Documentation = "https://github.com/userFRM/ThetaDataDx/blob/main/docs/api-reference.md"
+Discord = "https://discord.thetadata.us/"
+
+[project.optional-dependencies]
+pandas = ["pandas>=1.5"]
+
+[tool.maturin]
+features = ["pyo3/extension-module"]

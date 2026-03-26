@@ -1,0 +1,74 @@
+# thetadatadx default configuration
+#
+# Copy this file to `config.toml` and edit as needed.
+# All time values are in milliseconds unless noted otherwise.
+
+# ── MDDS (Historical Data via gRPC) ──────────────────────────────────────────
+# The v3 terminal connects to MDDS via gRPC over TLS (not raw TCP).
+
+[mdds]
+host = "mdds-01.thetadata.us"
+port = 443
+tls = true
+
+# gRPC keepalive
+keepalive_time_secs = 30
+keepalive_timeout_secs = 10
+
+# Max inbound gRPC message size (bytes). Default 4MB.
+max_message_size = 4194304
+
+# ── FPSS (Real-Time Streaming via TLS/TCP) ───────────────────────────────────
+# The client tries each host in order until one connects.
+
+[fpss]
+# Production servers (New Jersey datacenter)
+hosts = [
+    "nj-a.thetadata.us:20000",
+    "nj-a.thetadata.us:20001",
+    "nj-b.thetadata.us:20000",
+    "nj-b.thetadata.us:20001",
+]
+
+# Connection timeout per server attempt (ms)
+connect_timeout = 2000
+
+# Read timeout — how long to wait for data before considering disconnected (ms)
+read_timeout = 10000
+
+# Heartbeat interval (ms). The FPSS protocol requires pings every 100ms.
+ping_interval = 100
+
+# Reconnect wait after involuntary disconnect (ms)
+reconnect_wait = 1000
+
+# Reconnect wait after TooManyRequests (ms). ThetaData enforces rate limits.
+reconnect_wait_rate_limited = 130000
+
+# Event channel buffer depth. Increase if stream events are being dropped.
+queue_depth = 1000000
+
+# ── Credentials ──────────────────────────────────────────────────────────────
+# Path to credentials file (line 1 = email, line 2 = password).
+# Can also be overridden programmatically via Credentials::new().
+
+[auth]
+creds_file = "creds.txt"
+
+# ── Alternate Server Regions ─────────────────────────────────────────────────
+# Uncomment to use staging or dev servers. These are NOT stable.
+
+# [fpss]
+# hosts = [
+#     "nj-a.thetadata.us:20100",
+#     "test-server.thetadata.us:20100",
+#     "test-server.thetadata.us:20101",
+# ]
+
+# Dev servers (frequent reboots, replays historical data):
+# [fpss]
+# hosts = [
+#     "nj-a.thetadata.us:20200",
+#     "test-server.thetadata.us:20200",
+#     "test-server.thetadata.us:20201",
+# ]

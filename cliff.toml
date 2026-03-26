@@ -1,0 +1,63 @@
+# git-cliff configuration
+# https://git-cliff.org/docs/configuration
+
+[changelog]
+header = """
+# Changelog\n
+All notable changes to this project will be documented in this file.\n
+"""
+body = """
+{%- macro remote_url() -%}
+  https://github.com/userFRM/ThetaDataDx
+{%- endmacro -%}
+
+{% if version -%}
+    ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else -%}
+    ## [Unreleased]
+{% endif -%}
+
+{% for group, commits in commits | group_by(attribute="group") %}
+    ### {{ group | striptags | trim | upper_first }}
+    {% for commit in commits %}
+        - {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
+            {% if commit.breaking %}[**breaking**] {% endif %}\
+            {{ commit.message | upper_first }}\
+            ({{ commit.id | truncate(length=7, end="") }})\
+    {%- endfor %}
+{% endfor %}
+"""
+footer = ""
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+split_commits = false
+
+commit_parsers = [
+    { message = "^feat", group = "Features" },
+    { message = "^fix", group = "Bug Fixes" },
+    { message = "^doc", group = "Documentation" },
+    { message = "^perf", group = "Performance" },
+    { message = "^refactor", group = "Refactoring" },
+    { message = "^style", group = "Style" },
+    { message = "^test", group = "Testing" },
+    { message = "^chore\\(release\\)", skip = true },
+    { message = "^chore\\(deps\\)", group = "Dependencies" },
+    { message = "^chore", group = "Miscellaneous" },
+    { body = ".*security", group = "Security" },
+]
+
+protect_breaking_commits = false
+filter_commits = false
+tag_pattern = "v[0-9].*"
+skip_tags = ""
+ignore_tags = ""
+topo_order = false
+sort_commits = "oldest"
+
+# Skip merge commits
+commit_preprocessors = [
+    { pattern = "^Merge", replace = "" },
+]

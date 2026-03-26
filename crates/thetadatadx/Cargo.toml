@@ -1,0 +1,68 @@
+[package]
+name = "thetadatadx"
+version = "1.1.0"
+edition = "2021"
+rust-version = "1.85"
+authors = ["userFRM"]
+description = "No-JVM ThetaData Terminal — native Rust SDK for direct MDDS (gRPC) and FPSS (TCP) market data access"
+documentation = "https://docs.rs/thetadatadx"
+homepage = "https://github.com/userFRM/ThetaDataDx"
+repository = "https://github.com/userFRM/ThetaDataDx"
+license = "GPL-3.0-or-later"
+keywords = ["thetadata", "market-data", "tick-data", "zero-copy", "low-latency"]
+categories = ["finance", "api-bindings", "network-programming", "encoding"]
+readme = "../../README.md"
+include = ["src/**/*", "proto/**/*", "build.rs", "Cargo.toml"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[features]
+default = []
+async-zstd = ["dep:async-compression"]
+
+[dependencies]
+# gRPC + protobuf (tonic 0.14 extracted prost codec into tonic-prost)
+tonic = { version = "=0.14.5", features = ["tls-ring", "tls-native-roots", "channel", "transport"] }
+tonic-prost = "=0.14.5"
+prost = "=0.14.3"
+
+# Async runtime
+tokio = { version = "1.50.0", features = ["rt-multi-thread", "macros", "time", "net", "io-util", "sync"] }
+tokio-stream = "0.1.18"
+tokio-rustls = "0.26.4"
+rustls = { version = "0.23.37", features = ["ring"] }
+webpki-roots = "1.0.6"
+
+# HTTP (auth against nexus-api)
+reqwest = { version = "0.13.2", features = ["json", "rustls"], default-features = false }
+
+# Serialization
+serde = { version = "1.0.228", features = ["derive"] }
+uuid = "1.22.0"
+
+# Compression (responses use zstd)
+zstd = "0.13.3"
+async-compression = { version = "0.4.41", features = ["tokio", "zstd"], optional = true }
+
+# Error handling
+thiserror = "2.0.18"
+
+# Logging
+tracing = "0.1.44"
+
+# Lock-free ring buffer (LMAX Disruptor pattern) for FPSS event dispatch
+disruptor = "4"
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[build-dependencies]
+# tonic 0.14 extracted build integration into tonic-prost-build
+tonic-prost-build = "=0.14.5"
+prost-build = "=0.14.3"
+
+[[bench]]
+name = "bench"
+harness = false

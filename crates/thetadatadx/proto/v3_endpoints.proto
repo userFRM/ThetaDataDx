@@ -1,0 +1,941 @@
+syntax = "proto3";
+package BetaEndpoints;
+
+import "google/protobuf/struct.proto";
+import "endpoints.proto";
+
+message QueryInfo {
+  endpoints.AuthToken auth_token = 1;
+  map<string, string> query_parameters = 2;
+  string client_type = 3;
+  string terminal_git_commit = 4;
+  string terminal_version = 5;
+}
+
+message StockListSymbolsRequestQuery {
+}
+
+message StockListSymbolsRequest {
+  QueryInfo query_info = 1;
+  StockListSymbolsRequestQuery params = 2;
+}
+
+message StockListDatesRequestQuery {
+  string request_type = 1;
+  repeated string symbol = 2;
+}
+
+message StockListDatesRequest {
+  QueryInfo query_info = 1;
+  StockListDatesRequestQuery params = 2;
+}
+
+message StockSnapshotOhlcRequestQuery {
+  repeated string symbol = 1;
+  optional string venue = 2;
+  optional string min_time = 3;
+}
+
+message StockSnapshotOhlcRequest {
+  QueryInfo query_info = 1;
+  StockSnapshotOhlcRequestQuery params = 2;
+}
+
+message StockSnapshotTradeRequestQuery {
+  repeated string symbol = 1;
+  optional string venue = 2;
+  optional string min_time = 3;
+}
+
+message StockSnapshotTradeRequest {
+  QueryInfo query_info = 1;
+  StockSnapshotTradeRequestQuery params = 2;
+}
+
+message StockSnapshotQuoteRequestQuery {
+  repeated string symbol = 1;
+  optional string venue = 2;
+  optional string min_time = 3;
+}
+
+message StockSnapshotQuoteRequest {
+  QueryInfo query_info = 1;
+  StockSnapshotQuoteRequestQuery params = 2;
+}
+
+message StockSnapshotMarketValueRequestQuery {
+  repeated string symbol = 1;
+  optional string venue = 2;
+  optional string min_time = 3;
+}
+
+message StockSnapshotMarketValueRequest {
+  QueryInfo query_info = 1;
+  StockSnapshotMarketValueRequestQuery params = 2;
+}
+
+message StockHistoryEodRequestQuery {
+  string symbol = 1;
+  string start_date = 2;
+  string end_date = 3;
+}
+
+message StockHistoryEodRequest {
+  QueryInfo query_info = 1;
+  StockHistoryEodRequestQuery params = 2;
+}
+
+message StockHistoryOhlcRequestQuery {
+  string symbol = 1;
+  optional string date = 2;
+  string interval = 3;
+  optional string start_time = 4;
+  optional string end_time = 5;
+  optional string venue = 6;
+  optional string start_date = 7;
+  optional string end_date = 8;
+}
+
+message StockHistoryOhlcRequest {
+  QueryInfo query_info = 1;
+  StockHistoryOhlcRequestQuery params = 2;
+}
+
+message StockHistoryTradeRequestQuery {
+  string symbol = 1;
+  optional string date = 2;
+  optional string start_time = 3;
+  optional string end_time = 4;
+  optional string venue = 5;
+  optional string start_date = 6;
+  optional string end_date = 7;
+}
+
+message StockHistoryTradeRequest {
+  QueryInfo query_info = 1;
+  StockHistoryTradeRequestQuery params = 2;
+}
+
+message StockHistoryQuoteRequestQuery {
+  string symbol = 1;
+  optional string date = 2;
+  string interval = 3;
+  optional string start_time = 4;
+  optional string end_time = 5;
+  optional string venue = 6;
+  optional string start_date = 7;
+  optional string end_date = 8;
+}
+
+message StockHistoryQuoteRequest {
+  QueryInfo query_info = 1;
+  StockHistoryQuoteRequestQuery params = 2;
+}
+
+message StockHistoryTradeQuoteRequestQuery {
+  string symbol = 1;
+  optional string date = 2;
+  optional string start_time = 3;
+  optional string end_time = 4;
+  optional bool exclusive = 5;
+  optional string venue = 6;
+  optional string start_date = 7;
+  optional string end_date = 8;
+}
+
+message StockHistoryTradeQuoteRequest {
+  QueryInfo query_info = 1;
+  StockHistoryTradeQuoteRequestQuery params = 2;
+}
+
+message StockAtTimeTradeRequestQuery {
+  string symbol = 1;
+  string start_date = 2;
+  string end_date = 3;
+  string time_of_day = 4;
+  optional string venue = 5;
+}
+
+message StockAtTimeTradeRequest {
+  QueryInfo query_info = 1;
+  StockAtTimeTradeRequestQuery params = 2;
+}
+
+message StockAtTimeQuoteRequestQuery {
+  string symbol = 1;
+  string start_date = 2;
+  string end_date = 3;
+  string time_of_day = 4;
+  optional string venue = 5;
+}
+
+message StockAtTimeQuoteRequest {
+  QueryInfo query_info = 1;
+  StockAtTimeQuoteRequestQuery params = 2;
+}
+
+message OptionListSymbolsRequestQuery {
+}
+
+message OptionListSymbolsRequest {
+  QueryInfo query_info = 1;
+  OptionListSymbolsRequestQuery params = 2;
+}
+
+message OptionListDatesRequestQuery {
+  string request_type = 1;
+  endpoints.ContractSpec contract_spec = 2;
+  string expiration = 3;
+}
+
+message OptionListDatesRequest {
+  QueryInfo query_info = 1;
+  OptionListDatesRequestQuery params = 2;
+}
+
+message OptionListExpirationsRequestQuery {
+  repeated string symbol = 1;
+}
+
+message OptionListExpirationsRequest {
+  QueryInfo query_info = 1;
+  OptionListExpirationsRequestQuery params = 2;
+}
+
+message OptionListStrikesRequestQuery {
+  repeated string symbol = 1;
+  string expiration = 2;
+}
+
+message OptionListStrikesRequest {
+  QueryInfo query_info = 1;
+  OptionListStrikesRequestQuery params = 2;
+}
+
+message OptionListContractsRequestQuery {
+  string request_type = 1;
+  repeated string symbol = 2;
+  string date = 3;
+  optional int32 max_dte = 4;
+}
+
+message OptionListContractsRequest {
+  QueryInfo query_info = 1;
+  OptionListContractsRequestQuery params = 2;
+}
+
+message OptionSnapshotOhlcRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  string expiration = 2;
+  optional int32 max_dte = 3;
+  optional int32 strike_range = 4;
+  optional string min_time = 5;
+}
+
+message OptionSnapshotOhlcRequest {
+  QueryInfo query_info = 1;
+  OptionSnapshotOhlcRequestQuery params = 2;
+}
+
+message OptionSnapshotTradeRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  string expiration = 2;
+  optional int32 strike_range = 3;
+  optional string min_time = 4;
+}
+
+message OptionSnapshotTradeRequest {
+  QueryInfo query_info = 1;
+  OptionSnapshotTradeRequestQuery params = 2;
+}
+
+message OptionSnapshotQuoteRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  string expiration = 2;
+  optional int32 max_dte = 3;
+  optional int32 strike_range = 4;
+  optional string min_time = 5;
+}
+
+message OptionSnapshotQuoteRequest {
+  QueryInfo query_info = 1;
+  OptionSnapshotQuoteRequestQuery params = 2;
+}
+
+message OptionSnapshotOpenInterestRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  string expiration = 2;
+  optional int32 max_dte = 3;
+  optional int32 strike_range = 4;
+  optional string min_time = 5;
+}
+
+message OptionSnapshotOpenInterestRequest {
+  QueryInfo query_info = 1;
+  OptionSnapshotOpenInterestRequestQuery params = 2;
+}
+
+message OptionSnapshotMarketValueRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  string expiration = 2;
+  optional int32 max_dte = 3;
+  optional int32 strike_range = 4;
+  optional string min_time = 5;
+}
+
+message OptionSnapshotMarketValueRequest {
+  QueryInfo query_info = 1;
+  OptionSnapshotMarketValueRequestQuery params = 2;
+}
+
+message OptionSnapshotGreeksImpliedVolatilityRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  string expiration = 2;
+  optional double annual_dividend = 3;
+  optional string rate_type = 4;
+  optional double rate_value = 5;
+  optional double stock_price = 6;
+  optional string version = 7;
+  optional int32 max_dte = 8;
+  optional int32 strike_range = 9;
+  optional string min_time = 10;
+  optional bool use_market_value = 11;
+}
+
+message OptionSnapshotGreeksImpliedVolatilityRequest {
+  QueryInfo query_info = 1;
+  OptionSnapshotGreeksImpliedVolatilityRequestQuery params = 2;
+}
+
+message OptionSnapshotGreeksAllRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  string expiration = 2;
+  optional double annual_dividend = 3;
+  optional string rate_type = 4;
+  optional double rate_value = 5;
+  optional double stock_price = 6;
+  optional string version = 7;
+  optional int32 max_dte = 8;
+  optional int32 strike_range = 9;
+  optional string min_time = 10;
+  optional bool use_market_value = 11;
+}
+
+message OptionSnapshotGreeksAllRequest {
+  QueryInfo query_info = 1;
+  OptionSnapshotGreeksAllRequestQuery params = 2;
+}
+
+message OptionSnapshotGreeksFirstOrderRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  string expiration = 2;
+  optional double annual_dividend = 3;
+  optional string rate_type = 4;
+  optional double rate_value = 5;
+  optional double stock_price = 6;
+  optional string version = 7;
+  optional int32 max_dte = 8;
+  optional int32 strike_range = 9;
+  optional string min_time = 10;
+  optional bool use_market_value = 11;
+}
+
+message OptionSnapshotGreeksFirstOrderRequest {
+  QueryInfo query_info = 1;
+  OptionSnapshotGreeksFirstOrderRequestQuery params = 2;
+}
+
+message OptionSnapshotGreeksSecondOrderRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  string expiration = 2;
+  optional double annual_dividend = 3;
+  optional string rate_type = 4;
+  optional double rate_value = 5;
+  optional double stock_price = 6;
+  optional string version = 7;
+  optional int32 max_dte = 8;
+  optional int32 strike_range = 9;
+  optional string min_time = 10;
+  optional bool use_market_value = 11;
+}
+
+message OptionSnapshotGreeksSecondOrderRequest {
+  QueryInfo query_info = 1;
+  OptionSnapshotGreeksSecondOrderRequestQuery params = 2;
+}
+
+message OptionSnapshotGreeksThirdOrderRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  string expiration = 2;
+  optional double annual_dividend = 3;
+  optional string rate_type = 4;
+  optional double rate_value = 5;
+  optional double stock_price = 6;
+  optional string version = 7;
+  optional int32 max_dte = 8;
+  optional int32 strike_range = 9;
+  optional string min_time = 10;
+  optional bool use_market_value = 11;
+}
+
+message OptionSnapshotGreeksThirdOrderRequest {
+  QueryInfo query_info = 1;
+  OptionSnapshotGreeksThirdOrderRequestQuery params = 2;
+}
+
+message OptionHistoryEodRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  string start_date = 2;
+  string end_date = 3;
+  string expiration = 4;
+  optional int32 max_dte = 5;
+  optional int32 strike_range = 6;
+}
+
+message OptionHistoryEodRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryEodRequestQuery params = 2;
+}
+
+message OptionHistoryOhlcRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  optional string date = 2;
+  string expiration = 3;
+  string interval = 4;
+  optional string start_time = 5;
+  optional string end_time = 6;
+  optional int32 strike_range = 7;
+  optional string start_date = 8;
+  optional string end_date = 9;
+}
+
+message OptionHistoryOhlcRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryOhlcRequestQuery params = 2;
+}
+
+message OptionHistoryTradeRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  optional string date = 2;
+  string expiration = 3;
+  optional string start_time = 4;
+  optional string end_time = 5;
+  optional int32 max_dte = 6;
+  optional int32 strike_range = 7;
+  optional string start_date = 8;
+  optional string end_date = 9;
+}
+
+message OptionHistoryTradeRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryTradeRequestQuery params = 2;
+}
+
+message OptionHistoryQuoteRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  optional string date = 2;
+  string expiration = 3;
+  optional string start_time = 4;
+  optional string end_time = 5;
+  string interval = 6;
+  optional int32 max_dte = 7;
+  optional int32 strike_range = 8;
+  optional string start_date = 9;
+  optional string end_date = 10;
+}
+
+message OptionHistoryQuoteRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryQuoteRequestQuery params = 2;
+}
+
+message OptionHistoryTradeQuoteRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  optional string date = 2;
+  string expiration = 3;
+  optional string start_time = 4;
+  optional string end_time = 5;
+  optional bool exclusive = 6;
+  optional int32 max_dte = 7;
+  optional int32 strike_range = 8;
+  optional string start_date = 9;
+  optional string end_date = 10;
+}
+
+message OptionHistoryTradeQuoteRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryTradeQuoteRequestQuery params = 2;
+}
+
+message OptionHistoryOpenInterestRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  optional string date = 2;
+  string expiration = 3;
+  optional int32 max_dte = 4;
+  optional int32 strike_range = 5;
+  optional string start_date = 6;
+  optional string end_date = 7;
+}
+
+message OptionHistoryOpenInterestRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryOpenInterestRequestQuery params = 2;
+}
+
+message OptionHistoryGreeksEodRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  string expiration = 2;
+  string start_date = 3;
+  string end_date = 4;
+  optional double annual_dividend = 5;
+  optional string rate_type = 6;
+  optional double rate_value = 7;
+  optional string version = 8;
+  optional bool underlyer_use_nbbo = 9;
+  optional int32 max_dte = 10;
+  optional int32 strike_range = 11;
+}
+
+message OptionHistoryGreeksEodRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryGreeksEodRequestQuery params = 2;
+}
+
+message OptionHistoryGreeksAllRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  optional string date = 2;
+  string expiration = 3;
+  optional string start_time = 4;
+  optional string end_time = 5;
+  string interval = 6;
+  optional double annual_dividend = 7;
+  optional string rate_type = 8;
+  optional double rate_value = 9;
+  optional string version = 10;
+  optional int32 strike_range = 11;
+  optional string start_date = 12;
+  optional string end_date = 13;
+}
+
+message OptionHistoryGreeksAllRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryGreeksAllRequestQuery params = 2;
+}
+
+message OptionHistoryTradeGreeksAllRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  optional string date = 2;
+  string expiration = 3;
+  optional string start_time = 4;
+  optional string end_time = 5;
+  optional double annual_dividend = 6;
+  optional string rate_type = 7;
+  optional double rate_value = 8;
+  optional string version = 9;
+  optional int32 max_dte = 10;
+  optional int32 strike_range = 11;
+  optional string start_date = 12;
+  optional string end_date = 13;
+}
+
+message OptionHistoryTradeGreeksAllRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryTradeGreeksAllRequestQuery params = 2;
+}
+
+message OptionHistoryGreeksFirstOrderRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  optional string date = 2;
+  string expiration = 3;
+  optional string start_time = 4;
+  optional string end_time = 5;
+  string interval = 6;
+  optional double annual_dividend = 7;
+  optional string rate_type = 8;
+  optional double rate_value = 9;
+  optional string version = 10;
+  optional int32 strike_range = 11;
+  optional string start_date = 12;
+  optional string end_date = 13;
+}
+
+message OptionHistoryGreeksFirstOrderRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryGreeksFirstOrderRequestQuery params = 2;
+}
+
+message OptionHistoryTradeGreeksFirstOrderRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  optional string date = 2;
+  string expiration = 3;
+  optional string start_time = 4;
+  optional string end_time = 5;
+  optional double annual_dividend = 6;
+  optional string rate_type = 7;
+  optional double rate_value = 8;
+  optional string version = 9;
+  optional int32 max_dte = 10;
+  optional int32 strike_range = 11;
+  optional string start_date = 12;
+  optional string end_date = 13;
+}
+
+message OptionHistoryTradeGreeksFirstOrderRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryTradeGreeksFirstOrderRequestQuery params = 2;
+}
+
+message OptionHistoryGreeksSecondOrderRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  optional string date = 2;
+  string expiration = 3;
+  optional string start_time = 4;
+  optional string end_time = 5;
+  string interval = 6;
+  optional double annual_dividend = 7;
+  optional string rate_type = 8;
+  optional double rate_value = 9;
+  optional string version = 10;
+  optional int32 strike_range = 11;
+  optional string start_date = 12;
+  optional string end_date = 13;
+}
+
+message OptionHistoryGreeksSecondOrderRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryGreeksSecondOrderRequestQuery params = 2;
+}
+
+message OptionHistoryTradeGreeksSecondOrderRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  optional string date = 2;
+  string expiration = 3;
+  optional string start_time = 4;
+  optional string end_time = 5;
+  optional double annual_dividend = 6;
+  optional string rate_type = 7;
+  optional double rate_value = 8;
+  optional string version = 9;
+  optional int32 max_dte = 10;
+  optional int32 strike_range = 11;
+  optional string start_date = 12;
+  optional string end_date = 13;
+}
+
+message OptionHistoryTradeGreeksSecondOrderRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryTradeGreeksSecondOrderRequestQuery params = 2;
+}
+
+message OptionHistoryGreeksThirdOrderRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  optional string date = 2;
+  string expiration = 3;
+  optional string start_time = 4;
+  optional string end_time = 5;
+  string interval = 6;
+  optional double annual_dividend = 7;
+  optional string rate_type = 8;
+  optional double rate_value = 9;
+  optional string version = 10;
+  optional int32 strike_range = 11;
+  optional string start_date = 12;
+  optional string end_date = 13;
+}
+
+message OptionHistoryGreeksThirdOrderRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryGreeksThirdOrderRequestQuery params = 2;
+}
+
+message OptionHistoryTradeGreeksThirdOrderRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  optional string date = 2;
+  string expiration = 3;
+  optional string start_time = 4;
+  optional string end_time = 5;
+  optional double annual_dividend = 6;
+  optional string rate_type = 7;
+  optional double rate_value = 8;
+  optional string version = 9;
+  optional int32 max_dte = 10;
+  optional int32 strike_range = 11;
+  optional string start_date = 12;
+  optional string end_date = 13;
+}
+
+message OptionHistoryTradeGreeksThirdOrderRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryTradeGreeksThirdOrderRequestQuery params = 2;
+}
+
+message OptionHistoryGreeksImpliedVolatilityRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  optional string date = 2;
+  string expiration = 3;
+  optional string start_time = 4;
+  optional string end_time = 5;
+  string interval = 6;
+  optional double annual_dividend = 7;
+  optional string rate_type = 8;
+  optional double rate_value = 9;
+  optional string version = 10;
+  optional int32 strike_range = 11;
+  optional string start_date = 12;
+  optional string end_date = 13;
+}
+
+message OptionHistoryGreeksImpliedVolatilityRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryGreeksImpliedVolatilityRequestQuery params = 2;
+}
+
+message OptionHistoryTradeGreeksImpliedVolatilityRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  optional string date = 2;
+  string expiration = 3;
+  optional string start_time = 4;
+  optional string end_time = 5;
+  optional double annual_dividend = 6;
+  optional string rate_type = 7;
+  optional double rate_value = 8;
+  optional string version = 9;
+  optional int32 max_dte = 10;
+  optional int32 strike_range = 11;
+  optional string start_date = 12;
+  optional string end_date = 13;
+}
+
+message OptionHistoryTradeGreeksImpliedVolatilityRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryTradeGreeksImpliedVolatilityRequestQuery params = 2;
+}
+
+message OptionAtTimeTradeRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  string start_date = 2;
+  string end_date = 3;
+  string time_of_day = 4;
+  string expiration = 5;
+  optional int32 max_dte = 6;
+  optional int32 strike_range = 7;
+}
+
+message OptionAtTimeTradeRequest {
+  QueryInfo query_info = 1;
+  OptionAtTimeTradeRequestQuery params = 2;
+}
+
+message OptionAtTimeQuoteRequestQuery {
+  endpoints.ContractSpec contract_spec = 1;
+  string start_date = 2;
+  string end_date = 3;
+  string time_of_day = 4;
+  string expiration = 5;
+  optional int32 max_dte = 6;
+  optional int32 strike_range = 7;
+}
+
+message OptionAtTimeQuoteRequest {
+  QueryInfo query_info = 1;
+  OptionAtTimeQuoteRequestQuery params = 2;
+}
+
+message IndexListSymbolsRequestQuery {
+}
+
+message IndexListSymbolsRequest {
+  QueryInfo query_info = 1;
+  IndexListSymbolsRequestQuery params = 2;
+}
+
+message IndexListDatesRequestQuery {
+  repeated string symbol = 1;
+}
+
+message IndexListDatesRequest {
+  QueryInfo query_info = 1;
+  IndexListDatesRequestQuery params = 2;
+}
+
+message IndexSnapshotOhlcRequestQuery {
+  repeated string symbol = 1;
+  optional string min_time = 2;
+}
+
+message IndexSnapshotOhlcRequest {
+  QueryInfo query_info = 1;
+  IndexSnapshotOhlcRequestQuery params = 2;
+}
+
+message IndexSnapshotPriceRequestQuery {
+  repeated string symbol = 1;
+  optional string min_time = 2;
+}
+
+message IndexSnapshotPriceRequest {
+  QueryInfo query_info = 1;
+  IndexSnapshotPriceRequestQuery params = 2;
+}
+
+message IndexSnapshotMarketValueRequestQuery {
+  repeated string symbol = 1;
+  optional string min_time = 2;
+}
+
+message IndexSnapshotMarketValueRequest {
+  QueryInfo query_info = 1;
+  IndexSnapshotMarketValueRequestQuery params = 2;
+}
+
+message IndexHistoryEodRequestQuery {
+  string symbol = 1;
+  string start_date = 2;
+  string end_date = 3;
+}
+
+message IndexHistoryEodRequest {
+  QueryInfo query_info = 1;
+  IndexHistoryEodRequestQuery params = 2;
+}
+
+message IndexHistoryOhlcRequestQuery {
+  string symbol = 1;
+  string start_date = 2;
+  string end_date = 3;
+  string interval = 4;
+  optional string start_time = 5;
+  optional string end_time = 6;
+}
+
+message IndexHistoryOhlcRequest {
+  QueryInfo query_info = 1;
+  IndexHistoryOhlcRequestQuery params = 2;
+}
+
+message IndexHistoryPriceRequestQuery {
+  optional string date = 1;
+  string symbol = 2;
+  optional string start_time = 3;
+  optional string end_time = 4;
+  string interval = 5;
+  optional string start_date = 6;
+  optional string end_date = 7;
+}
+
+message IndexHistoryPriceRequest {
+  QueryInfo query_info = 1;
+  IndexHistoryPriceRequestQuery params = 2;
+}
+
+message IndexAtTimePriceRequestQuery {
+  string symbol = 1;
+  string start_date = 2;
+  string end_date = 3;
+  string time_of_day = 4;
+}
+
+message IndexAtTimePriceRequest {
+  QueryInfo query_info = 1;
+  IndexAtTimePriceRequestQuery params = 2;
+}
+
+message CalendarOpenTodayRequestQuery {
+}
+
+message CalendarOpenTodayRequest {
+  QueryInfo query_info = 1;
+  CalendarOpenTodayRequestQuery params = 2;
+}
+
+message CalendarOnDateRequestQuery {
+  string date = 1;
+}
+
+message CalendarOnDateRequest {
+  QueryInfo query_info = 1;
+  CalendarOnDateRequestQuery params = 2;
+}
+
+message CalendarYearRequestQuery {
+  string year = 1;
+}
+
+message CalendarYearRequest {
+  QueryInfo query_info = 1;
+  CalendarYearRequestQuery params = 2;
+}
+
+message InterestRateHistoryEodRequestQuery {
+  string symbol = 1;
+  string start_date = 2;
+  string end_date = 3;
+}
+
+message InterestRateHistoryEodRequest {
+  QueryInfo query_info = 1;
+  InterestRateHistoryEodRequestQuery params = 2;
+}
+
+service BetaThetaTerminal {
+  rpc GetStockListSymbols (StockListSymbolsRequest) returns (stream endpoints.ResponseData);
+  rpc GetStockListDates (StockListDatesRequest) returns (stream endpoints.ResponseData);
+  rpc GetStockSnapshotOhlc (StockSnapshotOhlcRequest) returns (stream endpoints.ResponseData);
+  rpc GetStockSnapshotTrade (StockSnapshotTradeRequest) returns (stream endpoints.ResponseData);
+  rpc GetStockSnapshotQuote (StockSnapshotQuoteRequest) returns (stream endpoints.ResponseData);
+  rpc GetStockSnapshotMarketValue (StockSnapshotMarketValueRequest) returns (stream endpoints.ResponseData);
+  rpc GetStockHistoryEod (StockHistoryEodRequest) returns (stream endpoints.ResponseData);
+  rpc GetStockHistoryOhlc (StockHistoryOhlcRequest) returns (stream endpoints.ResponseData);
+  rpc GetStockHistoryTrade (StockHistoryTradeRequest) returns (stream endpoints.ResponseData);
+  rpc GetStockHistoryQuote (StockHistoryQuoteRequest) returns (stream endpoints.ResponseData);
+  rpc GetStockHistoryTradeQuote (StockHistoryTradeQuoteRequest) returns (stream endpoints.ResponseData);
+  rpc GetStockAtTimeTrade (StockAtTimeTradeRequest) returns (stream endpoints.ResponseData);
+  rpc GetStockAtTimeQuote (StockAtTimeQuoteRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionListSymbols (OptionListSymbolsRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionListDates (OptionListDatesRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionListExpirations (OptionListExpirationsRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionListStrikes (OptionListStrikesRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionListContracts (OptionListContractsRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionSnapshotOhlc (OptionSnapshotOhlcRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionSnapshotTrade (OptionSnapshotTradeRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionSnapshotQuote (OptionSnapshotQuoteRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionSnapshotOpenInterest (OptionSnapshotOpenInterestRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionSnapshotMarketValue (OptionSnapshotMarketValueRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionSnapshotGreeksImpliedVolatility (OptionSnapshotGreeksImpliedVolatilityRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionSnapshotGreeksAll (OptionSnapshotGreeksAllRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionSnapshotGreeksFirstOrder (OptionSnapshotGreeksFirstOrderRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionSnapshotGreeksSecondOrder (OptionSnapshotGreeksSecondOrderRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionSnapshotGreeksThirdOrder (OptionSnapshotGreeksThirdOrderRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionHistoryEod (OptionHistoryEodRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionHistoryOhlc (OptionHistoryOhlcRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionHistoryTrade (OptionHistoryTradeRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionHistoryQuote (OptionHistoryQuoteRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionHistoryTradeQuote (OptionHistoryTradeQuoteRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionHistoryOpenInterest (OptionHistoryOpenInterestRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionHistoryGreeksEod (OptionHistoryGreeksEodRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionHistoryGreeksAll (OptionHistoryGreeksAllRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionHistoryTradeGreeksAll (OptionHistoryTradeGreeksAllRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionHistoryGreeksFirstOrder (OptionHistoryGreeksFirstOrderRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionHistoryTradeGreeksFirstOrder (OptionHistoryTradeGreeksFirstOrderRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionHistoryGreeksSecondOrder (OptionHistoryGreeksSecondOrderRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionHistoryTradeGreeksSecondOrder (OptionHistoryTradeGreeksSecondOrderRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionHistoryGreeksThirdOrder (OptionHistoryGreeksThirdOrderRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionHistoryTradeGreeksThirdOrder (OptionHistoryTradeGreeksThirdOrderRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionHistoryGreeksImpliedVolatility (OptionHistoryGreeksImpliedVolatilityRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionHistoryTradeGreeksImpliedVolatility (OptionHistoryTradeGreeksImpliedVolatilityRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionAtTimeTrade (OptionAtTimeTradeRequest) returns (stream endpoints.ResponseData);
+  rpc GetOptionAtTimeQuote (OptionAtTimeQuoteRequest) returns (stream endpoints.ResponseData);
+  rpc GetIndexListSymbols (IndexListSymbolsRequest) returns (stream endpoints.ResponseData);
+  rpc GetIndexListDates (IndexListDatesRequest) returns (stream endpoints.ResponseData);
+  rpc GetIndexSnapshotOhlc (IndexSnapshotOhlcRequest) returns (stream endpoints.ResponseData);
+  rpc GetIndexSnapshotPrice (IndexSnapshotPriceRequest) returns (stream endpoints.ResponseData);
+  rpc GetIndexSnapshotMarketValue (IndexSnapshotMarketValueRequest) returns (stream endpoints.ResponseData);
+  rpc GetIndexHistoryEod (IndexHistoryEodRequest) returns (stream endpoints.ResponseData);
+  rpc GetIndexHistoryOhlc (IndexHistoryOhlcRequest) returns (stream endpoints.ResponseData);
+  rpc GetIndexHistoryPrice (IndexHistoryPriceRequest) returns (stream endpoints.ResponseData);
+  rpc GetIndexAtTimePrice (IndexAtTimePriceRequest) returns (stream endpoints.ResponseData);
+  rpc GetCalendarOpenToday (CalendarOpenTodayRequest) returns (stream endpoints.ResponseData);
+  rpc GetCalendarOnDate (CalendarOnDateRequest) returns (stream endpoints.ResponseData);
+  rpc GetCalendarYear (CalendarYearRequest) returns (stream endpoints.ResponseData);
+  rpc GetInterestRateHistoryEod (InterestRateHistoryEodRequest) returns (stream endpoints.ResponseData);
+}
