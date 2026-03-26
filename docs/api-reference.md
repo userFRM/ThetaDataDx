@@ -54,6 +54,10 @@ client.for_each_chunk(stream, |table| {
 
 The standard `collect_stream` method now uses `original_size` from the `ResponseData` compression description as a pre-allocation hint for the decompression buffer, reducing intermediate reallocations.
 
+**Empty streams**: When the gRPC stream contains no data chunks, `collect_stream` returns an empty `DataTable` (with headers, zero rows) rather than `Error::NoData`. Callers should check `.data_table.is_empty()` to detect the empty case. `Error::NoData` is reserved for cases where the endpoint genuinely has no usable data (e.g., a symbol that does not exist).
+
+**Null values**: The `DataValue` protobuf oneof includes a `null_value` variant (bool). Null cells in the server response are preserved as `DataValue::NullValue(true)` rather than being silently dropped. The `extract_*_column` helper functions map null values to `None`.
+
 ### Stock -- List (2)
 
 ```rust
@@ -1319,7 +1323,9 @@ pub struct DirectConfig {
     pub reconnect_wait_ms: u64,
     pub reconnect_wait_rate_limited_ms: u64,
     // Concurrency
-    pub mdds_concurrent_requests: usize,   // max in-flight gRPC requests (default 2)
+    pub mdds_concurrent_requests: Option<usize>,  // max in-flight gRPC requests
+                                                   // None = auto from tier (2^tier)
+                                                   // Some(n) = manual override
     // Threading
     pub tokio_worker_threads: Option<usize>,
 }
@@ -1349,7 +1355,7 @@ pub enum Error {
     Status(Box<tonic::Status>),           // gRPC status codes
     Decompress(String),                   // zstd decompression failure
     Decode(String),                       // protobuf decode failure
-    NoData,                               // empty response
+    NoData,                               // endpoint returned no usable data
     Auth(String),                         // Nexus auth errors
     Fpss(String),                         // FPSS connection errors
     FpssProtocol(String),                 // FPSS wire protocol errors
@@ -1365,9 +1371,30 @@ All variants implement `Display` and `std::error::Error`. Automatic conversions 
 
 ---
 
+## AuthUser
+
+The Nexus authentication response includes per-asset subscription tier information:
+
+```rust
+pub struct AuthUser {
+    pub session_id: String,
+    pub stock_tier: i32,
+    pub option_tier: i32,
+    pub index_tier: i32,
+    pub futures_tier: i32,
+    // ... other fields
+}
+```
+
+These tiers determine the dynamic gRPC concurrency limit (`2^tier`) and are available for per-asset-class permission checks. The `stock_tier` is used as the default for `mdds_concurrent_requests` unless manually overridden in `DirectConfig`.
+
+---
+
 ## Decode Utilities
 
-Low-level functions for working with raw `DataTable` responses:
+Low-level functions for working with raw `DataTable` responses.
+
+**Column lookup warning**: The `extract_*_column` functions emit a `warn!` log when a requested column header is not found in the DataTable, instead of silently returning a vec of `None`s. This makes schema mismatches immediately visible in logs.
 
 ```rust
 pub fn decode_data_table(response: &ResponseData) -> Result<DataTable, Error>

@@ -9,16 +9,36 @@
 - [ ] Test terminal version negotiation — does the server care about `terminal_git_commit`?
 - [ ] Connect to FPSS `nj-a.thetadata.us:20000` and verify TLS handshake
 - [ ] Send CREDENTIALS message and verify METADATA response
-- [ ] Subscribe to a quote stream and verify FIT-decoded ticks match Java terminal output
-- [ ] Verify delta decompression produces correct absolute values across multiple ticks
+- [x] Subscribe to a quote stream and verify FIT-decoded ticks match Java terminal output
+- [x] Verify delta decompression produces correct absolute values across multiple ticks
 - [ ] Run FPSS during market hours and verify no dropped messages at sustained volume
-- [ ] Compare output byte-for-byte with Java terminal for the same query
+- [x] Compare output byte-for-byte with Java terminal for the same query
 - [ ] Test reconnection: kill TCP connection mid-stream, verify re-subscribe
 - [ ] Test rate limiting: trigger `TooManyRequests` and verify 130s backoff
 
 ## Code Review Findings
 
 All 19 items resolved.
+
+## Audit Fixes (PR #4, v1.2.0)
+
+All 18 items resolved:
+- [x] FPSS contract ID FIT-decoded (was raw BE i32)
+- [x] Delta off-by-one fixed
+- [x] Delta state cleared on START/STOP
+- [x] ROW_SEP unconditional reset
+- [x] Credential sign-extension (unsigned read)
+- [x] Flush only on PING (batched writes)
+- [x] Ping 2000ms initial delay
+- [x] `null_value` added to DataValue proto
+- [x] `"client": "terminal"` in query_parameters
+- [x] Dynamic concurrency from subscription tier
+- [x] Unknown compression returns error
+- [x] Empty stream returns empty DataTable (not Error::NoData)
+- [x] gRPC flow control window (Netty-matched)
+- [x] Per-asset subscription fields in AuthUser
+- [x] Column lookup warns instead of silent fallback
+- [x] 3 additional fixes (total 18 from audit)
 
 ## Runtime Configuration (JVM parity)
 

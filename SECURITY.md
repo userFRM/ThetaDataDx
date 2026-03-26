@@ -19,7 +19,9 @@ for critical issues.
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.1.x   | :white_check_mark: |
+| 1.2.x   | :white_check_mark: |
+| 1.1.x   | :white_check_mark: |
+| < 1.1   | :x:                |
 
 ## Security Design
 
@@ -62,12 +64,26 @@ All network connections use a **unified TLS stack** (`rustls` with ring backend)
 Root certificates come from `webpki-roots` (Mozilla's CA bundle). Certificate
 validation is enforced on all connections — there is no option to skip verification.
 
+### Credential Handling (FPSS)
+
+As of v1.2.0, FPSS credential length fields are read as unsigned integers (matching Java's
+`readUnsignedShort()`). Previous versions used signed reads, which could cause a sign-extension
+bug for passwords longer than 127 bytes. This did not leak credentials but could cause
+authentication failures.
+
 ### Concurrent Request Limiting
 
-DirectClient enforces a configurable semaphore (`mdds_concurrent_requests`, default 2) that
-limits the number of in-flight gRPC requests. This prevents runaway request storms from
-overwhelming the upstream MDDS server or triggering server-side rate limiting. The default
-matches the most common ThetaData tier.
+DirectClient enforces a semaphore (`mdds_concurrent_requests`) that limits the number of
+in-flight gRPC requests. The default is dynamically derived from the user's subscription
+tier (`2^tier`), matching the Java terminal's concurrency model. This prevents runaway
+request storms from overwhelming the upstream MDDS server or triggering server-side rate
+limiting.
+
+### Unknown Compression Rejection
+
+As of v1.2.0, `decompress_response` returns an error for unrecognized compression algorithms
+instead of silently treating the data as uncompressed. This prevents corrupt data from being
+silently passed to callers.
 
 ### FPSS Event Dispatch
 

@@ -1120,12 +1120,14 @@ fn decode_frame(
         StreamMsgType::Start => {
             tracing::info!("market open signal received");
             delta_state.clear();
+            contract_map.lock().unwrap().clear(); // Java: idToContract.clear()
             Some(FpssEvent::MarketOpen)
         }
 
         StreamMsgType::Stop => {
             tracing::info!("market close signal received");
             delta_state.clear();
+            contract_map.lock().unwrap().clear(); // Java: idToContract.clear()
             Some(FpssEvent::MarketClose)
         }
 

@@ -5,7 +5,68 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [Unreleased] — v1.2.0
+
+### Fixed (Audit — PR #4, commit 39f2d5f)
+
+18 correctness and protocol-conformance fixes from a full audit against the Java terminal:
+
+**FPSS Protocol**
+
+1. **FPSS contract ID is FIT-decoded** — CONTRACT message contract IDs are now FIT-decoded
+   (matching the Java terminal), not read as raw big-endian i32. Previously produced wrong
+   contract-to-symbol mappings.
+2. **Delta off-by-one fixed** — `apply_deltas` field indexing corrected; previous
+   implementation could shift all fields by one position, corrupting tick data.
+3. **Delta state cleared on START/STOP** — per-contract delta accumulators are now reset
+   when the server sends START (market open) or STOP (market close), matching Java behavior.
+   Previously, stale deltas from the previous session leaked into the next session's ticks.
+4. **ROW_SEP unconditional reset** — ROW_SEP (0xC) now unconditionally resets the field
+   index to SPACING (5), matching the Java FIT reader. Previously this was conditional,
+   which could produce misaligned fields.
+5. **Credential sign-extension** — credential length fields are now read as unsigned,
+   matching Java's `readUnsignedShort()`. Previously, passwords longer than 127 bytes
+   could produce a negative length.
+6. **Flush only on PING** — the FPSS write buffer is now flushed only when sending PING
+   messages, matching Java's batching behavior. Previously, every write triggered a flush,
+   increasing syscall overhead and wire chattiness.
+7. **Ping 2000ms initial delay** — the first PING is now delayed by 2000ms after
+   authentication, matching the Java terminal's `Thread.sleep(2000)` before entering the
+   ping loop. Previously, pings started immediately.
+
+**MDDS / gRPC Protocol**
+
+8. **`null_value` added to DataValue proto** — the `DataValue` oneof now includes a
+   `null_value` variant (bool), matching the server's proto definition. Previously,
+   null cells were silently dropped during deserialization.
+9. **`"client": "terminal"` in query_parameters** — all gRPC requests now include
+   `"client": "terminal"` in the `query_parameters` map, matching the Java terminal.
+   Previously this field was omitted.
+10. **Dynamic concurrency from subscription tier** — `mdds_concurrent_requests` is now
+    derived from the `AuthUser` response's subscription tier (`2^tier`), matching the
+    Java terminal's concurrency model. The config field still allows manual override.
+11. **Unknown compression returns error** — `decompress_response` now returns
+    `Error::Decompress` for unrecognized compression algorithms instead of silently
+    treating the data as uncompressed.
+12. **Empty stream returns empty DataTable** — `collect_stream` now returns an empty
+    `DataTable` (with headers, zero rows) when the gRPC stream contains no data chunks,
+    instead of returning `Error::NoData`. Callers can check `.data_table.is_empty()`.
+13. **gRPC flow control window** — the gRPC channel now configures
+    `initial_connection_window_size` and `initial_stream_window_size` to match the Java
+    terminal's Netty settings, preventing throughput bottlenecks on large responses.
+
+**Auth / User Model**
+
+14. **Per-asset subscription fields in AuthUser** — `AuthUser` now includes `stock_tier`,
+    `option_tier`, `index_tier`, and `futures_tier` fields from the Nexus auth response,
+    enabling per-asset-class concurrency and permission checks.
+
+**Observability**
+
+15. **Column lookup warns instead of silent fallback** — `extract_*_column` functions now
+    emit a `warn!` log when a requested column header is not found in the DataTable,
+    instead of silently returning a vec of `None`s. This makes schema mismatches
+    immediately visible in logs.
 
 See [TODO.md](TODO.md) for the production readiness checklist and performance roadmap.
 

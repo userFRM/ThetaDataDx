@@ -92,9 +92,13 @@ graph TD
 
 Authentication is **in-band** -- the session UUID is inside the protobuf message, not in gRPC metadata headers.
 
+### gRPC Flow Control
+
+The gRPC channel configures `initial_connection_window_size` and `initial_stream_window_size` to match the Java terminal's Netty settings, preventing throughput bottlenecks on large responses (e.g., full trade history for a liquid symbol).
+
 ### Concurrent Request Limiting
 
-DirectClient enforces a configurable semaphore (`mdds_concurrent_requests`, default 2) that limits the number of in-flight gRPC requests. This prevents overwhelming the MDDS server and mirrors the Java terminal's `2^tier` concurrency model. Each endpoint method acquires a permit before sending and releases it when the response is fully consumed.
+DirectClient enforces a semaphore (`mdds_concurrent_requests`) that limits the number of in-flight gRPC requests. The default is dynamically derived from the user's subscription tier via `2^tier` (matching the Java terminal's concurrency model), but can be overridden in `DirectConfig`. Each endpoint method acquires a permit before sending and releases it when the response is fully consumed.
 
 ### Response Structure
 
@@ -114,6 +118,7 @@ graph TD
     N["number: int64"]
     PR["price: Price {value, type}"]
     TS["timestamp: ZonedDateTime"]
+    NV["null_value: bool"]
 
     RD --> CD
     RD --> CS
@@ -127,6 +132,7 @@ graph TD
     DV --> N
     DV --> PR
     DV --> TS
+    DV --> NV
 ```
 
 ### Response Processing Pipeline
@@ -138,6 +144,8 @@ flowchart TD
     C --> D["Merge chunks<br/>concatenate rows, keep first headers"]
     D --> E["Parse to typed ticks<br/>DataTable → Vec&lt;TradeTick / QuoteTick / ...&gt;"]
 ```
+
+If the `compression_description.algo` field contains an unrecognized algorithm, `decompress_response` returns `Error::Decompress` rather than silently treating the data as uncompressed.
 
 Two response processing modes are available:
 - **`collect_stream`** (default): materializes all chunks into a single merged `DataTable`. Uses `original_size` from the compression description as a pre-allocation hint for the decompression buffer.
@@ -192,7 +200,7 @@ Total bytes per message on the wire = `LEN + 2`.
 | 0x0B | ERROR | Server->Client | Error message (UTF-8 text) |
 | 0x0C | DISCONNECTED | Server->Client | Disconnect reason: `[reason: i16 BE]` |
 | 0x0D | RECONNECTED | Server->Client | Reconnection acknowledged |
-| 0x14 | CONTRACT | Server->Client | Contract ID assignment: `[id: i32 BE] [contract bytes]` |
+| 0x14 | CONTRACT | Server->Client | Contract ID assignment: `[id: FIT-encoded i32] [contract bytes]` |
 | 0x15 | QUOTE | Both | Subscribe(C->S) / data(S->C). FIT-encoded quote tick |
 | 0x16 | TRADE | Both | Subscribe(C->S) / data(S->C). FIT-encoded trade tick |
 | 0x17 | OPEN_INTEREST | Both | Subscribe(C->S) / data(S->C) |
@@ -233,7 +241,7 @@ sequenceDiagram
     C->>S: QUOTE (code 0x15)<br/>[req_id: i32 BE] [contract bytes]
     S-->>C: REQ_RESPONSE (code 0x28)<br/>[req_id: i32 BE] [result: i32 BE]<br/>(0=OK, 1=ERR, 2=MAX, 3=PERMS)
 
-    S-->>C: CONTRACT (code 0x14)<br/>[contract_id: i32 BE] [contract bytes]<br/>(assigns numeric ID)
+    S-->>C: CONTRACT (code 0x14)<br/>[contract_id: FIT-encoded i32] [contract bytes]<br/>(assigns numeric ID)
 
     loop Continuous streaming
         S-->>C: QUOTE (code 0x15)<br/>[FIT-encoded tick payload]
@@ -271,7 +279,7 @@ Security type codes: Stock=0, Option=1, Index=2, Rate=3.
 
 ### Heartbeat
 
-After successful authentication, the client must send a PING (code 0x0A) with payload `[0x00]` every 100ms. Failure to send pings causes the server to disconnect.
+After successful authentication, the client waits 2000ms before sending the first PING (matching the Java terminal's initial delay). After that, it sends a PING (code 0x0A) with payload `[0x00]` every 100ms. Failure to send pings causes the server to disconnect. The write buffer is flushed only on PING sends, batching any intervening subscription messages.
 
 ### Disruptor Ring Buffer
 
@@ -377,6 +385,7 @@ flowchart LR
 - **First tick** per contract: absolute values (no delta applied)
 - **Subsequent ticks**: each field is a delta added to the previous tick's value
 - Fields not present in the delta row carry forward from the previous tick
+- **Delta state is cleared** when the server sends START (market open) or STOP (market close) — the next tick after these signals is treated as absolute, not delta-compressed
 
 ### Special: DATE Marker
 

@@ -274,10 +274,14 @@ fn flush_digits(digits: &[u8; MAX_DIGITS], count: usize, negative: bool) -> i32 
 #[inline]
 pub fn apply_deltas(tick: &mut [i32], prev: &[i32], n_fields: usize) {
     let len = tick.len().min(prev.len());
-    for i in 0..n_fields.min(len) {
+    let n = n_fields.min(len);
+    for i in 0..n {
         tick[i] += prev[i];
     }
-    tick[n_fields..len].copy_from_slice(&prev[n_fields..len]);
+    // Carry forward remaining fields from previous tick.
+    if n < len {
+        tick[n..len].copy_from_slice(&prev[n..len]);
+    }
 }
 
 // ---------------------------------------------------------------------------

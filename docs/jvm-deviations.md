@@ -106,9 +106,9 @@ Intentional differences between this Rust implementation and the decompiled Java
 
 | | Java | Rust | Impact |
 |---|---|---|---|
-| **Behavior** | `2^tier` concurrent requests with per-user whitelisting | Configurable semaphore (`mdds_concurrent_requests`, default 2) | Same effective throttling |
+| **Behavior** | `2^tier` concurrent requests with per-user whitelisting | Dynamic `2^tier` from AuthUser response, with manual override via `DirectConfig.mdds_concurrent_requests` | Now matches Java's tier-based model |
 | **Source** | `MddsClient` internal concurrency logic | `direct.rs` + `config.rs` |
-| **Rationale** | Java's tier-based model requires server-side whitelisting metadata. The Rust approach exposes a simple numeric knob that the user sets directly, defaulting to the most common tier (2 = 2^1). Users on higher tiers can raise the limit without needing server-side coordination. |
+| **Rationale** | Previously used a static default of 2. Now reads the subscription tier from the Nexus auth response and computes `2^tier` automatically, matching Java. The config field still accepts a manual override for testing or advanced use. |
 
 ### norm_cdf Implementation
 
@@ -152,7 +152,13 @@ These are identical to the Java terminal:
 - FIT nibble encoding (digit values, separators, DATE marker, SPACING=5)
 - FIT delta compression (first tick absolute, subsequent deltas)
 - Contract binary serialization (stock vs option wire format)
-- FPSS ping interval (100ms) and payload (`[0x00]`)
+- FPSS ping interval (100ms), payload (`[0x00]`), and 2000ms initial delay
+- FPSS credential length read as unsigned (matches `readUnsignedShort()`)
+- FPSS write buffer flushed only on PING (batched writes, matches Java)
+- FPSS ROW_SEP unconditionally resets field index to SPACING (matches Java FIT reader)
+- FPSS contract ID extracted via FIT decode (matches Java)
+- FPSS delta state cleared on START/STOP signals (matches Java)
+- `"client": "terminal"` in gRPC `query_parameters` (matches Java)
 - Nexus auth URL, terminal key, request/response format
 - MDDS gRPC endpoint (`mdds-01.thetadata.us:443`)
 - FPSS server list (`nj-a:20000/20001`, `nj-b:20000/20001`)

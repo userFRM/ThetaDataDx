@@ -250,6 +250,12 @@ let config = DirectConfig {
     reconnect_wait_ms: 2_000,
     ..DirectConfig::production()
 };
+
+// Override gRPC concurrency (default is auto-detected from subscription tier)
+let config = DirectConfig {
+    mdds_concurrent_requests: Some(8),  // manual override; None = auto (2^tier)
+    ..DirectConfig::production()
+};
 ```
 
 > [!TIP]
