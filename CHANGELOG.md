@@ -28,10 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Slab-recycled zstd decompressor** — thread-local `(Decompressor, Vec<u8>)` pair reuses
   the working buffer across calls. The internal slab retains its capacity, avoiding allocator
   pressure for repeated decompressions of similar-sized payloads.
-- **Row deduplication** — duplicate rows in FPSS tick streams are detected and dropped,
-  preventing double-counted trades and quotes.
-- **153 tests** — 18 new tests for OHLCVC accumulator, FpssEvent split, SIMD FIT, and
-  streaming endpoints (up from ~135).
+- **148 tests** — new tests for OHLCVC accumulator, FpssEvent split, SIMD FIT, and
+  streaming endpoints.
 
 ### Fixed (PR #12)
 

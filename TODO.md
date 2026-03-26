@@ -69,7 +69,6 @@ All resolved:
 - [x] Auth 401/404 handling (matches Java)
 - [x] Ping 2000ms initial delay (matches Java)
 - [x] `null_value` in DataValue proto
-- [x] Row deduplication in FPSS tick streams
 - [x] 18 new tests
 
 ## PR #13 — Streaming & Performance
