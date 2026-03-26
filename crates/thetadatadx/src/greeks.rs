@@ -448,7 +448,7 @@ pub fn all_greeks(
         };
     }
 
-    // ── Tier 0: Shared intermediates ─────────────────────────────────
+    // -- Tier 0: Shared intermediates -----------------------------------------
     let sqrt_t = t.sqrt();
     let v_sqrt_t = v * sqrt_t; // used 8+ times below
     let d1_val = ((s / x).ln() + t * (r - q + v * v / 2.0)) / v_sqrt_t;
@@ -470,7 +470,7 @@ pub fn all_greeks(
     // Common sub-expression: 1 / (s * v * sqrt_t) (used by gamma, speed)
     let inv_s_v_sqrt_t = 1.0 / (s * v_sqrt_t);
 
-    // ── Tier 1: First-order Greeks (value, delta, gamma, theta, vega, rho, epsilon) ──
+    // -- Tier 1: First-order Greeks (value, delta, gamma, theta, vega, rho, epsilon) --
     let value_val = if is_call {
         s * exp_neg_qt * nd1 - exp_neg_rt * x * nd2
     } else {
@@ -513,7 +513,7 @@ pub fn all_greeks(
         0.0
     };
 
-    // ── Tier 2: Second-order Greeks (vanna, charm, vomma, veta) ──────
+    // -- Tier 2: Second-order Greeks (vanna, charm, vomma, veta) --------------
     let vanna_val = -eqt_f1d1 * d2_val / v;
 
     let charm_p1 = (2.0 * r_minus_q * t - d2_val * v_sqrt_t) / (2.0 * t * v_sqrt_t);
@@ -528,7 +528,7 @@ pub fn all_greeks(
     let veta_val =
         -s * eqt_f1d1 * sqrt_t * (q + r_minus_q * d1_val / v_sqrt_t - (1.0 + d1_d2) / (2.0 * t));
 
-    // ── Tier 3: Third-order Greeks (speed, zomma, color, ultima) ─────
+    // -- Tier 3: Third-order Greeks (speed, zomma, color, ultima) -------------
     let speed_val = -eqt_f1d1 * inv_s_v_sqrt_t / s * (d1_val / v_sqrt_t + 1.0);
 
     let zomma_val = eqt_f1d1 * (d1_d2 - 1.0) / (s * v * v_sqrt_t);
@@ -540,7 +540,7 @@ pub fn all_greeks(
         -vega_val / (v * v) * (d1_d2 * (1.0 - d1_d2) + d1_val * d1_val + d2_val * d2_val);
     let ultima_val = ultima_raw.clamp(-100.0, 100.0);
 
-    // ── Auxiliary: Dual Greeks ────────────────────────────────────────
+    // -- Auxiliary: Dual Greeks ------------------------------------------------
     let dual_delta_val = if is_call {
         -exp_neg_rt * nd2
     } else {
@@ -626,7 +626,7 @@ mod tests {
         );
     }
 
-    // ── Edge-case tests (Fix #10 + Fix #16) ──
+    // -- Edge-case tests (Fix #10 + Fix #16) --
 
     #[test]
     fn edge_t_zero_returns_finite() {

@@ -10,7 +10,7 @@
 //! |--------|-------------------------------------------------------------------|
 //! | 0-9    | Decimal digit — accumulated left-to-right into current integer    |
 //! | 0xB    | FIELD_SEPARATOR — flush integer to output, advance slot index     |
-//! | 0xC    | ROW_SEPARATOR — flush, zero-fill slots to index 4, jump to 5     |
+//! | 0xC    | ROW_SEPARATOR — flush, zero-fill slots to index 4, jump to 5      |
 //! | 0xD    | END — flush current integer, terminate, return field count        |
 //! | 0xE    | NEGATIVE — next flushed integer is negated                        |
 //!

@@ -6,13 +6,13 @@
 //! # Architecture
 //!
 //! ```text
-//! Credentials ──► nexus::authenticate() ──► SessionToken
-//!                                              │
-//!              ┌───────────────────────────────┘
-//!              │
+//! Credentials --> nexus::authenticate() --> SessionToken
+//!                                              |
+//!              +-------------------------------+
+//!              |
 //!       DirectClient
-//!        ├── mdds_stub: BetaThetaTerminalClient  (gRPC, historical data)
-//!        └── session: SessionToken               (UUID in every QueryInfo)
+//!        |-- mdds_stub: BetaThetaTerminalClient  (gRPC, historical data)
+//!        \-- session: SessionToken               (UUID in every QueryInfo)
 //! ```
 //!
 //! Every MDDS request wraps parameters in a `QueryInfo` that carries the session

@@ -43,7 +43,7 @@ use uuid::Uuid;
 use super::Credentials;
 use crate::error::Error;
 
-// ── Constants (from decompiled Java) ──
+// -- Constants (from decompiled Java) --
 
 /// Nexus API authentication endpoint.
 ///
@@ -61,7 +61,7 @@ const TERMINAL_KEY: &str = "cf58ada4-4175-11f0-860f-1e2e95c79e64";
 /// Source: `AuthenticationManager.authenticateViaCloud()` in decompiled terminal.
 const TERMINAL_KEY_HEADER: &str = "TD-TERMINAL-KEY";
 
-// ── Request / Response types ──
+// -- Request / Response types --
 
 /// JSON body for the auth request.
 ///
@@ -134,7 +134,7 @@ impl AuthUser {
     }
 }
 
-// ── Public API ──
+// -- Public API --
 
 /// Authenticate against the Nexus API and return the session info.
 ///

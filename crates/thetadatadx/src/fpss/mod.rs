@@ -53,18 +53,18 @@
 //! # Internal architecture
 //!
 //! ```text
-//!  ┌─────────────┐  cmd channel   ┌──────────────────┐  publish()  ┌────────────────┐
-//!  │ FpssClient   │──────────────►│ I/O thread        │───────────►│ Disruptor Ring  │
-//!  │              │               │ (std::thread)      │            │ (SPSC, lock-    │
-//!  │ .subscribe() │               │ blocking TLS read  │            │  free, pre-     │
-//!  │ .unsubscribe │               │ + write drain      │            │  allocated)     │
-//!  │ .shutdown()  │               └──────────────────┘            └───────┬────────┘
-//!  └─────────────┘               ┌──────────────────┐                     │ consumer
-//!                                 │ Ping thread       │                     ▼
-//!                                 │ (std::thread,     │            ┌────────────────┐
-//!                                 │  sleep loop)      │            │ User handler(F) │
-//!                                 └──────────────────┘            │ (zero-alloc)    │
-//!                                                                  └────────────────┘
+//!  +---------------+  cmd channel   +--------------------+  publish()  +------------------+
+//!  | FpssClient    |--------------->| I/O thread         |------------>| Disruptor Ring   |
+//!  |               |                | (std::thread)      |             | (SPSC, lock-     |
+//!  | .subscribe()  |                | blocking TLS read  |             |  free, pre-      |
+//!  | .unsubscribe  |                | + write drain      |             |  allocated)      |
+//!  | .shutdown()   |                +--------------------+             +--------+---------+
+//!  +---------------+                +--------------------+                      | consumer
+//!                                   | Ping thread        |                      v
+//!                                   | (std::thread,      |             +------------------+
+//!                                   |  sleep loop)       |             | User handler(F)  |
+//!                                   +--------------------+             | (zero-alloc)     |
+//!                                                                      +------------------+
 //! ```
 //!
 //! The I/O thread owns the TLS stream exclusively. Write requests (subscribe,

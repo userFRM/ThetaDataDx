@@ -39,7 +39,7 @@ use crate::error::Error;
 /// Use [`DirectConfig::production()`] for the standard NJ production servers.
 #[derive(Debug, Clone)]
 pub struct DirectConfig {
-    // ── MDDS (gRPC) ──
+    // -- MDDS (gRPC) --
     /// MDDS gRPC hostname.
     ///
     /// Source: `MddsConnectionManager` in decompiled terminal (v3 path).
@@ -52,14 +52,14 @@ pub struct DirectConfig {
     /// Always `true` in production (standard gRPC-over-TLS on port 443).
     pub mdds_tls: bool,
 
-    // ── FPSS (TCP) ──
+    // -- FPSS (TCP) --
     /// FPSS TCP hosts with round-robin failover.
     ///
     /// Source: `FPSS_NJ_HOSTS` in `config_0.properties` — the terminal
     /// iterates through these on connection failure.
     pub fpss_hosts: Vec<(String, u16)>,
 
-    // ── FPSS tuning ──
+    // -- FPSS tuning --
     /// FPSS connection/read timeout in milliseconds.
     ///
     /// Source: `FPSS_TIMEOUT=10000` in `config_0.properties`.
@@ -100,7 +100,7 @@ pub struct DirectConfig {
     /// Override that constant or pass this value when a configurable connect is added.
     pub fpss_connect_timeout_ms: u64,
 
-    // ── MDDS tuning ──
+    // -- MDDS tuning --
     /// Max concurrent in-flight gRPC requests.
     ///
     /// JVM equivalent: `2^subscription_tier` (Free=1, Value=2, Standard=4, Pro=8).
@@ -123,7 +123,7 @@ pub struct DirectConfig {
     /// Source: `ChannelProvider` — `keepAliveTimeout(10, SECONDS)`.
     pub mdds_keepalive_timeout_secs: u64,
 
-    // ── Reconnection ──
+    // -- Reconnection --
     /// Delay before attempting reconnection after a disconnect, in milliseconds.
     ///
     /// Source: `RECONNECT_WAIT=1000` in `config_0.properties`.
@@ -138,7 +138,7 @@ pub struct DirectConfig {
     /// NOTE: Not automatically wired — caller should pass to `fpss::reconnect()`.
     pub reconnect_wait_rate_limited_ms: u64,
 
-    // ── Threading ──
+    // -- Threading --
     /// Number of tokio worker threads. `None` = tokio default (number of CPU cores).
     ///
     /// JVM equivalent: `-Xmx` + `HTTP_CONCURRENCY` thread pool sizing.

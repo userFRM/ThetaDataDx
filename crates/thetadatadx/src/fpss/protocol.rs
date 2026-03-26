@@ -781,7 +781,7 @@ mod tests {
         );
     }
 
-    // ── Java wire-format parity tests ──────────────────────────────────
+    // -- Java wire-format parity tests -----------------------------------------
     // These verify byte-for-byte compatibility with Java's Contract.toBytes().
 
     #[test]

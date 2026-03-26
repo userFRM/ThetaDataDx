@@ -3,18 +3,18 @@
 //! # Architecture
 //!
 //! ```text
-//!  ┌──────────────────┐                  ┌──────────────────┐
-//!  │ Blocking TLS     │  publish()       │ Disruptor Ring   │
-//!  │ read thread      │────────────────►│ (pre-allocated,  │
-//!  │ (std::thread)    │                  │  lock-free SPSC) │
-//!  └──────────────────┘                  └────────┬─────────┘
-//!                                                  │ consumer
-//!                                                  ▼
-//!                                         ┌──────────────────┐
-//!                                         │ User handler(F)  │
-//!                                         │ (runs on         │
-//!                                         │  consumer thread)│
-//!                                         └──────────────────┘
+//!  +--------------------+                  +--------------------+
+//!  | Blocking TLS       |  publish()       | Disruptor Ring     |
+//!  | read thread        |----------------->| (pre-allocated,    |
+//!  | (std::thread)      |                  |  lock-free SPSC)   |
+//!  +--------------------+                  +---------+----------+
+//!                                                    | consumer
+//!                                                    v
+//!                                          +--------------------+
+//!                                          | User handler(F)    |
+//!                                          | (runs on           |
+//!                                          |  consumer thread)  |
+//!                                          +--------------------+
 //! ```
 //!
 //! This mirrors the Java terminal's LMAX Disruptor architecture exactly:

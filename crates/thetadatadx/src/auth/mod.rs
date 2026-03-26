@@ -8,10 +8,10 @@
 //! # Auth flow (from decompiled Java — `AuthenticationManager`)
 //!
 //! ```text
-//! creds.txt ─► Credentials ─► nexus::authenticate() ─► SessionToken
-//!                                                        │
-//!                         ┌──────────────────────────────┘
-//!                         │
+//! creds.txt --> Credentials --> nexus::authenticate() --> SessionToken
+//!                                                           |
+//!                         +---------------------------------+
+//!                         |
 //!             MDDS (gRPC): session UUID in QueryInfo.auth_token
 //!             FPSS (TCP):  email + password sent over TCP handshake
 //! ```
