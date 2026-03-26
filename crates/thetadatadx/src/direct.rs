@@ -247,7 +247,7 @@ impl DirectClient {
 
         tracing::debug!(
             session_id_prefix = %&session.session_uuid[..8.min(session.session_uuid.len())],
-            subscription = ?auth_resp.user.as_ref().and_then(|u| u.subscription_level.as_deref()),
+            stock_tier = ?auth_resp.user.as_ref().and_then(|u| u.stock_subscription),
             "session established (session_id redacted)"
         );
 

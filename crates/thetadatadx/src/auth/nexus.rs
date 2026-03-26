@@ -98,11 +98,15 @@ pub struct AuthResponse {
 #[serde(rename_all = "camelCase")]
 pub struct AuthUser {
     pub email: Option<String>,
-    pub subscription_level: Option<String>,
-    pub stock_subscription: Option<String>,
-    pub options_subscription: Option<String>,
-    pub indices_subscription: Option<String>,
-    pub interest_rate_subscription: Option<String>,
+    /// Per-asset subscription tiers (integer: 0=FREE, 1=VALUE, 2=STANDARD, 3=PRO).
+    #[serde(default)]
+    pub stock_subscription: Option<i32>,
+    #[serde(default)]
+    pub options_subscription: Option<i32>,
+    #[serde(default)]
+    pub indices_subscription: Option<i32>,
+    #[serde(default)]
+    pub interest_rate_subscription: Option<i32>,
 }
 
 impl AuthUser {
@@ -117,22 +121,15 @@ impl AuthUser {
     /// Source: Java terminal `MddsConnectionManager` — `2^subscription_tier`.
     pub fn max_concurrent_requests(&self) -> usize {
         let tier = [
-            &self.stock_subscription,
-            &self.options_subscription,
-            &self.indices_subscription,
-            &self.interest_rate_subscription,
+            self.stock_subscription,
+            self.options_subscription,
+            self.indices_subscription,
+            self.interest_rate_subscription,
         ]
         .iter()
-        .filter_map(|s| s.as_deref())
-        .map(|s| match s.to_uppercase().as_str() {
-            "FREE" => 0,
-            "VALUE" => 1,
-            "STANDARD" => 2,
-            "PROFESSIONAL" | "PRO" => 3,
-            _ => 0,
-        })
+        .filter_map(|s| *s)
         .max()
-        .unwrap_or(0);
+        .unwrap_or(0) as usize;
         1usize << tier // 2^tier: 1, 2, 4, 8
     }
 }
