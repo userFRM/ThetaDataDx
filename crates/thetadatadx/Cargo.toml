@@ -27,6 +27,7 @@ async-zstd = ["dep:async-compression"]
 tonic = { version = "=0.14.5", features = ["tls-ring", "tls-native-roots", "channel", "transport"] }
 tonic-prost = "=0.14.5"
 prost = "=0.14.3"
+prost-types = "=0.14.3"
 
 # Async runtime
 tokio = { version = "1.50.0", features = ["rt-multi-thread", "macros", "time", "net", "io-util", "sync"] }

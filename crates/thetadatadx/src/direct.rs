@@ -216,6 +216,7 @@ impl DirectClient {
             .map_err(|e| Error::Config(format!("invalid MDDS URI '{mdds_uri}': {e}")))?
             .keep_alive_timeout(Duration::from_secs(config.mdds_keepalive_timeout_secs))
             .http2_keep_alive_interval(Duration::from_secs(config.mdds_keepalive_secs))
+            .initial_stream_window_size(65_536)
             .connect_timeout(Duration::from_secs(10));
 
         let endpoint = if config.mdds_tls {
@@ -227,24 +228,38 @@ impl DirectClient {
         let channel = endpoint.connect().await?;
         tracing::info!("MDDS gRPC channel connected");
 
+        let mut query_parameters = HashMap::new();
+        // The Java terminal includes "client": "terminal" in every QueryInfo.
+        // Source: MddsConnectionManager in decompiled terminal.
+        query_parameters.insert("client".to_string(), "terminal".to_string());
+
         let query_info_template = proto_v3::QueryInfo {
             auth_token: Some(proto::AuthToken {
                 session_uuid: session.session_uuid.clone(),
             }),
-            query_parameters: HashMap::new(),
+            query_parameters,
             client_type: CLIENT_TYPE.to_string(),
             terminal_git_commit: String::new(),
             terminal_version: TERMINAL_VERSION.to_string(),
         };
 
-        let request_semaphore = if config.mdds_concurrent_requests > 0 {
-            Arc::new(tokio::sync::Semaphore::new(config.mdds_concurrent_requests))
+        // Auto-detect concurrency from subscription tier when config is 0.
+        // Source: Java terminal uses 2^subscription_tier (FREE=1, VALUE=2, STANDARD=4, PRO=8).
+        let concurrent = if config.mdds_concurrent_requests == 0 {
+            auth_resp
+                .user
+                .as_ref()
+                .map(|u| u.max_concurrent_requests())
+                .unwrap_or(2)
         } else {
-            Arc::new(tokio::sync::Semaphore::new(usize::MAX))
+            config.mdds_concurrent_requests
         };
 
+        let request_semaphore = Arc::new(tokio::sync::Semaphore::new(concurrent));
+
         tracing::debug!(
-            mdds_concurrent_requests = config.mdds_concurrent_requests,
+            mdds_concurrent_requests = concurrent,
+            auto_detected = config.mdds_concurrent_requests == 0,
             "request semaphore initialized"
         );
 
@@ -315,10 +330,9 @@ impl DirectClient {
             all_rows.extend(table.data_table);
         }
 
-        if headers.is_empty() {
-            return Err(Error::NoData);
-        }
-
+        // An empty stream is valid (e.g. no trades on a holiday) — return an
+        // empty DataTable instead of Error::NoData. Callers that need to
+        // distinguish "no data" can check `table.data_table.is_empty()`.
         Ok(proto::DataTable {
             headers,
             data_table: all_rows,

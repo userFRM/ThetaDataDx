@@ -89,6 +89,10 @@ impl<'a> FitReader<'a> {
     /// Returns the number of fields written (i.e. `idx + 1` after the END nibble),
     /// or `0` if the row was a DATE marker row.
     ///
+    /// Note: Java's `FITReader.readChanges()` returns `-1` on DATE marker rows,
+    /// while this returns `0`. Callers use `is_date` to distinguish DATE rows
+    /// from legitimate 0-field rows, making the difference inconsequential.
+    ///
     /// # Panics
     ///
     /// Does **not** panic — if `alloc` is too short, excess fields are silently
@@ -196,6 +200,9 @@ impl<'a> FitReader<'a> {
                     }
                     *idx += 1;
                 }
+                // Match Java: unconditionally reset to SPACING in case idx
+                // was already >= SPACING before the zero-fill loop.
+                *idx = SPACING;
                 false
             }
             END => {

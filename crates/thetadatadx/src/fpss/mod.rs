@@ -100,7 +100,7 @@ use crate::codec::fit::{apply_deltas, FitReader};
 use crate::error::Error;
 use crate::types::enums::{RemoveReason, StreamMsgType, StreamResponseType};
 
-use self::framing::{read_frame, write_frame, write_raw_frame, Frame};
+use self::framing::{read_frame, write_frame, write_raw_frame, write_raw_frame_no_flush, Frame};
 use self::protocol::{
     build_credentials_payload, build_ping_payload, build_subscribe_payload, parse_contract_message,
     parse_disconnect_reason, parse_req_response, Contract, SubscriptionKind, PING_INTERVAL_MS,
@@ -813,7 +813,14 @@ fn io_loop<F>(
                 Ok(IoCommand::WriteFrame { code, payload }) => {
                     // Get mutable access to the underlying stream through BufReader.
                     let writer = reader.get_mut();
-                    if let Err(e) = write_raw_frame(writer, code, &payload) {
+                    // Only flush on PING frames — let other writes batch.
+                    // Source: Java terminal only flushes on pings.
+                    let result = if code == StreamMsgType::Ping {
+                        write_raw_frame(writer, code, &payload)
+                    } else {
+                        write_raw_frame_no_flush(writer, code, &payload)
+                    };
+                    if let Err(e) = result {
                         tracing::warn!(error = %e, "failed to write frame");
                         // Don't break the read loop for write errors -- the read
                         // loop will detect the broken connection on the next read.
@@ -860,7 +867,9 @@ fn is_read_timeout(e: &Error) -> bool {
 // FIT delta state for tick decompression
 // ---------------------------------------------------------------------------
 
-/// Number of FIT fields per tick type (excluding the 4-byte contract_id prefix).
+/// Number of FIT fields per tick type (excluding the contract_id which is the
+/// first FIT field). The FIT decoder returns `n_fields` total, where field [0]
+/// is the contract_id and fields [1..] are the tick data.
 const QUOTE_FIELDS: usize = 11;
 const TRADE_FIELDS: usize = 16;
 const OI_FIELDS: usize = 3;
@@ -883,12 +892,28 @@ impl DeltaState {
         }
     }
 
+    /// Clear all accumulated delta state.
+    ///
+    /// Called on START/STOP (market open/close) signals to reset delta
+    /// decompression, matching Java's behavior where `Tick.readID()` starts
+    /// fresh after a session boundary.
+    fn clear(&mut self) {
+        self.prev.clear();
+    }
+
     /// Decode FIT payload and apply delta decompression.
     ///
-    /// `payload` is the raw frame payload: first 4 bytes are contract_id (BE i32),
-    /// remaining bytes are FIT-encoded fields.
+    /// The ENTIRE payload is FIT-encoded. The first FIT field (alloc[0]) is the
+    /// contract_id. Tick data fields start at alloc[1..].
     ///
-    /// Returns `(contract_id, absolute_fields)` or `None` if payload is too short
+    /// This matches the Java terminal's `FPSSClient` which calls:
+    /// ```java
+    /// fitReader.open(p.data(), 0, p.len());  // FIT starts at offset 0
+    /// int size = fitReader.readChanges(alloc); // alloc[0] = contract_id
+    /// Contract c = idToContract.get(alloc[0]); // first field IS the contract_id
+    /// ```
+    ///
+    /// Returns `(contract_id, tick_fields)` or `None` if payload is too short
     /// or the FIT row is a DATE marker.
     fn decode_tick(
         &mut self,
@@ -896,30 +921,49 @@ impl DeltaState {
         payload: &[u8],
         expected_fields: usize,
     ) -> Option<(i32, Vec<i32>)> {
-        if payload.len() < 5 {
-            // Need at least 4 bytes for contract_id + 1 byte of FIT data.
+        if payload.is_empty() {
             return None;
         }
 
-        let contract_id = i32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]);
+        // Allocate for contract_id (1 field) + tick data fields.
+        let total_fields = expected_fields + 1;
+        let mut alloc = vec![0i32; total_fields];
 
-        let mut reader = FitReader::new(&payload[4..]);
-        let mut fields = vec![0i32; expected_fields];
-        let n = reader.read_changes(&mut fields);
+        let mut reader = FitReader::new(payload);
+        let n = reader.read_changes(&mut alloc);
 
         if reader.is_date {
             // DATE marker row -- skip (no user-visible data).
             return None;
         }
 
+        if n == 0 {
+            return None;
+        }
+
+        // First FIT field is the contract_id.
+        let contract_id = alloc[0];
+
+        // Tick data is alloc[1..]. Extract into its own vec.
+        let mut fields: Vec<i32> = alloc[1..total_fields].to_vec();
+
+        // Delta decompression applies only to the tick portion (excluding
+        // contract_id), matching Java's `Tick.readID()`:
+        //   for (int i = 1; i < len; ++i) {
+        //       this.data[i - 1] = firstData[i] + this.data[i - 1];
+        //   }
+        // It skips firstData[0] (contract_id) and applies deltas from
+        // firstData[1..] onto tick data[0..].
+        let tick_n = n.saturating_sub(1);
+
         let key = (msg_code, contract_id);
         if let Some(prev) = self.prev.get(&key) {
             // Delta row: accumulate onto previous absolute values.
-            apply_deltas(&mut fields, prev, n);
+            apply_deltas(&mut fields, prev, tick_n);
         }
         // else: first row for this contract -- values are already absolute.
 
-        // Store as the new previous state.
+        // Store as the new previous state (tick fields only, not contract_id).
         self.prev.insert(key, fields.clone());
 
         Some((contract_id, fields))
@@ -988,25 +1032,33 @@ fn decode_frame(
         StreamMsgType::Trade => {
             let code = frame.code as u8;
             match delta_state.decode_tick(code, &frame.payload, TRADE_FIELDS) {
-                Some((contract_id, f)) => Some(FpssEvent::Trade {
-                    contract_id,
-                    ms_of_day: f[0],
-                    sequence: f[1],
-                    ext_condition1: f[2],
-                    ext_condition2: f[3],
-                    ext_condition3: f[4],
-                    ext_condition4: f[5],
-                    condition: f[6],
-                    size: f[7],
-                    exchange: f[8],
-                    price: f[9],
-                    condition_flags: f[10],
-                    price_flags: f[11],
-                    volume_type: f[12],
-                    records_back: f[13],
-                    price_type: f[14],
-                    date: f[15],
-                }),
+                Some((contract_id, f)) => {
+                    // TODO(#11): After emitting Trade, update an OHLCVC accumulator
+                    // per contract and emit an additional FpssEvent::Ohlcvc.
+                    // Java's `lastO.processTrade(last.data())` does this inline.
+                    // Requires matching Java's exact OHLCVC reset logic (session
+                    // boundaries, first-trade-of-day open, etc.) to avoid subtle
+                    // divergence. Deferred until we can verify against live data.
+                    Some(FpssEvent::Trade {
+                        contract_id,
+                        ms_of_day: f[0],
+                        sequence: f[1],
+                        ext_condition1: f[2],
+                        ext_condition2: f[3],
+                        ext_condition3: f[4],
+                        ext_condition4: f[5],
+                        condition: f[6],
+                        size: f[7],
+                        exchange: f[8],
+                        price: f[9],
+                        condition_flags: f[10],
+                        price_flags: f[11],
+                        volume_type: f[12],
+                        records_back: f[13],
+                        price_type: f[14],
+                        date: f[15],
+                    })
+                }
                 None => Some(FpssEvent::RawData {
                     code: frame.code as u8,
                     payload: frame.payload.clone(),
@@ -1067,11 +1119,13 @@ fn decode_frame(
 
         StreamMsgType::Start => {
             tracing::info!("market open signal received");
+            delta_state.clear();
             Some(FpssEvent::MarketOpen)
         }
 
         StreamMsgType::Stop => {
             tracing::info!("market close signal received");
+            delta_state.clear();
             Some(FpssEvent::MarketClose)
         }
 
@@ -1124,6 +1178,9 @@ fn ping_loop(
 ) {
     let interval = Duration::from_millis(PING_INTERVAL_MS);
     let ping_payload = build_ping_payload();
+
+    // Java: scheduleAtFixedRate(..., 2000L, 100L) — initial delay before first ping.
+    thread::sleep(Duration::from_millis(2000));
 
     loop {
         thread::sleep(interval);

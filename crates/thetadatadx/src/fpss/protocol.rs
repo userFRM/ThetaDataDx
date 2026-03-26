@@ -363,7 +363,13 @@ impl std::error::Error for ContractParseError {}
 pub fn build_credentials_payload(username: &str, password: &str) -> Vec<u8> {
     let user_bytes = username.as_bytes();
     let pass_bytes = password.as_bytes();
-    let user_len = user_bytes.len() as u16;
+
+    // Match Java's `putShort((byte)len)` behavior: the length is first narrowed
+    // to a byte (i8), then sign-extended to a short (i16). For lengths 0-127
+    // this is identical to a plain u16 cast. For lengths 128-255 the sign
+    // extension sets the high byte to 0xFF. In practice usernames are always
+    // <128 bytes, but we match the exact wire encoding for correctness.
+    let user_len = user_bytes.len() as i8 as i16;
 
     // 1 (version) + 2 (user_len) + user + pass
     let mut buf = Vec::with_capacity(3 + user_bytes.len() + pass_bytes.len());

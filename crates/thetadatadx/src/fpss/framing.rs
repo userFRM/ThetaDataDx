@@ -151,8 +151,25 @@ pub fn write_frame<W: Write>(writer: &mut W, frame: &Frame) -> Result<(), crate:
 /// Write a frame from raw parts without constructing a `Frame` struct.
 ///
 /// Convenience function for hot paths (e.g., ping heartbeat) where we want
-/// to avoid allocation.
+/// to avoid allocation. Always flushes after writing.
 pub fn write_raw_frame<W: Write>(
+    writer: &mut W,
+    code: StreamMsgType,
+    payload: &[u8],
+) -> Result<(), crate::error::Error> {
+    write_raw_frame_no_flush(writer, code, payload)?;
+    writer.flush()?;
+    Ok(())
+}
+
+/// Write a frame from raw parts without flushing.
+///
+/// Use this when batching multiple writes. Caller is responsible for
+/// flushing at the appropriate time (e.g., after PING frames only).
+///
+/// Source: Java terminal only flushes on ping frames, letting BufWriter
+/// batch other writes for better throughput.
+pub fn write_raw_frame_no_flush<W: Write>(
     writer: &mut W,
     code: StreamMsgType,
     payload: &[u8],
@@ -170,7 +187,6 @@ pub fn write_raw_frame<W: Write>(
     if !payload.is_empty() {
         writer.write_all(payload)?;
     }
-    writer.flush()?;
 
     Ok(())
 }

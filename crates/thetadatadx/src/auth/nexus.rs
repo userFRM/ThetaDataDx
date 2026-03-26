@@ -90,11 +90,51 @@ pub struct AuthResponse {
 }
 
 /// User info returned by the Nexus auth endpoint.
+///
+/// The Nexus API returns per-asset subscription tiers. The Java terminal uses
+/// these to compute concurrency limits: `2^tier` where FREE=0, VALUE=1,
+/// STANDARD=2, PROFESSIONAL=3.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthUser {
     pub email: Option<String>,
     pub subscription_level: Option<String>,
+    pub stock_subscription: Option<String>,
+    pub options_subscription: Option<String>,
+    pub indices_subscription: Option<String>,
+    pub interest_rate_subscription: Option<String>,
+}
+
+impl AuthUser {
+    /// Compute the maximum concurrent gRPC requests based on subscription tier.
+    ///
+    /// Returns `2^tier` where the tier is the highest across all asset classes:
+    /// - FREE = 0 -> 1 concurrent request
+    /// - VALUE = 1 -> 2 concurrent requests
+    /// - STANDARD = 2 -> 4 concurrent requests
+    /// - PROFESSIONAL/PRO = 3 -> 8 concurrent requests
+    ///
+    /// Source: Java terminal `MddsConnectionManager` — `2^subscription_tier`.
+    pub fn max_concurrent_requests(&self) -> usize {
+        let tier = [
+            &self.stock_subscription,
+            &self.options_subscription,
+            &self.indices_subscription,
+            &self.interest_rate_subscription,
+        ]
+        .iter()
+        .filter_map(|s| s.as_deref())
+        .map(|s| match s.to_uppercase().as_str() {
+            "FREE" => 0,
+            "VALUE" => 1,
+            "STANDARD" => 2,
+            "PROFESSIONAL" | "PRO" => 3,
+            _ => 0,
+        })
+        .max()
+        .unwrap_or(0);
+        1usize << tier // 2^tier: 1, 2, 4, 8
+    }
 }
 
 // ── Public API ──

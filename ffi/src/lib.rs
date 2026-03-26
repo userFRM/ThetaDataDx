@@ -310,7 +310,7 @@ fn data_table_to_cstring(table: &thetadatadx::proto::DataTable) -> *mut c_char {
                             "epoch_ms": ts.epoch_ms,
                             "zone": ts.zone,
                         }),
-                        None => serde_json::Value::Null,
+                        Some(DataType::NullValue(_)) | None => serde_json::Value::Null,
                     }
                 })
                 .collect();

@@ -3,6 +3,8 @@
 syntax = "proto3";
 package endpoints;
 
+import "google/protobuf/struct.proto";
+
 enum CompressionAlgo {
   NONE = 0;
   ZSTD = 1;
@@ -45,6 +47,7 @@ message DataValue {
     int64 number = 2;
     Price price = 3;
     ZonedDateTime timestamp = 4;
+    google.protobuf.NullValue null_value = 5;
   }
 }
 

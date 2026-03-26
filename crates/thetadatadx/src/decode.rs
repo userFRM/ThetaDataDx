@@ -4,6 +4,19 @@ use crate::error::Error;
 use crate::proto;
 use crate::types::tick::*;
 
+/// Helper: find a column index by name, logging a warning if not found.
+/// Returns `None` when the header is missing.
+fn find_header(headers: &[&str], name: &str) -> Option<usize> {
+    let pos = headers.iter().position(|&s| s == name);
+    if pos.is_none() {
+        tracing::warn!(
+            header = name,
+            "expected column header not found in DataTable"
+        );
+    }
+    pos
+}
+
 thread_local! {
     /// Reusable zstd decompressor — avoids allocating a fresh decompressor context
     /// on every `decompress_response` call.
@@ -12,16 +25,22 @@ thread_local! {
 }
 
 /// Decompress a ResponseData payload. Returns the raw protobuf bytes of the DataTable.
+///
+/// # Unknown compression algorithms
+///
+/// Prost's `.algo()` silently maps unknown enum values to the default (None=0),
+/// so we check the raw i32 to detect truly unknown algorithms. Without this,
+/// an unrecognized algorithm would be treated as uncompressed, producing garbage.
 pub fn decompress_response(response: &proto::ResponseData) -> Result<Vec<u8>, Error> {
-    let algo = response
+    let algo_raw = response
         .compression_description
         .as_ref()
-        .map(|cd| cd.algo())
-        .unwrap_or(proto::CompressionAlgo::None);
+        .map(|cd| cd.algo)
+        .unwrap_or(0);
 
-    match algo {
-        proto::CompressionAlgo::None => Ok(response.compressed_data.clone()),
-        proto::CompressionAlgo::Zstd => {
+    match proto::CompressionAlgo::try_from(algo_raw) {
+        Ok(proto::CompressionAlgo::None) => Ok(response.compressed_data.clone()),
+        Ok(proto::CompressionAlgo::Zstd) => {
             let original_size = response.original_size as usize;
             let decompressed = ZSTD_DECOMPRESSOR
                 .with(|cell| {
@@ -31,6 +50,10 @@ pub fn decompress_response(response: &proto::ResponseData) -> Result<Vec<u8>, Er
                 .map_err(|e| Error::Decompress(e.to_string()))?;
             Ok(decompressed)
         }
+        _ => Err(Error::Decompress(format!(
+            "unknown compression algorithm: {}",
+            algo_raw
+        ))),
     }
 }
 
@@ -154,27 +177,26 @@ fn row_price_type(row: &proto::DataValueList, idx: usize) -> i32 {
 pub fn parse_trade_ticks(table: &proto::DataTable) -> Vec<TradeTick> {
     // Build header index map
     let h: Vec<&str> = table.headers.iter().map(|s| s.as_str()).collect();
-    let find = |name: &str| h.iter().position(|&s| s == name);
 
-    let ms_idx = find("ms_of_day").unwrap_or(0);
-    let seq_idx = find("sequence").unwrap_or(1);
-    let ext1_idx = find("ext_condition1").unwrap_or(2);
-    let ext2_idx = find("ext_condition2").unwrap_or(3);
-    let ext3_idx = find("ext_condition3").unwrap_or(4);
-    let ext4_idx = find("ext_condition4").unwrap_or(5);
-    let cond_idx = find("condition").unwrap_or(6);
-    let size_idx = find("size").unwrap_or(7);
-    let exg_idx = find("exchange").unwrap_or(8);
-    let price_idx = find("price").unwrap_or(9);
-    let cf_idx = find("condition_flags").unwrap_or(10);
-    let pf_idx = find("price_flags").unwrap_or(11);
-    let vt_idx = find("volume_type").unwrap_or(12);
-    let rb_idx = find("records_back").unwrap_or(13);
-    let pt_idx = find("price_type").unwrap_or(14);
-    let date_idx = find("date").unwrap_or(15);
+    let ms_idx = find_header(&h, "ms_of_day").unwrap_or(0);
+    let seq_idx = find_header(&h, "sequence").unwrap_or(1);
+    let ext1_idx = find_header(&h, "ext_condition1").unwrap_or(2);
+    let ext2_idx = find_header(&h, "ext_condition2").unwrap_or(3);
+    let ext3_idx = find_header(&h, "ext_condition3").unwrap_or(4);
+    let ext4_idx = find_header(&h, "ext_condition4").unwrap_or(5);
+    let cond_idx = find_header(&h, "condition").unwrap_or(6);
+    let size_idx = find_header(&h, "size").unwrap_or(7);
+    let exg_idx = find_header(&h, "exchange").unwrap_or(8);
+    let price_idx = find_header(&h, "price").unwrap_or(9);
+    let cf_idx = find_header(&h, "condition_flags").unwrap_or(10);
+    let pf_idx = find_header(&h, "price_flags").unwrap_or(11);
+    let vt_idx = find_header(&h, "volume_type").unwrap_or(12);
+    let rb_idx = find_header(&h, "records_back").unwrap_or(13);
+    let pt_idx = find_header(&h, "price_type").unwrap_or(14);
+    let date_idx = find_header(&h, "date").unwrap_or(15);
 
     // Precompute whether "price" column is a Price-typed column (vs plain number).
-    let price_is_typed = find("price").is_some();
+    let price_is_typed = h.contains(&"price");
 
     table
         .data_table
@@ -215,21 +237,21 @@ pub fn parse_trade_ticks(table: &proto::DataTable) -> Vec<TradeTick> {
 /// Parse a DataTable into QuoteTicks.
 pub fn parse_quote_ticks(table: &proto::DataTable) -> Vec<QuoteTick> {
     let h: Vec<&str> = table.headers.iter().map(|s| s.as_str()).collect();
-    let find = |name: &str| h.iter().position(|&s| s == name);
 
-    let ms_idx = find("ms_of_day").unwrap_or(0);
-    let bs_idx = find("bid_size").unwrap_or(1);
-    let be_idx = find("bid_exchange").unwrap_or(2);
-    let bid_idx = find("bid").unwrap_or(3);
-    let bc_idx = find("bid_condition").unwrap_or(4);
-    let as_idx = find("ask_size").unwrap_or(5);
-    let ae_idx = find("ask_exchange").unwrap_or(6);
-    let ask_idx = find("ask").unwrap_or(7);
-    let ac_idx = find("ask_condition").unwrap_or(8);
-    let pt_idx = find("price_type").unwrap_or(9);
-    let date_idx = find("date").unwrap_or(10);
+    let ms_idx = find_header(&h, "ms_of_day").unwrap_or(0);
+    let bs_idx = find_header(&h, "bid_size").unwrap_or(1);
+    let be_idx = find_header(&h, "bid_exchange").unwrap_or(2);
+    let bid_idx = find_header(&h, "bid").unwrap_or(3);
+    let bc_idx = find_header(&h, "bid_condition").unwrap_or(4);
+    let as_idx = find_header(&h, "ask_size").unwrap_or(5);
+    let ae_idx = find_header(&h, "ask_exchange").unwrap_or(6);
+    let ask_idx = find_header(&h, "ask").unwrap_or(7);
+    let ac_idx = find_header(&h, "ask_condition").unwrap_or(8);
+    let pt_idx = find_header(&h, "price_type").unwrap_or(9);
+    let date_idx = find_header(&h, "date").unwrap_or(10);
 
     // Precompute whether bid/ask columns are Price-typed (vs plain number).
+    let find = |name: &str| h.iter().position(|&s| s == name);
     let bid_is_typed = find("bid").is_some();
     let ask_is_typed = find("ask").is_some();
 
@@ -271,19 +293,19 @@ pub fn parse_quote_ticks(table: &proto::DataTable) -> Vec<QuoteTick> {
 /// Parse a DataTable into OhlcTicks.
 pub fn parse_ohlc_ticks(table: &proto::DataTable) -> Vec<OhlcTick> {
     let h: Vec<&str> = table.headers.iter().map(|s| s.as_str()).collect();
-    let find = |name: &str| h.iter().position(|&s| s == name);
 
-    let ms_idx = find("ms_of_day").unwrap_or(0);
-    let o_idx = find("open").unwrap_or(1);
-    let hi_idx = find("high").unwrap_or(2);
-    let lo_idx = find("low").unwrap_or(3);
-    let c_idx = find("close").unwrap_or(4);
-    let vol_idx = find("volume").unwrap_or(5);
-    let cnt_idx = find("count").unwrap_or(6);
-    let pt_idx = find("price_type").unwrap_or(7);
-    let date_idx = find("date").unwrap_or(8);
+    let ms_idx = find_header(&h, "ms_of_day").unwrap_or(0);
+    let o_idx = find_header(&h, "open").unwrap_or(1);
+    let hi_idx = find_header(&h, "high").unwrap_or(2);
+    let lo_idx = find_header(&h, "low").unwrap_or(3);
+    let c_idx = find_header(&h, "close").unwrap_or(4);
+    let vol_idx = find_header(&h, "volume").unwrap_or(5);
+    let cnt_idx = find_header(&h, "count").unwrap_or(6);
+    let pt_idx = find_header(&h, "price_type").unwrap_or(7);
+    let date_idx = find_header(&h, "date").unwrap_or(8);
 
     // Precompute whether OHLC columns are Price-typed (vs plain number).
+    let find = |name: &str| h.iter().position(|&s| s == name);
     let open_is_typed = find("open").is_some();
     let high_is_typed = find("high").is_some();
     let low_is_typed = find("low").is_some();

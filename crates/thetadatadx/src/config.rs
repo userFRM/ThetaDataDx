@@ -103,8 +103,8 @@ pub struct DirectConfig {
     // ── MDDS tuning ──
     /// Max concurrent in-flight gRPC requests.
     ///
-    /// JVM equivalent: `2^subscription_tier` (Free=1, Value=2, Standard=4, Pro=16).
-    /// Set to 0 for unlimited.
+    /// JVM equivalent: `2^subscription_tier` (Free=1, Value=2, Standard=4, Pro=8).
+    /// Set to 0 to auto-detect from the subscription tier returned by Nexus auth.
     pub mdds_concurrent_requests: usize,
 
     /// Max inbound gRPC message size in bytes.
@@ -177,8 +177,8 @@ impl DirectConfig {
             fpss_ping_interval_ms: 100,     // FPSSClient.startPinging()
             fpss_connect_timeout_ms: 2_000, // FPSSClient socket.connect timeout
 
-            // Concurrency: safe for Value tier and above (2^1 = 2)
-            mdds_concurrent_requests: 2,
+            // Concurrency: 0 = auto-detect from subscription tier at auth time.
+            mdds_concurrent_requests: 0,
 
             // Source: ChannelProvider in decompiled terminal
             mdds_max_message_size: 4 * 1024 * 1024, // 4MB default

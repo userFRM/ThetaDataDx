@@ -1749,6 +1749,7 @@ dependencies = [
  "disruptor",
  "prost",
  "prost-build",
+ "prost-types",
  "reqwest",
  "rustls",
  "serde",
