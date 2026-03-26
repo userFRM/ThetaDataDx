@@ -18,10 +18,22 @@ fn find_header(headers: &[&str], name: &str) -> Option<usize> {
 }
 
 thread_local! {
-    /// Reusable zstd decompressor — avoids allocating a fresh decompressor context
-    /// on every `decompress_response` call.
-    static ZSTD_DECOMPRESSOR: RefCell<zstd::bulk::Decompressor<'static>> =
-        RefCell::new(zstd::bulk::Decompressor::new().expect("failed to create zstd decompressor"));
+    /// Reusable zstd decompressor **and** output buffer — avoids allocating both
+    /// a fresh decompressor context and a fresh `Vec<u8>` on every call.
+    ///
+    /// The decompressor context (~128 KB of zstd internal state) is recycled, and
+    /// the output buffer retains its capacity across calls so that repeated
+    /// decompressions of similar-sized payloads hit no allocator at all.
+    ///
+    /// We use `decompress_to_buffer` which writes into the pre-existing Vec
+    /// without reallocating when capacity is sufficient. The final `.clone()`
+    /// is necessary since we return ownership, but the internal buffer capacity
+    /// persists across calls — the key win is avoiding repeated alloc/dealloc
+    /// cycles for the working buffer.
+    static ZSTD_STATE: RefCell<(zstd::bulk::Decompressor<'static>, Vec<u8>)> = RefCell::new((
+        zstd::bulk::Decompressor::new().expect("failed to create zstd decompressor"),
+        Vec::with_capacity(1024 * 1024), // 1 MB initial capacity
+    ));
 }
 
 /// Decompress a ResponseData payload. Returns the raw protobuf bytes of the DataTable.
@@ -31,6 +43,13 @@ thread_local! {
 /// Prost's `.algo()` silently maps unknown enum values to the default (None=0),
 /// so we check the raw i32 to detect truly unknown algorithms. Without this,
 /// an unrecognized algorithm would be treated as uncompressed, producing garbage.
+///
+/// # Buffer recycling
+///
+/// Uses a thread-local `(Decompressor, Vec<u8>)` pair. The `Vec` retains its
+/// capacity across calls, so repeated decompressions of similar-sized payloads
+/// avoid hitting the allocator for the working buffer. The returned `Vec<u8>`
+/// is a clone (we must return ownership), but the internal slab persists.
 pub fn decompress_response(response: &proto::ResponseData) -> Result<Vec<u8>, Error> {
     let algo_raw = response
         .compression_description
@@ -42,13 +61,16 @@ pub fn decompress_response(response: &proto::ResponseData) -> Result<Vec<u8>, Er
         Ok(proto::CompressionAlgo::None) => Ok(response.compressed_data.clone()),
         Ok(proto::CompressionAlgo::Zstd) => {
             let original_size = response.original_size as usize;
-            let decompressed = ZSTD_DECOMPRESSOR
-                .with(|cell| {
-                    let mut dec = cell.borrow_mut();
-                    dec.decompress(&response.compressed_data, original_size)
-                })
-                .map_err(|e| Error::Decompress(e.to_string()))?;
-            Ok(decompressed)
+            ZSTD_STATE.with(|cell| {
+                let (ref mut dec, ref mut buf) = *cell.borrow_mut();
+                buf.clear();
+                buf.resize(original_size, 0);
+                let n = dec
+                    .decompress_to_buffer(&response.compressed_data, buf)
+                    .map_err(|e| Error::Decompress(e.to_string()))?;
+                buf.truncate(n);
+                Ok(buf.clone())
+            })
         }
         _ => Err(Error::Decompress(format!(
             "unknown compression algorithm: {}",

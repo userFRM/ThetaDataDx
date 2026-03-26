@@ -17,4 +17,5 @@ pub mod fie;
 pub mod fit;
 
 pub use fie::string_to_fie_line;
+pub use fit::decode_fit_buffer_bulk;
 pub use fit::FitReader;

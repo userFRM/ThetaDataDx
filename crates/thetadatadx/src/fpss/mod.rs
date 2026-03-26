@@ -24,7 +24,7 @@
 //! # Usage
 //!
 //! ```rust,no_run
-//! # use thetadatadx::fpss::{FpssClient, FpssEvent};
+//! # use thetadatadx::fpss::{FpssClient, FpssData, FpssEvent};
 //! # use thetadatadx::auth::Credentials;
 //! # fn example() -> Result<(), thetadatadx::error::Error> {
 //! let creds = Credentials { email: "user@example.com".into(), password: "pw".into() };
@@ -32,8 +32,9 @@
 //!     // Runs on the Disruptor consumer thread -- keep it fast.
 //!     // Push to your own queue for heavy processing.
 //!     match event {
-//!         FpssEvent::Quote { contract_id, bid, ask, .. } => { /* decoded fields */ }
-//!         FpssEvent::Trade { contract_id, price, size, .. } => { /* decoded fields */ }
+//!         FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, .. }) => { /* decoded fields */ }
+//!         FpssEvent::Data(FpssData::Trade { contract_id, price, size, .. }) => { /* decoded fields */ }
+//!         FpssEvent::Control(_) => { /* lifecycle */ }
 //!         _ => {}
 //!     }
 //! })?;
@@ -107,36 +108,15 @@ use self::protocol::{
     RECONNECT_DELAY_MS, TOO_MANY_REQUESTS_DELAY_MS,
 };
 
-/// Events emitted by the FPSS background read loop.
+/// Tick data events from the FPSS stream.
 ///
-/// Subscribers receive these through the Disruptor callback. The enum is
-/// non-exhaustive to allow adding new event types without breaking downstream.
-///
-/// Tick data events (`Quote`, `Trade`, `OpenInterest`, `Ohlcvc`) are decoded
-/// from FIT wire format and delta-decompressed before reaching consumers.
-/// All fields are raw integer values; use `Price::new(price, price_type).to_f64()`
-/// for human-readable prices.
-#[derive(Debug, Clone, Default)]
+/// These are the hot-path events decoded from FIT wire format and
+/// delta-decompressed. All fields are raw integer values; use
+/// `Price::new(price, price_type).to_f64()` for human-readable prices.
+#[derive(Debug, Clone)]
 #[non_exhaustive]
-pub enum FpssEvent {
-    /// Login succeeded. Payload is the permissions string from METADATA (code 3).
-    ///
-    /// Source: `FPSSClient.onMetadata()` -- server sends permissions as UTF-8.
-    LoginSuccess { permissions: String },
-
-    /// Server sent a CONTRACT assignment (code 20).
-    ///
-    /// The server assigns a numeric ID to each contract on first subscription.
-    /// Subsequent data messages reference this ID instead of the full contract.
-    ///
-    /// Source: `FPSSClient.onContract()`.
-    ContractAssigned { id: i32, contract: Contract },
-
-    /// Decoded quote tick from FPSS stream (code 21).
-    ///
-    /// 11 FIT fields + contract_id. Already delta-decompressed.
-    ///
-    /// Source: `FPSSClient.onQuote()`.
+pub enum FpssData {
+    /// Decoded quote tick (code 21). 11 FIT fields + contract_id.
     Quote {
         contract_id: i32,
         ms_of_day: i32,
@@ -151,12 +131,7 @@ pub enum FpssEvent {
         price_type: i32,
         date: i32,
     },
-
-    /// Decoded trade tick from FPSS stream (code 22).
-    ///
-    /// 16 FIT fields + contract_id. Already delta-decompressed.
-    ///
-    /// Source: `FPSSClient.onTrade()`.
+    /// Decoded trade tick (code 22). 16 FIT fields + contract_id.
     Trade {
         contract_id: i32,
         ms_of_day: i32,
@@ -176,24 +151,14 @@ pub enum FpssEvent {
         price_type: i32,
         date: i32,
     },
-
-    /// Decoded open interest tick from FPSS stream (code 23).
-    ///
-    /// 3 FIT fields + contract_id. Already delta-decompressed.
-    ///
-    /// Source: `FPSSClient.onOpenInterest()`.
+    /// Decoded open interest tick (code 23). 3 FIT fields + contract_id.
     OpenInterest {
         contract_id: i32,
         ms_of_day: i32,
         open_interest: i32,
         date: i32,
     },
-
-    /// Decoded OHLCVC bar from FPSS stream (code 24).
-    ///
-    /// 9 FIT fields + contract_id. Already delta-decompressed.
-    ///
-    /// Source: `FPSSClient.onOHLCVC()`.
+    /// Decoded OHLCVC bar (code 24 or trade-derived).
     Ohlcvc {
         contract_id: i32,
         ms_of_day: i32,
@@ -206,44 +171,49 @@ pub enum FpssEvent {
         price_type: i32,
         date: i32,
     },
+}
 
-    /// Raw undecoded data (fallback for payloads too short or corrupt to decode).
-    RawData { code: u8, payload: Vec<u8> },
-
+/// Control/lifecycle events from the FPSS stream.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub enum FpssControl {
+    /// Login succeeded (METADATA code 3).
+    LoginSuccess { permissions: String },
+    /// Server sent a CONTRACT assignment (code 20).
+    ContractAssigned { id: i32, contract: Contract },
     /// Subscription response (code 40).
-    ///
-    /// Source: `FPSSClient.onReqResponse()`.
     ReqResponse {
         req_id: i32,
         result: StreamResponseType,
     },
-
     /// Market open signal (code 30).
-    ///
-    /// Source: `FPSSClient.onStart()`.
-    #[default]
     MarketOpen,
-
     /// Market close / stop signal (code 32).
-    ///
-    /// Source: `FPSSClient.onStop()`.
     MarketClose,
-
-    /// Server error message (code 11). Payload is UTF-8 error text.
-    ///
-    /// Source: `FPSSClient.onError()`.
+    /// Server error message (code 11).
     ServerError { message: String },
-
-    /// Server disconnected us (code 12). Contains the parsed reason.
-    ///
-    /// Source: `FPSSClient.onDisconnected()`.
+    /// Server disconnected us (code 12).
     Disconnected { reason: RemoveReason },
-
-    /// Protocol-level parse error (e.g. malformed CONTRACT or REQ_RESPONSE).
-    ///
-    /// Callers should log these; they indicate protocol-level corruption or
-    /// version mismatch with the server.
+    /// Protocol-level parse error.
     Error { message: String },
+}
+
+/// All FPSS events -- either data or control.
+///
+/// Subscribers receive these through the Disruptor callback. The enum is
+/// non-exhaustive to allow adding new event types without breaking downstream.
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub enum FpssEvent {
+    /// Tick data event (quote, trade, open interest, OHLCVC).
+    Data(FpssData),
+    /// Control/lifecycle event (login, contract assignment, market open/close, etc.).
+    Control(FpssControl),
+    /// Raw undecoded data (fallback for payloads too short or corrupt to decode).
+    RawData { code: u8, payload: Vec<u8> },
+    /// Placeholder default for ring buffer pre-allocation.
+    #[default]
+    Empty,
 }
 
 // ---------------------------------------------------------------------------
@@ -720,7 +690,9 @@ fn io_loop<F>(
 
     // Publish login success event.
     producer.publish(|slot| {
-        slot.event = Some(FpssEvent::LoginSuccess { permissions });
+        slot.event = Some(FpssEvent::Control(FpssControl::LoginSuccess {
+            permissions,
+        }));
     });
 
     // Split the stream into buffered read/write.
@@ -749,7 +721,7 @@ fn io_loop<F>(
             Ok(Some(frame)) => {
                 consecutive_timeouts = 0;
 
-                let event = decode_frame(
+                let events = decode_frame(
                     &frame,
                     &authenticated,
                     &contract_map,
@@ -757,7 +729,7 @@ fn io_loop<F>(
                     &mut delta_state,
                 );
 
-                if let Some(evt) = event {
+                for evt in events {
                     producer.publish(|slot| {
                         slot.event = Some(evt);
                     });
@@ -767,9 +739,9 @@ fn io_loop<F>(
                 // Clean EOF
                 tracing::warn!("FPSS connection closed by server");
                 producer.publish(|slot| {
-                    slot.event = Some(FpssEvent::Disconnected {
+                    slot.event = Some(FpssEvent::Control(FpssControl::Disconnected {
                         reason: RemoveReason::Unspecified,
-                    });
+                    }));
                 });
                 authenticated.store(false, Ordering::Release);
                 break;
@@ -785,9 +757,9 @@ fn io_loop<F>(
                         consecutive_timeouts * 50
                     );
                     producer.publish(|slot| {
-                        slot.event = Some(FpssEvent::Disconnected {
+                        slot.event = Some(FpssEvent::Control(FpssControl::Disconnected {
                             reason: RemoveReason::TimedOut,
-                        });
+                        }));
                     });
                     authenticated.store(false, Ordering::Release);
                     break;
@@ -797,9 +769,9 @@ fn io_loop<F>(
             Err(e) => {
                 tracing::error!(error = %e, "FPSS read error");
                 producer.publish(|slot| {
-                    slot.event = Some(FpssEvent::Disconnected {
+                    slot.event = Some(FpssEvent::Control(FpssControl::Disconnected {
                         reason: RemoveReason::Unspecified,
-                    });
+                    }));
                 });
                 authenticated.store(false, Ordering::Release);
                 break;
@@ -875,6 +847,124 @@ const TRADE_FIELDS: usize = 16;
 const OI_FIELDS: usize = 3;
 const OHLCVC_FIELDS: usize = 9;
 
+/// Per-contract OHLCVC accumulator, updated on every Trade event.
+struct OhlcvcAccumulator {
+    open: i32,
+    high: i32,
+    low: i32,
+    close: i32,
+    volume: i32,
+    count: i32,
+    price_type: i32,
+    date: i32,
+    ms_of_day: i32,
+    initialized: bool,
+}
+
+impl OhlcvcAccumulator {
+    fn new() -> Self {
+        Self {
+            open: 0,
+            high: 0,
+            low: 0,
+            close: 0,
+            volume: 0,
+            count: 0,
+            price_type: 0,
+            date: 0,
+            ms_of_day: 0,
+            initialized: false,
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn init_from_server(
+        &mut self,
+        ms_of_day: i32,
+        open: i32,
+        high: i32,
+        low: i32,
+        close: i32,
+        volume: i32,
+        count: i32,
+        price_type: i32,
+        date: i32,
+    ) {
+        self.ms_of_day = ms_of_day;
+        self.open = open;
+        self.high = high;
+        self.low = low;
+        self.close = close;
+        self.volume = volume;
+        self.count = count;
+        self.price_type = price_type;
+        self.date = date;
+        self.initialized = true;
+    }
+
+    fn process_trade(&mut self, ms_of_day: i32, price: i32, size: i32, price_type: i32, date: i32) {
+        if !self.initialized {
+            self.open = price;
+            self.high = price;
+            self.low = price;
+            self.close = price;
+            self.volume = size;
+            self.count = 1;
+            self.price_type = price_type;
+            self.date = date;
+            self.ms_of_day = ms_of_day;
+            self.initialized = true;
+        } else {
+            self.ms_of_day = ms_of_day;
+            let adjusted_price = change_price_type(price, price_type, self.price_type);
+            self.volume += size;
+            self.count += 1;
+            if adjusted_price > self.high {
+                self.high = adjusted_price;
+            }
+            if adjusted_price < self.low {
+                self.low = adjusted_price;
+            }
+            self.close = adjusted_price;
+        }
+    }
+}
+
+/// Convert a price from one price_type to another (mirrors Java PriceCalcUtils.changePriceType).
+fn change_price_type(price: i32, price_type: i32, new_price_type: i32) -> i32 {
+    if price == 0 || price_type == new_price_type {
+        return price;
+    }
+    const POW10: [i32; 10] = [
+        1,
+        10,
+        100,
+        1_000,
+        10_000,
+        100_000,
+        1_000_000,
+        10_000_000,
+        100_000_000,
+        1_000_000_000,
+    ];
+    let exp = new_price_type - price_type;
+    if exp <= 0 {
+        let idx = (-exp) as usize;
+        if idx < POW10.len() {
+            price * POW10[idx]
+        } else {
+            price
+        }
+    } else {
+        let idx = exp as usize;
+        if idx < POW10.len() {
+            price / POW10[idx]
+        } else {
+            0
+        }
+    }
+}
+
 /// Per-contract, per-message-type delta decompression state.
 ///
 /// FIT uses delta compression: the first tick for a contract is absolute,
@@ -883,12 +973,15 @@ const OHLCVC_FIELDS: usize = 9;
 struct DeltaState {
     /// Key: `(StreamMsgType as u8, contract_id)`, Value: last absolute field values.
     prev: HashMap<(u8, i32), Vec<i32>>,
+    /// Per-contract OHLCVC accumulators.
+    ohlcvc: HashMap<i32, OhlcvcAccumulator>,
 }
 
 impl DeltaState {
     fn new() -> Self {
         Self {
             prev: HashMap::new(),
+            ohlcvc: HashMap::new(),
         }
     }
 
@@ -899,6 +992,7 @@ impl DeltaState {
     /// fresh after a session boundary.
     fn clear(&mut self) {
         self.prev.clear();
+        self.ohlcvc.clear();
     }
 
     /// Decode FIT payload and apply delta decompression.
@@ -981,34 +1075,39 @@ fn decode_frame(
     contract_map: &Mutex<HashMap<i32, Contract>>,
     shutdown: &AtomicBool,
     delta_state: &mut DeltaState,
-) -> Option<FpssEvent> {
+) -> Vec<FpssEvent> {
     match frame.code {
         StreamMsgType::Metadata => {
             // Can arrive again after reconnection
             let permissions = String::from_utf8_lossy(&frame.payload).to_string();
             tracing::debug!(permissions = %permissions, "received METADATA");
             authenticated.store(true, Ordering::Release);
-            Some(FpssEvent::LoginSuccess { permissions })
+            vec![FpssEvent::Control(FpssControl::LoginSuccess {
+                permissions,
+            })]
         }
 
         StreamMsgType::Contract => match parse_contract_message(&frame.payload) {
             Ok((id, contract)) => {
                 tracing::debug!(id, contract = %contract, "contract assigned");
                 contract_map.lock().unwrap().insert(id, contract.clone());
-                Some(FpssEvent::ContractAssigned { id, contract })
+                vec![FpssEvent::Control(FpssControl::ContractAssigned {
+                    id,
+                    contract,
+                })]
             }
             Err(e) => {
                 tracing::warn!(error = %e, "failed to parse CONTRACT message");
-                Some(FpssEvent::Error {
+                vec![FpssEvent::Control(FpssControl::Error {
                     message: format!("failed to parse CONTRACT message: {e}"),
-                })
+                })]
             }
         },
 
         StreamMsgType::Quote => {
             let code = frame.code as u8;
             match delta_state.decode_tick(code, &frame.payload, QUOTE_FIELDS) {
-                Some((contract_id, f)) => Some(FpssEvent::Quote {
+                Some((contract_id, f)) => vec![FpssEvent::Data(FpssData::Quote {
                     contract_id,
                     ms_of_day: f[0],
                     bid_size: f[1],
@@ -1021,11 +1120,11 @@ fn decode_frame(
                     ask_condition: f[8],
                     price_type: f[9],
                     date: f[10],
-                }),
-                None => Some(FpssEvent::RawData {
+                })],
+                None => vec![FpssEvent::RawData {
                     code: frame.code as u8,
                     payload: frame.payload.clone(),
-                }),
+                }],
             }
         }
 
@@ -1033,87 +1132,118 @@ fn decode_frame(
             let code = frame.code as u8;
             match delta_state.decode_tick(code, &frame.payload, TRADE_FIELDS) {
                 Some((contract_id, f)) => {
-                    // TODO(#11): After emitting Trade, update an OHLCVC accumulator
-                    // per contract and emit an additional FpssEvent::Ohlcvc.
-                    // Java's `lastO.processTrade(last.data())` does this inline.
-                    // Requires matching Java's exact OHLCVC reset logic (session
-                    // boundaries, first-trade-of-day open, etc.) to avoid subtle
-                    // divergence. Deferred until we can verify against live data.
-                    Some(FpssEvent::Trade {
+                    let (ms_of_day, size, price) = (f[0], f[7], f[9]);
+                    let (price_type, date) = (f[14], f[15]);
+                    let trade_event = FpssEvent::Data(FpssData::Trade {
                         contract_id,
-                        ms_of_day: f[0],
+                        ms_of_day,
                         sequence: f[1],
                         ext_condition1: f[2],
                         ext_condition2: f[3],
                         ext_condition3: f[4],
                         ext_condition4: f[5],
                         condition: f[6],
-                        size: f[7],
+                        size,
                         exchange: f[8],
-                        price: f[9],
+                        price,
                         condition_flags: f[10],
                         price_flags: f[11],
                         volume_type: f[12],
                         records_back: f[13],
-                        price_type: f[14],
-                        date: f[15],
-                    })
+                        price_type,
+                        date,
+                    });
+                    // Java only updates OHLCVC if lastOHLCVC already exists
+                    // (seeded by a prior server OHLCVC message). We match this:
+                    // don't emit derived OHLCVC unless the server has seeded one.
+                    if let Some(acc) = delta_state.ohlcvc.get_mut(&contract_id) {
+                        if acc.initialized {
+                            acc.process_trade(ms_of_day, price, size, price_type, date);
+                            let ohlcvc_event = FpssEvent::Data(FpssData::Ohlcvc {
+                                contract_id,
+                                ms_of_day: acc.ms_of_day,
+                                open: acc.open,
+                                high: acc.high,
+                                low: acc.low,
+                                close: acc.close,
+                                volume: acc.volume,
+                                count: acc.count,
+                                price_type: acc.price_type,
+                                date: acc.date,
+                            });
+                            vec![trade_event, ohlcvc_event]
+                        } else {
+                            vec![trade_event]
+                        }
+                    } else {
+                        vec![trade_event]
+                    }
                 }
-                None => Some(FpssEvent::RawData {
+                None => vec![FpssEvent::RawData {
                     code: frame.code as u8,
                     payload: frame.payload.clone(),
-                }),
+                }],
             }
         }
 
         StreamMsgType::OpenInterest => {
             let code = frame.code as u8;
             match delta_state.decode_tick(code, &frame.payload, OI_FIELDS) {
-                Some((contract_id, f)) => Some(FpssEvent::OpenInterest {
+                Some((contract_id, f)) => vec![FpssEvent::Data(FpssData::OpenInterest {
                     contract_id,
                     ms_of_day: f[0],
                     open_interest: f[1],
                     date: f[2],
-                }),
-                None => Some(FpssEvent::RawData {
+                })],
+                None => vec![FpssEvent::RawData {
                     code: frame.code as u8,
                     payload: frame.payload.clone(),
-                }),
+                }],
             }
         }
 
         StreamMsgType::Ohlcvc => {
             let code = frame.code as u8;
             match delta_state.decode_tick(code, &frame.payload, OHLCVC_FIELDS) {
-                Some((contract_id, f)) => Some(FpssEvent::Ohlcvc {
-                    contract_id,
-                    ms_of_day: f[0],
-                    open: f[1],
-                    high: f[2],
-                    low: f[3],
-                    close: f[4],
-                    volume: f[5],
-                    count: f[6],
-                    price_type: f[7],
-                    date: f[8],
-                }),
-                None => Some(FpssEvent::RawData {
+                Some((contract_id, f)) => {
+                    let acc = delta_state
+                        .ohlcvc
+                        .entry(contract_id)
+                        .or_insert_with(OhlcvcAccumulator::new);
+                    acc.init_from_server(f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8]);
+                    vec![FpssEvent::Data(FpssData::Ohlcvc {
+                        contract_id,
+                        ms_of_day: f[0],
+                        open: f[1],
+                        high: f[2],
+                        low: f[3],
+                        close: f[4],
+                        volume: f[5],
+                        count: f[6],
+                        price_type: f[7],
+                        date: f[8],
+                    })]
+                }
+                None => vec![FpssEvent::RawData {
                     code: frame.code as u8,
                     payload: frame.payload.clone(),
-                }),
+                }],
             }
         }
 
         StreamMsgType::ReqResponse => match parse_req_response(&frame.payload) {
             Ok((req_id, result)) => {
                 tracing::debug!(req_id, result = ?result, "subscription response");
-                Some(FpssEvent::ReqResponse { req_id, result })
+                vec![FpssEvent::Control(FpssControl::ReqResponse {
+                    req_id,
+                    result,
+                })]
             }
             Err(e) => {
                 tracing::warn!(error = %e, "failed to parse REQ_RESPONSE");
-                Some(FpssEvent::Error {
+                vec![FpssEvent::Control(FpssControl::Error {
                     message: format!("failed to parse REQ_RESPONSE: {e}"),
-                })
+                })]
             }
         },
 
@@ -1121,20 +1251,20 @@ fn decode_frame(
             tracing::info!("market open signal received");
             delta_state.clear();
             contract_map.lock().unwrap().clear(); // Java: idToContract.clear()
-            Some(FpssEvent::MarketOpen)
+            vec![FpssEvent::Control(FpssControl::MarketOpen)]
         }
 
         StreamMsgType::Stop => {
             tracing::info!("market close signal received");
             delta_state.clear();
             contract_map.lock().unwrap().clear(); // Java: idToContract.clear()
-            Some(FpssEvent::MarketClose)
+            vec![FpssEvent::Control(FpssControl::MarketClose)]
         }
 
         StreamMsgType::Error => {
             let message = String::from_utf8_lossy(&frame.payload).to_string();
             tracing::warn!(message = %message, "server error");
-            Some(FpssEvent::ServerError { message })
+            vec![FpssEvent::Control(FpssControl::ServerError { message })]
         }
 
         StreamMsgType::Disconnected => {
@@ -1148,13 +1278,13 @@ fn decode_frame(
                 shutdown.store(true, Ordering::Release);
             }
 
-            Some(FpssEvent::Disconnected { reason })
+            vec![FpssEvent::Control(FpssControl::Disconnected { reason })]
         }
 
         // Ignore frame types we don't handle (e.g., server sending PING)
         other => {
             tracing::trace!(code = ?other, "ignoring unhandled frame type");
-            None
+            vec![]
         }
     }
 }
@@ -1340,7 +1470,87 @@ mod tests {
 
     #[test]
     fn fpss_event_default_exists() {
-        // Ensure FpssEvent implements Default (needed for ring slot init).
         let _evt: FpssEvent = Default::default();
+    }
+
+    #[test]
+    fn ohlcvc_accumulator_first_trade_initializes() {
+        let mut acc = OhlcvcAccumulator::new();
+        assert!(!acc.initialized);
+        acc.process_trade(34200000, 15025, 100, 8, 20240315);
+        assert!(acc.initialized);
+        assert_eq!(acc.open, 15025);
+        assert_eq!(acc.high, 15025);
+        assert_eq!(acc.low, 15025);
+        assert_eq!(acc.close, 15025);
+        assert_eq!(acc.volume, 100);
+        assert_eq!(acc.count, 1);
+    }
+
+    #[test]
+    fn ohlcvc_accumulator_updates() {
+        let mut acc = OhlcvcAccumulator::new();
+        acc.process_trade(34200000, 15025, 100, 8, 20240315);
+        acc.process_trade(34200100, 15100, 200, 8, 20240315);
+        acc.process_trade(34200200, 14950, 50, 8, 20240315);
+        assert_eq!(acc.open, 15025);
+        assert_eq!(acc.high, 15100);
+        assert_eq!(acc.low, 14950);
+        assert_eq!(acc.close, 14950);
+        assert_eq!(acc.volume, 350);
+        assert_eq!(acc.count, 3);
+    }
+
+    #[test]
+    fn ohlcvc_accumulator_server_init_then_trade() {
+        let mut acc = OhlcvcAccumulator::new();
+        acc.init_from_server(34200000, 15000, 15100, 14900, 15050, 1000, 10, 8, 20240315);
+        acc.process_trade(34200300, 15200, 50, 8, 20240315);
+        assert_eq!(acc.high, 15200);
+        assert_eq!(acc.low, 14900);
+        assert_eq!(acc.volume, 1050);
+        assert_eq!(acc.count, 11);
+    }
+
+    #[test]
+    fn change_price_type_tests() {
+        assert_eq!(change_price_type(15025, 8, 8), 15025);
+        assert_eq!(change_price_type(15025, 8, 7), 150250);
+        assert_eq!(change_price_type(150250, 7, 8), 15025);
+        assert_eq!(change_price_type(0, 8, 7), 0);
+    }
+
+    #[test]
+    fn fpss_event_split_data_control() {
+        let data_evt = FpssEvent::Data(FpssData::Trade {
+            contract_id: 42,
+            ms_of_day: 0,
+            sequence: 0,
+            ext_condition1: 0,
+            ext_condition2: 0,
+            ext_condition3: 0,
+            ext_condition4: 0,
+            condition: 0,
+            size: 100,
+            exchange: 0,
+            price: 15025,
+            condition_flags: 0,
+            price_flags: 0,
+            volume_type: 0,
+            records_back: 0,
+            price_type: 8,
+            date: 20240315,
+        });
+        match &data_evt {
+            FpssEvent::Data(FpssData::Trade {
+                contract_id, price, ..
+            }) => {
+                assert_eq!(*contract_id, 42);
+                assert_eq!(*price, 15025);
+            }
+            other => panic!("expected Data(Trade), got {other:?}"),
+        }
+        let ctrl = FpssEvent::Control(FpssControl::MarketOpen);
+        assert!(matches!(&ctrl, FpssEvent::Control(FpssControl::MarketOpen)));
     }
 }

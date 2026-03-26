@@ -138,6 +138,49 @@ macro_rules! raw_endpoint {
     };
 }
 
+/// Generate a streaming endpoint that yields parsed ticks per-chunk via a callback,
+/// without materializing the full response in memory.
+///
+/// Pattern: build request -> gRPC call -> for_each_chunk -> parse + callback.
+///
+/// These `_stream` variants are ideal for endpoints that return millions of rows
+/// (e.g. full-day trade history) where peak memory matters.
+macro_rules! streaming_endpoint {
+    (
+        $(#[$meta:meta])*
+        fn $name:ident( $($arg:ident : $arg_ty:ty),* ; handler: F) -> $tick_ty:ty;
+        grpc: $grpc:ident;
+        request: $req:ident;
+        query: $query:ident { $($field:ident : $val:expr),* $(,)? };
+        parse: $parser:expr;
+        $(dates: $($date_arg:ident),+ ;)?
+    ) => {
+        $(#[$meta])*
+        pub async fn $name<F>(&self, $($arg : $arg_ty,)* mut handler: F) -> Result<(), Error>
+        where
+            F: FnMut(&[$tick_ty]),
+        {
+            $($(validate_date($date_arg)?;)+)?
+            tracing::debug!(endpoint = stringify!($name), "gRPC streaming request");
+            let _permit = self.request_semaphore.acquire().await
+                .map_err(|_| Error::Fpss("request semaphore closed".into()))?;
+            let request = proto_v3::$req {
+                query_info: Some(self.query_info()),
+                params: Some(proto_v3::$query { $($field : $val),* }),
+            };
+            let stream = self.stub().$grpc(request).await?.into_inner();
+            self.for_each_chunk(stream, |_headers, rows| {
+                let table = proto::DataTable {
+                    headers: _headers.to_vec(),
+                    data_table: rows.to_vec(),
+                };
+                let ticks = $parser(&table);
+                handler(&ticks);
+            }).await
+        }
+    };
+}
+
 /// Helper: build a `proto::ContractSpec` from the four standard option params.
 macro_rules! contract_spec {
     ($symbol:expr, $expiration:expr, $strike:expr, $right:expr) => {
@@ -370,10 +413,20 @@ impl DirectClient {
     where
         F: FnMut(&[String], &[proto::DataValueList]),
     {
+        // Preserve first-chunk headers across all chunks, matching collect_stream behavior.
+        let mut saved_headers: Option<Vec<String>> = None;
         while let Some(response) = stream.next().await {
             let response = response?;
             let table = decode::decode_data_table(&response)?;
-            f(&table.headers, &table.data_table);
+            if saved_headers.is_none() && !table.headers.is_empty() {
+                saved_headers = Some(table.headers.clone());
+            }
+            let headers = if table.headers.is_empty() {
+                saved_headers.as_deref().unwrap_or(&[])
+            } else {
+                &table.headers
+            };
+            f(headers, &table.data_table);
         }
         Ok(())
     }
@@ -588,6 +641,58 @@ impl DirectClient {
         ///
         /// `interval` is in milliseconds (e.g. `"0"` for every quote change).
         fn stock_history_quote(symbol: &str, date: &str, interval: &str) -> Vec<QuoteTick>;
+        grpc: get_stock_history_quote;
+        request: StockHistoryQuoteRequest;
+        query: StockHistoryQuoteRequestQuery {
+            symbol: symbol.to_string(),
+            date: Some(date.to_string()),
+            interval: interval.to_string(),
+            start_time: None,
+            end_time: None,
+            venue: None,
+            start_date: None,
+            end_date: None,
+        };
+        parse: decode::parse_quote_ticks;
+        dates: date;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  Stock — Streaming History endpoints (zero-copy per-chunk)
+    // ═══════════════════════════════════════════════════════════════════
+
+    // 9s. GetStockHistoryTrade (streaming)
+    streaming_endpoint! {
+        /// Stream all trades for a stock on a given date, chunk-by-chunk.
+        ///
+        /// Instead of materializing all ticks in memory, the `handler` callback
+        /// is invoked once per gRPC response chunk with a slice of parsed ticks.
+        /// Peak memory is proportional to a single chunk (~1-10K ticks) rather
+        /// than the full day (~millions).
+        ///
+        /// gRPC: `BetaThetaTerminal/GetStockHistoryTrade`
+        fn stock_history_trade_stream(symbol: &str, date: &str; handler: F) -> TradeTick;
+        grpc: get_stock_history_trade;
+        request: StockHistoryTradeRequest;
+        query: StockHistoryTradeRequestQuery {
+            symbol: symbol.to_string(),
+            date: Some(date.to_string()),
+            start_time: None,
+            end_time: None,
+            venue: None,
+            start_date: None,
+            end_date: None,
+        };
+        parse: decode::parse_trade_ticks;
+        dates: date;
+    }
+
+    // 10s. GetStockHistoryQuote (streaming)
+    streaming_endpoint! {
+        /// Stream NBBO quotes for a stock on a given date, chunk-by-chunk.
+        ///
+        /// gRPC: `BetaThetaTerminal/GetStockHistoryQuote`
+        fn stock_history_quote_stream(symbol: &str, date: &str, interval: &str; handler: F) -> QuoteTick;
         grpc: get_stock_history_quote;
         request: StockHistoryQuoteRequest;
         query: StockHistoryQuoteRequestQuery {
@@ -1068,6 +1173,64 @@ impl DirectClient {
             symbol: &str, expiration: &str, strike: &str, right: &str,
             date: &str, interval: &str
         ) -> Vec<QuoteTick>;
+        grpc: get_option_history_quote;
+        request: OptionHistoryQuoteRequest;
+        query: OptionHistoryQuoteRequestQuery {
+            contract_spec: contract_spec!(symbol, expiration, strike, right),
+            date: Some(date.to_string()),
+            expiration: expiration.to_string(),
+            start_time: None,
+            end_time: None,
+            interval: interval.to_string(),
+            max_dte: None,
+            strike_range: None,
+            start_date: None,
+            end_date: None,
+        };
+        parse: decode::parse_quote_ticks;
+        dates: date;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  Option — Streaming History endpoints (zero-copy per-chunk)
+    // ═══════════════════════════════════════════════════════════════════
+
+    // 31s. GetOptionHistoryTrade (streaming)
+    streaming_endpoint! {
+        /// Stream all trades for an option contract on a given date, chunk-by-chunk.
+        ///
+        /// gRPC: `BetaThetaTerminal/GetOptionHistoryTrade`
+        fn option_history_trade_stream(
+            symbol: &str, expiration: &str, strike: &str, right: &str, date: &str;
+            handler: F
+        ) -> TradeTick;
+        grpc: get_option_history_trade;
+        request: OptionHistoryTradeRequest;
+        query: OptionHistoryTradeRequestQuery {
+            contract_spec: contract_spec!(symbol, expiration, strike, right),
+            date: Some(date.to_string()),
+            expiration: expiration.to_string(),
+            start_time: None,
+            end_time: None,
+            max_dte: None,
+            strike_range: None,
+            start_date: None,
+            end_date: None,
+        };
+        parse: decode::parse_trade_ticks;
+        dates: date;
+    }
+
+    // 32s. GetOptionHistoryQuote (streaming)
+    streaming_endpoint! {
+        /// Stream NBBO quotes for an option contract on a given date, chunk-by-chunk.
+        ///
+        /// gRPC: `BetaThetaTerminal/GetOptionHistoryQuote`
+        fn option_history_quote_stream(
+            symbol: &str, expiration: &str, strike: &str, right: &str,
+            date: &str, interval: &str;
+            handler: F
+        ) -> QuoteTick;
         grpc: get_option_history_quote;
         request: OptionHistoryQuoteRequest;
         query: OptionHistoryQuoteRequestQuery {

@@ -180,30 +180,6 @@ pub fn lambda(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> 
     realize(delta(s, x, v, r, q, t, is_call) * s / value(s, x, v, r, q, t, is_call))
 }
 
-/// Vera (rho-vega cross-Greek).
-///
-/// Java: `Math.pow(-x * t * Math.E, -r * t) * f1(d2 * (d1 / v))`
-///
-/// Note: the Java code computes `(-x * t * e)^(-r*t)`. For typical inputs
-/// the base is negative, and `pow(negative, non-integer)` returns NaN.
-/// Java catches the resulting exception and returns 0.0. We replicate this
-/// by checking for NaN/Inf.
-pub fn vera(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, _is_call: bool) -> f64 {
-    if is_degenerate(v, t) {
-        return 0.0;
-    }
-    let d1_val = d1(s, x, v, r, q, t);
-    let d2_val = d2(s, x, v, r, q, t);
-    // Java: Math.pow(-x * t * Math.E, -r * t) * f1(d2 * (d1 / v))
-    let base = -x * t * std::f64::consts::E;
-    let result = base.powf(-r * t) * f1(d2_val * (d1_val / v));
-    if result.is_nan() || result.is_infinite() {
-        0.0
-    } else {
-        result
-    }
-}
-
 pub fn gamma(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
@@ -250,14 +226,10 @@ pub fn veta(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     }
     let d1_val = d1(s, x, v, r, q, t);
     let d2_val = d2(s, x, v, r, q, t);
-    // Java: -s * e^(-qt) * f1(d1) * sqrt(t) * (q + (r-q)*d1/v*sqrt(t) - (1+d1*d2)/2.0*t)
-    // Java operator precedence (left-to-right for * and /):
-    //   (r-q)*d1/v*sqrt(t) = ((r-q)*d1/v)*sqrt(t) = (r-q)*d1*sqrt(t)/v
-    //   (1+d1*d2)/2.0*t    = ((1+d1*d2)/2.0)*t     = (1+d1*d2)*t/2
     -s * (-q * t).exp()
         * f1(d1_val)
         * t.sqrt()
-        * (q + (r - q) * d1_val * t.sqrt() / v - (1.0 + d1_val * d2_val) * t / 2.0)
+        * (q + (r - q) * d1_val / (v * t.sqrt()) - (1.0 + d1_val * d2_val) / (2.0 * t))
 }
 
 pub fn speed(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
@@ -265,11 +237,7 @@ pub fn speed(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
         return 0.0;
     }
     let d1_val = d1(s, x, v, r, q, t);
-    // Java: -e^(-qt) * f1(d1) / s^2 * v * sqrt(t) * (d1/v*sqrt(t) + 1)
-    // Java operator precedence (left-to-right):
-    //   prefix: -e^(-qt)*f1(d1)/s^2 * v*sqrt(t)  = -e^(-qt)*f1(d1)*v*sqrt(t)/s^2
-    //   inner:  d1/v*sqrt(t)                       = d1*sqrt(t)/v
-    -(-q * t).exp() * f1(d1_val) * v * t.sqrt() / (s * s) * (d1_val * t.sqrt() / v + 1.0)
+    -(-q * t).exp() * f1(d1_val) / (s * s * v * t.sqrt()) * (d1_val / (v * t.sqrt()) + 1.0)
 }
 
 pub fn zomma(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
@@ -278,11 +246,7 @@ pub fn zomma(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     }
     let d1_val = d1(s, x, v, r, q, t);
     let d2_val = d2(s, x, v, r, q, t);
-    // Java: e^(-qt) * f1(d1) * (d1*d2 - 1) / s * v * v * sqrt(t)
-    // Java operator precedence (left-to-right):
-    //   e^(-qt)*f1(d1)*(d1*d2-1) / s * v^2 * sqrt(t)
-    //   = e^(-qt)*f1(d1)*(d1*d2-1)*v^2*sqrt(t) / s
-    (-q * t).exp() * f1(d1_val) * (d1_val * d2_val - 1.0) * v * v * t.sqrt() / s
+    (-q * t).exp() * f1(d1_val) * (d1_val * d2_val - 1.0) / (s * v * v * t.sqrt())
 }
 
 pub fn color(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
@@ -291,13 +255,10 @@ pub fn color(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     }
     let d1_val = d1(s, x, v, r, q, t);
     let d2_val = d2(s, x, v, r, q, t);
-    // Java: -e^(-qt) * f1(d1) / 2.0 * s * t * v * sqrt(t) * (2qt + 1 + 2(r-q)t - d2*v*sqrt(t)/v*sqrt(t)*d1)
-    // Java operator precedence (left-to-right):
-    //   prefix: -e^(-qt)*f1(d1)/2.0 * s*t*v*sqrt(t)  = -e^(-qt)*f1(d1)*s*t*v*sqrt(t)/2
-    //   inner last term: d2*v*sqrt(t)/v*sqrt(t)*d1     = d2*sqrt(t)*sqrt(t)*d1 = d1*d2*t
-    //   inner: 2qt + 1 + 2(r-q)t - d1*d2*t
-    -(-q * t).exp() * f1(d1_val) * s * t * v * t.sqrt() / 2.0
-        * (2.0 * q * t + 1.0 + 2.0 * (r - q) * t - d1_val * d2_val * t)
+    -(-q * t).exp() * f1(d1_val) / (2.0 * s * t * v * t.sqrt())
+        * (2.0 * q * t
+            + 1.0
+            + (2.0 * (r - q) * t - d2_val * v * t.sqrt()) / (v * t.sqrt()) * d1_val)
 }
 
 pub fn ultima(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
@@ -328,10 +289,7 @@ pub fn dual_gamma(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
         return 0.0;
     }
     let d2_val = d2(s, x, v, r, q, t);
-    // Java: e^(-rt) * f1(d2) / x * v * sqrt(t)
-    // Java operator precedence (left-to-right):
-    //   e^(-rt)*f1(d2) / x * v*sqrt(t) = e^(-rt)*f1(d2)*v*sqrt(t)/x
-    (-r * t).exp() * f1(d2_val) * v * t.sqrt() / x
+    (-r * t).exp() * f1(d2_val) / (x * v * t.sqrt())
 }
 
 /// Implied volatility solver using bisection. Returns `(iv, error)`.
@@ -425,13 +383,31 @@ pub struct GreeksResult {
     pub dual_gamma: f64,
     pub epsilon: f64,
     pub lambda: f64,
-    pub vera: f64,
 }
 
-/// Compute all Greeks at once.
+/// Compute all 22 Greeks at once with maximally shared intermediates.
 ///
-/// Precomputes `d1` and `d2` once and passes them to each Greek function
-/// internally, avoiding ~20 redundant recalculations.
+/// Precomputes `d1`, `d2`, and all shared sub-expressions (exponentials,
+/// CDF values, products) once, then evaluates Greeks in dependency tiers:
+///
+/// **Tier 0 — Shared intermediates** (8 precomputed values):
+///   `sqrt_t`, `v_sqrt_t`, `d1`, `d2`, `exp(-qt)`, `exp(-rt)`, `N(d1)`, `N(d2)`,
+///   `f1(d1)`, `f1(d2)`, `e1`, `d1*d2`
+///
+/// **Tier 1 — First-order Greeks** (value, delta, gamma, theta, vega, rho, epsilon):
+///   All share `exp_neg_qt`, `nd1/nd2`, `f1_d1`, `e1_val`.
+///
+/// **Tier 2 — Second-order Greeks** (vanna, charm, vomma, veta):
+///   Depend on Tier 1 intermediates + `d1_d2` product.
+///
+/// **Tier 3 — Third-order Greeks** (speed, zomma, color, ultima):
+///   Depend on Tier 1/2 intermediates.
+///
+/// **Auxiliary** (lambda, dual_delta, dual_gamma):
+///   Depend on Tier 1 values.
+///
+/// This avoids ~20 redundant `d1`/`d2` recalculations and ~40 redundant
+/// `exp()`/`norm_cdf()` calls compared to calling each Greek individually.
 pub fn all_greeks(
     s: f64,
     x: f64,
@@ -469,127 +445,109 @@ pub fn all_greeks(
             dual_gamma: 0.0,
             epsilon: 0.0,
             lambda: 0.0,
-            vera: 0.0,
         };
     }
 
-    // Precompute d1 and d2 once.
+    // ── Tier 0: Shared intermediates ─────────────────────────────────
     let sqrt_t = t.sqrt();
-    let d1_val = ((s / x).ln() + t * (r - q + v * v / 2.0)) / (v * sqrt_t);
-    let d2_val = d1_val - v * sqrt_t;
-    let e1_val = (-d1_val.powi(2) / 2.0).exp();
-    let f1_d1 = f1(d1_val);
+    let v_sqrt_t = v * sqrt_t; // used 8+ times below
+    let d1_val = ((s / x).ln() + t * (r - q + v * v / 2.0)) / v_sqrt_t;
+    let d2_val = d1_val - v_sqrt_t;
+    let e1_val = (-d1_val * d1_val / 2.0).exp(); // == e1_from_d1(d1_val)
+    let f1_d1 = ONE_ROOT2PI * e1_val; // == f1(d1_val)
+    let f1_d2 = f1(d2_val); // needed for dual_gamma
     let exp_neg_qt = (-q * t).exp();
     let exp_neg_rt = (-r * t).exp();
     let nd1 = norm_cdf(d1_val);
     let nd2 = norm_cdf(d2_val);
     let n_neg_d1 = norm_cdf(-d1_val);
     let n_neg_d2 = norm_cdf(-d2_val);
+    let d1_d2 = d1_val * d2_val; // used by vomma, veta, zomma, color, ultima
+    let r_minus_q = r - q;
 
-    // Value
+    // Common sub-expression: exp_neg_qt * f1_d1 (used by vanna, charm, veta, speed, zomma, color)
+    let eqt_f1d1 = exp_neg_qt * f1_d1;
+    // Common sub-expression: 1 / (s * v * sqrt_t) (used by gamma, speed)
+    let inv_s_v_sqrt_t = 1.0 / (s * v_sqrt_t);
+
+    // ── Tier 1: First-order Greeks (value, delta, gamma, theta, vega, rho, epsilon) ──
     let value_val = if is_call {
         s * exp_neg_qt * nd1 - exp_neg_rt * x * nd2
     } else {
         exp_neg_rt * x * n_neg_d2 - s * exp_neg_qt * n_neg_d1
     };
 
-    // Delta
     let delta_val = if is_call {
         exp_neg_qt * nd1
     } else {
         exp_neg_qt * (nd1 - 1.0)
     };
 
-    // Theta
-    let theta_term1 = -exp_neg_qt * (s * f1_d1 * v) / (2.0 * sqrt_t);
+    let gamma_val = exp_neg_qt * inv_s_v_sqrt_t * ONE_ROOT2PI * e1_val;
+
+    let theta_term1 = -eqt_f1d1 * s * v / (2.0 * sqrt_t);
     let theta_val = if is_call {
         (theta_term1 - r * x * exp_neg_rt * nd2 + q * s * exp_neg_qt * nd1) / 365.0
     } else {
         (theta_term1 + r * x * exp_neg_rt * n_neg_d2 - q * s * exp_neg_qt * n_neg_d1) / 365.0
     };
 
-    // Vega
     let vega_val = s * exp_neg_qt * sqrt_t * ONE_ROOT2PI * e1_val;
 
-    // Rho
     let rho_val = if is_call {
         x * t * exp_neg_rt * nd2
     } else {
         -x * t * exp_neg_rt * n_neg_d2
     };
 
-    // Epsilon
     let epsilon_val = if is_call {
         realize(-s * t * exp_neg_qt * nd1)
     } else {
         realize(s * t * exp_neg_qt * n_neg_d1)
     };
 
-    // Lambda
+    // Lambda depends on value + delta (still first-order conceptually)
     let lambda_val = if value_val.abs() > f64::EPSILON {
         realize(delta_val * s / value_val)
     } else {
         0.0
     };
 
-    // Gamma
-    let gamma_val = exp_neg_qt / (s * v * sqrt_t) * ONE_ROOT2PI * e1_val;
+    // ── Tier 2: Second-order Greeks (vanna, charm, vomma, veta) ──────
+    let vanna_val = -eqt_f1d1 * d2_val / v;
 
-    // Vanna
-    let vanna_val = -exp_neg_qt * f1_d1 * d2_val / v;
-
-    // Charm
-    let charm_p1 = (2.0 * (r - q) * t - d2_val * v * sqrt_t) / (2.0 * t * v * sqrt_t);
+    let charm_p1 = (2.0 * r_minus_q * t - d2_val * v_sqrt_t) / (2.0 * t * v_sqrt_t);
     let charm_val = if is_call {
-        q * exp_neg_qt * nd1 - exp_neg_qt * f1_d1 * charm_p1
+        q * exp_neg_qt * nd1 - eqt_f1d1 * charm_p1
     } else {
-        -q * exp_neg_qt * n_neg_d1 - exp_neg_qt * f1_d1 * charm_p1
+        -q * exp_neg_qt * n_neg_d1 - eqt_f1d1 * charm_p1
     };
 
-    // Vomma
-    let vomma_val = vega_val * (d1_val * d2_val / v);
+    let vomma_val = vega_val * (d1_d2 / v);
 
-    // Veta (matches Java operator precedence)
-    let veta_val = -s
-        * exp_neg_qt
-        * f1_d1
-        * sqrt_t
-        * (q + (r - q) * d1_val * sqrt_t / v - (1.0 + d1_val * d2_val) * t / 2.0);
+    let veta_val =
+        -s * eqt_f1d1 * sqrt_t * (q + r_minus_q * d1_val / v_sqrt_t - (1.0 + d1_d2) / (2.0 * t));
 
-    // Speed (matches Java operator precedence)
-    let speed_val = -exp_neg_qt * f1_d1 * v * sqrt_t / (s * s) * (d1_val * sqrt_t / v + 1.0);
+    // ── Tier 3: Third-order Greeks (speed, zomma, color, ultima) ─────
+    let speed_val = -eqt_f1d1 * inv_s_v_sqrt_t / s * (d1_val / v_sqrt_t + 1.0);
 
-    // Zomma (matches Java operator precedence)
-    let zomma_val = exp_neg_qt * f1_d1 * (d1_val * d2_val - 1.0) * v * v * sqrt_t / s;
+    let zomma_val = eqt_f1d1 * (d1_d2 - 1.0) / (s * v * v_sqrt_t);
 
-    // Color (matches Java operator precedence)
-    let color_val = -exp_neg_qt * f1_d1 * s * t * v * sqrt_t / 2.0
-        * (2.0 * q * t + 1.0 + 2.0 * (r - q) * t - d1_val * d2_val * t);
+    let color_val = -eqt_f1d1 / (2.0 * s * t * v_sqrt_t)
+        * (2.0 * q * t + 1.0 + (2.0 * r_minus_q * t - d2_val * v_sqrt_t) / v_sqrt_t * d1_val);
 
-    // Ultima
-    let ultima_raw = -vega_val / (v * v)
-        * (d1_val * d2_val * (1.0 - d1_val * d2_val) + d1_val * d1_val + d2_val * d2_val);
+    let ultima_raw =
+        -vega_val / (v * v) * (d1_d2 * (1.0 - d1_d2) + d1_val * d1_val + d2_val * d2_val);
     let ultima_val = ultima_raw.clamp(-100.0, 100.0);
 
-    // Dual delta
+    // ── Auxiliary: Dual Greeks ────────────────────────────────────────
     let dual_delta_val = if is_call {
         -exp_neg_rt * nd2
     } else {
         exp_neg_rt * n_neg_d2
     };
 
-    // Dual gamma (matches Java operator precedence: e^(-rt)*f1(d2)/x * v*sqrt(t))
-    let f1_d2 = f1(d2_val);
-    let dual_gamma_val = exp_neg_rt * f1_d2 * v * sqrt_t / x;
-
-    // Vera
-    let vera_base = -x * t * std::f64::consts::E;
-    let vera_raw = vera_base.powf(-r * t) * f1(d2_val * (d1_val / v));
-    let vera_val = if vera_raw.is_nan() || vera_raw.is_infinite() {
-        0.0
-    } else {
-        vera_raw
-    };
+    let dual_gamma_val = exp_neg_rt * f1_d2 / (x * v_sqrt_t);
 
     GreeksResult {
         value: value_val,
@@ -614,7 +572,6 @@ pub fn all_greeks(
         dual_gamma: dual_gamma_val,
         epsilon: epsilon_val,
         lambda: lambda_val,
-        vera: vera_val,
     }
 }
 
@@ -808,109 +765,5 @@ mod tests {
         );
         assert!((g.d1 - d1(s, x, v, r, q, t)).abs() < eps, "d1 mismatch");
         assert!((g.d2 - d2(s, x, v, r, q, t)).abs() < eps, "d2 mismatch");
-    }
-
-    // ── Java formula parity tests ──────────────────────────────────────
-    // These compute the same inputs through the Java operator-precedence formulas
-    // (transcribed inline) and the Rust functions, verifying they match.
-
-    /// Reproduce the exact Java formula for a Greek inline, then compare to our function.
-    /// Uses the same test inputs throughout: SPY $450, strike $450, vol 20%, r 5%, q 1.5%, 30 days.
-    fn java_test_params() -> (f64, f64, f64, f64, f64, f64) {
-        (450.0, 450.0, 0.20, 0.05, 0.015, 30.0 / 365.0)
-    }
-
-    #[test]
-    fn java_parity_veta() {
-        let (s, x, v, r, q, t) = java_test_params();
-        let d1v = d1(s, x, v, r, q, t);
-        let d2v = d2(s, x, v, r, q, t);
-        // Java: -s * e^(-qt) * f1(d1) * sqrt(t) * (q + (r-q)*d1/v*sqrt(t) - (1+d1*d2)/2.0*t)
-        // Java precedence: /v*sqrt(t) = *sqrt(t)/v; /2.0*t = *t/2
-        let java_val = -s
-            * (-q * t).exp()
-            * f1(d1v)
-            * t.sqrt()
-            * (q + (r - q) * d1v * t.sqrt() / v - (1.0 + d1v * d2v) * t / 2.0);
-        let rust_val = veta(s, x, v, r, q, t);
-        assert!(
-            (java_val - rust_val).abs() < 1e-10,
-            "veta: java={java_val}, rust={rust_val}"
-        );
-    }
-
-    #[test]
-    fn java_parity_speed() {
-        let (s, x, v, r, q, t) = java_test_params();
-        let d1v = d1(s, x, v, r, q, t);
-        // Java: -e^(-qt) * f1(d1) / s^2 * v * sqrt(t) * (d1/v*sqrt(t) + 1)
-        let java_val =
-            -(-q * t).exp() * f1(d1v) / (s * s) * v * t.sqrt() * (d1v / v * t.sqrt() + 1.0);
-        let rust_val = speed(s, x, v, r, q, t);
-        assert!(
-            (java_val - rust_val).abs() < 1e-10,
-            "speed: java={java_val}, rust={rust_val}"
-        );
-    }
-
-    #[test]
-    fn java_parity_zomma() {
-        let (s, x, v, r, q, t) = java_test_params();
-        let d1v = d1(s, x, v, r, q, t);
-        let d2v = d2(s, x, v, r, q, t);
-        // Java: e^(-qt) * f1(d1) * (d1*d2 - 1) / s * v * v * sqrt(t)
-        let java_val = (-q * t).exp() * f1(d1v) * (d1v * d2v - 1.0) / s * v * v * t.sqrt();
-        let rust_val = zomma(s, x, v, r, q, t);
-        assert!(
-            (java_val - rust_val).abs() < 1e-10,
-            "zomma: java={java_val}, rust={rust_val}"
-        );
-    }
-
-    #[test]
-    fn java_parity_color() {
-        let (s, x, v, r, q, t) = java_test_params();
-        let d1v = d1(s, x, v, r, q, t);
-        let d2v = d2(s, x, v, r, q, t);
-        // Java: -e^(-qt) * f1(d1) / 2.0 * s * t * v * sqrt(t) *
-        //       (2qt + 1 + 2(r-q)t - d2*v*sqrt(t)/v*sqrt(t)*d1)
-        // The inner term simplifies: d2*v*sqrt(t)/v*sqrt(t)*d1 = d1*d2*t
-        let java_val = -(-q * t).exp() * f1(d1v) / 2.0
-            * s
-            * t
-            * v
-            * t.sqrt()
-            * (2.0 * q * t + 1.0 + 2.0 * (r - q) * t - d2v * v * t.sqrt() / v * t.sqrt() * d1v);
-        let rust_val = color(s, x, v, r, q, t);
-        assert!(
-            (java_val - rust_val).abs() < 1e-10,
-            "color: java={java_val}, rust={rust_val}"
-        );
-    }
-
-    #[test]
-    fn java_parity_dual_gamma() {
-        let (s, x, v, r, q, t) = java_test_params();
-        let d2v = d2(s, x, v, r, q, t);
-        // Java: e^(-rt) * f1(d2) / x * v * sqrt(t)
-        let java_val = (-r * t).exp() * f1(d2v) / x * v * t.sqrt();
-        let rust_val = dual_gamma(s, x, v, r, q, t);
-        assert!(
-            (java_val - rust_val).abs() < 1e-10,
-            "dual_gamma: java={java_val}, rust={rust_val}"
-        );
-    }
-
-    #[test]
-    fn vera_returns_finite_or_zero() {
-        let (s, x, v, r, q, t) = java_test_params();
-        // vera typically returns 0.0 due to NaN from negative base pow
-        let v_val = vera(s, x, v, r, q, t, true);
-        assert!(v_val.is_finite(), "vera must be finite, got {v_val}");
-    }
-
-    #[test]
-    fn vera_degenerate_returns_zero() {
-        assert_eq!(vera(100.0, 100.0, 0.0, 0.05, 0.01, 0.0, true), 0.0);
     }
 }

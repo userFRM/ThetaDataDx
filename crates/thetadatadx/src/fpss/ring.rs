@@ -141,7 +141,7 @@ pub(crate) fn next_power_of_two(n: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fpss::FpssEvent;
+    use crate::fpss::{FpssControl, FpssData, FpssEvent};
     use crate::types::enums::RemoveReason;
     use disruptor::{build_single_producer, Producer};
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -211,15 +211,15 @@ mod tests {
             .build();
 
         producer.publish(|slot| {
-            slot.event = Some(FpssEvent::MarketOpen);
+            slot.event = Some(FpssEvent::Control(FpssControl::MarketOpen));
         });
         producer.publish(|slot| {
-            slot.event = Some(FpssEvent::MarketClose);
+            slot.event = Some(FpssEvent::Control(FpssControl::MarketClose));
         });
         producer.publish(|slot| {
-            slot.event = Some(FpssEvent::ServerError {
+            slot.event = Some(FpssEvent::Control(FpssControl::ServerError {
                 message: "test".to_string(),
-            });
+            }));
         });
 
         // Drop the producer to drain the ring and join consumer thread.
@@ -249,7 +249,7 @@ mod tests {
             .build();
 
         producer.publish(|slot| {
-            slot.event = Some(FpssEvent::Quote {
+            slot.event = Some(FpssEvent::Data(FpssData::Quote {
                 contract_id: 42,
                 ms_of_day: 34200000,
                 bid_size: 100,
@@ -262,7 +262,7 @@ mod tests {
                 ask_condition: 0,
                 price_type: 8,
                 date: 20240315,
-            });
+            }));
         });
 
         drop(producer);
@@ -270,17 +270,17 @@ mod tests {
         let events = received.lock().unwrap();
         assert_eq!(events.len(), 1);
         match &events[0] {
-            FpssEvent::Quote {
+            FpssEvent::Data(FpssData::Quote {
                 contract_id,
                 bid,
                 ask,
                 ..
-            } => {
+            }) => {
                 assert_eq!(*contract_id, 42);
                 assert_eq!(*bid, 15025);
                 assert_eq!(*ask, 15030);
             }
-            other => panic!("expected Quote, got {other:?}"),
+            other => panic!("expected Data(Quote), got {other:?}"),
         }
     }
 
@@ -305,9 +305,9 @@ mod tests {
             .build();
 
         producer.publish(|slot| {
-            slot.event = Some(FpssEvent::Disconnected {
+            slot.event = Some(FpssEvent::Control(FpssControl::Disconnected {
                 reason: RemoveReason::ServerRestarting,
-            });
+            }));
         });
 
         drop(producer);
@@ -315,10 +315,10 @@ mod tests {
         let events = received.lock().unwrap();
         assert_eq!(events.len(), 1);
         match &events[0] {
-            FpssEvent::Disconnected { reason } => {
+            FpssEvent::Control(FpssControl::Disconnected { reason }) => {
                 assert_eq!(*reason, RemoveReason::ServerRestarting);
             }
-            other => panic!("expected Disconnected, got {other:?}"),
+            other => panic!("expected Control(Disconnected), got {other:?}"),
         }
     }
 
@@ -343,7 +343,7 @@ mod tests {
         let count = 1000usize;
         for i in 0..count {
             producer.publish(|slot| {
-                slot.event = Some(FpssEvent::Quote {
+                slot.event = Some(FpssEvent::Data(FpssData::Quote {
                     contract_id: i as i32,
                     ms_of_day: 0,
                     bid_size: 0,
@@ -356,7 +356,7 @@ mod tests {
                     ask_condition: 0,
                     price_type: 0,
                     date: 0,
-                });
+                }));
             });
         }
 
@@ -395,7 +395,7 @@ mod tests {
                     break;
                 }
                 producer.publish(|slot| {
-                    slot.event = Some(FpssEvent::MarketOpen);
+                    slot.event = Some(FpssEvent::Control(FpssControl::MarketOpen));
                 });
             }
             // Producer dropped here -> consumer drains and joins.

@@ -114,9 +114,9 @@ fn ffi_price_to_f64(value: i32, price_type: i32) -> f64 {
 }
 
 fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
-    use thetadatadx::fpss::FpssEvent;
+    use thetadatadx::fpss::{FpssControl, FpssData, FpssEvent};
     let json = match event {
-        FpssEvent::Quote {
+        FpssEvent::Data(FpssData::Quote {
             contract_id,
             ms_of_day,
             bid_size,
@@ -129,7 +129,7 @@ fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
             ask_condition,
             price_type,
             date,
-        } => serde_json::json!({
+        }) => serde_json::json!({
             "kind": "quote",
             "contract_id": contract_id,
             "ms_of_day": ms_of_day,
@@ -143,7 +143,7 @@ fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
             "ask_condition": ask_condition,
             "date": date,
         }),
-        FpssEvent::Trade {
+        FpssEvent::Data(FpssData::Trade {
             contract_id,
             ms_of_day,
             sequence,
@@ -158,7 +158,7 @@ fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
             price_type,
             date,
             ..
-        } => serde_json::json!({
+        }) => serde_json::json!({
             "kind": "trade",
             "contract_id": contract_id,
             "ms_of_day": ms_of_day,
@@ -175,19 +175,19 @@ fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
             "records_back": records_back,
             "date": date,
         }),
-        FpssEvent::OpenInterest {
+        FpssEvent::Data(FpssData::OpenInterest {
             contract_id,
             ms_of_day,
             open_interest,
             date,
-        } => serde_json::json!({
+        }) => serde_json::json!({
             "kind": "open_interest",
             "contract_id": contract_id,
             "ms_of_day": ms_of_day,
             "open_interest": open_interest,
             "date": date,
         }),
-        FpssEvent::Ohlcvc {
+        FpssEvent::Data(FpssData::Ohlcvc {
             contract_id,
             ms_of_day,
             open,
@@ -198,7 +198,7 @@ fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
             count,
             price_type,
             date,
-        } => serde_json::json!({
+        }) => serde_json::json!({
             "kind": "ohlcvc",
             "contract_id": contract_id,
             "ms_of_day": ms_of_day,
@@ -222,31 +222,33 @@ fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
                 "payload_hex": hex,
             })
         }
-        FpssEvent::LoginSuccess { permissions } => serde_json::json!({
+        FpssEvent::Control(FpssControl::LoginSuccess { permissions }) => serde_json::json!({
             "kind": "login_success",
             "detail": permissions,
         }),
-        FpssEvent::ContractAssigned { id, contract } => serde_json::json!({
+        FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => serde_json::json!({
             "kind": "contract_assigned",
             "id": id,
             "detail": format!("{contract}"),
         }),
-        FpssEvent::ReqResponse { req_id, result } => serde_json::json!({
+        FpssEvent::Control(FpssControl::ReqResponse { req_id, result }) => serde_json::json!({
             "kind": "req_response",
             "id": req_id,
             "detail": format!("{result:?}"),
         }),
-        FpssEvent::MarketOpen => serde_json::json!({ "kind": "market_open" }),
-        FpssEvent::MarketClose => serde_json::json!({ "kind": "market_close" }),
-        FpssEvent::ServerError { message } => serde_json::json!({
+        FpssEvent::Control(FpssControl::MarketOpen) => serde_json::json!({ "kind": "market_open" }),
+        FpssEvent::Control(FpssControl::MarketClose) => {
+            serde_json::json!({ "kind": "market_close" })
+        }
+        FpssEvent::Control(FpssControl::ServerError { message }) => serde_json::json!({
             "kind": "server_error",
             "detail": message,
         }),
-        FpssEvent::Disconnected { reason } => serde_json::json!({
+        FpssEvent::Control(FpssControl::Disconnected { reason }) => serde_json::json!({
             "kind": "disconnected",
             "detail": format!("{reason:?}"),
         }),
-        FpssEvent::Error { message } => serde_json::json!({
+        FpssEvent::Control(FpssControl::Error { message }) => serde_json::json!({
             "kind": "error",
             "detail": message,
         }),
