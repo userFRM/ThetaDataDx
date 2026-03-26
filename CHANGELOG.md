@@ -9,6 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 See [TODO.md](TODO.md) for the production readiness checklist and performance roadmap.
 
+## [1.1.0] - 2026-03-26
+
+### Added
+
+- **All 61 endpoints** via declarative macro (was 19 hand-written) — covers every
+  v3 gRPC RPC: stock, option, index, interest rate, calendar
+- **All 61 endpoints in every SDK** — Python, Go, C++, C FFI all match Rust core
+- **Zero-allocation FPSS path** — fully sync I/O thread + LMAX Disruptor ring buffer
+  (`disruptor-rs` v4), no tokio in the streaming hot path
+- **Cache-line aligned tick types** — `#[repr(C, align(64))]` on TradeTick, QuoteTick, OhlcTick, EodTick
+- **Cached QueryInfo template** — no per-request String allocation
+- **Precomputed DataTable column indices** — O(1) per row, not O(headers)
+- **pow10 lookup tables** for Price comparison and conversion
+- **`#[inline]`** on all hot-path functions (FIT decode, Price ops, tick accessors)
+- **Reusable thread-local zstd decompressor** — no fresh allocation per chunk
+- **Criterion benchmarks** — fit_decode, price_to_f64, price_compare, all_greeks, fie_encode
+- **AdaptiveWaitStrategy** — 3-phase spin/yield/hint tuned for ~100us FPSS tick intervals
+
+### Verified
+
+- Authenticated against real Nexus API (session established)
+- Retrieved 25,341 stock symbols from MDDS
+- Retrieved 42 AAPL EOD ticks (Jan-Mar 2024) with correct OHLCV data
+- Retrieved 2,010 SPY option expirations
+- Retrieved 13,160 index symbols
+- Calendar endpoint returned valid data
+- `client_type = "rust-thetadatadx"` accepted by server
+
 ## [1.0.1] - 2026-03-26
 
 ### Changed
@@ -66,6 +94,7 @@ See [TODO.md](TODO.md) for the production readiness checklist and performance ro
 - FIT decoder uses i64 accumulator with i32 saturation (no silent overflow)
 - Price type range enforced with `assert!` in release builds
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/userFRM/ThetaDataDx/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/userFRM/ThetaDataDx/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/userFRM/ThetaDataDx/releases/tag/v1.0.0

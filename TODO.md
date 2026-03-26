@@ -2,15 +2,15 @@
 
 ## Integration Testing (BLOCKING — nothing is verified against real servers)
 
-- [ ] Connect to `mdds-01.thetadata.us:443` with real credentials and verify gRPC handshake
-- [ ] Send a real `StockHistoryEod` request and verify response decompresses + parses correctly
-- [ ] Verify `QueryInfo.client_type = "rust-thetadatadx"` is accepted (ThetaData may reject unknown clients)
+- [x] Connect to `mdds-01.thetadata.us:443` with real credentials and verify gRPC handshake
+- [x] Send a real `StockHistoryEod` request and verify response decompresses + parses correctly
+- [x] Verify `QueryInfo.client_type = "rust-thetadatadx"` is accepted (ThetaData may reject unknown clients)
 - [ ] Test terminal version negotiation — does the server care about `terminal_git_commit`?
 - [ ] Connect to FPSS `nj-a.thetadata.us:20000` and verify TLS handshake (cipher suites, SNI)
 - [ ] Send CREDENTIALS message and verify METADATA response
 - [ ] Subscribe to a quote stream and verify FIT-decoded ticks match Java terminal output
 - [ ] Verify delta decompression produces correct absolute values across multiple ticks
-- [ ] Test full auth chain: `creds.txt` → Nexus POST → session UUID → gRPC request → data
+- [x] Test full auth chain: creds → Nexus POST → session UUID → gRPC request → data
 - [ ] Run FPSS during market hours and verify no dropped messages at sustained volume
 - [ ] Compare output byte-for-byte with Java terminal for the same query (EOD, OHLC, trade)
 - [ ] Test reconnection: kill TCP connection mid-stream, verify auto-reconnect + re-subscribe
