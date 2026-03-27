@@ -1,14 +1,14 @@
 # Historical Data (Rust)
 
-All historical data is accessed through `DirectClient`, which communicates over gRPC with ThetaData's MDDS servers.
+All historical data is accessed through `ThetaDataDx`, which communicates over gRPC with ThetaData's MDDS servers.
 
 ## Connecting
 
 ```rust
-use thetadatadx::{DirectClient, Credentials, DirectConfig};
+use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
 
 let creds = Credentials::from_file("creds.txt")?;
-let client = DirectClient::connect(&creds, DirectConfig::production()).await?;
+let client = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 ```
 
 ## Date Format

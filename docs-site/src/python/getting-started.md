@@ -39,11 +39,11 @@ your-password
 ## First Query
 
 ```python
-from thetadatadx import Credentials, Config, DirectClient
+from thetadatadx import Credentials, Config, ThetaDataDx
 
 # Authenticate and connect
 creds = Credentials.from_file("creds.txt")
-client = DirectClient(creds, Config.production())
+client = ThetaDataDx(creds, Config.production())
 
 # Fetch end-of-day stock data
 eod = client.stock_history_eod("AAPL", "20240101", "20240301")
@@ -68,10 +68,10 @@ print(f"IV={g['iv']:.4f} Delta={g['delta']:.4f} Gamma={g['gamma']:.6f}")
 ## With pandas DataFrames
 
 ```python
-from thetadatadx import Credentials, Config, DirectClient, to_dataframe
+from thetadatadx import Credentials, Config, ThetaDataDx, to_dataframe
 
 creds = Credentials.from_file("creds.txt")
-client = DirectClient(creds, Config.production())
+client = ThetaDataDx(creds, Config.production())
 
 # Option 1: explicit conversion
 eod = client.stock_history_eod("AAPL", "20240101", "20240301")

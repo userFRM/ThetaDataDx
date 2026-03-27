@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-03-27
+
+### Breaking Changes
+
+- **Unified `ThetaDataDx` client** — single entry point replacing `DirectClient` + `FpssClient`.
+  Connect once, auth once. Historical available immediately, streaming connects lazily.
+- **`DirectClient` removed from public API** — access via `ThetaDataDx` (Deref provides all 61 methods)
+- **`FpssClient` removed from public API** — use `tdx.start_streaming(handler)` instead
+- **Python SDK**: `DirectClient` and `FpssClient` classes removed. Use `ThetaDataDx` only.
+
+### Added
+
+- `ThetaDataDx::connect(creds, config)` — one auth, gRPC channel ready, no FPSS yet
+- `tdx.start_streaming(handler)` — lazy FPSS connection on demand
+- `tdx.start_streaming_no_ohlcvc(handler)` — same, without derived OHLCVC
+- `tdx.stop_streaming()` — clean shutdown of streaming, historical stays alive
+- `tdx.is_streaming()` — check if FPSS is active
+- All 61 historical methods via `Deref<Target = DirectClient>`
+- All streaming methods (subscribe/unsubscribe) directly on `ThetaDataDx`
+- FFI: `tdx_unified_connect()`, `tdx_unified_start_streaming()`, `tdx_unified_stop_streaming()`
+- Server: graceful `stop_streaming()` on shutdown
+
+### Fixed
+
+- Server shutdown now calls `stop_streaming()` before notifying waiters
+- Python SDK: removed duplicate method definitions (DirectClient + ThetaDataDx had same methods)
+
 ## [2.0.0] - 2026-03-27
 
 ### New Products

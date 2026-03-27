@@ -152,7 +152,7 @@ pub async fn generic(
 
 /// Dispatch a single endpoint call. Returns the full JSON envelope on success.
 async fn dispatch(
-    client: &thetadatadx::DirectClient,
+    client: &thetadatadx::direct::DirectClient,
     ep: &EndpointMeta,
     params: &HashMap<String, String>,
 ) -> Result<sonic_rs::Value, thetadatadx::Error> {

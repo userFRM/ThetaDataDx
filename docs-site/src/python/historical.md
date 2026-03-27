@@ -1,14 +1,14 @@
 # Historical Data (Python)
 
-All historical data is accessed through `DirectClient`. Every call runs through compiled Rust -- gRPC, protobuf parsing, zstd decompression, and FIT decoding all happen at native speed.
+All historical data is accessed through `ThetaDataDx`. Every call runs through compiled Rust -- gRPC, protobuf parsing, zstd decompression, and FIT decoding all happen at native speed.
 
 ## Connecting
 
 ```python
-from thetadatadx import Credentials, Config, DirectClient
+from thetadatadx import Credentials, Config, ThetaDataDx
 
 creds = Credentials.from_file("creds.txt")
-client = DirectClient(creds, Config.production())
+client = ThetaDataDx(creds, Config.production())
 ```
 
 ## Date Format

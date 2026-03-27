@@ -1953,7 +1953,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "1.2.4"
+version = "3.0.0"
 dependencies = [
  "disruptor",
  "prost",
@@ -1978,7 +1978,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-server"
-version = "1.2.4"
+version = "3.0.0"
 dependencies = [
  "axum",
  "clap",

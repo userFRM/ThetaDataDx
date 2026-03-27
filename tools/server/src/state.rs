@@ -1,17 +1,17 @@
 //! Shared application state for the REST + WebSocket server.
 //!
-//! Holds the `DirectClient`, optional `FpssClient`, connection flags,
-//! WebSocket broadcast channel, and shutdown plumbing. All fields are
-//! `Send + Sync` behind `Arc` so axum can cheaply clone state into each handler.
+//! Holds the unified `ThetaDataDx` client, connection flags, WebSocket
+//! broadcast channel, and shutdown plumbing. All fields are `Send + Sync`
+//! behind `Arc` so axum can cheaply clone state into each handler.
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use tokio::sync::broadcast;
+use thetadatadx::direct::DirectClient;
 use thetadatadx::fpss::protocol::Contract;
-use thetadatadx::fpss::FpssClient;
-use thetadatadx::DirectClient;
+use thetadatadx::ThetaDataDx;
 
 /// Shared server state, cloned into every axum handler.
 #[derive(Clone)]
@@ -20,8 +20,8 @@ pub struct AppState {
 }
 
 struct Inner {
-    /// MDDS gRPC client for historical data requests.
-    client: DirectClient,
+    /// Unified client (historical via Deref to DirectClient, streaming via start_streaming).
+    tdx: ThetaDataDx,
     /// Whether MDDS is connected (true after successful init).
     mdds_connected: AtomicBool,
     /// Whether FPSS is connected (set by the FPSS bridge callback).
@@ -32,8 +32,6 @@ struct Inner {
     shutdown: tokio::sync::Notify,
     /// WebSocket single-connection enforcement.
     ws_connected: AtomicBool,
-    /// Optional FPSS streaming client handle (set after bridge connects).
-    fpss_client: Mutex<Option<Arc<FpssClient>>>,
     /// Server-assigned contract ID -> Contract mapping (updated by FPSS callback).
     contract_map: Arc<Mutex<HashMap<i32, Contract>>>,
     /// Random token required by the shutdown endpoint.
@@ -41,27 +39,31 @@ struct Inner {
 }
 
 impl AppState {
-    /// Create new app state wrapping a connected `DirectClient`.
-    pub fn new(client: DirectClient, shutdown_token: String) -> Self {
+    /// Create new app state wrapping a connected `ThetaDataDx`.
+    pub fn new(tdx: ThetaDataDx, shutdown_token: String) -> Self {
         let (ws_tx, _) = broadcast::channel(4096);
         Self {
             inner: Arc::new(Inner {
-                client,
+                tdx,
                 mdds_connected: AtomicBool::new(true),
                 fpss_connected: AtomicBool::new(false),
                 ws_tx,
                 shutdown: tokio::sync::Notify::new(),
                 ws_connected: AtomicBool::new(false),
-                fpss_client: Mutex::new(None),
                 contract_map: Arc::new(Mutex::new(HashMap::new())),
                 shutdown_token,
             }),
         }
     }
 
-    /// Borrow the `DirectClient` for issuing gRPC requests.
+    /// Borrow the `DirectClient` (via Deref) for issuing gRPC requests.
     pub fn client(&self) -> &DirectClient {
-        &self.inner.client
+        &self.inner.tdx
+    }
+
+    /// Borrow the unified `ThetaDataDx` client.
+    pub fn tdx(&self) -> &ThetaDataDx {
+        &self.inner.tdx
     }
 
     /// MDDS connection status string matching the Java terminal.
@@ -100,22 +102,6 @@ impl AppState {
         let _ = self.inner.ws_tx.send(event);
     }
 
-    /// Get the FPSS client handle (if connected).
-    pub fn fpss_client(&self) -> Option<Arc<FpssClient>> {
-        self.inner
-            .fpss_client
-            .lock()
-            .ok()
-            .and_then(|guard| guard.clone())
-    }
-
-    /// Store the FPSS client handle after the bridge connects.
-    pub fn set_fpss_client(&self, client: FpssClient) {
-        if let Ok(mut guard) = self.inner.fpss_client.lock() {
-            *guard = Some(Arc::new(client));
-        }
-    }
-
     /// Shared contract map for FPSS -> WS bridge JSON serialization.
     pub fn contract_map(&self) -> Arc<Mutex<HashMap<i32, Contract>>> {
         Arc::clone(&self.inner.contract_map)
@@ -140,8 +126,9 @@ impl AppState {
         self.inner.shutdown_token == token
     }
 
-    /// Signal graceful server shutdown.
+    /// Signal graceful server shutdown. Stops FPSS streaming if active.
     pub fn shutdown(&self) {
+        self.inner.tdx.stop_streaming();
         self.inner.shutdown.notify_waiters();
     }
 
@@ -149,5 +136,4 @@ impl AppState {
     pub async fn shutdown_signal(&self) {
         self.inner.shutdown.notified().await;
     }
-
 }

@@ -6,7 +6,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-thetadatadx = "2.0"
+thetadatadx = "3.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
@@ -22,7 +22,7 @@ your-password
 ## First Query
 
 ```rust
-use thetadatadx::{DirectClient, Credentials, DirectConfig};
+use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
@@ -30,7 +30,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
 
     // Connect to ThetaData (authenticates automatically)
-    let client = DirectClient::connect(&creds, DirectConfig::production()).await?;
+    let client = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 
     // Fetch end-of-day stock data
     let eod = client.stock_history_eod("AAPL", "20240101", "20240301").await?;

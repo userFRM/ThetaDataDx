@@ -25,7 +25,7 @@ use sonic_rs::prelude::*;
 use tokio::sync::broadcast;
 
 use thetadatadx::fpss::protocol::Contract;
-use thetadatadx::fpss::{FpssClient, FpssControl, FpssData, FpssEvent};
+use thetadatadx::fpss::{FpssControl, FpssData, FpssEvent};
 use thetadatadx::types::price::Price;
 
 use crate::state::AppState;
@@ -201,11 +201,12 @@ async fn handle_client_message(state: &AppState, text: &str, socket: &mut WebSoc
         Contract::stock(root)
     };
 
-    if let Some(fpss) = state.fpss_client() {
+    let tdx = state.tdx();
+    if tdx.is_streaming() {
         let result = if is_add {
             match req_type.as_str() {
-                "QUOTE" => fpss.subscribe_quotes(&contract),
-                "TRADE" => fpss.subscribe_trades(&contract),
+                "QUOTE" => tdx.subscribe_quotes(&contract),
+                "TRADE" => tdx.subscribe_trades(&contract),
                 _ => {
                     tracing::warn!(req_type = %req_type, "unknown req_type for subscription");
                     Ok(0)
@@ -213,8 +214,8 @@ async fn handle_client_message(state: &AppState, text: &str, socket: &mut WebSoc
             }
         } else {
             match req_type.as_str() {
-                "QUOTE" => fpss.unsubscribe_quotes(&contract),
-                "TRADE" => fpss.unsubscribe_trades(&contract),
+                "QUOTE" => tdx.unsubscribe_quotes(&contract),
+                "TRADE" => tdx.unsubscribe_trades(&contract),
                 _ => Ok(0),
             }
         };
@@ -242,7 +243,7 @@ async fn handle_client_message(state: &AppState, text: &str, socket: &mut WebSoc
             ))
             .await;
     } else {
-        tracing::warn!("FPSS client not connected, subscription command ignored");
+        tracing::warn!("FPSS streaming not started, subscription command ignored");
         let resp = sonic_rs::json!({
             "header": { "type": "REQ_RESPONSE", "response": "OK", "req_id": req_id }
         });
@@ -448,20 +449,15 @@ fn contract_to_json(c: &Contract) -> sonic_rs::Value {
     sonic_rs::Value::from(obj)
 }
 
-/// Start the FPSS -> WebSocket bridge.
+/// Start the FPSS -> WebSocket bridge via `ThetaDataDx::start_streaming()`.
 ///
-/// Connects `FpssClient` with a callback that broadcasts events to WS clients.
-/// Returns the `FpssClient` handle on success so the caller can store it in
-/// `AppState` for forwarding subscribe/unsubscribe commands.
-pub fn start_fpss_bridge(
-    creds: &thetadatadx::Credentials,
-    state: AppState,
-) -> Result<FpssClient, thetadatadx::Error> {
+/// Registers a callback that broadcasts events to WS clients.
+pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
     let contract_map: Arc<Mutex<HashMap<i32, Contract>>> = state.contract_map();
     let map_clone = Arc::clone(&contract_map);
     let state_clone = state.clone();
 
-    let fpss = FpssClient::connect(creds, 4096, move |event: &FpssEvent| {
+    state.tdx().start_streaming(move |event: &FpssEvent| {
         // Track contract assignments.
         if let FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) = event {
             if let Ok(mut map) = map_clone.lock() {
@@ -488,5 +484,5 @@ pub fn start_fpss_bridge(
     })?;
 
     state.set_fpss_connected(true);
-    Ok(fpss)
+    Ok(())
 }

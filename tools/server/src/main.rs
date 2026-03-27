@@ -32,7 +32,7 @@ use clap::Parser;
 use tower_http::cors::CorsLayer;
 use tracing_subscriber::EnvFilter;
 
-use thetadatadx::{Credentials, DirectClient, DirectConfig};
+use thetadatadx::{Credentials, DirectConfig, ThetaDataDx};
 
 use crate::state::AppState;
 
@@ -105,19 +105,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let creds = Credentials::from_file(&args.creds)?;
     tracing::info!(creds_file = %args.creds, "loaded credentials");
 
-    // Step 2: Connect to MDDS (gRPC).
+    // Step 2: Connect unified client (gRPC historical).
     let config = DirectConfig::production();
-    let client = DirectClient::connect(&creds, config).await?;
+    let tdx = ThetaDataDx::connect(&creds, config).await?;
     tracing::info!("MDDS connected");
 
     // Step 3: Build shared state.
-    let state = AppState::new(client, shutdown_token);
+    let state = AppState::new(tdx, shutdown_token);
 
-    // Step 4: Connect FPSS (streaming) bridge.
+    // Step 4: Start FPSS streaming bridge.
     if !args.no_fpss {
-        match ws::start_fpss_bridge(&creds, state.clone()) {
-            Ok(fpss) => {
-                state.set_fpss_client(fpss);
+        match ws::start_fpss_bridge(state.clone()) {
+            Ok(()) => {
                 tracing::info!("FPSS bridge connected");
             }
             Err(e) => {

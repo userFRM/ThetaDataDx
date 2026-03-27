@@ -174,12 +174,12 @@ fn normalize_right(s: &str) -> Result<&'static str, thetadatadx::Error> {
 /// Dispatch a single endpoint call based on its registry metadata.
 ///
 /// This is the core of the dynamic dispatch system: given an `EndpointMeta`
-/// and parsed `ArgMatches`, it calls the right `DirectClient` method and
-/// renders the result in the requested format.
+/// and parsed `ArgMatches`, it calls the right `ThetaDataDx` method (via
+/// Deref to `DirectClient`) and renders the result in the requested format.
 async fn dispatch_endpoint(
     ep: &EndpointMeta,
     m: &ArgMatches,
-    client: &thetadatadx::DirectClient,
+    client: &thetadatadx::ThetaDataDx,
     fmt: &OutputFormat,
 ) -> Result<(), thetadatadx::Error> {
     // The match is on the exact endpoint name from the registry.
@@ -882,13 +882,13 @@ fn render_data_table(table: &thetadatadx::proto::DataTable, fmt: &OutputFormat) 
 async fn connect(
     creds_path: &str,
     preset: &str,
-) -> Result<thetadatadx::DirectClient, thetadatadx::Error> {
+) -> Result<thetadatadx::ThetaDataDx, thetadatadx::Error> {
     let creds = thetadatadx::Credentials::from_file(creds_path)?;
     let config = match preset {
         "dev" => thetadatadx::DirectConfig::dev(),
         _ => thetadatadx::DirectConfig::production(),
     };
-    thetadatadx::DirectClient::connect(&creds, config).await
+    thetadatadx::ThetaDataDx::connect(&creds, config).await
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

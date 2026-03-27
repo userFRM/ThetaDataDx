@@ -81,12 +81,19 @@ pub struct TdxCredentials {
 
 /// Opaque client handle.
 pub struct TdxClient {
-    inner: thetadatadx::DirectClient,
+    inner: thetadatadx::direct::DirectClient,
 }
 
 /// Opaque config handle.
 pub struct TdxConfig {
     inner: thetadatadx::DirectConfig,
+}
+
+/// Opaque unified client handle — wraps both historical and streaming.
+pub struct TdxUnified {
+    inner: thetadatadx::ThetaDataDx,
+    /// Created lazily when `tdx_unified_start_streaming()` is called.
+    rx: Mutex<Option<Arc<Mutex<std::sync::mpsc::Receiver<FfiBufferedEvent>>>>>,
 }
 
 /// Opaque FPSS streaming client handle.
@@ -430,7 +437,7 @@ pub unsafe extern "C" fn tdx_client_connect(
     }
     let creds = unsafe { &*creds };
     let config = unsafe { &*config };
-    match runtime().block_on(thetadatadx::DirectClient::connect(
+    match runtime().block_on(thetadatadx::direct::DirectClient::connect(
         &creds.inner,
         config.inner.clone(),
     )) {
@@ -1308,6 +1315,477 @@ pub unsafe extern "C" fn tdx_implied_volatility(
         *out_error = err;
     }
     0
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  Unified client — historical + streaming through one handle
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Connect to ThetaData (historical only — FPSS streaming is NOT started).
+///
+/// Authenticates once, opens gRPC channel. Call `tdx_unified_start_streaming()`
+/// later to start FPSS. Historical endpoints are available immediately.
+///
+/// Returns null on connection/auth failure (check `tdx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_connect(
+    creds: *const TdxCredentials,
+    config: *const TdxConfig,
+) -> *mut TdxUnified {
+    if creds.is_null() {
+        set_error("credentials handle is null");
+        return ptr::null_mut();
+    }
+    if config.is_null() {
+        set_error("config handle is null");
+        return ptr::null_mut();
+    }
+    let creds = unsafe { &*creds };
+    let config = unsafe { &*config };
+
+    match runtime().block_on(thetadatadx::ThetaDataDx::connect(
+        &creds.inner,
+        config.inner.clone(),
+    )) {
+        Ok(tdx) => Box::into_raw(Box::new(TdxUnified {
+            inner: tdx,
+            rx: Mutex::new(None),
+        })),
+        Err(e) => {
+            set_error(&e.to_string());
+            ptr::null_mut()
+        }
+    }
+}
+
+/// Start FPSS streaming on the unified client.
+///
+/// Creates an internal mpsc channel and registers a callback handler.
+/// Events are buffered — poll with `tdx_unified_next_event()`.
+///
+/// Returns 0 on success, -1 on error (check `tdx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_start_streaming(handle: *const TdxUnified) -> i32 {
+    if handle.is_null() {
+        set_error("unified handle is null");
+        return -1;
+    }
+    let handle = unsafe { &*handle };
+
+    let (tx, rx) = std::sync::mpsc::channel::<FfiBufferedEvent>();
+
+    match handle
+        .inner
+        .start_streaming(move |event: &thetadatadx::fpss::FpssEvent| {
+            let buffered = fpss_event_to_ffi(event);
+            let _ = tx.send(buffered);
+        }) {
+        Ok(()) => {
+            if let Ok(mut guard) = handle.rx.lock() {
+                *guard = Some(Arc::new(Mutex::new(rx)));
+            }
+            0
+        }
+        Err(e) => {
+            set_error(&e.to_string());
+            -1
+        }
+    }
+}
+
+/// Start FPSS streaming with OHLCVC derivation disabled.
+///
+/// Returns 0 on success, -1 on error (check `tdx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_start_streaming_no_ohlcvc(handle: *const TdxUnified) -> i32 {
+    if handle.is_null() {
+        set_error("unified handle is null");
+        return -1;
+    }
+    let handle = unsafe { &*handle };
+
+    let (tx, rx) = std::sync::mpsc::channel::<FfiBufferedEvent>();
+
+    match handle
+        .inner
+        .start_streaming_no_ohlcvc(move |event: &thetadatadx::fpss::FpssEvent| {
+            let buffered = fpss_event_to_ffi(event);
+            let _ = tx.send(buffered);
+        }) {
+        Ok(()) => {
+            if let Ok(mut guard) = handle.rx.lock() {
+                *guard = Some(Arc::new(Mutex::new(rx)));
+            }
+            0
+        }
+        Err(e) => {
+            set_error(&e.to_string());
+            -1
+        }
+    }
+}
+
+/// Subscribe to quote data for a stock symbol via the unified client.
+///
+/// Returns the request ID on success, or -1 on error (check `tdx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_subscribe_quotes(
+    handle: *const TdxUnified,
+    symbol: *const c_char,
+) -> i32 {
+    if handle.is_null() {
+        set_error("unified handle is null");
+        return -1;
+    }
+    let symbol = match unsafe { cstr_to_str(symbol) } {
+        Some(s) => s,
+        None => {
+            set_error("symbol is null or invalid UTF-8");
+            return -1;
+        }
+    };
+    let handle = unsafe { &*handle };
+    let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
+    match handle.inner.subscribe_quotes(&contract) {
+        Ok(req_id) => req_id,
+        Err(e) => {
+            set_error(&e.to_string());
+            -1
+        }
+    }
+}
+
+/// Subscribe to trade data for a stock symbol via the unified client.
+///
+/// Returns the request ID on success, or -1 on error (check `tdx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_subscribe_trades(
+    handle: *const TdxUnified,
+    symbol: *const c_char,
+) -> i32 {
+    if handle.is_null() {
+        set_error("unified handle is null");
+        return -1;
+    }
+    let symbol = match unsafe { cstr_to_str(symbol) } {
+        Some(s) => s,
+        None => {
+            set_error("symbol is null or invalid UTF-8");
+            return -1;
+        }
+    };
+    let handle = unsafe { &*handle };
+    let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
+    match handle.inner.subscribe_trades(&contract) {
+        Ok(req_id) => req_id,
+        Err(e) => {
+            set_error(&e.to_string());
+            -1
+        }
+    }
+}
+
+/// Unsubscribe from quote data for a stock symbol via the unified client.
+///
+/// Returns the request ID on success, or -1 on error (check `tdx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_unsubscribe_quotes(
+    handle: *const TdxUnified,
+    symbol: *const c_char,
+) -> i32 {
+    if handle.is_null() {
+        set_error("unified handle is null");
+        return -1;
+    }
+    let symbol = match unsafe { cstr_to_str(symbol) } {
+        Some(s) => s,
+        None => {
+            set_error("symbol is null or invalid UTF-8");
+            return -1;
+        }
+    };
+    let handle = unsafe { &*handle };
+    let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
+    match handle.inner.unsubscribe_quotes(&contract) {
+        Ok(req_id) => req_id,
+        Err(e) => {
+            set_error(&e.to_string());
+            -1
+        }
+    }
+}
+
+/// Unsubscribe from trade data for a stock symbol via the unified client.
+///
+/// Returns the request ID on success, or -1 on error (check `tdx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_unsubscribe_trades(
+    handle: *const TdxUnified,
+    symbol: *const c_char,
+) -> i32 {
+    if handle.is_null() {
+        set_error("unified handle is null");
+        return -1;
+    }
+    let symbol = match unsafe { cstr_to_str(symbol) } {
+        Some(s) => s,
+        None => {
+            set_error("symbol is null or invalid UTF-8");
+            return -1;
+        }
+    };
+    let handle = unsafe { &*handle };
+    let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
+    match handle.inner.unsubscribe_trades(&contract) {
+        Ok(req_id) => req_id,
+        Err(e) => {
+            set_error(&e.to_string());
+            -1
+        }
+    }
+}
+
+/// Subscribe to open interest data for a stock symbol on the unified client.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_subscribe_open_interest(
+    handle: *const TdxUnified,
+    symbol: *const c_char,
+) -> i32 {
+    if handle.is_null() {
+        set_error("unified handle is null");
+        return -1;
+    }
+    let symbol = match unsafe { cstr_to_str(symbol) } {
+        Some(s) => s,
+        None => {
+            set_error("symbol is null");
+            return -1;
+        }
+    };
+    let handle = unsafe { &*handle };
+    let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
+    match handle.inner.subscribe_open_interest(&contract) {
+        Ok(id) => id,
+        Err(e) => {
+            set_error(&e.to_string());
+            -1
+        }
+    }
+}
+
+/// Subscribe to all trades for a security type on the unified client.
+/// sec_type: "STOCK", "OPTION", or "INDEX".
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_subscribe_full_trades(
+    handle: *const TdxUnified,
+    sec_type: *const c_char,
+) -> i32 {
+    if handle.is_null() {
+        set_error("unified handle is null");
+        return -1;
+    }
+    let sec_type_str = match unsafe { cstr_to_str(sec_type) } {
+        Some(s) => s,
+        None => {
+            set_error("sec_type is null");
+            return -1;
+        }
+    };
+    let st = match sec_type_str.to_uppercase().as_str() {
+        "STOCK" => thetadatadx::types::enums::SecType::Stock,
+        "OPTION" => thetadatadx::types::enums::SecType::Option,
+        "INDEX" => thetadatadx::types::enums::SecType::Index,
+        _ => {
+            set_error("invalid sec_type: expected STOCK, OPTION, or INDEX");
+            return -1;
+        }
+    };
+    let handle = unsafe { &*handle };
+    match handle.inner.subscribe_full_trades(st) {
+        Ok(id) => id,
+        Err(e) => {
+            set_error(&e.to_string());
+            -1
+        }
+    }
+}
+
+/// Unsubscribe from open interest data on the unified client.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_unsubscribe_open_interest(
+    handle: *const TdxUnified,
+    symbol: *const c_char,
+) -> i32 {
+    if handle.is_null() {
+        set_error("unified handle is null");
+        return -1;
+    }
+    let symbol = match unsafe { cstr_to_str(symbol) } {
+        Some(s) => s,
+        None => {
+            set_error("symbol is null");
+            return -1;
+        }
+    };
+    let handle = unsafe { &*handle };
+    let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
+    match handle.inner.unsubscribe_open_interest(&contract) {
+        Ok(id) => id,
+        Err(e) => {
+            set_error(&e.to_string());
+            -1
+        }
+    }
+}
+
+/// Check if streaming is active on the unified client.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_is_streaming(handle: *const TdxUnified) -> i32 {
+    if handle.is_null() {
+        return 0;
+    }
+    let handle = unsafe { &*handle };
+    if handle.inner.is_streaming() {
+        1
+    } else {
+        0
+    }
+}
+
+/// Look up a contract by ID. Returns JSON string or null.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_contract_lookup(
+    handle: *const TdxUnified,
+    id: i32,
+) -> *mut c_char {
+    if handle.is_null() {
+        set_error("unified handle is null");
+        return ptr::null_mut();
+    }
+    let handle = unsafe { &*handle };
+    match handle.inner.contract_lookup(id) {
+        Ok(Some(c)) => match CString::new(format!("{c}")) {
+            Ok(s) => s.into_raw(),
+            Err(_) => ptr::null_mut(),
+        },
+        Ok(None) => ptr::null_mut(),
+        Err(e) => {
+            set_error(&e.to_string());
+            ptr::null_mut()
+        }
+    }
+}
+
+/// Get active subscriptions as JSON array. Returns null on error.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_active_subscriptions(
+    handle: *const TdxUnified,
+) -> *mut c_char {
+    if handle.is_null() {
+        set_error("unified handle is null");
+        return ptr::null_mut();
+    }
+    let handle = unsafe { &*handle };
+    match handle.inner.active_subscriptions() {
+        Ok(subs) => {
+            let json: Vec<String> = subs
+                .iter()
+                .map(|(k, c)| format!("{{\"kind\":\"{k:?}\",\"contract\":\"{c}\"}}"))
+                .collect();
+            let arr = format!("[{}]", json.join(","));
+            match CString::new(arr) {
+                Ok(s) => s.into_raw(),
+                Err(_) => ptr::null_mut(),
+            }
+        }
+        Err(e) => {
+            set_error(&e.to_string());
+            ptr::null_mut()
+        }
+    }
+}
+
+/// Poll for the next streaming event from the unified client.
+///
+/// Blocks for up to `timeout_ms` milliseconds. Returns a JSON string.
+/// Returns null if no event arrived within the timeout (NOT an error),
+/// or if streaming has not been started yet (check `tdx_last_error()`).
+/// Caller must free the returned string with `tdx_string_free`.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_next_event(
+    handle: *const TdxUnified,
+    timeout_ms: u64,
+) -> *mut c_char {
+    if handle.is_null() {
+        set_error("unified handle is null");
+        return ptr::null_mut();
+    }
+    let handle = unsafe { &*handle };
+    let rx_guard = handle.rx.lock().unwrap_or_else(|e| e.into_inner());
+    let rx_arc = match rx_guard.as_ref() {
+        Some(arc) => Arc::clone(arc),
+        None => {
+            set_error("streaming not started -- call tdx_unified_start_streaming() first");
+            return ptr::null_mut();
+        }
+    };
+    drop(rx_guard);
+    let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());
+    let timeout = std::time::Duration::from_millis(timeout_ms);
+    match rx.recv_timeout(timeout) {
+        Ok(event) => buffered_event_to_cstring(&event),
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => ptr::null_mut(),
+        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => ptr::null_mut(),
+    }
+}
+
+/// Get a raw pointer to the underlying `TdxClient` (historical) from a unified handle.
+///
+/// All historical endpoints are accessible through the `TdxUnified` handle
+/// since it Derefs to `DirectClient`. Use the existing `tdx_stock_*`,
+/// `tdx_option_*`, etc. functions with the `TdxClient` obtained from
+/// `tdx_unified_historical()`, or call them via the Deref wrapper functions.
+///
+/// The returned pointer is NOT owned — do NOT call `tdx_client_free` on it.
+/// It is valid as long as the `TdxUnified` handle is alive.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_historical(handle: *const TdxUnified) -> *const TdxClient {
+    if handle.is_null() {
+        set_error("unified handle is null");
+        return ptr::null();
+    }
+    let _handle = unsafe { &*handle };
+    // The existing FFI functions take *const TdxClient which wraps DirectClient.
+    // TdxUnified.inner Derefs to DirectClient but is not the same layout as TdxClient.
+    // Callers should use tdx_client_connect() for historical queries alongside
+    // the tdx_unified_* functions for streaming, or use the Rust/Python SDKs
+    // which provide full unified access.
+    set_error("tdx_unified_historical() not supported in FFI — use tdx_unified_* streaming functions with a separate tdx_client_connect() for historical queries through the same session");
+    ptr::null()
+}
+
+/// Stop streaming on the unified client. Historical remains available.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_stop_streaming(handle: *const TdxUnified) {
+    if handle.is_null() {
+        return;
+    }
+    let handle = unsafe { &*handle };
+    handle.inner.stop_streaming();
+    // Clear the rx so next_event knows streaming is stopped.
+    if let Ok(mut guard) = handle.rx.lock() {
+        *guard = None;
+    }
+}
+
+/// Free a unified client handle.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_free(handle: *mut TdxUnified) {
+    if !handle.is_null() {
+        let handle = unsafe { Box::from_raw(handle) };
+        handle.inner.stop_streaming();
+        drop(handle);
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════

@@ -202,13 +202,13 @@ macro_rules! contract_spec {
 /// # Example
 ///
 /// ```rust,no_run
-/// use thetadatadx::{DirectClient, Credentials, DirectConfig};
+/// use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
 ///
 /// # async fn run() -> Result<(), thetadatadx::Error> {
 /// let creds = Credentials::from_file("creds.txt")?;
-/// let client = DirectClient::connect(&creds, DirectConfig::production()).await?;
+/// let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 ///
-/// let eod = client.stock_history_eod("AAPL", "20240101", "20240301").await?;
+/// let eod = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
 /// println!("{} EOD ticks", eod.len());
 /// # Ok(())
 /// # }
@@ -1906,7 +1906,7 @@ impl DirectClient {
     /// # Example
     ///
     /// ```rust,no_run
-    /// # async fn run(client: &thetadatadx::DirectClient) -> Result<(), thetadatadx::Error> {
+    /// # async fn run(client: &thetadatadx::direct::DirectClient) -> Result<(), thetadatadx::Error> {
     /// use thetadatadx::proto_v3;
     ///
     /// let request = proto_v3::CalendarYearRequest {

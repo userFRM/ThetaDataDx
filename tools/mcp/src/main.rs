@@ -9,12 +9,12 @@
 //!     |  JSON-RPC 2.0 over stdio
 //!     v
 //! thetadatadx-mcp (long-running process)
-//!     |  Single DirectClient, authenticated once
+//!     |  Single ThetaDataDx client, authenticated once
 //!     v
 //! ThetaData servers (MDDS gRPC + FPSS TCP)
 //! ```
 //!
-//! The server authenticates ONCE at startup, keeps the DirectClient alive,
+//! The server authenticates ONCE at startup, keeps the ThetaDataDx client alive,
 //! and serves tool calls instantly with no per-request auth overhead.
 //!
 //! Tool definitions and dispatch are driven by the shared endpoint registry
@@ -28,7 +28,7 @@ use sonic_rs::{json, JsonContainerTrait, JsonValueTrait, Value};
 use tokio::io::{AsyncBufReadExt, BufReader};
 
 use thetadatadx::registry::{self, ENDPOINTS};
-use thetadatadx::{Credentials, DirectClient, DirectConfig};
+use thetadatadx::{Credentials, DirectConfig, ThetaDataDx};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const PROTOCOL_VERSION: &str = "2024-11-05";
@@ -618,7 +618,7 @@ macro_rules! api {
 }
 
 async fn execute_tool(
-    client: &Option<DirectClient>,
+    client: &Option<ThetaDataDx>,
     name: &str,
     args: &Value,
     start_time: std::time::Instant,
@@ -1241,7 +1241,7 @@ async fn execute_tool(
 
 async fn handle_request(
     req: &JsonRpcRequest,
-    client: &Option<DirectClient>,
+    client: &Option<ThetaDataDx>,
     start_time: std::time::Instant,
 ) -> JsonRpcResponse {
     let id = req.id.clone().unwrap_or(Value::new_null());
@@ -1421,8 +1421,8 @@ async fn main() {
     };
 
     // ── Connect to ThetaData (if credentials available) ─────────────
-    let client: Option<DirectClient> = if let Some(creds) = creds {
-        match DirectClient::connect(&creds, DirectConfig::production()).await {
+    let client: Option<ThetaDataDx> = if let Some(creds) = creds {
+        match ThetaDataDx::connect(&creds, DirectConfig::production()).await {
             Ok(c) => {
                 tracing::info!("connected to ThetaData MDDS");
                 Some(c)
