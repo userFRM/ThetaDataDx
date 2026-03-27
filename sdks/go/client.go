@@ -192,6 +192,120 @@ type QuoteTick struct {
 	Date         int     `json:"date"`
 }
 
+// TradeQuoteTick represents a combined trade + quote tick.
+type TradeQuoteTick struct {
+	// Trade portion
+	MsOfDay        int     `json:"ms_of_day"`
+	Sequence       int     `json:"sequence"`
+	ExtCondition1  int     `json:"ext_condition1"`
+	ExtCondition2  int     `json:"ext_condition2"`
+	ExtCondition3  int     `json:"ext_condition3"`
+	ExtCondition4  int     `json:"ext_condition4"`
+	Condition      int     `json:"condition"`
+	Size           int     `json:"size"`
+	Exchange       int     `json:"exchange"`
+	Price          float64 `json:"price"`
+	ConditionFlags int     `json:"condition_flags"`
+	PriceFlags     int     `json:"price_flags"`
+	VolumeType     int     `json:"volume_type"`
+	RecordsBack    int     `json:"records_back"`
+	// Quote portion
+	QuoteMsOfDay int     `json:"quote_ms_of_day"`
+	BidSize      int     `json:"bid_size"`
+	BidExchange  int     `json:"bid_exchange"`
+	Bid          float64 `json:"bid"`
+	BidCondition int     `json:"bid_condition"`
+	AskSize      int     `json:"ask_size"`
+	AskExchange  int     `json:"ask_exchange"`
+	Ask          float64 `json:"ask"`
+	AskCondition int     `json:"ask_condition"`
+	Date         int     `json:"date"`
+}
+
+// OpenInterestTick represents an open interest data point.
+type OpenInterestTick struct {
+	MsOfDay      int `json:"ms_of_day"`
+	OpenInterest int `json:"open_interest"`
+	Date         int `json:"date"`
+}
+
+// MarketValueTick represents a market value data point.
+type MarketValueTick struct {
+	MsOfDay     int     `json:"ms_of_day"`
+	MarketCap   float64 `json:"market_cap"`
+	SharesOut   int64   `json:"shares_outstanding"`
+	EntValue    float64 `json:"enterprise_value"`
+	BookValue   float64 `json:"book_value"`
+	FreeFloat   int64   `json:"free_float"`
+	Date        int     `json:"date"`
+}
+
+// GreeksTick represents a Greeks snapshot at a point in time.
+type GreeksTick struct {
+	MsOfDay   int     `json:"ms_of_day"`
+	Value     float64 `json:"value"`
+	Delta     float64 `json:"delta"`
+	Gamma     float64 `json:"gamma"`
+	Theta     float64 `json:"theta"`
+	Vega      float64 `json:"vega"`
+	Rho       float64 `json:"rho"`
+	IV        float64 `json:"iv"`
+	IVError   float64 `json:"iv_error"`
+	Vanna     float64 `json:"vanna"`
+	Charm     float64 `json:"charm"`
+	Vomma     float64 `json:"vomma"`
+	Veta      float64 `json:"veta"`
+	Speed     float64 `json:"speed"`
+	Zomma     float64 `json:"zomma"`
+	Color     float64 `json:"color"`
+	Ultima    float64 `json:"ultima"`
+	D1        float64 `json:"d1"`
+	D2        float64 `json:"d2"`
+	DualDelta float64 `json:"dual_delta"`
+	DualGamma float64 `json:"dual_gamma"`
+	Epsilon   float64 `json:"epsilon"`
+	Lambda    float64 `json:"lambda"`
+	Date      int     `json:"date"`
+}
+
+// IVTick represents an implied volatility data point.
+type IVTick struct {
+	MsOfDay int     `json:"ms_of_day"`
+	IV      float64 `json:"iv"`
+	IVError float64 `json:"iv_error"`
+	Date    int     `json:"date"`
+}
+
+// PriceTick represents a price data point (used for index price endpoints).
+type PriceTick struct {
+	MsOfDay int     `json:"ms_of_day"`
+	Price   float64 `json:"price"`
+	Date    int     `json:"date"`
+}
+
+// CalendarDay represents market calendar information for a single day.
+type CalendarDay struct {
+	Date      int    `json:"date"`
+	IsOpen    bool   `json:"is_open"`
+	OpenTime  int    `json:"open_time"`
+	CloseTime int    `json:"close_time"`
+	Status    string `json:"status"`
+}
+
+// InterestRate represents an interest rate data point.
+type InterestRate struct {
+	Date int     `json:"date"`
+	Rate float64 `json:"rate"`
+}
+
+// Contract represents an option contract identifier.
+type Contract struct {
+	Symbol     string `json:"symbol"`
+	Expiration string `json:"expiration"`
+	Strike     string `json:"strike"`
+	Right      string `json:"right"`
+}
+
 // Greeks holds all 22 Black-Scholes Greeks plus IV.
 type Greeks struct {
 	Value     float64 `json:"value"`
@@ -216,6 +330,421 @@ type Greeks struct {
 	DualGamma float64 `json:"dual_gamma"`
 	Epsilon   float64 `json:"epsilon"`
 	Lambda    float64 `json:"lambda"`
+}
+
+// ── DataTable parsing ──
+//
+// The FFI layer returns "raw" endpoints as a columnar DataTable:
+//   {"headers": ["col1","col2",...], "rows": [[val1,val2,...], ...]}
+//
+// Values in rows can be:
+//   - numbers (int/float)
+//   - strings
+//   - price objects: {"value": N, "type": T}
+//   - timestamp objects: {"epoch_ms": N, "zone": S}
+//   - null
+//
+// The following helpers parse this format into typed Go structs.
+
+// dataTable is the intermediate representation of a DataTable from the FFI layer.
+type dataTable struct {
+	Headers []string        `json:"headers"`
+	Rows    [][]interface{} `json:"rows"`
+}
+
+// parseDataTable unmarshals a JSON DataTable into the intermediate representation.
+func parseDataTable(raw json.RawMessage) (*dataTable, error) {
+	var dt dataTable
+	if err := json.Unmarshal(raw, &dt); err != nil {
+		return nil, fmt.Errorf("thetadatadx: parse data table: %w", err)
+	}
+	return &dt, nil
+}
+
+// colIndex returns the index of the named column, or -1 if not found.
+func (dt *dataTable) colIndex(name string) int {
+	for i, h := range dt.Headers {
+		if h == name {
+			return i
+		}
+	}
+	return -1
+}
+
+// cellNumber extracts a numeric value from a row cell.
+// Handles plain numbers and price objects {"value":N,"type":T}.
+// Returns 0 for null/missing cells.
+func cellNumber(cell interface{}) float64 {
+	switch v := cell.(type) {
+	case float64:
+		return v
+	case map[string]interface{}:
+		// Price object: {"value": N, "type": T} -- extract value and convert
+		if val, ok := v["value"]; ok {
+			if n, ok := val.(float64); ok {
+				if pt, ok := v["type"]; ok {
+					if t, ok := pt.(float64); ok {
+						return priceToFloat(n, int(t))
+					}
+				}
+				return n
+			}
+		}
+		return 0
+	default:
+		return 0
+	}
+}
+
+// cellInt extracts an integer value from a row cell.
+func cellInt(cell interface{}) int {
+	switch v := cell.(type) {
+	case float64:
+		return int(v)
+	default:
+		return 0
+	}
+}
+
+// cellInt64 extracts an int64 value from a row cell.
+func cellInt64(cell interface{}) int64 {
+	switch v := cell.(type) {
+	case float64:
+		return int64(v)
+	default:
+		return 0
+	}
+}
+
+// cellString extracts a string value from a row cell.
+func cellString(cell interface{}) string {
+	switch v := cell.(type) {
+	case string:
+		return v
+	default:
+		return ""
+	}
+}
+
+// cellBool extracts a boolean value from a row cell.
+// Handles both bool literals and numeric 0/1.
+func cellBool(cell interface{}) bool {
+	switch v := cell.(type) {
+	case bool:
+		return v
+	case float64:
+		return v != 0
+	default:
+		return false
+	}
+}
+
+// priceToFloat converts a raw price value + type to a float64.
+// Price types: 0 = integer cents (/100), 1 = tenths of cents (/1000), etc.
+func priceToFloat(value float64, priceType int) float64 {
+	switch priceType {
+	case 0:
+		return value
+	case 1:
+		return value / 10.0
+	case 2:
+		return value / 100.0
+	case 3:
+		return value / 1000.0
+	case 4:
+		return value / 10000.0
+	default:
+		return value
+	}
+}
+
+// safeCell returns the cell at the given column index, or nil if out of range.
+func safeCell(row []interface{}, idx int) interface{} {
+	if idx < 0 || idx >= len(row) {
+		return nil
+	}
+	return row[idx]
+}
+
+// parseTradeQuoteTicks parses a DataTable into TradeQuoteTick structs.
+func parseTradeQuoteTicks(raw json.RawMessage) ([]TradeQuoteTick, error) {
+	dt, err := parseDataTable(raw)
+	if err != nil { return nil, err }
+
+	msIdx := dt.colIndex("ms_of_day")
+	seqIdx := dt.colIndex("sequence")
+	ext1Idx := dt.colIndex("ext_condition1")
+	ext2Idx := dt.colIndex("ext_condition2")
+	ext3Idx := dt.colIndex("ext_condition3")
+	ext4Idx := dt.colIndex("ext_condition4")
+	condIdx := dt.colIndex("condition")
+	sizeIdx := dt.colIndex("size")
+	exgIdx := dt.colIndex("exchange")
+	priceIdx := dt.colIndex("price")
+	cfIdx := dt.colIndex("condition_flags")
+	pfIdx := dt.colIndex("price_flags")
+	vtIdx := dt.colIndex("volume_type")
+	rbIdx := dt.colIndex("records_back")
+	qmsIdx := dt.colIndex("quote_ms_of_day")
+	bsIdx := dt.colIndex("bid_size")
+	beIdx := dt.colIndex("bid_exchange")
+	bidIdx := dt.colIndex("bid")
+	bcIdx := dt.colIndex("bid_condition")
+	asIdx := dt.colIndex("ask_size")
+	aeIdx := dt.colIndex("ask_exchange")
+	askIdx := dt.colIndex("ask")
+	acIdx := dt.colIndex("ask_condition")
+	dateIdx := dt.colIndex("date")
+
+	result := make([]TradeQuoteTick, 0, len(dt.Rows))
+	for _, row := range dt.Rows {
+		result = append(result, TradeQuoteTick{
+			MsOfDay:        cellInt(safeCell(row, msIdx)),
+			Sequence:       cellInt(safeCell(row, seqIdx)),
+			ExtCondition1:  cellInt(safeCell(row, ext1Idx)),
+			ExtCondition2:  cellInt(safeCell(row, ext2Idx)),
+			ExtCondition3:  cellInt(safeCell(row, ext3Idx)),
+			ExtCondition4:  cellInt(safeCell(row, ext4Idx)),
+			Condition:      cellInt(safeCell(row, condIdx)),
+			Size:           cellInt(safeCell(row, sizeIdx)),
+			Exchange:       cellInt(safeCell(row, exgIdx)),
+			Price:          cellNumber(safeCell(row, priceIdx)),
+			ConditionFlags: cellInt(safeCell(row, cfIdx)),
+			PriceFlags:     cellInt(safeCell(row, pfIdx)),
+			VolumeType:     cellInt(safeCell(row, vtIdx)),
+			RecordsBack:    cellInt(safeCell(row, rbIdx)),
+			QuoteMsOfDay:   cellInt(safeCell(row, qmsIdx)),
+			BidSize:        cellInt(safeCell(row, bsIdx)),
+			BidExchange:    cellInt(safeCell(row, beIdx)),
+			Bid:            cellNumber(safeCell(row, bidIdx)),
+			BidCondition:   cellInt(safeCell(row, bcIdx)),
+			AskSize:        cellInt(safeCell(row, asIdx)),
+			AskExchange:    cellInt(safeCell(row, aeIdx)),
+			Ask:            cellNumber(safeCell(row, askIdx)),
+			AskCondition:   cellInt(safeCell(row, acIdx)),
+			Date:           cellInt(safeCell(row, dateIdx)),
+		})
+	}
+	return result, nil
+}
+
+// parseOpenInterestTicks parses a DataTable into OpenInterestTick structs.
+func parseOpenInterestTicks(raw json.RawMessage) ([]OpenInterestTick, error) {
+	dt, err := parseDataTable(raw)
+	if err != nil { return nil, err }
+
+	msIdx := dt.colIndex("ms_of_day")
+	oiIdx := dt.colIndex("open_interest")
+	dateIdx := dt.colIndex("date")
+
+	result := make([]OpenInterestTick, 0, len(dt.Rows))
+	for _, row := range dt.Rows {
+		result = append(result, OpenInterestTick{
+			MsOfDay:      cellInt(safeCell(row, msIdx)),
+			OpenInterest: cellInt(safeCell(row, oiIdx)),
+			Date:         cellInt(safeCell(row, dateIdx)),
+		})
+	}
+	return result, nil
+}
+
+// parseMarketValueTicks parses a DataTable into MarketValueTick structs.
+func parseMarketValueTicks(raw json.RawMessage) ([]MarketValueTick, error) {
+	dt, err := parseDataTable(raw)
+	if err != nil { return nil, err }
+
+	msIdx := dt.colIndex("ms_of_day")
+	mcIdx := dt.colIndex("market_cap")
+	soIdx := dt.colIndex("shares_outstanding")
+	evIdx := dt.colIndex("enterprise_value")
+	bvIdx := dt.colIndex("book_value")
+	ffIdx := dt.colIndex("free_float")
+	dateIdx := dt.colIndex("date")
+
+	result := make([]MarketValueTick, 0, len(dt.Rows))
+	for _, row := range dt.Rows {
+		result = append(result, MarketValueTick{
+			MsOfDay:   cellInt(safeCell(row, msIdx)),
+			MarketCap: cellNumber(safeCell(row, mcIdx)),
+			SharesOut: cellInt64(safeCell(row, soIdx)),
+			EntValue:  cellNumber(safeCell(row, evIdx)),
+			BookValue: cellNumber(safeCell(row, bvIdx)),
+			FreeFloat: cellInt64(safeCell(row, ffIdx)),
+			Date:      cellInt(safeCell(row, dateIdx)),
+		})
+	}
+	return result, nil
+}
+
+// parseGreeksTicks parses a DataTable into GreeksTick structs.
+func parseGreeksTicks(raw json.RawMessage) ([]GreeksTick, error) {
+	dt, err := parseDataTable(raw)
+	if err != nil { return nil, err }
+
+	msIdx := dt.colIndex("ms_of_day")
+	valIdx := dt.colIndex("value")
+	dIdx := dt.colIndex("delta")
+	gIdx := dt.colIndex("gamma")
+	tIdx := dt.colIndex("theta")
+	vIdx := dt.colIndex("vega")
+	rIdx := dt.colIndex("rho")
+	ivIdx := dt.colIndex("implied_volatility")
+	if ivIdx < 0 { ivIdx = dt.colIndex("iv") }
+	iveIdx := dt.colIndex("iv_error")
+	vaIdx := dt.colIndex("vanna")
+	chIdx := dt.colIndex("charm")
+	voIdx := dt.colIndex("vomma")
+	veIdx := dt.colIndex("veta")
+	spIdx := dt.colIndex("speed")
+	zoIdx := dt.colIndex("zomma")
+	coIdx := dt.colIndex("color")
+	ulIdx := dt.colIndex("ultima")
+	d1Idx := dt.colIndex("d1")
+	d2Idx := dt.colIndex("d2")
+	ddIdx := dt.colIndex("dual_delta")
+	dgIdx := dt.colIndex("dual_gamma")
+	epIdx := dt.colIndex("epsilon")
+	laIdx := dt.colIndex("lambda")
+	dateIdx := dt.colIndex("date")
+
+	result := make([]GreeksTick, 0, len(dt.Rows))
+	for _, row := range dt.Rows {
+		result = append(result, GreeksTick{
+			MsOfDay:   cellInt(safeCell(row, msIdx)),
+			Value:     cellNumber(safeCell(row, valIdx)),
+			Delta:     cellNumber(safeCell(row, dIdx)),
+			Gamma:     cellNumber(safeCell(row, gIdx)),
+			Theta:     cellNumber(safeCell(row, tIdx)),
+			Vega:      cellNumber(safeCell(row, vIdx)),
+			Rho:       cellNumber(safeCell(row, rIdx)),
+			IV:        cellNumber(safeCell(row, ivIdx)),
+			IVError:   cellNumber(safeCell(row, iveIdx)),
+			Vanna:     cellNumber(safeCell(row, vaIdx)),
+			Charm:     cellNumber(safeCell(row, chIdx)),
+			Vomma:     cellNumber(safeCell(row, voIdx)),
+			Veta:      cellNumber(safeCell(row, veIdx)),
+			Speed:     cellNumber(safeCell(row, spIdx)),
+			Zomma:     cellNumber(safeCell(row, zoIdx)),
+			Color:     cellNumber(safeCell(row, coIdx)),
+			Ultima:    cellNumber(safeCell(row, ulIdx)),
+			D1:        cellNumber(safeCell(row, d1Idx)),
+			D2:        cellNumber(safeCell(row, d2Idx)),
+			DualDelta: cellNumber(safeCell(row, ddIdx)),
+			DualGamma: cellNumber(safeCell(row, dgIdx)),
+			Epsilon:   cellNumber(safeCell(row, epIdx)),
+			Lambda:    cellNumber(safeCell(row, laIdx)),
+			Date:      cellInt(safeCell(row, dateIdx)),
+		})
+	}
+	return result, nil
+}
+
+// parseIVTicks parses a DataTable into IVTick structs.
+func parseIVTicks(raw json.RawMessage) ([]IVTick, error) {
+	dt, err := parseDataTable(raw)
+	if err != nil { return nil, err }
+
+	msIdx := dt.colIndex("ms_of_day")
+	ivIdx := dt.colIndex("implied_volatility")
+	if ivIdx < 0 { ivIdx = dt.colIndex("iv") }
+	iveIdx := dt.colIndex("iv_error")
+	dateIdx := dt.colIndex("date")
+
+	result := make([]IVTick, 0, len(dt.Rows))
+	for _, row := range dt.Rows {
+		result = append(result, IVTick{
+			MsOfDay: cellInt(safeCell(row, msIdx)),
+			IV:      cellNumber(safeCell(row, ivIdx)),
+			IVError: cellNumber(safeCell(row, iveIdx)),
+			Date:    cellInt(safeCell(row, dateIdx)),
+		})
+	}
+	return result, nil
+}
+
+// parsePriceTicks parses a DataTable into PriceTick structs.
+func parsePriceTicks(raw json.RawMessage) ([]PriceTick, error) {
+	dt, err := parseDataTable(raw)
+	if err != nil { return nil, err }
+
+	msIdx := dt.colIndex("ms_of_day")
+	priceIdx := dt.colIndex("price")
+	dateIdx := dt.colIndex("date")
+
+	result := make([]PriceTick, 0, len(dt.Rows))
+	for _, row := range dt.Rows {
+		result = append(result, PriceTick{
+			MsOfDay: cellInt(safeCell(row, msIdx)),
+			Price:   cellNumber(safeCell(row, priceIdx)),
+			Date:    cellInt(safeCell(row, dateIdx)),
+		})
+	}
+	return result, nil
+}
+
+// parseCalendarDays parses a DataTable into CalendarDay structs.
+func parseCalendarDays(raw json.RawMessage) ([]CalendarDay, error) {
+	dt, err := parseDataTable(raw)
+	if err != nil { return nil, err }
+
+	dateIdx := dt.colIndex("date")
+	openIdx := dt.colIndex("is_open")
+	otIdx := dt.colIndex("open_time")
+	ctIdx := dt.colIndex("close_time")
+	stIdx := dt.colIndex("status")
+
+	result := make([]CalendarDay, 0, len(dt.Rows))
+	for _, row := range dt.Rows {
+		result = append(result, CalendarDay{
+			Date:      cellInt(safeCell(row, dateIdx)),
+			IsOpen:    cellBool(safeCell(row, openIdx)),
+			OpenTime:  cellInt(safeCell(row, otIdx)),
+			CloseTime: cellInt(safeCell(row, ctIdx)),
+			Status:    cellString(safeCell(row, stIdx)),
+		})
+	}
+	return result, nil
+}
+
+// parseInterestRates parses a DataTable into InterestRate structs.
+func parseInterestRates(raw json.RawMessage) ([]InterestRate, error) {
+	dt, err := parseDataTable(raw)
+	if err != nil { return nil, err }
+
+	dateIdx := dt.colIndex("date")
+	rateIdx := dt.colIndex("rate")
+
+	result := make([]InterestRate, 0, len(dt.Rows))
+	for _, row := range dt.Rows {
+		result = append(result, InterestRate{
+			Date: cellInt(safeCell(row, dateIdx)),
+			Rate: cellNumber(safeCell(row, rateIdx)),
+		})
+	}
+	return result, nil
+}
+
+// parseContracts parses a DataTable into Contract structs.
+func parseContracts(raw json.RawMessage) ([]Contract, error) {
+	dt, err := parseDataTable(raw)
+	if err != nil { return nil, err }
+
+	symIdx := dt.colIndex("symbol")
+	if symIdx < 0 { symIdx = dt.colIndex("root") }
+	expIdx := dt.colIndex("expiration")
+	strIdx := dt.colIndex("strike")
+	rIdx := dt.colIndex("right")
+
+	result := make([]Contract, 0, len(dt.Rows))
+	for _, row := range dt.Rows {
+		result = append(result, Contract{
+			Symbol:     cellString(safeCell(row, symIdx)),
+			Expiration: cellString(safeCell(row, expIdx)),
+			Strike:     fmt.Sprintf("%v", safeCell(row, strIdx)),
+			Right:      cellString(safeCell(row, rIdx)),
+		})
+	}
+	return result, nil
 }
 
 // ── Internal helpers ──
@@ -315,10 +844,12 @@ func (c *Client) StockSnapshotQuote(symbols []string) ([]QuoteTick, error) {
 	return result, json.Unmarshal(raw, &result)
 }
 
-func (c *Client) StockSnapshotMarketValue(symbols []string) (json.RawMessage, error) {
+func (c *Client) StockSnapshotMarketValue(symbols []string) ([]MarketValueTick, error) {
 	cJSON, err := symbolsToJSON(symbols); if err != nil { return nil, err }
 	defer C.free(unsafe.Pointer(cJSON))
-	return callJSON(C.tdx_stock_snapshot_market_value(c.handle, cJSON))
+	raw, err := callJSON(C.tdx_stock_snapshot_market_value(c.handle, cJSON))
+	if err != nil { return nil, err }
+	return parseMarketValueTicks(raw)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -370,10 +901,12 @@ func (c *Client) StockHistoryQuote(symbol, date, interval string) ([]QuoteTick, 
 	return result, json.Unmarshal(raw, &result)
 }
 
-func (c *Client) StockHistoryTradeQuote(symbol, date string) (json.RawMessage, error) {
+func (c *Client) StockHistoryTradeQuote(symbol, date string) ([]TradeQuoteTick, error) {
 	cS := C.CString(symbol); cD := C.CString(date)
 	defer C.free(unsafe.Pointer(cS)); defer C.free(unsafe.Pointer(cD))
-	return callJSON(C.tdx_stock_history_trade_quote(c.handle, cS, cD))
+	raw, err := callJSON(C.tdx_stock_history_trade_quote(c.handle, cS, cD))
+	if err != nil { return nil, err }
+	return parseTradeQuoteTicks(raw)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -431,10 +964,12 @@ func (c *Client) OptionListStrikes(symbol, expiration string) ([]string, error) 
 	return parseStrings(raw)
 }
 
-func (c *Client) OptionListContracts(requestType, symbol, date string) (json.RawMessage, error) {
+func (c *Client) OptionListContracts(requestType, symbol, date string) ([]Contract, error) {
 	cRT := C.CString(requestType); cS := C.CString(symbol); cD := C.CString(date)
 	defer C.free(unsafe.Pointer(cRT)); defer C.free(unsafe.Pointer(cS)); defer C.free(unsafe.Pointer(cD))
-	return callJSON(C.tdx_option_list_contracts(c.handle, cRT, cS, cD))
+	raw, err := callJSON(C.tdx_option_list_contracts(c.handle, cRT, cS, cD))
+	if err != nil { return nil, err }
+	return parseContracts(raw)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -465,32 +1000,46 @@ func (c *Client) OptionSnapshotQuote(symbol, expiration, strike, right string) (
 	var result []QuoteTick; return result, json.Unmarshal(raw, &result)
 }
 
-func (c *Client) OptionSnapshotOpenInterest(symbol, expiration, strike, right string) (json.RawMessage, error) {
-	return c.optionContractFFI4(C.tdx_option_snapshot_open_interest, symbol, expiration, strike, right)
+func (c *Client) OptionSnapshotOpenInterest(symbol, expiration, strike, right string) ([]OpenInterestTick, error) {
+	raw, err := c.optionContractFFI4(C.tdx_option_snapshot_open_interest, symbol, expiration, strike, right)
+	if err != nil { return nil, err }
+	return parseOpenInterestTicks(raw)
 }
 
-func (c *Client) OptionSnapshotMarketValue(symbol, expiration, strike, right string) (json.RawMessage, error) {
-	return c.optionContractFFI4(C.tdx_option_snapshot_market_value, symbol, expiration, strike, right)
+func (c *Client) OptionSnapshotMarketValue(symbol, expiration, strike, right string) ([]MarketValueTick, error) {
+	raw, err := c.optionContractFFI4(C.tdx_option_snapshot_market_value, symbol, expiration, strike, right)
+	if err != nil { return nil, err }
+	return parseMarketValueTicks(raw)
 }
 
-func (c *Client) OptionSnapshotGreeksImpliedVolatility(symbol, expiration, strike, right string) (json.RawMessage, error) {
-	return c.optionContractFFI4(C.tdx_option_snapshot_greeks_implied_volatility, symbol, expiration, strike, right)
+func (c *Client) OptionSnapshotGreeksImpliedVolatility(symbol, expiration, strike, right string) ([]IVTick, error) {
+	raw, err := c.optionContractFFI4(C.tdx_option_snapshot_greeks_implied_volatility, symbol, expiration, strike, right)
+	if err != nil { return nil, err }
+	return parseIVTicks(raw)
 }
 
-func (c *Client) OptionSnapshotGreeksAll(symbol, expiration, strike, right string) (json.RawMessage, error) {
-	return c.optionContractFFI4(C.tdx_option_snapshot_greeks_all, symbol, expiration, strike, right)
+func (c *Client) OptionSnapshotGreeksAll(symbol, expiration, strike, right string) ([]GreeksTick, error) {
+	raw, err := c.optionContractFFI4(C.tdx_option_snapshot_greeks_all, symbol, expiration, strike, right)
+	if err != nil { return nil, err }
+	return parseGreeksTicks(raw)
 }
 
-func (c *Client) OptionSnapshotGreeksFirstOrder(symbol, expiration, strike, right string) (json.RawMessage, error) {
-	return c.optionContractFFI4(C.tdx_option_snapshot_greeks_first_order, symbol, expiration, strike, right)
+func (c *Client) OptionSnapshotGreeksFirstOrder(symbol, expiration, strike, right string) ([]GreeksTick, error) {
+	raw, err := c.optionContractFFI4(C.tdx_option_snapshot_greeks_first_order, symbol, expiration, strike, right)
+	if err != nil { return nil, err }
+	return parseGreeksTicks(raw)
 }
 
-func (c *Client) OptionSnapshotGreeksSecondOrder(symbol, expiration, strike, right string) (json.RawMessage, error) {
-	return c.optionContractFFI4(C.tdx_option_snapshot_greeks_second_order, symbol, expiration, strike, right)
+func (c *Client) OptionSnapshotGreeksSecondOrder(symbol, expiration, strike, right string) ([]GreeksTick, error) {
+	raw, err := c.optionContractFFI4(C.tdx_option_snapshot_greeks_second_order, symbol, expiration, strike, right)
+	if err != nil { return nil, err }
+	return parseGreeksTicks(raw)
 }
 
-func (c *Client) OptionSnapshotGreeksThirdOrder(symbol, expiration, strike, right string) (json.RawMessage, error) {
-	return c.optionContractFFI4(C.tdx_option_snapshot_greeks_third_order, symbol, expiration, strike, right)
+func (c *Client) OptionSnapshotGreeksThirdOrder(symbol, expiration, strike, right string) ([]GreeksTick, error) {
+	raw, err := c.optionContractFFI4(C.tdx_option_snapshot_greeks_third_order, symbol, expiration, strike, right)
+	if err != nil { return nil, err }
+	return parseGreeksTicks(raw)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -529,78 +1078,104 @@ func (c *Client) OptionHistoryQuote(symbol, expiration, strike, right, date, int
 	var result []QuoteTick; return result, json.Unmarshal(raw, &result)
 }
 
-func (c *Client) OptionHistoryTradeQuote(symbol, expiration, strike, right, date string) (json.RawMessage, error) {
+func (c *Client) OptionHistoryTradeQuote(symbol, expiration, strike, right, date string) ([]TradeQuoteTick, error) {
 	cSym := C.CString(symbol); cExp := C.CString(expiration); cStr := C.CString(strike); cR := C.CString(right); cD := C.CString(date)
 	defer C.free(unsafe.Pointer(cSym)); defer C.free(unsafe.Pointer(cExp)); defer C.free(unsafe.Pointer(cStr)); defer C.free(unsafe.Pointer(cR)); defer C.free(unsafe.Pointer(cD))
-	return callJSON(C.tdx_option_history_trade_quote(c.handle, cSym, cExp, cStr, cR, cD))
+	raw, err := callJSON(C.tdx_option_history_trade_quote(c.handle, cSym, cExp, cStr, cR, cD))
+	if err != nil { return nil, err }
+	return parseTradeQuoteTicks(raw)
 }
 
-func (c *Client) OptionHistoryOpenInterest(symbol, expiration, strike, right, date string) (json.RawMessage, error) {
+func (c *Client) OptionHistoryOpenInterest(symbol, expiration, strike, right, date string) ([]OpenInterestTick, error) {
 	cSym := C.CString(symbol); cExp := C.CString(expiration); cStr := C.CString(strike); cR := C.CString(right); cD := C.CString(date)
 	defer C.free(unsafe.Pointer(cSym)); defer C.free(unsafe.Pointer(cExp)); defer C.free(unsafe.Pointer(cStr)); defer C.free(unsafe.Pointer(cR)); defer C.free(unsafe.Pointer(cD))
-	return callJSON(C.tdx_option_history_open_interest(c.handle, cSym, cExp, cStr, cR, cD))
+	raw, err := callJSON(C.tdx_option_history_open_interest(c.handle, cSym, cExp, cStr, cR, cD))
+	if err != nil { return nil, err }
+	return parseOpenInterestTicks(raw)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
 //  Option — History Greeks endpoints (11)
 // ═══════════════════════════════════════════════════════════════════════
 
-// Helper for Greeks 6-param endpoints (contract + date + interval)
-func (c *Client) optionGreeks6(fn func(*C.TdxClient, *C.char, *C.char, *C.char, *C.char, *C.char, *C.char) *C.char, symbol, expiration, strike, right, date, interval string) (json.RawMessage, error) {
+// Helper for raw 6-param endpoints (contract + date + interval)
+func (c *Client) optionRaw6(fn func(*C.TdxClient, *C.char, *C.char, *C.char, *C.char, *C.char, *C.char) *C.char, symbol, expiration, strike, right, date, interval string) (json.RawMessage, error) {
 	cSym := C.CString(symbol); cExp := C.CString(expiration); cStr := C.CString(strike); cR := C.CString(right); cD := C.CString(date); cI := C.CString(interval)
 	defer C.free(unsafe.Pointer(cSym)); defer C.free(unsafe.Pointer(cExp)); defer C.free(unsafe.Pointer(cStr)); defer C.free(unsafe.Pointer(cR)); defer C.free(unsafe.Pointer(cD)); defer C.free(unsafe.Pointer(cI))
 	return callJSON(fn(c.handle, cSym, cExp, cStr, cR, cD, cI))
 }
 
-// Helper for Greeks 5-param endpoints (contract + date, no interval)
-func (c *Client) optionGreeks5(fn func(*C.TdxClient, *C.char, *C.char, *C.char, *C.char, *C.char) *C.char, symbol, expiration, strike, right, date string) (json.RawMessage, error) {
+// Helper for raw 5-param endpoints (contract + date, no interval)
+func (c *Client) optionRaw5(fn func(*C.TdxClient, *C.char, *C.char, *C.char, *C.char, *C.char) *C.char, symbol, expiration, strike, right, date string) (json.RawMessage, error) {
 	cSym := C.CString(symbol); cExp := C.CString(expiration); cStr := C.CString(strike); cR := C.CString(right); cD := C.CString(date)
 	defer C.free(unsafe.Pointer(cSym)); defer C.free(unsafe.Pointer(cExp)); defer C.free(unsafe.Pointer(cStr)); defer C.free(unsafe.Pointer(cR)); defer C.free(unsafe.Pointer(cD))
 	return callJSON(fn(c.handle, cSym, cExp, cStr, cR, cD))
 }
 
-func (c *Client) OptionHistoryGreeksEOD(symbol, expiration, strike, right, startDate, endDate string) (json.RawMessage, error) {
-	return c.optionGreeks6(C.tdx_option_history_greeks_eod, symbol, expiration, strike, right, startDate, endDate)
+func (c *Client) OptionHistoryGreeksEOD(symbol, expiration, strike, right, startDate, endDate string) ([]GreeksTick, error) {
+	raw, err := c.optionRaw6(C.tdx_option_history_greeks_eod, symbol, expiration, strike, right, startDate, endDate)
+	if err != nil { return nil, err }
+	return parseGreeksTicks(raw)
 }
 
-func (c *Client) OptionHistoryGreeksAll(symbol, expiration, strike, right, date, interval string) (json.RawMessage, error) {
-	return c.optionGreeks6(C.tdx_option_history_greeks_all, symbol, expiration, strike, right, date, interval)
+func (c *Client) OptionHistoryGreeksAll(symbol, expiration, strike, right, date, interval string) ([]GreeksTick, error) {
+	raw, err := c.optionRaw6(C.tdx_option_history_greeks_all, symbol, expiration, strike, right, date, interval)
+	if err != nil { return nil, err }
+	return parseGreeksTicks(raw)
 }
 
-func (c *Client) OptionHistoryTradeGreeksAll(symbol, expiration, strike, right, date string) (json.RawMessage, error) {
-	return c.optionGreeks5(C.tdx_option_history_trade_greeks_all, symbol, expiration, strike, right, date)
+func (c *Client) OptionHistoryTradeGreeksAll(symbol, expiration, strike, right, date string) ([]GreeksTick, error) {
+	raw, err := c.optionRaw5(C.tdx_option_history_trade_greeks_all, symbol, expiration, strike, right, date)
+	if err != nil { return nil, err }
+	return parseGreeksTicks(raw)
 }
 
-func (c *Client) OptionHistoryGreeksFirstOrder(symbol, expiration, strike, right, date, interval string) (json.RawMessage, error) {
-	return c.optionGreeks6(C.tdx_option_history_greeks_first_order, symbol, expiration, strike, right, date, interval)
+func (c *Client) OptionHistoryGreeksFirstOrder(symbol, expiration, strike, right, date, interval string) ([]GreeksTick, error) {
+	raw, err := c.optionRaw6(C.tdx_option_history_greeks_first_order, symbol, expiration, strike, right, date, interval)
+	if err != nil { return nil, err }
+	return parseGreeksTicks(raw)
 }
 
-func (c *Client) OptionHistoryTradeGreeksFirstOrder(symbol, expiration, strike, right, date string) (json.RawMessage, error) {
-	return c.optionGreeks5(C.tdx_option_history_trade_greeks_first_order, symbol, expiration, strike, right, date)
+func (c *Client) OptionHistoryTradeGreeksFirstOrder(symbol, expiration, strike, right, date string) ([]GreeksTick, error) {
+	raw, err := c.optionRaw5(C.tdx_option_history_trade_greeks_first_order, symbol, expiration, strike, right, date)
+	if err != nil { return nil, err }
+	return parseGreeksTicks(raw)
 }
 
-func (c *Client) OptionHistoryGreeksSecondOrder(symbol, expiration, strike, right, date, interval string) (json.RawMessage, error) {
-	return c.optionGreeks6(C.tdx_option_history_greeks_second_order, symbol, expiration, strike, right, date, interval)
+func (c *Client) OptionHistoryGreeksSecondOrder(symbol, expiration, strike, right, date, interval string) ([]GreeksTick, error) {
+	raw, err := c.optionRaw6(C.tdx_option_history_greeks_second_order, symbol, expiration, strike, right, date, interval)
+	if err != nil { return nil, err }
+	return parseGreeksTicks(raw)
 }
 
-func (c *Client) OptionHistoryTradeGreeksSecondOrder(symbol, expiration, strike, right, date string) (json.RawMessage, error) {
-	return c.optionGreeks5(C.tdx_option_history_trade_greeks_second_order, symbol, expiration, strike, right, date)
+func (c *Client) OptionHistoryTradeGreeksSecondOrder(symbol, expiration, strike, right, date string) ([]GreeksTick, error) {
+	raw, err := c.optionRaw5(C.tdx_option_history_trade_greeks_second_order, symbol, expiration, strike, right, date)
+	if err != nil { return nil, err }
+	return parseGreeksTicks(raw)
 }
 
-func (c *Client) OptionHistoryGreeksThirdOrder(symbol, expiration, strike, right, date, interval string) (json.RawMessage, error) {
-	return c.optionGreeks6(C.tdx_option_history_greeks_third_order, symbol, expiration, strike, right, date, interval)
+func (c *Client) OptionHistoryGreeksThirdOrder(symbol, expiration, strike, right, date, interval string) ([]GreeksTick, error) {
+	raw, err := c.optionRaw6(C.tdx_option_history_greeks_third_order, symbol, expiration, strike, right, date, interval)
+	if err != nil { return nil, err }
+	return parseGreeksTicks(raw)
 }
 
-func (c *Client) OptionHistoryTradeGreeksThirdOrder(symbol, expiration, strike, right, date string) (json.RawMessage, error) {
-	return c.optionGreeks5(C.tdx_option_history_trade_greeks_third_order, symbol, expiration, strike, right, date)
+func (c *Client) OptionHistoryTradeGreeksThirdOrder(symbol, expiration, strike, right, date string) ([]GreeksTick, error) {
+	raw, err := c.optionRaw5(C.tdx_option_history_trade_greeks_third_order, symbol, expiration, strike, right, date)
+	if err != nil { return nil, err }
+	return parseGreeksTicks(raw)
 }
 
-func (c *Client) OptionHistoryGreeksImpliedVolatility(symbol, expiration, strike, right, date, interval string) (json.RawMessage, error) {
-	return c.optionGreeks6(C.tdx_option_history_greeks_implied_volatility, symbol, expiration, strike, right, date, interval)
+func (c *Client) OptionHistoryGreeksImpliedVolatility(symbol, expiration, strike, right, date, interval string) ([]IVTick, error) {
+	raw, err := c.optionRaw6(C.tdx_option_history_greeks_implied_volatility, symbol, expiration, strike, right, date, interval)
+	if err != nil { return nil, err }
+	return parseIVTicks(raw)
 }
 
-func (c *Client) OptionHistoryTradeGreeksImpliedVolatility(symbol, expiration, strike, right, date string) (json.RawMessage, error) {
-	return c.optionGreeks5(C.tdx_option_history_trade_greeks_implied_volatility, symbol, expiration, strike, right, date)
+func (c *Client) OptionHistoryTradeGreeksImpliedVolatility(symbol, expiration, strike, right, date string) ([]IVTick, error) {
+	raw, err := c.optionRaw5(C.tdx_option_history_trade_greeks_implied_volatility, symbol, expiration, strike, right, date)
+	if err != nil { return nil, err }
+	return parseIVTicks(raw)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -656,16 +1231,20 @@ func (c *Client) IndexSnapshotOHLC(symbols []string) ([]OhlcTick, error) {
 	var result []OhlcTick; return result, json.Unmarshal(raw, &result)
 }
 
-func (c *Client) IndexSnapshotPrice(symbols []string) (json.RawMessage, error) {
+func (c *Client) IndexSnapshotPrice(symbols []string) ([]PriceTick, error) {
 	cJSON, err := symbolsToJSON(symbols); if err != nil { return nil, err }
 	defer C.free(unsafe.Pointer(cJSON))
-	return callJSON(C.tdx_index_snapshot_price(c.handle, cJSON))
+	raw, err := callJSON(C.tdx_index_snapshot_price(c.handle, cJSON))
+	if err != nil { return nil, err }
+	return parsePriceTicks(raw)
 }
 
-func (c *Client) IndexSnapshotMarketValue(symbols []string) (json.RawMessage, error) {
+func (c *Client) IndexSnapshotMarketValue(symbols []string) ([]MarketValueTick, error) {
 	cJSON, err := symbolsToJSON(symbols); if err != nil { return nil, err }
 	defer C.free(unsafe.Pointer(cJSON))
-	return callJSON(C.tdx_index_snapshot_market_value(c.handle, cJSON))
+	raw, err := callJSON(C.tdx_index_snapshot_market_value(c.handle, cJSON))
+	if err != nil { return nil, err }
+	return parseMarketValueTicks(raw)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -688,48 +1267,60 @@ func (c *Client) IndexHistoryOHLC(symbol, startDate, endDate, interval string) (
 	var result []OhlcTick; return result, json.Unmarshal(raw, &result)
 }
 
-func (c *Client) IndexHistoryPrice(symbol, date, interval string) (json.RawMessage, error) {
+func (c *Client) IndexHistoryPrice(symbol, date, interval string) ([]PriceTick, error) {
 	cS := C.CString(symbol); cD := C.CString(date); cI := C.CString(interval)
 	defer C.free(unsafe.Pointer(cS)); defer C.free(unsafe.Pointer(cD)); defer C.free(unsafe.Pointer(cI))
-	return callJSON(C.tdx_index_history_price(c.handle, cS, cD, cI))
+	raw, err := callJSON(C.tdx_index_history_price(c.handle, cS, cD, cI))
+	if err != nil { return nil, err }
+	return parsePriceTicks(raw)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
 //  Index — At-Time endpoints (1)
 // ═══════════════════════════════════════════════════════════════════════
 
-func (c *Client) IndexAtTimePrice(symbol, startDate, endDate, timeOfDay string) (json.RawMessage, error) {
+func (c *Client) IndexAtTimePrice(symbol, startDate, endDate, timeOfDay string) ([]PriceTick, error) {
 	cS := C.CString(symbol); cSt := C.CString(startDate); cEn := C.CString(endDate); cT := C.CString(timeOfDay)
 	defer C.free(unsafe.Pointer(cS)); defer C.free(unsafe.Pointer(cSt)); defer C.free(unsafe.Pointer(cEn)); defer C.free(unsafe.Pointer(cT))
-	return callJSON(C.tdx_index_at_time_price(c.handle, cS, cSt, cEn, cT))
+	raw, err := callJSON(C.tdx_index_at_time_price(c.handle, cS, cSt, cEn, cT))
+	if err != nil { return nil, err }
+	return parsePriceTicks(raw)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
 //  Calendar endpoints (3)
 // ═══════════════════════════════════════════════════════════════════════
 
-func (c *Client) CalendarOpenToday() (json.RawMessage, error) {
-	return callJSON(C.tdx_calendar_open_today(c.handle))
+func (c *Client) CalendarOpenToday() ([]CalendarDay, error) {
+	raw, err := callJSON(C.tdx_calendar_open_today(c.handle))
+	if err != nil { return nil, err }
+	return parseCalendarDays(raw)
 }
 
-func (c *Client) CalendarOnDate(date string) (json.RawMessage, error) {
+func (c *Client) CalendarOnDate(date string) ([]CalendarDay, error) {
 	cD := C.CString(date); defer C.free(unsafe.Pointer(cD))
-	return callJSON(C.tdx_calendar_on_date(c.handle, cD))
+	raw, err := callJSON(C.tdx_calendar_on_date(c.handle, cD))
+	if err != nil { return nil, err }
+	return parseCalendarDays(raw)
 }
 
-func (c *Client) CalendarYear(year string) (json.RawMessage, error) {
+func (c *Client) CalendarYear(year string) ([]CalendarDay, error) {
 	cY := C.CString(year); defer C.free(unsafe.Pointer(cY))
-	return callJSON(C.tdx_calendar_year(c.handle, cY))
+	raw, err := callJSON(C.tdx_calendar_year(c.handle, cY))
+	if err != nil { return nil, err }
+	return parseCalendarDays(raw)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
 //  Interest Rate endpoints (1)
 // ═══════════════════════════════════════════════════════════════════════
 
-func (c *Client) InterestRateHistoryEOD(symbol, startDate, endDate string) (json.RawMessage, error) {
+func (c *Client) InterestRateHistoryEOD(symbol, startDate, endDate string) ([]InterestRate, error) {
 	cS := C.CString(symbol); cSt := C.CString(startDate); cEn := C.CString(endDate)
 	defer C.free(unsafe.Pointer(cS)); defer C.free(unsafe.Pointer(cSt)); defer C.free(unsafe.Pointer(cEn))
-	return callJSON(C.tdx_interest_rate_history_eod(c.handle, cS, cSt, cEn))
+	raw, err := callJSON(C.tdx_interest_rate_history_eod(c.handle, cS, cSt, cEn))
+	if err != nil { return nil, err }
+	return parseInterestRates(raw)
 }
 
 // ═══════════════════════════════════════════════════════════════════════

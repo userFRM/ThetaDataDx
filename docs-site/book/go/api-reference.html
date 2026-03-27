@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-405a9131.js";
+            window.path_to_searchindex_js = "../searchindex-d9431649.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-4b833958.js"></script>
@@ -315,19 +315,27 @@ g, err := thetadatadx.AllGreeks(spot, strike, rate, divYield, tte, price, isCall
 // Just IV
 iv, ivErr, err := thetadatadx.ImpliedVolatility(spot, strike, rate, divYield, tte, price, isCall)
 </code></pre>
-<h2 id="streaming-via-client"><a class="header" href="#streaming-via-client">Streaming (via Client)</a></h2>
+<h2 id="fpssclient-streaming"><a class="header" href="#fpssclient-streaming">FpssClient (Streaming)</a></h2>
+<p>Streaming uses a separate <code>FpssClient</code>, created via <code>NewFpssClient(creds, config)</code>.</p>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Method</th><th>Signature</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>StartStreaming</code></td><td><code>(bufSize) error</code></td><td>Connect to FPSS streaming servers</td></tr>
-<tr><td><code>SubscribeQuotes</code></td><td><code>(root, secType) (int32, error)</code></td><td>Subscribe to quotes</td></tr>
-<tr><td><code>SubscribeTrades</code></td><td><code>(root, secType) (int32, error)</code></td><td>Subscribe to trades</td></tr>
-<tr><td><code>SubscribeOpenInterest</code></td><td><code>(root, secType) (int32, error)</code></td><td>Subscribe to OI</td></tr>
-<tr><td><code>NextEvent</code></td><td><code>(timeoutMs) (*FpssEvent, error)</code></td><td>Poll next event</td></tr>
-<tr><td><code>Shutdown</code></td><td><code>() error</code></td><td>Graceful shutdown</td></tr>
+<tr><td><code>SubscribeQuotes</code></td><td><code>(symbol string) (int, error)</code></td><td>Subscribe to quotes</td></tr>
+<tr><td><code>SubscribeTrades</code></td><td><code>(symbol string) (int, error)</code></td><td>Subscribe to trades</td></tr>
+<tr><td><code>SubscribeOpenInterest</code></td><td><code>(symbol string) (int, error)</code></td><td>Subscribe to OI</td></tr>
+<tr><td><code>SubscribeFullTrades</code></td><td><code>(secType string) (int, error)</code></td><td>Subscribe to all trades for a security type</td></tr>
+<tr><td><code>UnsubscribeQuotes</code></td><td><code>(symbol string) (int, error)</code></td><td>Unsubscribe from quotes</td></tr>
+<tr><td><code>UnsubscribeTrades</code></td><td><code>(symbol string) (int, error)</code></td><td>Unsubscribe from trades</td></tr>
+<tr><td><code>UnsubscribeOpenInterest</code></td><td><code>(symbol string) (int, error)</code></td><td>Unsubscribe from OI</td></tr>
+<tr><td><code>NextEvent</code></td><td><code>(timeoutMs uint64) (json.RawMessage, error)</code></td><td>Poll next event</td></tr>
+<tr><td><code>IsAuthenticated</code></td><td><code>() bool</code></td><td>Check FPSS auth status</td></tr>
+<tr><td><code>ContractLookup</code></td><td><code>(id int) (string, error)</code></td><td>Look up contract by ID</td></tr>
+<tr><td><code>ActiveSubscriptions</code></td><td><code>() (json.RawMessage, error)</code></td><td>Get active subscriptions</td></tr>
+<tr><td><code>Shutdown</code></td><td><code>()</code></td><td>Graceful shutdown</td></tr>
+<tr><td><code>Close</code></td><td><code>()</code></td><td>Free resources (calls Shutdown)</td></tr>
 </tbody>
 </table>
 </div>

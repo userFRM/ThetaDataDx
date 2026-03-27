@@ -123,16 +123,25 @@ g, err := thetadatadx.AllGreeks(spot, strike, rate, divYield, tte, price, isCall
 iv, ivErr, err := thetadatadx.ImpliedVolatility(spot, strike, rate, divYield, tte, price, isCall)
 ```
 
-## Streaming (via Client)
+## FpssClient (Streaming)
+
+Streaming uses a separate `FpssClient`, created via `NewFpssClient(creds, config)`.
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `StartStreaming` | `(bufSize) error` | Connect to FPSS streaming servers |
-| `SubscribeQuotes` | `(root, secType) (int32, error)` | Subscribe to quotes |
-| `SubscribeTrades` | `(root, secType) (int32, error)` | Subscribe to trades |
-| `SubscribeOpenInterest` | `(root, secType) (int32, error)` | Subscribe to OI |
-| `NextEvent` | `(timeoutMs) (*FpssEvent, error)` | Poll next event |
-| `Shutdown` | `() error` | Graceful shutdown |
+| `SubscribeQuotes` | `(symbol string) (int, error)` | Subscribe to quotes |
+| `SubscribeTrades` | `(symbol string) (int, error)` | Subscribe to trades |
+| `SubscribeOpenInterest` | `(symbol string) (int, error)` | Subscribe to OI |
+| `SubscribeFullTrades` | `(secType string) (int, error)` | Subscribe to all trades for a security type |
+| `UnsubscribeQuotes` | `(symbol string) (int, error)` | Unsubscribe from quotes |
+| `UnsubscribeTrades` | `(symbol string) (int, error)` | Unsubscribe from trades |
+| `UnsubscribeOpenInterest` | `(symbol string) (int, error)` | Unsubscribe from OI |
+| `NextEvent` | `(timeoutMs uint64) (json.RawMessage, error)` | Poll next event |
+| `IsAuthenticated` | `() bool` | Check FPSS auth status |
+| `ContractLookup` | `(id int) (string, error)` | Look up contract by ID |
+| `ActiveSubscriptions` | `() (json.RawMessage, error)` | Get active subscriptions |
+| `Shutdown` | `()` | Graceful shutdown |
+| `Close` | `()` | Free resources (calls Shutdown) |
 
 ## Tick Types
 

@@ -71,7 +71,21 @@ All option methods follow the pattern `(symbol, expiration, strike, right, ...)`
 | `option_history_ohlc(sym, exp, strike, right, date, interval)` | `vector<OhlcTick>` |
 | `option_history_trade(sym, exp, strike, right, date)` | `vector<TradeTick>` |
 | `option_history_quote(sym, exp, strike, right, date, interval)` | `vector<QuoteTick>` |
-| Plus 15 more history/trade-greeks/at-time variants | |
+| `option_history_trade_quote(sym, exp, strike, right, date)` | JSON result |
+| `option_history_open_interest(sym, exp, strike, right, date)` | JSON result |
+| `option_history_greeks_eod(sym, exp, strike, right, start, end)` | JSON result |
+| `option_history_greeks_all(sym, exp, strike, right, date, interval)` | JSON result |
+| `option_history_trade_greeks_all(sym, exp, strike, right, date)` | JSON result |
+| `option_history_greeks_first_order(sym, exp, strike, right, date, interval)` | JSON result |
+| `option_history_trade_greeks_first_order(sym, exp, strike, right, date)` | JSON result |
+| `option_history_greeks_second_order(sym, exp, strike, right, date, interval)` | JSON result |
+| `option_history_trade_greeks_second_order(sym, exp, strike, right, date)` | JSON result |
+| `option_history_greeks_third_order(sym, exp, strike, right, date, interval)` | JSON result |
+| `option_history_trade_greeks_third_order(sym, exp, strike, right, date)` | JSON result |
+| `option_history_greeks_implied_volatility(sym, exp, strike, right, date, interval)` | JSON result |
+| `option_history_trade_greeks_implied_volatility(sym, exp, strike, right, date)` | JSON result |
+| `option_at_time_trade(sym, exp, strike, right, start, end, time)` | `vector<TradeTick>` |
+| `option_at_time_quote(sym, exp, strike, right, start, end, time)` | `vector<QuoteTick>` |
 
 ### Index Methods (9)
 
@@ -107,16 +121,32 @@ auto g = tdx::all_greeks(spot, strike, rate, div_yield, tte, price, is_call);
 auto [iv, err] = tdx::implied_volatility(spot, strike, rate, div_yield, tte, price, is_call);
 ```
 
-## Streaming (via Client)
+## FpssClient (Streaming)
+
+Streaming uses a separate `FpssClient` class, not methods on `Client`.
+
+```cpp
+auto creds = tdx::Credentials::from_file("creds.txt");
+tdx::FpssClient fpss(creds, tdx::Config::production());
+int req_id = fpss.subscribe_quotes("AAPL");
+std::string event = fpss.next_event(5000);  // empty on timeout
+fpss.shutdown();
+```
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `start_streaming` | `(buf_size) -> void` | Connect to FPSS streaming servers |
-| `subscribe_quotes` | `(root, sec_type) -> int32_t` | Subscribe to quotes |
-| `subscribe_trades` | `(root, sec_type) -> int32_t` | Subscribe to trades |
-| `subscribe_open_interest` | `(root, sec_type) -> int32_t` | Subscribe to OI |
-| `next_event` | `(timeout_ms) -> unique_ptr<FpssEvent>` | Poll next event |
-| `stop_streaming` | `() -> void` | Graceful shutdown of streaming |
+| `FpssClient` | `(creds, config)` | Connect to FPSS streaming servers |
+| `subscribe_quotes` | `(symbol) -> int` | Subscribe to quote data |
+| `subscribe_trades` | `(symbol) -> int` | Subscribe to trade data |
+| `subscribe_open_interest` | `(symbol) -> int` | Subscribe to open interest data |
+| `subscribe_full_trades` | `(sec_type) -> int` | Subscribe to all trades for a security type |
+| `unsubscribe_trades` | `(symbol) -> int` | Unsubscribe from trade data |
+| `unsubscribe_open_interest` | `(symbol) -> int` | Unsubscribe from open interest data |
+| `is_authenticated` | `() -> bool` | Check authentication status |
+| `contract_lookup` | `(id) -> optional<string>` | Look up contract by server-assigned ID |
+| `active_subscriptions` | `() -> string` | Get active subscriptions (JSON array) |
+| `next_event` | `(timeout_ms) -> string` | Poll next event (empty on timeout) |
+| `shutdown` | `() -> void` | Shut down the FPSS client |
 
 ## Tick Types
 

@@ -12,6 +12,7 @@
 
 #include <stdexcept>
 #include <sstream>
+#include <unordered_map>
 
 namespace tdx {
 
@@ -204,6 +205,306 @@ static std::vector<T> parse_tick_array(const std::string& json, TickParser<T> pa
     return ticks;
 }
 
+// ── DataTable parsing ──
+// The FFI returns DataTable endpoints as: {"headers": [...], "rows": [[...], ...]}
+// Each cell is either: a number (int64), a string, null, a price {"value":N,"type":T},
+// or a timestamp {"epoch_ms":N,"zone":Z}.
+// We build a header-to-column-index map, then extract values by name.
+
+// A cell value from a DataTable row. May be a number, a price object, a string, or null.
+struct DtCell {
+    double num;          // numeric value (number or decoded price)
+    std::string text;    // string value (if applicable)
+    bool is_null;
+};
+
+// Decode a price object {"value":N,"type":T} into a double.
+// ThetaData price encoding: value * 10^(type-10) for type>0; 0 for type=0.
+static double decode_price(double value, int price_type) {
+    if (price_type == 0) return 0.0;
+    // type=10 => multiply by 1.0 (integer)
+    // type<10 => multiply by 10^(type-10), i.e. divide
+    // type>10 => multiply by 10^(type-10)
+    double divisor = 1.0;
+    int exp = 10 - price_type;
+    if (exp > 0) {
+        for (int i = 0; i < exp; ++i) divisor *= 10.0;
+        return value / divisor;
+    } else if (exp < 0) {
+        for (int i = 0; i < -exp; ++i) divisor *= 10.0;
+        return value * divisor;
+    }
+    return value;
+}
+
+// Extract a single JSON value starting at position `pos`. Advances `pos` past the value.
+// Returns the DtCell representation.
+static DtCell parse_dt_cell(const std::string& json, size_t& pos) {
+    DtCell cell{0.0, "", false};
+    // Skip whitespace
+    while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t' || json[pos] == '\n' || json[pos] == '\r'))
+        ++pos;
+    if (pos >= json.size()) { cell.is_null = true; return cell; }
+
+    char c = json[pos];
+    if (c == 'n') {
+        // null
+        cell.is_null = true;
+        pos += 4; // skip "null"
+    } else if (c == '"') {
+        // string
+        ++pos;
+        while (pos < json.size() && json[pos] != '"') {
+            if (json[pos] == '\\') { cell.text += json[pos + 1]; pos += 2; }
+            else { cell.text += json[pos]; ++pos; }
+        }
+        if (pos < json.size()) ++pos; // skip closing quote
+    } else if (c == '{') {
+        // object: either {"value":N,"type":T} (price) or {"epoch_ms":N,"zone":Z} (timestamp)
+        std::string obj;
+        int depth = 0;
+        size_t obj_start = pos;
+        for (; pos < json.size(); ++pos) {
+            if (json[pos] == '{') ++depth;
+            else if (json[pos] == '}') { --depth; if (depth == 0) { ++pos; break; } }
+        }
+        obj = json.substr(obj_start, pos - obj_start);
+        // Check if it's a price object
+        if (obj.find("\"value\"") != std::string::npos && obj.find("\"type\"") != std::string::npos) {
+            double value = json_double(obj, "value");
+            int ptype = json_int(obj, "type");
+            cell.num = decode_price(value, ptype);
+        } else if (obj.find("\"epoch_ms\"") != std::string::npos) {
+            cell.num = json_double(obj, "epoch_ms");
+        }
+    } else {
+        // number (int or float)
+        size_t end = pos;
+        while (end < json.size() && json[end] != ',' && json[end] != ']' && json[end] != '}' &&
+               json[end] != ' ' && json[end] != '\n' && json[end] != '\r')
+            ++end;
+        std::string numstr = json.substr(pos, end - pos);
+        pos = end;
+        try { cell.num = std::stod(numstr); } catch (...) { cell.is_null = true; }
+    }
+    return cell;
+}
+
+// A parsed DataTable row: vector of cells.
+using DtRow = std::vector<DtCell>;
+
+// Parsed DataTable: headers + rows.
+struct DataTable {
+    std::vector<std::string> headers;
+    std::vector<DtRow> rows;
+    std::unordered_map<std::string, size_t> col_index;
+
+    // Build the column index map from headers.
+    void build_index() {
+        for (size_t i = 0; i < headers.size(); ++i)
+            col_index[headers[i]] = i;
+    }
+
+    // Get a cell by column name from a row. Returns null cell if not found.
+    const DtCell& cell(const DtRow& row, const std::string& name) const {
+        static const DtCell null_cell{0.0, "", true};
+        auto it = col_index.find(name);
+        if (it == col_index.end() || it->second >= row.size()) return null_cell;
+        return row[it->second];
+    }
+
+    double num(const DtRow& row, const std::string& name) const {
+        return cell(row, name).num;
+    }
+
+    int inum(const DtRow& row, const std::string& name) const {
+        return static_cast<int>(cell(row, name).num);
+    }
+
+    const std::string& text(const DtRow& row, const std::string& name) const {
+        static const std::string empty;
+        auto it = col_index.find(name);
+        if (it == col_index.end() || it->second >= row.size()) return empty;
+        return row[it->second].text;
+    }
+};
+
+// Parse a DataTable JSON string into a DataTable struct.
+static DataTable parse_data_table(const std::string& json) {
+    DataTable dt;
+
+    // Find "headers" array
+    auto hdr_pos = json.find("\"headers\"");
+    if (hdr_pos == std::string::npos) return dt;
+    hdr_pos = json.find('[', hdr_pos);
+    if (hdr_pos == std::string::npos) return dt;
+    auto hdr_end = json.find(']', hdr_pos);
+    if (hdr_end == std::string::npos) return dt;
+    dt.headers = parse_string_array(json.substr(hdr_pos, hdr_end - hdr_pos + 1));
+    dt.build_index();
+
+    // Find "rows" array
+    auto rows_pos = json.find("\"rows\"");
+    if (rows_pos == std::string::npos) return dt;
+    rows_pos = json.find('[', rows_pos);
+    if (rows_pos == std::string::npos) return dt;
+    ++rows_pos; // skip outer '['
+
+    // Parse each row: [...], [...], ...
+    while (rows_pos < json.size()) {
+        // Skip whitespace and commas
+        while (rows_pos < json.size() && (json[rows_pos] == ' ' || json[rows_pos] == ',' ||
+               json[rows_pos] == '\n' || json[rows_pos] == '\r' || json[rows_pos] == '\t'))
+            ++rows_pos;
+        if (rows_pos >= json.size() || json[rows_pos] == ']') break;
+        if (json[rows_pos] != '[') break;
+        ++rows_pos; // skip '['
+
+        DtRow row;
+        while (rows_pos < json.size() && json[rows_pos] != ']') {
+            // Skip whitespace and commas
+            while (rows_pos < json.size() && (json[rows_pos] == ' ' || json[rows_pos] == ',' ||
+                   json[rows_pos] == '\n' || json[rows_pos] == '\r' || json[rows_pos] == '\t'))
+                ++rows_pos;
+            if (rows_pos >= json.size() || json[rows_pos] == ']') break;
+            row.push_back(parse_dt_cell(json, rows_pos));
+        }
+        if (rows_pos < json.size()) ++rows_pos; // skip ']'
+        dt.rows.push_back(std::move(row));
+    }
+    return dt;
+}
+
+// ── DataTable-based tick parsers ──
+
+template<typename T>
+using DtTickParser = T(*)(const DataTable&, const DtRow&);
+
+template<typename T>
+static std::vector<T> parse_dt_tick_array(const std::string& json, DtTickParser<T> parser) {
+    auto dt = parse_data_table(json);
+    std::vector<T> ticks;
+    ticks.reserve(dt.rows.size());
+    for (auto& row : dt.rows) ticks.push_back(parser(dt, row));
+    return ticks;
+}
+
+static TradeQuoteTick parse_trade_quote_tick(const DataTable& dt, const DtRow& row) {
+    return TradeQuoteTick{
+        dt.inum(row, "ms_of_day"),
+        dt.inum(row, "sequence"),
+        dt.inum(row, "ext_condition1"),
+        dt.inum(row, "ext_condition2"),
+        dt.inum(row, "ext_condition3"),
+        dt.inum(row, "ext_condition4"),
+        dt.inum(row, "condition"),
+        dt.inum(row, "size"),
+        dt.inum(row, "exchange"),
+        dt.num(row, "price"),
+        dt.inum(row, "condition_flags"),
+        dt.inum(row, "price_flags"),
+        dt.inum(row, "volume_type"),
+        dt.inum(row, "records_back"),
+        dt.inum(row, "quote_ms_of_day"),
+        dt.inum(row, "bid_size"),
+        dt.inum(row, "bid_exchange"),
+        dt.num(row, "bid"),
+        dt.inum(row, "bid_condition"),
+        dt.inum(row, "ask_size"),
+        dt.inum(row, "ask_exchange"),
+        dt.num(row, "ask"),
+        dt.inum(row, "ask_condition"),
+        dt.inum(row, "date"),
+    };
+}
+
+static OpenInterestTick parse_open_interest_tick(const DataTable& dt, const DtRow& row) {
+    return OpenInterestTick{
+        dt.inum(row, "ms_of_day"),
+        dt.inum(row, "open_interest"),
+        dt.inum(row, "date"),
+    };
+}
+
+static GreeksTick parse_greeks_tick(const DataTable& dt, const DtRow& row) {
+    return GreeksTick{
+        dt.inum(row, "ms_of_day"),
+        dt.num(row, "value"),
+        dt.num(row, "delta"),
+        dt.num(row, "gamma"),
+        dt.num(row, "theta"),
+        dt.num(row, "vega"),
+        dt.num(row, "rho"),
+        dt.num(row, "implied_volatility"),
+        dt.num(row, "iv_error"),
+        dt.num(row, "vanna"),
+        dt.num(row, "charm"),
+        dt.num(row, "vomma"),
+        dt.num(row, "veta"),
+        dt.num(row, "speed"),
+        dt.num(row, "zomma"),
+        dt.num(row, "color"),
+        dt.num(row, "ultima"),
+        dt.num(row, "d1"),
+        dt.num(row, "d2"),
+        dt.num(row, "dual_delta"),
+        dt.num(row, "dual_gamma"),
+        dt.num(row, "epsilon"),
+        dt.num(row, "lambda"),
+        dt.inum(row, "date"),
+    };
+}
+
+static IvTick parse_iv_tick(const DataTable& dt, const DtRow& row) {
+    return IvTick{
+        dt.inum(row, "ms_of_day"),
+        dt.num(row, "implied_volatility"),
+        dt.num(row, "iv_error"),
+        dt.inum(row, "date"),
+    };
+}
+
+static PriceTick parse_price_tick(const DataTable& dt, const DtRow& row) {
+    return PriceTick{
+        dt.inum(row, "ms_of_day"),
+        dt.num(row, "price"),
+        dt.inum(row, "date"),
+    };
+}
+
+static MarketValueTick parse_market_value_tick(const DataTable& dt, const DtRow& row) {
+    return MarketValueTick{
+        dt.inum(row, "ms_of_day"),
+        dt.num(row, "value"),
+        dt.inum(row, "date"),
+    };
+}
+
+static OptionContract parse_option_contract(const DataTable& dt, const DtRow& row) {
+    return OptionContract{
+        dt.text(row, "root"),
+        dt.inum(row, "expiration"),
+        dt.inum(row, "strike"),
+        dt.text(row, "right"),
+    };
+}
+
+static CalendarDay parse_calendar_day(const DataTable& dt, const DtRow& row) {
+    return CalendarDay{
+        dt.inum(row, "date"),
+        dt.inum(row, "is_open"),
+        dt.inum(row, "open_time"),
+        dt.inum(row, "close_time"),
+    };
+}
+
+static InterestRateTick parse_interest_rate_tick(const DataTable& dt, const DtRow& row) {
+    return InterestRateTick{
+        dt.num(row, "rate"),
+        dt.inum(row, "date"),
+    };
+}
+
 } // namespace detail
 
 // ── Credentials ──
@@ -277,9 +578,10 @@ std::vector<QuoteTick> Client::stock_snapshot_quote(const std::vector<std::strin
     return detail::parse_tick_array<QuoteTick>(json, detail::parse_quote_tick);
 }
 
-std::string Client::stock_snapshot_market_value(const std::vector<std::string>& symbols) const {
+std::vector<MarketValueTick> Client::stock_snapshot_market_value(const std::vector<std::string>& symbols) const {
     std::string json_arg = detail::build_json_array(symbols);
-    return detail::ffi_call_string(tdx_stock_snapshot_market_value(handle_.get(), json_arg.c_str()));
+    auto json = detail::ffi_call_string(tdx_stock_snapshot_market_value(handle_.get(), json_arg.c_str()));
+    return detail::parse_dt_tick_array<MarketValueTick>(json, detail::parse_market_value_tick);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -327,11 +629,12 @@ std::vector<QuoteTick> Client::stock_history_quote(
     return detail::parse_tick_array<QuoteTick>(json, detail::parse_quote_tick);
 }
 
-std::string Client::stock_history_trade_quote(
+std::vector<TradeQuoteTick> Client::stock_history_trade_quote(
     const std::string& symbol, const std::string& date) const
 {
-    return detail::ffi_call_string(tdx_stock_history_trade_quote(
+    auto json = detail::ffi_call_string(tdx_stock_history_trade_quote(
         handle_.get(), symbol.c_str(), date.c_str()));
+    return detail::parse_dt_tick_array<TradeQuoteTick>(json, detail::parse_trade_quote_tick);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -388,11 +691,12 @@ std::vector<std::string> Client::option_list_strikes(
             handle_.get(), symbol.c_str(), expiration.c_str())));
 }
 
-std::string Client::option_list_contracts(
+std::vector<OptionContract> Client::option_list_contracts(
     const std::string& request_type, const std::string& symbol, const std::string& date) const
 {
-    return detail::ffi_call_string(tdx_option_list_contracts(
+    auto json = detail::ffi_call_string(tdx_option_list_contracts(
         handle_.get(), request_type.c_str(), symbol.c_str(), date.c_str()));
+    return detail::parse_dt_tick_array<OptionContract>(json, detail::parse_option_contract);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -426,60 +730,67 @@ std::vector<QuoteTick> Client::option_snapshot_quote(
     return detail::parse_tick_array<QuoteTick>(json, detail::parse_quote_tick);
 }
 
-std::string Client::option_snapshot_open_interest(
+std::vector<OpenInterestTick> Client::option_snapshot_open_interest(
     const std::string& symbol, const std::string& expiration,
     const std::string& strike, const std::string& right) const
 {
-    return detail::ffi_call_string(tdx_option_snapshot_open_interest(
+    auto json = detail::ffi_call_string(tdx_option_snapshot_open_interest(
         handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str()));
+    return detail::parse_dt_tick_array<OpenInterestTick>(json, detail::parse_open_interest_tick);
 }
 
-std::string Client::option_snapshot_market_value(
+std::vector<MarketValueTick> Client::option_snapshot_market_value(
     const std::string& symbol, const std::string& expiration,
     const std::string& strike, const std::string& right) const
 {
-    return detail::ffi_call_string(tdx_option_snapshot_market_value(
+    auto json = detail::ffi_call_string(tdx_option_snapshot_market_value(
         handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str()));
+    return detail::parse_dt_tick_array<MarketValueTick>(json, detail::parse_market_value_tick);
 }
 
-std::string Client::option_snapshot_greeks_implied_volatility(
+std::vector<IvTick> Client::option_snapshot_greeks_implied_volatility(
     const std::string& symbol, const std::string& expiration,
     const std::string& strike, const std::string& right) const
 {
-    return detail::ffi_call_string(tdx_option_snapshot_greeks_implied_volatility(
+    auto json = detail::ffi_call_string(tdx_option_snapshot_greeks_implied_volatility(
         handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str()));
+    return detail::parse_dt_tick_array<IvTick>(json, detail::parse_iv_tick);
 }
 
-std::string Client::option_snapshot_greeks_all(
+std::vector<GreeksTick> Client::option_snapshot_greeks_all(
     const std::string& symbol, const std::string& expiration,
     const std::string& strike, const std::string& right) const
 {
-    return detail::ffi_call_string(tdx_option_snapshot_greeks_all(
+    auto json = detail::ffi_call_string(tdx_option_snapshot_greeks_all(
         handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str()));
+    return detail::parse_dt_tick_array<GreeksTick>(json, detail::parse_greeks_tick);
 }
 
-std::string Client::option_snapshot_greeks_first_order(
+std::vector<GreeksTick> Client::option_snapshot_greeks_first_order(
     const std::string& symbol, const std::string& expiration,
     const std::string& strike, const std::string& right) const
 {
-    return detail::ffi_call_string(tdx_option_snapshot_greeks_first_order(
+    auto json = detail::ffi_call_string(tdx_option_snapshot_greeks_first_order(
         handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str()));
+    return detail::parse_dt_tick_array<GreeksTick>(json, detail::parse_greeks_tick);
 }
 
-std::string Client::option_snapshot_greeks_second_order(
+std::vector<GreeksTick> Client::option_snapshot_greeks_second_order(
     const std::string& symbol, const std::string& expiration,
     const std::string& strike, const std::string& right) const
 {
-    return detail::ffi_call_string(tdx_option_snapshot_greeks_second_order(
+    auto json = detail::ffi_call_string(tdx_option_snapshot_greeks_second_order(
         handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str()));
+    return detail::parse_dt_tick_array<GreeksTick>(json, detail::parse_greeks_tick);
 }
 
-std::string Client::option_snapshot_greeks_third_order(
+std::vector<GreeksTick> Client::option_snapshot_greeks_third_order(
     const std::string& symbol, const std::string& expiration,
     const std::string& strike, const std::string& right) const
 {
-    return detail::ffi_call_string(tdx_option_snapshot_greeks_third_order(
+    auto json = detail::ffi_call_string(tdx_option_snapshot_greeks_third_order(
         handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str()));
+    return detail::parse_dt_tick_array<GreeksTick>(json, detail::parse_greeks_tick);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -530,138 +841,151 @@ std::vector<QuoteTick> Client::option_history_quote(
     return detail::parse_tick_array<QuoteTick>(json, detail::parse_quote_tick);
 }
 
-std::string Client::option_history_trade_quote(
+std::vector<TradeQuoteTick> Client::option_history_trade_quote(
     const std::string& symbol, const std::string& expiration,
     const std::string& strike, const std::string& right,
     const std::string& date) const
 {
-    return detail::ffi_call_string(tdx_option_history_trade_quote(
+    auto json = detail::ffi_call_string(tdx_option_history_trade_quote(
         handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(),
         date.c_str()));
+    return detail::parse_dt_tick_array<TradeQuoteTick>(json, detail::parse_trade_quote_tick);
 }
 
-std::string Client::option_history_open_interest(
+std::vector<OpenInterestTick> Client::option_history_open_interest(
     const std::string& symbol, const std::string& expiration,
     const std::string& strike, const std::string& right,
     const std::string& date) const
 {
-    return detail::ffi_call_string(tdx_option_history_open_interest(
+    auto json = detail::ffi_call_string(tdx_option_history_open_interest(
         handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(),
         date.c_str()));
+    return detail::parse_dt_tick_array<OpenInterestTick>(json, detail::parse_open_interest_tick);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
 //  Option — History Greeks endpoints (11)
 // ═══════════════════════════════════════════════════════════════════════
 
-std::string Client::option_history_greeks_eod(
+std::vector<GreeksTick> Client::option_history_greeks_eod(
     const std::string& symbol, const std::string& expiration,
     const std::string& strike, const std::string& right,
     const std::string& start_date, const std::string& end_date) const
 {
-    return detail::ffi_call_string(tdx_option_history_greeks_eod(
+    auto json = detail::ffi_call_string(tdx_option_history_greeks_eod(
         handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(),
         start_date.c_str(), end_date.c_str()));
+    return detail::parse_dt_tick_array<GreeksTick>(json, detail::parse_greeks_tick);
 }
 
-std::string Client::option_history_greeks_all(
+std::vector<GreeksTick> Client::option_history_greeks_all(
     const std::string& symbol, const std::string& expiration,
     const std::string& strike, const std::string& right,
     const std::string& date, const std::string& interval) const
 {
-    return detail::ffi_call_string(tdx_option_history_greeks_all(
+    auto json = detail::ffi_call_string(tdx_option_history_greeks_all(
         handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(),
         date.c_str(), interval.c_str()));
+    return detail::parse_dt_tick_array<GreeksTick>(json, detail::parse_greeks_tick);
 }
 
-std::string Client::option_history_trade_greeks_all(
+std::vector<GreeksTick> Client::option_history_trade_greeks_all(
     const std::string& symbol, const std::string& expiration,
     const std::string& strike, const std::string& right,
     const std::string& date) const
 {
-    return detail::ffi_call_string(tdx_option_history_trade_greeks_all(
+    auto json = detail::ffi_call_string(tdx_option_history_trade_greeks_all(
         handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(),
         date.c_str()));
+    return detail::parse_dt_tick_array<GreeksTick>(json, detail::parse_greeks_tick);
 }
 
-std::string Client::option_history_greeks_first_order(
+std::vector<GreeksTick> Client::option_history_greeks_first_order(
     const std::string& symbol, const std::string& expiration,
     const std::string& strike, const std::string& right,
     const std::string& date, const std::string& interval) const
 {
-    return detail::ffi_call_string(tdx_option_history_greeks_first_order(
+    auto json = detail::ffi_call_string(tdx_option_history_greeks_first_order(
         handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(),
         date.c_str(), interval.c_str()));
+    return detail::parse_dt_tick_array<GreeksTick>(json, detail::parse_greeks_tick);
 }
 
-std::string Client::option_history_trade_greeks_first_order(
+std::vector<GreeksTick> Client::option_history_trade_greeks_first_order(
     const std::string& symbol, const std::string& expiration,
     const std::string& strike, const std::string& right,
     const std::string& date) const
 {
-    return detail::ffi_call_string(tdx_option_history_trade_greeks_first_order(
+    auto json = detail::ffi_call_string(tdx_option_history_trade_greeks_first_order(
         handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(),
         date.c_str()));
+    return detail::parse_dt_tick_array<GreeksTick>(json, detail::parse_greeks_tick);
 }
 
-std::string Client::option_history_greeks_second_order(
+std::vector<GreeksTick> Client::option_history_greeks_second_order(
     const std::string& symbol, const std::string& expiration,
     const std::string& strike, const std::string& right,
     const std::string& date, const std::string& interval) const
 {
-    return detail::ffi_call_string(tdx_option_history_greeks_second_order(
+    auto json = detail::ffi_call_string(tdx_option_history_greeks_second_order(
         handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(),
         date.c_str(), interval.c_str()));
+    return detail::parse_dt_tick_array<GreeksTick>(json, detail::parse_greeks_tick);
 }
 
-std::string Client::option_history_trade_greeks_second_order(
+std::vector<GreeksTick> Client::option_history_trade_greeks_second_order(
     const std::string& symbol, const std::string& expiration,
     const std::string& strike, const std::string& right,
     const std::string& date) const
 {
-    return detail::ffi_call_string(tdx_option_history_trade_greeks_second_order(
+    auto json = detail::ffi_call_string(tdx_option_history_trade_greeks_second_order(
         handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(),
         date.c_str()));
+    return detail::parse_dt_tick_array<GreeksTick>(json, detail::parse_greeks_tick);
 }
 
-std::string Client::option_history_greeks_third_order(
+std::vector<GreeksTick> Client::option_history_greeks_third_order(
     const std::string& symbol, const std::string& expiration,
     const std::string& strike, const std::string& right,
     const std::string& date, const std::string& interval) const
 {
-    return detail::ffi_call_string(tdx_option_history_greeks_third_order(
+    auto json = detail::ffi_call_string(tdx_option_history_greeks_third_order(
         handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(),
         date.c_str(), interval.c_str()));
+    return detail::parse_dt_tick_array<GreeksTick>(json, detail::parse_greeks_tick);
 }
 
-std::string Client::option_history_trade_greeks_third_order(
+std::vector<GreeksTick> Client::option_history_trade_greeks_third_order(
     const std::string& symbol, const std::string& expiration,
     const std::string& strike, const std::string& right,
     const std::string& date) const
 {
-    return detail::ffi_call_string(tdx_option_history_trade_greeks_third_order(
+    auto json = detail::ffi_call_string(tdx_option_history_trade_greeks_third_order(
         handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(),
         date.c_str()));
+    return detail::parse_dt_tick_array<GreeksTick>(json, detail::parse_greeks_tick);
 }
 
-std::string Client::option_history_greeks_implied_volatility(
+std::vector<IvTick> Client::option_history_greeks_implied_volatility(
     const std::string& symbol, const std::string& expiration,
     const std::string& strike, const std::string& right,
     const std::string& date, const std::string& interval) const
 {
-    return detail::ffi_call_string(tdx_option_history_greeks_implied_volatility(
+    auto json = detail::ffi_call_string(tdx_option_history_greeks_implied_volatility(
         handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(),
         date.c_str(), interval.c_str()));
+    return detail::parse_dt_tick_array<IvTick>(json, detail::parse_iv_tick);
 }
 
-std::string Client::option_history_trade_greeks_implied_volatility(
+std::vector<IvTick> Client::option_history_trade_greeks_implied_volatility(
     const std::string& symbol, const std::string& expiration,
     const std::string& strike, const std::string& right,
     const std::string& date) const
 {
-    return detail::ffi_call_string(tdx_option_history_trade_greeks_implied_volatility(
+    auto json = detail::ffi_call_string(tdx_option_history_trade_greeks_implied_volatility(
         handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(),
         date.c_str()));
+    return detail::parse_dt_tick_array<IvTick>(json, detail::parse_iv_tick);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -716,14 +1040,16 @@ std::vector<OhlcTick> Client::index_snapshot_ohlc(const std::vector<std::string>
     return detail::parse_tick_array<OhlcTick>(json, detail::parse_ohlc_tick);
 }
 
-std::string Client::index_snapshot_price(const std::vector<std::string>& symbols) const {
+std::vector<PriceTick> Client::index_snapshot_price(const std::vector<std::string>& symbols) const {
     std::string json_arg = detail::build_json_array(symbols);
-    return detail::ffi_call_string(tdx_index_snapshot_price(handle_.get(), json_arg.c_str()));
+    auto json = detail::ffi_call_string(tdx_index_snapshot_price(handle_.get(), json_arg.c_str()));
+    return detail::parse_dt_tick_array<PriceTick>(json, detail::parse_price_tick);
 }
 
-std::string Client::index_snapshot_market_value(const std::vector<std::string>& symbols) const {
+std::vector<MarketValueTick> Client::index_snapshot_market_value(const std::vector<std::string>& symbols) const {
     std::string json_arg = detail::build_json_array(symbols);
-    return detail::ffi_call_string(tdx_index_snapshot_market_value(handle_.get(), json_arg.c_str()));
+    auto json = detail::ffi_call_string(tdx_index_snapshot_market_value(handle_.get(), json_arg.c_str()));
+    return detail::parse_dt_tick_array<MarketValueTick>(json, detail::parse_market_value_tick);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -747,50 +1073,56 @@ std::vector<OhlcTick> Client::index_history_ohlc(
     return detail::parse_tick_array<OhlcTick>(json, detail::parse_ohlc_tick);
 }
 
-std::string Client::index_history_price(
+std::vector<PriceTick> Client::index_history_price(
     const std::string& symbol, const std::string& date, const std::string& interval) const
 {
-    return detail::ffi_call_string(tdx_index_history_price(
+    auto json = detail::ffi_call_string(tdx_index_history_price(
         handle_.get(), symbol.c_str(), date.c_str(), interval.c_str()));
+    return detail::parse_dt_tick_array<PriceTick>(json, detail::parse_price_tick);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
 //  Index — At-Time endpoints (1)
 // ═══════════════════════════════════════════════════════════════════════
 
-std::string Client::index_at_time_price(
+std::vector<PriceTick> Client::index_at_time_price(
     const std::string& symbol, const std::string& start_date,
     const std::string& end_date, const std::string& time_of_day) const
 {
-    return detail::ffi_call_string(tdx_index_at_time_price(
+    auto json = detail::ffi_call_string(tdx_index_at_time_price(
         handle_.get(), symbol.c_str(), start_date.c_str(), end_date.c_str(), time_of_day.c_str()));
+    return detail::parse_dt_tick_array<PriceTick>(json, detail::parse_price_tick);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
 //  Calendar endpoints (3)
 // ═══════════════════════════════════════════════════════════════════════
 
-std::string Client::calendar_open_today() const {
-    return detail::ffi_call_string(tdx_calendar_open_today(handle_.get()));
+std::vector<CalendarDay> Client::calendar_open_today() const {
+    auto json = detail::ffi_call_string(tdx_calendar_open_today(handle_.get()));
+    return detail::parse_dt_tick_array<CalendarDay>(json, detail::parse_calendar_day);
 }
 
-std::string Client::calendar_on_date(const std::string& date) const {
-    return detail::ffi_call_string(tdx_calendar_on_date(handle_.get(), date.c_str()));
+std::vector<CalendarDay> Client::calendar_on_date(const std::string& date) const {
+    auto json = detail::ffi_call_string(tdx_calendar_on_date(handle_.get(), date.c_str()));
+    return detail::parse_dt_tick_array<CalendarDay>(json, detail::parse_calendar_day);
 }
 
-std::string Client::calendar_year(const std::string& year) const {
-    return detail::ffi_call_string(tdx_calendar_year(handle_.get(), year.c_str()));
+std::vector<CalendarDay> Client::calendar_year(const std::string& year) const {
+    auto json = detail::ffi_call_string(tdx_calendar_year(handle_.get(), year.c_str()));
+    return detail::parse_dt_tick_array<CalendarDay>(json, detail::parse_calendar_day);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
 //  Interest Rate endpoints (1)
 // ═══════════════════════════════════════════════════════════════════════
 
-std::string Client::interest_rate_history_eod(
+std::vector<InterestRateTick> Client::interest_rate_history_eod(
     const std::string& symbol, const std::string& start_date, const std::string& end_date) const
 {
-    return detail::ffi_call_string(tdx_interest_rate_history_eod(
+    auto json = detail::ffi_call_string(tdx_interest_rate_history_eod(
         handle_.get(), symbol.c_str(), start_date.c_str(), end_date.c_str()));
+    return detail::parse_dt_tick_array<InterestRateTick>(json, detail::parse_interest_rate_tick);
 }
 
 // ═══════════════════════════════════════════════════════════════════════

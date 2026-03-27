@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-405a9131.js";
+            window.path_to_searchindex_js = "../searchindex-d9431649.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-4b833958.js"></script>
@@ -248,7 +248,21 @@ auto config = tdx::Config::dev();         // dev servers
 <tr><td><code>option_history_ohlc(sym, exp, strike, right, date, interval)</code></td><td><code>vector&lt;OhlcTick&gt;</code></td></tr>
 <tr><td><code>option_history_trade(sym, exp, strike, right, date)</code></td><td><code>vector&lt;TradeTick&gt;</code></td></tr>
 <tr><td><code>option_history_quote(sym, exp, strike, right, date, interval)</code></td><td><code>vector&lt;QuoteTick&gt;</code></td></tr>
-<tr><td>Plus 15 more history/trade-greeks/at-time variants</td><td></td></tr>
+<tr><td><code>option_history_trade_quote(sym, exp, strike, right, date)</code></td><td>JSON result</td></tr>
+<tr><td><code>option_history_open_interest(sym, exp, strike, right, date)</code></td><td>JSON result</td></tr>
+<tr><td><code>option_history_greeks_eod(sym, exp, strike, right, start, end)</code></td><td>JSON result</td></tr>
+<tr><td><code>option_history_greeks_all(sym, exp, strike, right, date, interval)</code></td><td>JSON result</td></tr>
+<tr><td><code>option_history_trade_greeks_all(sym, exp, strike, right, date)</code></td><td>JSON result</td></tr>
+<tr><td><code>option_history_greeks_first_order(sym, exp, strike, right, date, interval)</code></td><td>JSON result</td></tr>
+<tr><td><code>option_history_trade_greeks_first_order(sym, exp, strike, right, date)</code></td><td>JSON result</td></tr>
+<tr><td><code>option_history_greeks_second_order(sym, exp, strike, right, date, interval)</code></td><td>JSON result</td></tr>
+<tr><td><code>option_history_trade_greeks_second_order(sym, exp, strike, right, date)</code></td><td>JSON result</td></tr>
+<tr><td><code>option_history_greeks_third_order(sym, exp, strike, right, date, interval)</code></td><td>JSON result</td></tr>
+<tr><td><code>option_history_trade_greeks_third_order(sym, exp, strike, right, date)</code></td><td>JSON result</td></tr>
+<tr><td><code>option_history_greeks_implied_volatility(sym, exp, strike, right, date, interval)</code></td><td>JSON result</td></tr>
+<tr><td><code>option_history_trade_greeks_implied_volatility(sym, exp, strike, right, date)</code></td><td>JSON result</td></tr>
+<tr><td><code>option_at_time_trade(sym, exp, strike, right, start, end, time)</code></td><td><code>vector&lt;TradeTick&gt;</code></td></tr>
+<tr><td><code>option_at_time_quote(sym, exp, strike, right, start, end, time)</code></td><td><code>vector&lt;QuoteTick&gt;</code></td></tr>
 </tbody>
 </table>
 </div>
@@ -293,19 +307,32 @@ auto g = tdx::all_greeks(spot, strike, rate, div_yield, tte, price, is_call);
 // Just IV
 auto [iv, err] = tdx::implied_volatility(spot, strike, rate, div_yield, tte, price, is_call);
 </code></pre>
-<h2 id="streaming-via-client"><a class="header" href="#streaming-via-client">Streaming (via Client)</a></h2>
+<h2 id="fpssclient-streaming"><a class="header" href="#fpssclient-streaming">FpssClient (Streaming)</a></h2>
+<p>Streaming uses a separate <code>FpssClient</code> class, not methods on <code>Client</code>.</p>
+<pre><code class="language-cpp">auto creds = tdx::Credentials::from_file("creds.txt");
+tdx::FpssClient fpss(creds, tdx::Config::production());
+int req_id = fpss.subscribe_quotes("AAPL");
+std::string event = fpss.next_event(5000);  // empty on timeout
+fpss.shutdown();
+</code></pre>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Method</th><th>Signature</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>start_streaming</code></td><td><code>(buf_size) -&gt; void</code></td><td>Connect to FPSS streaming servers</td></tr>
-<tr><td><code>subscribe_quotes</code></td><td><code>(root, sec_type) -&gt; int32_t</code></td><td>Subscribe to quotes</td></tr>
-<tr><td><code>subscribe_trades</code></td><td><code>(root, sec_type) -&gt; int32_t</code></td><td>Subscribe to trades</td></tr>
-<tr><td><code>subscribe_open_interest</code></td><td><code>(root, sec_type) -&gt; int32_t</code></td><td>Subscribe to OI</td></tr>
-<tr><td><code>next_event</code></td><td><code>(timeout_ms) -&gt; unique_ptr&lt;FpssEvent&gt;</code></td><td>Poll next event</td></tr>
-<tr><td><code>stop_streaming</code></td><td><code>() -&gt; void</code></td><td>Graceful shutdown of streaming</td></tr>
+<tr><td><code>FpssClient</code></td><td><code>(creds, config)</code></td><td>Connect to FPSS streaming servers</td></tr>
+<tr><td><code>subscribe_quotes</code></td><td><code>(symbol) -&gt; int</code></td><td>Subscribe to quote data</td></tr>
+<tr><td><code>subscribe_trades</code></td><td><code>(symbol) -&gt; int</code></td><td>Subscribe to trade data</td></tr>
+<tr><td><code>subscribe_open_interest</code></td><td><code>(symbol) -&gt; int</code></td><td>Subscribe to open interest data</td></tr>
+<tr><td><code>subscribe_full_trades</code></td><td><code>(sec_type) -&gt; int</code></td><td>Subscribe to all trades for a security type</td></tr>
+<tr><td><code>unsubscribe_trades</code></td><td><code>(symbol) -&gt; int</code></td><td>Unsubscribe from trade data</td></tr>
+<tr><td><code>unsubscribe_open_interest</code></td><td><code>(symbol) -&gt; int</code></td><td>Unsubscribe from open interest data</td></tr>
+<tr><td><code>is_authenticated</code></td><td><code>() -&gt; bool</code></td><td>Check authentication status</td></tr>
+<tr><td><code>contract_lookup</code></td><td><code>(id) -&gt; optional&lt;string&gt;</code></td><td>Look up contract by server-assigned ID</td></tr>
+<tr><td><code>active_subscriptions</code></td><td><code>() -&gt; string</code></td><td>Get active subscriptions (JSON array)</td></tr>
+<tr><td><code>next_event</code></td><td><code>(timeout_ms) -&gt; string</code></td><td>Poll next event (empty on timeout)</td></tr>
+<tr><td><code>shutdown</code></td><td><code>() -&gt; void</code></td><td>Shut down the FPSS client</td></tr>
 </tbody>
 </table>
 </div>
