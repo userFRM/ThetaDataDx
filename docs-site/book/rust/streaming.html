@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-7f7d49b5.js";
+            window.path_to_searchindex_js = "../searchindex-405a9131.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-4b833958.js"></script>
@@ -315,7 +315,7 @@ tdx.start_streaming(move |event: &amp;FpssEvent| {
 <p>Or use the built-in method:</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>let map: HashMap&lt;i32, Contract&gt; = tdx.contract_map();
+</span>let map: HashMap&lt;i32, Contract&gt; = tdx.contract_map()?;
 <span class="boring">}</span></code></pre>
 <h2 id="unsubscribe"><a class="header" href="#unsubscribe">Unsubscribe</a></h2>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -336,7 +336,7 @@ tdx.unsubscribe_open_interest(&amp;Contract::stock("AAPL"))?;
 </span>use thetadatadx::ThetaDataDx;
 use thetadatadx::types::RemoveReason;
 
-match ThetaDataDx::reconnect_delay(reason) {
+match thetadatadx::fpss::reconnect_delay(reason) {
     None =&gt; {
         // Permanent error (bad credentials, etc.) -- do NOT retry
         eprintln!("Permanent disconnect: {:?}", reason);

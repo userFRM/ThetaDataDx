@@ -21,7 +21,7 @@ A clear and concise description of the bug.
 
 ## Endpoint / Method Affected
 
-Which API endpoint or client method is involved? (e.g., `DirectClient::get_quotes`, `FpssClient::subscribe`)
+Which API endpoint or client method is involved? (e.g., `ThetaDataDx::stock_history_eod`, `ThetaDataDx::subscribe_quotes`)
 
 ## Steps to Reproduce
 

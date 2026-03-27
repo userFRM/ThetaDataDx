@@ -20,8 +20,7 @@ import streamlit as st
 from thetadatadx import (
     Config,
     Credentials,
-    DirectClient,
-    FpssClient,
+    ThetaDataDx,
     all_greeks,
     implied_volatility,
 )
@@ -151,7 +150,7 @@ if connect_btn and creds_ready:
                 creds = Credentials.from_file(creds_file)
 
             config = Config.production()
-            client = DirectClient(creds, config)
+            client = ThetaDataDx(creds, config)
             st.session_state.client = client
             st.session_state.ticker = ticker
             st.session_state.connected = True
@@ -172,7 +171,7 @@ if not st.session_state.connected:
     st.info("Enter your ThetaData credentials in the sidebar and click Connect.")
     st.stop()
 
-client: DirectClient = st.session_state.client
+client: ThetaDataDx = st.session_state.client
 ticker = st.session_state.ticker
 
 # ---------------------------------------------------------------------------

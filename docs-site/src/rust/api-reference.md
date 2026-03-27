@@ -67,7 +67,7 @@ Real-time streaming via FPSS TLS/TCP, accessed through `ThetaDataDx`.
 ```rust
 pub fn start_streaming(
     &self,
-    callback: impl Fn(&FpssEvent) + Send + 'static,
+    callback: impl FnMut(&FpssEvent) + Send + 'static,
 ) -> Result<(), Error>
 ```
 

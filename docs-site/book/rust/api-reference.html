@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-7f7d49b5.js";
+            window.path_to_searchindex_js = "../searchindex-405a9131.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-4b833958.js"></script>
@@ -240,7 +240,7 @@
 </span><span class="boring">fn main() {
 </span>pub fn start_streaming(
     &amp;self,
-    callback: impl Fn(&amp;FpssEvent) + Send + 'static,
+    callback: impl FnMut(&amp;FpssEvent) + Send + 'static,
 ) -&gt; Result&lt;(), Error&gt;
 <span class="boring">}</span></code></pre>
 <h3 id="subscription-methods"><a class="header" href="#subscription-methods">Subscription Methods</a></h3>

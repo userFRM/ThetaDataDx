@@ -80,6 +80,10 @@ pub struct TdxCredentials {
 }
 
 /// Opaque client handle.
+///
+/// `repr(transparent)` guarantees `*const TdxClient` and `*const DirectClient`
+/// have identical layout, allowing safe pointer casts in `tdx_unified_historical()`.
+#[repr(transparent)]
 pub struct TdxClient {
     inner: thetadatadx::direct::DirectClient,
 }
@@ -1688,15 +1692,17 @@ pub unsafe extern "C" fn tdx_unified_active_subscriptions(
     let handle = unsafe { &*handle };
     match handle.inner.active_subscriptions() {
         Ok(subs) => {
-            let json: Vec<String> = subs
-                .iter()
-                .map(|(k, c)| format!("{{\"kind\":\"{k:?}\",\"contract\":\"{c}\"}}"))
-                .collect();
-            let arr = format!("[{}]", json.join(","));
-            match CString::new(arr) {
-                Ok(s) => s.into_raw(),
-                Err(_) => ptr::null_mut(),
-            }
+            let json = serde_json::Value::Array(
+                subs.iter()
+                    .map(|(k, c)| {
+                        serde_json::json!({
+                            "kind": format!("{k:?}"),
+                            "contract": format!("{c}"),
+                        })
+                    })
+                    .collect(),
+            );
+            json_to_cstring(&json)
         }
         Err(e) => {
             set_error(&e.to_string());
@@ -1739,29 +1745,30 @@ pub unsafe extern "C" fn tdx_unified_next_event(
     }
 }
 
-/// Get a raw pointer to the underlying `TdxClient` (historical) from a unified handle.
+/// Borrow the historical client from a unified handle.
 ///
-/// All historical endpoints are accessible through the `TdxUnified` handle
-/// since it Derefs to `DirectClient`. Use the existing `tdx_stock_*`,
-/// `tdx_option_*`, etc. functions with the `TdxClient` obtained from
-/// `tdx_unified_historical()`, or call them via the Deref wrapper functions.
+/// Returns a `*const TdxClient` that can be passed to all `tdx_stock_*`,
+/// `tdx_option_*`, `tdx_index_*`, `tdx_calendar_*`, and `tdx_interest_rate_*`
+/// functions. This avoids a second `tdx_client_connect()` call and reuses the
+/// same authenticated session.
 ///
-/// The returned pointer is NOT owned — do NOT call `tdx_client_free` on it.
+/// The returned pointer is **NOT owned** -- do NOT call `tdx_client_free` on it.
 /// It is valid as long as the `TdxUnified` handle is alive.
+///
+/// # Safety
+///
+/// This cast is sound because `TdxClient` is `#[repr(transparent)]` over
+/// `DirectClient`, and `ThetaDataDx` Derefs to `&DirectClient`.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_unified_historical(handle: *const TdxUnified) -> *const TdxClient {
     if handle.is_null() {
         set_error("unified handle is null");
         return ptr::null();
     }
-    let _handle = unsafe { &*handle };
-    // The existing FFI functions take *const TdxClient which wraps DirectClient.
-    // TdxUnified.inner Derefs to DirectClient but is not the same layout as TdxClient.
-    // Callers should use tdx_client_connect() for historical queries alongside
-    // the tdx_unified_* functions for streaming, or use the Rust/Python SDKs
-    // which provide full unified access.
-    set_error("tdx_unified_historical() not supported in FFI — use tdx_unified_* streaming functions with a separate tdx_client_connect() for historical queries through the same session");
-    ptr::null()
+    let handle = unsafe { &*handle };
+    // TdxClient is #[repr(transparent)] over DirectClient, so this cast is safe.
+    let direct_ref: &thetadatadx::direct::DirectClient = &handle.inner;
+    direct_ref as *const thetadatadx::direct::DirectClient as *const TdxClient
 }
 
 /// Stop streaming on the unified client. Historical remains available.

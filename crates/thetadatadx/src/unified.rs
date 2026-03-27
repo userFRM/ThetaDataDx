@@ -186,6 +186,12 @@ impl ThetaDataDx {
     }
 }
 
+impl Drop for ThetaDataDx {
+    fn drop(&mut self) {
+        self.stop_streaming();
+    }
+}
+
 // All 61 historical methods available directly via Deref.
 impl std::ops::Deref for ThetaDataDx {
     type Target = DirectClient;

@@ -6,69 +6,64 @@ Real-time market data via ThetaData's FPSS servers. The C++ SDK uses RAII wrappe
 
 ```cpp
 auto creds = tdx::Credentials::from_file("creds.txt");
-auto client = tdx::Client::connect(creds, tdx::Config::production());
-client.start_streaming(1024);
+auto config = tdx::Config::production();
+tdx::FpssClient fpss(creds, config);
 ```
 
 ## Subscribe
 
 ```cpp
 // Stock quotes
-int32_t req_id = client.subscribe_quotes("AAPL", tdx::SecType::Stock);
+int32_t req_id = fpss.subscribe_quotes("AAPL");
 std::cout << "Subscribed (req_id=" << req_id << ")" << std::endl;
 
 // Stock trades
-client.subscribe_trades("MSFT", tdx::SecType::Stock);
+fpss.subscribe_trades("MSFT");
 
 // Open interest
-client.subscribe_open_interest("AAPL", tdx::SecType::Stock);
-```
+fpss.subscribe_open_interest("AAPL");
 
-### Security Type Enum
-
-```cpp
-tdx::SecType::Stock   // 0
-tdx::SecType::Option  // 1
-tdx::SecType::Index   // 2
-tdx::SecType::Rate    // 3
+// All trades for a security type
+fpss.subscribe_full_trades("STOCK");
 ```
 
 ## Receive Events
 
-`next_event()` returns `nullptr` on timeout.
+`next_event()` returns JSON as a string, or empty string on timeout.
 
 ```cpp
-while (auto event = client.next_event(5000)) {
-    if (event->type() == tdx::FpssEventType::Quote) {
-        std::cout << "Quote: " << event->contract()
-                  << " bid=" << event->bid()
-                  << " ask=" << event->ask() << std::endl;
-    } else if (event->type() == tdx::FpssEventType::Trade) {
-        std::cout << "Trade: " << event->contract()
-                  << " price=" << event->price()
-                  << " size=" << event->size() << std::endl;
+while (true) {
+    auto event = fpss.next_event(5000); // 5s timeout
+    if (event.empty()) {
+        continue; // timeout
     }
+    std::cout << "Event: " << event << std::endl;
 }
 ```
 
 ## Stop Streaming
 
 ```cpp
-client.stop_streaming();
+fpss.shutdown();
 ```
 
-RAII also handles cleanup: the `Client` destructor calls `stop_streaming()` automatically.
+RAII also handles cleanup: the `FpssClient` destructor calls `shutdown()` automatically.
 
-## Streaming Methods (on Client)
+## Streaming Methods (on FpssClient)
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `start_streaming` | `(buf_size) -> void` | Connect to FPSS streaming servers |
-| `subscribe_quotes` | `(root, sec_type) -> int32_t` | Subscribe to quotes |
-| `subscribe_trades` | `(root, sec_type) -> int32_t` | Subscribe to trades |
-| `subscribe_open_interest` | `(root, sec_type) -> int32_t` | Subscribe to OI |
-| `next_event` | `(timeout_ms) -> unique_ptr<FpssEvent>` | Poll next event (`nullptr` on timeout) |
-| `stop_streaming` | `() -> void` | Graceful shutdown of streaming |
+| `subscribe_quotes` | `(symbol) -> int32_t` | Subscribe to quotes |
+| `subscribe_trades` | `(symbol) -> int32_t` | Subscribe to trades |
+| `subscribe_open_interest` | `(symbol) -> int32_t` | Subscribe to OI |
+| `subscribe_full_trades` | `(sec_type) -> int32_t` | Subscribe to all trades for a security type |
+| `unsubscribe_trades` | `(symbol) -> int32_t` | Unsubscribe from trades |
+| `unsubscribe_open_interest` | `(symbol) -> int32_t` | Unsubscribe from OI |
+| `next_event` | `(timeout_ms) -> std::string` | Poll next event (empty on timeout) |
+| `is_authenticated` | `() -> bool` | Check FPSS auth status |
+| `contract_lookup` | `(id) -> std::optional<std::string>` | Look up contract by server-assigned ID |
+| `active_subscriptions` | `() -> std::string` | Get active subscriptions as JSON |
+| `shutdown` | `() -> void` | Graceful shutdown |
 
 ## Complete Example
 
@@ -78,32 +73,28 @@ RAII also handles cleanup: the `Client` destructor calls `stop_streaming()` auto
 
 int main() {
     auto creds = tdx::Credentials::from_file("creds.txt");
-    auto client = tdx::Client::connect(creds, tdx::Config::production());
-    client.start_streaming(1024);
+    auto config = tdx::Config::production();
+
+    // Historical client
+    auto client = tdx::Client::connect(creds, config);
+
+    // Streaming client (separate connection, same credentials)
+    tdx::FpssClient fpss(creds, config);
 
     // Subscribe to quotes and trades
-    client.subscribe_quotes("AAPL", tdx::SecType::Stock);
-    client.subscribe_trades("AAPL", tdx::SecType::Stock);
-    client.subscribe_trades("MSFT", tdx::SecType::Stock);
+    fpss.subscribe_quotes("AAPL");
+    fpss.subscribe_trades("AAPL");
+    fpss.subscribe_trades("MSFT");
 
     // Process events
-    while (auto event = client.next_event(5000)) {
-        std::cout << "Event type: " << event->type() << std::endl;
-
-        if (event->type() == tdx::FpssEventType::Quote) {
-            std::cout << "Quote: " << event->contract()
-                      << " bid=" << event->bid()
-                      << " ask=" << event->ask() << std::endl;
-        } else if (event->type() == tdx::FpssEventType::Trade) {
-            std::cout << "Trade: " << event->contract()
-                      << " price=" << event->price()
-                      << " size=" << event->size() << std::endl;
-        } else if (event->type() == tdx::FpssEventType::Disconnected) {
-            std::cerr << "Disconnected" << std::endl;
-            break;
+    while (true) {
+        auto event = fpss.next_event(5000);
+        if (event.empty()) {
+            continue;
         }
+        std::cout << "Event: " << event << std::endl;
     }
 
-    client.stop_streaming();
+    fpss.shutdown();
 }
 ```

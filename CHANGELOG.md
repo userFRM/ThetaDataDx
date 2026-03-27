@@ -11,8 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Unified `ThetaDataDx` client** — single entry point replacing `DirectClient` + `FpssClient`.
   Connect once, auth once. Historical available immediately, streaming connects lazily.
-- **`DirectClient` removed from public API** — access via `ThetaDataDx` (Deref provides all 61 methods)
-- **`FpssClient` removed from public API** — use `tdx.start_streaming(handler)` instead
+- **`DirectClient` removed from crate root re-exports** — still accessible as `thetadatadx::direct::DirectClient` but all methods available via `ThetaDataDx` (Deref)
+- **`FpssClient` removed from crate root re-exports** — use `tdx.start_streaming(handler)` instead
 - **Python SDK**: `DirectClient` and `FpssClient` classes removed. Use `ThetaDataDx` only.
 
 ### Added
@@ -339,7 +339,9 @@ See [TODO.md](TODO.md) for the production readiness checklist and performance ro
 - FIT decoder uses i64 accumulator with i32 saturation (no silent overflow)
 - Price type range enforced with `assert!` in release builds
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/userFRM/ThetaDataDx/compare/v2.0.0...v3.0.0
+[2.0.0]: https://github.com/userFRM/ThetaDataDx/compare/v1.2.2...v2.0.0
 [1.2.2]: https://github.com/userFRM/ThetaDataDx/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/userFRM/ThetaDataDx/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/userFRM/ThetaDataDx/compare/v1.1.1...v1.2.0

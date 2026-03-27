@@ -82,7 +82,7 @@ Adding a new endpoint is a single macro invocation -- no hand-coded boilerplate.
    - Add the corresponding `extern "C"` function in `ffi/src/lib.rs`
    - The FFI crate also uses macros for endpoint generation -- follow the existing pattern
    - For FPSS-related functions, see the 7 existing `thetadatadx_fpss_*` functions as examples
-   - Update the C header, Go SDK (`FpssClient`), and C++ SDK (`FpssClient`) wrappers accordingly
+   - Update the C header, Go SDK, and C++ SDK wrappers accordingly
 
 4. **Expose in the Python SDK**
    - Add the PyO3 binding in `sdks/python/src/`

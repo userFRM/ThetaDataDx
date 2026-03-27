@@ -13,6 +13,20 @@ use thetadatadx::direct::DirectClient;
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::ThetaDataDx;
 
+/// Capacity of the broadcast channel used to fan out FPSS events to WebSocket
+/// clients.  4096 is chosen because:
+///
+/// - FPSS can burst ~10k events/sec during market open (quotes + trades +
+///   OHLCVC for all subscribed contracts).  A buffer of 4096 gives ~400ms of
+///   headroom before a slow WebSocket consumer starts losing messages (at
+///   which point `broadcast::Receiver` returns `Lagged` and the consumer
+///   catches up to the tail).
+/// - Each message is a small JSON string (~200-500 bytes), so 4096 slots cost
+///   roughly 1-2 MB of memory -- negligible on a server.
+/// - Powers of two are preferred because tokio's broadcast channel internally
+///   masks indices, making power-of-two sizes slightly more efficient.
+const WS_BROADCAST_CAPACITY: usize = 4096;
+
 /// Shared server state, cloned into every axum handler.
 #[derive(Clone)]
 pub struct AppState {
@@ -41,7 +55,7 @@ struct Inner {
 impl AppState {
     /// Create new app state wrapping a connected `ThetaDataDx`.
     pub fn new(tdx: ThetaDataDx, shutdown_token: String) -> Self {
-        let (ws_tx, _) = broadcast::channel(4096);
+        let (ws_tx, _) = broadcast::channel(WS_BROADCAST_CAPACITY);
         Self {
             inner: Arc::new(Inner {
                 tdx,

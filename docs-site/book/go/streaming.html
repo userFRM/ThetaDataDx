@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-7f7d49b5.js";
+            window.path_to_searchindex_js = "../searchindex-405a9131.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-4b833958.js"></script>
@@ -189,32 +189,27 @@ defer creds.Close()
 config := thetadatadx.ProductionConfig()
 defer config.Close()
 
-client, _ := thetadatadx.Connect(creds, config)
-defer client.Close()
-
-client.StartStreaming(1024)
+fpss, _ := thetadatadx.NewFpssClient(creds, config)
+defer fpss.Close()
 </code></pre>
 <h2 id="subscribe"><a class="header" href="#subscribe">Subscribe</a></h2>
 <pre><code class="language-go">// Stock quotes
-reqID, _ := client.SubscribeQuotes("AAPL", thetadatadx.SecTypeStock)
+reqID, _ := fpss.SubscribeQuotes("AAPL")
 fmt.Printf("Subscribed (req_id=%d)\n", reqID)
 
 // Stock trades
-client.SubscribeTrades("MSFT", thetadatadx.SecTypeStock)
+fpss.SubscribeTrades("MSFT")
 
 // Open interest
-client.SubscribeOpenInterest("AAPL", thetadatadx.SecTypeStock)
-</code></pre>
-<h3 id="security-type-constants"><a class="header" href="#security-type-constants">Security Type Constants</a></h3>
-<pre><code class="language-go">thetadatadx.SecTypeStock   // 0
-thetadatadx.SecTypeOption  // 1
-thetadatadx.SecTypeIndex   // 2
-thetadatadx.SecTypeRate    // 3
+fpss.SubscribeOpenInterest("AAPL")
+
+// All trades for a security type
+fpss.SubscribeFullTrades("STOCK")
 </code></pre>
 <h2 id="receive-events"><a class="header" href="#receive-events">Receive Events</a></h2>
 <p><code>NextEvent()</code> returns <code>nil</code> on timeout.</p>
 <pre><code class="language-go">for {
-    event, err := client.NextEvent(5000) // 5s timeout
+    event, err := fpss.NextEvent(5000) // 5s timeout
     if err != nil {
         log.Println("Error:", err)
         break
@@ -222,25 +217,31 @@ thetadatadx.SecTypeRate    // 3
     if event == nil {
         continue // timeout
     }
-    fmt.Printf("Event: %+v\n", event)
+    fmt.Printf("Event: %s\n", string(event))
 }
 </code></pre>
 <h2 id="stop-streaming"><a class="header" href="#stop-streaming">Stop Streaming</a></h2>
-<pre><code class="language-go">client.StopStreaming()
+<pre><code class="language-go">fpss.Shutdown()
 </code></pre>
-<h2 id="streaming-methods-on-client"><a class="header" href="#streaming-methods-on-client">Streaming Methods (on Client)</a></h2>
+<h2 id="streaming-methods-on-fpssclient"><a class="header" href="#streaming-methods-on-fpssclient">Streaming Methods (on FpssClient)</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Method</th><th>Signature</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>StartStreaming</code></td><td><code>(bufSize) error</code></td><td>Connect to FPSS streaming servers</td></tr>
-<tr><td><code>SubscribeQuotes</code></td><td><code>(root, secType) (int32, error)</code></td><td>Subscribe to quotes</td></tr>
-<tr><td><code>SubscribeTrades</code></td><td><code>(root, secType) (int32, error)</code></td><td>Subscribe to trades</td></tr>
-<tr><td><code>SubscribeOpenInterest</code></td><td><code>(root, secType) (int32, error)</code></td><td>Subscribe to OI</td></tr>
-<tr><td><code>NextEvent</code></td><td><code>(timeoutMs) (*FpssEvent, error)</code></td><td>Poll next event</td></tr>
-<tr><td><code>StopStreaming</code></td><td><code>() error</code></td><td>Graceful shutdown of streaming</td></tr>
+<tr><td><code>SubscribeQuotes</code></td><td><code>(symbol string) (int, error)</code></td><td>Subscribe to quotes</td></tr>
+<tr><td><code>SubscribeTrades</code></td><td><code>(symbol string) (int, error)</code></td><td>Subscribe to trades</td></tr>
+<tr><td><code>SubscribeOpenInterest</code></td><td><code>(symbol string) (int, error)</code></td><td>Subscribe to OI</td></tr>
+<tr><td><code>SubscribeFullTrades</code></td><td><code>(secType string) (int, error)</code></td><td>Subscribe to all trades for a security type</td></tr>
+<tr><td><code>UnsubscribeQuotes</code></td><td><code>(symbol string) (int, error)</code></td><td>Unsubscribe from quotes</td></tr>
+<tr><td><code>UnsubscribeTrades</code></td><td><code>(symbol string) (int, error)</code></td><td>Unsubscribe from trades</td></tr>
+<tr><td><code>UnsubscribeOpenInterest</code></td><td><code>(symbol string) (int, error)</code></td><td>Unsubscribe from OI</td></tr>
+<tr><td><code>NextEvent</code></td><td><code>(timeoutMs uint64) (json.RawMessage, error)</code></td><td>Poll next event</td></tr>
+<tr><td><code>IsAuthenticated</code></td><td><code>() bool</code></td><td>Check FPSS auth status</td></tr>
+<tr><td><code>ContractLookup</code></td><td><code>(id int) (string, error)</code></td><td>Look up contract by server-assigned ID</td></tr>
+<tr><td><code>ActiveSubscriptions</code></td><td><code>() (json.RawMessage, error)</code></td><td>Get active subscriptions</td></tr>
+<tr><td><code>Shutdown</code></td><td><code>()</code></td><td>Graceful shutdown</td></tr>
 </tbody>
 </table>
 </div>
@@ -261,20 +262,27 @@ func main() {
     config := thetadatadx.ProductionConfig()
     defer config.Close()
 
+    // Historical client
     client, err := thetadatadx.Connect(creds, config)
     if err != nil {
         log.Fatal(err)
     }
     defer client.Close()
 
-    // Start streaming and subscribe
-    client.StartStreaming(1024)
-    client.SubscribeQuotes("AAPL", thetadatadx.SecTypeStock)
-    client.SubscribeTrades("AAPL", thetadatadx.SecTypeStock)
+    // Streaming client (separate connection, same credentials)
+    fpss, err := thetadatadx.NewFpssClient(creds, config)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer fpss.Close()
+
+    // Subscribe to real-time data
+    fpss.SubscribeQuotes("AAPL")
+    fpss.SubscribeTrades("AAPL")
 
     // Process events
     for {
-        event, err := client.NextEvent(5000)
+        event, err := fpss.NextEvent(5000)
         if err != nil {
             log.Println("Error:", err)
             break
@@ -282,10 +290,10 @@ func main() {
         if event == nil {
             continue
         }
-        fmt.Printf("Event: %+v\n", event)
+        fmt.Printf("Event: %s\n", string(event))
     }
 
-    client.StopStreaming()
+    fpss.Shutdown()
 }
 </code></pre>
 

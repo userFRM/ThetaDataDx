@@ -143,7 +143,7 @@ tdx.start_streaming(move |event: &FpssEvent| {
 Or use the built-in method:
 
 ```rust
-let map: HashMap<i32, Contract> = tdx.contract_map();
+let map: HashMap<i32, Contract> = tdx.contract_map()?;
 ```
 
 ## Unsubscribe
@@ -168,7 +168,7 @@ ThetaDataDx uses manual reconnection. When the server disconnects, you receive a
 use thetadatadx::ThetaDataDx;
 use thetadatadx::types::RemoveReason;
 
-match ThetaDataDx::reconnect_delay(reason) {
+match thetadatadx::fpss::reconnect_delay(reason) {
     None => {
         // Permanent error (bad credentials, etc.) -- do NOT retry
         eprintln!("Permanent disconnect: {:?}", reason);

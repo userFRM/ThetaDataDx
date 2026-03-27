@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-7f7d49b5.js";
+            window.path_to_searchindex_js = "../searchindex-405a9131.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-4b833958.js"></script>
@@ -184,57 +184,55 @@
 <p>Real-time market data via ThetaData’s FPSS servers. The C++ SDK uses RAII wrappers with a polling model via <code>next_event()</code>.</p>
 <h2 id="connect"><a class="header" href="#connect">Connect</a></h2>
 <pre><code class="language-cpp">auto creds = tdx::Credentials::from_file("creds.txt");
-auto client = tdx::Client::connect(creds, tdx::Config::production());
-client.start_streaming(1024);
+auto config = tdx::Config::production();
+tdx::FpssClient fpss(creds, config);
 </code></pre>
 <h2 id="subscribe"><a class="header" href="#subscribe">Subscribe</a></h2>
 <pre><code class="language-cpp">// Stock quotes
-int32_t req_id = client.subscribe_quotes("AAPL", tdx::SecType::Stock);
+int32_t req_id = fpss.subscribe_quotes("AAPL");
 std::cout &lt;&lt; "Subscribed (req_id=" &lt;&lt; req_id &lt;&lt; ")" &lt;&lt; std::endl;
 
 // Stock trades
-client.subscribe_trades("MSFT", tdx::SecType::Stock);
+fpss.subscribe_trades("MSFT");
 
 // Open interest
-client.subscribe_open_interest("AAPL", tdx::SecType::Stock);
-</code></pre>
-<h3 id="security-type-enum"><a class="header" href="#security-type-enum">Security Type Enum</a></h3>
-<pre><code class="language-cpp">tdx::SecType::Stock   // 0
-tdx::SecType::Option  // 1
-tdx::SecType::Index   // 2
-tdx::SecType::Rate    // 3
+fpss.subscribe_open_interest("AAPL");
+
+// All trades for a security type
+fpss.subscribe_full_trades("STOCK");
 </code></pre>
 <h2 id="receive-events"><a class="header" href="#receive-events">Receive Events</a></h2>
-<p><code>next_event()</code> returns <code>nullptr</code> on timeout.</p>
-<pre><code class="language-cpp">while (auto event = client.next_event(5000)) {
-    if (event-&gt;type() == tdx::FpssEventType::Quote) {
-        std::cout &lt;&lt; "Quote: " &lt;&lt; event-&gt;contract()
-                  &lt;&lt; " bid=" &lt;&lt; event-&gt;bid()
-                  &lt;&lt; " ask=" &lt;&lt; event-&gt;ask() &lt;&lt; std::endl;
-    } else if (event-&gt;type() == tdx::FpssEventType::Trade) {
-        std::cout &lt;&lt; "Trade: " &lt;&lt; event-&gt;contract()
-                  &lt;&lt; " price=" &lt;&lt; event-&gt;price()
-                  &lt;&lt; " size=" &lt;&lt; event-&gt;size() &lt;&lt; std::endl;
+<p><code>next_event()</code> returns JSON as a string, or empty string on timeout.</p>
+<pre><code class="language-cpp">while (true) {
+    auto event = fpss.next_event(5000); // 5s timeout
+    if (event.empty()) {
+        continue; // timeout
     }
+    std::cout &lt;&lt; "Event: " &lt;&lt; event &lt;&lt; std::endl;
 }
 </code></pre>
 <h2 id="stop-streaming"><a class="header" href="#stop-streaming">Stop Streaming</a></h2>
-<pre><code class="language-cpp">client.stop_streaming();
+<pre><code class="language-cpp">fpss.shutdown();
 </code></pre>
-<p>RAII also handles cleanup: the <code>Client</code> destructor calls <code>stop_streaming()</code> automatically.</p>
-<h2 id="streaming-methods-on-client"><a class="header" href="#streaming-methods-on-client">Streaming Methods (on Client)</a></h2>
+<p>RAII also handles cleanup: the <code>FpssClient</code> destructor calls <code>shutdown()</code> automatically.</p>
+<h2 id="streaming-methods-on-fpssclient"><a class="header" href="#streaming-methods-on-fpssclient">Streaming Methods (on FpssClient)</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Method</th><th>Signature</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>start_streaming</code></td><td><code>(buf_size) -&gt; void</code></td><td>Connect to FPSS streaming servers</td></tr>
-<tr><td><code>subscribe_quotes</code></td><td><code>(root, sec_type) -&gt; int32_t</code></td><td>Subscribe to quotes</td></tr>
-<tr><td><code>subscribe_trades</code></td><td><code>(root, sec_type) -&gt; int32_t</code></td><td>Subscribe to trades</td></tr>
-<tr><td><code>subscribe_open_interest</code></td><td><code>(root, sec_type) -&gt; int32_t</code></td><td>Subscribe to OI</td></tr>
-<tr><td><code>next_event</code></td><td><code>(timeout_ms) -&gt; unique_ptr&lt;FpssEvent&gt;</code></td><td>Poll next event (<code>nullptr</code> on timeout)</td></tr>
-<tr><td><code>stop_streaming</code></td><td><code>() -&gt; void</code></td><td>Graceful shutdown of streaming</td></tr>
+<tr><td><code>subscribe_quotes</code></td><td><code>(symbol) -&gt; int32_t</code></td><td>Subscribe to quotes</td></tr>
+<tr><td><code>subscribe_trades</code></td><td><code>(symbol) -&gt; int32_t</code></td><td>Subscribe to trades</td></tr>
+<tr><td><code>subscribe_open_interest</code></td><td><code>(symbol) -&gt; int32_t</code></td><td>Subscribe to OI</td></tr>
+<tr><td><code>subscribe_full_trades</code></td><td><code>(sec_type) -&gt; int32_t</code></td><td>Subscribe to all trades for a security type</td></tr>
+<tr><td><code>unsubscribe_trades</code></td><td><code>(symbol) -&gt; int32_t</code></td><td>Unsubscribe from trades</td></tr>
+<tr><td><code>unsubscribe_open_interest</code></td><td><code>(symbol) -&gt; int32_t</code></td><td>Unsubscribe from OI</td></tr>
+<tr><td><code>next_event</code></td><td><code>(timeout_ms) -&gt; std::string</code></td><td>Poll next event (empty on timeout)</td></tr>
+<tr><td><code>is_authenticated</code></td><td><code>() -&gt; bool</code></td><td>Check FPSS auth status</td></tr>
+<tr><td><code>contract_lookup</code></td><td><code>(id) -&gt; std::optional&lt;std::string&gt;</code></td><td>Look up contract by server-assigned ID</td></tr>
+<tr><td><code>active_subscriptions</code></td><td><code>() -&gt; std::string</code></td><td>Get active subscriptions as JSON</td></tr>
+<tr><td><code>shutdown</code></td><td><code>() -&gt; void</code></td><td>Graceful shutdown</td></tr>
 </tbody>
 </table>
 </div>
@@ -244,33 +242,29 @@ tdx::SecType::Rate    // 3
 
 int main() {
     auto creds = tdx::Credentials::from_file("creds.txt");
-    auto client = tdx::Client::connect(creds, tdx::Config::production());
-    client.start_streaming(1024);
+    auto config = tdx::Config::production();
+
+    // Historical client
+    auto client = tdx::Client::connect(creds, config);
+
+    // Streaming client (separate connection, same credentials)
+    tdx::FpssClient fpss(creds, config);
 
     // Subscribe to quotes and trades
-    client.subscribe_quotes("AAPL", tdx::SecType::Stock);
-    client.subscribe_trades("AAPL", tdx::SecType::Stock);
-    client.subscribe_trades("MSFT", tdx::SecType::Stock);
+    fpss.subscribe_quotes("AAPL");
+    fpss.subscribe_trades("AAPL");
+    fpss.subscribe_trades("MSFT");
 
     // Process events
-    while (auto event = client.next_event(5000)) {
-        std::cout &lt;&lt; "Event type: " &lt;&lt; event-&gt;type() &lt;&lt; std::endl;
-
-        if (event-&gt;type() == tdx::FpssEventType::Quote) {
-            std::cout &lt;&lt; "Quote: " &lt;&lt; event-&gt;contract()
-                      &lt;&lt; " bid=" &lt;&lt; event-&gt;bid()
-                      &lt;&lt; " ask=" &lt;&lt; event-&gt;ask() &lt;&lt; std::endl;
-        } else if (event-&gt;type() == tdx::FpssEventType::Trade) {
-            std::cout &lt;&lt; "Trade: " &lt;&lt; event-&gt;contract()
-                      &lt;&lt; " price=" &lt;&lt; event-&gt;price()
-                      &lt;&lt; " size=" &lt;&lt; event-&gt;size() &lt;&lt; std::endl;
-        } else if (event-&gt;type() == tdx::FpssEventType::Disconnected) {
-            std::cerr &lt;&lt; "Disconnected" &lt;&lt; std::endl;
-            break;
+    while (true) {
+        auto event = fpss.next_event(5000);
+        if (event.empty()) {
+            continue;
         }
+        std::cout &lt;&lt; "Event: " &lt;&lt; event &lt;&lt; std::endl;
     }
 
-    client.stop_streaming();
+    fpss.shutdown();
 }
 </code></pre>
 
