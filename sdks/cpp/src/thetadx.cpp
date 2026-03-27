@@ -475,7 +475,11 @@ static PriceTick parse_price_tick(const DataTable& dt, const DtRow& row) {
 static MarketValueTick parse_market_value_tick(const DataTable& dt, const DtRow& row) {
     return MarketValueTick{
         dt.inum(row, "ms_of_day"),
-        dt.num(row, "value"),
+        dt.num(row, "market_cap"),
+        static_cast<int64_t>(dt.num(row, "shares_outstanding")),
+        dt.num(row, "enterprise_value"),
+        dt.num(row, "book_value"),
+        static_cast<int64_t>(dt.num(row, "free_float")),
         dt.inum(row, "date"),
     };
 }
@@ -495,11 +499,13 @@ static CalendarDay parse_calendar_day(const DataTable& dt, const DtRow& row) {
         dt.inum(row, "is_open"),
         dt.inum(row, "open_time"),
         dt.inum(row, "close_time"),
+        dt.text(row, "status"),
     };
 }
 
 static InterestRateTick parse_interest_rate_tick(const DataTable& dt, const DtRow& row) {
     return InterestRateTick{
+        dt.inum(row, "ms_of_day"),
         dt.num(row, "rate"),
         dt.inum(row, "date"),
     };
@@ -1159,6 +1165,12 @@ int FpssClient::subscribe_open_interest(const std::string& symbol) {
 
 int FpssClient::subscribe_full_trades(const std::string& sec_type) {
     int rc = tdx_fpss_subscribe_full_trades(handle_.get(), sec_type.c_str());
+    if (rc < 0) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+    return rc;
+}
+
+int FpssClient::unsubscribe_quotes(const std::string& symbol) {
+    int rc = tdx_fpss_unsubscribe_quotes(handle_.get(), symbol.c_str());
     if (rc < 0) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
     return rc;
 }

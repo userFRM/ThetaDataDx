@@ -121,7 +121,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
 
 61 typed methods covering all ThetaData MDDS endpoints (60 gRPC RPCs).
 
-### Stock (13 methods)
+### Stock (14 methods)
 
 | Category | Method | Description |
 |----------|--------|-------------|

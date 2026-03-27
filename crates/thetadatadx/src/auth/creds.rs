@@ -22,7 +22,7 @@ pub struct Credentials {
     /// Email address, lowercased and trimmed (matches Java `toLowerCase().trim()`).
     pub email: String,
     /// Password, trimmed.
-    pub password: String,
+    pub(crate) password: String,
 }
 
 impl std::fmt::Debug for Credentials {
@@ -85,6 +85,11 @@ impl Credentials {
         }
 
         Ok(Self { email, password })
+    }
+
+    /// Get the password.
+    pub fn password(&self) -> &str {
+        &self.password
     }
 
     /// Construct credentials directly (e.g. from environment variables).

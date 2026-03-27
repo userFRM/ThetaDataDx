@@ -35,34 +35,34 @@ while True:
         continue  # timeout, no event
 
     # Control events
-    if event["type"] == "contract_assigned":
+    if event["kind"] == "contract_assigned":
         contracts[event["id"]] = event["contract"]
         print(f"Contract {event['id']} = {event['contract']}")
         continue
 
-    if event["type"] == "login_success":
+    if event["kind"] == "login_success":
         print(f"Logged in: {event['permissions']}")
         continue
 
     # Data events
-    if event["type"] == "quote":
+    if event["kind"] == "quote":
         contract_id = event["contract_id"]
         symbol = contracts.get(contract_id, f"id={contract_id}")
         print(f"Quote: {symbol} bid={event['bid']} ask={event['ask']}")
 
-    elif event["type"] == "trade":
+    elif event["kind"] == "trade":
         contract_id = event["contract_id"]
         symbol = contracts.get(contract_id, f"id={contract_id}")
         print(f"Trade: {symbol} price={event['price']} size={event['size']}")
 
-    elif event["type"] == "open_interest":
+    elif event["kind"] == "open_interest":
         print(f"OI: contract={event['contract_id']} oi={event['open_interest']}")
 
-    elif event["type"] == "ohlcvc":
+    elif event["kind"] == "ohlcvc":
         print(f"OHLCVC: contract={event['contract_id']} "
               f"O={event['open']} H={event['high']} L={event['low']} C={event['close']}")
 
-    elif event["type"] == "disconnected":
+    elif event["kind"] == "disconnected":
         print(f"Disconnected: {event['reason']}")
         break
 ```
@@ -139,15 +139,15 @@ while True:
     if event is None:
         continue
 
-    if event["type"] == "contract_assigned":
+    if event["kind"] == "contract_assigned":
         contracts[event["id"]] = event["contract"]
-    elif event["type"] == "quote":
+    elif event["kind"] == "quote":
         name = contracts.get(event["contract_id"], "?")
         print(f"[QUOTE] {name}: bid={event['bid']} ask={event['ask']}")
-    elif event["type"] == "trade":
+    elif event["kind"] == "trade":
         name = contracts.get(event["contract_id"], "?")
         print(f"[TRADE] {name}: price={event['price']} size={event['size']}")
-    elif event["type"] == "disconnected":
+    elif event["kind"] == "disconnected":
         print(f"Disconnected: {event['reason']}")
         break
 

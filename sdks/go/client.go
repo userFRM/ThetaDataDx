@@ -130,6 +130,7 @@ import "C"
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"unsafe"
 )
 
@@ -440,22 +441,17 @@ func cellBool(cell interface{}) bool {
 }
 
 // priceToFloat converts a raw price value + type to a float64.
-// Price types: 0 = integer cents (/100), 1 = tenths of cents (/1000), etc.
+// ThetaData encoding: value * 10^(price_type - 10).
+// price_type=0 means "no price" (returns 0.0).
 func priceToFloat(value float64, priceType int) float64 {
-	switch priceType {
-	case 0:
-		return value
-	case 1:
-		return value / 10.0
-	case 2:
-		return value / 100.0
-	case 3:
-		return value / 1000.0
-	case 4:
-		return value / 10000.0
-	default:
-		return value
+	if priceType == 0 {
+		return 0.0
 	}
+	exp := priceType - 10
+	if exp >= 0 {
+		return value * math.Pow(10, float64(exp))
+	}
+	return value / math.Pow(10, float64(-exp))
 }
 
 // safeCell returns the cell at the given column index, or nil if out of range.

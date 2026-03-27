@@ -26,6 +26,7 @@ use tokio::sync::broadcast;
 
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{FpssControl, FpssData, FpssEvent};
+use thetadatadx::types::enums::SecType;
 use thetadatadx::types::price::Price;
 
 use crate::state::AppState;
@@ -207,6 +208,15 @@ async fn handle_client_message(state: &AppState, text: &str, socket: &mut WebSoc
             match req_type.as_str() {
                 "QUOTE" => tdx.subscribe_quotes(&contract),
                 "TRADE" => tdx.subscribe_trades(&contract),
+                "OPEN_INTEREST" => tdx.subscribe_open_interest(&contract),
+                "FULL_TRADES" => {
+                    let st = match sec_type.as_str() {
+                        "OPTION" => SecType::Option,
+                        "INDEX" => SecType::Index,
+                        _ => SecType::Stock,
+                    };
+                    tdx.subscribe_full_trades(st)
+                }
                 _ => {
                     tracing::warn!(req_type = %req_type, "unknown req_type for subscription");
                     Ok(0)
@@ -216,6 +226,7 @@ async fn handle_client_message(state: &AppState, text: &str, socket: &mut WebSoc
             match req_type.as_str() {
                 "QUOTE" => tdx.unsubscribe_quotes(&contract),
                 "TRADE" => tdx.unsubscribe_trades(&contract),
+                "OPEN_INTEREST" => tdx.unsubscribe_open_interest(&contract),
                 _ => Ok(0),
             }
         };

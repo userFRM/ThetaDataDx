@@ -1863,7 +1863,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_quotes(
         }
     };
     let handle = unsafe { &*handle };
-    let guard = handle.inner.lock().unwrap();
+    let guard = handle.inner.lock().unwrap_or_else(|e| e.into_inner());
     let client = match guard.as_ref() {
         Some(c) => c,
         None => {
@@ -1901,7 +1901,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_trades(
         }
     };
     let handle = unsafe { &*handle };
-    let guard = handle.inner.lock().unwrap();
+    let guard = handle.inner.lock().unwrap_or_else(|e| e.into_inner());
     let client = match guard.as_ref() {
         Some(c) => c,
         None => {
@@ -1939,7 +1939,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_quotes(
         }
     };
     let handle = unsafe { &*handle };
-    let guard = handle.inner.lock().unwrap();
+    let guard = handle.inner.lock().unwrap_or_else(|e| e.into_inner());
     let client = match guard.as_ref() {
         Some(c) => c,
         None => {
@@ -1977,7 +1977,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_trades(
         }
     };
     let handle = unsafe { &*handle };
-    let guard = handle.inner.lock().unwrap();
+    let guard = handle.inner.lock().unwrap_or_else(|e| e.into_inner());
     let client = match guard.as_ref() {
         Some(c) => c,
         None => {
@@ -2015,7 +2015,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_open_interest(
         }
     };
     let handle = unsafe { &*handle };
-    let guard = handle.inner.lock().unwrap();
+    let guard = handle.inner.lock().unwrap_or_else(|e| e.into_inner());
     let client = match guard.as_ref() {
         Some(c) => c,
         None => {
@@ -2053,7 +2053,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_open_interest(
         }
     };
     let handle = unsafe { &*handle };
-    let guard = handle.inner.lock().unwrap();
+    let guard = handle.inner.lock().unwrap_or_else(|e| e.into_inner());
     let client = match guard.as_ref() {
         Some(c) => c,
         None => {
@@ -2104,7 +2104,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_full_trades(
         }
     };
     let handle = unsafe { &*handle };
-    let guard = handle.inner.lock().unwrap();
+    let guard = handle.inner.lock().unwrap_or_else(|e| e.into_inner());
     let client = match guard.as_ref() {
         Some(c) => c,
         None => {
@@ -2130,7 +2130,7 @@ pub unsafe extern "C" fn tdx_fpss_is_authenticated(handle: *const TdxFpssHandle)
         return 0;
     }
     let handle = unsafe { &*handle };
-    let guard = handle.inner.lock().unwrap();
+    let guard = handle.inner.lock().unwrap_or_else(|e| e.into_inner());
     match guard.as_ref() {
         Some(c) => {
             if c.is_authenticated() {
@@ -2157,7 +2157,7 @@ pub unsafe extern "C" fn tdx_fpss_contract_lookup(
         return ptr::null_mut();
     }
     let handle = unsafe { &*handle };
-    let guard = handle.inner.lock().unwrap();
+    let guard = handle.inner.lock().unwrap_or_else(|e| e.into_inner());
     let client = match guard.as_ref() {
         Some(c) => c,
         None => {
@@ -2190,7 +2190,7 @@ pub unsafe extern "C" fn tdx_fpss_active_subscriptions(
         return ptr::null_mut();
     }
     let handle = unsafe { &*handle };
-    let guard = handle.inner.lock().unwrap();
+    let guard = handle.inner.lock().unwrap_or_else(|e| e.into_inner());
     let client = match guard.as_ref() {
         Some(c) => c,
         None => {
@@ -2232,7 +2232,7 @@ pub unsafe extern "C" fn tdx_fpss_next_event(
         return ptr::null_mut();
     }
     let handle = unsafe { &*handle };
-    let rx = handle.rx.lock().unwrap();
+    let rx = handle.rx.lock().unwrap_or_else(|e| e.into_inner());
     let timeout = std::time::Duration::from_millis(timeout_ms);
     match rx.recv_timeout(timeout) {
         Ok(event) => buffered_event_to_cstring(&event),
@@ -2251,7 +2251,7 @@ pub unsafe extern "C" fn tdx_fpss_shutdown(handle: *const TdxFpssHandle) {
         return;
     }
     let handle = unsafe { &*handle };
-    let mut guard = handle.inner.lock().unwrap();
+    let mut guard = handle.inner.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(client) = guard.take() {
         client.shutdown();
     }
