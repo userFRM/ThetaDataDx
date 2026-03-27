@@ -5,18 +5,20 @@ Real-time market data via ThetaData's FPSS servers. The Python SDK uses a pollin
 ## Connect
 
 ```python
-from thetadatadx import Credentials, FpssClient
+from thetadatadx import Credentials, Config, ThetaDataDx
 
 creds = Credentials.from_file("creds.txt")
-fpss = FpssClient(creds, buffer_size=1024)
+tdx = ThetaDataDx(creds, Config.production())
+
+tdx.start_streaming()
 ```
 
 ## Subscribe
 
 ```python
-fpss.subscribe("AAPL", "QUOTE")
-fpss.subscribe("MSFT", "TRADE")
-fpss.subscribe("SPY", "OI")
+tdx.subscribe_quotes("AAPL")
+tdx.subscribe_trades("MSFT")
+tdx.subscribe_open_interest("SPY")
 ```
 
 ## Receive Events
@@ -28,7 +30,7 @@ Events are returned as Python dicts with a `"type"` field. `next_event()` return
 contracts = {}
 
 while True:
-    event = fpss.next_event(timeout_ms=5000)
+    event = tdx.next_event(timeout_ms=5000)
     if event is None:
         continue  # timeout, no event
 
@@ -65,20 +67,22 @@ while True:
         break
 ```
 
-## Shutdown
+## Stop Streaming
 
 ```python
-fpss.shutdown()
+tdx.stop_streaming()
 ```
 
-## FpssClient Methods
+## Streaming Methods (on ThetaDataDx)
 
 | Method | Description |
 |--------|-------------|
-| `FpssClient(creds, buffer_size=1024)` | Connect and authenticate |
-| `subscribe(symbol, data_type)` | Subscribe (`"QUOTE"`, `"TRADE"`, `"OI"`) |
+| `start_streaming()` | Connect to FPSS streaming servers |
+| `subscribe_quotes(symbol)` | Subscribe to quote data |
+| `subscribe_trades(symbol)` | Subscribe to trade data |
+| `subscribe_open_interest(symbol)` | Subscribe to open interest |
 | `next_event(timeout_ms=5000)` | Poll next event (dict or `None`) |
-| `shutdown()` | Graceful shutdown |
+| `stop_streaming()` | Graceful shutdown of streaming |
 
 ## Event Types
 
@@ -106,29 +110,32 @@ fpss.shutdown()
 ## Complete Example
 
 ```python
-from thetadatadx import Credentials, FpssClient
+from thetadatadx import Credentials, Config, ThetaDataDx
 import signal
 import sys
 
 creds = Credentials.from_file("creds.txt")
-fpss = FpssClient(creds, buffer_size=1024)
+tdx = ThetaDataDx(creds, Config.production())
+
+# Start streaming
+tdx.start_streaming()
 
 # Graceful shutdown on Ctrl+C
 def shutdown_handler(sig, frame):
-    fpss.shutdown()
+    tdx.stop_streaming()
     sys.exit(0)
 
 signal.signal(signal.SIGINT, shutdown_handler)
 
 # Subscribe to multiple streams
-fpss.subscribe("AAPL", "QUOTE")
-fpss.subscribe("AAPL", "TRADE")
-fpss.subscribe("MSFT", "QUOTE")
+tdx.subscribe_quotes("AAPL")
+tdx.subscribe_trades("AAPL")
+tdx.subscribe_quotes("MSFT")
 
 contracts = {}
 
 while True:
-    event = fpss.next_event(timeout_ms=5000)
+    event = tdx.next_event(timeout_ms=5000)
     if event is None:
         continue
 
@@ -144,5 +151,5 @@ while True:
         print(f"Disconnected: {event['reason']}")
         break
 
-fpss.shutdown()
+tdx.stop_streaming()
 ```

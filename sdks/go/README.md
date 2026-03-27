@@ -106,19 +106,15 @@ func main() {
     creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
     defer creds.Close()
 
-    fpss, err := thetadatadx.FpssConnect(creds, 1024)
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer fpss.Shutdown()
+    client.StartStreaming(1024)
 
     // Subscribe to real-time quotes
-    reqID, _ := fpss.SubscribeQuotes("AAPL", thetadatadx.SecTypeStock)
+    reqID, _ := client.SubscribeQuotes("AAPL", thetadatadx.SecTypeStock)
     fmt.Printf("Subscribed (req_id=%d)\n", reqID)
 
     // Poll for events
     for {
-        event, err := fpss.NextEvent(5000) // 5s timeout
+        event, err := client.NextEvent(5000) // 5s timeout
         if err != nil {
             log.Println("Error:", err)
             break
@@ -131,16 +127,16 @@ func main() {
 }
 ```
 
-### FpssClient API
+### Streaming API (on Client)
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `FpssConnect` | `(creds, bufSize) (*FpssClient, error)` | Connect and authenticate |
+| `StartStreaming` | `(bufSize) error` | Connect to FPSS streaming servers |
 | `SubscribeQuotes` | `(root, secType) (int32, error)` | Subscribe to quotes |
 | `SubscribeTrades` | `(root, secType) (int32, error)` | Subscribe to trades |
 | `SubscribeOpenInterest` | `(root, secType) (int32, error)` | Subscribe to open interest |
 | `NextEvent` | `(timeoutMs) (*FpssEvent, error)` | Poll next event |
-| `Shutdown` | `() error` | Graceful shutdown |
+| `StopStreaming` | `() error` | Graceful shutdown of streaming |
 
 ## Architecture
 

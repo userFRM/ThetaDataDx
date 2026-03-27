@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-0a611890.js";
+            window.path_to_searchindex_js = "../searchindex-7f7d49b5.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-4b833958.js"></script>
@@ -186,22 +186,24 @@
 <pre><code class="language-go">creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
 defer creds.Close()
 
-fpss, err := thetadatadx.FpssConnect(creds, 1024)
-if err != nil {
-    log.Fatal(err)
-}
-defer fpss.Shutdown()
+config := thetadatadx.ProductionConfig()
+defer config.Close()
+
+client, _ := thetadatadx.Connect(creds, config)
+defer client.Close()
+
+client.StartStreaming(1024)
 </code></pre>
 <h2 id="subscribe"><a class="header" href="#subscribe">Subscribe</a></h2>
 <pre><code class="language-go">// Stock quotes
-reqID, _ := fpss.SubscribeQuotes("AAPL", thetadatadx.SecTypeStock)
+reqID, _ := client.SubscribeQuotes("AAPL", thetadatadx.SecTypeStock)
 fmt.Printf("Subscribed (req_id=%d)\n", reqID)
 
 // Stock trades
-fpss.SubscribeTrades("MSFT", thetadatadx.SecTypeStock)
+client.SubscribeTrades("MSFT", thetadatadx.SecTypeStock)
 
 // Open interest
-fpss.SubscribeOpenInterest("AAPL", thetadatadx.SecTypeStock)
+client.SubscribeOpenInterest("AAPL", thetadatadx.SecTypeStock)
 </code></pre>
 <h3 id="security-type-constants"><a class="header" href="#security-type-constants">Security Type Constants</a></h3>
 <pre><code class="language-go">thetadatadx.SecTypeStock   // 0
@@ -212,7 +214,7 @@ thetadatadx.SecTypeRate    // 3
 <h2 id="receive-events"><a class="header" href="#receive-events">Receive Events</a></h2>
 <p><code>NextEvent()</code> returns <code>nil</code> on timeout.</p>
 <pre><code class="language-go">for {
-    event, err := fpss.NextEvent(5000) // 5s timeout
+    event, err := client.NextEvent(5000) // 5s timeout
     if err != nil {
         log.Println("Error:", err)
         break
@@ -223,22 +225,22 @@ thetadatadx.SecTypeRate    // 3
     fmt.Printf("Event: %+v\n", event)
 }
 </code></pre>
-<h2 id="shutdown"><a class="header" href="#shutdown">Shutdown</a></h2>
-<pre><code class="language-go">fpss.Shutdown()
+<h2 id="stop-streaming"><a class="header" href="#stop-streaming">Stop Streaming</a></h2>
+<pre><code class="language-go">client.StopStreaming()
 </code></pre>
-<h2 id="fpssclient-methods"><a class="header" href="#fpssclient-methods">FpssClient Methods</a></h2>
+<h2 id="streaming-methods-on-client"><a class="header" href="#streaming-methods-on-client">Streaming Methods (on Client)</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Method</th><th>Signature</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>FpssConnect</code></td><td><code>(creds, bufSize) (*FpssClient, error)</code></td><td>Connect and authenticate</td></tr>
+<tr><td><code>StartStreaming</code></td><td><code>(bufSize) error</code></td><td>Connect to FPSS streaming servers</td></tr>
 <tr><td><code>SubscribeQuotes</code></td><td><code>(root, secType) (int32, error)</code></td><td>Subscribe to quotes</td></tr>
 <tr><td><code>SubscribeTrades</code></td><td><code>(root, secType) (int32, error)</code></td><td>Subscribe to trades</td></tr>
 <tr><td><code>SubscribeOpenInterest</code></td><td><code>(root, secType) (int32, error)</code></td><td>Subscribe to OI</td></tr>
 <tr><td><code>NextEvent</code></td><td><code>(timeoutMs) (*FpssEvent, error)</code></td><td>Poll next event</td></tr>
-<tr><td><code>Shutdown</code></td><td><code>() error</code></td><td>Graceful shutdown</td></tr>
+<tr><td><code>StopStreaming</code></td><td><code>() error</code></td><td>Graceful shutdown of streaming</td></tr>
 </tbody>
 </table>
 </div>
@@ -256,19 +258,23 @@ func main() {
     creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
     defer creds.Close()
 
-    fpss, err := thetadatadx.FpssConnect(creds, 1024)
+    config := thetadatadx.ProductionConfig()
+    defer config.Close()
+
+    client, err := thetadatadx.Connect(creds, config)
     if err != nil {
         log.Fatal(err)
     }
-    defer fpss.Shutdown()
+    defer client.Close()
 
-    // Subscribe to quotes and trades
-    fpss.SubscribeQuotes("AAPL", thetadatadx.SecTypeStock)
-    fpss.SubscribeTrades("AAPL", thetadatadx.SecTypeStock)
+    // Start streaming and subscribe
+    client.StartStreaming(1024)
+    client.SubscribeQuotes("AAPL", thetadatadx.SecTypeStock)
+    client.SubscribeTrades("AAPL", thetadatadx.SecTypeStock)
 
     // Process events
     for {
-        event, err := fpss.NextEvent(5000)
+        event, err := client.NextEvent(5000)
         if err != nil {
             log.Println("Error:", err)
             break
@@ -278,6 +284,8 @@ func main() {
         }
         fmt.Printf("Event: %+v\n", event)
     }
+
+    client.StopStreaming()
 }
 </code></pre>
 

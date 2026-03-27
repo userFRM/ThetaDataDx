@@ -7,13 +7,14 @@ The Rust FPSS client is fully synchronous -- no Tokio on the streaming hot path.
 ## Connect
 
 ```rust
-use thetadatadx::auth::Credentials;
-use thetadatadx::fpss::{FpssClient, FpssData, FpssControl, FpssEvent};
+use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
+use thetadatadx::fpss::{FpssData, FpssControl, FpssEvent};
 use thetadatadx::fpss::protocol::Contract;
 
 let creds = Credentials::from_file("creds.txt")?;
+let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 
-let client = FpssClient::connect(&creds, 1024, |event: &FpssEvent| {
+tdx.start_streaming(|event: &FpssEvent| {
     match event {
         FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, .. }) => {
             println!("Quote: contract={contract_id} bid={bid} ask={ask}");
@@ -29,41 +30,27 @@ let client = FpssClient::connect(&creds, 1024, |event: &FpssEvent| {
 })?;
 ```
 
-The `1024` parameter is the ring buffer size for event dispatch.
-
-### Without OHLCVC Derivation
-
-If you only need raw trades/quotes and want lower overhead:
-
-```rust
-let client = FpssClient::connect_no_ohlcvc(&creds, 1024, |event: &FpssEvent| {
-    // No FpssData::Ohlcvc events will be emitted
-    match event {
-        FpssEvent::Data(FpssData::Trade { .. }) => { /* ... */ }
-        _ => {}
-    }
-})?;
-```
+The ring buffer size for event dispatch is configured via `DirectConfig`.
 
 ## Subscribe
 
 ```rust
 // Stock quotes
-let req_id = client.subscribe_quotes(&Contract::stock("AAPL"))?;
+let req_id = tdx.subscribe_quotes(&Contract::stock("AAPL"))?;
 println!("Subscribed (req_id={req_id})");
 
 // Stock trades
-client.subscribe_trades(&Contract::stock("MSFT"))?;
+tdx.subscribe_trades(&Contract::stock("MSFT"))?;
 
 // Option quotes
 let opt = Contract::option("SPY", 20261218, true, 60000); // call, strike $600
-client.subscribe_quotes(&opt)?;
+tdx.subscribe_quotes(&opt)?;
 
 // Open interest
-client.subscribe_open_interest(&Contract::stock("AAPL"))?;
+tdx.subscribe_open_interest(&Contract::stock("AAPL"))?;
 
 // All trades for a security type
-client.subscribe_full_trades(SecType::Stock)?;
+tdx.subscribe_full_trades(SecType::Stock)?;
 ```
 
 ## Receive Events
@@ -71,7 +58,7 @@ client.subscribe_full_trades(SecType::Stock)?;
 The callback fires on the ring buffer's consumer thread. The v2.0.0 `FpssEvent` is split into `FpssData` and `FpssControl`:
 
 ```rust
-let client = FpssClient::connect(&creds, 1024, |event: &FpssEvent| {
+tdx.start_streaming(|event: &FpssEvent| {
     match event {
         // --- Data events ---
         FpssEvent::Data(FpssData::Quote {
@@ -136,7 +123,7 @@ use std::sync::{Arc, Mutex};
 let contracts: Arc<Mutex<HashMap<i32, Contract>>> = Arc::new(Mutex::new(HashMap::new()));
 let contracts_clone = contracts.clone();
 
-let client = FpssClient::connect(&creds, 1024, move |event: &FpssEvent| {
+tdx.start_streaming(move |event: &FpssEvent| {
     match event {
         FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
             contracts_clone.lock().unwrap().insert(*id, contract.clone());
@@ -156,21 +143,21 @@ let client = FpssClient::connect(&creds, 1024, move |event: &FpssEvent| {
 Or use the built-in method:
 
 ```rust
-let map: HashMap<i32, Contract> = client.contract_map();
+let map: HashMap<i32, Contract> = tdx.contract_map();
 ```
 
 ## Unsubscribe
 
 ```rust
-client.unsubscribe_quotes(&Contract::stock("AAPL"))?;
-client.unsubscribe_trades(&Contract::stock("MSFT"))?;
-client.unsubscribe_open_interest(&Contract::stock("AAPL"))?;
+tdx.unsubscribe_quotes(&Contract::stock("AAPL"))?;
+tdx.unsubscribe_trades(&Contract::stock("MSFT"))?;
+tdx.unsubscribe_open_interest(&Contract::stock("AAPL"))?;
 ```
 
-## Shutdown
+## Stop Streaming
 
 ```rust
-client.shutdown()?;
+tdx.stop_streaming();
 ```
 
 ## Reconnection
@@ -178,22 +165,19 @@ client.shutdown()?;
 ThetaDataDx uses manual reconnection. When the server disconnects, you receive an `FpssControl::Disconnected` event with a reason code.
 
 ```rust
-use thetadatadx::fpss::FpssClient;
+use thetadatadx::ThetaDataDx;
 use thetadatadx::types::RemoveReason;
 
-match FpssClient::reconnect_delay(reason) {
+match ThetaDataDx::reconnect_delay(reason) {
     None => {
         // Permanent error (bad credentials, etc.) -- do NOT retry
         eprintln!("Permanent disconnect: {:?}", reason);
     }
     Some(delay_ms) => {
-        // Reconnect after delay
-        let (new_client, new_events) = FpssClient::reconnect(
-            &creds,
-            previous_subscriptions,
-            delay_ms,
-            1024,
-        ).await?;
+        // Wait and reconnect streaming
+        std::thread::sleep(std::time::Duration::from_millis(delay_ms));
+        tdx.start_streaming(handler)?;
+        // Re-subscribe to previous subscriptions
     }
 }
 ```

@@ -95,14 +95,15 @@ Real-time market data via ThetaData's FPSS servers:
 
 int main() {
     auto creds = tdx::Credentials::from_file("creds.txt");
-    auto fpss = tdx::FpssClient::connect(creds, 1024);
+    auto client = tdx::Client::connect(creds, tdx::Config::production());
+    client.start_streaming(1024);
 
     // Subscribe to real-time quotes
-    int32_t req_id = fpss.subscribe_quotes("AAPL", tdx::SecType::Stock);
+    int32_t req_id = client.subscribe_quotes("AAPL", tdx::SecType::Stock);
     std::cout << "Subscribed (req_id=" << req_id << ")" << std::endl;
 
     // Poll for events
-    while (auto event = fpss.next_event(5000)) {  // 5s timeout
+    while (auto event = client.next_event(5000)) {  // 5s timeout
         std::cout << "Event type: " << event->type() << std::endl;
         if (event->type() == tdx::FpssEventType::Quote) {
             std::cout << "Quote: " << event->contract()
@@ -111,20 +112,20 @@ int main() {
         }
     }
 
-    fpss.shutdown();
+    client.stop_streaming();
 }
 ```
 
-### FpssClient API
+### Streaming API (on Client)
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `connect` | `(creds, buf_size) -> FpssClient` | Static factory, connect + auth |
+| `start_streaming` | `(buf_size) -> void` | Connect to FPSS streaming servers |
 | `subscribe_quotes` | `(root, sec_type) -> int32_t` | Subscribe to quotes |
 | `subscribe_trades` | `(root, sec_type) -> int32_t` | Subscribe to trades |
 | `subscribe_open_interest` | `(root, sec_type) -> int32_t` | Subscribe to open interest |
 | `next_event` | `(timeout_ms) -> unique_ptr<FpssEvent>` | Poll next event (nullptr on timeout) |
-| `shutdown` | `() -> void` | Graceful shutdown |
+| `stop_streaming` | `() -> void` | Graceful shutdown of streaming |
 
 ## Architecture
 

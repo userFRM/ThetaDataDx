@@ -8,25 +8,27 @@ Real-time market data via ThetaData's FPSS servers. The Go SDK uses a polling mo
 creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
 defer creds.Close()
 
-fpss, err := thetadatadx.FpssConnect(creds, 1024)
-if err != nil {
-    log.Fatal(err)
-}
-defer fpss.Shutdown()
+config := thetadatadx.ProductionConfig()
+defer config.Close()
+
+client, _ := thetadatadx.Connect(creds, config)
+defer client.Close()
+
+client.StartStreaming(1024)
 ```
 
 ## Subscribe
 
 ```go
 // Stock quotes
-reqID, _ := fpss.SubscribeQuotes("AAPL", thetadatadx.SecTypeStock)
+reqID, _ := client.SubscribeQuotes("AAPL", thetadatadx.SecTypeStock)
 fmt.Printf("Subscribed (req_id=%d)\n", reqID)
 
 // Stock trades
-fpss.SubscribeTrades("MSFT", thetadatadx.SecTypeStock)
+client.SubscribeTrades("MSFT", thetadatadx.SecTypeStock)
 
 // Open interest
-fpss.SubscribeOpenInterest("AAPL", thetadatadx.SecTypeStock)
+client.SubscribeOpenInterest("AAPL", thetadatadx.SecTypeStock)
 ```
 
 ### Security Type Constants
@@ -44,7 +46,7 @@ thetadatadx.SecTypeRate    // 3
 
 ```go
 for {
-    event, err := fpss.NextEvent(5000) // 5s timeout
+    event, err := client.NextEvent(5000) // 5s timeout
     if err != nil {
         log.Println("Error:", err)
         break
@@ -56,22 +58,22 @@ for {
 }
 ```
 
-## Shutdown
+## Stop Streaming
 
 ```go
-fpss.Shutdown()
+client.StopStreaming()
 ```
 
-## FpssClient Methods
+## Streaming Methods (on Client)
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `FpssConnect` | `(creds, bufSize) (*FpssClient, error)` | Connect and authenticate |
+| `StartStreaming` | `(bufSize) error` | Connect to FPSS streaming servers |
 | `SubscribeQuotes` | `(root, secType) (int32, error)` | Subscribe to quotes |
 | `SubscribeTrades` | `(root, secType) (int32, error)` | Subscribe to trades |
 | `SubscribeOpenInterest` | `(root, secType) (int32, error)` | Subscribe to OI |
 | `NextEvent` | `(timeoutMs) (*FpssEvent, error)` | Poll next event |
-| `Shutdown` | `() error` | Graceful shutdown |
+| `StopStreaming` | `() error` | Graceful shutdown of streaming |
 
 ## Complete Example
 
@@ -89,19 +91,23 @@ func main() {
     creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
     defer creds.Close()
 
-    fpss, err := thetadatadx.FpssConnect(creds, 1024)
+    config := thetadatadx.ProductionConfig()
+    defer config.Close()
+
+    client, err := thetadatadx.Connect(creds, config)
     if err != nil {
         log.Fatal(err)
     }
-    defer fpss.Shutdown()
+    defer client.Close()
 
-    // Subscribe to quotes and trades
-    fpss.SubscribeQuotes("AAPL", thetadatadx.SecTypeStock)
-    fpss.SubscribeTrades("AAPL", thetadatadx.SecTypeStock)
+    // Start streaming and subscribe
+    client.StartStreaming(1024)
+    client.SubscribeQuotes("AAPL", thetadatadx.SecTypeStock)
+    client.SubscribeTrades("AAPL", thetadatadx.SecTypeStock)
 
     // Process events
     for {
-        event, err := fpss.NextEvent(5000)
+        event, err := client.NextEvent(5000)
         if err != nil {
             log.Println("Error:", err)
             break
@@ -111,5 +117,7 @@ func main() {
         }
         fmt.Printf("Event: %+v\n", event)
     }
+
+    client.StopStreaming()
 }
 ```

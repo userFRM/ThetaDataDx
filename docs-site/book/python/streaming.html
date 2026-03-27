@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-0a611890.js";
+            window.path_to_searchindex_js = "../searchindex-7f7d49b5.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-4b833958.js"></script>
@@ -183,15 +183,17 @@
                         <h1 id="real-time-streaming-python"><a class="header" href="#real-time-streaming-python">Real-Time Streaming (Python)</a></h1>
 <p>Real-time market data via ThetaData’s FPSS servers. The Python SDK uses a polling model with <code>next_event()</code>.</p>
 <h2 id="connect"><a class="header" href="#connect">Connect</a></h2>
-<pre><code class="language-python">from thetadatadx import Credentials, FpssClient
+<pre><code class="language-python">from thetadatadx import Credentials, Config, ThetaDataDx
 
 creds = Credentials.from_file("creds.txt")
-fpss = FpssClient(creds, buffer_size=1024)
+tdx = ThetaDataDx(creds, Config.production())
+
+tdx.start_streaming()
 </code></pre>
 <h2 id="subscribe"><a class="header" href="#subscribe">Subscribe</a></h2>
-<pre><code class="language-python">fpss.subscribe("AAPL", "QUOTE")
-fpss.subscribe("MSFT", "TRADE")
-fpss.subscribe("SPY", "OI")
+<pre><code class="language-python">tdx.subscribe_quotes("AAPL")
+tdx.subscribe_trades("MSFT")
+tdx.subscribe_open_interest("SPY")
 </code></pre>
 <h2 id="receive-events"><a class="header" href="#receive-events">Receive Events</a></h2>
 <p>Events are returned as Python dicts with a <code>"type"</code> field. <code>next_event()</code> returns <code>None</code> on timeout.</p>
@@ -199,7 +201,7 @@ fpss.subscribe("SPY", "OI")
 contracts = {}
 
 while True:
-    event = fpss.next_event(timeout_ms=5000)
+    event = tdx.next_event(timeout_ms=5000)
     if event is None:
         continue  # timeout, no event
 
@@ -235,20 +237,22 @@ while True:
         print(f"Disconnected: {event['reason']}")
         break
 </code></pre>
-<h2 id="shutdown"><a class="header" href="#shutdown">Shutdown</a></h2>
-<pre><code class="language-python">fpss.shutdown()
+<h2 id="stop-streaming"><a class="header" href="#stop-streaming">Stop Streaming</a></h2>
+<pre><code class="language-python">tdx.stop_streaming()
 </code></pre>
-<h2 id="fpssclient-methods"><a class="header" href="#fpssclient-methods">FpssClient Methods</a></h2>
+<h2 id="streaming-methods-on-thetadatadx"><a class="header" href="#streaming-methods-on-thetadatadx">Streaming Methods (on ThetaDataDx)</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Method</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>FpssClient(creds, buffer_size=1024)</code></td><td>Connect and authenticate</td></tr>
-<tr><td><code>subscribe(symbol, data_type)</code></td><td>Subscribe (<code>"QUOTE"</code>, <code>"TRADE"</code>, <code>"OI"</code>)</td></tr>
+<tr><td><code>start_streaming()</code></td><td>Connect to FPSS streaming servers</td></tr>
+<tr><td><code>subscribe_quotes(symbol)</code></td><td>Subscribe to quote data</td></tr>
+<tr><td><code>subscribe_trades(symbol)</code></td><td>Subscribe to trade data</td></tr>
+<tr><td><code>subscribe_open_interest(symbol)</code></td><td>Subscribe to open interest</td></tr>
 <tr><td><code>next_event(timeout_ms=5000)</code></td><td>Poll next event (dict or <code>None</code>)</td></tr>
-<tr><td><code>shutdown()</code></td><td>Graceful shutdown</td></tr>
+<tr><td><code>stop_streaming()</code></td><td>Graceful shutdown of streaming</td></tr>
 </tbody>
 </table>
 </div>
@@ -285,29 +289,32 @@ while True:
 </table>
 </div>
 <h2 id="complete-example"><a class="header" href="#complete-example">Complete Example</a></h2>
-<pre><code class="language-python">from thetadatadx import Credentials, FpssClient
+<pre><code class="language-python">from thetadatadx import Credentials, Config, ThetaDataDx
 import signal
 import sys
 
 creds = Credentials.from_file("creds.txt")
-fpss = FpssClient(creds, buffer_size=1024)
+tdx = ThetaDataDx(creds, Config.production())
+
+# Start streaming
+tdx.start_streaming()
 
 # Graceful shutdown on Ctrl+C
 def shutdown_handler(sig, frame):
-    fpss.shutdown()
+    tdx.stop_streaming()
     sys.exit(0)
 
 signal.signal(signal.SIGINT, shutdown_handler)
 
 # Subscribe to multiple streams
-fpss.subscribe("AAPL", "QUOTE")
-fpss.subscribe("AAPL", "TRADE")
-fpss.subscribe("MSFT", "QUOTE")
+tdx.subscribe_quotes("AAPL")
+tdx.subscribe_trades("AAPL")
+tdx.subscribe_quotes("MSFT")
 
 contracts = {}
 
 while True:
-    event = fpss.next_event(timeout_ms=5000)
+    event = tdx.next_event(timeout_ms=5000)
     if event is None:
         continue
 
@@ -323,7 +330,7 @@ while True:
         print(f"Disconnected: {event['reason']}")
         break
 
-fpss.shutdown()
+tdx.stop_streaming()
 </code></pre>
 
                     </main>

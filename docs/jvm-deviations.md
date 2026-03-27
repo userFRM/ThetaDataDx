@@ -139,6 +139,14 @@ As of v1.2.0:
 | **Source** | `FPSSClient` internal event handling | `fpss/mod.rs: FpssEvent, FpssData, FpssControl` | |
 | **Rationale** | Java handles all events through a single dispatch path. The Rust split enables exhaustive `match` on data-only events (Quote, Trade, OpenInterest, Ohlcvc) without touching lifecycle events, and vice versa. This is an intentional API improvement — the wire format is unchanged. |
 
+### Unified Connection Model: Embedded Library vs Standalone Daemon
+
+| | Java | Rust | Impact |
+|---|---|---|---|
+| **Behavior** | Standalone JVM process (daemon) exposes REST (`:25503`) + WebSocket, user code connects over HTTP/WS | `ThetaDataDx::connect()` embeds auth + MDDS + FPSS directly in the user's process | Same connection longevity, no IPC overhead |
+| **Source** | `Main.java` + `HttpServer` + `FPSSClient` | `unified.rs: ThetaDataDx` | |
+| **Rationale** | The Java terminal launches as a long-running daemon: it authenticates once, holds MDDS (gRPC) and FPSS (TCP) connections open, and stays alive until the user kills the process. `ThetaDataDx::connect()` replicates exactly this longevity -- one auth call, persistent gRPC channel, lazy FPSS connection that stays alive until `stop_streaming()` or `Drop`. The difference is architectural, not behavioral: Java interposes an HTTP/WS layer between the user and the wire protocol (adding serialization overhead and an extra process), while `ThetaDataDx` gives the user direct in-process access to both historical and streaming data through a single object. Historical queries are available immediately via `Deref<Target=DirectClient>`. Streaming connects lazily on the first `start_streaming(handler)` call and persists until explicitly stopped -- matching the Java terminal's "launch once, use forever" model without the JVM. |
+
 ### Streaming `_stream` Endpoint Variants (Intentional Improvement)
 
 | | Java | Rust | Impact |

@@ -187,8 +187,8 @@ External apps (Python, Excel, browsers)
     |
 thetadatadx-server (Rust binary)
     |
-    |--- DirectClient (MDDS gRPC) for historical data
-    |--- FpssClient (FPSS TCP) for real-time streaming
+    |--- ThetaDataDx (MDDS gRPC + FPSS TCP)
+    |    historical data + real-time streaming
     |
 ThetaData upstream servers (NJ datacenter)
 ```

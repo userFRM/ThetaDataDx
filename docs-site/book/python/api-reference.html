@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-0a611890.js";
+            window.path_to_searchindex_js = "../searchindex-7f7d49b5.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-4b833958.js"></script>
@@ -193,8 +193,8 @@ creds = Credentials("user@example.com", "password")
 <pre><code class="language-python">config = Config.production()  # ThetaData NJ production servers
 config = Config.dev()         # dev servers with shorter timeouts
 </code></pre>
-<h2 id="directclient"><a class="header" href="#directclient">DirectClient</a></h2>
-<pre><code class="language-python">client = DirectClient(creds, Config.production())
+<h2 id="thetadatadx"><a class="header" href="#thetadatadx">ThetaDataDx</a></h2>
+<pre><code class="language-python">tdx = ThetaDataDx(creds, Config.production())
 </code></pre>
 <p>All methods return lists of dicts. All methods also have <code>_df</code> variants returning pandas DataFrames.</p>
 <h3 id="stock-methods-14"><a class="header" href="#stock-methods-14">Stock Methods (14)</a></h3>
@@ -331,8 +331,11 @@ eod = client.stock_history_eod("AAPL", "20240101", "20240301")
 df = to_polars(eod)
 </code></pre>
 <p>Requires <code>pip install thetadatadx[polars]</code>.</p>
-<h2 id="fpssclient"><a class="header" href="#fpssclient">FpssClient</a></h2>
-<pre><code class="language-python">fpss = FpssClient(creds, buffer_size=1024)
+<h2 id="streaming-via-thetadatadx"><a class="header" href="#streaming-via-thetadatadx">Streaming (via ThetaDataDx)</a></h2>
+<pre><code class="language-python">tdx.start_streaming()
+tdx.subscribe_quotes("AAPL")
+event = tdx.next_event(timeout_ms=5000)
+tdx.stop_streaming()
 </code></pre>
 <div class="table-wrapper">
 <table>
@@ -340,9 +343,11 @@ df = to_polars(eod)
 <tr><th>Method</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>subscribe(symbol, data_type)</code></td><td>Subscribe (<code>"QUOTE"</code>, <code>"TRADE"</code>, <code>"OI"</code>)</td></tr>
+<tr><td><code>start_streaming()</code></td><td>Connect to FPSS streaming servers</td></tr>
+<tr><td><code>subscribe_quotes(symbol)</code></td><td>Subscribe to quote data</td></tr>
+<tr><td><code>subscribe_trades(symbol)</code></td><td>Subscribe to trade data</td></tr>
 <tr><td><code>next_event(timeout_ms=5000)</code></td><td>Poll next event (dict or <code>None</code>)</td></tr>
-<tr><td><code>shutdown()</code></td><td>Graceful shutdown</td></tr>
+<tr><td><code>stop_streaming()</code></td><td>Graceful shutdown of streaming</td></tr>
 </tbody>
 </table>
 </div>

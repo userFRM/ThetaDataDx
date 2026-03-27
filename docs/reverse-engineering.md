@@ -138,7 +138,7 @@ All constants extracted from the decompiled source:
 | gRPC port | `443` | `MddsConnectionManager` |
 | TLS | `true` (standard gRPC-over-TLS) | `ChannelProvider` |
 | gRPC service | `BetaEndpoints.BetaThetaTerminal` | `v3_endpoints.proto` |
-| RPC count | 60 methods (all server-streaming) — thetadatadx wraps all 60 as 61 DirectClient methods via `define_endpoint!` macro | `v3_endpoints.proto` |
+| RPC count | 60 methods (all server-streaming) — thetadatadx wraps all 60 as 61 `ThetaDataDx` methods via `define_endpoint!` macro | `v3_endpoints.proto` |
 
 ### FPSS (Real-time TCP)
 

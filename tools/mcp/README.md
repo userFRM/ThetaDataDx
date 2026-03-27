@@ -9,12 +9,12 @@ LLM (Claude / Codex / Gemini / Cursor)
     |  JSON-RPC 2.0 over stdio
     v
 thetadatadx-mcp (long-running process)
-    |  Single DirectClient, authenticated once at startup
+    |  Single ThetaDataDx client, authenticated once at startup
     v
 ThetaData servers (MDDS gRPC + FPSS TCP)
 ```
 
-The server authenticates **once** at startup, keeps the `DirectClient` alive, and serves tool calls instantly with zero per-request auth overhead.
+The server authenticates **once** at startup, keeps the `ThetaDataDx` client alive, and serves tool calls instantly with zero per-request auth overhead.
 
 ## Install
 

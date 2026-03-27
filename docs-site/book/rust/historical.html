@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-0a611890.js";
+            window.path_to_searchindex_js = "../searchindex-7f7d49b5.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-4b833958.js"></script>
@@ -181,14 +181,14 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="historical-data-rust"><a class="header" href="#historical-data-rust">Historical Data (Rust)</a></h1>
-<p>All historical data is accessed through <code>DirectClient</code>, which communicates over gRPC with ThetaData’s MDDS servers.</p>
+<p>All historical data is accessed through <code>ThetaDataDx</code>, which communicates over gRPC with ThetaData’s MDDS servers.</p>
 <h2 id="connecting"><a class="header" href="#connecting">Connecting</a></h2>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>use thetadatadx::{DirectClient, Credentials, DirectConfig};
+</span>use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
 
 let creds = Credentials::from_file("creds.txt")?;
-let client = DirectClient::connect(&amp;creds, DirectConfig::production()).await?;
+let client = ThetaDataDx::connect(&amp;creds, DirectConfig::production()).await?;
 <span class="boring">}</span></code></pre>
 <h2 id="date-format"><a class="header" href="#date-format">Date Format</a></h2>
 <p>All dates are <code>YYYYMMDD</code> strings: <code>"20240315"</code> for March 15, 2024.</p>

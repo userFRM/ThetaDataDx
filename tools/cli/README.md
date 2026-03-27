@@ -130,7 +130,7 @@ tdx stock history_eod AAPL 20240101 20240301 --format csv      # CSV
 
 ## Endpoint coverage
 
-All 61 DirectClient endpoints are exposed, plus 2 offline commands, organized by category:
+All 61 ThetaDataDx endpoints are exposed, plus 2 offline commands, organized by category:
 
 | Category | Count | Subcommands |
 |----------|-------|-------------|

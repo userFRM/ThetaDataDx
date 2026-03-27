@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-0a611890.js";
+            window.path_to_searchindex_js = "../searchindex-7f7d49b5.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-4b833958.js"></script>
@@ -182,14 +182,14 @@
                     <main>
                         <h1 id="api-reference-rust"><a class="header" href="#api-reference-rust">API Reference (Rust)</a></h1>
 <p>Complete type and method listing for the <code>thetadatadx</code> crate.</p>
-<h2 id="directclient"><a class="header" href="#directclient">DirectClient</a></h2>
-<p>The primary client for historical data via MDDS/gRPC.</p>
+<h2 id="thetadatadx"><a class="header" href="#thetadatadx">ThetaDataDx</a></h2>
+<p>The unified client for all ThetaData access – historical data via MDDS/gRPC and real-time streaming via FPSS/TCP.</p>
 <h3 id="construction"><a class="header" href="#construction">Construction</a></h3>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>pub async fn connect(creds: &amp;Credentials, config: DirectConfig) -&gt; Result&lt;Self, Error&gt;
 <span class="boring">}</span></code></pre>
-<p>Authenticates against the Nexus HTTP API to obtain a session UUID, then opens a gRPC channel (TLS) to the MDDS server.</p>
+<p>Authenticates against the Nexus HTTP API to obtain a session UUID, then opens a gRPC channel (TLS) to the MDDS server. Streaming is started lazily via <code>start_streaming()</code>.</p>
 <h3 id="accessor-methods"><a class="header" href="#accessor-methods">Accessor Methods</a></h3>
 <div class="table-wrapper">
 <table>
@@ -233,22 +233,15 @@
 </span>pub async fn raw_query&lt;F, Fut&gt;(&amp;self, call: F) -&gt; Result&lt;proto::DataTable, Error&gt;
 <span class="boring">}</span></code></pre>
 <hr>
-<h2 id="fpssclient"><a class="header" href="#fpssclient">FpssClient</a></h2>
-<p>Real-time streaming client via FPSS TLS/TCP.</p>
-<h3 id="construction-1"><a class="header" href="#construction-1">Construction</a></h3>
+<h2 id="streaming-fpss"><a class="header" href="#streaming-fpss">Streaming (FPSS)</a></h2>
+<p>Real-time streaming via FPSS TLS/TCP, accessed through <code>ThetaDataDx</code>.</p>
+<h3 id="starting-the-stream"><a class="header" href="#starting-the-stream">Starting the Stream</a></h3>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>pub fn connect(
-    creds: &amp;Credentials,
-    event_buffer: usize,
+</span>pub fn start_streaming(
+    &amp;self,
     callback: impl Fn(&amp;FpssEvent) + Send + 'static,
-) -&gt; Result&lt;Self, Error&gt;
-
-pub fn connect_no_ohlcvc(
-    creds: &amp;Credentials,
-    event_buffer: usize,
-    callback: impl Fn(&amp;FpssEvent) + Send + 'static,
-) -&gt; Result&lt;Self, Error&gt;
+) -&gt; Result&lt;(), Error&gt;
 <span class="boring">}</span></code></pre>
 <h3 id="subscription-methods"><a class="header" href="#subscription-methods">Subscription Methods</a></h3>
 <div class="table-wrapper">
@@ -285,12 +278,6 @@ pub fn connect_no_ohlcvc(
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>pub fn reconnect_delay(reason: RemoveReason) -&gt; Option&lt;u64&gt;
-pub async fn reconnect(
-    creds: &amp;Credentials,
-    previous_subs: Vec&lt;(SubscriptionKind, Contract)&gt;,
-    delay_ms: u64,
-    event_buffer: usize,
-) -&gt; Result&lt;(FpssClient, mpsc::Receiver&lt;FpssEvent&gt;), Error&gt;
 <span class="boring">}</span></code></pre>
 <hr>
 <h2 id="credentials"><a class="header" href="#credentials">Credentials</a></h2>

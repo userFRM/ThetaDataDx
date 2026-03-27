@@ -107,16 +107,16 @@ auto g = tdx::all_greeks(spot, strike, rate, div_yield, tte, price, is_call);
 auto [iv, err] = tdx::implied_volatility(spot, strike, rate, div_yield, tte, price, is_call);
 ```
 
-## FpssClient
+## Streaming (via Client)
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `connect` | `(creds, buf_size) -> FpssClient` | Static factory |
+| `start_streaming` | `(buf_size) -> void` | Connect to FPSS streaming servers |
 | `subscribe_quotes` | `(root, sec_type) -> int32_t` | Subscribe to quotes |
 | `subscribe_trades` | `(root, sec_type) -> int32_t` | Subscribe to trades |
 | `subscribe_open_interest` | `(root, sec_type) -> int32_t` | Subscribe to OI |
 | `next_event` | `(timeout_ms) -> unique_ptr<FpssEvent>` | Poll next event |
-| `shutdown` | `() -> void` | Graceful shutdown |
+| `stop_streaming` | `() -> void` | Graceful shutdown of streaming |
 
 ## Tick Types
 

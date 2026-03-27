@@ -123,11 +123,11 @@ g, err := thetadatadx.AllGreeks(spot, strike, rate, divYield, tte, price, isCall
 iv, ivErr, err := thetadatadx.ImpliedVolatility(spot, strike, rate, divYield, tte, price, isCall)
 ```
 
-## FpssClient
+## Streaming (via Client)
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `FpssConnect` | `(creds, bufSize) (*FpssClient, error)` | Connect and authenticate |
+| `StartStreaming` | `(bufSize) error` | Connect to FPSS streaming servers |
 | `SubscribeQuotes` | `(root, secType) (int32, error)` | Subscribe to quotes |
 | `SubscribeTrades` | `(root, secType) (int32, error)` | Subscribe to trades |
 | `SubscribeOpenInterest` | `(root, secType) (int32, error)` | Subscribe to OI |

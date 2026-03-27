@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-0a611890.js";
+            window.path_to_searchindex_js = "../searchindex-7f7d49b5.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-4b833958.js"></script>
@@ -293,19 +293,19 @@ auto g = tdx::all_greeks(spot, strike, rate, div_yield, tte, price, is_call);
 // Just IV
 auto [iv, err] = tdx::implied_volatility(spot, strike, rate, div_yield, tte, price, is_call);
 </code></pre>
-<h2 id="fpssclient"><a class="header" href="#fpssclient">FpssClient</a></h2>
+<h2 id="streaming-via-client"><a class="header" href="#streaming-via-client">Streaming (via Client)</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Method</th><th>Signature</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>connect</code></td><td><code>(creds, buf_size) -&gt; FpssClient</code></td><td>Static factory</td></tr>
+<tr><td><code>start_streaming</code></td><td><code>(buf_size) -&gt; void</code></td><td>Connect to FPSS streaming servers</td></tr>
 <tr><td><code>subscribe_quotes</code></td><td><code>(root, sec_type) -&gt; int32_t</code></td><td>Subscribe to quotes</td></tr>
 <tr><td><code>subscribe_trades</code></td><td><code>(root, sec_type) -&gt; int32_t</code></td><td>Subscribe to trades</td></tr>
 <tr><td><code>subscribe_open_interest</code></td><td><code>(root, sec_type) -&gt; int32_t</code></td><td>Subscribe to OI</td></tr>
 <tr><td><code>next_event</code></td><td><code>(timeout_ms) -&gt; unique_ptr&lt;FpssEvent&gt;</code></td><td>Poll next event</td></tr>
-<tr><td><code>shutdown</code></td><td><code>() -&gt; void</code></td><td>Graceful shutdown</td></tr>
+<tr><td><code>stop_streaming</code></td><td><code>() -&gt; void</code></td><td>Graceful shutdown of streaming</td></tr>
 </tbody>
 </table>
 </div>

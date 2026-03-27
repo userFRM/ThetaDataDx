@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-0a611890.js";
+            window.path_to_searchindex_js = "../searchindex-7f7d49b5.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-4b833958.js"></script>
@@ -213,22 +213,22 @@ trade_greeks = client.option_history_trade_greeks_all("SPY", "20240419", "500000
                                                        "20240315")
 </code></pre>
 <h3 id="full-chain-scan-with-dataframes"><a class="header" href="#full-chain-scan-with-dataframes">Full Chain Scan with DataFrames</a></h3>
-<pre><code class="language-python">from thetadatadx import Credentials, Config, DirectClient
+<pre><code class="language-python">from thetadatadx import Credentials, Config, ThetaDataDx
 
 creds = Credentials.from_file("creds.txt")
-client = DirectClient(creds, Config.production())
+tdx = ThetaDataDx(creds, Config.production())
 
 # Get nearest expiration
-exps = client.option_list_expirations("SPY")
+exps = tdx.option_list_expirations("SPY")
 exp = exps[0]
 
 # Get all strikes
-strikes = client.option_list_strikes("SPY", exp)
+strikes = tdx.option_list_strikes("SPY", exp)
 
 # Fetch EOD data for all calls
 chain = []
 for strike in strikes:
-    eod = client.option_history_eod("SPY", exp, strike, "C",
+    eod = tdx.option_history_eod("SPY", exp, strike, "C",
                                     "20240301", "20240301")
     if eod:
         eod[0]["strike"] = strike

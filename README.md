@@ -53,15 +53,15 @@ pip install thetadatadx[pandas]
 > Create a `creds.txt` file with your ThetaData email on line 1 and password on line 2. This is the same format the Java terminal uses.
 
 ```rust
-use thetadatadx::{DirectClient, Credentials, DirectConfig};
+use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
-    let client = DirectClient::connect(&creds, DirectConfig::production()).await?;
+    let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 
     // Fetch end-of-day stock data
-    let eod = client.stock_history_eod("AAPL", "20240101", "20240301").await?;
+    let eod = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
     for tick in &eod {
         println!("{}: O={} H={} L={} C={} V={}",
             tick.date, tick.open_price(), tick.high_price(),
@@ -69,7 +69,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
     }
 
     // List option expirations
-    let exps = client.option_list_expirations("SPY").await?;
+    let exps = tdx.option_list_expirations("SPY").await?;
     println!("SPY expirations: {:?}", &exps[..5.min(exps.len())]);
 
     Ok(())
@@ -82,14 +82,17 @@ async fn main() -> Result<(), thetadatadx::Error> {
 > FPSS streaming connects to ThetaData's dedicated streaming servers via TLS/TCP. The client automatically sends heartbeat pings every 100ms as required by the protocol.
 
 ```rust
-use thetadatadx::auth::Credentials;
-use thetadatadx::fpss::{FpssClient, FpssData, FpssControl, FpssEvent};
+use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
+use thetadatadx::fpss::{FpssData, FpssControl, FpssEvent};
 use thetadatadx::fpss::protocol::Contract;
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
-    let client = FpssClient::connect(&creds, 1024, |event: &FpssEvent| {
+    let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+
+    // Start streaming with a callback
+    tdx.start_streaming(|event: &FpssEvent| {
         match event {
             FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, .. }) => {
                 println!("Quote: contract={contract_id} bid={bid} ask={ask}");
@@ -104,11 +107,12 @@ async fn main() -> Result<(), thetadatadx::Error> {
         }
     })?;
 
-    let req_id = client.subscribe_quotes(&Contract::stock("AAPL"))?;
-    println!("Subscribed (req_id={req_id})");
+    tdx.subscribe_quotes(&Contract::stock("AAPL"))?;
+    println!("Subscribed to AAPL quotes");
 
     // Block until shutdown
     std::thread::park();
+    tdx.stop_streaming();
     Ok(())
 }
 ```
@@ -237,7 +241,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
 ## Configuration
 
 ```rust
-use thetadatadx::DirectConfig;
+use thetadatadx::{ThetaDataDx, DirectConfig};
 
 // Production (ThetaData NJ datacenter, gRPC over TLS)
 let config = DirectConfig::production();

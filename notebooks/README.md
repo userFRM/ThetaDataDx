@@ -57,7 +57,7 @@ creds = Credentials("your-email@example.com", "your-password")
 The entry point. Covers installation, authentication, and a tour of the core API surface:
 
 1. Install `thetadatadx` with pandas support
-2. Create `Credentials` and connect a `DirectClient` to production servers
+2. Create `Credentials` and connect a `ThetaDataDx` client to production servers
 3. List all available stock symbols
 4. Fetch AAPL end-of-day data and convert to a pandas DataFrame
 5. Fetch 1-minute OHLC bars for a single trading day
@@ -101,7 +101,7 @@ Three-dimensional visualization of the options Greeks:
 
 Introduction to the FPSS (Fast Push Streaming Service) client:
 
-1. Connect `FpssClient` with credentials (persistent TCP connection)
+1. Start streaming via `ThetaDataDx` (persistent TCP connection)
 2. Subscribe to AAPL quote updates
 3. Collect quote events over a 10-second window
 4. Display quote updates in a table

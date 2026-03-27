@@ -57,7 +57,7 @@ MDDS is a standard gRPC service over TLS, operating on port 443.
 
 - **Package**: `BetaEndpoints`
 - **Service**: `BetaThetaTerminal`
-- **Methods**: 60 RPCs, all server-streaming (returning `stream ResponseData`). thetadatadx wraps all 60 gRPC RPCs plus 1 convenience range-query variant = **61 DirectClient methods**, generated via a declarative `define_endpoint!` macro.
+- **Methods**: 60 RPCs, all server-streaming (returning `stream ResponseData`). thetadatadx wraps all 60 gRPC RPCs plus 1 convenience range-query variant = **61 methods** on `ThetaDataDx`, generated via a declarative `define_endpoint!` macro (internal implementation uses `DirectClient` via `Deref`).
 - **Categories**: Stock, Option, Index, Interest Rate, Calendar -- each with List, History, Snapshot, AtTime, and Greeks sub-categories
 
 ### Request Structure
@@ -98,7 +98,7 @@ The gRPC channel configures `initial_connection_window_size` and `initial_stream
 
 ### Concurrent Request Limiting
 
-DirectClient enforces a semaphore (`mdds_concurrent_requests`) that limits the number of in-flight gRPC requests. The default is dynamically derived from the user's subscription tier via `2^tier` (matching the Java terminal's concurrency model), but can be overridden in `DirectConfig`. Each endpoint method acquires a permit before sending and releases it when the response is fully consumed.
+ThetaDataDx enforces a semaphore (`mdds_concurrent_requests`) that limits the number of in-flight gRPC requests. The default is dynamically derived from the user's subscription tier via `2^tier` (matching the Java terminal's concurrency model), but can be overridden in `DirectConfig`. Each endpoint method acquires a permit before sending and releases it when the response is fully consumed.
 
 ### Response Structure
 
@@ -303,11 +303,11 @@ The `OhlcvcAccumulator` derives OHLCVC bars from trade ticks in real time. Behav
 
 This matches the Java terminal's behavior: OHLCVC bars are never emitted purely from trades without a server-provided seed.
 
-FPSS streaming is available in all SDKs:
-- **Rust**: `FpssClient::connect()` returns a disruptor-backed event receiver
-- **Python**: `FpssClient` class with `subscribe()`, `next_event()`, `shutdown()`
-- **Go**: `FpssClient` struct wrapping 7 FFI FPSS functions
-- **C++**: `FpssClient` RAII class wrapping 7 FFI FPSS functions
+FPSS streaming is available in all SDKs through the unified `ThetaDataDx` client:
+- **Rust**: `tdx.start_streaming(callback)` launches a disruptor-backed event receiver
+- **Python**: `tdx.start_streaming()`, `tdx.subscribe_quotes()`, `tdx.next_event()`, `tdx.stop_streaming()`
+- **Go**: streaming methods on the `Client` struct wrapping 7 FFI FPSS functions
+- **C++**: streaming methods on the `Client` RAII class wrapping 7 FFI FPSS functions
 - **C FFI**: 7 `extern "C"` functions (`fpss_connect`, `fpss_subscribe_*`, `fpss_next_event`, `fpss_shutdown`, `fpss_free_event`)
 
 ### Reconnection
@@ -465,7 +465,7 @@ graph TD
         end
 
         subgraph fpss["fpss/"]
-            F_MOD["mod.rs<br/><i>FpssClient</i>"]
+            F_MOD["mod.rs<br/><i>FpssClient (internal)</i>"]
             F_CONN["connection.rs<br/><i>TLS/TCP failover</i>"]
             F_FRAME["framing.rs<br/><i>wire frames</i>"]
             F_PROTO["protocol.rs<br/><i>contracts, messages</i>"]
@@ -477,7 +477,7 @@ graph TD
             T_TICK["tick.rs<br/><i>Trade/Quote/OHLC/EOD</i>"]
         end
 
-        DIRECT["direct.rs<br/><i>DirectClient — 61 endpoints<br/>via define_endpoint! macro</i>"]
+        DIRECT["direct.rs<br/><i>DirectClient (internal) — 61 endpoints<br/>via define_endpoint! macro</i>"]
         CONFIG["config.rs<br/><i>DirectConfig</i>"]
         DECODE["decode.rs<br/><i>zstd + DataTable</i>"]
         GREEKS["greeks.rs<br/><i>22 Greeks + IV</i>"]

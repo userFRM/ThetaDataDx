@@ -10,7 +10,7 @@ All notebooks are in the `notebooks/` directory of the repository.
 
 **[`101_getting_started.ipynb`](https://github.com/userFRM/ThetaDataDx/blob/main/notebooks/101_getting_started.ipynb)**
 
-Authentication, connecting, your first EOD and OHLC queries. Covers `Credentials`, `Config`, `DirectClient`, and basic DataFrame conversion.
+Authentication, connecting, your first EOD and OHLC queries. Covers `Credentials`, `Config`, `ThetaDataDx`, and basic DataFrame conversion.
 
 ### 102 -- Historical Analysis
 

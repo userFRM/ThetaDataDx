@@ -2,9 +2,9 @@
 
 Complete type and method listing for the `thetadatadx` crate.
 
-## DirectClient
+## ThetaDataDx
 
-The primary client for historical data via MDDS/gRPC.
+The unified client for all ThetaData access -- historical data via MDDS/gRPC and real-time streaming via FPSS/TCP.
 
 ### Construction
 
@@ -12,7 +12,7 @@ The primary client for historical data via MDDS/gRPC.
 pub async fn connect(creds: &Credentials, config: DirectConfig) -> Result<Self, Error>
 ```
 
-Authenticates against the Nexus HTTP API to obtain a session UUID, then opens a gRPC channel (TLS) to the MDDS server.
+Authenticates against the Nexus HTTP API to obtain a session UUID, then opens a gRPC channel (TLS) to the MDDS server. Streaming is started lazily via `start_streaming()`.
 
 ### Accessor Methods
 
@@ -58,24 +58,17 @@ pub async fn raw_query<F, Fut>(&self, call: F) -> Result<proto::DataTable, Error
 
 ---
 
-## FpssClient
+## Streaming (FPSS)
 
-Real-time streaming client via FPSS TLS/TCP.
+Real-time streaming via FPSS TLS/TCP, accessed through `ThetaDataDx`.
 
-### Construction
+### Starting the Stream
 
 ```rust
-pub fn connect(
-    creds: &Credentials,
-    event_buffer: usize,
+pub fn start_streaming(
+    &self,
     callback: impl Fn(&FpssEvent) + Send + 'static,
-) -> Result<Self, Error>
-
-pub fn connect_no_ohlcvc(
-    creds: &Credentials,
-    event_buffer: usize,
-    callback: impl Fn(&FpssEvent) + Send + 'static,
-) -> Result<Self, Error>
+) -> Result<(), Error>
 ```
 
 ### Subscription Methods
@@ -103,12 +96,6 @@ pub fn connect_no_ohlcvc(
 
 ```rust
 pub fn reconnect_delay(reason: RemoveReason) -> Option<u64>
-pub async fn reconnect(
-    creds: &Credentials,
-    previous_subs: Vec<(SubscriptionKind, Contract)>,
-    delay_ms: u64,
-    event_buffer: usize,
-) -> Result<(FpssClient, mpsc::Receiver<FpssEvent>), Error>
 ```
 
 ---

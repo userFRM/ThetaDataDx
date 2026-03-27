@@ -19,10 +19,10 @@ config = Config.production()  # ThetaData NJ production servers
 config = Config.dev()         # dev servers with shorter timeouts
 ```
 
-## DirectClient
+## ThetaDataDx
 
 ```python
-client = DirectClient(creds, Config.production())
+tdx = ThetaDataDx(creds, Config.production())
 ```
 
 All methods return lists of dicts. All methods also have `_df` variants returning pandas DataFrames.
@@ -150,17 +150,22 @@ df = to_polars(eod)
 
 Requires `pip install thetadatadx[polars]`.
 
-## FpssClient
+## Streaming (via ThetaDataDx)
 
 ```python
-fpss = FpssClient(creds, buffer_size=1024)
+tdx.start_streaming()
+tdx.subscribe_quotes("AAPL")
+event = tdx.next_event(timeout_ms=5000)
+tdx.stop_streaming()
 ```
 
 | Method | Description |
 |--------|-------------|
-| `subscribe(symbol, data_type)` | Subscribe (`"QUOTE"`, `"TRADE"`, `"OI"`) |
+| `start_streaming()` | Connect to FPSS streaming servers |
+| `subscribe_quotes(symbol)` | Subscribe to quote data |
+| `subscribe_trades(symbol)` | Subscribe to trade data |
 | `next_event(timeout_ms=5000)` | Poll next event (dict or `None`) |
-| `shutdown()` | Graceful shutdown |
+| `stop_streaming()` | Graceful shutdown of streaming |
 
 ## Greeks Functions
 

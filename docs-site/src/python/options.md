@@ -47,22 +47,22 @@ trade_greeks = client.option_history_trade_greeks_all("SPY", "20240419", "500000
 ### Full Chain Scan with DataFrames
 
 ```python
-from thetadatadx import Credentials, Config, DirectClient
+from thetadatadx import Credentials, Config, ThetaDataDx
 
 creds = Credentials.from_file("creds.txt")
-client = DirectClient(creds, Config.production())
+tdx = ThetaDataDx(creds, Config.production())
 
 # Get nearest expiration
-exps = client.option_list_expirations("SPY")
+exps = tdx.option_list_expirations("SPY")
 exp = exps[0]
 
 # Get all strikes
-strikes = client.option_list_strikes("SPY", exp)
+strikes = tdx.option_list_strikes("SPY", exp)
 
 # Fetch EOD data for all calls
 chain = []
 for strike in strikes:
-    eod = client.option_history_eod("SPY", exp, strike, "C",
+    eod = tdx.option_history_eod("SPY", exp, strike, "C",
                                     "20240301", "20240301")
     if eod:
         eod[0]["strike"] = strike

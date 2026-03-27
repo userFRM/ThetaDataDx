@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "navy";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "searchindex-0a611890.js";
+            window.path_to_searchindex_js = "searchindex-7f7d49b5.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-4b833958.js"></script>
@@ -230,9 +230,9 @@ make
 <h2 id="architecture"><a class="header" href="#architecture">Architecture</a></h2>
 <pre><code>Your Application (Rust / Python / Go / C++)
     |
-    +-- DirectClient (MDDS) ---&gt; ThetaData gRPC servers (historical)
+    +-- ThetaDataDx (MDDS) ---&gt; ThetaData gRPC servers (historical)
     |
-    +-- FpssClient (FPSS) ----&gt; ThetaData TCP servers (real-time)
+    +-- ThetaDataDx (FPSS) ---&gt; ThetaData TCP servers (real-time)
     |
     +-- Greeks calculator -----&gt; Local computation (no network)
 </code></pre>
@@ -245,7 +245,7 @@ make
 <h2 id="installation"><a class="header" href="#installation">Installation</a></h2>
 <p>Add to your <code>Cargo.toml</code>:</p>
 <pre><code class="language-toml">[dependencies]
-thetadatadx = "2.0"
+thetadatadx = "3.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 </code></pre>
 <h2 id="credentials"><a class="header" href="#credentials">Credentials</a></h2>
@@ -254,7 +254,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 your-password
 </code></pre>
 <h2 id="first-query"><a class="header" href="#first-query">First Query</a></h2>
-<pre class="playground"><code class="language-rust">use thetadatadx::{DirectClient, Credentials, DirectConfig};
+<pre class="playground"><code class="language-rust">use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
 
 #[tokio::main]
 async fn main() -&gt; Result&lt;(), thetadatadx::Error&gt; {
@@ -262,7 +262,7 @@ async fn main() -&gt; Result&lt;(), thetadatadx::Error&gt; {
     let creds = Credentials::from_file("creds.txt")?;
 
     // Connect to ThetaData (authenticates automatically)
-    let client = DirectClient::connect(&amp;creds, DirectConfig::production()).await?;
+    let client = ThetaDataDx::connect(&amp;creds, DirectConfig::production()).await?;
 
     // Fetch end-of-day stock data
     let eod = client.stock_history_eod("AAPL", "20240101", "20240301").await?;
@@ -310,14 +310,14 @@ async fn main() -&gt; Result&lt;(), thetadatadx::Error&gt; {
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="historical-data-rust"><a class="header" href="#historical-data-rust">Historical Data (Rust)</a></h1>
-<p>All historical data is accessed through <code>DirectClient</code>, which communicates over gRPC with ThetaData’s MDDS servers.</p>
+<p>All historical data is accessed through <code>ThetaDataDx</code>, which communicates over gRPC with ThetaData’s MDDS servers.</p>
 <h2 id="connecting"><a class="header" href="#connecting">Connecting</a></h2>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>use thetadatadx::{DirectClient, Credentials, DirectConfig};
+</span>use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
 
 let creds = Credentials::from_file("creds.txt")?;
-let client = DirectClient::connect(&amp;creds, DirectConfig::production()).await?;
+let client = ThetaDataDx::connect(&amp;creds, DirectConfig::production()).await?;
 <span class="boring">}</span></code></pre>
 <h2 id="date-format"><a class="header" href="#date-format">Date Format</a></h2>
 <p>All dates are <code>YYYYMMDD</code> strings: <code>"20240315"</code> for March 15, 2024.</p>
@@ -630,13 +630,14 @@ let table: proto::DataTable = client.calendar_year("2024").await?;
 <h2 id="connect"><a class="header" href="#connect">Connect</a></h2>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>use thetadatadx::auth::Credentials;
-use thetadatadx::fpss::{FpssClient, FpssData, FpssControl, FpssEvent};
+</span>use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
+use thetadatadx::fpss::{FpssData, FpssControl, FpssEvent};
 use thetadatadx::fpss::protocol::Contract;
 
 let creds = Credentials::from_file("creds.txt")?;
+let tdx = ThetaDataDx::connect(&amp;creds, DirectConfig::production()).await?;
 
-let client = FpssClient::connect(&amp;creds, 1024, |event: &amp;FpssEvent| {
+tdx.start_streaming(|event: &amp;FpssEvent| {
     match event {
         FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, .. }) =&gt; {
             println!("Quote: contract={contract_id} bid={bid} ask={ask}");
@@ -651,44 +652,32 @@ let client = FpssClient::connect(&amp;creds, 1024, |event: &amp;FpssEvent| {
     }
 })?;
 <span class="boring">}</span></code></pre>
-<p>The <code>1024</code> parameter is the ring buffer size for event dispatch.</p>
-<h3 id="without-ohlcvc-derivation"><a class="header" href="#without-ohlcvc-derivation">Without OHLCVC Derivation</a></h3>
-<p>If you only need raw trades/quotes and want lower overhead:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>let client = FpssClient::connect_no_ohlcvc(&amp;creds, 1024, |event: &amp;FpssEvent| {
-    // No FpssData::Ohlcvc events will be emitted
-    match event {
-        FpssEvent::Data(FpssData::Trade { .. }) =&gt; { /* ... */ }
-        _ =&gt; {}
-    }
-})?;
-<span class="boring">}</span></code></pre>
+<p>The ring buffer size for event dispatch is configured via <code>DirectConfig</code>.</p>
 <h2 id="subscribe"><a class="header" href="#subscribe">Subscribe</a></h2>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// Stock quotes
-let req_id = client.subscribe_quotes(&amp;Contract::stock("AAPL"))?;
+let req_id = tdx.subscribe_quotes(&amp;Contract::stock("AAPL"))?;
 println!("Subscribed (req_id={req_id})");
 
 // Stock trades
-client.subscribe_trades(&amp;Contract::stock("MSFT"))?;
+tdx.subscribe_trades(&amp;Contract::stock("MSFT"))?;
 
 // Option quotes
 let opt = Contract::option("SPY", 20261218, true, 60000); // call, strike $600
-client.subscribe_quotes(&amp;opt)?;
+tdx.subscribe_quotes(&amp;opt)?;
 
 // Open interest
-client.subscribe_open_interest(&amp;Contract::stock("AAPL"))?;
+tdx.subscribe_open_interest(&amp;Contract::stock("AAPL"))?;
 
 // All trades for a security type
-client.subscribe_full_trades(SecType::Stock)?;
+tdx.subscribe_full_trades(SecType::Stock)?;
 <span class="boring">}</span></code></pre>
 <h2 id="receive-events"><a class="header" href="#receive-events">Receive Events</a></h2>
 <p>The callback fires on the ring buffer’s consumer thread. The v2.0.0 <code>FpssEvent</code> is split into <code>FpssData</code> and <code>FpssControl</code>:</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>let client = FpssClient::connect(&amp;creds, 1024, |event: &amp;FpssEvent| {
+</span>tdx.start_streaming(|event: &amp;FpssEvent| {
     match event {
         // --- Data events ---
         FpssEvent::Data(FpssData::Quote {
@@ -751,7 +740,7 @@ use std::sync::{Arc, Mutex};
 let contracts: Arc&lt;Mutex&lt;HashMap&lt;i32, Contract&gt;&gt;&gt; = Arc::new(Mutex::new(HashMap::new()));
 let contracts_clone = contracts.clone();
 
-let client = FpssClient::connect(&amp;creds, 1024, move |event: &amp;FpssEvent| {
+tdx.start_streaming(move |event: &amp;FpssEvent| {
     match event {
         FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) =&gt; {
             contracts_clone.lock().unwrap().insert(*id, contract.clone());
@@ -770,40 +759,37 @@ let client = FpssClient::connect(&amp;creds, 1024, move |event: &amp;FpssEvent| 
 <p>Or use the built-in method:</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>let map: HashMap&lt;i32, Contract&gt; = client.contract_map();
+</span>let map: HashMap&lt;i32, Contract&gt; = tdx.contract_map();
 <span class="boring">}</span></code></pre>
 <h2 id="unsubscribe"><a class="header" href="#unsubscribe">Unsubscribe</a></h2>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>client.unsubscribe_quotes(&amp;Contract::stock("AAPL"))?;
-client.unsubscribe_trades(&amp;Contract::stock("MSFT"))?;
-client.unsubscribe_open_interest(&amp;Contract::stock("AAPL"))?;
+</span>tdx.unsubscribe_quotes(&amp;Contract::stock("AAPL"))?;
+tdx.unsubscribe_trades(&amp;Contract::stock("MSFT"))?;
+tdx.unsubscribe_open_interest(&amp;Contract::stock("AAPL"))?;
 <span class="boring">}</span></code></pre>
-<h2 id="shutdown"><a class="header" href="#shutdown">Shutdown</a></h2>
+<h2 id="stop-streaming"><a class="header" href="#stop-streaming">Stop Streaming</a></h2>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>client.shutdown()?;
+</span>tdx.stop_streaming();
 <span class="boring">}</span></code></pre>
 <h2 id="reconnection"><a class="header" href="#reconnection">Reconnection</a></h2>
 <p>ThetaDataDx uses manual reconnection. When the server disconnects, you receive an <code>FpssControl::Disconnected</code> event with a reason code.</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>use thetadatadx::fpss::FpssClient;
+</span>use thetadatadx::ThetaDataDx;
 use thetadatadx::types::RemoveReason;
 
-match FpssClient::reconnect_delay(reason) {
+match ThetaDataDx::reconnect_delay(reason) {
     None =&gt; {
         // Permanent error (bad credentials, etc.) -- do NOT retry
         eprintln!("Permanent disconnect: {:?}", reason);
     }
     Some(delay_ms) =&gt; {
-        // Reconnect after delay
-        let (new_client, new_events) = FpssClient::reconnect(
-            &amp;creds,
-            previous_subscriptions,
-            delay_ms,
-            1024,
-        ).await?;
+        // Wait and reconnect streaming
+        std::thread::sleep(std::time::Duration::from_millis(delay_ms));
+        tdx.start_streaming(handler)?;
+        // Re-subscribe to previous subscriptions
     }
 }
 <span class="boring">}</span></code></pre>
@@ -1177,14 +1163,14 @@ export THETADX_PORT="11000"
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="api-reference-rust"><a class="header" href="#api-reference-rust">API Reference (Rust)</a></h1>
 <p>Complete type and method listing for the <code>thetadatadx</code> crate.</p>
-<h2 id="directclient"><a class="header" href="#directclient">DirectClient</a></h2>
-<p>The primary client for historical data via MDDS/gRPC.</p>
+<h2 id="thetadatadx-1"><a class="header" href="#thetadatadx-1">ThetaDataDx</a></h2>
+<p>The unified client for all ThetaData access – historical data via MDDS/gRPC and real-time streaming via FPSS/TCP.</p>
 <h3 id="construction"><a class="header" href="#construction">Construction</a></h3>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>pub async fn connect(creds: &amp;Credentials, config: DirectConfig) -&gt; Result&lt;Self, Error&gt;
 <span class="boring">}</span></code></pre>
-<p>Authenticates against the Nexus HTTP API to obtain a session UUID, then opens a gRPC channel (TLS) to the MDDS server.</p>
+<p>Authenticates against the Nexus HTTP API to obtain a session UUID, then opens a gRPC channel (TLS) to the MDDS server. Streaming is started lazily via <code>start_streaming()</code>.</p>
 <h3 id="accessor-methods"><a class="header" href="#accessor-methods">Accessor Methods</a></h3>
 <div class="table-wrapper">
 <table>
@@ -1228,22 +1214,15 @@ export THETADX_PORT="11000"
 </span>pub async fn raw_query&lt;F, Fut&gt;(&amp;self, call: F) -&gt; Result&lt;proto::DataTable, Error&gt;
 <span class="boring">}</span></code></pre>
 <hr>
-<h2 id="fpssclient"><a class="header" href="#fpssclient">FpssClient</a></h2>
-<p>Real-time streaming client via FPSS TLS/TCP.</p>
-<h3 id="construction-1"><a class="header" href="#construction-1">Construction</a></h3>
+<h2 id="streaming-fpss"><a class="header" href="#streaming-fpss">Streaming (FPSS)</a></h2>
+<p>Real-time streaming via FPSS TLS/TCP, accessed through <code>ThetaDataDx</code>.</p>
+<h3 id="starting-the-stream"><a class="header" href="#starting-the-stream">Starting the Stream</a></h3>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>pub fn connect(
-    creds: &amp;Credentials,
-    event_buffer: usize,
+</span>pub fn start_streaming(
+    &amp;self,
     callback: impl Fn(&amp;FpssEvent) + Send + 'static,
-) -&gt; Result&lt;Self, Error&gt;
-
-pub fn connect_no_ohlcvc(
-    creds: &amp;Credentials,
-    event_buffer: usize,
-    callback: impl Fn(&amp;FpssEvent) + Send + 'static,
-) -&gt; Result&lt;Self, Error&gt;
+) -&gt; Result&lt;(), Error&gt;
 <span class="boring">}</span></code></pre>
 <h3 id="subscription-methods"><a class="header" href="#subscription-methods">Subscription Methods</a></h3>
 <div class="table-wrapper">
@@ -1280,12 +1259,6 @@ pub fn connect_no_ohlcvc(
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>pub fn reconnect_delay(reason: RemoveReason) -&gt; Option&lt;u64&gt;
-pub async fn reconnect(
-    creds: &amp;Credentials,
-    previous_subs: Vec&lt;(SubscriptionKind, Contract)&gt;,
-    delay_ms: u64,
-    event_buffer: usize,
-) -&gt; Result&lt;(FpssClient, mpsc::Receiver&lt;FpssEvent&gt;), Error&gt;
 <span class="boring">}</span></code></pre>
 <hr>
 <h2 id="credentials-1"><a class="header" href="#credentials-1">Credentials</a></h2>
@@ -1512,11 +1485,11 @@ maturin develop --release
 your-password
 </code></pre>
 <h2 id="first-query-1"><a class="header" href="#first-query-1">First Query</a></h2>
-<pre><code class="language-python">from thetadatadx import Credentials, Config, DirectClient
+<pre><code class="language-python">from thetadatadx import Credentials, Config, ThetaDataDx
 
 # Authenticate and connect
 creds = Credentials.from_file("creds.txt")
-client = DirectClient(creds, Config.production())
+client = ThetaDataDx(creds, Config.production())
 
 # Fetch end-of-day stock data
 eod = client.stock_history_eod("AAPL", "20240101", "20240301")
@@ -1538,10 +1511,10 @@ g = all_greeks(
 print(f"IV={g['iv']:.4f} Delta={g['delta']:.4f} Gamma={g['gamma']:.6f}")
 </code></pre>
 <h2 id="with-pandas-dataframes"><a class="header" href="#with-pandas-dataframes">With pandas DataFrames</a></h2>
-<pre><code class="language-python">from thetadatadx import Credentials, Config, DirectClient, to_dataframe
+<pre><code class="language-python">from thetadatadx import Credentials, Config, ThetaDataDx, to_dataframe
 
 creds = Credentials.from_file("creds.txt")
-client = DirectClient(creds, Config.production())
+client = ThetaDataDx(creds, Config.production())
 
 # Option 1: explicit conversion
 eod = client.stock_history_eod("AAPL", "20240101", "20240301")
@@ -1569,12 +1542,12 @@ creds = Credentials(os.environ["THETA_EMAIL"], os.environ["THETA_PASS"])
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="historical-data-python"><a class="header" href="#historical-data-python">Historical Data (Python)</a></h1>
-<p>All historical data is accessed through <code>DirectClient</code>. Every call runs through compiled Rust – gRPC, protobuf parsing, zstd decompression, and FIT decoding all happen at native speed.</p>
+<p>All historical data is accessed through <code>ThetaDataDx</code>. Every call runs through compiled Rust – gRPC, protobuf parsing, zstd decompression, and FIT decoding all happen at native speed.</p>
 <h2 id="connecting-1"><a class="header" href="#connecting-1">Connecting</a></h2>
-<pre><code class="language-python">from thetadatadx import Credentials, Config, DirectClient
+<pre><code class="language-python">from thetadatadx import Credentials, Config, ThetaDataDx
 
 creds = Credentials.from_file("creds.txt")
-client = DirectClient(creds, Config.production())
+client = ThetaDataDx(creds, Config.production())
 </code></pre>
 <h2 id="date-format-1"><a class="header" href="#date-format-1">Date Format</a></h2>
 <p>All dates are <code>YYYYMMDD</code> strings: <code>"20240315"</code> for March 15, 2024.</p>
@@ -1790,15 +1763,17 @@ result = client.calendar_year("2024")
 <h1 id="real-time-streaming-python"><a class="header" href="#real-time-streaming-python">Real-Time Streaming (Python)</a></h1>
 <p>Real-time market data via ThetaData’s FPSS servers. The Python SDK uses a polling model with <code>next_event()</code>.</p>
 <h2 id="connect-1"><a class="header" href="#connect-1">Connect</a></h2>
-<pre><code class="language-python">from thetadatadx import Credentials, FpssClient
+<pre><code class="language-python">from thetadatadx import Credentials, Config, ThetaDataDx
 
 creds = Credentials.from_file("creds.txt")
-fpss = FpssClient(creds, buffer_size=1024)
+tdx = ThetaDataDx(creds, Config.production())
+
+tdx.start_streaming()
 </code></pre>
 <h2 id="subscribe-1"><a class="header" href="#subscribe-1">Subscribe</a></h2>
-<pre><code class="language-python">fpss.subscribe("AAPL", "QUOTE")
-fpss.subscribe("MSFT", "TRADE")
-fpss.subscribe("SPY", "OI")
+<pre><code class="language-python">tdx.subscribe_quotes("AAPL")
+tdx.subscribe_trades("MSFT")
+tdx.subscribe_open_interest("SPY")
 </code></pre>
 <h2 id="receive-events-1"><a class="header" href="#receive-events-1">Receive Events</a></h2>
 <p>Events are returned as Python dicts with a <code>"type"</code> field. <code>next_event()</code> returns <code>None</code> on timeout.</p>
@@ -1806,7 +1781,7 @@ fpss.subscribe("SPY", "OI")
 contracts = {}
 
 while True:
-    event = fpss.next_event(timeout_ms=5000)
+    event = tdx.next_event(timeout_ms=5000)
     if event is None:
         continue  # timeout, no event
 
@@ -1842,20 +1817,22 @@ while True:
         print(f"Disconnected: {event['reason']}")
         break
 </code></pre>
-<h2 id="shutdown-1"><a class="header" href="#shutdown-1">Shutdown</a></h2>
-<pre><code class="language-python">fpss.shutdown()
+<h2 id="stop-streaming-1"><a class="header" href="#stop-streaming-1">Stop Streaming</a></h2>
+<pre><code class="language-python">tdx.stop_streaming()
 </code></pre>
-<h2 id="fpssclient-methods"><a class="header" href="#fpssclient-methods">FpssClient Methods</a></h2>
+<h2 id="streaming-methods-on-thetadatadx"><a class="header" href="#streaming-methods-on-thetadatadx">Streaming Methods (on ThetaDataDx)</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Method</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>FpssClient(creds, buffer_size=1024)</code></td><td>Connect and authenticate</td></tr>
-<tr><td><code>subscribe(symbol, data_type)</code></td><td>Subscribe (<code>"QUOTE"</code>, <code>"TRADE"</code>, <code>"OI"</code>)</td></tr>
+<tr><td><code>start_streaming()</code></td><td>Connect to FPSS streaming servers</td></tr>
+<tr><td><code>subscribe_quotes(symbol)</code></td><td>Subscribe to quote data</td></tr>
+<tr><td><code>subscribe_trades(symbol)</code></td><td>Subscribe to trade data</td></tr>
+<tr><td><code>subscribe_open_interest(symbol)</code></td><td>Subscribe to open interest</td></tr>
 <tr><td><code>next_event(timeout_ms=5000)</code></td><td>Poll next event (dict or <code>None</code>)</td></tr>
-<tr><td><code>shutdown()</code></td><td>Graceful shutdown</td></tr>
+<tr><td><code>stop_streaming()</code></td><td>Graceful shutdown of streaming</td></tr>
 </tbody>
 </table>
 </div>
@@ -1892,29 +1869,32 @@ while True:
 </table>
 </div>
 <h2 id="complete-example"><a class="header" href="#complete-example">Complete Example</a></h2>
-<pre><code class="language-python">from thetadatadx import Credentials, FpssClient
+<pre><code class="language-python">from thetadatadx import Credentials, Config, ThetaDataDx
 import signal
 import sys
 
 creds = Credentials.from_file("creds.txt")
-fpss = FpssClient(creds, buffer_size=1024)
+tdx = ThetaDataDx(creds, Config.production())
+
+# Start streaming
+tdx.start_streaming()
 
 # Graceful shutdown on Ctrl+C
 def shutdown_handler(sig, frame):
-    fpss.shutdown()
+    tdx.stop_streaming()
     sys.exit(0)
 
 signal.signal(signal.SIGINT, shutdown_handler)
 
 # Subscribe to multiple streams
-fpss.subscribe("AAPL", "QUOTE")
-fpss.subscribe("AAPL", "TRADE")
-fpss.subscribe("MSFT", "QUOTE")
+tdx.subscribe_quotes("AAPL")
+tdx.subscribe_trades("AAPL")
+tdx.subscribe_quotes("MSFT")
 
 contracts = {}
 
 while True:
-    event = fpss.next_event(timeout_ms=5000)
+    event = tdx.next_event(timeout_ms=5000)
     if event is None:
         continue
 
@@ -1930,7 +1910,7 @@ while True:
         print(f"Disconnected: {event['reason']}")
         break
 
-fpss.shutdown()
+tdx.stop_streaming()
 </code></pre>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="options--greeks-python"><a class="header" href="#options--greeks-python">Options &amp; Greeks (Python)</a></h1>
@@ -1966,22 +1946,22 @@ trade_greeks = client.option_history_trade_greeks_all("SPY", "20240419", "500000
                                                        "20240315")
 </code></pre>
 <h3 id="full-chain-scan-with-dataframes"><a class="header" href="#full-chain-scan-with-dataframes">Full Chain Scan with DataFrames</a></h3>
-<pre><code class="language-python">from thetadatadx import Credentials, Config, DirectClient
+<pre><code class="language-python">from thetadatadx import Credentials, Config, ThetaDataDx
 
 creds = Credentials.from_file("creds.txt")
-client = DirectClient(creds, Config.production())
+tdx = ThetaDataDx(creds, Config.production())
 
 # Get nearest expiration
-exps = client.option_list_expirations("SPY")
+exps = tdx.option_list_expirations("SPY")
 exp = exps[0]
 
 # Get all strikes
-strikes = client.option_list_strikes("SPY", exp)
+strikes = tdx.option_list_strikes("SPY", exp)
 
 # Fetch EOD data for all calls
 chain = []
 for strike in strikes:
-    eod = client.option_history_eod("SPY", exp, strike, "C",
+    eod = tdx.option_history_eod("SPY", exp, strike, "C",
                                     "20240301", "20240301")
     if eod:
         eod[0]["strike"] = strike
@@ -2083,7 +2063,7 @@ print(f"IV: {iv:.4f}, Error: {err:.6f}")
 <h2 id="notebooks"><a class="header" href="#notebooks">Notebooks</a></h2>
 <h3 id="101--getting-started"><a class="header" href="#101--getting-started">101 – Getting Started</a></h3>
 <p><strong><a href="https://github.com/userFRM/ThetaDataDx/blob/main/notebooks/101_getting_started.ipynb"><code>101_getting_started.ipynb</code></a></strong></p>
-<p>Authentication, connecting, your first EOD and OHLC queries. Covers <code>Credentials</code>, <code>Config</code>, <code>DirectClient</code>, and basic DataFrame conversion.</p>
+<p>Authentication, connecting, your first EOD and OHLC queries. Covers <code>Credentials</code>, <code>Config</code>, <code>ThetaDataDx</code>, and basic DataFrame conversion.</p>
 <h3 id="102--historical-analysis"><a class="header" href="#102--historical-analysis">102 – Historical Analysis</a></h3>
 <p><strong><a href="https://github.com/userFRM/ThetaDataDx/blob/main/notebooks/102_historical_analysis.ipynb"><code>102_historical_analysis.ipynb</code></a></strong></p>
 <p>Deep dive into historical data: EOD time series, intraday OHLC bars at various intervals, tick-level trade and quote data. Demonstrates <code>_df</code> convenience methods and data visualization.</p>
@@ -2131,8 +2111,8 @@ creds = Credentials("user@example.com", "password")
 <pre><code class="language-python">config = Config.production()  # ThetaData NJ production servers
 config = Config.dev()         # dev servers with shorter timeouts
 </code></pre>
-<h2 id="directclient-1"><a class="header" href="#directclient-1">DirectClient</a></h2>
-<pre><code class="language-python">client = DirectClient(creds, Config.production())
+<h2 id="thetadatadx-2"><a class="header" href="#thetadatadx-2">ThetaDataDx</a></h2>
+<pre><code class="language-python">tdx = ThetaDataDx(creds, Config.production())
 </code></pre>
 <p>All methods return lists of dicts. All methods also have <code>_df</code> variants returning pandas DataFrames.</p>
 <h3 id="stock-methods-14"><a class="header" href="#stock-methods-14">Stock Methods (14)</a></h3>
@@ -2269,8 +2249,11 @@ eod = client.stock_history_eod("AAPL", "20240101", "20240301")
 df = to_polars(eod)
 </code></pre>
 <p>Requires <code>pip install thetadatadx[polars]</code>.</p>
-<h2 id="fpssclient-1"><a class="header" href="#fpssclient-1">FpssClient</a></h2>
-<pre><code class="language-python">fpss = FpssClient(creds, buffer_size=1024)
+<h2 id="streaming-via-thetadatadx"><a class="header" href="#streaming-via-thetadatadx">Streaming (via ThetaDataDx)</a></h2>
+<pre><code class="language-python">tdx.start_streaming()
+tdx.subscribe_quotes("AAPL")
+event = tdx.next_event(timeout_ms=5000)
+tdx.stop_streaming()
 </code></pre>
 <div class="table-wrapper">
 <table>
@@ -2278,9 +2261,11 @@ df = to_polars(eod)
 <tr><th>Method</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>subscribe(symbol, data_type)</code></td><td>Subscribe (<code>"QUOTE"</code>, <code>"TRADE"</code>, <code>"OI"</code>)</td></tr>
+<tr><td><code>start_streaming()</code></td><td>Connect to FPSS streaming servers</td></tr>
+<tr><td><code>subscribe_quotes(symbol)</code></td><td>Subscribe to quote data</td></tr>
+<tr><td><code>subscribe_trades(symbol)</code></td><td>Subscribe to trade data</td></tr>
 <tr><td><code>next_event(timeout_ms=5000)</code></td><td>Poll next event (dict or <code>None</code>)</td></tr>
-<tr><td><code>shutdown()</code></td><td>Graceful shutdown</td></tr>
+<tr><td><code>stop_streaming()</code></td><td>Graceful shutdown of streaming</td></tr>
 </tbody>
 </table>
 </div>
@@ -2559,22 +2544,24 @@ result, _ = client.CalendarYear("2024")
 <pre><code class="language-go">creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
 defer creds.Close()
 
-fpss, err := thetadatadx.FpssConnect(creds, 1024)
-if err != nil {
-    log.Fatal(err)
-}
-defer fpss.Shutdown()
+config := thetadatadx.ProductionConfig()
+defer config.Close()
+
+client, _ := thetadatadx.Connect(creds, config)
+defer client.Close()
+
+client.StartStreaming(1024)
 </code></pre>
 <h2 id="subscribe-2"><a class="header" href="#subscribe-2">Subscribe</a></h2>
 <pre><code class="language-go">// Stock quotes
-reqID, _ := fpss.SubscribeQuotes("AAPL", thetadatadx.SecTypeStock)
+reqID, _ := client.SubscribeQuotes("AAPL", thetadatadx.SecTypeStock)
 fmt.Printf("Subscribed (req_id=%d)\n", reqID)
 
 // Stock trades
-fpss.SubscribeTrades("MSFT", thetadatadx.SecTypeStock)
+client.SubscribeTrades("MSFT", thetadatadx.SecTypeStock)
 
 // Open interest
-fpss.SubscribeOpenInterest("AAPL", thetadatadx.SecTypeStock)
+client.SubscribeOpenInterest("AAPL", thetadatadx.SecTypeStock)
 </code></pre>
 <h3 id="security-type-constants"><a class="header" href="#security-type-constants">Security Type Constants</a></h3>
 <pre><code class="language-go">thetadatadx.SecTypeStock   // 0
@@ -2585,7 +2572,7 @@ thetadatadx.SecTypeRate    // 3
 <h2 id="receive-events-2"><a class="header" href="#receive-events-2">Receive Events</a></h2>
 <p><code>NextEvent()</code> returns <code>nil</code> on timeout.</p>
 <pre><code class="language-go">for {
-    event, err := fpss.NextEvent(5000) // 5s timeout
+    event, err := client.NextEvent(5000) // 5s timeout
     if err != nil {
         log.Println("Error:", err)
         break
@@ -2596,22 +2583,22 @@ thetadatadx.SecTypeRate    // 3
     fmt.Printf("Event: %+v\n", event)
 }
 </code></pre>
-<h2 id="shutdown-2"><a class="header" href="#shutdown-2">Shutdown</a></h2>
-<pre><code class="language-go">fpss.Shutdown()
+<h2 id="stop-streaming-2"><a class="header" href="#stop-streaming-2">Stop Streaming</a></h2>
+<pre><code class="language-go">client.StopStreaming()
 </code></pre>
-<h2 id="fpssclient-methods-1"><a class="header" href="#fpssclient-methods-1">FpssClient Methods</a></h2>
+<h2 id="streaming-methods-on-client"><a class="header" href="#streaming-methods-on-client">Streaming Methods (on Client)</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Method</th><th>Signature</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>FpssConnect</code></td><td><code>(creds, bufSize) (*FpssClient, error)</code></td><td>Connect and authenticate</td></tr>
+<tr><td><code>StartStreaming</code></td><td><code>(bufSize) error</code></td><td>Connect to FPSS streaming servers</td></tr>
 <tr><td><code>SubscribeQuotes</code></td><td><code>(root, secType) (int32, error)</code></td><td>Subscribe to quotes</td></tr>
 <tr><td><code>SubscribeTrades</code></td><td><code>(root, secType) (int32, error)</code></td><td>Subscribe to trades</td></tr>
 <tr><td><code>SubscribeOpenInterest</code></td><td><code>(root, secType) (int32, error)</code></td><td>Subscribe to OI</td></tr>
 <tr><td><code>NextEvent</code></td><td><code>(timeoutMs) (*FpssEvent, error)</code></td><td>Poll next event</td></tr>
-<tr><td><code>Shutdown</code></td><td><code>() error</code></td><td>Graceful shutdown</td></tr>
+<tr><td><code>StopStreaming</code></td><td><code>() error</code></td><td>Graceful shutdown of streaming</td></tr>
 </tbody>
 </table>
 </div>
@@ -2629,19 +2616,23 @@ func main() {
     creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
     defer creds.Close()
 
-    fpss, err := thetadatadx.FpssConnect(creds, 1024)
+    config := thetadatadx.ProductionConfig()
+    defer config.Close()
+
+    client, err := thetadatadx.Connect(creds, config)
     if err != nil {
         log.Fatal(err)
     }
-    defer fpss.Shutdown()
+    defer client.Close()
 
-    // Subscribe to quotes and trades
-    fpss.SubscribeQuotes("AAPL", thetadatadx.SecTypeStock)
-    fpss.SubscribeTrades("AAPL", thetadatadx.SecTypeStock)
+    // Start streaming and subscribe
+    client.StartStreaming(1024)
+    client.SubscribeQuotes("AAPL", thetadatadx.SecTypeStock)
+    client.SubscribeTrades("AAPL", thetadatadx.SecTypeStock)
 
     // Process events
     for {
-        event, err := fpss.NextEvent(5000)
+        event, err := client.NextEvent(5000)
         if err != nil {
             log.Println("Error:", err)
             break
@@ -2651,6 +2642,8 @@ func main() {
         }
         fmt.Printf("Event: %+v\n", event)
     }
+
+    client.StopStreaming()
 }
 </code></pre>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -2789,14 +2782,14 @@ g, err := thetadatadx.AllGreeks(spot, strike, rate, divYield, tte, price, isCall
 // Just IV
 iv, ivErr, err := thetadatadx.ImpliedVolatility(spot, strike, rate, divYield, tte, price, isCall)
 </code></pre>
-<h2 id="fpssclient-2"><a class="header" href="#fpssclient-2">FpssClient</a></h2>
+<h2 id="streaming-via-client"><a class="header" href="#streaming-via-client">Streaming (via Client)</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Method</th><th>Signature</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>FpssConnect</code></td><td><code>(creds, bufSize) (*FpssClient, error)</code></td><td>Connect and authenticate</td></tr>
+<tr><td><code>StartStreaming</code></td><td><code>(bufSize) error</code></td><td>Connect to FPSS streaming servers</td></tr>
 <tr><td><code>SubscribeQuotes</code></td><td><code>(root, secType) (int32, error)</code></td><td>Subscribe to quotes</td></tr>
 <tr><td><code>SubscribeTrades</code></td><td><code>(root, secType) (int32, error)</code></td><td>Subscribe to trades</td></tr>
 <tr><td><code>SubscribeOpenInterest</code></td><td><code>(root, secType) (int32, error)</code></td><td>Subscribe to OI</td></tr>
@@ -3089,18 +3082,19 @@ auto year_info = client.calendar_year("2024");
 <p>Real-time market data via ThetaData’s FPSS servers. The C++ SDK uses RAII wrappers with a polling model via <code>next_event()</code>.</p>
 <h2 id="connect-3"><a class="header" href="#connect-3">Connect</a></h2>
 <pre><code class="language-cpp">auto creds = tdx::Credentials::from_file("creds.txt");
-auto fpss = tdx::FpssClient::connect(creds, 1024);
+auto client = tdx::Client::connect(creds, tdx::Config::production());
+client.start_streaming(1024);
 </code></pre>
 <h2 id="subscribe-3"><a class="header" href="#subscribe-3">Subscribe</a></h2>
 <pre><code class="language-cpp">// Stock quotes
-int32_t req_id = fpss.subscribe_quotes("AAPL", tdx::SecType::Stock);
+int32_t req_id = client.subscribe_quotes("AAPL", tdx::SecType::Stock);
 std::cout &lt;&lt; "Subscribed (req_id=" &lt;&lt; req_id &lt;&lt; ")" &lt;&lt; std::endl;
 
 // Stock trades
-fpss.subscribe_trades("MSFT", tdx::SecType::Stock);
+client.subscribe_trades("MSFT", tdx::SecType::Stock);
 
 // Open interest
-fpss.subscribe_open_interest("AAPL", tdx::SecType::Stock);
+client.subscribe_open_interest("AAPL", tdx::SecType::Stock);
 </code></pre>
 <h3 id="security-type-enum"><a class="header" href="#security-type-enum">Security Type Enum</a></h3>
 <pre><code class="language-cpp">tdx::SecType::Stock   // 0
@@ -3110,7 +3104,7 @@ tdx::SecType::Rate    // 3
 </code></pre>
 <h2 id="receive-events-3"><a class="header" href="#receive-events-3">Receive Events</a></h2>
 <p><code>next_event()</code> returns <code>nullptr</code> on timeout.</p>
-<pre><code class="language-cpp">while (auto event = fpss.next_event(5000)) {
+<pre><code class="language-cpp">while (auto event = client.next_event(5000)) {
     if (event-&gt;type() == tdx::FpssEventType::Quote) {
         std::cout &lt;&lt; "Quote: " &lt;&lt; event-&gt;contract()
                   &lt;&lt; " bid=" &lt;&lt; event-&gt;bid()
@@ -3122,23 +3116,23 @@ tdx::SecType::Rate    // 3
     }
 }
 </code></pre>
-<h2 id="shutdown-3"><a class="header" href="#shutdown-3">Shutdown</a></h2>
-<pre><code class="language-cpp">fpss.shutdown();
+<h2 id="stop-streaming-3"><a class="header" href="#stop-streaming-3">Stop Streaming</a></h2>
+<pre><code class="language-cpp">client.stop_streaming();
 </code></pre>
-<p>RAII also handles cleanup: the <code>FpssClient</code> destructor calls <code>shutdown()</code> automatically.</p>
-<h2 id="fpssclient-methods-2"><a class="header" href="#fpssclient-methods-2">FpssClient Methods</a></h2>
+<p>RAII also handles cleanup: the <code>Client</code> destructor calls <code>stop_streaming()</code> automatically.</p>
+<h2 id="streaming-methods-on-client-1"><a class="header" href="#streaming-methods-on-client-1">Streaming Methods (on Client)</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Method</th><th>Signature</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>connect</code></td><td><code>(creds, buf_size) -&gt; FpssClient</code></td><td>Static factory, connect + auth</td></tr>
+<tr><td><code>start_streaming</code></td><td><code>(buf_size) -&gt; void</code></td><td>Connect to FPSS streaming servers</td></tr>
 <tr><td><code>subscribe_quotes</code></td><td><code>(root, sec_type) -&gt; int32_t</code></td><td>Subscribe to quotes</td></tr>
 <tr><td><code>subscribe_trades</code></td><td><code>(root, sec_type) -&gt; int32_t</code></td><td>Subscribe to trades</td></tr>
 <tr><td><code>subscribe_open_interest</code></td><td><code>(root, sec_type) -&gt; int32_t</code></td><td>Subscribe to OI</td></tr>
 <tr><td><code>next_event</code></td><td><code>(timeout_ms) -&gt; unique_ptr&lt;FpssEvent&gt;</code></td><td>Poll next event (<code>nullptr</code> on timeout)</td></tr>
-<tr><td><code>shutdown</code></td><td><code>() -&gt; void</code></td><td>Graceful shutdown</td></tr>
+<tr><td><code>stop_streaming</code></td><td><code>() -&gt; void</code></td><td>Graceful shutdown of streaming</td></tr>
 </tbody>
 </table>
 </div>
@@ -3148,15 +3142,16 @@ tdx::SecType::Rate    // 3
 
 int main() {
     auto creds = tdx::Credentials::from_file("creds.txt");
-    auto fpss = tdx::FpssClient::connect(creds, 1024);
+    auto client = tdx::Client::connect(creds, tdx::Config::production());
+    client.start_streaming(1024);
 
     // Subscribe to quotes and trades
-    fpss.subscribe_quotes("AAPL", tdx::SecType::Stock);
-    fpss.subscribe_trades("AAPL", tdx::SecType::Stock);
-    fpss.subscribe_trades("MSFT", tdx::SecType::Stock);
+    client.subscribe_quotes("AAPL", tdx::SecType::Stock);
+    client.subscribe_trades("AAPL", tdx::SecType::Stock);
+    client.subscribe_trades("MSFT", tdx::SecType::Stock);
 
     // Process events
-    while (auto event = fpss.next_event(5000)) {
+    while (auto event = client.next_event(5000)) {
         std::cout &lt;&lt; "Event type: " &lt;&lt; event-&gt;type() &lt;&lt; std::endl;
 
         if (event-&gt;type() == tdx::FpssEventType::Quote) {
@@ -3173,7 +3168,7 @@ int main() {
         }
     }
 
-    fpss.shutdown();
+    client.stop_streaming();
 }
 </code></pre>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -3290,19 +3285,19 @@ auto g = tdx::all_greeks(spot, strike, rate, div_yield, tte, price, is_call);
 // Just IV
 auto [iv, err] = tdx::implied_volatility(spot, strike, rate, div_yield, tte, price, is_call);
 </code></pre>
-<h2 id="fpssclient-3"><a class="header" href="#fpssclient-3">FpssClient</a></h2>
+<h2 id="streaming-via-client-1"><a class="header" href="#streaming-via-client-1">Streaming (via Client)</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Method</th><th>Signature</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>connect</code></td><td><code>(creds, buf_size) -&gt; FpssClient</code></td><td>Static factory</td></tr>
+<tr><td><code>start_streaming</code></td><td><code>(buf_size) -&gt; void</code></td><td>Connect to FPSS streaming servers</td></tr>
 <tr><td><code>subscribe_quotes</code></td><td><code>(root, sec_type) -&gt; int32_t</code></td><td>Subscribe to quotes</td></tr>
 <tr><td><code>subscribe_trades</code></td><td><code>(root, sec_type) -&gt; int32_t</code></td><td>Subscribe to trades</td></tr>
 <tr><td><code>subscribe_open_interest</code></td><td><code>(root, sec_type) -&gt; int32_t</code></td><td>Subscribe to OI</td></tr>
 <tr><td><code>next_event</code></td><td><code>(timeout_ms) -&gt; unique_ptr&lt;FpssEvent&gt;</code></td><td>Poll next event</td></tr>
-<tr><td><code>shutdown</code></td><td><code>() -&gt; void</code></td><td>Graceful shutdown</td></tr>
+<tr><td><code>stop_streaming</code></td><td><code>() -&gt; void</code></td><td>Graceful shutdown of streaming</td></tr>
 </tbody>
 </table>
 </div>

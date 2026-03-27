@@ -23,25 +23,25 @@ maturin develop --release
 ## Quick Start
 
 ```python
-from thetadatadx import Credentials, Config, DirectClient
+from thetadatadx import Credentials, Config, ThetaDataDx
 
 # Authenticate and connect
 creds = Credentials.from_file("creds.txt")
-client = DirectClient(creds, Config.production())
+tdx = ThetaDataDx(creds, Config.production())
 
 # Fetch end-of-day data
-eod = client.stock_history_eod("AAPL", "20240101", "20240301")
+eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
 for tick in eod:
     print(f"{tick['date']}: O={tick['open']:.2f} H={tick['high']:.2f} "
           f"L={tick['low']:.2f} C={tick['close']:.2f} V={tick['volume']}")
 
 # Intraday 1-minute OHLC bars
-bars = client.stock_history_ohlc("AAPL", "20240315", "60000")
+bars = tdx.stock_history_ohlc("AAPL", "20240315", "60000")
 print(f"{len(bars)} bars")
 
 # Option chain
-exps = client.option_list_expirations("SPY")
-strikes = client.option_list_strikes("SPY", exps[0])
+exps = tdx.option_list_expirations("SPY")
+strikes = tdx.option_list_strikes("SPY", exps[0])
 ```
 
 ## Greeks Calculator
@@ -72,7 +72,7 @@ iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30/365, 8.50, True)
 - `Config.production()` -- ThetaData NJ production servers
 - `Config.dev()` -- dev servers with shorter timeouts
 
-### `DirectClient(creds, config)`
+### `ThetaDataDx(creds, config)`
 
 All 61 endpoints are available. Methods return lists of dicts.
 
@@ -162,8 +162,8 @@ All 61 endpoints are available. Methods return lists of dicts.
 |--------|-------------|
 | `interest_rate_history_eod(symbol, start, end)` | Interest rate EOD history |
 
-### `FpssClient(creds, config)`
-Real-time streaming client.
+### Streaming (via `ThetaDataDx`)
+Real-time streaming is accessed through the same `ThetaDataDx` instance.
 
 #### Per-contract subscriptions (stocks)
 
@@ -202,14 +202,14 @@ Real-time streaming client.
 Events arrive as a mix of `quote`, `trade`, and `ohlcvc` kinds. Use `contract_id` to identify which contract each event belongs to, and filter on `kind` to select the data types you care about:
 
 ```python
-fpss = FpssClient(creds, config)
-fpss.subscribe_full_trades("OPTION")
+tdx.start_streaming()
+tdx.subscribe_full_trades("OPTION")
 
 # Build a contract ID -> symbol map as assignments arrive
 contracts = {}
 
 while True:
-    event = fpss.next_event(timeout_ms=100)
+    event = tdx.next_event(timeout_ms=100)
     if event is None:
         continue
 
@@ -227,7 +227,7 @@ while True:
         print(f"[{contract}] QUOTE bid={event['bid']:.2f} ask={event['ask']:.2f}")
     # Skip ohlcvc if you don't need bars
 
-fpss.shutdown()
+tdx.stop_streaming()
 ```
 
 You can also subscribe to per-contract streams if you only need specific symbols rather than the full firehose.
@@ -248,7 +248,7 @@ You can also subscribe to per-contract streams if you only need specific symbols
 Convert a list of tick dicts to a pandas DataFrame. Requires `pip install thetadatadx[pandas]`.
 
 ### `_df` method variants
-All 61 `DirectClient` data methods have `_df` variants that return DataFrames directly:
+All 61 `ThetaDataDx` data methods have `_df` variants that return DataFrames directly:
 `stock_history_eod_df()`, `stock_history_ohlc_df()`, `option_list_expirations_df()`, `index_history_eod_df()`, etc.
 
 ### `all_greeks(spot, strike, rate, div_yield, tte, price, is_call)`
@@ -272,18 +272,19 @@ No HTTP middleware, no Java terminal, no subprocess. Direct wire protocol access
 Real-time market data via ThetaData's FPSS servers:
 
 ```python
-from thetadatadx import Credentials, FpssClient
+from thetadatadx import Credentials, Config, ThetaDataDx
 
 creds = Credentials.from_file("creds.txt")
-fpss = FpssClient(creds, buffer_size=1024)
+tdx = ThetaDataDx(creds, Config.production())
 
-# Subscribe to real-time quotes
-fpss.subscribe("AAPL", "QUOTE")
-fpss.subscribe("SPY", "TRADE")
+# Start streaming and subscribe to real-time data
+tdx.start_streaming()
+tdx.subscribe_quotes("AAPL")
+tdx.subscribe_trades("SPY")
 
 # Poll for events
 while True:
-    event = fpss.next_event(timeout_ms=5000)
+    event = tdx.next_event(timeout_ms=5000)
     if event is None:
         break  # timeout, no event received
     if event["type"] == "quote":
@@ -291,7 +292,7 @@ while True:
     elif event["type"] == "trade":
         print(f"Trade: {event['contract']} price={event['price']} size={event['size']}")
 
-fpss.shutdown()
+tdx.stop_streaming()
 ```
 
 ## pandas DataFrame Conversion
@@ -299,20 +300,20 @@ fpss.shutdown()
 Convert any result to a pandas DataFrame:
 
 ```python
-from thetadatadx import Credentials, Config, DirectClient, to_dataframe
+from thetadatadx import Credentials, Config, ThetaDataDx, to_dataframe
 
 creds = Credentials.from_file("creds.txt")
-client = DirectClient(creds, Config.production())
+tdx = ThetaDataDx(creds, Config.production())
 
 # Option 1: convert an existing result
-eod = client.stock_history_eod("AAPL", "20240101", "20240301")
+eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
 df = to_dataframe(eod)
 print(df.head())
 
 # Option 2: use _df convenience methods
-df = client.stock_history_eod_df("AAPL", "20240101", "20240301")
-df = client.stock_history_ohlc_df("AAPL", "20240315", "60000")
-df = client.option_list_expirations_df("SPY")
+df = tdx.stock_history_eod_df("AAPL", "20240101", "20240301")
+df = tdx.stock_history_ohlc_df("AAPL", "20240315", "60000")
+df = tdx.option_list_expirations_df("SPY")
 ```
 
 Install with: `pip install thetadatadx[pandas]`

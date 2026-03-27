@@ -75,9 +75,9 @@ make
 ```
 Your Application (Rust / Python / Go / C++)
     |
-    +-- DirectClient (MDDS) ---> ThetaData gRPC servers (historical)
+    +-- ThetaDataDx (MDDS) ---> ThetaData gRPC servers (historical)
     |
-    +-- FpssClient (FPSS) ----> ThetaData TCP servers (real-time)
+    +-- ThetaDataDx (FPSS) ---> ThetaData TCP servers (real-time)
     |
     +-- Greeks calculator -----> Local computation (no network)
 ```

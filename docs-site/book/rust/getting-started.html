@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-0a611890.js";
+            window.path_to_searchindex_js = "../searchindex-7f7d49b5.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-4b833958.js"></script>
@@ -184,7 +184,7 @@
 <h2 id="installation"><a class="header" href="#installation">Installation</a></h2>
 <p>Add to your <code>Cargo.toml</code>:</p>
 <pre><code class="language-toml">[dependencies]
-thetadatadx = "2.0"
+thetadatadx = "3.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 </code></pre>
 <h2 id="credentials"><a class="header" href="#credentials">Credentials</a></h2>
@@ -193,7 +193,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 your-password
 </code></pre>
 <h2 id="first-query"><a class="header" href="#first-query">First Query</a></h2>
-<pre class="playground"><code class="language-rust">use thetadatadx::{DirectClient, Credentials, DirectConfig};
+<pre class="playground"><code class="language-rust">use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
 
 #[tokio::main]
 async fn main() -&gt; Result&lt;(), thetadatadx::Error&gt; {
@@ -201,7 +201,7 @@ async fn main() -&gt; Result&lt;(), thetadatadx::Error&gt; {
     let creds = Credentials::from_file("creds.txt")?;
 
     // Connect to ThetaData (authenticates automatically)
-    let client = DirectClient::connect(&amp;creds, DirectConfig::production()).await?;
+    let client = ThetaDataDx::connect(&amp;creds, DirectConfig::production()).await?;
 
     // Fetch end-of-day stock data
     let eod = client.stock_history_eod("AAPL", "20240101", "20240301").await?;

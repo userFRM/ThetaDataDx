@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-0a611890.js";
+            window.path_to_searchindex_js = "../searchindex-7f7d49b5.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-4b833958.js"></script>
@@ -186,13 +186,14 @@
 <h2 id="connect"><a class="header" href="#connect">Connect</a></h2>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>use thetadatadx::auth::Credentials;
-use thetadatadx::fpss::{FpssClient, FpssData, FpssControl, FpssEvent};
+</span>use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
+use thetadatadx::fpss::{FpssData, FpssControl, FpssEvent};
 use thetadatadx::fpss::protocol::Contract;
 
 let creds = Credentials::from_file("creds.txt")?;
+let tdx = ThetaDataDx::connect(&amp;creds, DirectConfig::production()).await?;
 
-let client = FpssClient::connect(&amp;creds, 1024, |event: &amp;FpssEvent| {
+tdx.start_streaming(|event: &amp;FpssEvent| {
     match event {
         FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, .. }) =&gt; {
             println!("Quote: contract={contract_id} bid={bid} ask={ask}");
@@ -207,44 +208,32 @@ let client = FpssClient::connect(&amp;creds, 1024, |event: &amp;FpssEvent| {
     }
 })?;
 <span class="boring">}</span></code></pre>
-<p>The <code>1024</code> parameter is the ring buffer size for event dispatch.</p>
-<h3 id="without-ohlcvc-derivation"><a class="header" href="#without-ohlcvc-derivation">Without OHLCVC Derivation</a></h3>
-<p>If you only need raw trades/quotes and want lower overhead:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>let client = FpssClient::connect_no_ohlcvc(&amp;creds, 1024, |event: &amp;FpssEvent| {
-    // No FpssData::Ohlcvc events will be emitted
-    match event {
-        FpssEvent::Data(FpssData::Trade { .. }) =&gt; { /* ... */ }
-        _ =&gt; {}
-    }
-})?;
-<span class="boring">}</span></code></pre>
+<p>The ring buffer size for event dispatch is configured via <code>DirectConfig</code>.</p>
 <h2 id="subscribe"><a class="header" href="#subscribe">Subscribe</a></h2>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// Stock quotes
-let req_id = client.subscribe_quotes(&amp;Contract::stock("AAPL"))?;
+let req_id = tdx.subscribe_quotes(&amp;Contract::stock("AAPL"))?;
 println!("Subscribed (req_id={req_id})");
 
 // Stock trades
-client.subscribe_trades(&amp;Contract::stock("MSFT"))?;
+tdx.subscribe_trades(&amp;Contract::stock("MSFT"))?;
 
 // Option quotes
 let opt = Contract::option("SPY", 20261218, true, 60000); // call, strike $600
-client.subscribe_quotes(&amp;opt)?;
+tdx.subscribe_quotes(&amp;opt)?;
 
 // Open interest
-client.subscribe_open_interest(&amp;Contract::stock("AAPL"))?;
+tdx.subscribe_open_interest(&amp;Contract::stock("AAPL"))?;
 
 // All trades for a security type
-client.subscribe_full_trades(SecType::Stock)?;
+tdx.subscribe_full_trades(SecType::Stock)?;
 <span class="boring">}</span></code></pre>
 <h2 id="receive-events"><a class="header" href="#receive-events">Receive Events</a></h2>
 <p>The callback fires on the ring buffer’s consumer thread. The v2.0.0 <code>FpssEvent</code> is split into <code>FpssData</code> and <code>FpssControl</code>:</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>let client = FpssClient::connect(&amp;creds, 1024, |event: &amp;FpssEvent| {
+</span>tdx.start_streaming(|event: &amp;FpssEvent| {
     match event {
         // --- Data events ---
         FpssEvent::Data(FpssData::Quote {
@@ -307,7 +296,7 @@ use std::sync::{Arc, Mutex};
 let contracts: Arc&lt;Mutex&lt;HashMap&lt;i32, Contract&gt;&gt;&gt; = Arc::new(Mutex::new(HashMap::new()));
 let contracts_clone = contracts.clone();
 
-let client = FpssClient::connect(&amp;creds, 1024, move |event: &amp;FpssEvent| {
+tdx.start_streaming(move |event: &amp;FpssEvent| {
     match event {
         FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) =&gt; {
             contracts_clone.lock().unwrap().insert(*id, contract.clone());
@@ -326,40 +315,37 @@ let client = FpssClient::connect(&amp;creds, 1024, move |event: &amp;FpssEvent| 
 <p>Or use the built-in method:</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>let map: HashMap&lt;i32, Contract&gt; = client.contract_map();
+</span>let map: HashMap&lt;i32, Contract&gt; = tdx.contract_map();
 <span class="boring">}</span></code></pre>
 <h2 id="unsubscribe"><a class="header" href="#unsubscribe">Unsubscribe</a></h2>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>client.unsubscribe_quotes(&amp;Contract::stock("AAPL"))?;
-client.unsubscribe_trades(&amp;Contract::stock("MSFT"))?;
-client.unsubscribe_open_interest(&amp;Contract::stock("AAPL"))?;
+</span>tdx.unsubscribe_quotes(&amp;Contract::stock("AAPL"))?;
+tdx.unsubscribe_trades(&amp;Contract::stock("MSFT"))?;
+tdx.unsubscribe_open_interest(&amp;Contract::stock("AAPL"))?;
 <span class="boring">}</span></code></pre>
-<h2 id="shutdown"><a class="header" href="#shutdown">Shutdown</a></h2>
+<h2 id="stop-streaming"><a class="header" href="#stop-streaming">Stop Streaming</a></h2>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>client.shutdown()?;
+</span>tdx.stop_streaming();
 <span class="boring">}</span></code></pre>
 <h2 id="reconnection"><a class="header" href="#reconnection">Reconnection</a></h2>
 <p>ThetaDataDx uses manual reconnection. When the server disconnects, you receive an <code>FpssControl::Disconnected</code> event with a reason code.</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>use thetadatadx::fpss::FpssClient;
+</span>use thetadatadx::ThetaDataDx;
 use thetadatadx::types::RemoveReason;
 
-match FpssClient::reconnect_delay(reason) {
+match ThetaDataDx::reconnect_delay(reason) {
     None =&gt; {
         // Permanent error (bad credentials, etc.) -- do NOT retry
         eprintln!("Permanent disconnect: {:?}", reason);
     }
     Some(delay_ms) =&gt; {
-        // Reconnect after delay
-        let (new_client, new_events) = FpssClient::reconnect(
-            &amp;creds,
-            previous_subscriptions,
-            delay_ms,
-            1024,
-        ).await?;
+        // Wait and reconnect streaming
+        std::thread::sleep(std::time::Duration::from_millis(delay_ms));
+        tdx.start_streaming(handler)?;
+        // Re-subscribe to previous subscriptions
     }
 }
 <span class="boring">}</span></code></pre>
