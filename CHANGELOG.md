@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] - 2026-03-27
+
+### Fixed
+
+- **Go SDK: price encoding was fundamentally wrong** -- `priceToFloat()` used a switch-case instead of `value * 10^(price_type - 10)`. Every price returned by the Go SDK was incorrect. Now matches Rust exactly.
+- **Python docs: streaming examples used wrong event key** -- `event["type"]` changed to `event["kind"]` across README and all docs-site pages.
+- **`Price::new()` no longer panics in release** -- `assert!` replaced with `debug_assert!` + `clamp(0, 19)` with `tracing::warn!`. A corrupt frame no longer crashes production.
+- **C++ `FpssClient`: added missing `unsubscribe_quotes()`** -- was present in FFI but missing from C++ RAII wrapper.
+- **FFI FPSS: mutex poison safety** -- all 12 `.lock().unwrap()` calls replaced with `.unwrap_or_else(|e| e.into_inner())`. Prevents undefined behavior (panic across `extern "C"`) on mutex poisoning.
+- **`Credentials.password` visibility** -- changed from `pub` to `pub(crate)` with `password()` accessor. Prevents accidental credential logging by downstream code.
+- **WebSocket server: added OPEN_INTEREST + FULL_TRADES dispatch** -- previously silently dropped.
+- **C++ SDK type parity** -- `MarketValueTick` expanded from 3 to 7 fields, `CalendarDay` added `status`, `InterestRateTick` added `ms_of_day`.
+- **Python README: removed ghost methods** -- `is_authenticated()` and `server_addr()` were listed but did not exist.
+- **Root README: stock method count** -- "Stock (13)" corrected to "Stock (14)".
+
 ## [3.0.0] - 2026-03-27
 
 ### Breaking Changes
@@ -339,7 +354,8 @@ See [TODO.md](TODO.md) for the production readiness checklist and performance ro
 - FIT decoder uses i64 accumulator with i32 saturation (no silent overflow)
 - Price type range enforced with `assert!` in release builds
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v3.0.0...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v3.1.0...HEAD
+[3.1.0]: https://github.com/userFRM/ThetaDataDx/compare/v3.0.0...v3.1.0
 [3.0.0]: https://github.com/userFRM/ThetaDataDx/compare/v2.0.0...v3.0.0
 [2.0.0]: https://github.com/userFRM/ThetaDataDx/compare/v1.2.2...v2.0.0
 [1.2.2]: https://github.com/userFRM/ThetaDataDx/compare/v1.2.1...v1.2.2
