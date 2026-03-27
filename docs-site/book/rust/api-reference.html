@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>CLI - ThetaDataDx Documentation</title>
+        <title>API Reference - ThetaDataDx Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -146,7 +146,7 @@
                         <a href="https://github.com/userFRM/ThetaDataDx" title="Git repository" aria-label="Git repository">
                             <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
                         </a>
-                        <a href="https://github.com/userFRM/ThetaDataDx/edit/main/docs-site/src/src/tools/cli.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                        <a href="https://github.com/userFRM/ThetaDataDx/edit/main/docs-site/src/src/rust/api-reference.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
                             <span class=fa-svg id="git-edit-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M421.7 220.3l-11.3 11.3-22.6 22.6-205 205c-6.6 6.6-14.8 11.5-23.8 14.1L30.8 511c-8.4 2.5-17.5 .2-23.7-6.1S-1.5 489.7 1 481.2L38.7 353.1c2.6-9 7.5-17.2 14.1-23.8l205-205 22.6-22.6 11.3-11.3 33.9 33.9 62.1 62.1 33.9 33.9zM96 353.9l-9.3 9.3c-.9 .9-1.6 2.1-2 3.4l-25.3 86 86-25.3c1.3-.4 2.5-1.1 3.4-2l9.3-9.3H112c-8.8 0-16-7.2-16-16V353.9zM453.3 19.3l39.4 39.4c25 25 25 65.5 0 90.5l-14.5 14.5-22.6 22.6-11.3 11.3-33.9-33.9-62.1-62.1L314.3 67.7l11.3-11.3 22.6-22.6 14.5-14.5c25-25 65.5-25 90.5 0z"/></svg></span>
                         </a>
 
@@ -180,86 +180,329 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="cli-tdx"><a class="header" href="#cli-tdx">CLI (tdx)</a></h1>
-<p>Command-line interface for querying ThetaData market data. All 61 endpoints plus offline Greeks.</p>
-<h2 id="installation"><a class="header" href="#installation">Installation</a></h2>
-<pre><code class="language-bash">cargo install --path crates/thetadatadx-cli
-</code></pre>
-<h2 id="setup"><a class="header" href="#setup">Setup</a></h2>
-<p>Create a <code>creds.txt</code> with your ThetaData email (line 1) and password (line 2).</p>
-<h2 id="global-flags"><a class="header" href="#global-flags">Global Flags</a></h2>
+                        <h1 id="api-reference-rust"><a class="header" href="#api-reference-rust">API Reference (Rust)</a></h1>
+<p>Complete type and method listing for the <code>thetadatadx</code> crate.</p>
+<h2 id="directclient"><a class="header" href="#directclient">DirectClient</a></h2>
+<p>The primary client for historical data via MDDS/gRPC.</p>
+<h3 id="construction"><a class="header" href="#construction">Construction</a></h3>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub async fn connect(creds: &amp;Credentials, config: DirectConfig) -&gt; Result&lt;Self, Error&gt;
+<span class="boring">}</span></code></pre>
+<p>Authenticates against the Nexus HTTP API to obtain a session UUID, then opens a gRPC channel (TLS) to the MDDS server.</p>
+<h3 id="accessor-methods"><a class="header" href="#accessor-methods">Accessor Methods</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Flag</th><th>Default</th><th>Description</th></tr>
+<tr><th>Method</th><th>Return</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>--creds &lt;path&gt;</code></td><td><code>creds.txt</code></td><td>Credentials file</td></tr>
-<tr><td><code>--config &lt;preset&gt;</code></td><td><code>production</code></td><td><code>production</code> or <code>dev</code></td></tr>
-<tr><td><code>--format &lt;fmt&gt;</code></td><td><code>table</code></td><td><code>table</code>, <code>json</code>, or <code>csv</code></td></tr>
+<tr><td><code>config()</code></td><td><code>&amp;DirectConfig</code></td><td>Return config snapshot</td></tr>
+<tr><td><code>session_uuid()</code></td><td><code>&amp;str</code></td><td>Return the Nexus session UUID</td></tr>
+<tr><td><code>channel()</code></td><td><code>&amp;tonic::transport::Channel</code></td><td>Access the underlying gRPC channel</td></tr>
+<tr><td><code>raw_query_info()</code></td><td><code>proto_v3::QueryInfo</code></td><td>Get a QueryInfo for use with raw_query</td></tr>
 </tbody>
 </table>
 </div>
-<h2 id="quick-examples"><a class="header" href="#quick-examples">Quick Examples</a></h2>
-<pre><code class="language-bash"># Stock EOD data
-tdx stock history_eod AAPL 20240101 20240301
-
-# As JSON
-tdx stock history_eod AAPL 20240101 20240301 --format json
-
-# Option chain
-tdx option list_expirations SPY
-tdx option list_strikes SPY 20240419
-
-# Option EOD with Greeks
-tdx option history_greeks_eod SPY 20240419 500000 C 20240101 20240301
-
-# Snapshot quotes
-tdx stock snapshot_quote AAPL,MSFT,GOOGL
-
-# Offline Greeks (no server needed)
-tdx greeks 450 455 0.05 0.015 0.082 8.5 call
-tdx iv 450 455 0.05 0.015 0.082 8.5 call
-</code></pre>
-<h2 id="endpoint-coverage"><a class="header" href="#endpoint-coverage">Endpoint Coverage</a></h2>
+<h3 id="endpoint-methods-61"><a class="header" href="#endpoint-methods-61">Endpoint Methods (61)</a></h3>
+<p>All methods are async and return <code>Result&lt;T, Error&gt;</code>.</p>
+<p><strong>Stock (14):</strong> <code>stock_list_symbols</code>, <code>stock_list_dates</code>, <code>stock_snapshot_ohlc</code>, <code>stock_snapshot_trade</code>, <code>stock_snapshot_quote</code>, <code>stock_snapshot_market_value</code>, <code>stock_history_eod</code>, <code>stock_history_ohlc</code>, <code>stock_history_ohlc_range</code>, <code>stock_history_trade</code>, <code>stock_history_quote</code>, <code>stock_history_trade_quote</code>, <code>stock_at_time_trade</code>, <code>stock_at_time_quote</code></p>
+<p><strong>Option (34):</strong> <code>option_list_symbols</code>, <code>option_list_dates</code>, <code>option_list_expirations</code>, <code>option_list_strikes</code>, <code>option_list_contracts</code>, <code>option_snapshot_ohlc</code>, <code>option_snapshot_trade</code>, <code>option_snapshot_quote</code>, <code>option_snapshot_open_interest</code>, <code>option_snapshot_market_value</code>, <code>option_snapshot_greeks_implied_volatility</code>, <code>option_snapshot_greeks_all</code>, <code>option_snapshot_greeks_first_order</code>, <code>option_snapshot_greeks_second_order</code>, <code>option_snapshot_greeks_third_order</code>, <code>option_history_eod</code>, <code>option_history_ohlc</code>, <code>option_history_trade</code>, <code>option_history_quote</code>, <code>option_history_trade_quote</code>, <code>option_history_open_interest</code>, <code>option_history_greeks_eod</code>, <code>option_history_greeks_all</code>, <code>option_history_trade_greeks_all</code>, <code>option_history_greeks_first_order</code>, <code>option_history_trade_greeks_first_order</code>, <code>option_history_greeks_second_order</code>, <code>option_history_trade_greeks_second_order</code>, <code>option_history_greeks_third_order</code>, <code>option_history_trade_greeks_third_order</code>, <code>option_history_greeks_implied_volatility</code>, <code>option_history_trade_greeks_implied_volatility</code>, <code>option_at_time_trade</code>, <code>option_at_time_quote</code></p>
+<p><strong>Index (9):</strong> <code>index_list_symbols</code>, <code>index_list_dates</code>, <code>index_snapshot_ohlc</code>, <code>index_snapshot_price</code>, <code>index_snapshot_market_value</code>, <code>index_history_eod</code>, <code>index_history_ohlc</code>, <code>index_history_price</code>, <code>index_at_time_price</code></p>
+<p><strong>Calendar (3):</strong> <code>calendar_open_today</code>, <code>calendar_on_date</code>, <code>calendar_year</code></p>
+<p><strong>Rate (1):</strong> <code>interest_rate_history_eod</code></p>
+<h3 id="streaming-variants-4"><a class="header" href="#streaming-variants-4">Streaming Variants (4)</a></h3>
+<p>Process large responses chunk by chunk without loading everything into memory:</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Category</th><th>Count</th></tr>
+<tr><th>Method</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td>Stock</td><td>14 subcommands</td></tr>
-<tr><td>Option</td><td>34 subcommands</td></tr>
-<tr><td>Index</td><td>9 subcommands</td></tr>
-<tr><td>Rate</td><td>1 subcommand</td></tr>
-<tr><td>Calendar</td><td>3 subcommands</td></tr>
-<tr><td>Offline</td><td>2 subcommands (greeks, iv)</td></tr>
+<tr><td><code>stock_history_trade_stream</code></td><td>Stream stock trades</td></tr>
+<tr><td><code>stock_history_quote_stream</code></td><td>Stream stock quotes</td></tr>
+<tr><td><code>option_history_trade_stream</code></td><td>Stream option trades</td></tr>
+<tr><td><code>option_history_quote_stream</code></td><td>Stream option quotes</td></tr>
 </tbody>
 </table>
 </div>
-<h2 id="scripting"><a class="header" href="#scripting">Scripting</a></h2>
-<pre><code class="language-bash"># Export to CSV
-tdx stock history_eod AAPL 20240101 20240301 --format csv &gt; aapl_eod.csv
+<h3 id="raw-query"><a class="header" href="#raw-query">Raw Query</a></h3>
+<p>Escape hatch for endpoints not yet wrapped by typed methods:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub async fn raw_query&lt;F, Fut&gt;(&amp;self, call: F) -&gt; Result&lt;proto::DataTable, Error&gt;
+<span class="boring">}</span></code></pre>
+<hr>
+<h2 id="fpssclient"><a class="header" href="#fpssclient">FpssClient</a></h2>
+<p>Real-time streaming client via FPSS TLS/TCP.</p>
+<h3 id="construction-1"><a class="header" href="#construction-1">Construction</a></h3>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub fn connect(
+    creds: &amp;Credentials,
+    event_buffer: usize,
+    callback: impl Fn(&amp;FpssEvent) + Send + 'static,
+) -&gt; Result&lt;Self, Error&gt;
 
-# Scan multiple symbols
-for symbol in AAPL MSFT GOOGL AMZN META; do
-    tdx stock snapshot_quote "$symbol" --format json
-done
-
-# Get nearest expiration
-EXP=$(tdx option list_expirations SPY --format json | jq -r '.[0]')
-tdx option list_strikes SPY "$EXP"
-</code></pre>
+pub fn connect_no_ohlcvc(
+    creds: &amp;Credentials,
+    event_buffer: usize,
+    callback: impl Fn(&amp;FpssEvent) + Send + 'static,
+) -&gt; Result&lt;Self, Error&gt;
+<span class="boring">}</span></code></pre>
+<h3 id="subscription-methods"><a class="header" href="#subscription-methods">Subscription Methods</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Signature</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>subscribe_quotes</code></td><td><code>(&amp;self, &amp;Contract) -&gt; Result&lt;i32, Error&gt;</code></td><td>Subscribe to quotes</td></tr>
+<tr><td><code>subscribe_trades</code></td><td><code>(&amp;self, &amp;Contract) -&gt; Result&lt;i32, Error&gt;</code></td><td>Subscribe to trades</td></tr>
+<tr><td><code>subscribe_open_interest</code></td><td><code>(&amp;self, &amp;Contract) -&gt; Result&lt;i32, Error&gt;</code></td><td>Subscribe to OI</td></tr>
+<tr><td><code>subscribe_full_trades</code></td><td><code>(&amp;self, SecType) -&gt; Result&lt;i32, Error&gt;</code></td><td>Subscribe all trades for a security type</td></tr>
+<tr><td><code>unsubscribe_quotes</code></td><td><code>(&amp;self, &amp;Contract) -&gt; Result&lt;i32, Error&gt;</code></td><td>Unsubscribe quotes</td></tr>
+<tr><td><code>unsubscribe_trades</code></td><td><code>(&amp;self, &amp;Contract) -&gt; Result&lt;i32, Error&gt;</code></td><td>Unsubscribe trades</td></tr>
+<tr><td><code>unsubscribe_open_interest</code></td><td><code>(&amp;self, &amp;Contract) -&gt; Result&lt;i32, Error&gt;</code></td><td>Unsubscribe OI</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="state-methods"><a class="header" href="#state-methods">State Methods</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Return</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>is_authenticated()</code></td><td><code>bool</code></td><td>Check if connection is live</td></tr>
+<tr><td><code>server_addr()</code></td><td><code>&amp;str</code></td><td>Get connected server address</td></tr>
+<tr><td><code>contract_map()</code></td><td><code>HashMap&lt;i32, Contract&gt;</code></td><td>Server-assigned contract IDs</td></tr>
+<tr><td><code>shutdown()</code></td><td><code>Result&lt;(), Error&gt;</code></td><td>Send STOP and shut down</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="reconnection"><a class="header" href="#reconnection">Reconnection</a></h3>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub fn reconnect_delay(reason: RemoveReason) -&gt; Option&lt;u64&gt;
+pub async fn reconnect(
+    creds: &amp;Credentials,
+    previous_subs: Vec&lt;(SubscriptionKind, Contract)&gt;,
+    delay_ms: u64,
+    event_buffer: usize,
+) -&gt; Result&lt;(FpssClient, mpsc::Receiver&lt;FpssEvent&gt;), Error&gt;
+<span class="boring">}</span></code></pre>
+<hr>
+<h2 id="credentials"><a class="header" href="#credentials">Credentials</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>Credentials::from_file("creds.txt")?;
+Credentials::new("user@example.com", "password");
+Credentials::parse("user@example.com\npassword")?;
+<span class="boring">}</span></code></pre>
+<hr>
+<h2 id="tick-types"><a class="header" href="#tick-types">Tick Types</a></h2>
+<p>All tick types are <code>Copy + Clone + Debug</code> structs with <code>i32</code> fields.</p>
+<h3 id="tradetick-16-fields"><a class="header" href="#tradetick-16-fields">TradeTick (16 fields)</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>ms_of_day</code></td><td><code>i32</code></td><td>Milliseconds since midnight ET</td></tr>
+<tr><td><code>sequence</code></td><td><code>i32</code></td><td>Sequence number</td></tr>
+<tr><td><code>size</code></td><td><code>i32</code></td><td>Trade size (shares)</td></tr>
+<tr><td><code>price</code></td><td><code>i32</code></td><td>Fixed-point price (use <code>get_price()</code>)</td></tr>
+<tr><td><code>exchange</code></td><td><code>i32</code></td><td>Exchange code</td></tr>
+<tr><td><code>condition</code></td><td><code>i32</code></td><td>Trade condition code</td></tr>
+<tr><td><code>price_type</code></td><td><code>i32</code></td><td>Decimal type for price decoding</td></tr>
+<tr><td><code>date</code></td><td><code>i32</code></td><td>Date as YYYYMMDD integer</td></tr>
+</tbody>
+</table>
+</div>
+<p>Methods: <code>get_price()</code>, <code>is_cancelled()</code>, <code>regular_trading_hours()</code>, <code>is_seller()</code>, <code>is_incremental_volume()</code></p>
+<h3 id="quotetick-11-fields"><a class="header" href="#quotetick-11-fields">QuoteTick (11 fields)</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>ms_of_day</code></td><td><code>i32</code></td><td>Milliseconds since midnight ET</td></tr>
+<tr><td><code>bid</code> / <code>ask</code></td><td><code>i32</code></td><td>Fixed-point prices</td></tr>
+<tr><td><code>bid_size</code> / <code>ask_size</code></td><td><code>i32</code></td><td>Quote sizes</td></tr>
+<tr><td><code>price_type</code></td><td><code>i32</code></td><td>Decimal type</td></tr>
+<tr><td><code>date</code></td><td><code>i32</code></td><td>Date as YYYYMMDD</td></tr>
+</tbody>
+</table>
+</div>
+<p>Methods: <code>bid_price()</code>, <code>ask_price()</code>, <code>midpoint_price()</code>, <code>midpoint_value()</code></p>
+<h3 id="ohlctick-9-fields"><a class="header" href="#ohlctick-9-fields">OhlcTick (9 fields)</a></h3>
+<p>Fields: <code>ms_of_day</code>, <code>open</code>, <code>high</code>, <code>low</code>, <code>close</code>, <code>volume</code>, <code>count</code>, <code>price_type</code>, <code>date</code></p>
+<p>Methods: <code>open_price()</code>, <code>high_price()</code>, <code>low_price()</code>, <code>close_price()</code></p>
+<h3 id="eodtick-18-fields"><a class="header" href="#eodtick-18-fields">EodTick (18 fields)</a></h3>
+<p>Full end-of-day snapshot with OHLC + closing quote data.</p>
+<p>Methods: <code>open_price()</code>, <code>high_price()</code>, <code>low_price()</code>, <code>close_price()</code>, <code>bid_price()</code>, <code>ask_price()</code></p>
+<h3 id="openinteresttick-3-fields"><a class="header" href="#openinteresttick-3-fields">OpenInterestTick (3 fields)</a></h3>
+<p>Fields: <code>ms_of_day</code>, <code>open_interest</code>, <code>date</code></p>
+<h3 id="snapshottradetick-7-fields"><a class="header" href="#snapshottradetick-7-fields">SnapshotTradeTick (7 fields)</a></h3>
+<p>Abbreviated trade for snapshots. Method: <code>get_price()</code></p>
+<h3 id="tradequotetick-25-fields"><a class="header" href="#tradequotetick-25-fields">TradeQuoteTick (25 fields)</a></h3>
+<p>Combined trade + quote tick. Methods: <code>trade_price()</code>, <code>bid_price()</code>, <code>ask_price()</code></p>
+<hr>
+<h2 id="price"><a class="header" href="#price">Price</a></h2>
+<p>Fixed-point price with variable decimal precision.</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct Price {
+    pub value: i32,
+    pub price_type: i32,
+}
+<span class="boring">}</span></code></pre>
+<p>Formula: <code>real_price = value * 10^(price_type - 10)</code></p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Return</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>to_f64()</code></td><td><code>f64</code></td><td>Lossy float conversion</td></tr>
+<tr><td><code>is_zero()</code></td><td><code>bool</code></td><td>True if value == 0 or price_type == 0</td></tr>
+</tbody>
+</table>
+</div>
+<p>Implements: <code>Display</code>, <code>Eq</code>, <code>Ord</code>, <code>Copy</code>, <code>Clone</code>.</p>
+<p>Prices with different <code>price_type</code> values can be compared directly:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let a = Price::new(15025, 8);    // 150.25
+let b = Price::new(1502500, 6);  // 150.2500
+assert_eq!(a, b);                // true
+<span class="boring">}</span></code></pre>
+<hr>
+<h2 id="fpssevent"><a class="header" href="#fpssevent">FpssEvent</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub enum FpssEvent {
+    Data(FpssData),
+    Control(FpssControl),
+    RawData { code: u8, payload: Vec&lt;u8&gt; },
+}
+<span class="boring">}</span></code></pre>
+<h3 id="fpssdata"><a class="header" href="#fpssdata">FpssData</a></h3>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub enum FpssData {
+    Quote { contract_id: i32, ms_of_day: i32, bid: i32, ask: i32, bid_size: i32,
+            ask_size: i32, bid_exchange: i32, ask_exchange: i32,
+            bid_condition: i32, ask_condition: i32, price_type: i32, date: i32 },
+    Trade { contract_id: i32, ms_of_day: i32, sequence: i32, price: i32, size: i32,
+            exchange: i32, condition: i32, ext_condition1-4: i32,
+            condition_flags: i32, price_flags: i32, volume_type: i32,
+            records_back: i32, price_type: i32, date: i32 },
+    OpenInterest { contract_id: i32, ms_of_day: i32, open_interest: i32, date: i32 },
+    Ohlcvc { contract_id: i32, ms_of_day: i32, open: i32, high: i32, low: i32,
+             close: i32, volume: i32, count: i32, price_type: i32, date: i32 },
+}
+<span class="boring">}</span></code></pre>
+<h3 id="fpsscontrol"><a class="header" href="#fpsscontrol">FpssControl</a></h3>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub enum FpssControl {
+    LoginSuccess { permissions: String },
+    ContractAssigned { id: i32, contract: Contract },
+    ReqResponse { req_id: i32, result: StreamResponseType },
+    MarketOpen,
+    MarketClose,
+    ServerError { message: String },
+    Disconnected { reason: RemoveReason },
+    Error { message: String },
+}
+<span class="boring">}</span></code></pre>
+<hr>
+<h2 id="contract"><a class="header" href="#contract">Contract</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct Contract {
+    pub root: String,
+    pub sec_type: SecType,
+    pub exp_date: Option&lt;i32&gt;,    // YYYYMMDD for options
+    pub is_call: Option&lt;bool&gt;,    // true=call, false=put
+    pub strike: Option&lt;i32&gt;,      // scaled integer
+}
+<span class="boring">}</span></code></pre>
+<p>Constructors: <code>Contract::stock("AAPL")</code>, <code>Contract::index("SPX")</code>, <code>Contract::rate("SOFR")</code>, <code>Contract::option("SPY", 20261218, true, 60000)</code></p>
+<hr>
+<h2 id="enums"><a class="header" href="#enums">Enums</a></h2>
+<h3 id="sectype"><a class="header" href="#sectype">SecType</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Variant</th><th>Code</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Stock</code></td><td>0</td></tr>
+<tr><td><code>Option</code></td><td>1</td></tr>
+<tr><td><code>Index</code></td><td>2</td></tr>
+<tr><td><code>Rate</code></td><td>3</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="streamresponsetype"><a class="header" href="#streamresponsetype">StreamResponseType</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Variant</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Subscribed</code></td><td>Success</td></tr>
+<tr><td><code>Error</code></td><td>General error</td></tr>
+<tr><td><code>MaxStreamsReached</code></td><td>Subscription limit hit</td></tr>
+<tr><td><code>InvalidPerms</code></td><td>Insufficient permissions</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="right"><a class="header" href="#right">Right</a></h3>
+<p>Option right: <code>Call</code>, <code>Put</code>. Methods: <code>from_char(char)</code>, <code>as_char()</code></p>
+<hr>
+<h2 id="greeksresult"><a class="header" href="#greeksresult">GreeksResult</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct GreeksResult {
+    pub value: f64,      pub delta: f64,      pub gamma: f64,
+    pub theta: f64,      pub vega: f64,       pub rho: f64,
+    pub iv: f64,         pub iv_error: f64,
+    pub vanna: f64,      pub charm: f64,      pub vomma: f64,
+    pub veta: f64,       pub speed: f64,      pub zomma: f64,
+    pub color: f64,      pub ultima: f64,
+    pub d1: f64,         pub d2: f64,
+    pub dual_delta: f64, pub dual_gamma: f64,
+    pub epsilon: f64,    pub lambda: f64,
+}
+<span class="boring">}</span></code></pre>
+<hr>
+<h2 id="error"><a class="header" href="#error">Error</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub enum Error {
+    Auth(String),          // Invalid credentials
+    Http(String),          // Network or server issue
+    Grpc(tonic::Status),   // gRPC error
+    NoData,                // Symbol does not exist
+    // ... other variants
+}
+<span class="boring">}</span></code></pre>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../cpp/api-reference.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../rust/configuration.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../tools/mcp.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../python/getting-started.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -269,11 +512,11 @@ tdx option list_strikes SPY "$EXP"
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../cpp/api-reference.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../rust/configuration.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../tools/mcp.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../python/getting-started.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

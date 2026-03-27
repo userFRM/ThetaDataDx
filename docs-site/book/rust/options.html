@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>CLI - ThetaDataDx Documentation</title>
+        <title>Options &amp; Greeks - ThetaDataDx Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -146,7 +146,7 @@
                         <a href="https://github.com/userFRM/ThetaDataDx" title="Git repository" aria-label="Git repository">
                             <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
                         </a>
-                        <a href="https://github.com/userFRM/ThetaDataDx/edit/main/docs-site/src/src/tools/cli.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                        <a href="https://github.com/userFRM/ThetaDataDx/edit/main/docs-site/src/src/rust/options.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
                             <span class=fa-svg id="git-edit-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M421.7 220.3l-11.3 11.3-22.6 22.6-205 205c-6.6 6.6-14.8 11.5-23.8 14.1L30.8 511c-8.4 2.5-17.5 .2-23.7-6.1S-1.5 489.7 1 481.2L38.7 353.1c2.6-9 7.5-17.2 14.1-23.8l205-205 22.6-22.6 11.3-11.3 33.9 33.9 62.1 62.1 33.9 33.9zM96 353.9l-9.3 9.3c-.9 .9-1.6 2.1-2 3.4l-25.3 86 86-25.3c1.3-.4 2.5-1.1 3.4-2l9.3-9.3H112c-8.8 0-16-7.2-16-16V353.9zM453.3 19.3l39.4 39.4c25 25 25 65.5 0 90.5l-14.5 14.5-22.6 22.6-11.3 11.3-33.9-33.9-62.1-62.1L314.3 67.7l11.3-11.3 22.6-22.6 14.5-14.5c25-25 65.5-25 90.5 0z"/></svg></span>
                         </a>
 
@@ -180,86 +180,222 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="cli-tdx"><a class="header" href="#cli-tdx">CLI (tdx)</a></h1>
-<p>Command-line interface for querying ThetaData market data. All 61 endpoints plus offline Greeks.</p>
-<h2 id="installation"><a class="header" href="#installation">Installation</a></h2>
-<pre><code class="language-bash">cargo install --path crates/thetadatadx-cli
-</code></pre>
-<h2 id="setup"><a class="header" href="#setup">Setup</a></h2>
-<p>Create a <code>creds.txt</code> with your ThetaData email (line 1) and password (line 2).</p>
-<h2 id="global-flags"><a class="header" href="#global-flags">Global Flags</a></h2>
+                        <h1 id="options--greeks-rust"><a class="header" href="#options--greeks-rust">Options &amp; Greeks (Rust)</a></h1>
+<h2 id="option-chain-workflow"><a class="header" href="#option-chain-workflow">Option Chain Workflow</a></h2>
+<h3 id="step-1-discover-expirations"><a class="header" href="#step-1-discover-expirations">Step 1: Discover Expirations</a></h3>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let exps = client.option_list_expirations("SPY").await?;
+for exp in &amp;exps {
+    println!("Expiration: {}", exp);  // "20240419", "20240517", ...
+}
+<span class="boring">}</span></code></pre>
+<h3 id="step-2-get-strikes"><a class="header" href="#step-2-get-strikes">Step 2: Get Strikes</a></h3>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let strikes = client.option_list_strikes("SPY", "20240419").await?;
+println!("{} strikes available", strikes.len());
+// Strikes are scaled integers: "500000" = $500.00
+<span class="boring">}</span></code></pre>
+<h3 id="step-3-fetch-chain-data"><a class="header" href="#step-3-fetch-chain-data">Step 3: Fetch Chain Data</a></h3>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>for strike in &amp;strikes {
+    let call_quotes = client.option_snapshot_quote(
+        "SPY", "20240419", strike, "C"
+    ).await?;
+    let put_quotes = client.option_snapshot_quote(
+        "SPY", "20240419", strike, "P"
+    ).await?;
+
+    if let (Some(c), Some(p)) = (call_quotes.first(), put_quotes.first()) {
+        println!("Strike {}: Call bid={} ask={} | Put bid={} ask={}",
+            strike, c.bid_price(), c.ask_price(),
+            p.bid_price(), p.ask_price());
+    }
+}
+<span class="boring">}</span></code></pre>
+<h3 id="step-4-server-computed-greeks"><a class="header" href="#step-4-server-computed-greeks">Step 4: Server-Computed Greeks</a></h3>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// All Greeks snapshot for a contract
+let greeks = client.option_snapshot_greeks_all(
+    "SPY", "20240419", "500000", "C"
+).await?;
+
+// Historical EOD Greeks over a date range
+let greeks_eod = client.option_history_greeks_eod(
+    "SPY", "20240419", "500000", "C", "20240101", "20240301"
+).await?;
+
+// Greeks on each individual trade
+let trade_greeks = client.option_history_trade_greeks_all(
+    "SPY", "20240419", "500000", "C", "20240315"
+).await?;
+<span class="boring">}</span></code></pre>
+<hr>
+<h2 id="local-greeks-calculator"><a class="header" href="#local-greeks-calculator">Local Greeks Calculator</a></h2>
+<p>Compute Greeks locally without any server call using the built-in Black-Scholes calculator. Works offline, no ThetaData subscription needed.</p>
+<h3 id="all-22-greeks-at-once"><a class="header" href="#all-22-greeks-at-once">All 22 Greeks at Once</a></h3>
+<p>The most common usage: compute IV from the market price, then derive all 22 Greeks in a single call.</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use thetadatadx::greeks;
+
+let result = greeks::all_greeks(
+    450.0,            // spot price
+    455.0,            // strike price
+    0.05,             // risk-free rate
+    0.015,            // dividend yield
+    30.0 / 365.0,     // time to expiration (years)
+    8.50,             // market option price
+    true,             // is_call
+);
+
+println!("Implied Volatility: {:.4}", result.iv);
+println!("Delta:    {:.4}", result.delta);
+println!("Gamma:    {:.6}", result.gamma);
+println!("Theta:    {:.4} (daily)", result.theta);
+println!("Vega:     {:.4}", result.vega);
+println!("Rho:      {:.4}", result.rho);
+println!("Vanna:    {:.6}", result.vanna);
+println!("Charm:    {:.6}", result.charm);
+println!("Vomma:    {:.6}", result.vomma);
+println!("Speed:    {:.8}", result.speed);
+println!("Zomma:    {:.8}", result.zomma);
+println!("Color:    {:.8}", result.color);
+println!("Ultima:   {:.6}", result.ultima);
+<span class="boring">}</span></code></pre>
+<h3 id="implied-volatility-only"><a class="header" href="#implied-volatility-only">Implied Volatility Only</a></h3>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let (iv, error) = greeks::implied_volatility(
+    450.0,   // spot
+    455.0,   // strike
+    0.05,    // rate
+    0.015,   // dividend yield
+    30.0 / 365.0, // time to expiry
+    8.50,    // market price
+    true,    // is_call
+);
+println!("IV: {:.4}, Error: {:.6}", iv, error);
+<span class="boring">}</span></code></pre>
+<p>The solver uses bisection with up to 128 iterations. The <code>error</code> return is the relative difference <code>(theoretical - market) / market</code>.</p>
+<h3 id="individual-greeks"><a class="header" href="#individual-greeks">Individual Greeks</a></h3>
+<p>For targeted computation when you only need one or two values:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use thetadatadx::greeks;
+
+let s = 450.0;  // spot
+let x = 455.0;  // strike
+let v = 0.20;   // volatility (sigma)
+let r = 0.05;   // rate
+let q = 0.015;  // dividend yield
+let t = 30.0 / 365.0;  // time (years)
+
+// First order
+let delta = greeks::delta(s, x, v, r, q, t, true);
+let theta = greeks::theta(s, x, v, r, q, t, true);  // daily (divided by 365)
+let vega  = greeks::vega(s, x, v, r, q, t);
+let rho   = greeks::rho(s, x, v, r, q, t, true);
+
+// Second order
+let gamma = greeks::gamma(s, x, v, r, q, t);
+let vanna = greeks::vanna(s, x, v, r, q, t);
+let charm = greeks::charm(s, x, v, r, q, t, true);
+let vomma = greeks::vomma(s, x, v, r, q, t);
+
+// Third order
+let speed  = greeks::speed(s, x, v, r, q, t);
+let zomma  = greeks::zomma(s, x, v, r, q, t);
+let color  = greeks::color(s, x, v, r, q, t);
+let ultima = greeks::ultima(s, x, v, r, q, t);  // clamped to [-100, 100]
+<span class="boring">}</span></code></pre>
+<h3 id="greeks-reference"><a class="header" href="#greeks-reference">Greeks Reference</a></h3>
+<h4 id="first-order"><a class="header" href="#first-order">First Order</a></h4>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Flag</th><th>Default</th><th>Description</th></tr>
+<tr><th>Greek</th><th>Description</th><th>Notes</th></tr>
 </thead>
 <tbody>
-<tr><td><code>--creds &lt;path&gt;</code></td><td><code>creds.txt</code></td><td>Credentials file</td></tr>
-<tr><td><code>--config &lt;preset&gt;</code></td><td><code>production</code></td><td><code>production</code> or <code>dev</code></td></tr>
-<tr><td><code>--format &lt;fmt&gt;</code></td><td><code>table</code></td><td><code>table</code>, <code>json</code>, or <code>csv</code></td></tr>
+<tr><td><code>delta</code></td><td>dV/dS</td><td>Call: 0 to 1, Put: -1 to 0</td></tr>
+<tr><td><code>theta</code></td><td>Time decay per day</td><td>Divided by 365</td></tr>
+<tr><td><code>vega</code></td><td>Sensitivity to volatility</td><td>Same for calls and puts</td></tr>
+<tr><td><code>rho</code></td><td>Sensitivity to interest rate</td><td></td></tr>
+<tr><td><code>epsilon</code></td><td>Sensitivity to dividend yield</td><td></td></tr>
+<tr><td><code>lambda</code></td><td>Leverage ratio (delta * S / V)</td><td></td></tr>
 </tbody>
 </table>
 </div>
-<h2 id="quick-examples"><a class="header" href="#quick-examples">Quick Examples</a></h2>
-<pre><code class="language-bash"># Stock EOD data
-tdx stock history_eod AAPL 20240101 20240301
-
-# As JSON
-tdx stock history_eod AAPL 20240101 20240301 --format json
-
-# Option chain
-tdx option list_expirations SPY
-tdx option list_strikes SPY 20240419
-
-# Option EOD with Greeks
-tdx option history_greeks_eod SPY 20240419 500000 C 20240101 20240301
-
-# Snapshot quotes
-tdx stock snapshot_quote AAPL,MSFT,GOOGL
-
-# Offline Greeks (no server needed)
-tdx greeks 450 455 0.05 0.015 0.082 8.5 call
-tdx iv 450 455 0.05 0.015 0.082 8.5 call
-</code></pre>
-<h2 id="endpoint-coverage"><a class="header" href="#endpoint-coverage">Endpoint Coverage</a></h2>
+<h4 id="second-order"><a class="header" href="#second-order">Second Order</a></h4>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Category</th><th>Count</th></tr>
+<tr><th>Greek</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td>Stock</td><td>14 subcommands</td></tr>
-<tr><td>Option</td><td>34 subcommands</td></tr>
-<tr><td>Index</td><td>9 subcommands</td></tr>
-<tr><td>Rate</td><td>1 subcommand</td></tr>
-<tr><td>Calendar</td><td>3 subcommands</td></tr>
-<tr><td>Offline</td><td>2 subcommands (greeks, iv)</td></tr>
+<tr><td><code>gamma</code></td><td>d2V/dS2 (same for calls and puts)</td></tr>
+<tr><td><code>vanna</code></td><td>d2V/dSdv</td></tr>
+<tr><td><code>charm</code></td><td>d2V/dSdt (delta decay)</td></tr>
+<tr><td><code>vomma</code></td><td>d2V/dv2 (vol-of-vol)</td></tr>
+<tr><td><code>veta</code></td><td>d2V/dvdt</td></tr>
 </tbody>
 </table>
 </div>
-<h2 id="scripting"><a class="header" href="#scripting">Scripting</a></h2>
-<pre><code class="language-bash"># Export to CSV
-tdx stock history_eod AAPL 20240101 20240301 --format csv &gt; aapl_eod.csv
-
-# Scan multiple symbols
-for symbol in AAPL MSFT GOOGL AMZN META; do
-    tdx stock snapshot_quote "$symbol" --format json
-done
-
-# Get nearest expiration
-EXP=$(tdx option list_expirations SPY --format json | jq -r '.[0]')
-tdx option list_strikes SPY "$EXP"
-</code></pre>
+<h4 id="third-order"><a class="header" href="#third-order">Third Order</a></h4>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Greek</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>speed</code></td><td>d3V/dS3</td></tr>
+<tr><td><code>zomma</code></td><td>d3V/dS2dv</td></tr>
+<tr><td><code>color</code></td><td>d3V/dS2dt</td></tr>
+<tr><td><code>ultima</code></td><td>d3V/dv3 (clamped to [-100, 100])</td></tr>
+</tbody>
+</table>
+</div>
+<h4 id="auxiliary"><a class="header" href="#auxiliary">Auxiliary</a></h4>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Greek</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>d1</code></td><td>Black-Scholes d1 intermediate</td></tr>
+<tr><td><code>d2</code></td><td>Black-Scholes d2 intermediate</td></tr>
+<tr><td><code>dual_delta</code></td><td>dV/dK (sensitivity to strike)</td></tr>
+<tr><td><code>dual_gamma</code></td><td>d2V/dK2</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="edge-cases"><a class="header" href="#edge-cases">Edge Cases</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Condition</th><th>Behavior</th></tr>
+</thead>
+<tbody>
+<tr><td><code>t = 0</code> (at expiry)</td><td>Returns <code>0.0</code> for most Greeks; <code>value()</code> returns intrinsic value</td></tr>
+<tr><td><code>v = 0</code> (zero vol)</td><td>Returns <code>0.0</code> for most Greeks; <code>value()</code> returns intrinsic value</td></tr>
+<tr><td>Deep ITM/OTM</td><td>IV solver may return high error; check <code>iv_error</code> field</td></tr>
+<tr><td><code>ultima</code> overflow</td><td>Clamped to [-100, 100] range</td></tr>
+</tbody>
+</table>
+</div>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../cpp/api-reference.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../rust/streaming.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../tools/mcp.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../rust/configuration.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -269,11 +405,11 @@ tdx option list_strikes SPY "$EXP"
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../cpp/api-reference.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../rust/streaming.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../tools/mcp.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../rust/configuration.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

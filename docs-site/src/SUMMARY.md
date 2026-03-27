@@ -2,55 +2,44 @@
 
 [Introduction](introduction.md)
 
-# Getting Started
+# Rust SDK
 
-- [Installation](getting-started/installation.md)
-- [Authentication](getting-started/authentication.md)
-- [Quick Start](getting-started/quick-start.md)
-- [Configuration](getting-started/configuration.md)
+- [Getting Started](rust/getting-started.md)
+- [Historical Data](rust/historical.md)
+- [Real-Time Streaming](rust/streaming.md)
+- [Options & Greeks](rust/options.md)
+- [Configuration](rust/configuration.md)
+- [API Reference](rust/api-reference.md)
 
-# Guides
+# Python SDK
 
-- [Historical Data](guides/historical-data.md)
-- [Real-Time Streaming](guides/real-time-streaming.md)
-- [Options Chain](guides/options-chain.md)
-- [Greeks Calculator](guides/greeks-calculator.md)
-- [Server Mode](guides/server-mode.md)
+- [Getting Started](python/getting-started.md)
+- [Historical Data](python/historical.md)
+- [Real-Time Streaming](python/streaming.md)
+- [Options & Greeks](python/options.md)
+- [Jupyter Notebooks](python/notebooks.md)
+- [API Reference](python/api-reference.md)
 
-# API Reference
+# Go SDK
 
-- [DirectClient](api/direct-client.md)
-- [FpssClient](api/fpss-client.md)
-- [Endpoints]()
-    - [Stock](api/endpoints/stock.md)
-    - [Option](api/endpoints/option.md)
-    - [Index](api/endpoints/index.md)
-    - [Rate](api/endpoints/rate.md)
-    - [Calendar](api/endpoints/calendar.md)
-- [Types](api/types.md)
-- [Price](api/price.md)
-- [Greeks](api/greeks.md)
+- [Getting Started](go/getting-started.md)
+- [Historical Data](go/historical.md)
+- [Real-Time Streaming](go/streaming.md)
+- [API Reference](go/api-reference.md)
 
-# SDKs
+# C++ SDK
 
-- [Python](sdks/python.md)
-- [Go](sdks/go.md)
-- [C++](sdks/cpp.md)
+- [Getting Started](cpp/getting-started.md)
+- [Historical Data](cpp/historical.md)
+- [Real-Time Streaming](cpp/streaming.md)
+- [API Reference](cpp/api-reference.md)
 
 # Tools
 
 - [CLI](tools/cli.md)
-- [MCP Server](tools/mcp-server.md)
-- [REST Server](tools/rest-server.md)
-
-# Internals
-
-- [Architecture](internals/architecture.md)
-- [Wire Protocol](internals/wire-protocol.md)
-- [FIT Codec](internals/fit-codec.md)
-- [JVM Deviations](internals/jvm-deviations.md)
-- [Reverse Engineering](internals/reverse-engineering.md)
+- [MCP Server](tools/mcp.md)
+- [REST Server](tools/server.md)
 
 ---
 
-[Contributing](contributing.md)
+[Changelog](changelog.md)

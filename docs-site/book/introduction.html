@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "navy";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "searchindex-d484317a.js";
+            window.path_to_searchindex_js = "searchindex-0a611890.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-4e96455d.js"></script>
+        <script src="toc-4b833958.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -181,28 +181,14 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="thetadatadx"><a class="header" href="#thetadatadx">ThetaDataDx</a></h1>
-<p><strong>No-JVM ThetaData Terminal – native Rust SDK for direct market data access.</strong></p>
+<p><strong>No-JVM ThetaData Terminal – native market data SDK for Rust, Python, Go, and C++.</strong></p>
 <p><a href="https://github.com/userFRM/ThetaDataDx/actions/workflows/ci.yml"><img src="https://github.com/userFRM/ThetaDataDx/actions/workflows/ci.yml/badge.svg" alt="build"></a>
 <a href="https://crates.io/crates/thetadatadx"><img src="https://img.shields.io/crates/v/thetadatadx.svg" alt="Crates.io"></a>
 <a href="https://pypi.org/project/thetadatadx"><img src="https://img.shields.io/pypi/v/thetadatadx" alt="PyPI"></a>
 <a href="https://github.com/userFRM/ThetaDataDx/blob/main/LICENSE"><img src="https://img.shields.io/github/license/userFRM/ThetaDataDx?color=blue" alt="license"></a></p>
 <h2 id="what-is-thetadatadx"><a class="header" href="#what-is-thetadatadx">What is ThetaDataDx?</a></h2>
 <p>ThetaDataDx connects directly to ThetaData’s upstream servers – MDDS for historical data and FPSS for real-time streaming – entirely in native Rust. No JVM terminal process, no local Java dependency, no subprocess management. Your application talks to ThetaData’s infrastructure with the same wire protocol their own terminal uses.</p>
-<blockquote>
-<p><strong>A valid <a href="https://thetadata.us">ThetaData</a> subscription is required.</strong> This SDK authenticates against ThetaData’s Nexus API using your account credentials.</p>
-</blockquote>
-<h2 id="key-features"><a class="header" href="#key-features">Key Features</a></h2>
-<ul>
-<li><strong>Historical data</strong> via MDDS/gRPC – EOD, OHLC, trades, quotes across stocks, options, and indices</li>
-<li><strong>Real-time streaming</strong> via FPSS/TCP – live quotes, trades, open interest, and OHLC snapshots</li>
-<li><strong>Full Greeks calculator</strong> – 22 Black-Scholes Greeks (first, second, and third order) plus IV solver</li>
-<li><strong>Zero-copy tick types</strong> – <code>TradeTick</code>, <code>QuoteTick</code>, <code>OhlcTick</code>, <code>EodTick</code> with fixed-point <code>Price</code> encoding</li>
-<li><strong>Async/await</strong> throughout – built on Tokio with concurrent gRPC streaming and background heartbeat tasks</li>
-<li><strong>Direct authentication</strong> – handles the Nexus API auth flow, session management, and reconnection logic</li>
-<li><strong>FIT codec</strong> – native decoder for ThetaData’s nibble-encoded delta-compressed tick format</li>
-<li><strong>Multi-language SDKs</strong> – Python (PyO3), Go (CGo), C++ (RAII), all powered by the Rust core</li>
-<li><strong>pandas/polars DataFrame support</strong> – <code>to_dataframe()</code> and <code>_df</code> convenience methods in the Python SDK</li>
-</ul>
+<p>A valid <a href="https://thetadata.us">ThetaData</a> subscription is required.</p>
 <h2 id="61-endpoints-4-languages"><a class="header" href="#61-endpoints-4-languages">61 Endpoints, 4 Languages</a></h2>
 <div class="table-wrapper">
 <table>
@@ -221,7 +207,29 @@
 </table>
 </div>
 <p>Every endpoint is available in Rust, Python, Go, and C++. The CLI tool (<code>tdx</code>) exposes all endpoints from the command line.</p>
-<h2 id="architecture-at-a-glance"><a class="header" href="#architecture-at-a-glance">Architecture at a Glance</a></h2>
+<h2 id="choose-your-language"><a class="header" href="#choose-your-language">Choose Your Language</a></h2>
+<h3 id="rust"><a class="header" href="#rust">Rust</a></h3>
+<p>The core SDK. Async/await on Tokio, zero-copy tick types with fixed-point <code>Price</code> encoding, sync callback-based streaming via LMAX Disruptor ring buffer.</p>
+<pre><code class="language-bash">cargo add thetadatadx
+</code></pre>
+<p><a href="rust/getting-started.html">Get started with Rust</a></p>
+<h3 id="python"><a class="header" href="#python">Python</a></h3>
+<p>Native extension built with PyO3. Every call runs through compiled Rust – gRPC, protobuf parsing, zstd decompression, FIT decoding all at native speed. Full pandas/polars DataFrame support.</p>
+<pre><code class="language-bash">pip install thetadatadx
+</code></pre>
+<p><a href="python/getting-started.html">Get started with Python</a></p>
+<h3 id="go"><a class="header" href="#go">Go</a></h3>
+<p>CGo bindings to the Rust FFI library. Typed Go structs, automatic memory management via <code>defer Close()</code>.</p>
+<pre><code class="language-bash">go get github.com/userFRM/ThetaDataDx/sdks/go
+</code></pre>
+<p><a href="go/getting-started.html">Get started with Go</a></p>
+<h3 id="c"><a class="header" href="#c">C++</a></h3>
+<p>RAII wrappers around the C FFI layer. C++17, CMake, automatic resource cleanup.</p>
+<pre><code class="language-bash">cmake ..
+make
+</code></pre>
+<p><a href="cpp/getting-started.html">Get started with C++</a></p>
+<h2 id="architecture"><a class="header" href="#architecture">Architecture</a></h2>
 <pre><code>Your Application (Rust / Python / Go / C++)
     |
     +-- DirectClient (MDDS) ---&gt; ThetaData gRPC servers (historical)
@@ -231,31 +239,16 @@
     +-- Greeks calculator -----&gt; Local computation (no network)
 </code></pre>
 <p>No Java runtime. No JVM terminal process. No subprocess. Direct wire-protocol access.</p>
-<h2 id="getting-started"><a class="header" href="#getting-started">Getting Started</a></h2>
-<p>Head to the <a href="getting-started/installation.html">Installation</a> page to set up ThetaDataDx, or jump straight to the <a href="getting-started/quick-start.html">Quick Start</a> guide.</p>
 <h2 id="disclaimer"><a class="header" href="#disclaimer">Disclaimer</a></h2>
-<blockquote>
 <p>Theta Data, ThetaData, and Theta Terminal are trademarks of Theta Data, Inc. / AxiomX LLC. This project is <strong>not affiliated with, endorsed by, or supported by Theta Data</strong>.</p>
-</blockquote>
 <p>ThetaDataDx is an independent, open-source project provided “as is”, without warranty of any kind. See the <a href="https://github.com/userFRM/ThetaDataDx/blob/main/LICENSE">LICENSE</a> for full terms.</p>
-<h3 id="legal-considerations"><a class="header" href="#legal-considerations">Legal Considerations</a></h3>
-<ul>
-<li><strong>No warranty.</strong> ThetaDataDx is provided “as is”, without warranty of any kind.</li>
-<li><strong>Use at your own risk.</strong> Users are solely responsible for ensuring their use complies with ThetaData’s Terms of Service and any applicable laws or regulations.</li>
-<li><strong>Not financial software.</strong> ThetaDataDx is a research and interoperability project. It is not intended as a replacement for officially supported ThetaData software in production trading environments.</li>
-<li><strong>Protocol stability.</strong> ThetaDataDx relies on an undocumented protocol that ThetaData may change at any time without notice.</li>
-</ul>
-<h3 id="eu-interoperability"><a class="header" href="#eu-interoperability">EU Interoperability</a></h3>
-<p>For users and contributors in the European Union: Article 6 of the EU Software Directive (2009/24/EC) permits reverse engineering for the purpose of achieving interoperability with independently created software, provided that specific conditions are met. ThetaDataDx was developed with this legal framework in mind, enabling interoperability with ThetaData’s market data infrastructure on platforms where the official Java-based Terminal cannot run (headless Linux, containers, embedded systems, native Rust/Go/C++ applications).</p>
-<h2 id="license"><a class="header" href="#license">License</a></h2>
-<p>GPL-3.0-or-later</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
 
-                            <a rel="next prefetch" href="getting-started/installation.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="rust/getting-started.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -266,7 +259,7 @@
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
 
-                    <a rel="next prefetch" href="getting-started/installation.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="rust/getting-started.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
