@@ -27,7 +27,7 @@
 //! # use thetadatadx::fpss::{FpssClient, FpssData, FpssEvent};
 //! # use thetadatadx::auth::Credentials;
 //! # fn example() -> Result<(), thetadatadx::error::Error> {
-//! let creds = Credentials { email: "user@example.com".into(), password: "pw".into() };
+//! let creds = Credentials::new("user@example.com", "pw");
 //! let client = FpssClient::connect(&creds, 4096, |event: &FpssEvent| {
 //!     // Runs on the Disruptor consumer thread -- keep it fast.
 //!     // Push to your own queue for heavy processing.

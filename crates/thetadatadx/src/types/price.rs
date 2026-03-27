@@ -55,11 +55,22 @@ impl Price {
 
     #[inline]
     pub fn new(value: i32, price_type: i32) -> Self {
-        assert!(
+        debug_assert!(
             (0..20).contains(&price_type),
             "price_type must be 0..20, got {price_type}"
         );
-        Self { value, price_type }
+        let clamped = price_type.clamp(0, 19);
+        if clamped != price_type {
+            tracing::warn!(
+                price_type,
+                clamped,
+                "price_type out of range 0..20, clamping"
+            );
+        }
+        Self {
+            value,
+            price_type: clamped,
+        }
     }
 
     pub fn is_zero(&self) -> bool {

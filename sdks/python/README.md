@@ -236,8 +236,6 @@ You can also subscribe to per-contract streams if you only need specific symbols
 
 | Method | Description |
 |--------|-------------|
-| `is_authenticated()` | Check if the client is currently authenticated |
-| `server_addr()` | Get the server address the client is connected to |
 | `contract_map()` | Get dict mapping contract IDs to string descriptions |
 | `contract_lookup(id)` | Look up a single contract by ID (returns str or None) |
 | `active_subscriptions()` | Get list of active subscriptions (list of dicts with "kind" and "contract") |
@@ -287,9 +285,9 @@ while True:
     event = tdx.next_event(timeout_ms=5000)
     if event is None:
         break  # timeout, no event received
-    if event["type"] == "quote":
+    if event["kind"] == "quote":
         print(f"Quote: {event['contract']} bid={event['bid']} ask={event['ask']}")
-    elif event["type"] == "trade":
+    elif event["kind"] == "trade":
         print(f"Trade: {event['contract']} price={event['price']} size={event['size']}")
 
 tdx.stop_streaming()

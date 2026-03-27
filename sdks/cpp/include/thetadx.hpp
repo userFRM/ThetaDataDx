@@ -10,6 +10,7 @@
 
 #include "thetadatadx.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -184,7 +185,11 @@ struct PriceTick {
 /** Market value tick. For stock/option/index market value endpoints. */
 struct MarketValueTick {
     int ms_of_day;
-    double value;
+    double market_cap;
+    int64_t shares_outstanding;
+    double enterprise_value;
+    double book_value;
+    int64_t free_float;
     int date;
 };
 
@@ -202,10 +207,12 @@ struct CalendarDay {
     int is_open;
     int open_time;
     int close_time;
+    std::string status;
 };
 
 /** Interest rate EOD tick. For interest_rate_history_eod. */
 struct InterestRateTick {
+    int ms_of_day;
     double rate;
     int date;
 };
@@ -624,6 +631,9 @@ public:
 
     /** Subscribe to all trades for a security type ("STOCK", "OPTION", "INDEX"). Returns request ID. */
     int subscribe_full_trades(const std::string& sec_type);
+
+    /** Unsubscribe from quote data. Returns request ID. */
+    int unsubscribe_quotes(const std::string& symbol);
 
     /** Unsubscribe from open interest data. Returns request ID. */
     int unsubscribe_open_interest(const std::string& symbol);

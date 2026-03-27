@@ -320,7 +320,7 @@ fn iv_bisection(s: f64, x: f64, r: f64, q: f64, t: f64, o: f64, is_call: bool, o
     }
 
     let mut guess = 0.5;
-    let start = 0.0;
+    let mut start = 0.0;
     let mut end = guess;
     let mut changer = 0.2;
 
@@ -332,8 +332,6 @@ fn iv_bisection(s: f64, x: f64, r: f64, q: f64, t: f64, o: f64, is_call: bool, o
         }
         changer *= 2.0;
     }
-
-    let mut start = start;
     for _ in 0..MAX_TRIES {
         let v = value(s, x, guess, r, q, t, is_call);
         if (v - o).abs() < 0.001 {
