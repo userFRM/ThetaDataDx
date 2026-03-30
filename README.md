@@ -1,6 +1,6 @@
 # ThetaDataDx
 
-No-JVM ThetaData Terminal — native Rust SDK for direct market data access.
+No-JVM ThetaData Terminal -- native Rust SDK for direct market data access.
 
 [![build](https://github.com/userFRM/ThetaDataDx/actions/workflows/ci.yml/badge.svg)](https://github.com/userFRM/ThetaDataDx/actions/workflows/ci.yml)
 [![Documentation](https://img.shields.io/docsrs/thetadatadx)](https://docs.rs/thetadatadx)
@@ -11,47 +11,40 @@ No-JVM ThetaData Terminal — native Rust SDK for direct market data access.
 
 ## Overview
 
-`thetadatadx` connects directly to ThetaData's upstream servers — MDDS for historical data and FPSS for real-time streaming — entirely in native Rust. No JVM terminal process, no local Java dependency, no subprocess management. Your application talks to ThetaData's infrastructure with the same wire protocol their own terminal uses.
+`thetadatadx` connects directly to ThetaData's upstream servers -- MDDS for historical data and FPSS for real-time streaming -- entirely in native Rust. No JVM terminal process, no local Java dependency, no subprocess management. Your application talks to ThetaData's infrastructure with the same wire protocol their own terminal uses.
 
 > [!IMPORTANT]
 > A valid [ThetaData](https://thetadata.us) subscription is required. This SDK authenticates against ThetaData's Nexus API using your account credentials.
 
-## Features
+## Repository Structure
 
-- **Historical data** via MDDS/gRPC — EOD, OHLC, trades, quotes across stocks, options, and indices
-- **Real-time streaming** via FPSS/TCP — live quotes, trades, open interest, and OHLC snapshots
-- **Full Greeks calculator** — 22 Black-Scholes Greeks (first, second, and third order) plus IV solver
-- **Zero-copy tick types** — `TradeTick`, `QuoteTick`, `OhlcTick`, `EodTick` with fixed-point `Price` encoding
-- **Async/await** throughout — built on Tokio with concurrent gRPC streaming and background heartbeat tasks
-- **Direct authentication** — handles the Nexus API auth flow, session management, and reconnection logic
-- **FIT codec** — native decoder for ThetaData's nibble-encoded delta-compressed tick format
-- **Multi-language SDKs** — Python (PyO3), Go (CGo), C++ (RAII), all powered by the Rust core, all with FPSS streaming support
-- **pandas DataFrame support** — `to_dataframe()` and `_df` convenience methods in the Python SDK
-
-## Installation
-
-### Rust
-
-```toml
-[dependencies]
-thetadatadx = "3.0"
-tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
-```
-
-### Python
-
-```sh
-pip install thetadatadx
-
-# With pandas DataFrame support
-pip install thetadatadx[pandas]
-```
+| Path | Description |
+|------|-------------|
+| [`crates/thetadatadx/`](crates/thetadatadx/) | Core Rust SDK -- gRPC historical, FPSS streaming, Greeks, FIT codec |
+| [`sdks/python/`](sdks/python/) | Python SDK (PyO3/maturin) -- `pip install thetadatadx` |
+| [`sdks/go/`](sdks/go/) | Go SDK (CGo FFI) |
+| [`sdks/cpp/`](sdks/cpp/) | C++ SDK (RAII wrappers over C FFI) |
+| [`ffi/`](ffi/) | C FFI layer -- shared library consumed by Go and C++ |
+| [`tools/cli/`](tools/cli/) | `tdx` CLI -- all 61 endpoints from the command line |
+| [`tools/mcp/`](tools/mcp/) | MCP server -- gives LLMs access to 64 tools over JSON-RPC |
+| [`tools/server/`](tools/server/) | REST+WS server -- drop-in replacement for the Java terminal |
+| [`docs/`](docs/) | Architecture, API reference, JVM deviations, reverse-engineering guide |
+| [`docs-site/`](docs-site/) | mdBook documentation site (deployed to GitHub Pages) |
+| [`notebooks/`](notebooks/) | 7 Jupyter notebooks (101-107) |
 
 ## Quick Start
 
 > [!TIP]
 > Create a `creds.txt` file with your ThetaData email on line 1 and password on line 2. This is the same format the Java terminal uses.
 
+### Rust
+
+```toml
+[dependencies]
+thetadatadx = "3.1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+```
+
 ```rust
 use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
 
@@ -60,222 +53,80 @@ async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
     let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 
-    // Fetch end-of-day stock data
     let eod = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
     for tick in &eod {
         println!("{}: O={} H={} L={} C={} V={}",
             tick.date, tick.open_price(), tick.high_price(),
             tick.low_price(), tick.close_price(), tick.volume);
     }
-
-    // List option expirations
-    let exps = tdx.option_list_expirations("SPY").await?;
-    println!("SPY expirations: {:?}", &exps[..5.min(exps.len())]);
-
     Ok(())
 }
 ```
 
-## Streaming Example
+### Python
 
-> [!NOTE]
-> FPSS streaming connects to ThetaData's dedicated streaming servers via TLS/TCP. The client automatically sends heartbeat pings every 100ms as required by the protocol.
+```sh
+pip install thetadatadx
+```
+
+```python
+from thetadatadx import Credentials, Config, ThetaDataDx
+
+creds = Credentials.from_file("creds.txt")
+tdx = ThetaDataDx(creds, Config.production())
+
+eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
+for tick in eod:
+    print(f"{tick['date']}: O={tick['open']:.2f} H={tick['high']:.2f} "
+          f"L={tick['low']:.2f} C={tick['close']:.2f} V={tick['volume']}")
+```
+
+## Streaming
+
+One connection, one auth. Historical available immediately, streaming connects lazily.
 
 ```rust
-use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
-use thetadatadx::fpss::{FpssData, FpssControl, FpssEvent};
+use thetadatadx::fpss::{FpssData, FpssEvent};
 use thetadatadx::fpss::protocol::Contract;
 
-#[tokio::main]
-async fn main() -> Result<(), thetadatadx::Error> {
-    let creds = Credentials::from_file("creds.txt")?;
-    let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
-
-    // Start streaming with a callback
-    tdx.start_streaming(|event: &FpssEvent| {
-        match event {
-            FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, .. }) => {
-                println!("Quote: contract={contract_id} bid={bid} ask={ask}");
-            }
-            FpssEvent::Data(FpssData::Trade { contract_id, price, size, .. }) => {
-                println!("Trade: contract={contract_id} price={price} size={size}");
-            }
-            FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
-                println!("Contract {id} = {contract}");
-            }
-            _ => {}
+tdx.start_streaming(|event: &FpssEvent| {
+    match event {
+        FpssEvent::Data(FpssData::Trade { contract_id, price, size, .. }) => {
+            println!("Trade: {contract_id} @ {price} x {size}");
         }
-    })?;
+        _ => {}
+    }
+})?;
 
-    tdx.subscribe_quotes(&Contract::stock("AAPL"))?;
-    println!("Subscribed to AAPL quotes");
-
-    // Block until shutdown
-    std::thread::park();
-    tdx.stop_streaming();
-    Ok(())
-}
+tdx.subscribe_quotes(&Contract::stock("AAPL"))?;
 ```
 
-## Supported Endpoints
+## API Coverage
 
-61 typed methods covering all ThetaData MDDS endpoints (60 gRPC RPCs).
+61 typed endpoints covering all ThetaData MDDS data, plus FPSS real-time streaming and a full Black-Scholes Greeks calculator.
 
-### Stock (14 methods)
+| Category | Endpoints | Examples |
+|----------|-----------|---------|
+| Stock | 14 | EOD, OHLC, trades, quotes, snapshots, at-time |
+| Option | 34 | Same as stock + 5 Greeks tiers, open interest, contracts |
+| Index | 9 | EOD, OHLC, price, snapshots |
+| Calendar | 3 | Market open/close, holiday schedule |
+| Interest Rate | 1 | EOD rate history |
+| Streaming | 7 | Quotes, trades, OI, full-trades (per-contract or firehose) |
+| Greeks | 14 | All 22 Greeks + IV solver, individually or batched |
 
-| Category | Method | Description |
-|----------|--------|-------------|
-| List | `stock_list_symbols()` | All available stock symbols |
-| List | `stock_list_dates()` | Available dates for a stock by request type |
-| Snapshot | `stock_snapshot_ohlc()` | Latest OHLC snapshot |
-| Snapshot | `stock_snapshot_trade()` | Latest trade snapshot |
-| Snapshot | `stock_snapshot_quote()` | Latest NBBO quote snapshot |
-| Snapshot | `stock_snapshot_market_value()` | Latest market value snapshot |
-| History | `stock_history_eod()` | End-of-day data for a date range |
-| History | `stock_history_ohlc()` | Intraday OHLC bars for a single date |
-| History | `stock_history_ohlc_range()` | Intraday OHLC bars across a date range |
-| History | `stock_history_trade()` | All trades on a given date |
-| History | `stock_history_quote()` | NBBO quotes at a given interval |
-| History | `stock_history_trade_quote()` | Combined trade + quote ticks |
-| AtTime | `stock_at_time_trade()` | Trade at a specific time across a date range |
-| AtTime | `stock_at_time_quote()` | Quote at a specific time across a date range |
-
-### Option (34 methods)
-
-| Category | Method | Description |
-|----------|--------|-------------|
-| List | `option_list_symbols()` | All available option underlyings |
-| List | `option_list_dates()` | Available dates for an option contract |
-| List | `option_list_expirations()` | Expiration dates for an underlying |
-| List | `option_list_strikes()` | Strike prices for a given expiration |
-| List | `option_list_contracts()` | All contracts for a symbol on a date |
-| Snapshot | `option_snapshot_ohlc()` | Latest OHLC snapshot for options |
-| Snapshot | `option_snapshot_trade()` | Latest trade snapshot for options |
-| Snapshot | `option_snapshot_quote()` | Latest NBBO quote snapshot for options |
-| Snapshot | `option_snapshot_open_interest()` | Latest open interest snapshot |
-| Snapshot | `option_snapshot_market_value()` | Latest market value snapshot |
-| Snapshot Greeks | `option_snapshot_greeks_implied_volatility()` | IV snapshot |
-| Snapshot Greeks | `option_snapshot_greeks_all()` | All Greeks snapshot |
-| Snapshot Greeks | `option_snapshot_greeks_first_order()` | First-order Greeks snapshot |
-| Snapshot Greeks | `option_snapshot_greeks_second_order()` | Second-order Greeks snapshot |
-| Snapshot Greeks | `option_snapshot_greeks_third_order()` | Third-order Greeks snapshot |
-| History | `option_history_eod()` | End-of-day option data |
-| History | `option_history_ohlc()` | Intraday option OHLC bars |
-| History | `option_history_trade()` | Option trades on a given date |
-| History | `option_history_quote()` | Option NBBO quotes |
-| History | `option_history_trade_quote()` | Combined trade + quote ticks |
-| History | `option_history_open_interest()` | Open interest history |
-| History Greeks | `option_history_greeks_eod()` | EOD Greeks history |
-| History Greeks | `option_history_greeks_all()` | All Greeks history (intraday) |
-| History Greeks | `option_history_greeks_first_order()` | First-order Greeks history |
-| History Greeks | `option_history_greeks_second_order()` | Second-order Greeks history |
-| History Greeks | `option_history_greeks_third_order()` | Third-order Greeks history |
-| History Greeks | `option_history_greeks_implied_volatility()` | IV history (intraday) |
-| History Trade Greeks | `option_history_trade_greeks_all()` | All Greeks per trade |
-| History Trade Greeks | `option_history_trade_greeks_first_order()` | First-order Greeks per trade |
-| History Trade Greeks | `option_history_trade_greeks_second_order()` | Second-order Greeks per trade |
-| History Trade Greeks | `option_history_trade_greeks_third_order()` | Third-order Greeks per trade |
-| History Trade Greeks | `option_history_trade_greeks_implied_volatility()` | IV per trade |
-| AtTime | `option_at_time_trade()` | Trade at a specific time across a date range |
-| AtTime | `option_at_time_quote()` | Quote at a specific time across a date range |
-
-### Index (9 methods)
-
-| Category | Method | Description |
-|----------|--------|-------------|
-| List | `index_list_symbols()` | All available index symbols |
-| List | `index_list_dates()` | Available dates for an index |
-| Snapshot | `index_snapshot_ohlc()` | Latest OHLC snapshot |
-| Snapshot | `index_snapshot_price()` | Latest price snapshot |
-| Snapshot | `index_snapshot_market_value()` | Latest market value snapshot |
-| History | `index_history_eod()` | End-of-day index data |
-| History | `index_history_ohlc()` | Intraday OHLC bars |
-| History | `index_history_price()` | Intraday price history |
-| AtTime | `index_at_time_price()` | Price at a specific time across a date range |
-
-### Interest Rate (1 method)
-
-| Category | Method | Description |
-|----------|--------|-------------|
-| History | `interest_rate_history_eod()` | End-of-day interest rate history |
-
-### Calendar (3 methods)
-
-| Category | Method | Description |
-|----------|--------|-------------|
-| Calendar | `calendar_open_today()` | Whether the market is open today |
-| Calendar | `calendar_on_date()` | Calendar info for a specific date |
-| Calendar | `calendar_year()` | Calendar info for an entire year |
-
-### Streaming (FPSS)
-
-| Method | Description |
-|--------|-------------|
-| `subscribe_quotes()` | Real-time quote stream for a contract |
-| `subscribe_trades()` | Real-time trade stream for a contract |
-| `subscribe_open_interest()` | Real-time open interest for a contract |
-| `subscribe_full_trades()` | All trades for a security type |
-| `unsubscribe_quotes()` | Stop quote stream |
-| `unsubscribe_trades()` | Stop trade stream |
-| `unsubscribe_open_interest()` | Stop open interest stream |
-
-### Greeks Calculator
-
-| Function | Description |
-|----------|-------------|
-| `greeks::all_greeks()` | Compute all 22 Greeks + IV in one call |
-| `greeks::implied_volatility()` | IV solver via bisection |
-| `greeks::delta()` | First-order: delta |
-| `greeks::gamma()` | Second-order: gamma |
-| `greeks::theta()` | First-order: theta (daily) |
-| `greeks::vega()` | First-order: vega |
-| `greeks::rho()` | First-order: rho |
-| `greeks::vanna()` | Second-order: vanna |
-| `greeks::charm()` | Second-order: charm |
-| `greeks::vomma()` | Second-order: vomma |
-| `greeks::speed()` | Third-order: speed |
-| `greeks::zomma()` | Third-order: zomma |
-| `greeks::color()` | Third-order: color |
-| `greeks::ultima()` | Third-order: ultima |
-
-## Configuration
-
-```rust
-use thetadatadx::{ThetaDataDx, DirectConfig};
-
-// Production (ThetaData NJ datacenter, gRPC over TLS)
-let config = DirectConfig::production();
-
-// Dev (same servers, shorter timeouts for faster iteration)
-let config = DirectConfig::dev();
-
-// Custom configuration (override specific fields)
-let config = DirectConfig {
-    fpss_timeout_ms: 5_000,
-    reconnect_wait_ms: 2_000,
-    ..DirectConfig::production()
-};
-
-// Override gRPC concurrency (default is auto-detected from subscription tier)
-let config = DirectConfig {
-    mdds_concurrent_requests: Some(8),  // manual override; None = auto (2^tier)
-    ..DirectConfig::production()
-};
-```
-
-> [!TIP]
-> Credentials can be loaded from a file, environment variables, or constructed directly:
-> ```rust
-> let creds = Credentials::from_file("creds.txt")?;
-> let creds = Credentials::new(std::env::var("THETA_EMAIL")?, std::env::var("THETA_PASS")?);
-> ```
+All endpoints return fully typed native structs in every language. Zero raw JSON or protobuf in the public API. See the [API Reference](docs/api-reference.md) for the complete method list.
 
 ## Documentation
 
-- **[API Reference](docs/api-reference.md)** — All client methods, tick types, enums, and configuration options
-- **[Architecture](docs/architecture.md)** — System design, protocol specifications, wire formats, and auth flow
-- **[JVM Deviations](docs/jvm-deviations.md)** — Intentional differences from the Java terminal
-- **[Reverse-Engineering Guide](docs/reverse-engineering.md)** — How to decompile the terminal JAR and extract protocol definitions
+| Document | Description |
+|----------|-------------|
+| [API Reference](docs/api-reference.md) | All 61 methods, 14 tick types, configuration options |
+| [Architecture](docs/architecture.md) | System design, wire protocols, TOML codegen pipeline |
+| [JVM Deviations](docs/jvm-deviations.md) | Intentional differences from the Java terminal |
+| [Reverse-Engineering Guide](docs/reverse-engineering.md) | How to decompile the terminal and extract proto definitions |
+| [Endpoint Schema](docs/endpoint-schema.md) | TOML codegen format for adding new types/columns |
+| [Proto Maintenance](crates/thetadatadx/proto/MAINTENANCE.md) | Guide for ThetaData engineers updating proto files |
 
 ## Contributing
 
@@ -290,7 +141,7 @@ ThetaDataDx is an independent, open-source project provided "as is", without war
 
 ### How ThetaDataDx Was Built
 
-ThetaDataDx was developed through independent analysis of the ThetaData Terminal JAR and its network protocol. The protocol implementation was built from scratch in Rust based on decompiled Java source and observed wire-level behavior. This approach is consistent with the principle of interoperability through protocol analysis — the same method used by projects like Samba (SMB/CIFS), open-source Exchange clients, and countless other third-party implementations of proprietary network protocols.
+ThetaDataDx was developed through independent analysis of the ThetaData Terminal JAR and its network protocol. The protocol implementation was built from scratch in Rust based on decompiled Java source and observed wire-level behavior. This approach is consistent with the principle of interoperability through protocol analysis -- the same method used by projects like Samba (SMB/CIFS), open-source Exchange clients, and countless other third-party implementations of proprietary network protocols.
 
 ### Legal Considerations
 
@@ -306,4 +157,4 @@ For users and contributors in the European Union: Article 6 of the EU Software D
 
 ## License
 
-GPL-3.0-or-later — see [LICENSE](./LICENSE).
+GPL-3.0-or-later -- see [LICENSE](./LICENSE).

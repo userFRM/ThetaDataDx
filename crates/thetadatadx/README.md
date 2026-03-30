@@ -1,0 +1,74 @@
+# thetadatadx
+
+Core Rust crate -- direct wire-protocol access to ThetaData's MDDS (gRPC) and FPSS (TCP) servers.
+
+This is the engine that powers all ThetaDataDx SDKs (Python, Go, C++, CLI, MCP, REST server).
+
+## Entry Point
+
+```rust
+use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
+
+let creds = Credentials::from_file("creds.txt")?;
+let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+
+// Historical -- 61 typed endpoints, available immediately
+let eod = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
+
+// Streaming -- connects lazily on first call
+tdx.start_streaming(|event| { /* ... */ })?;
+tdx.subscribe_quotes(&Contract::stock("AAPL"))?;
+
+// When done
+tdx.stop_streaming();
+```
+
+`ThetaDataDx::connect()` authenticates once. Historical data (MDDS gRPC) is available immediately via `Deref` to the internal `DirectClient`. Streaming (FPSS TCP) connects lazily when you call `start_streaming()`.
+
+## Crate Layout
+
+```
+src/
+  lib.rs           -- public re-exports (ThetaDataDx, Credentials, DirectConfig, Error)
+  unified.rs       -- ThetaDataDx: single entry point, lazy streaming
+  direct.rs        -- DirectClient: 61 gRPC endpoints via parsed_endpoint! macro
+  auth/            -- Nexus API authentication, credential parsing
+  fpss/            -- FPSS streaming client (sync, LMAX Disruptor ring buffer)
+  codec/           -- FIT nibble encoder/decoder, delta compression
+  config.rs        -- DirectConfig (server addresses, timeouts, concurrency)
+  decode.rs        -- DataTable -> typed tick parsing (generated from TOML)
+  types/           -- Tick structs, Price, enums (generated from TOML)
+  greeks.rs        -- 22 Black-Scholes Greeks + IV solver
+  registry.rs      -- Endpoint metadata (generated from proto at build time)
+  error.rs         -- Error enum
+proto/
+  endpoints.proto      -- shared types (DataTable, ResponseData, Price)
+  v3_endpoints.proto   -- v3 service (BetaThetaTerminal, 60 RPCs)
+  MAINTENANCE.md       -- guide for ThetaData engineers
+endpoint_schema.toml   -- single source of truth for tick type definitions
+build.rs               -- proto compilation + endpoint registry + TOML codegen
+```
+
+## TOML Codegen
+
+All 14 tick types and their DataTable parsers are generated at compile time from `endpoint_schema.toml`. Adding a new column is one line in the TOML. See [docs/endpoint-schema.md](../../docs/endpoint-schema.md).
+
+## Tick Types
+
+| Type | Fields | Use |
+|------|--------|-----|
+| `TradeTick` | 16 | Individual trades |
+| `QuoteTick` | 11 | NBBO quotes |
+| `OhlcTick` | 9 | Aggregated OHLC bars |
+| `EodTick` | 18 | End-of-day summary |
+| `TradeQuoteTick` | 26 | Combined trade + quote |
+| `OpenInterestTick` | 3 | Open interest |
+| `MarketValueTick` | 7 | Market cap, shares out, etc. |
+| `GreeksTick` | 24 | All 22 Greeks + ms_of_day + date |
+| `IvTick` | 4 | Implied volatility + error |
+| `PriceTick` | 4 | Index price |
+| `CalendarDay` | 5 | Market open/close schedule |
+| `InterestRateTick` | 3 | Interest rate |
+| `OptionContract` | 5 | Contract definition (root, exp, strike, right) |
+
+All types except `OptionContract` are `Copy` -- pure stack values, zero heap allocation.
