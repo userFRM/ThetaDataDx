@@ -1,0 +1,304 @@
+# Tick Type Schema — single source of truth for all DataTable column schemas.
+#
+# build.rs reads this file and generates:
+#   - Rust tick structs  -> $OUT_DIR/tick_generated.rs
+#   - DataTable parsers  -> $OUT_DIR/decode_generated.rs
+#
+# Column types:
+#   i32     -> row_number(row, i)                         default: 0
+#   i64     -> row_number_i64(row, i)                     default: 0
+#   f64     -> row_float(row, i)                          default: 0.0
+#   String  -> row_text(row, i)                           default: ""
+#   price   -> row_price_value(row, i) for .value,
+#              row_price_type(row, i) for price_type      default: 0
+#   eod_num -> eod_num(row, i) handles both Price and Number cells  default: 0
+#
+# Parser options:
+#   required = ["col1", "col2"]  -- headers that must exist or parser returns empty vec
+#   price_typed_columns = ["price", ...]  -- columns that may be Price-typed cells
+#   eod_style = true  -- use eod_num helper (handles both Price and Number cells)
+#
+# Struct options:
+#   copy = true/false   -- whether to derive Copy (false when String fields exist)
+#   align = 64          -- repr(C, align(N)); omit for no repr attribute
+#   doc = "..."         -- doc comment on the struct
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Existing 4 tick types (hand-written before, now generated)
+# ─────────────────────────────────────────────────────────────────────────────
+
+[types.TradeTick]
+doc = "Trade tick -- 16 fields. Core unit of trade data."
+copy = true
+align = 64
+parser = "parse_trade_ticks"
+required = ["ms_of_day", "price"]
+price_typed_columns = ["price"]
+columns = [
+    { name = "ms_of_day",       field = "ms_of_day",       type = "i32" },
+    { name = "sequence",        field = "sequence",        type = "i32" },
+    { name = "ext_condition1",  field = "ext_condition1",  type = "i32" },
+    { name = "ext_condition2",  field = "ext_condition2",  type = "i32" },
+    { name = "ext_condition3",  field = "ext_condition3",  type = "i32" },
+    { name = "ext_condition4",  field = "ext_condition4",  type = "i32" },
+    { name = "condition",       field = "condition",       type = "i32" },
+    { name = "size",            field = "size",            type = "i32" },
+    { name = "exchange",        field = "exchange",        type = "i32" },
+    { name = "price",           field = "price",           type = "price" },
+    { name = "condition_flags", field = "condition_flags", type = "i32" },
+    { name = "price_flags",     field = "price_flags",     type = "i32" },
+    { name = "volume_type",     field = "volume_type",     type = "i32" },
+    { name = "records_back",    field = "records_back",    type = "i32" },
+    { name = "price_type",      field = "price_type",      type = "i32", price_source = "price" },
+    { name = "date",            field = "date",            type = "i32" },
+]
+
+[types.QuoteTick]
+doc = "Quote tick -- 11 fields. NBBO quote data."
+copy = true
+align = 64
+parser = "parse_quote_ticks"
+required = ["ms_of_day", "bid", "ask"]
+price_typed_columns = ["bid", "ask"]
+columns = [
+    { name = "ms_of_day",     field = "ms_of_day",     type = "i32" },
+    { name = "bid_size",      field = "bid_size",      type = "i32" },
+    { name = "bid_exchange",  field = "bid_exchange",  type = "i32" },
+    { name = "bid",           field = "bid",           type = "price" },
+    { name = "bid_condition", field = "bid_condition", type = "i32" },
+    { name = "ask_size",      field = "ask_size",      type = "i32" },
+    { name = "ask_exchange",  field = "ask_exchange",  type = "i32" },
+    { name = "ask",           field = "ask",           type = "price" },
+    { name = "ask_condition", field = "ask_condition", type = "i32" },
+    { name = "price_type",    field = "price_type",    type = "i32", price_source = "bid" },
+    { name = "date",          field = "date",          type = "i32" },
+]
+
+[types.OhlcTick]
+doc = "OHLC tick -- 9 fields. Aggregated bar data."
+copy = true
+align = 64
+parser = "parse_ohlc_ticks"
+required = ["ms_of_day", "open"]
+price_typed_columns = ["open", "high", "low", "close"]
+columns = [
+    { name = "ms_of_day",  field = "ms_of_day",  type = "i32" },
+    { name = "open",       field = "open",        type = "price" },
+    { name = "high",       field = "high",        type = "price" },
+    { name = "low",        field = "low",         type = "price" },
+    { name = "close",      field = "close",       type = "price" },
+    { name = "volume",     field = "volume",      type = "i32" },
+    { name = "count",      field = "count",       type = "i32" },
+    { name = "price_type", field = "price_type",  type = "i32", price_source = "open" },
+    { name = "date",       field = "date",        type = "i32" },
+]
+
+[types.EodTick]
+doc = "End-of-day tick -- 18 fields. Full EOD snapshot with OHLC + quote."
+copy = true
+align = 64
+parser = "parse_eod_ticks"
+eod_style = true
+required = []
+columns = [
+    { name = "ms_of_day",     field = "ms_of_day",     type = "eod_num" },
+    { name = "ms_of_day2",    field = "ms_of_day2",    type = "eod_num" },
+    { name = "open",          field = "open",          type = "eod_num" },
+    { name = "high",          field = "high",          type = "eod_num" },
+    { name = "low",           field = "low",           type = "eod_num" },
+    { name = "close",         field = "close",         type = "eod_num" },
+    { name = "volume",        field = "volume",        type = "eod_num" },
+    { name = "count",         field = "count",         type = "eod_num" },
+    { name = "bid_size",      field = "bid_size",      type = "eod_num" },
+    { name = "bid_exchange",  field = "bid_exchange",  type = "eod_num" },
+    { name = "bid",           field = "bid",           type = "eod_num" },
+    { name = "bid_condition", field = "bid_condition", type = "eod_num" },
+    { name = "ask_size",      field = "ask_size",      type = "eod_num" },
+    { name = "ask_exchange",  field = "ask_exchange",  type = "eod_num" },
+    { name = "ask",           field = "ask",           type = "eod_num" },
+    { name = "ask_condition", field = "ask_condition", type = "eod_num" },
+    { name = "price_type",    field = "price_type",    type = "i32", price_source = "open" },
+    { name = "date",          field = "date",          type = "eod_num" },
+]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9 new tick types
+# ─────────────────────────────────────────────────────────────────────────────
+
+[types.OpenInterestTick]
+doc = "Open interest tick -- 3 fields."
+copy = true
+parser = "parse_open_interest_ticks"
+required = ["ms_of_day"]
+columns = [
+    { name = "ms_of_day",     field = "ms_of_day",     type = "i32" },
+    { name = "open_interest", field = "open_interest", type = "i32" },
+    { name = "date",          field = "date",          type = "i32" },
+]
+
+[types.SnapshotTradeTick]
+doc = "Snapshot trade tick -- 7 fields. Abbreviated trade for snapshots."
+copy = true
+parser = "parse_snapshot_trade_ticks"
+required = ["ms_of_day", "price"]
+price_typed_columns = ["price"]
+columns = [
+    { name = "ms_of_day",  field = "ms_of_day",  type = "i32" },
+    { name = "sequence",   field = "sequence",   type = "i32" },
+    { name = "size",       field = "size",       type = "i32" },
+    { name = "condition",  field = "condition",  type = "i32" },
+    { name = "price",      field = "price",      type = "price" },
+    { name = "price_type", field = "price_type", type = "i32", price_source = "price" },
+    { name = "date",       field = "date",       type = "i32" },
+]
+
+[types.TradeQuoteTick]
+doc = "Combined trade + quote tick -- 26 fields."
+copy = true
+parser = "parse_trade_quote_ticks"
+required = ["ms_of_day", "price"]
+price_typed_columns = ["price"]
+# bid/ask always use row_price_value (not conditional on price_typed)
+columns = [
+    { name = "ms_of_day",        field = "ms_of_day",        type = "i32" },
+    { name = "sequence",         field = "sequence",         type = "i32" },
+    { name = "ext_condition1",   field = "ext_condition1",   type = "i32" },
+    { name = "ext_condition2",   field = "ext_condition2",   type = "i32" },
+    { name = "ext_condition3",   field = "ext_condition3",   type = "i32" },
+    { name = "ext_condition4",   field = "ext_condition4",   type = "i32" },
+    { name = "condition",        field = "condition",        type = "i32" },
+    { name = "size",             field = "size",             type = "i32" },
+    { name = "exchange",         field = "exchange",         type = "i32" },
+    { name = "price",            field = "price",            type = "price" },
+    { name = "condition_flags",  field = "condition_flags",  type = "i32" },
+    { name = "price_flags",      field = "price_flags",      type = "i32" },
+    { name = "volume_type",      field = "volume_type",      type = "i32" },
+    { name = "records_back",     field = "records_back",     type = "i32" },
+    { name = "quote_ms_of_day",  field = "quote_ms_of_day",  type = "i32" },
+    { name = "bid_size",         field = "bid_size",         type = "i32" },
+    { name = "bid_exchange",     field = "bid_exchange",     type = "i32" },
+    { name = "bid",              field = "bid",              type = "price_value" },
+    { name = "bid_condition",    field = "bid_condition",    type = "i32" },
+    { name = "ask_size",         field = "ask_size",         type = "i32" },
+    { name = "ask_exchange",     field = "ask_exchange",     type = "i32" },
+    { name = "ask",              field = "ask",              type = "price_value" },
+    { name = "ask_condition",    field = "ask_condition",    type = "i32" },
+    { name = "quote_price_type", field = "quote_price_type", type = "i32" },
+    { name = "price_type",       field = "price_type",       type = "i32", price_source = "price" },
+    { name = "date",             field = "date",             type = "i32" },
+]
+
+[types.MarketValueTick]
+doc = "Market value tick -- 7 fields. Market capitalization and related data."
+copy = true
+align = 64
+parser = "parse_market_value_ticks"
+required = ["ms_of_day"]
+columns = [
+    { name = "ms_of_day",          field = "ms_of_day",          type = "i32" },
+    { name = "market_cap",         field = "market_cap",         type = "i64" },
+    { name = "shares_outstanding", field = "shares_outstanding", type = "i64" },
+    { name = "enterprise_value",   field = "enterprise_value",   type = "i64" },
+    { name = "book_value",         field = "book_value",         type = "i64" },
+    { name = "free_float",         field = "free_float",         type = "i64" },
+    { name = "date",               field = "date",               type = "i32" },
+]
+
+[types.GreeksTick]
+doc = "Greeks tick -- 24 fields. Full set of option greeks."
+copy = true
+align = 64
+parser = "parse_greeks_ticks"
+required = ["ms_of_day"]
+columns = [
+    { name = "ms_of_day",          field = "ms_of_day",          type = "i32" },
+    { name = "implied_volatility", field = "implied_volatility", type = "f64" },
+    { name = "delta",              field = "delta",              type = "f64" },
+    { name = "gamma",              field = "gamma",              type = "f64" },
+    { name = "theta",              field = "theta",              type = "f64" },
+    { name = "vega",               field = "vega",               type = "f64" },
+    { name = "rho",                field = "rho",                type = "f64" },
+    { name = "iv_error",           field = "iv_error",           type = "f64" },
+    { name = "vanna",              field = "vanna",              type = "f64" },
+    { name = "charm",              field = "charm",              type = "f64" },
+    { name = "vomma",              field = "vomma",              type = "f64" },
+    { name = "veta",               field = "veta",               type = "f64" },
+    { name = "speed",              field = "speed",              type = "f64" },
+    { name = "zomma",              field = "zomma",              type = "f64" },
+    { name = "color",              field = "color",              type = "f64" },
+    { name = "ultima",             field = "ultima",             type = "f64" },
+    { name = "d1",                 field = "d1",                 type = "f64" },
+    { name = "d2",                 field = "d2",                 type = "f64" },
+    { name = "dual_delta",         field = "dual_delta",         type = "f64" },
+    { name = "dual_gamma",         field = "dual_gamma",         type = "f64" },
+    { name = "epsilon",            field = "epsilon",            type = "f64" },
+    { name = "lambda",             field = "lambda",             type = "f64" },
+    { name = "vera",               field = "vera",               type = "f64" },
+    { name = "date",               field = "date",               type = "i32" },
+]
+
+[types.IvTick]
+doc = "Implied volatility tick -- 4 fields."
+copy = true
+align = 64
+parser = "parse_iv_ticks"
+required = ["ms_of_day"]
+columns = [
+    { name = "ms_of_day",          field = "ms_of_day",          type = "i32" },
+    { name = "implied_volatility", field = "implied_volatility", type = "f64" },
+    { name = "iv_error",           field = "iv_error",           type = "f64" },
+    { name = "date",               field = "date",               type = "i32" },
+]
+
+[types.PriceTick]
+doc = "Price tick -- 4 fields. Generic price data point."
+copy = true
+align = 64
+parser = "parse_price_ticks"
+required = ["ms_of_day", "price"]
+price_typed_columns = ["price"]
+columns = [
+    { name = "ms_of_day",  field = "ms_of_day",  type = "i32" },
+    { name = "price",      field = "price",      type = "price" },
+    { name = "price_type", field = "price_type", type = "i32", price_source = "price" },
+    { name = "date",       field = "date",       type = "i32" },
+]
+
+[types.CalendarDay]
+doc = "Calendar day -- 5 fields. Market open/close schedule."
+copy = true
+align = 64
+parser = "parse_calendar_days"
+required = ["date"]
+columns = [
+    { name = "date",       field = "date",       type = "i32" },
+    { name = "is_open",    field = "is_open",    type = "i32" },
+    { name = "open_time",  field = "open_time",  type = "i32" },
+    { name = "close_time", field = "close_time", type = "i32" },
+    { name = "status",     field = "status",     type = "i32" },
+]
+
+[types.InterestRateTick]
+doc = "Interest rate tick -- 3 fields. End-of-day interest rate."
+copy = true
+align = 64
+parser = "parse_interest_rate_ticks"
+required = ["ms_of_day"]
+columns = [
+    { name = "ms_of_day", field = "ms_of_day", type = "i32" },
+    { name = "rate",      field = "rate",      type = "f64" },
+    { name = "date",      field = "date",      type = "i32" },
+]
+
+[types.OptionContract]
+doc = "Option contract -- 5 fields. Contract specification.\n\nCannot be `Copy` because of the `String` root field."
+copy = false
+parser = "parse_option_contracts"
+required = ["root"]
+columns = [
+    { name = "root",              field = "root",              type = "String" },
+    { name = "expiration",        field = "expiration",        type = "i32" },
+    { name = "strike",            field = "strike",            type = "i32" },
+    { name = "right",             field = "right",             type = "i32" },
+    { name = "strike_price_type", field = "strike_price_type", type = "i32" },
+]
