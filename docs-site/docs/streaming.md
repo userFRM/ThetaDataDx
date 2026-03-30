@@ -9,10 +9,10 @@ Real-time market data is delivered via ThetaData's FPSS (Feed Protocol Streaming
 
 Each SDK exposes FPSS differently:
 
-- **Rust** -- Fully synchronous callback model. Events are dispatched through an LMAX Disruptor ring buffer. No Tokio on the streaming hot path.
-- **Python** -- Polling model with `next_event()`. Events are returned as Python dicts.
-- **Go** -- Polling model with `NextEvent()`. Events are returned as JSON.
-- **C++** -- Polling model with `next_event()`. Events are returned as JSON strings. RAII handles cleanup automatically.
+- **Rust** - Fully synchronous callback model. Events are dispatched through an LMAX Disruptor ring buffer. No Tokio on the streaming hot path.
+- **Python** - Polling model with `next_event()`. Events are returned as Python dicts.
+- **Go** - Polling model with `NextEvent()`. Events are returned as JSON.
+- **C++** - Polling model with `next_event()`. Events are returned as JSON strings. RAII handles cleanup automatically.
 
 ## Connect
 
@@ -369,7 +369,7 @@ use thetadatadx::types::RemoveReason;
 
 match thetadatadx::fpss::reconnect_delay(reason) {
     None => {
-        // Permanent error (bad credentials, etc.) -- do NOT retry
+        // Permanent error (bad credentials, etc.) - do NOT retry
         eprintln!("Permanent disconnect: {:?}", reason);
     }
     Some(delay_ms) => {

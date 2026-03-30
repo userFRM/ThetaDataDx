@@ -1,6 +1,6 @@
 ---
 title: Real-Time Streaming
-description: Overview of ThetaDataDx real-time streaming via FPSS -- architecture, SDK models, and getting started.
+description: Overview of ThetaDataDx real-time streaming via FPSS - architecture, SDK models, and getting started.
 ---
 
 # Real-Time Streaming
@@ -30,6 +30,6 @@ Each SDK exposes FPSS differently:
 
 ## Next Steps
 
-1. [Connecting & Subscribing](./connection) -- establish a streaming connection and subscribe to data
-2. [Handling Events](./events) -- process data and control events in your application
-3. [Reconnection & Error Handling](./reconnection) -- handle disconnects and recover gracefully
+1. [Connecting & Subscribing](./connection) - establish a streaming connection and subscribe to data
+2. [Handling Events](./events) - process data and control events in your application
+3. [Reconnection & Error Handling](./reconnection) - handle disconnects and recover gracefully

@@ -12,9 +12,9 @@ graph LR
         FPSS["FPSS<br/>nj-a.thetadata.us:20000/20001<br/>nj-b.thetadata.us:20000/20001<br/>Custom TLS/TCP protocol"]
     end
 
-    App -- "HTTPS<br/>email + password" --> Nexus
-    App -- "gRPC over TLS<br/>session UUID in QueryInfo" --> MDDS
-    App -- "TLS/TCP<br/>email + password<br/>FIT-encoded ticks" --> FPSS
+    App - "HTTPS<br/>email + password" --> Nexus
+    App - "gRPC over TLS<br/>session UUID in QueryInfo" --> MDDS
+    App - "TLS/TCP<br/>email + password<br/>FIT-encoded ticks" --> FPSS
 
     Nexus -. "session UUID" .-> App
 ```
@@ -58,7 +58,7 @@ MDDS is a standard gRPC service over TLS, operating on port 443.
 - **Package**: `BetaEndpoints`
 - **Service**: `BetaThetaTerminal`
 - **Methods**: 60 RPCs, all server-streaming (returning `stream ResponseData`). thetadatadx wraps all 60 gRPC RPCs plus 1 convenience range-query variant = **61 methods** on `ThetaDataDx`, generated via a declarative `define_endpoint!` macro (internal implementation uses `DirectClient` via `Deref`).
-- **Categories**: Stock, Option, Index, Interest Rate, Calendar -- each with List, History, Snapshot, AtTime, and Greeks sub-categories
+- **Categories**: Stock, Option, Index, Interest Rate, Calendar - each with List, History, Snapshot, AtTime, and Greeks sub-categories
 
 ### Request Structure
 
@@ -90,7 +90,7 @@ graph TD
     P --> I
 ```
 
-Authentication is **in-band** -- the session UUID is inside the protobuf message, not in gRPC metadata headers.
+Authentication is **in-band** - the session UUID is inside the protobuf message, not in gRPC metadata headers.
 
 ### gRPC Flow Control
 
@@ -174,7 +174,7 @@ flowchart LR
 
 The 14 generated tick types are: `TradeTick`, `QuoteTick`, `OhlcTick`, `EodTick`, `OpenInterestTick`, `SnapshotTradeTick`, `TradeQuoteTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`.
 
-Adding a new tick type requires only adding a TOML table to `endpoint_schema.toml` -- no hand-written struct or parser code needed. See `docs/endpoint-schema.md` for the full schema reference.
+Adding a new tick type requires only adding a TOML table to `endpoint_schema.toml` - no hand-written struct or parser code needed. See `docs/endpoint-schema.md` for the full schema reference.
 
 ## FPSS Protocol (Real-Time Streaming)
 
@@ -308,7 +308,7 @@ After successful authentication, the client waits 2000ms before sending the firs
 
 ### Disruptor Ring Buffer
 
-FPSS event dispatch uses a lock-free disruptor ring buffer (`disruptor-rs` v4), matching Java's LMAX Disruptor pattern. This eliminates channel overhead on the hot path and provides bounded-latency event delivery. The FPSS I/O thread is fully synchronous -- no tokio in the streaming hot path.
+FPSS event dispatch uses a lock-free disruptor ring buffer (`disruptor-rs` v4), matching Java's LMAX Disruptor pattern. This eliminates channel overhead on the hot path and provides bounded-latency event delivery. The FPSS I/O thread is fully synchronous - no tokio in the streaming hot path.
 
 Events delivered through the ring buffer use a split enum:
 - **`FpssEvent::Data(FpssData)`** — market data: `Quote`, `Trade`, `OpenInterest`, `Ohlcvc`
@@ -338,7 +338,7 @@ FPSS streaming is available in all SDKs through the unified `ThetaDataDx` client
 
 | Disconnect Reason | Action |
 |-------------------|--------|
-| Credential/account errors (0, 1, 2, 6, 9, 17, 18) | **Permanent** -- do NOT reconnect |
+| Credential/account errors (0, 1, 2, 6, 9, 17, 18) | **Permanent** - do NOT reconnect |
 | `TooManyRequests` (12) | Wait 130 seconds, then reconnect |
 | All others | Wait 2 seconds, then reconnect |
 
@@ -347,9 +347,9 @@ Permanent reasons: `InvalidCredentials` (0), `InvalidLoginValues` (1), `InvalidL
 ```mermaid
 flowchart TD
     D["Disconnected"] --> Check{Reason?}
-    Check -- "Credential/account error<br/>(0,1,2,6,9,17,18)" --> Stop["Stop permanently"]
-    Check -- "TooManyRequests (12)" --> W130["Wait 130s"] --> Reconnect
-    Check -- "All others" --> W2["Wait 2s"] --> Reconnect
+    Check - "Credential/account error<br/>(0,1,2,6,9,17,18)" --> Stop["Stop permanently"]
+    Check - "TooManyRequests (12)" --> W130["Wait 130s"] --> Reconnect
+    Check - "All others" --> W2["Wait 2s"] --> Reconnect
     Reconnect["Reconnect"] --> TLS["New TLS connection"]
     TLS --> Auth["Re-authenticate"]
     Auth --> Resub["Re-subscribe all active<br/>subscriptions with req_id = -1"]
@@ -380,7 +380,7 @@ flowchart TD
 
 ## FIT Tick Encoding
 
-FPSS tick data uses **FIT** (Feed Interchange Transport) -- a nibble-based variable-length integer encoding with delta compression.
+FPSS tick data uses **FIT** (Feed Interchange Transport) - a nibble-based variable-length integer encoding with delta compression.
 
 ### Nibble Values
 
@@ -389,10 +389,10 @@ Each byte contains two 4-bit nibbles: `byte = (high << 4) | low`.
 | Nibble | Meaning |
 |--------|---------|
 | 0-9 | Decimal digit, accumulated left-to-right into current integer |
-| 0xB | FIELD_SEPARATOR -- flush integer to output, advance to next field |
-| 0xC | ROW_SEPARATOR -- flush, zero-fill fields up to index 4, jump to index 5 |
-| 0xD | END -- flush current integer, terminate row, return field count |
-| 0xE | NEGATIVE -- next flushed integer is negated |
+| 0xB | FIELD_SEPARATOR - flush integer to output, advance to next field |
+| 0xC | ROW_SEPARATOR - flush, zero-fill fields up to index 4, jump to index 5 |
+| 0xD | END - flush current integer, terminate row, return field count |
+| 0xE | NEGATIVE - next flushed integer is negated |
 
 ### Encoding Example
 
@@ -420,8 +420,8 @@ flowchart LR
         T2["[34200500, 2, 0, 0, 0, 150, 4, 15022]"]
     end
 
-    T1 -- "+" --> D2
-    D2 -- "=" --> T2
+    T1 - "+" --> D2
+    D2 - "=" --> T2
 ```
 
 - **First tick** per contract: absolute values (no delta applied)

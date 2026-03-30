@@ -1,6 +1,6 @@
 ---
 title: Option Endpoints
-description: 34 option data endpoints -- list, snapshots, history, Greeks, trade Greeks, and at-time queries.
+description: 34 option data endpoints - list, snapshots, history, Greeks, trade Greeks, and at-time queries.
 ---
 
 # Option Endpoints
@@ -24,11 +24,11 @@ Option contracts are identified by four parameters:
 
 Discover available symbols, expirations, strikes, dates, and contracts.
 
-- [List Roots](./list/roots) -- all option underlying symbols
-- [List Dates](./list/dates) -- available dates for a contract
-- [List Strikes](./list/strikes) -- strike prices for an expiration
-- [List Expirations](./list/expirations) -- expiration dates for an underlying
-- [List Contracts](./list/contracts) -- all contracts for a symbol on a date
+- [List Roots](./list/roots) - all option underlying symbols
+- [List Dates](./list/dates) - available dates for a contract
+- [List Strikes](./list/strikes) - strike prices for an expiration
+- [List Expirations](./list/expirations) - expiration dates for an underlying
+- [List Contracts](./list/contracts) - all contracts for a symbol on a date
 
 ### [Snapshot](./snapshot/ohlc) (9 endpoints)
 

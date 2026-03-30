@@ -8,12 +8,12 @@ type structs, and DataTable parsers across all languages.
 
 ```
 proto/
-  endpoints.proto          -- shared types (DataTable, ResponseData, Price, etc.)
-  v3_endpoints.proto       -- v3 service (BetaThetaTerminal, 60 RPCs, QueryInfo wrapper)
-  MAINTENANCE.md           -- this file
+  endpoints.proto          - shared types (DataTable, ResponseData, Price, etc.)
+  v3_endpoints.proto       - v3 service (BetaThetaTerminal, 60 RPCs, QueryInfo wrapper)
+  MAINTENANCE.md           - this file
 
-../endpoint_schema.toml    -- column schemas for all DataTable-returning endpoints
-../build.rs                -- reads both proto/ and endpoint_schema.toml, generates everything
+../endpoint_schema.toml    - column schemas for all DataTable-returning endpoints
+../build.rs                - reads both proto/ and endpoint_schema.toml, generates everything
 ```
 
 ## What happens on `cargo build`
@@ -40,7 +40,7 @@ Example: ThetaData adds a `vwap` column to the EOD response.
    ```toml
    { name = "vwap", field = "vwap", type = "i32" },
    ```
-4. Run `cargo build` -- the `EodTick` struct now has a `vwap: i32` field and the
+4. Run `cargo build` - the `EodTick` struct now has a `vwap: i32` field and the
    parser extracts it from the DataTable automatically.
 5. If the column uses Price encoding, use `type = "price"` or `type = "price_value"` instead.
 6. If it's a float, use `type = "f64"`.
@@ -49,7 +49,7 @@ Example: ThetaData adds a `vwap` column to the EOD response.
 
 Example: ThetaData adds `GetStockHistoryVwap` to the v3 service.
 
-**Step 1 -- Proto**
+**Step 1 - Proto**
 
 Add the RPC to `v3_endpoints.proto`:
 ```protobuf
@@ -68,7 +68,7 @@ message StockHistoryVwapParams {
 }
 ```
 
-**Step 2 -- Column schema**
+**Step 2 - Column schema**
 
 If the response uses a new column layout, add a type to `../endpoint_schema.toml`:
 ```toml
@@ -89,7 +89,7 @@ columns = [
 If the response reuses an existing layout (e.g., OHLC bars), skip this step and
 use the existing type.
 
-**Step 3 -- Wire it up**
+**Step 3 - Wire it up**
 
 In `src/direct.rs`, add:
 ```rust
@@ -109,7 +109,7 @@ parsed_endpoint! {
 }
 ```
 
-**Step 4 -- Build and test**
+**Step 4 - Build and test**
 
 ```bash
 cargo build        # generates stubs + structs + parser
@@ -125,7 +125,7 @@ When replacing the proto files entirely:
 
 1. Back up the current files: `cp endpoints.proto endpoints.proto.bak`
 2. Drop in the new proto files
-3. Run `cargo build` -- if the proto is valid, stubs regenerate automatically
+3. Run `cargo build` - if the proto is valid, stubs regenerate automatically
 4. If any RPCs were renamed or removed, `cargo build` will fail with compile errors
    pointing to the broken `parsed_endpoint!` calls in `direct.rs`. Fix those.
 5. If new RPCs were added, add `parsed_endpoint!` calls (see above).

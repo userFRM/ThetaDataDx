@@ -50,7 +50,7 @@ Returns a `DataTable` with one entry per trading day:
 | `ms_of_day` | u32 | Actual milliseconds from midnight ET |
 | `date` | u32 | Date as `YYYYMMDD` integer |
 
- -- requires Standard plan or higher.
+ - requires Standard plan or higher.
 
 ## Time Reference
 

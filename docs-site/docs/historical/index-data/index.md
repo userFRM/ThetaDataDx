@@ -1,6 +1,6 @@
 ---
 title: Index Endpoints
-description: 9 index data endpoints -- list symbols, snapshots, history, and at-time queries for market indices.
+description: 9 index data endpoints - list symbols, snapshots, history, and at-time queries for market indices.
 ---
 
 # Index Endpoints (9)

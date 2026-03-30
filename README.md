@@ -1,6 +1,6 @@
 # ThetaDataDx
 
-No-JVM ThetaData Terminal -- native Rust SDK for direct market data access.
+No-JVM ThetaData Terminal - native Rust SDK for direct market data access.
 
 [![build](https://github.com/userFRM/ThetaDataDx/actions/workflows/ci.yml/badge.svg)](https://github.com/userFRM/ThetaDataDx/actions/workflows/ci.yml)
 [![Documentation](https://img.shields.io/docsrs/thetadatadx)](https://docs.rs/thetadatadx)
@@ -11,7 +11,7 @@ No-JVM ThetaData Terminal -- native Rust SDK for direct market data access.
 
 ## Overview
 
-`thetadatadx` connects directly to ThetaData's upstream servers -- MDDS for historical data and FPSS for real-time streaming -- entirely in native Rust. No JVM terminal process, no local Java dependency, no subprocess management. Your application talks to ThetaData's infrastructure with the same wire protocol their own terminal uses.
+`thetadatadx` connects directly to ThetaData's upstream servers - MDDS for historical data and FPSS for real-time streaming - entirely in native Rust. No JVM terminal process, no local Java dependency, no subprocess management. Your application talks to ThetaData's infrastructure with the same wire protocol their own terminal uses.
 
 > [!IMPORTANT]
 > A valid [ThetaData](https://thetadata.us) subscription is required. This SDK authenticates against ThetaData's Nexus API using your account credentials.
@@ -20,14 +20,14 @@ No-JVM ThetaData Terminal -- native Rust SDK for direct market data access.
 
 | Path | Description |
 |------|-------------|
-| [`crates/thetadatadx/`](crates/thetadatadx/) | Core Rust SDK -- gRPC historical, FPSS streaming, Greeks, FIT codec |
-| [`sdks/python/`](sdks/python/) | Python SDK (PyO3/maturin) -- `pip install thetadatadx` |
+| [`crates/thetadatadx/`](crates/thetadatadx/) | Core Rust SDK - gRPC historical, FPSS streaming, Greeks, FIT codec |
+| [`sdks/python/`](sdks/python/) | Python SDK (PyO3/maturin) - `pip install thetadatadx` |
 | [`sdks/go/`](sdks/go/) | Go SDK (CGo FFI) |
 | [`sdks/cpp/`](sdks/cpp/) | C++ SDK (RAII wrappers over C FFI) |
-| [`ffi/`](ffi/) | C FFI layer -- shared library consumed by Go and C++ |
-| [`tools/cli/`](tools/cli/) | `tdx` CLI -- all 61 endpoints from the command line |
-| [`tools/mcp/`](tools/mcp/) | MCP server -- gives LLMs access to 64 tools over JSON-RPC |
-| [`tools/server/`](tools/server/) | REST+WS server -- drop-in replacement for the Java terminal |
+| [`ffi/`](ffi/) | C FFI layer - shared library consumed by Go and C++ |
+| [`tools/cli/`](tools/cli/) | `tdx` CLI - all 61 endpoints from the command line |
+| [`tools/mcp/`](tools/mcp/) | MCP server - gives LLMs access to 64 tools over JSON-RPC |
+| [`tools/server/`](tools/server/) | REST+WS server - drop-in replacement for the Java terminal |
 | [`docs/`](docs/) | Architecture, API reference, JVM deviations, reverse-engineering guide |
 | [`docs-site/`](docs-site/) | mdBook documentation site (deployed to GitHub Pages) |
 | [`notebooks/`](notebooks/) | 7 Jupyter notebooks (101-107) |
@@ -141,7 +141,7 @@ ThetaDataDx is an independent, open-source project provided "as is", without war
 
 ### How ThetaDataDx Was Built
 
-ThetaDataDx was developed through independent analysis of the ThetaData Terminal JAR and its network protocol. The protocol implementation was built from scratch in Rust based on decompiled Java source and observed wire-level behavior. This approach is consistent with the principle of interoperability through protocol analysis -- the same method used by projects like Samba (SMB/CIFS), open-source Exchange clients, and countless other third-party implementations of proprietary network protocols.
+ThetaDataDx was developed through independent analysis of the ThetaData Terminal JAR and its network protocol. The protocol implementation was built from scratch in Rust based on decompiled Java source and observed wire-level behavior. This approach is consistent with the principle of interoperability through protocol analysis - the same method used by projects like Samba (SMB/CIFS), open-source Exchange clients, and countless other third-party implementations of proprietary network protocols.
 
 ### Legal Considerations
 
@@ -157,4 +157,4 @@ For users and contributors in the European Union: Article 6 of the EU Software D
 
 ## License
 
-GPL-3.0-or-later -- see [LICENSE](./LICENSE).
+GPL-3.0-or-later - see [LICENSE](./LICENSE).

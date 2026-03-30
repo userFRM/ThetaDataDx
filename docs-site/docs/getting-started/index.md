@@ -1,11 +1,11 @@
 ---
 title: Getting Started
-description: Overview of ThetaDataDx -- a direct-wire SDK for ThetaData market data across Rust, Python, Go, and C++.
+description: Overview of ThetaDataDx - a direct-wire SDK for ThetaData market data across Rust, Python, Go, and C++.
 ---
 
 # Getting Started
 
-ThetaDataDx is a multi-language SDK that connects directly to ThetaData's MDDS and FPSS servers. All data processing -- gRPC, protobuf parsing, zstd decompression, and FIT decoding -- runs in compiled Rust regardless of which language you use.
+ThetaDataDx is a multi-language SDK that connects directly to ThetaData's MDDS and FPSS servers. All data processing - gRPC, protobuf parsing, zstd decompression, and FIT decoding - runs in compiled Rust regardless of which language you use.
 
 ## What You Get
 
@@ -30,10 +30,10 @@ The Python SDK ships pre-built wheels for common platforms. You do not need a Ru
 
 ## Next Steps
 
-1. [Subscription Tiers](./subscriptions) -- understand what data is available on your plan
-2. [Installation](./installation) -- install the SDK for your language
-3. [Authentication](./authentication) -- set up credentials
-4. [Quick Start](./quickstart) -- run your first query
+1. [Subscription Tiers](./subscriptions) - understand what data is available on your plan
+2. [Installation](./installation) - install the SDK for your language
+3. [Authentication](./authentication) - set up credentials
+4. [Quick Start](./quickstart) - run your first query
 
 ::: tip ThetaData Official Documentation
 ThetaDataDx is a community SDK. For official documentation on data coverage, exchange details, and account management, visit [docs.thetadata.us](https://docs.thetadata.us/).

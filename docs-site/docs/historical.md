@@ -5,7 +5,7 @@ description: Access all 61 historical data endpoints for stocks, options, indice
 
 # Historical Data
 
-All historical data is accessed through the ThetaDataDx client, which communicates over gRPC with ThetaData's MDDS servers. Every call runs through compiled Rust -- gRPC, protobuf parsing, zstd decompression, and FIT decoding all happen at native speed, regardless of which SDK you use.
+All historical data is accessed through the ThetaDataDx client, which communicates over gRPC with ThetaData's MDDS servers. Every call runs through compiled Rust - gRPC, protobuf parsing, zstd decompression, and FIT decoding all happen at native speed, regardless of which SDK you use.
 
 ## Connecting
 

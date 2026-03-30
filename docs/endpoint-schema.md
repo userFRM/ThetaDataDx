@@ -9,8 +9,8 @@ A TOML file where each `[types.TypeName]` table describes:
 - The parser function that converts a protobuf `DataTable` into a `Vec<TypeName>`
 
 `build.rs` reads this file at compile time and generates two Rust source files into `$OUT_DIR`:
-- `tick_generated.rs` -- all tick struct definitions
-- `decode_generated.rs` -- all `parse_*` functions
+- `tick_generated.rs` - all tick struct definitions
+- `decode_generated.rs` - all `parse_*` functions
 
 These are included into the crate via `include!()`:
 - `src/types/tick.rs` includes `tick_generated.rs` and adds hand-written `impl` blocks
@@ -57,7 +57,7 @@ These are included into the crate via `include!()`:
 2. Define all columns with their header names, field names, and types
 3. Set `parser = "parse_your_new_ticks"`
 4. Set `required`, `copy`, `align`, etc. as needed
-5. Run `cargo build` -- the struct and parser are generated automatically
+5. Run `cargo build` - the struct and parser are generated automatically
 6. If the tick needs helper methods (like `get_price()`), add an `impl YourNewTick` block in `src/types/tick.rs` after the `include!()` line
 7. Wire up the new parser in `src/direct.rs` where needed
 

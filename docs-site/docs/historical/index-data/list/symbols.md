@@ -47,7 +47,7 @@ None.
 |-------|------|-------------|
 | symbols | string[] | List of index ticker symbols (e.g. `"SPX"`, `"NDX"`, `"DJI"`) |
 
- -- available on all plans.
+ - available on all plans.
 
 ## Notes
 

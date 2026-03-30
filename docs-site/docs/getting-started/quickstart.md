@@ -1,6 +1,6 @@
 ---
 title: Quick Start
-description: Run your first ThetaDataDx query -- fetch stock data, list option expirations, and compute Greeks.
+description: Run your first ThetaDataDx query - fetch stock data, list option expirations, and compute Greeks.
 ---
 
 # Quick Start
@@ -173,8 +173,8 @@ Requires `pip install thetadatadx[pandas]`.
 
 ## What's Next
 
-- [Historical Data](../historical/) -- all 61 endpoints with examples
-- [Real-Time Streaming](../streaming/) -- FPSS subscribe/callback and polling
-- [Options & Greeks](../options) -- option chain workflow and local Greeks
-- [Configuration](../configuration) -- timeouts, concurrency, server settings
-- [API Reference](../api-reference) -- complete type and method listing
+- [Historical Data](../historical/) - all 61 endpoints with examples
+- [Real-Time Streaming](../streaming/) - FPSS subscribe/callback and polling
+- [Options & Greeks](../options) - option chain workflow and local Greeks
+- [Configuration](../configuration) - timeouts, concurrency, server settings
+- [API Reference](../api-reference) - complete type and method listing

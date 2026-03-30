@@ -1,6 +1,6 @@
 ---
 title: Calendar & Rates
-description: Market calendar and interest rate endpoints -- trading schedules, holidays, and risk-free rate history.
+description: Market calendar and interest rate endpoints - trading schedules, holidays, and risk-free rate history.
 ---
 
 # Calendar & Rates

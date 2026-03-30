@@ -471,10 +471,10 @@ auto quotes = client.stock_at_time_quote("AAPL", "20240101", "20240301", "342000
 
 All option endpoints that operate on a specific contract require the contract spec parameters: `symbol`, `expiration`, `strike`, and `right`.
 
-- `symbol` -- Underlying ticker (e.g. `"SPY"`)
-- `expiration` -- Expiration date as `YYYYMMDD` string
-- `strike` -- Strike price as scaled integer string (e.g. `"500000"` for $500)
-- `right` -- `"C"` for call, `"P"` for put
+- `symbol` - Underlying ticker (e.g. `"SPY"`)
+- `expiration` - Expiration date as `YYYYMMDD` string
+- `strike` - Strike price as scaled integer string (e.g. `"500000"` for $500)
+- `right` - `"C"` for call, `"P"` for put
 
 ### option_list_symbols
 
@@ -1968,7 +1968,7 @@ auto rates = client.interest_rate_history_eod("SOFR", "20240101", "20240301");
 
 ## Greeks Calculator
 
-Full Black-Scholes calculator with 20 individual Greek functions, an IV solver, and a combined `all_greeks` function. Computed locally -- no server round-trip.
+Full Black-Scholes calculator with 20 individual Greek functions, an IV solver, and a combined `all_greeks` function. Computed locally - no server round-trip.
 
 ### all_greeks
 
@@ -2056,7 +2056,7 @@ auto [iv, err] = tdx::implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 
 
 ### Individual Greek Functions
 
-All individual functions share these parameters. Not all functions take `is_call` -- symmetric Greeks omit it.
+All individual functions share these parameters. Not all functions take `is_call` - symmetric Greeks omit it.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -2066,7 +2066,7 @@ All individual functions share these parameters. Not all functions take `is_call
 | `r` | float | Risk-free rate |
 | `q` | float | Dividend yield |
 | `t` | float | Time to expiration (years) |
-| `is_call` | bool | Call (true) or put (false) -- only for directional Greeks |
+| `is_call` | bool | Call (true) or put (false) - only for directional Greeks |
 
 #### First-Order Greeks
 
@@ -2183,7 +2183,7 @@ tdx.unsubscribe_trades(&Contract::stock("AAPL"))?;
 tdx.unsubscribe_open_interest(&Contract::stock("AAPL"))?;
 ```
 ```python [Python]
-# Not exposed in Python -- use stop_streaming()
+# Not exposed in Python - use stop_streaming()
 ```
 ```go [Go]
 fpss.UnsubscribeQuotes("AAPL")
@@ -2250,21 +2250,21 @@ fpss.shutdown();
 
 Events are delivered as one of three categories:
 
-**FpssData** -- Market data events:
-- `Quote` -- NBBO quote update (bid, ask, sizes, exchanges, conditions)
-- `Trade` -- Trade execution (price, size, exchange, conditions)
-- `OpenInterest` -- Open interest update
-- `Ohlcvc` -- Aggregated OHLCVC bar (derived from trades via internal accumulator)
+**FpssData** - Market data events:
+- `Quote` - NBBO quote update (bid, ask, sizes, exchanges, conditions)
+- `Trade` - Trade execution (price, size, exchange, conditions)
+- `OpenInterest` - Open interest update
+- `Ohlcvc` - Aggregated OHLCVC bar (derived from trades via internal accumulator)
 
-**FpssControl** -- Lifecycle events:
-- `LoginSuccess` -- Authentication successful (includes permissions string)
-- `ContractAssigned` -- Server assigned an ID to a contract
-- `ReqResponse` -- Server confirmed a subscription request
-- `MarketOpen` / `MarketClose` -- Market state transitions
-- `ServerError` / `Error` -- Error conditions
-- `Disconnected` -- Connection lost (includes reason code)
+**FpssControl** - Lifecycle events:
+- `LoginSuccess` - Authentication successful (includes permissions string)
+- `ContractAssigned` - Server assigned an ID to a contract
+- `ReqResponse` - Server confirmed a subscription request
+- `MarketOpen` / `MarketClose` - Market state transitions
+- `ServerError` / `Error` - Error conditions
+- `Disconnected` - Connection lost (includes reason code)
 
-**RawData** -- Unparsed frames with unknown message codes.
+**RawData** - Unparsed frames with unknown message codes.
 
 ### Reconnection
 
@@ -2412,9 +2412,9 @@ Result of `all_greeks()`. All fields are `f64`.
 
 | Field | Order | Description |
 |-------|-------|-------------|
-| `value` | -- | Black-Scholes theoretical value |
-| `iv` | -- | Implied volatility |
-| `iv_error` | -- | IV solver error (relative) |
+| `value` | - | Black-Scholes theoretical value |
+| `iv` | - | Implied volatility |
+| `iv_error` | - | IV solver error (relative) |
 | `delta` | 1st | dV/dS |
 | `theta` | 1st | dV/dt (daily) |
 | `vega` | 1st | dV/dv |
@@ -2454,7 +2454,7 @@ real_price = value * 10^(price_type - 10)
 
 Methods: `to_f64()`, `is_zero()`, `Display` (formats with correct decimals)
 
-Prices with different `price_type` values can be compared directly -- they are normalized internally.
+Prices with different `price_type` values can be compared directly - they are normalized internally.
 
 ### SecType
 
@@ -2469,8 +2469,8 @@ Prices with different `price_type` values can be compared directly -- they are n
 
 Option right: `Call`, `Put`
 
-- `from_char('C')` / `from_char('P')` -- parse from character
-- `as_char()` -- convert to `'C'` or `'P'`
+- `from_char('C')` / `from_char('P')` - parse from character
+- `as_char()` - convert to `'C'` or `'P'`
 
 ### StreamResponseType
 

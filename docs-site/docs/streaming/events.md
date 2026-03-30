@@ -1,6 +1,6 @@
 ---
 title: Handling Events
-description: Process data and control events from the FPSS streaming connection -- quotes, trades, open interest, OHLC, and control messages.
+description: Process data and control events from the FPSS streaming connection - quotes, trades, open interest, OHLC, and control messages.
 ---
 
 # Handling Events

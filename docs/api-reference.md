@@ -2,7 +2,7 @@
 
 ## ThetaDataDx
 
-The unified client for all ThetaData access -- historical data via MDDS/gRPC and real-time streaming via FPSS/TCP. Authenticates via Nexus, opens a gRPC channel, and exposes typed methods for every data endpoint. Streaming is started lazily via `start_streaming()`.
+The unified client for all ThetaData access - historical data via MDDS/gRPC and real-time streaming via FPSS/TCP. Authenticates via Nexus, opens a gRPC channel, and exposes typed methods for every data endpoint. Streaming is started lazily via `start_streaming()`.
 
 ### Construction
 
@@ -58,7 +58,7 @@ The standard `collect_stream` method now uses `original_size` from the `Response
 
 **Null values**: The `DataValue` protobuf oneof includes a `null_value` variant (bool). Null cells in the server response are preserved as `DataValue::NullValue(true)` rather than being silently dropped. The `extract_*_column` helper functions map null values to `None`.
 
-### Stock -- List (2)
+### Stock - List (2)
 
 ```rust
 pub async fn stock_list_symbols(&self) -> Result<Vec<String>, Error>
@@ -72,7 +72,7 @@ pub async fn stock_list_dates(&self, request_type: &str, symbol: &str) -> Result
 
 Available dates for a stock by request type (e.g. `"EOD"`, `"TRADE"`, `"QUOTE"`). gRPC: `GetStockListDates`
 
-### Stock -- Snapshot (4)
+### Stock - Snapshot (4)
 
 ```rust
 pub async fn stock_snapshot_ohlc(&self, symbols: &[&str]) -> Result<Vec<OhlcTick>, Error>
@@ -98,7 +98,7 @@ pub async fn stock_snapshot_market_value(&self, symbols: &[&str]) -> Result<Vec<
 
 Latest market value snapshot for one or more stocks. gRPC: `GetStockSnapshotMarketValue`
 
-### Stock -- History (6)
+### Stock - History (6)
 
 ```rust
 pub async fn stock_history_eod(
@@ -148,7 +148,7 @@ pub async fn stock_history_trade_quote(
 
 Combined trade + quote ticks. gRPC: `GetStockHistoryTradeQuote`
 
-### Stock -- AtTime (2)
+### Stock - AtTime (2)
 
 ```rust
 pub async fn stock_at_time_trade(
@@ -166,7 +166,7 @@ pub async fn stock_at_time_quote(
 
 Quote at a specific time of day across a date range. gRPC: `GetStockAtTimeQuote`
 
-### Option -- List (5)
+### Option - List (5)
 
 ```rust
 pub async fn option_list_symbols(&self) -> Result<Vec<String>, Error>
@@ -204,7 +204,7 @@ pub async fn option_list_contracts(
 
 All option contracts for a symbol on a given date. gRPC: `GetOptionListContracts`
 
-### Option -- Snapshot (5)
+### Option - Snapshot (5)
 
 ```rust
 pub async fn option_snapshot_ohlc(
@@ -246,7 +246,7 @@ pub async fn option_snapshot_market_value(
 
 Latest market value snapshot for option contracts. gRPC: `GetOptionSnapshotMarketValue`
 
-### Option -- Snapshot Greeks (5)
+### Option - Snapshot Greeks (5)
 
 ```rust
 pub async fn option_snapshot_greeks_implied_volatility(
@@ -288,7 +288,7 @@ pub async fn option_snapshot_greeks_third_order(
 
 Third-order Greeks snapshot (speed, color, ultima, etc.). gRPC: `GetOptionSnapshotGreeksThirdOrder`
 
-### Option -- History (6)
+### Option - History (6)
 
 ```rust
 pub async fn option_history_eod(
@@ -341,7 +341,7 @@ pub async fn option_history_open_interest(
 
 Open interest history for an option contract. gRPC: `GetOptionHistoryOpenInterest`
 
-### Option -- History Greeks (6)
+### Option - History Greeks (6)
 
 ```rust
 pub async fn option_history_greeks_eod(
@@ -397,7 +397,7 @@ pub async fn option_history_greeks_implied_volatility(
 
 Implied volatility history (intraday, sampled by interval). gRPC: `GetOptionHistoryGreeksImpliedVolatility`
 
-### Option -- History Trade Greeks (5)
+### Option - History Trade Greeks (5)
 
 ```rust
 pub async fn option_history_trade_greeks_all(
@@ -439,7 +439,7 @@ pub async fn option_history_trade_greeks_implied_volatility(
 
 Implied volatility on each trade. gRPC: `GetOptionHistoryTradeGreeksImpliedVolatility`
 
-### Option -- AtTime (2)
+### Option - AtTime (2)
 
 ```rust
 pub async fn option_at_time_trade(
@@ -459,7 +459,7 @@ pub async fn option_at_time_quote(
 
 Quote at a specific time of day across a date range for an option. gRPC: `GetOptionAtTimeQuote`
 
-### Index -- List (2)
+### Index - List (2)
 
 ```rust
 pub async fn index_list_symbols(&self) -> Result<Vec<String>, Error>
@@ -473,7 +473,7 @@ pub async fn index_list_dates(&self, symbol: &str) -> Result<Vec<String>, Error>
 
 Available dates for an index symbol. gRPC: `GetIndexListDates`
 
-### Index -- Snapshot (3)
+### Index - Snapshot (3)
 
 ```rust
 pub async fn index_snapshot_ohlc(&self, symbols: &[&str]) -> Result<Vec<OhlcTick>, Error>
@@ -493,7 +493,7 @@ pub async fn index_snapshot_market_value(&self, symbols: &[&str]) -> Result<Vec<
 
 Latest market value snapshot for one or more indices. gRPC: `GetIndexSnapshotMarketValue`
 
-### Index -- History (3)
+### Index - History (3)
 
 ```rust
 pub async fn index_history_eod(
@@ -519,7 +519,7 @@ pub async fn index_history_price(
 
 Intraday price history for an index. gRPC: `GetIndexHistoryPrice`
 
-### Index -- AtTime (1)
+### Index - AtTime (1)
 
 ```rust
 pub async fn index_at_time_price(
@@ -944,11 +944,11 @@ pub struct OhlcTick {
 }
 ```
 
-Methods: `open_price()`, `high_price()`, `low_price()`, `close_price()` -- all return `Price`.
+Methods: `open_price()`, `high_price()`, `low_price()`, `close_price()` - all return `Price`.
 
 ### EodTick
 
-18 fields -- full end-of-day snapshot with OHLC + quote data.
+18 fields - full end-of-day snapshot with OHLC + quote data.
 
 ```rust
 pub struct EodTick {
@@ -973,7 +973,7 @@ pub struct EodTick {
 }
 ```
 
-Methods: `open_price()`, `high_price()`, `low_price()`, `close_price()`, `bid_price()`, `ask_price()`, `midpoint_value()` -- all operate on the shared `price_type`.
+Methods: `open_price()`, `high_price()`, `low_price()`, `close_price()`, `bid_price()`, `ask_price()`, `midpoint_value()` - all operate on the shared `price_type`.
 
 ### OpenInterestTick
 
@@ -1041,11 +1041,11 @@ pub struct TradeQuoteTick {
 }
 ```
 
-Methods: `trade_price()`, `bid_price()`, `ask_price()` -- all return `Price`.
+Methods: `trade_price()`, `bid_price()`, `ask_price()` - all return `Price`.
 
 ### MarketValueTick
 
-7 fields -- market capitalization and related data.
+7 fields - market capitalization and related data.
 
 ```rust
 pub struct MarketValueTick {
@@ -1061,7 +1061,7 @@ pub struct MarketValueTick {
 
 ### GreeksTick
 
-24 fields -- full set of option Greeks.
+24 fields - full set of option Greeks.
 
 ```rust
 pub struct GreeksTick {
@@ -1094,7 +1094,7 @@ pub struct GreeksTick {
 
 ### IvTick
 
-4 fields -- implied volatility.
+4 fields - implied volatility.
 
 ```rust
 pub struct IvTick {
@@ -1107,7 +1107,7 @@ pub struct IvTick {
 
 ### PriceTick
 
-4 fields -- generic price data point.
+4 fields - generic price data point.
 
 ```rust
 pub struct PriceTick {
@@ -1122,7 +1122,7 @@ Methods: `get_price() -> Price`.
 
 ### CalendarDay
 
-5 fields -- market open/close schedule.
+5 fields - market open/close schedule.
 
 ```rust
 pub struct CalendarDay {
@@ -1136,7 +1136,7 @@ pub struct CalendarDay {
 
 ### InterestRateTick
 
-3 fields -- end-of-day interest rate.
+3 fields - end-of-day interest rate.
 
 ```rust
 pub struct InterestRateTick {
@@ -1148,7 +1148,7 @@ pub struct InterestRateTick {
 
 ### OptionContract
 
-5 fields -- option contract specification. Not `Copy` due to `String` root field.
+5 fields - option contract specification. Not `Copy` due to `String` root field.
 
 ```rust
 pub struct OptionContract {
@@ -1348,19 +1348,19 @@ Variants: `Sofr`, `TreasuryM1`, `TreasuryM3`, `TreasuryM6`, `TreasuryY1`, `Treas
 Full Black-Scholes calculator ported from ThetaData's Java implementation.
 
 All functions take the same base parameters:
-- `s: f64` -- Spot price (underlying)
-- `x: f64` -- Strike price
-- `v: f64` -- Volatility (sigma)
-- `r: f64` -- Risk-free rate
-- `q: f64` -- Dividend yield
-- `t: f64` -- Time to expiration (years)
-- `is_call: bool` -- true for call, false for put
+- `s: f64` - Spot price (underlying)
+- `x: f64` - Strike price
+- `v: f64` - Volatility (sigma)
+- `r: f64` - Risk-free rate
+- `q: f64` - Dividend yield
+- `t: f64` - Time to expiration (years)
+- `is_call: bool` - true for call, false for put
 
 ### Individual Greeks
 
 | Function | Signature | Order |
 |----------|-----------|-------|
-| `value` | `(s, x, v, r, q, t, is_call) -> f64` | -- |
+| `value` | `(s, x, v, r, q, t, is_call) -> f64` | - |
 | `delta` | `(s, x, v, r, q, t, is_call) -> f64` | 1st |
 | `theta` | `(s, x, v, r, q, t, is_call) -> f64` | 1st (daily, /365) |
 | `vega` | `(s, x, v, r, q, t) -> f64` | 1st |

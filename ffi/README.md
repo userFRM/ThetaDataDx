@@ -1,6 +1,6 @@
 # thetadatadx-ffi
 
-C FFI layer for `thetadatadx` -- exposes the Rust SDK as `extern "C"` functions.
+C FFI layer for `thetadatadx` - exposes the Rust SDK as `extern "C"` functions.
 
 Compiled as both `cdylib` (shared library) and `staticlib` (archive). Consumed by the Go (CGo) and C++ (RAII) SDKs.
 
@@ -31,7 +31,7 @@ Produces:
 
 All 61 endpoints are available as `tdx_stock_*`, `tdx_option_*`, `tdx_index_*`, `tdx_calendar_*`, `tdx_interest_rate_*` functions. Each takes a `*const TdxClient` handle and returns a `*mut c_char` (JSON string, caller must free with `tdx_string_free`).
 
-`tdx_unified_historical()` returns a borrowed `*const TdxClient` from a unified handle -- same session, no double auth.
+`tdx_unified_historical()` returns a borrowed `*const TdxClient` from a unified handle - same session, no double auth.
 
 ### Streaming (via TdxUnified or TdxFpssHandle)
 
@@ -50,9 +50,9 @@ All functions that can fail return null on error. Call `tdx_last_error()` to get
 ## Memory model
 
 - Opaque handles are heap-allocated via `Box::into_raw`, freed via `Box::from_raw` in the corresponding `*_free` function.
-- String results (`*mut c_char`) are owned by the caller -- free with `tdx_string_free`.
-- `tdx_last_error()` returns a borrowed pointer -- do NOT free it.
-- `tdx_unified_historical()` returns a borrowed pointer -- do NOT free it.
+- String results (`*mut c_char`) are owned by the caller - free with `tdx_string_free`.
+- `tdx_last_error()` returns a borrowed pointer - do NOT free it.
+- `tdx_unified_historical()` returns a borrowed pointer - do NOT free it.
 
 ## Safety
 

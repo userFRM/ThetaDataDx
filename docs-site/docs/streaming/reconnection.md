@@ -15,7 +15,7 @@ use thetadatadx::types::RemoveReason;
 
 match thetadatadx::fpss::reconnect_delay(reason) {
     None => {
-        // Permanent error (bad credentials, etc.) -- do NOT retry
+        // Permanent error (bad credentials, etc.) - do NOT retry
         eprintln!("Permanent disconnect: {:?}", reason);
     }
     Some(delay_ms) => {
@@ -43,10 +43,10 @@ After reconnection, you must re-subscribe to all previously active streams. The 
 
 Permanent disconnects indicate a problem that will not resolve by retrying:
 
-- **Code 0, 1, 2** -- Authentication failures (bad credentials, expired subscription)
-- **Code 6** -- Account suspended
-- **Code 9** -- Invalid request parameters
-- **Code 17, 18** -- Server-side permanent errors
+- **Code 0, 1, 2** - Authentication failures (bad credentials, expired subscription)
+- **Code 6** - Account suspended
+- **Code 9** - Invalid request parameters
+- **Code 17, 18** - Server-side permanent errors
 
 ### Rate-Limited Disconnect
 

@@ -45,7 +45,7 @@ Returns a `DataTable` with market status fields:
 | `early_close` | bool | Whether today is an early close day |
 | `date` | u32 | Today's date as `YYYYMMDD` integer |
 
- -- available on all plans.
+ - available on all plans.
 
 ## Notes
 

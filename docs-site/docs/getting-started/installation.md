@@ -22,7 +22,7 @@ pip install thetadatadx[pandas]    # pandas DataFrames
 pip install thetadatadx[polars]    # polars DataFrames
 pip install thetadatadx[all]       # both
 
-# Requires Python 3.9+. Pre-built wheels are provided -- no Rust toolchain required.
+# Requires Python 3.9+. Pre-built wheels are provided - no Rust toolchain required.
 ```
 ```bash [Go]
 # Prerequisites: Go 1.21+, Rust toolchain, C compiler (for CGo)

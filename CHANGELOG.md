@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Fully typed returns for all 61 endpoints** -- 9 new tick types (`TradeQuoteTick`, `OpenInterestTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`). All 31 endpoints that returned raw `proto::DataTable` now return typed `Vec<T>`. The `raw_endpoint!` macro has been removed entirely. Zero raw protobuf in the public API.
-- **TOML-driven codegen** -- `endpoint_schema.toml` is the single source of truth for all 13 tick type definitions and DataTable column schemas. `build.rs` generates Rust structs and parsers at compile time. Adding a new column = one line in the TOML.
+- **Fully typed returns for all 61 endpoints** - 9 new tick types (`TradeQuoteTick`, `OpenInterestTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`). All 31 endpoints that returned raw `proto::DataTable` now return typed `Vec<T>`. The `raw_endpoint!` macro has been removed entirely. Zero raw protobuf in the public API.
+- **TOML-driven codegen** - `endpoint_schema.toml` is the single source of truth for all 13 tick type definitions and DataTable column schemas. `build.rs` generates Rust structs and parsers at compile time. Adding a new column = one line in the TOML.
 - 10 new parse functions in `decode.rs` (including `parse_eod_ticks` moved from inline in `direct.rs`)
 - All downstream consumers updated: FFI (9 new JSON converters), CLI (9 new renderers), Server (9 new sonic_rs serializers), MCP (9 new serializers), Python SDK (9 new dict converters)
 
@@ -18,16 +18,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Go SDK: price encoding was fundamentally wrong** -- `priceToFloat()` used a switch-case instead of `value * 10^(price_type - 10)`. Every price returned by the Go SDK was incorrect. Now matches Rust exactly.
-- **Python docs: streaming examples used wrong event key** -- `event["type"]` changed to `event["kind"]` across README and all docs-site pages.
-- **`Price::new()` no longer panics in release** -- `assert!` replaced with `debug_assert!` + `clamp(0, 19)` with `tracing::warn!`. A corrupt frame no longer crashes production.
-- **C++ `FpssClient`: added missing `unsubscribe_quotes()`** -- was present in FFI but missing from C++ RAII wrapper.
-- **FFI FPSS: mutex poison safety** -- all 12 `.lock().unwrap()` calls replaced with `.unwrap_or_else(|e| e.into_inner())`. Prevents undefined behavior (panic across `extern "C"`) on mutex poisoning.
-- **`Credentials.password` visibility** -- changed from `pub` to `pub(crate)` with `password()` accessor. Prevents accidental credential logging by downstream code.
-- **WebSocket server: added OPEN_INTEREST + FULL_TRADES dispatch** -- previously silently dropped.
-- **C++ SDK type parity** -- `MarketValueTick` expanded from 3 to 7 fields, `CalendarDay` added `status`, `InterestRateTick` added `ms_of_day`.
-- **Python README: removed ghost methods** -- `is_authenticated()` and `server_addr()` were listed but did not exist.
-- **Root README: stock method count** -- "Stock (13)" corrected to "Stock (14)".
+- **Go SDK: price encoding was fundamentally wrong** - `priceToFloat()` used a switch-case instead of `value * 10^(price_type - 10)`. Every price returned by the Go SDK was incorrect. Now matches Rust exactly.
+- **Python docs: streaming examples used wrong event key** - `event["type"]` changed to `event["kind"]` across README and all docs-site pages.
+- **`Price::new()` no longer panics in release** - `assert!` replaced with `debug_assert!` + `clamp(0, 19)` with `tracing::warn!`. A corrupt frame no longer crashes production.
+- **C++ `FpssClient`: added missing `unsubscribe_quotes()`** - was present in FFI but missing from C++ RAII wrapper.
+- **FFI FPSS: mutex poison safety** - all 12 `.lock().unwrap()` calls replaced with `.unwrap_or_else(|e| e.into_inner())`. Prevents undefined behavior (panic across `extern "C"`) on mutex poisoning.
+- **`Credentials.password` visibility** - changed from `pub` to `pub(crate)` with `password()` accessor. Prevents accidental credential logging by downstream code.
+- **WebSocket server: added OPEN_INTEREST + FULL_TRADES dispatch** - previously silently dropped.
+- **C++ SDK type parity** - `MarketValueTick` expanded from 3 to 7 fields, `CalendarDay` added `status`, `InterestRateTick` added `ms_of_day`.
+- **Python README: removed ghost methods** - `is_authenticated()` and `server_addr()` were listed but did not exist.
+- **Root README: stock method count** - "Stock (13)" corrected to "Stock (14)".
 
 ## [3.0.0] - 2026-03-27
 

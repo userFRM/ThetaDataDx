@@ -45,7 +45,7 @@ std::cout << "Available from " << dates.front() << " to " << dates.back() << std
 |-------|------|-------------|
 | dates | string[] | List of date strings in `YYYYMMDD` format |
 
- -- available on all plans.
+ - available on all plans.
 
 ## Notes
 

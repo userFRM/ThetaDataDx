@@ -22,7 +22,7 @@ pip install thetadatadx[pandas]    # pandas DataFrames
 pip install thetadatadx[polars]    # polars DataFrames
 pip install thetadatadx[all]       # both
 
-# Requires Python 3.9+. Pre-built wheels are provided -- no Rust toolchain required.
+# Requires Python 3.9+. Pre-built wheels are provided - no Rust toolchain required.
 ```
 ```bash [Go]
 # Prerequisites: Go 1.21+, Rust toolchain, C compiler (for CGo)
@@ -303,8 +303,8 @@ All methods throw `std::runtime_error` on failure.
 
 ## What's Next
 
-- [Historical Data](historical.md) -- all 61 endpoints with examples
-- [Real-Time Streaming](streaming.md) -- FPSS subscribe/callback and polling
-- Options & Greeks -- option chain workflow and local Greeks
-- Configuration -- timeouts, concurrency, server settings
-- API Reference -- complete type and method listing
+- [Historical Data](historical.md) - all 61 endpoints with examples
+- [Real-Time Streaming](streaming.md) - FPSS subscribe/callback and polling
+- Options & Greeks - option chain workflow and local Greeks
+- Configuration - timeouts, concurrency, server settings
+- API Reference - complete type and method listing

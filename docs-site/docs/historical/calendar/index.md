@@ -1,6 +1,6 @@
 ---
 title: Calendar Endpoints
-description: Market calendar endpoints -- trading schedules, holidays, and early closes.
+description: Market calendar endpoints - trading schedules, holidays, and early closes.
 ---
 
 # Calendar Endpoints (3)

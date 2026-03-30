@@ -68,7 +68,7 @@ Returns a list of `EodTick` with the following fields:
 | `close` | f64 | Closing price/level |
 | `volume` | u64 | Volume |
 
- -- available on all plans.
+ - available on all plans.
 
 ## Notes
 

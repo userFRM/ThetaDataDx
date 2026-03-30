@@ -1,6 +1,6 @@
 ---
 title: Option Endpoints
-description: 34 option data endpoints -- list, snapshots, history, Greeks, trade Greeks, and at-time queries.
+description: 34 option data endpoints - list, snapshots, history, Greeks, trade Greeks, and at-time queries.
 ---
 
 # Option Endpoints (34)

@@ -7,8 +7,8 @@ description: Option chain workflows and local Black-Scholes Greeks calculator wi
 
 ThetaDataDx provides two complementary approaches to options analytics:
 
-1. **Server-computed Greeks** -- query ThetaData's servers for pre-calculated Greeks via the standard endpoints
-2. **Local Greeks calculator** -- compute all 22 Black-Scholes Greeks offline with no server call and no subscription required
+1. **Server-computed Greeks** - query ThetaData's servers for pre-calculated Greeks via the standard endpoints
+2. **Local Greeks calculator** - compute all 22 Black-Scholes Greeks offline with no server call and no subscription required
 
 ## Option Chain Workflow
 

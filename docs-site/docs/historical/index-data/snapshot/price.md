@@ -46,7 +46,7 @@ Returns a `DataTable` with price fields:
 | `ms_of_day` | u32 | Milliseconds from midnight ET |
 | `date` | u32 | Date as `YYYYMMDD` integer |
 
- -- requires Value plan or higher.
+ - requires Value plan or higher.
 
 ## Notes
 

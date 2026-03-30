@@ -62,7 +62,7 @@ Returns a `DataTable` with rate data per trading day:
 | `rate` | f64 | Interest rate value (annualized, as decimal) |
 | `date` | u32 | Date as `YYYYMMDD` integer |
 
- -- available on all plans.
+ - available on all plans.
 
 ## Available Rate Symbols
 

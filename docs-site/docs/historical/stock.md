@@ -1,6 +1,6 @@
 ---
 title: Stock Endpoints
-description: 14 stock data endpoints -- list symbols, snapshots, history, at-time queries, and streaming large responses.
+description: 14 stock data endpoints - list symbols, snapshots, history, at-time queries, and streaming large responses.
 ---
 
 # Stock Endpoints (14)

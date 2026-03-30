@@ -1,6 +1,6 @@
 ---
 title: Rate Endpoints
-description: Interest rate endpoints -- historical risk-free rate data for SOFR and Treasury yields.
+description: Interest rate endpoints - historical risk-free rate data for SOFR and Treasury yields.
 ---
 
 # Rate Endpoints (1)

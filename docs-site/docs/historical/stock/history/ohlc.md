@@ -7,8 +7,8 @@ description: Intraday OHLC bars for a single date or across a date range.
 
 Intraday OHLC bars at a configurable interval. Two variants are available:
 
-- **stock_history_ohlc** -- bars for a single date
-- **stock_history_ohlc_range** -- bars across a date range
+- **stock_history_ohlc** - bars for a single date
+- **stock_history_ohlc_range** - bars across a date range
 
 <TierBadge tier="value" />
 

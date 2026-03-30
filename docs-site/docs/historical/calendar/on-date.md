@@ -47,7 +47,7 @@ Returns a `DataTable` with calendar information:
 | `early_close` | bool | Whether this is an early close day |
 | `date` | u32 | Date as `YYYYMMDD` integer |
 
- -- available on all plans.
+ - available on all plans.
 
 ## Notes
 

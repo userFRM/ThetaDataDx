@@ -30,7 +30,7 @@ echo "Latest version: $VERSION"
 curl -L -o terminal.jar "https://nexus-api.thetadata.us/bootstrap/jars/$VERSION"
 ```
 
-The CDN endpoint is `https://td-terminals.nyc3.cdn.digitaloceanspaces.com/{version}.jar` -- the bootstrap URL redirects there.
+The CDN endpoint is `https://td-terminals.nyc3.cdn.digitaloceanspaces.com/{version}.jar` - the bootstrap URL redirects there.
 
 ## 2. Decompile with CFR
 
@@ -46,12 +46,12 @@ java -jar cfr-0.152.jar terminal.jar \
     --jarfilter "net.thetadata.*"
 
 # The interesting packages:
-# decompiled/net/thetadata/fpssclient/   -- FPSS streaming protocol
-# decompiled/net/thetadata/fie/          -- FIT/FIE codecs
-# decompiled/net/thetadata/auth/         -- Nexus authentication
-# decompiled/net/thetadata/providers/    -- MDDS gRPC channel setup
-# decompiled/net/thetadata/config/       -- Configuration management
-# decompiled/net/thetadata/generated/    -- Protobuf generated classes
+# decompiled/net/thetadata/fpssclient/   - FPSS streaming protocol
+# decompiled/net/thetadata/fie/          - FIT/FIE codecs
+# decompiled/net/thetadata/auth/         - Nexus authentication
+# decompiled/net/thetadata/providers/    - MDDS gRPC channel setup
+# decompiled/net/thetadata/config/       - Configuration management
+# decompiled/net/thetadata/generated/    - Protobuf generated classes
 ```
 
 ## 3. Extract Proto Definitions
@@ -89,7 +89,7 @@ mkdir -p classes && cd classes && unzip ../terminal.jar > /dev/null && cd ..
 # Compile the dumper against the JAR's classpath
 javac -cp terminal.jar DumpV3Proto.java -d dump/
 
-# Run it -- outputs the proto definition to stdout
+# Run it - outputs the proto definition to stdout
 java -cp "dump/:classes/" DumpV3Proto > v3_endpoints.proto
 
 # For the shared types proto (endpoints.proto), modify the class to:
@@ -186,23 +186,23 @@ When ThetaData releases a new terminal version, here is the checklist:
 
 1. Re-extract protos using Steps 1-3 above
 2. Diff `v3_endpoints.proto` and `endpoints.proto` against the previous versions
-3. Look for new RPC methods -- add a `define_endpoint!` invocation in `direct.rs`
-4. Look for changed request/response types -- update `decode.rs` parsers
-5. Check `ChannelProvider.java` for host/port changes -- update `config.rs`
+3. Look for new RPC methods - add a `define_endpoint!` invocation in `direct.rs`
+4. Look for changed request/response types - update `decode.rs` parsers
+5. Check `ChannelProvider.java` for host/port changes - update `config.rs`
 
 ### FPSS changes
 
-1. Check `StreamMsgType.java` for new or changed message codes -- update `types/enums.rs` and `fpss/framing.rs`
-2. Check `FPSSClient.java` for changes to the connection/auth/reconnection state machine -- update `fpss/mod.rs`
-3. Check `PacketStream.java` for framing changes -- update `fpss/framing.rs`
-4. Check `Contract.java` for wire format changes -- update `fpss/protocol.rs`
-5. Check `FPSSClient.SERVERS` for new/changed server addresses -- update `fpss/protocol.rs` `SERVERS` const
+1. Check `StreamMsgType.java` for new or changed message codes - update `types/enums.rs` and `fpss/framing.rs`
+2. Check `FPSSClient.java` for changes to the connection/auth/reconnection state machine - update `fpss/mod.rs`
+3. Check `PacketStream.java` for framing changes - update `fpss/framing.rs`
+4. Check `Contract.java` for wire format changes - update `fpss/protocol.rs`
+5. Check `FPSSClient.SERVERS` for new/changed server addresses - update `fpss/protocol.rs` `SERVERS` const
 
 ### Codec changes
 
-1. Check `FITReader.java` for changes to nibble encoding or the SPACING constant -- update `codec/fit.rs`
-2. Check `FIE.java` for changes to the nibble alphabet -- update `codec/fie.rs`
-3. Run the existing test suite -- FIT test vectors will catch encoding changes
+1. Check `FITReader.java` for changes to nibble encoding or the SPACING constant - update `codec/fit.rs`
+2. Check `FIE.java` for changes to the nibble alphabet - update `codec/fie.rs`
+3. Run the existing test suite - FIT test vectors will catch encoding changes
 
 ### Configuration changes
 
