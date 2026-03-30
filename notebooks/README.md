@@ -52,7 +52,7 @@ creds = Credentials("your-email@example.com", "your-password")
 
 ## Notebook Details
 
-### 101 -- Getting Started
+### 101 - Getting Started
 
 The entry point. Covers installation, authentication, and a tour of the core API surface:
 
@@ -64,7 +64,7 @@ The entry point. Covers installation, authentication, and a tour of the core API
 6. List SPY option expirations and strikes
 7. Compute all 22 Greeks (including IV) with the built-in Rust Black-Scholes calculator
 
-### 102 -- Historical Analysis
+### 102 - Historical Analysis
 
 Quantitative analysis patterns using historical data:
 
@@ -74,7 +74,7 @@ Quantitative analysis patterns using historical data:
 4. NBBO quote data: bid-ask spread analysis over the day
 5. Multi-symbol comparison (AAPL, MSFT, GOOGL)
 
-### 103 -- Options Chain
+### 103 - Options Chain
 
 Build a complete option chain from scratch:
 
@@ -86,7 +86,7 @@ Build a complete option chain from scratch:
 6. Compute and plot the implied volatility smile
 7. Visualize open interest across strikes
 
-### 104 -- Greeks Surface
+### 104 - Greeks Surface
 
 Three-dimensional visualization of the options Greeks:
 
@@ -97,7 +97,7 @@ Three-dimensional visualization of the options Greeks:
 5. Delta, gamma, theta heatmaps across the surface
 6. Time decay analysis: theta acceleration as expiration approaches
 
-### 105 -- Real-Time Streaming
+### 105 - Real-Time Streaming
 
 Introduction to the FPSS (Fast Push Streaming Service) client:
 
@@ -109,9 +109,9 @@ Introduction to the FPSS (Fast Push Streaming Service) client:
 6. Trade flow summary
 7. Clean unsubscribe and shutdown
 
-**Note:** FPSS streaming requires real-time data access in your ThetaData subscription. Data is only available during market hours (9:30 AM -- 4:00 PM ET).
+**Note:** FPSS streaming requires real-time data access in your ThetaData subscription. Data is only available during market hours (9:30 AM - 4:00 PM ET).
 
-### 106 -- Live Option Chain
+### 106 - Live Option Chain
 
 A fully interactive, live-updating option chain rendered inside the notebook:
 
@@ -123,7 +123,7 @@ A fully interactive, live-updating option chain rendered inside the notebook:
 
 Requires `ipywidgets`. For a richer standalone GUI with tabbed expirations and configurable display, see the [Streamlit live-chain app](../tools/live-chain/).
 
-### 107 -- Full Trade Stream
+### 107 - Full Trade Stream
 
 Advanced real-time trade analysis covering the full firehose:
 
@@ -133,7 +133,7 @@ Advanced real-time trade analysis covering the full firehose:
 4. Subscribe to option trades per-contract (underlying, expiration, strike, right)
 5. Combined stock + option dashboard with live-updating summary
 
-The Rust core decodes FIT payloads and delta-decompresses ticks before they reach Python. Each event dict has named fields (`price`, `size`, `exchange`, `condition`, `ms_of_day`, etc.) -- no raw payload handling required.
+The Rust core decodes FIT payloads and delta-decompresses ticks before they reach Python. Each event dict has named fields (`price`, `size`, `exchange`, `condition`, `ms_of_day`, etc.) - no raw payload handling required.
 
 ## Running
 

@@ -30,7 +30,7 @@ export default defineConfig({
       },
       {
         text: 'GitHub',
-        link: 'https://github.com/userFRM/thetadatadx',
+        link: 'https://github.com/userFRM/ThetaDataDx',
       },
     ],
 
@@ -263,7 +263,7 @@ export default defineConfig({
     ],
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/userFRM/thetadatadx' },
+      { icon: 'github', link: 'https://github.com/userFRM/ThetaDataDx' },
     ],
 
     search: {
@@ -271,12 +271,12 @@ export default defineConfig({
     },
 
     footer: {
-      message: 'Released under the MIT License.',
+      message: 'Released under the GPL-3.0-or-later License.',
       copyright: 'Copyright 2024-present ThetaDataDx Contributors',
     },
 
     editLink: {
-      pattern: 'https://github.com/userFRM/thetadatadx/edit/main/docs-site/docs/:path',
+      pattern: 'https://github.com/userFRM/ThetaDataDx/edit/main/docs-site/docs/:path',
       text: 'Edit this page on GitHub',
     },
   },

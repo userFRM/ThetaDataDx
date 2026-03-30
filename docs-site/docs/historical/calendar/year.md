@@ -13,10 +13,10 @@ Retrieve the complete trading calendar for an entire year, including every tradi
 
 ::: code-group
 ```rust [Rust]
-let table: proto::DataTable = client.calendar_year("2024").await?;
+let days: Vec<CalendarDay> = tdx.calendar_year("2024").await?;
 ```
 ```python [Python]
-result = client.calendar_year("2024")
+result = tdx.calendar_year("2024")
 ```
 ```go [Go]
 result, err := client.CalendarYear("2024")
@@ -31,23 +31,39 @@ auto year_info = client.calendar_year("2024");
 
 ## Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `year` | string | Yes | 4-digit year (e.g. `"2024"`) |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>year</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">4-digit year (e.g. <code>"2024"</code>)</div>
+</div>
+</div>
 
 ## Response
 
-Returns a `DataTable` with calendar info for every trading day in the year:
+Returns a `Vec<CalendarDay>` with calendar info for every trading day in the year:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `is_open` | bool | Whether the market is open on this date |
-| `open_time` | u32 | Market open time (ms from midnight ET) |
-| `close_time` | u32 | Market close time (ms from midnight ET) |
-| `early_close` | bool | Whether this is an early close day |
-| `date` | u32 | Date as `YYYYMMDD` integer |
-
- - available on all plans.
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>is_open</code><span class="param-type">bool</span></div>
+<div class="param-desc">Whether the market is open on this date</div>
+</div>
+<div class="param">
+<div class="param-header"><code>open_time</code><span class="param-type">u32</span></div>
+<div class="param-desc">Market open time (milliseconds from midnight ET)</div>
+</div>
+<div class="param">
+<div class="param-header"><code>close_time</code><span class="param-type">u32</span></div>
+<div class="param-desc">Market close time (milliseconds from midnight ET)</div>
+</div>
+<div class="param">
+<div class="param-header"><code>early_close</code><span class="param-type">bool</span></div>
+<div class="param-desc">Whether this is an early close day</div>
+</div>
+<div class="param">
+<div class="param-header"><code>date</code><span class="param-type">u32</span></div>
+<div class="param-desc">Date as <code>YYYYMMDD</code> integer</div>
+</div>
+</div>
 
 ## Notes
 

@@ -4,11 +4,11 @@
  * Wraps the C FFI handles in RAII classes with unique_ptr-based ownership.
  * All data methods return parsed C++ types (vectors of structs) from JSON.
  *
- * This file is a single-header-ish implementation. Include "thetadatadx.hpp" (below)
+ * This file is a single-header-ish implementation. Include "thetadx.hpp" (below)
  * or compile this .cpp with the include/ header for the C types.
  */
 
-#include "thetadatadx.hpp"
+#include "thetadx.hpp"
 
 #include <stdexcept>
 #include <sstream>

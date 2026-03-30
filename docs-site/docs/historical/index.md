@@ -14,13 +14,13 @@ ThetaDataDx provides 61 historical data endpoints across five asset categories. 
 use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
 
 let creds = Credentials::from_file("creds.txt")?;
-let client = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 ```
 ```python [Python]
 from thetadatadx import Credentials, Config, ThetaDataDx
 
 creds = Credentials.from_file("creds.txt")
-client = ThetaDataDx(creds, Config.production())
+tdx = ThetaDataDx(creds, Config.production())
 ```
 ```go [Go]
 creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
@@ -64,7 +64,7 @@ Intervals are millisecond strings: `"60000"` for 1 minute, `"300000"` for 5 minu
 All data methods have `_df` variants that return pandas DataFrames directly:
 
 ```python
-df = client.stock_history_eod_df("AAPL", "20240101", "20240301")
+df = tdx.stock_history_eod_df("AAPL", "20240101", "20240301")
 ```
 
 Or convert any result explicitly:
@@ -72,7 +72,7 @@ Or convert any result explicitly:
 ```python
 from thetadatadx import to_dataframe
 
-eod = client.stock_history_eod("AAPL", "20240101", "20240301")
+eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
 df = to_dataframe(eod)
 ```
 

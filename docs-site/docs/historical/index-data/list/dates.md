@@ -13,11 +13,11 @@ List all dates for which data is available for a given index symbol.
 
 ::: code-group
 ```rust [Rust]
-let dates: Vec<String> = client.index_list_dates("SPX").await?;
+let dates: Vec<String> = tdx.index_list_dates("SPX").await?;
 println!("First date: {}, Last date: {}", dates.first().unwrap(), dates.last().unwrap());
 ```
 ```python [Python]
-dates = client.index_list_dates("SPX")
+dates = tdx.index_list_dates("SPX")
 print(f"Available from {dates[0]} to {dates[-1]}")
 ```
 ```go [Go]
@@ -35,17 +35,21 @@ std::cout << "Available from " << dates.front() << " to " << dates.back() << std
 
 ## Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `symbol` | string | Yes | Index symbol (e.g. `"SPX"`) |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>symbol</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Index symbol (e.g. <code>"SPX"</code>)</div>
+</div>
+</div>
 
 ## Response
 
-| Field | Type | Description |
-|-------|------|-------------|
-| dates | string[] | List of date strings in `YYYYMMDD` format |
-
- - available on all plans.
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>dates</code><span class="param-type">string[]</span></div>
+<div class="param-desc">List of date strings in <code>YYYYMMDD</code> format</div>
+</div>
+</div>
 
 ## Notes
 

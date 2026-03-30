@@ -10,17 +10,17 @@ description: 14 stock data endpoints - list symbols, snapshots, history, at-time
 ::: code-group
 ```rust [Rust]
 // All available stock symbols
-let symbols: Vec<String> = client.stock_list_symbols().await?;
+let symbols: Vec<String> = tdx.stock_list_symbols().await?;
 
 // Available dates for a stock by request type
-let dates: Vec<String> = client.stock_list_dates("EOD", "AAPL").await?;
+let dates: Vec<String> = tdx.stock_list_dates("EOD", "AAPL").await?;
 ```
 ```python [Python]
 # All available stock symbols
-symbols = client.stock_list_symbols()
+symbols = tdx.stock_list_symbols()
 
 # Available dates by request type
-dates = client.stock_list_dates("EOD", "AAPL")
+dates = tdx.stock_list_dates("EOD", "AAPL")
 ```
 ```go [Go]
 // All stock symbols
@@ -43,32 +43,32 @@ auto dates = client.stock_list_dates("EOD", "AAPL");
 ::: code-group
 ```rust [Rust]
 // Latest OHLC snapshot (one or more symbols)
-let ticks: Vec<OhlcTick> = client.stock_snapshot_ohlc(&["AAPL", "MSFT"]).await?;
+let ticks: Vec<OhlcTick> = tdx.stock_snapshot_ohlc(&["AAPL", "MSFT"]).await?;
 
 // Latest trade snapshot
-let ticks: Vec<TradeTick> = client.stock_snapshot_trade(&["AAPL"]).await?;
+let ticks: Vec<TradeTick> = tdx.stock_snapshot_trade(&["AAPL"]).await?;
 
 // Latest NBBO quote snapshot
-let ticks: Vec<QuoteTick> = client.stock_snapshot_quote(&["AAPL", "MSFT", "GOOGL"]).await?;
+let ticks: Vec<QuoteTick> = tdx.stock_snapshot_quote(&["AAPL", "MSFT", "GOOGL"]).await?;
 for q in &ticks {
     println!("bid={} ask={}", q.bid_price(), q.ask_price());
 }
 
 // Latest market value snapshot
-let table: proto::DataTable = client.stock_snapshot_market_value(&["AAPL"]).await?;
+let ticks: Vec<MarketValueTick> = tdx.stock_snapshot_market_value(&["AAPL"]).await?;
 ```
 ```python [Python]
 # Latest OHLC snapshot (one or more symbols)
-ticks = client.stock_snapshot_ohlc(["AAPL", "MSFT"])
+ticks = tdx.stock_snapshot_ohlc(["AAPL", "MSFT"])
 
 # Latest trade snapshot
-ticks = client.stock_snapshot_trade(["AAPL"])
+ticks = tdx.stock_snapshot_trade(["AAPL"])
 
 # Latest NBBO quote snapshot
-ticks = client.stock_snapshot_quote(["AAPL", "MSFT", "GOOGL"])
+ticks = tdx.stock_snapshot_quote(["AAPL", "MSFT", "GOOGL"])
 
 # Latest market value
-result = client.stock_snapshot_market_value(["AAPL"])
+result = tdx.stock_snapshot_market_value(["AAPL"])
 ```
 ```go [Go]
 // Latest quote snapshot (multiple symbols)
@@ -103,7 +103,7 @@ Snapshot endpoints accept multiple symbols in a single call. Batch your requests
 ::: code-group
 ```rust [Rust]
 // End-of-day data for a date range
-let eod: Vec<EodTick> = client.stock_history_eod("AAPL", "20240101", "20240301").await?;
+let eod: Vec<EodTick> = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
 for t in &eod {
     println!("{}: O={} H={} L={} C={} V={}",
         t.date, t.open_price(), t.high_price(),
@@ -111,49 +111,49 @@ for t in &eod {
 }
 
 // Intraday OHLC bars (single date)
-let bars: Vec<OhlcTick> = client.stock_history_ohlc("AAPL", "20240315", "60000").await?;
+let bars: Vec<OhlcTick> = tdx.stock_history_ohlc("AAPL", "20240315", "60000").await?;
 
 // Intraday OHLC bars (date range)
-let bars: Vec<OhlcTick> = client.stock_history_ohlc_range(
+let bars: Vec<OhlcTick> = tdx.stock_history_ohlc_range(
     "AAPL", "20240101", "20240301", "300000"  // 5-min bars
 ).await?;
 
 // All trades for a date
-let trades: Vec<TradeTick> = client.stock_history_trade("AAPL", "20240315").await?;
+let trades: Vec<TradeTick> = tdx.stock_history_trade("AAPL", "20240315").await?;
 
 // NBBO quotes at a given interval (use "0" for every quote change)
-let quotes: Vec<QuoteTick> = client.stock_history_quote("AAPL", "20240315", "60000").await?;
+let quotes: Vec<QuoteTick> = tdx.stock_history_quote("AAPL", "20240315", "60000").await?;
 
-// Combined trade + quote ticks (returns raw DataTable)
-let table: proto::DataTable = client.stock_history_trade_quote("AAPL", "20240315").await?;
+// Combined trade + quote ticks
+let ticks: Vec<TradeQuoteTick> = tdx.stock_history_trade_quote("AAPL", "20240315").await?;
 ```
 ```python [Python]
 # End-of-day data for a date range
-eod = client.stock_history_eod("AAPL", "20240101", "20240301")
+eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
 for tick in eod:
     print(f"{tick['date']}: O={tick['open']:.2f} C={tick['close']:.2f} V={tick['volume']}")
 
 # As DataFrame
-df = client.stock_history_eod_df("AAPL", "20240101", "20240301")
+df = tdx.stock_history_eod_df("AAPL", "20240101", "20240301")
 print(df.describe())
 
 # Intraday OHLC bars (single date)
-bars = client.stock_history_ohlc("AAPL", "20240315", "60000")
+bars = tdx.stock_history_ohlc("AAPL", "20240315", "60000")
 print(f"{len(bars)} bars")
 
 # Intraday OHLC bars (date range)
-bars = client.stock_history_ohlc_range("AAPL", "20240101", "20240301", "300000")
+bars = tdx.stock_history_ohlc_range("AAPL", "20240101", "20240301", "300000")
 
 # All trades for a date
-trades = client.stock_history_trade("AAPL", "20240315")
+trades = tdx.stock_history_trade("AAPL", "20240315")
 print(f"{len(trades)} trades")
 
 # NBBO quotes at a given interval
-quotes = client.stock_history_quote("AAPL", "20240315", "60000")
-df = client.stock_history_quote_df("AAPL", "20240315", "0")
+quotes = tdx.stock_history_quote("AAPL", "20240315", "60000")
+df = tdx.stock_history_quote_df("AAPL", "20240315", "0")
 
 # Combined trade + quote ticks
-result = client.stock_history_trade_quote("AAPL", "20240315")
+result = tdx.stock_history_trade_quote("AAPL", "20240315")
 ```
 ```go [Go]
 // End-of-day data
@@ -211,21 +211,21 @@ Retrieve the trade or quote at a specific time of day across a date range. The `
 ::: code-group
 ```rust [Rust]
 // Trade at a specific time of day across a date range
-let trades: Vec<TradeTick> = client.stock_at_time_trade(
+let trades: Vec<TradeTick> = tdx.stock_at_time_trade(
     "AAPL", "20240101", "20240301", "34200000"
 ).await?;
 
 // Quote at a specific time of day across a date range
-let quotes: Vec<QuoteTick> = client.stock_at_time_quote(
+let quotes: Vec<QuoteTick> = tdx.stock_at_time_quote(
     "AAPL", "20240101", "20240301", "34200000"
 ).await?;
 ```
 ```python [Python]
 # Trade at a specific time of day across a date range
-trades = client.stock_at_time_trade("AAPL", "20240101", "20240301", "34200000")
+trades = tdx.stock_at_time_trade("AAPL", "20240101", "20240301", "34200000")
 
 # Quote at a specific time of day
-quotes = client.stock_at_time_quote("AAPL", "20240101", "20240301", "34200000")
+quotes = tdx.stock_at_time_quote("AAPL", "20240101", "20240301", "34200000")
 ```
 ```go [Go]
 // Trade at 9:30 AM across a date range
@@ -248,12 +248,12 @@ auto quotes = client.stock_at_time_quote("AAPL", "20240101", "20240301", "342000
 For endpoints returning millions of rows, the Rust SDK provides `_stream` variants to process data chunk by chunk without holding everything in memory:
 
 ```rust
-client.stock_history_trade_stream("AAPL", "20240315", |chunk| {
+tdx.stock_history_trade_stream("AAPL", "20240315", |chunk| {
     println!("Got {} trades in this chunk", chunk.len());
     Ok(())
 }).await?;
 
-client.stock_history_quote_stream("AAPL", "20240315", "0", |chunk| {
+tdx.stock_history_quote_stream("AAPL", "20240315", "0", |chunk| {
     println!("Got {} quotes in this chunk", chunk.len());
     Ok(())
 }).await?;

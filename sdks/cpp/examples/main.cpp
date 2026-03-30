@@ -1,6 +1,6 @@
 #include <iostream>
 #include <iomanip>
-#include "thetadatadx.hpp"
+#include "thetadx.hpp"
 
 int main() {
     try {

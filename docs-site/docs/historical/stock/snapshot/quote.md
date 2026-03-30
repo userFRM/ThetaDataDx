@@ -44,23 +44,53 @@ for (auto& q : quotes) {
 
 ## Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `symbols` | string[] | Yes | One or more ticker symbols |
-| `venue` | string | No | Data venue filter |
-| `min_time` | string | No | Minimum time of day (ms from midnight ET) |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>symbols</code><span class="param-type">string[]</span><span class="param-badge required">required</span></div>
+<div class="param-desc">One or more ticker symbols</div>
+</div>
+<div class="param">
+<div class="param-header"><code>venue</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Data venue filter</div>
+</div>
+<div class="param">
+<div class="param-header"><code>min_time</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Minimum time of day as milliseconds from midnight ET</div>
+</div>
+</div>
 
 ## Response Fields (QuoteTick)
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `ms_of_day` | i32 | Milliseconds since midnight ET |
-| `bid_size` / `ask_size` | i32 | Quote sizes |
-| `bid_exchange` / `ask_exchange` | i32 | Exchange codes |
-| `bid` / `ask` | i32 | Fixed-point prices |
-| `bid_condition` / `ask_condition` | i32 | Condition codes |
-| `price_type` | i32 | Decimal type for price decoding |
-| `date` | i32 | Date as YYYYMMDD integer |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>ms_of_day</code><span class="param-type">i32</span></div>
+<div class="param-desc">Milliseconds since midnight ET</div>
+</div>
+<div class="param">
+<div class="param-header"><code>bid_size</code> / <code>ask_size</code><span class="param-type">i32</span></div>
+<div class="param-desc">Quote sizes</div>
+</div>
+<div class="param">
+<div class="param-header"><code>bid_exchange</code> / <code>ask_exchange</code><span class="param-type">i32</span></div>
+<div class="param-desc">Exchange codes</div>
+</div>
+<div class="param">
+<div class="param-header"><code>bid</code> / <code>ask</code><span class="param-type">i32</span></div>
+<div class="param-desc">Fixed-point prices. Use <code>bid_price()</code>, <code>ask_price()</code>, <code>midpoint_price()</code> for decoded values.</div>
+</div>
+<div class="param">
+<div class="param-header"><code>bid_condition</code> / <code>ask_condition</code><span class="param-type">i32</span></div>
+<div class="param-desc">Condition codes</div>
+</div>
+<div class="param">
+<div class="param-header"><code>price_type</code><span class="param-type">i32</span></div>
+<div class="param-desc">Decimal type for price decoding</div>
+</div>
+<div class="param">
+<div class="param-header"><code>date</code><span class="param-type">i32</span></div>
+<div class="param-desc">Date as <code>YYYYMMDD</code> integer</div>
+</div>
+</div>
 
 Helper methods: `bid_price()`, `ask_price()`, `midpoint_price()`, `midpoint_value()`
 

@@ -13,13 +13,13 @@ Retrieve the trade at a specific time of day across a date range for an option c
 
 ::: code-group
 ```rust [Rust]
-let trades: Vec<TradeTick> = client.option_at_time_trade(
+let trades: Vec<TradeTick> = tdx.option_at_time_trade(
     "SPY", "20241220", "500000", "C",
     "20240101", "20240301", "34200000"  // 9:30 AM ET
 ).await?;
 ```
 ```python [Python]
-trades = client.option_at_time_trade("SPY", "20241220", "500000", "C",
+trades = tdx.option_at_time_trade("SPY", "20241220", "500000", "C",
                                      "20240101", "20240301", "34200000")
 ```
 ```go [Go]
@@ -34,29 +34,73 @@ auto trades = client.option_at_time_trade("SPY", "20241220", "500000", "C",
 
 ## Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `symbol` | string | Yes | Underlying symbol |
-| `expiration` | string | Yes | Expiration date (`YYYYMMDD`) |
-| `strike` | string | Yes | Strike price (scaled integer) |
-| `right` | string | Yes | `"C"` or `"P"` |
-| `start_date` | string | Yes | Start date (`YYYYMMDD`) |
-| `end_date` | string | Yes | End date (`YYYYMMDD`) |
-| `time_of_day` | string | Yes | Milliseconds from midnight ET (e.g. `"34200000"` = 9:30 AM) |
-| `max_dte` | int | No | Maximum days to expiration |
-| `strike_range` | int | No | Strike range filter |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>symbol</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Underlying symbol</div>
+</div>
+<div class="param">
+<div class="param-header"><code>expiration</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Expiration date in <code>YYYYMMDD</code> format</div>
+</div>
+<div class="param">
+<div class="param-header"><code>strike</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Strike price as scaled integer</div>
+</div>
+<div class="param">
+<div class="param-header"><code>right</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc"><code>"C"</code> for call, <code>"P"</code> for put</div>
+</div>
+<div class="param">
+<div class="param-header"><code>start_date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Start date in <code>YYYYMMDD</code> format</div>
+</div>
+<div class="param">
+<div class="param-header"><code>end_date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">End date in <code>YYYYMMDD</code> format</div>
+</div>
+<div class="param">
+<div class="param-header"><code>time_of_day</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Milliseconds from midnight ET (e.g. <code>"34200000"</code> = 9:30 AM)</div>
+</div>
+<div class="param">
+<div class="param-header"><code>max_dte</code><span class="param-type">int</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Maximum days to expiration</div>
+</div>
+<div class="param">
+<div class="param-header"><code>strike_range</code><span class="param-type">int</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Strike range filter</div>
+</div>
+</div>
 
 ## Response
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `price` | float | Trade price |
-| `size` | int | Trade size |
-| `date` | string | Date |
-| `ms_of_day` | int | Milliseconds from midnight |
-| `condition` | int | Trade condition code |
-| `exchange` | int | Exchange code |
-
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>price</code><span class="param-type">float</span></div>
+<div class="param-desc">Trade price</div>
+</div>
+<div class="param">
+<div class="param-header"><code>size</code><span class="param-type">int</span></div>
+<div class="param-desc">Trade size</div>
+</div>
+<div class="param">
+<div class="param-header"><code>date</code><span class="param-type">string</span></div>
+<div class="param-desc">Date</div>
+</div>
+<div class="param">
+<div class="param-header"><code>ms_of_day</code><span class="param-type">int</span></div>
+<div class="param-desc">Milliseconds from midnight</div>
+</div>
+<div class="param">
+<div class="param-header"><code>condition</code><span class="param-type">int</span></div>
+<div class="param-desc">Trade condition code</div>
+</div>
+<div class="param">
+<div class="param-header"><code>exchange</code><span class="param-type">int</span></div>
+<div class="param-desc">Exchange code</div>
+</div>
+</div>
 
 ## Notes
 

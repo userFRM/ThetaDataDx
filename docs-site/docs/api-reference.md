@@ -36,7 +36,7 @@ defer client.Close()
 ```
 ```cpp [C++]
 auto creds = tdx::Credentials::from_file("creds.txt");
-auto client = tdx::Client::connect(creds, tdx::Config::production());
+auto client = tdx::ThetaDataDx::connect(creds, tdx::Config::production());
 ```
 :::
 
@@ -209,7 +209,7 @@ auto mv = client.stock_snapshot_market_value({"AAPL"});
 | `venue` | string | No | Data venue filter |
 | `min_time` | string | No | Minimum time of day (ms from midnight) |
 
-**Returns:** DataTable with market value fields.
+**Returns:** `Vec<MarketValueTick>` with market cap, shares outstanding, enterprise value, book value, free float.
 
 ---
 
@@ -399,7 +399,7 @@ auto tq = client.stock_history_trade_quote("AAPL", "20240315");
 | `exclusive` | bool | No | Exclusive time bounds |
 | `venue` | string | No | Data venue filter |
 
-**Returns:** [TradeQuoteTick](#tradequotetick) data (DataTable in Rust, dicts in Python, JSON in Go/C++).
+**Returns:** `Vec<TradeQuoteTick>` with combined trade + quote fields.
 
 **Tier:** Pro
 
@@ -613,7 +613,7 @@ auto contracts = client.option_list_contracts("EOD", "SPY", "20240315");
 | `date` | string | Yes | Date (`YYYYMMDD`) |
 | `max_dte` | int | No | Maximum days to expiration filter |
 
-**Returns:** DataTable with contract details (root, expiration, strike, right).
+**Returns:** `Vec<OptionContract>` with root, expiration, strike, right.
 
 ---
 
@@ -744,7 +744,7 @@ auto oi = client.option_snapshot_open_interest("SPY", "20241220", "500000", "C")
 | `strike_range` | int | No | Strike range filter |
 | `min_time` | string | No | Minimum time of day (ms from midnight) |
 
-**Returns:** DataTable with open interest fields.
+**Returns:** `Vec<OpenInterestTick>` with ms_of_day, open_interest, date.
 
 ---
 
@@ -777,7 +777,7 @@ auto mv = client.option_snapshot_market_value("SPY", "20241220", "500000", "C");
 | `strike_range` | int | No | Strike range filter |
 | `min_time` | string | No | Minimum time of day (ms from midnight) |
 
-**Returns:** DataTable with market value fields.
+**Returns:** `Vec<MarketValueTick>` with market cap, shares outstanding, enterprise value, book value, free float.
 
 ---
 
@@ -816,7 +816,7 @@ auto iv = client.option_snapshot_greeks_implied_volatility("SPY", "20241220", "5
 | `min_time` | string | No | Minimum time of day (ms from midnight) |
 | `use_market_value` | bool | No | Use market value instead of last trade |
 
-**Returns:** DataTable with IV fields.
+**Returns:** `Vec<IvTick>` with implied_volatility, iv_error.
 
 **Tier:** Pro
 
@@ -857,7 +857,7 @@ auto greeks = client.option_snapshot_greeks_all("SPY", "20241220", "500000", "C"
 | `min_time` | string | No | Minimum time of day |
 | `use_market_value` | bool | No | Use market value instead of last trade |
 
-**Returns:** DataTable with all Greeks fields (delta, gamma, theta, vega, rho, and higher-order Greeks).
+**Returns:** `Vec<GreeksTick>` with all 22 Greeks.
 
 **Tier:** Pro
 
@@ -884,7 +884,7 @@ auto g = client.option_snapshot_greeks_first_order("SPY", "20241220", "500000", 
 
 Parameters are identical to [option_snapshot_greeks_all](#option_snapshot_greeks_all).
 
-**Returns:** DataTable with first-order Greeks fields.
+**Returns:** `Vec<GreeksTick>` with first-order Greeks (delta, theta, vega, rho).
 
 **Tier:** Pro
 
@@ -911,7 +911,7 @@ auto g = client.option_snapshot_greeks_second_order("SPY", "20241220", "500000",
 
 Parameters are identical to [option_snapshot_greeks_all](#option_snapshot_greeks_all).
 
-**Returns:** DataTable with second-order Greeks fields.
+**Returns:** `Vec<GreeksTick>` with second-order Greeks (gamma, vanna, charm, vomma).
 
 **Tier:** Pro
 
@@ -938,7 +938,7 @@ auto g = client.option_snapshot_greeks_third_order("SPY", "20241220", "500000", 
 
 Parameters are identical to [option_snapshot_greeks_all](#option_snapshot_greeks_all).
 
-**Returns:** DataTable with third-order Greeks fields.
+**Returns:** `Vec<GreeksTick>` with third-order Greeks (speed, zomma, color, ultima).
 
 **Tier:** Pro
 
@@ -1159,7 +1159,7 @@ auto oi = client.option_history_open_interest("SPY", "20241220", "500000", "C", 
 | `max_dte` | int | No | Maximum days to expiration |
 | `strike_range` | int | No | Strike range filter |
 
-**Returns:** DataTable with open interest fields.
+**Returns:** `Vec<OpenInterestTick>` with ms_of_day, open_interest, date.
 
 ---
 
@@ -1200,7 +1200,7 @@ auto g = client.option_history_greeks_eod("SPY", "20241220", "500000", "C", "202
 | `max_dte` | int | No | Maximum days to expiration |
 | `strike_range` | int | No | Strike range filter |
 
-**Returns:** DataTable with Greeks fields per date.
+**Returns:** `Vec<GreeksTick>` with EOD Greeks per date.
 
 **Tier:** Pro
 
@@ -1241,7 +1241,7 @@ auto g = client.option_history_greeks_all("SPY", "20241220", "500000", "C", "202
 | `version` | string | No | Greeks calculation version |
 | `strike_range` | int | No | Strike range filter |
 
-**Returns:** DataTable with all Greeks fields at each interval.
+**Returns:** `Vec<GreeksTick>` with all 22 Greeks at each interval.
 
 **Tier:** Pro
 
@@ -1282,7 +1282,7 @@ auto g = client.option_history_trade_greeks_all("SPY", "20241220", "500000", "C"
 | `max_dte` | int | No | Maximum days to expiration |
 | `strike_range` | int | No | Strike range filter |
 
-**Returns:** DataTable with trade data + all Greeks fields per trade.
+**Returns:** `Vec<GreeksTick>` with all 22 Greeks per trade.
 
 **Tier:** Pro
 
@@ -1311,7 +1311,7 @@ auto g = client.option_history_greeks_first_order("SPY", "20241220", "500000", "
 
 Parameters are identical to [option_history_greeks_all](#option_history_greeks_all).
 
-**Returns:** DataTable with first-order Greeks (delta, theta, vega, rho, epsilon, lambda).
+**Returns:** `Vec<GreeksTick>` with first-order Greeks at each interval.
 
 **Tier:** Pro
 
@@ -1340,7 +1340,7 @@ auto g = client.option_history_trade_greeks_first_order("SPY", "20241220", "5000
 
 Parameters are identical to [option_history_trade_greeks_all](#option_history_trade_greeks_all).
 
-**Returns:** DataTable with trade data + first-order Greeks per trade.
+**Returns:** `Vec<GreeksTick>` with first-order Greeks per trade.
 
 **Tier:** Pro
 
@@ -1369,7 +1369,7 @@ auto g = client.option_history_greeks_second_order("SPY", "20241220", "500000", 
 
 Parameters are identical to [option_history_greeks_all](#option_history_greeks_all).
 
-**Returns:** DataTable with second-order Greeks (gamma, vanna, charm, vomma, veta).
+**Returns:** `Vec<GreeksTick>` with second-order Greeks at each interval.
 
 **Tier:** Pro
 
@@ -1398,7 +1398,7 @@ auto g = client.option_history_trade_greeks_second_order("SPY", "20241220", "500
 
 Parameters are identical to [option_history_trade_greeks_all](#option_history_trade_greeks_all).
 
-**Returns:** DataTable with trade data + second-order Greeks per trade.
+**Returns:** `Vec<GreeksTick>` with second-order Greeks per trade.
 
 **Tier:** Pro
 
@@ -1427,7 +1427,7 @@ auto g = client.option_history_greeks_third_order("SPY", "20241220", "500000", "
 
 Parameters are identical to [option_history_greeks_all](#option_history_greeks_all).
 
-**Returns:** DataTable with third-order Greeks (speed, zomma, color, ultima).
+**Returns:** `Vec<GreeksTick>` with third-order Greeks at each interval.
 
 **Tier:** Pro
 
@@ -1456,7 +1456,7 @@ auto g = client.option_history_trade_greeks_third_order("SPY", "20241220", "5000
 
 Parameters are identical to [option_history_trade_greeks_all](#option_history_trade_greeks_all).
 
-**Returns:** DataTable with trade data + third-order Greeks per trade.
+**Returns:** `Vec<GreeksTick>` with third-order Greeks per trade.
 
 **Tier:** Pro
 
@@ -1485,7 +1485,7 @@ auto iv = client.option_history_greeks_implied_volatility("SPY", "20241220", "50
 
 Parameters are identical to [option_history_greeks_all](#option_history_greeks_all).
 
-**Returns:** DataTable with IV, bid IV, ask IV, underlying price, and IV error fields.
+**Returns:** `Vec<IvTick>` with implied volatility at each interval.
 
 **Tier:** Pro
 
@@ -1514,7 +1514,7 @@ auto iv = client.option_history_trade_greeks_implied_volatility("SPY", "20241220
 
 Parameters are identical to [option_history_trade_greeks_all](#option_history_trade_greeks_all).
 
-**Returns:** DataTable with trade data + IV fields per trade.
+**Returns:** `Vec<IvTick>` with IV per trade.
 
 **Tier:** Pro
 
@@ -1700,7 +1700,7 @@ auto prices = client.index_snapshot_price({"SPX"});
 | `symbols` | string[] | Yes | One or more index symbols |
 | `min_time` | string | No | Minimum time of day (ms from midnight) |
 
-**Returns:** DataTable with price fields.
+**Returns:** `Vec<PriceTick>` with ms_of_day, price, date.
 
 ---
 
@@ -1728,7 +1728,7 @@ auto mv = client.index_snapshot_market_value({"SPX"});
 | `symbols` | string[] | Yes | One or more index symbols |
 | `min_time` | string | No | Minimum time of day (ms from midnight) |
 
-**Returns:** DataTable with market value fields.
+**Returns:** `Vec<MarketValueTick>` with market cap, shares outstanding, enterprise value, book value, free float.
 
 ---
 
@@ -1820,7 +1820,7 @@ auto prices = client.index_history_price("SPX", "20240315", "60000");
 | `start_time` | string | No | Start time (ms from midnight) |
 | `end_time` | string | No | End time (ms from midnight) |
 
-**Returns:** DataTable with price + time fields.
+**Returns:** `Vec<PriceTick>` with price at each interval.
 
 ---
 
@@ -1850,7 +1850,7 @@ auto prices = client.index_at_time_price("SPX", "20240101", "20240301", "3420000
 | `end_date` | string | Yes | End date (`YYYYMMDD`) |
 | `time_of_day` | string | Yes | Ms from midnight ET |
 
-**Returns:** DataTable with price data, one entry per date.
+**Returns:** `Vec<PriceTick>` with one price per date.
 
 ---
 
@@ -1877,7 +1877,7 @@ auto info = client.calendar_open_today();
 
 **Parameters:** None
 
-**Returns:** DataTable with market open/close status and times.
+**Returns:** `Vec<CalendarDay>` with is_open, open_time, close_time.
 
 ---
 
@@ -1904,7 +1904,7 @@ auto info = client.calendar_on_date("20240315");
 |-----------|------|----------|-------------|
 | `date` | string | Yes | Date (`YYYYMMDD`) |
 
-**Returns:** DataTable with market calendar info (open/close times, early close, holiday).
+**Returns:** `Vec<CalendarDay>` with calendar info for the date.
 
 ---
 
@@ -1931,7 +1931,7 @@ auto cal = client.calendar_year("2024");
 |-----------|------|----------|-------------|
 | `year` | string | Yes | 4-digit year (e.g. `"2024"`) |
 
-**Returns:** DataTable with calendar info for every trading day in the year.
+**Returns:** `Vec<CalendarDay>` with calendar info for every trading day.
 
 ---
 
@@ -1962,7 +1962,7 @@ auto rates = client.interest_rate_history_eod("SOFR", "20240101", "20240301");
 | `start_date` | string | Yes | Start date (`YYYYMMDD`) |
 | `end_date` | string | Yes | End date (`YYYYMMDD`) |
 
-**Returns:** DataTable with rate data per date.
+**Returns:** `Vec<InterestRateTick>` with rate per date.
 
 ---
 
@@ -2191,6 +2191,7 @@ fpss.UnsubscribeTrades("AAPL")
 fpss.UnsubscribeOpenInterest("AAPL")
 ```
 ```cpp [C++]
+fpss.unsubscribe_quotes("AAPL");
 fpss.unsubscribe_trades("AAPL");
 fpss.unsubscribe_open_interest("AAPL");
 ```
@@ -2241,8 +2242,7 @@ fpss.shutdown();
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `is_streaming` / `is_authenticated` | bool | Check if the streaming connection is live |
-| `server_addr` | string | Get connected server address |
+| `is_streaming` | bool | Check if the streaming connection is live |
 | `contract_map` / `contract_lookup` | map/string | Look up server-assigned contract IDs |
 | `active_subscriptions` | list/JSON | Get list of active subscriptions |
 
@@ -2283,36 +2283,34 @@ For historical endpoints that can return millions of rows, `_stream` variants pr
 ### stock_history_trade_stream
 
 ```rust
-tdx.stock_history_trade_stream("AAPL", "20240315", |trades: Vec<TradeTick>| {
-    for t in &trades {
+tdx.stock_history_trade_stream("AAPL", "20240315", |trades: &[TradeTick]| {
+    for t in trades {
         println!("{}: {}", t.date, t.get_price());
     }
-    Ok(())
 }).await?;
 ```
 
 ### stock_history_quote_stream
 
 ```rust
-tdx.stock_history_quote_stream("AAPL", "20240315", "0", |quotes: Vec<QuoteTick>| {
+tdx.stock_history_quote_stream("AAPL", "20240315", "0", |quotes: &[QuoteTick]| {
     println!("Chunk: {} quotes", quotes.len());
-    Ok(())
 }).await?;
 ```
 
 ### option_history_trade_stream
 
 ```rust
-tdx.option_history_trade_stream("SPY", "20241220", "500000", "C", "20240315", |trades| {
-    Ok(())
+tdx.option_history_trade_stream("SPY", "20241220", "500000", "C", "20240315", |trades: &[TradeTick]| {
+    println!("Chunk: {} trades", trades.len());
 }).await?;
 ```
 
 ### option_history_quote_stream
 
 ```rust
-tdx.option_history_quote_stream("SPY", "20241220", "500000", "C", "20240315", "0", |quotes| {
-    Ok(())
+tdx.option_history_quote_stream("SPY", "20241220", "500000", "C", "20240315", "0", |quotes: &[QuoteTick]| {
+    println!("Chunk: {} quotes", quotes.len());
 }).await?;
 ```
 

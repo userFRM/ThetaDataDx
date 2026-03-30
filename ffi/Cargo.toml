@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-ffi"
-version = "3.1.0"
+version = "3.2.1"
 edition = "2021"
 description = "C FFI layer for thetadatadx — used by Go and C++ SDKs"
 license = "GPL-3.0-or-later"

@@ -131,25 +131,61 @@ while (true) {
 
 ### Data Events
 
-| Event | Key Fields |
-|-------|------------|
-| `Quote` | contract_id, ms_of_day, bid, ask, bid_size, ask_size, price_type, date |
-| `Trade` | contract_id, ms_of_day, price, size, exchange, condition, price_type, date |
-| `OpenInterest` | contract_id, ms_of_day, open_interest, date |
-| `Ohlcvc` | contract_id, ms_of_day, open, high, low, close, volume, count, price_type, date |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>Quote</code><span class="param-type">data</span></div>
+<div class="param-desc">Real-time NBBO quote update. Fields: <code>contract_id</code>, <code>ms_of_day</code>, <code>bid</code>, <code>ask</code>, <code>bid_size</code>, <code>ask_size</code>, <code>price_type</code>, <code>date</code></div>
+</div>
+<div class="param">
+<div class="param-header"><code>Trade</code><span class="param-type">data</span></div>
+<div class="param-desc">Individual trade execution. Fields: <code>contract_id</code>, <code>ms_of_day</code>, <code>price</code>, <code>size</code>, <code>exchange</code>, <code>condition</code>, <code>price_type</code>, <code>date</code></div>
+</div>
+<div class="param">
+<div class="param-header"><code>OpenInterest</code><span class="param-type">data</span></div>
+<div class="param-desc">Current open interest snapshot. Fields: <code>contract_id</code>, <code>ms_of_day</code>, <code>open_interest</code>, <code>date</code></div>
+</div>
+<div class="param">
+<div class="param-header"><code>Ohlcvc</code><span class="param-type">data</span></div>
+<div class="param-desc">Aggregated OHLC bar with volume and trade count. Fields: <code>contract_id</code>, <code>ms_of_day</code>, <code>open</code>, <code>high</code>, <code>low</code>, <code>close</code>, <code>volume</code>, <code>count</code>, <code>price_type</code>, <code>date</code></div>
+</div>
+</div>
 
 ### Control Events
 
-| Event | Fields |
-|-------|--------|
-| `LoginSuccess` | permissions (string) |
-| `ContractAssigned` | id, contract |
-| `ReqResponse` | req_id, result (Subscribed/Error/MaxStreamsReached/InvalidPerms) |
-| `MarketOpen` | (none) |
-| `MarketClose` | (none) |
-| `ServerError` | message |
-| `Disconnected` | reason (RemoveReason enum) |
-| `Error` | message |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>LoginSuccess</code><span class="param-type">control</span></div>
+<div class="param-desc">Authentication succeeded. Fields: <code>permissions</code> (string)</div>
+</div>
+<div class="param">
+<div class="param-header"><code>ContractAssigned</code><span class="param-type">control</span></div>
+<div class="param-desc">Server assigned an integer ID to a subscribed contract. Fields: <code>id</code>, <code>contract</code></div>
+</div>
+<div class="param">
+<div class="param-header"><code>ReqResponse</code><span class="param-type">control</span></div>
+<div class="param-desc">Response to a subscribe/unsubscribe request. Fields: <code>req_id</code>, <code>result</code> (<code>Subscribed</code> / <code>Error</code> / <code>MaxStreamsReached</code> / <code>InvalidPerms</code>)</div>
+</div>
+<div class="param">
+<div class="param-header"><code>MarketOpen</code><span class="param-type">control</span></div>
+<div class="param-desc">Market has opened for the trading day. No additional fields.</div>
+</div>
+<div class="param">
+<div class="param-header"><code>MarketClose</code><span class="param-type">control</span></div>
+<div class="param-desc">Market has closed for the trading day. No additional fields.</div>
+</div>
+<div class="param">
+<div class="param-header"><code>ServerError</code><span class="param-type">control</span></div>
+<div class="param-desc">Non-fatal server error. Fields: <code>message</code> (string)</div>
+</div>
+<div class="param">
+<div class="param-header"><code>Disconnected</code><span class="param-type">control</span></div>
+<div class="param-desc">Connection was terminated. Fields: <code>reason</code> (<code>RemoveReason</code> enum)</div>
+</div>
+<div class="param">
+<div class="param-header"><code>Error</code><span class="param-type">control</span></div>
+<div class="param-desc">Generic error event. Fields: <code>message</code> (string)</div>
+</div>
+</div>
 
 ## Streaming Methods Reference
 
@@ -204,6 +240,7 @@ while (true) {
 | `subscribe_trades` | `(symbol) -> int32_t` | Subscribe to trades |
 | `subscribe_open_interest` | `(symbol) -> int32_t` | Subscribe to OI |
 | `subscribe_full_trades` | `(sec_type) -> int32_t` | Subscribe to all trades for a security type |
+| `unsubscribe_quotes` | `(symbol) -> int32_t` | Unsubscribe from quotes |
 | `unsubscribe_trades` | `(symbol) -> int32_t` | Unsubscribe from trades |
 | `unsubscribe_open_interest` | `(symbol) -> int32_t` | Unsubscribe from OI |
 | `next_event` | `(timeout_ms) -> std::string` | Poll next event (empty on timeout) |

@@ -35,21 +35,22 @@ let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 pub async fn for_each_chunk<F>(
     &self,
     stream: tonic::Streaming<ResponseData>,
-    mut callback: F,
+    f: F,
 ) -> Result<(), Error>
 where
-    F: FnMut(proto::DataTable) -> Result<(), Error>,
+    F: FnMut(&[String], &[proto::DataValueList]),
 ```
 
-Process gRPC response chunks one at a time via a callback, without materializing the entire response in memory. Each chunk is decompressed and decoded into a `DataTable` before being passed to the callback. Useful for large responses where holding all data in memory is undesirable.
+Process gRPC response chunks one at a time via a callback, without materializing the entire response in memory. Each chunk is decompressed and the callback receives headers and rows directly. Useful for large responses where holding all data in memory is undesirable.
+
+Note: The `_stream` endpoint variants (e.g. `stock_history_trade_stream`) are the preferred way to stream typed ticks. `for_each_chunk` is a lower-level escape hatch.
 
 ```rust
-tdx.for_each_chunk(stream, |table| {
-    for tick in parse_trade_ticks(&table) {
-        println!("{}: {}", tick.date, tick.get_price());
-    }
-    Ok(())
+let mut count = 0usize;
+tdx.for_each_chunk(stream, |_headers, rows| {
+    count += rows.len();
 }).await?;
+println!("processed {count} rows without buffering them all");
 ```
 
 The standard `collect_stream` method now uses `original_size` from the `ResponseData` compression description as a pre-allocation hint for the decompression buffer, reducing intermediate reallocations.

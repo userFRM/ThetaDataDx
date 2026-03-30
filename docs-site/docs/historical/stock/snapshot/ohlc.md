@@ -48,24 +48,49 @@ for (auto& bar : bars) {
 
 ## Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `symbols` | string[] | Yes | One or more ticker symbols |
-| `venue` | string | No | Data venue filter |
-| `min_time` | string | No | Minimum time of day (ms from midnight ET) |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>symbols</code><span class="param-type">string[]</span><span class="param-badge required">required</span></div>
+<div class="param-desc">One or more ticker symbols</div>
+</div>
+<div class="param">
+<div class="param-header"><code>venue</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Data venue filter</div>
+</div>
+<div class="param">
+<div class="param-header"><code>min_time</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Minimum time of day as milliseconds from midnight ET</div>
+</div>
+</div>
 
 ## Response Fields (OhlcTick)
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `ms_of_day` | i32 | Bar start time (ms from midnight ET) |
-| `open` / `high` / `low` / `close` | i32 | Fixed-point OHLC prices |
-| `volume` | i32 | Total volume in bar |
-| `count` | i32 | Number of trades in bar |
-| `price_type` | i32 | Decimal type for price decoding |
-| `date` | i32 | Date as YYYYMMDD integer |
-
-Helper methods: `open_price()`, `high_price()`, `low_price()`, `close_price()`
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>ms_of_day</code><span class="param-type">i32</span></div>
+<div class="param-desc">Bar start time (milliseconds from midnight ET)</div>
+</div>
+<div class="param">
+<div class="param-header"><code>open</code> / <code>high</code> / <code>low</code> / <code>close</code><span class="param-type">i32</span></div>
+<div class="param-desc">Fixed-point OHLC prices. Use <code>open_price()</code>, <code>high_price()</code>, <code>low_price()</code>, <code>close_price()</code> for decoded values.</div>
+</div>
+<div class="param">
+<div class="param-header"><code>volume</code><span class="param-type">i32</span></div>
+<div class="param-desc">Total volume in the bar</div>
+</div>
+<div class="param">
+<div class="param-header"><code>count</code><span class="param-type">i32</span></div>
+<div class="param-desc">Number of trades in the bar</div>
+</div>
+<div class="param">
+<div class="param-header"><code>price_type</code><span class="param-type">i32</span></div>
+<div class="param-desc">Decimal type for price decoding</div>
+</div>
+<div class="param">
+<div class="param-header"><code>date</code><span class="param-type">i32</span></div>
+<div class="param-desc">Date as <code>YYYYMMDD</code> integer</div>
+</div>
+</div>
 
 ## Notes
 

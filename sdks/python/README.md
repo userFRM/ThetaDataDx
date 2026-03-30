@@ -2,7 +2,7 @@
 
 Python SDK for ThetaData market data, powered by the `thetadatadx` Rust crate via PyO3.
 
-**This is NOT a Python reimplementation.** Every call goes through compiled Rust -- gRPC communication, protobuf parsing, zstd decompression, FIT tick decoding, and TCP streaming all happen at native speed. Python is just the interface.
+**This is NOT a Python reimplementation.** Every call goes through compiled Rust - gRPC communication, protobuf parsing, zstd decompression, FIT tick decoding, and TCP streaming all happen at native speed. Python is just the interface.
 
 ## Installation
 
@@ -11,6 +11,12 @@ pip install thetadatadx
 
 # With pandas DataFrame support
 pip install thetadatadx[pandas]
+
+# With polars DataFrame support
+pip install thetadatadx[polars]
+
+# Both
+pip install thetadatadx[all]
 ```
 
 Or build from source (requires Rust toolchain):
@@ -65,12 +71,12 @@ iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30/365, 8.50, True)
 ## API
 
 ### `Credentials`
-- `Credentials(email, password)` -- direct construction
-- `Credentials.from_file(path)` -- load from creds.txt
+- `Credentials(email, password)` - direct construction
+- `Credentials.from_file(path)` - load from creds.txt
 
 ### `Config`
-- `Config.production()` -- ThetaData NJ production servers
-- `Config.dev()` -- dev servers with shorter timeouts
+- `Config.production()` - ThetaData NJ production servers
+- `Config.dev()` - dev servers with shorter timeouts
 
 ### `ThetaDataDx(creds, config)`
 
@@ -140,9 +146,9 @@ All 61 endpoints are available. Methods return lists of dicts.
 |--------|-------------|
 | `index_list_symbols()` | All index symbols |
 | `index_list_dates(symbol)` | Available dates for an index |
-| `index_snapshot_ohlc(symbol)` | Latest OHLC snapshot |
-| `index_snapshot_price(symbol)` | Latest price snapshot |
-| `index_snapshot_market_value(symbol)` | Latest market value snapshot |
+| `index_snapshot_ohlc(symbols)` | Latest OHLC snapshot |
+| `index_snapshot_price(symbols)` | Latest price snapshot |
+| `index_snapshot_market_value(symbols)` | Latest market value snapshot |
 | `index_history_eod(symbol, start, end)` | End-of-day index data |
 | `index_history_ohlc(symbol, start, end, interval)` | Intraday OHLC bars |
 | `index_history_price(symbol, date, interval)` | Intraday price history |
@@ -220,7 +226,7 @@ while True:
 
     contract = contracts.get(event.get("contract_id"), "unknown")
 
-    # Filter by type -- you choose what you want
+    # Filter by type - you choose what you want
     if event["kind"] == "trade":
         print(f"[{contract}] TRADE {event['price']:.2f} x {event['size']}")
     elif event["kind"] == "quote":
@@ -259,8 +265,8 @@ Returns `(iv, error)` tuple.
 
 ```mermaid
 graph TD
-    A["Python code"] -- "PyO3 FFI" --> B["thetadatadx Rust crate"]
-    B -- "tonic gRPC / TLS TCP" --> C["ThetaData servers"]
+    A["Python code"] - "PyO3 FFI" --> B["thetadatadx Rust crate"]
+    B - "tonic gRPC / TLS TCP" --> C["ThetaData servers"]
 ```
 
 No HTTP middleware, no Java terminal, no subprocess. Direct wire protocol access at Rust speed.

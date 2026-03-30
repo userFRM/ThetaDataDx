@@ -1,6 +1,6 @@
 # thetadatadx-mcp
 
-MCP (Model Context Protocol) server for [ThetaDataDx](https://github.com/userFRM/ThetaDataDx) -- gives any LLM instant access to ThetaData market data via structured tool calls over stdio JSON-RPC 2.0.
+MCP (Model Context Protocol) server for [ThetaDataDx](https://github.com/userFRM/ThetaDataDx) - gives any LLM instant access to ThetaData market data via structured tool calls over stdio JSON-RPC 2.0.
 
 ## Architecture
 
@@ -25,7 +25,7 @@ cargo install thetadatadx-mcp --git https://github.com/userFRM/ThetaDataDx
 Or build from source:
 
 ```bash
-cd crates/thetadatadx-mcp
+cd tools/mcp
 cargo build --release
 # Binary at ../../target/release/thetadatadx-mcp
 ```
@@ -45,7 +45,7 @@ export THETA_PASSWORD="your-password"
 thetadatadx-mcp --creds ~/creds.txt
 ```
 
-If no credentials are provided, the server starts in **offline mode** -- only `ping`, `all_greeks`, and `implied_volatility` tools are available.
+If no credentials are provided, the server starts in **offline mode** - only `ping`, `all_greeks`, and `implied_volatility` tools are available.
 
 ### Claude Code
 
@@ -108,11 +108,11 @@ The server speaks standard MCP over stdio:
 61 registry endpoints + 3 offline tools (ping, all_greeks, implied_volatility) = 64 total.
 
 ### Meta (1)
-- `ping` -- server status (works offline)
+- `ping` - server status (works offline)
 
 ### Offline Greeks (2, no ThetaData account needed)
-- `all_greeks` -- compute all 22 Black-Scholes Greeks
-- `implied_volatility` -- IV solver via bisection
+- `all_greeks` - compute all 22 Black-Scholes Greeks
+- `implied_volatility` - IV solver via bisection
 
 ### Stock Data (14 tools)
 - `stock_list_symbols`, `stock_list_dates`

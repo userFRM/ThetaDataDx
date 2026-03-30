@@ -2,7 +2,7 @@
 
 Drop-in replacement for the ThetaData Java Terminal. Runs a local HTTP REST server and WebSocket server that expose the same API as the Java terminal, backed by native Rust gRPC (MDDS) and TCP (FPSS) connections to ThetaData's upstream servers.
 
-Existing clients (Python SDK, Excel add-ins, curl scripts, browsers) work without any code changes -- just swap the JAR for this binary.
+Existing clients (Python SDK, Excel add-ins, curl scripts, browsers) work without any code changes - just swap the JAR for this binary.
 
 ## Quick start
 

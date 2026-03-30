@@ -11,25 +11,25 @@ hero:
       link: /getting-started/
     - theme: alt
       text: View on GitHub
-      link: https://github.com/userFRM/thetadatadx
+      link: https://github.com/userFRM/ThetaDataDx
 
 features:
   - icon:
       src: /icons/globe.svg
     title: "Multi-Language SDKs"
-    details: "Native clients for Rust, Python, Go, and C++. Each SDK is idiomatic to its language with full type safety and zero-copy where possible."
+    details: "Native clients for Rust, Python, Go, and C++. Each SDK returns fully typed structures in its language's native idiom."
   - icon:
       src: /icons/bolt.svg
     title: "Real-Time Streaming"
-    details: "Sub-millisecond WebSocket streaming for quotes, trades, and OHLC bars. Automatic reconnection and backpressure handling built in."
+    details: "FPSS streaming via LMAX Disruptor ring buffer (Rust) or polling (Python/Go/C++). Automatic heartbeat, reconnection logic built in."
   - icon:
       src: /icons/chart.svg
     title: "Options & Greeks"
-    details: "Full option chain retrieval with Greeks, implied volatility, open interest, and volatility surface construction out of the box."
+    details: "Full option chain retrieval with 22 Black-Scholes Greeks, IV solver, open interest, and volatility surface construction."
   - icon:
       src: /icons/terminal.svg
     title: "CLI & Server Tools"
-    details: "Standalone CLI for quick queries, an MCP server for AI-assisted workflows, and a REST proxy for language-agnostic access."
+    details: "Standalone CLI for quick queries, an MCP server for AI-assisted workflows, and a REST+WS server as a drop-in Java terminal replacement."
 ---
 
 <div class="install-section">
@@ -40,23 +40,26 @@ features:
 
 ```bash [Rust]
 # Add to Cargo.toml
-cargo add thetadatadx
+cargo add thetadatadx tokio --features tokio/rt-multi-thread,tokio/macros
 ```
 
 ```bash [Python]
 pip install thetadatadx
+
+# With pandas DataFrame support
+pip install thetadatadx[pandas]
 ```
 
 ```bash [Go]
-go get github.com/userFRM/thetadatadx/sdks/go
+# Build the Rust FFI library first
+cargo build --release -p thetadatadx-ffi
 ```
 
 ```bash [C++]
-# Via vcpkg
-vcpkg install thetadatadx
+# Build the Rust FFI library first
+cargo build --release -p thetadatadx-ffi
 
-# Or via CMake FetchContent
-# See the C++ Getting Started guide
+# Then link against libthetadatadx_ffi.so/.dylib
 ```
 
 :::
@@ -66,82 +69,58 @@ vcpkg install thetadatadx
 ::: code-group
 
 ```rust [Rust]
-use thetadatadx::Client;
+use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    let client = Client::new().await?;
+async fn main() -> Result<(), thetadatadx::Error> {
+    let creds = Credentials::from_file("creds.txt")?;
+    let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 
-    let quotes = client
-        .stock_quotes("AAPL")
-        .date("2025-01-15")
-        .send()
-        .await?;
-
-    for quote in &quotes {
-        println!("{} bid={} ask={}", quote.timestamp, quote.bid, quote.ask);
+    let quotes = tdx.stock_history_quote("AAPL", "20250115", "60000").await?;
+    for q in &quotes {
+        println!("{}: bid={} ask={}", q.date, q.bid_price(), q.ask_price());
     }
     Ok(())
 }
 ```
 
 ```python [Python]
-from thetadatadx import Client
+from thetadatadx import ThetaDataDx, Credentials, Config
 
-client = Client()
+creds = Credentials.from_file("creds.txt")
+tdx = ThetaDataDx(creds, Config.production())
 
-quotes = client.stock_quotes(
-    symbol="AAPL",
-    date="2025-01-15"
-)
-
-for quote in quotes:
-    print(f"{quote.timestamp} bid={quote.bid} ask={quote.ask}")
+quotes = tdx.stock_history_quote("AAPL", "20250115", "60000")
+for q in quotes:
+    print(f"{q['date']}: bid={q['bid']:.2f} ask={q['ask']:.2f}")
 ```
 
 ```go [Go]
-package main
+creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
+defer creds.Close()
 
-import (
-    "fmt"
-    "log"
+config := thetadatadx.ProductionConfig()
+defer config.Close()
 
-    tdx "github.com/userFRM/thetadatadx/sdks/go"
-)
+client, _ := thetadatadx.Connect(creds, config)
+defer client.Close()
 
-func main() {
-    client, err := tdx.NewClient()
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    quotes, err := client.StockQuotes("AAPL", tdx.Date("2025-01-15"))
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    for _, q := range quotes {
-        fmt.Printf("%s bid=%f ask=%f\n", q.Timestamp, q.Bid, q.Ask)
-    }
+quotes, _ := client.StockHistoryQuote("AAPL", "20250115", "60000")
+for _, q := range quotes {
+    fmt.Printf("%d: bid=%.2f ask=%.2f\n", q.Date, q.Bid, q.Ask)
 }
 ```
 
 ```cpp [C++]
-#include <thetadatadx/client.hpp>
-#include <iostream>
+#include "thetadx.hpp"
 
-int main() {
-    auto client = tdx::Client::create();
+auto creds = tdx::Credentials::from_file("creds.txt");
+auto client = tdx::Client::connect(creds, tdx::Config::production());
 
-    auto quotes = client.stock_quotes("AAPL")
-        .date("2025-01-15")
-        .send();
-
-    for (const auto& q : quotes) {
-        std::cout << q.timestamp << " bid=" << q.bid
-                  << " ask=" << q.ask << "\n";
-    }
-    return 0;
+auto quotes = client.stock_history_quote("AAPL", "20250115", "60000");
+for (auto& q : quotes) {
+    std::cout << q.date << ": bid=" << q.bid
+              << " ask=" << q.ask << std::endl;
 }
 ```
 

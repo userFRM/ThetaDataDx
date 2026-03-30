@@ -13,12 +13,12 @@ List available dates for a specific option contract, filtered by data request ty
 
 ::: code-group
 ```rust [Rust]
-let dates: Vec<String> = client.option_list_dates(
+let dates: Vec<String> = tdx.option_list_dates(
     "EOD", "SPY", "20241220", "500000", "C"
 ).await?;
 ```
 ```python [Python]
-dates = client.option_list_dates("EOD", "SPY", "20241220", "500000", "C")
+dates = tdx.option_list_dates("EOD", "SPY", "20241220", "500000", "C")
 ```
 ```go [Go]
 dates, err := client.OptionListDates("EOD", "SPY", "20241220", "500000", "C")
@@ -30,20 +30,37 @@ auto dates = client.option_list_dates("EOD", "SPY", "20241220", "500000", "C");
 
 ## Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `request_type` | string | Yes | Data type: `"EOD"`, `"TRADE"`, `"QUOTE"`, `"OHLC"` |
-| `symbol` | string | Yes | Underlying symbol |
-| `expiration` | string | Yes | Expiration date (`YYYYMMDD`) |
-| `strike` | string | Yes | Strike price (scaled integer, e.g. `"500000"` for $500) |
-| `right` | string | Yes | `"C"` for call, `"P"` for put |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>request_type</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Data type: <code>"EOD"</code>, <code>"TRADE"</code>, <code>"QUOTE"</code>, or <code>"OHLC"</code></div>
+</div>
+<div class="param">
+<div class="param-header"><code>symbol</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Underlying symbol</div>
+</div>
+<div class="param">
+<div class="param-header"><code>expiration</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Expiration date in <code>YYYYMMDD</code> format</div>
+</div>
+<div class="param">
+<div class="param-header"><code>strike</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Strike price as a scaled integer (e.g. <code>"500000"</code> for $500)</div>
+</div>
+<div class="param">
+<div class="param-header"><code>right</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc"><code>"C"</code> for call, <code>"P"</code> for put</div>
+</div>
+</div>
 
 ## Response
 
-| Field | Type | Description |
-|-------|------|-------------|
-| (list) | string[] | Date strings in `YYYYMMDD` format |
-
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>(list)</code><span class="param-type">string[]</span></div>
+<div class="param-desc">Date strings in <code>YYYYMMDD</code> format</div>
+</div>
+</div>
 
 ## Notes
 

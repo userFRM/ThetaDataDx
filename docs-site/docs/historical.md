@@ -122,7 +122,7 @@ for q in &ticks {
 }
 
 // Latest market value snapshot
-let table: proto::DataTable = client.stock_snapshot_market_value(&["AAPL"]).await?;
+let ticks: Vec<MarketValueTick> = tdx.stock_snapshot_market_value(&["AAPL"]).await?;
 ```
 ```python [Python]
 # Latest OHLC snapshot (one or more symbols)
@@ -187,8 +187,8 @@ let trades: Vec<TradeTick> = client.stock_history_trade("AAPL", "20240315").awai
 // NBBO quotes at a given interval (use "0" for every quote change)
 let quotes: Vec<QuoteTick> = client.stock_history_quote("AAPL", "20240315", "60000").await?;
 
-// Combined trade + quote ticks (returns raw DataTable)
-let table: proto::DataTable = client.stock_history_trade_quote("AAPL", "20240315").await?;
+// Combined trade + quote ticks
+let ticks: Vec<TradeQuoteTick> = tdx.stock_history_trade_quote("AAPL", "20240315").await?;
 ```
 ```python [Python]
 # End-of-day data for a date range
@@ -345,7 +345,7 @@ let exps: Vec<String> = client.option_list_expirations("SPY").await?;
 let strikes: Vec<String> = client.option_list_strikes("SPY", "20240419").await?;
 
 // All contracts for a symbol on a date
-let table: proto::DataTable = client.option_list_contracts("EOD", "SPY", "20240315").await?;
+let contracts: Vec<OptionContract> = tdx.option_list_contracts("EOD", "SPY", "20240315").await?;
 ```
 ```python [Python]
 # All option underlying symbols
@@ -711,8 +711,8 @@ auto dates = client.index_list_dates("SPX");
 ::: code-group
 ```rust [Rust]
 let ohlc: Vec<OhlcTick> = client.index_snapshot_ohlc(&["SPX", "NDX"]).await?;
-let table: proto::DataTable = client.index_snapshot_price(&["SPX", "NDX"]).await?;
-let table: proto::DataTable = client.index_snapshot_market_value(&["SPX"]).await?;
+let ticks: Vec<PriceTick> = tdx.index_snapshot_price(&["SPX", "NDX"]).await?;
+let ticks: Vec<MarketValueTick> = tdx.index_snapshot_market_value(&["SPX"]).await?;
 ```
 ```python [Python]
 ohlc = client.index_snapshot_ohlc(["SPX", "NDX"])
@@ -741,7 +741,7 @@ let bars: Vec<OhlcTick> = client.index_history_ohlc(
     "SPX", "20240101", "20240301", "60000"
 ).await?;
 
-let table: proto::DataTable = client.index_history_price("SPX", "20240315", "60000").await?;
+let ticks: Vec<PriceTick> = tdx.index_history_price("SPX", "20240315", "60000").await?;
 ```
 ```python [Python]
 eod = client.index_history_eod("SPX", "20240101", "20240301")
@@ -765,7 +765,7 @@ auto price_hist = client.index_history_price("SPX", "20240315", "60000");
 
 ::: code-group
 ```rust [Rust]
-let table: proto::DataTable = client.index_at_time_price(
+let ticks: Vec<PriceTick> = tdx.index_at_time_price(
     "SPX", "20240101", "20240301", "34200000"
 ).await?;
 ```
@@ -786,7 +786,7 @@ auto at_time = client.index_at_time_price("SPX", "20240101", "20240301", "342000
 
 ::: code-group
 ```rust [Rust]
-let table: proto::DataTable = client.interest_rate_history_eod(
+let rates: Vec<InterestRateTick> = tdx.interest_rate_history_eod(
     "SOFR", "20240101", "20240301"
 ).await?;
 ```
@@ -809,9 +809,9 @@ Available rate symbols: `SOFR`, `TREASURY_M1`, `TREASURY_M3`, `TREASURY_M6`, `TR
 
 ::: code-group
 ```rust [Rust]
-let table: proto::DataTable = client.calendar_open_today().await?;
-let table: proto::DataTable = client.calendar_on_date("20240315").await?;
-let table: proto::DataTable = client.calendar_year("2024").await?;
+let days: Vec<CalendarDay> = tdx.calendar_open_today().await?;
+let days: Vec<CalendarDay> = tdx.calendar_on_date("20240315").await?;
+let days: Vec<CalendarDay> = tdx.calendar_year("2024").await?;
 ```
 ```python [Python]
 result = client.calendar_open_today()

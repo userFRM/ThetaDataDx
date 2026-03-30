@@ -65,36 +65,82 @@ auto bars = client.stock_history_ohlc_range("AAPL", "20240101", "20240301", "300
 
 ## Parameters (Single Date)
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `symbol` | string | Yes | Ticker symbol |
-| `date` | string | Yes | Date (`YYYYMMDD`) |
-| `interval` | string | Yes | Bar interval in milliseconds (e.g. `"60000"` for 1-minute) |
-| `start_time` | string | No | Start time (ms from midnight ET) |
-| `end_time` | string | No | End time (ms from midnight ET) |
-| `venue` | string | No | Data venue filter |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>symbol</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Ticker symbol</div>
+</div>
+<div class="param">
+<div class="param-header"><code>date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Date in <code>YYYYMMDD</code> format</div>
+</div>
+<div class="param">
+<div class="param-header"><code>interval</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Bar interval in milliseconds (e.g. <code>"60000"</code> for 1-minute)</div>
+</div>
+<div class="param">
+<div class="param-header"><code>start_time</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Start time as milliseconds from midnight ET</div>
+</div>
+<div class="param">
+<div class="param-header"><code>end_time</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">End time as milliseconds from midnight ET</div>
+</div>
+<div class="param">
+<div class="param-header"><code>venue</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Data venue filter</div>
+</div>
+</div>
 
 ## Parameters (Date Range)
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `symbol` | string | Yes | Ticker symbol |
-| `start_date` | string | Yes | Start date (`YYYYMMDD`) |
-| `end_date` | string | Yes | End date (`YYYYMMDD`) |
-| `interval` | string | Yes | Bar interval in milliseconds |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>symbol</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Ticker symbol</div>
+</div>
+<div class="param">
+<div class="param-header"><code>start_date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Start date in <code>YYYYMMDD</code> format</div>
+</div>
+<div class="param">
+<div class="param-header"><code>end_date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">End date in <code>YYYYMMDD</code> format</div>
+</div>
+<div class="param">
+<div class="param-header"><code>interval</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Bar interval in milliseconds</div>
+</div>
+</div>
 
 ## Response Fields (OhlcTick)
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `ms_of_day` | i32 | Bar start time (ms from midnight ET) |
-| `open` / `high` / `low` / `close` | i32 | Fixed-point OHLC prices |
-| `volume` | i32 | Total volume in bar |
-| `count` | i32 | Number of trades in bar |
-| `price_type` | i32 | Decimal type for price decoding |
-| `date` | i32 | Date as YYYYMMDD integer |
-
-Helper methods: `open_price()`, `high_price()`, `low_price()`, `close_price()`
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>ms_of_day</code><span class="param-type">i32</span></div>
+<div class="param-desc">Bar start time (milliseconds from midnight ET)</div>
+</div>
+<div class="param">
+<div class="param-header"><code>open</code> / <code>high</code> / <code>low</code> / <code>close</code><span class="param-type">i32</span></div>
+<div class="param-desc">Fixed-point OHLC prices. Use <code>open_price()</code>, <code>high_price()</code>, <code>low_price()</code>, <code>close_price()</code> for decoded <code>f64</code>.</div>
+</div>
+<div class="param">
+<div class="param-header"><code>volume</code><span class="param-type">i32</span></div>
+<div class="param-desc">Total volume in the bar</div>
+</div>
+<div class="param">
+<div class="param-header"><code>count</code><span class="param-type">i32</span></div>
+<div class="param-desc">Number of trades in the bar</div>
+</div>
+<div class="param">
+<div class="param-header"><code>price_type</code><span class="param-type">i32</span></div>
+<div class="param-desc">Decimal type for price decoding</div>
+</div>
+<div class="param">
+<div class="param-header"><code>date</code><span class="param-type">i32</span></div>
+<div class="param-desc">Date as <code>YYYYMMDD</code> integer</div>
+</div>
+</div>
 
 ## Common Intervals
 

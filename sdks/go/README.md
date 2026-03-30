@@ -37,7 +37,7 @@ import (
     "fmt"
     "log"
 
-    thetadatadx "github.com/userFRM/ThetaDataDx/sdks/go"
+    thetadatadx "github.com/userFRM/thetadatadx/sdks/go"
 )
 
 func main() {
@@ -70,12 +70,12 @@ func main() {
 ## API
 
 ### Credentials
-- `NewCredentials(email, password)` -- direct construction
-- `CredentialsFromFile(path)` -- load from creds.txt
+- `NewCredentials(email, password)` - direct construction
+- `CredentialsFromFile(path)` - load from creds.txt
 
 ### Config
-- `ProductionConfig()` -- ThetaData NJ production servers
-- `DevConfig()` -- dev servers with shorter timeouts
+- `ProductionConfig()` - ThetaData NJ production servers
+- `DevConfig()` - dev servers with shorter timeouts
 
 ### Client (Historical Data)
 
@@ -86,14 +86,14 @@ client, err := thetadatadx.Connect(creds, config)
 defer client.Close()
 ```
 
-#### Stock -- List (2)
+#### Stock - List (2)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `StockListSymbols()` | `([]string, error)` | All stock symbols |
 | `StockListDates(requestType, symbol)` | `([]string, error)` | Available dates for a request type |
 
-#### Stock -- Snapshot (4)
+#### Stock - Snapshot (4)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -102,7 +102,7 @@ defer client.Close()
 | `StockSnapshotQuote(symbols)` | `([]QuoteTick, error)` | Latest quote |
 | `StockSnapshotMarketValue(symbols)` | `([]MarketValueTick, error)` | Latest market value |
 
-#### Stock -- History (6)
+#### Stock - History (6)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -113,14 +113,14 @@ defer client.Close()
 | `StockHistoryQuote(symbol, date, interval)` | `([]QuoteTick, error)` | NBBO quotes |
 | `StockHistoryTradeQuote(symbol, date)` | `([]TradeQuoteTick, error)` | Trade+quote combined |
 
-#### Stock -- At-Time (2)
+#### Stock - At-Time (2)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `StockAtTimeTrade(symbol, start, end, time)` | `([]TradeTick, error)` | Trade at specific time across dates |
 | `StockAtTimeQuote(symbol, start, end, time)` | `([]QuoteTick, error)` | Quote at specific time across dates |
 
-#### Option -- List (5)
+#### Option - List (5)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -130,7 +130,7 @@ defer client.Close()
 | `OptionListStrikes(symbol, exp)` | `([]string, error)` | Strike prices |
 | `OptionListContracts(reqType, symbol, date)` | `([]Contract, error)` | All contracts |
 
-#### Option -- Snapshot (10)
+#### Option - Snapshot (10)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -145,7 +145,7 @@ defer client.Close()
 | `OptionSnapshotGreeksSecondOrder(sym, exp, strike, right)` | `([]GreeksTick, error)` | Second-order Greeks |
 | `OptionSnapshotGreeksThirdOrder(sym, exp, strike, right)` | `([]GreeksTick, error)` | Third-order Greeks |
 
-#### Option -- History (6)
+#### Option - History (6)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -156,7 +156,7 @@ defer client.Close()
 | `OptionHistoryTradeQuote(sym, exp, strike, right, date)` | `([]TradeQuoteTick, error)` | Trade+quote combined |
 | `OptionHistoryOpenInterest(sym, exp, strike, right, date)` | `([]OpenInterestTick, error)` | Open interest history |
 
-#### Option -- History Greeks (11)
+#### Option - History Greeks (11)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -172,21 +172,21 @@ defer client.Close()
 | `OptionHistoryGreeksImpliedVolatility(sym, exp, strike, right, date, interval)` | `([]IVTick, error)` | IV history |
 | `OptionHistoryTradeGreeksImpliedVolatility(sym, exp, strike, right, date)` | `([]IVTick, error)` | IV on each trade |
 
-#### Option -- At-Time (2)
+#### Option - At-Time (2)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `OptionAtTimeTrade(sym, exp, strike, right, start, end, time)` | `([]TradeTick, error)` | Trade at specific time across dates |
 | `OptionAtTimeQuote(sym, exp, strike, right, start, end, time)` | `([]QuoteTick, error)` | Quote at specific time across dates |
 
-#### Index -- List (2)
+#### Index - List (2)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `IndexListSymbols()` | `([]string, error)` | Index symbols |
 | `IndexListDates(symbol)` | `([]string, error)` | Available dates |
 
-#### Index -- Snapshot (3)
+#### Index - Snapshot (3)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -194,7 +194,7 @@ defer client.Close()
 | `IndexSnapshotPrice(symbols)` | `([]PriceTick, error)` | Latest price |
 | `IndexSnapshotMarketValue(symbols)` | `([]MarketValueTick, error)` | Latest market value |
 
-#### Index -- History (3)
+#### Index - History (3)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -202,7 +202,7 @@ defer client.Close()
 | `IndexHistoryOHLC(symbol, start, end, interval)` | `([]OhlcTick, error)` | OHLC bars |
 | `IndexHistoryPrice(symbol, date, interval)` | `([]PriceTick, error)` | Price history |
 
-#### Index -- At-Time (1)
+#### Index - At-Time (1)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -223,8 +223,8 @@ defer client.Close()
 | `InterestRateHistoryEOD(symbol, start, end)` | `([]InterestRate, error)` | Interest rate EOD history |
 
 ### Greeks (Standalone Functions)
-- `AllGreeks(spot, strike, rate, divYield, tte, price, isCall)` -- returns `(*Greeks, error)` with 22 fields
-- `ImpliedVolatility(spot, strike, rate, divYield, tte, price, isCall)` -- returns `(iv, errorBound, err)`
+- `AllGreeks(spot, strike, rate, divYield, tte, price, isCall)` - returns `(*Greeks, error)` with 22 fields
+- `ImpliedVolatility(spot, strike, rate, divYield, tte, price, isCall)` - returns `(iv, errorBound, err)`
 
 ### Types
 
@@ -262,7 +262,7 @@ import (
     "fmt"
     "log"
 
-    thetadatadx "github.com/userFRM/ThetaDataDx/sdks/go"
+    thetadatadx "github.com/userFRM/thetadatadx/sdks/go"
 )
 
 func main() {
@@ -324,7 +324,7 @@ func main() {
 | `Shutdown()` | | Graceful shutdown of streaming |
 | `Close()` | | Free the FPSS handle (call after Shutdown) |
 
-Note: `NextEvent()` returns `json.RawMessage` because streaming events are polymorphic -- different event types (trades, quotes, open interest, OHLC) arrive on the same channel. Inspect the `"kind"` field to determine the event type.
+Note: `NextEvent()` returns `json.RawMessage` because streaming events are polymorphic - different event types (trades, quotes, open interest, OHLC) arrive on the same channel. Inspect the `"kind"` field to determine the event type.
 
 ## Architecture
 

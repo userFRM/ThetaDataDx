@@ -10,39 +10,39 @@ description: 34 option data endpoints - list, snapshots, history, Greeks, trade 
 ::: code-group
 ```rust [Rust]
 // All option underlying symbols
-let symbols: Vec<String> = client.option_list_symbols().await?;
+let symbols: Vec<String> = tdx.option_list_symbols().await?;
 
 // Available dates for a specific contract
-let dates: Vec<String> = client.option_list_dates(
+let dates: Vec<String> = tdx.option_list_dates(
     "EOD", "SPY", "20240419", "500000", "C"
 ).await?;
 
 // Expiration dates for an underlying
-let exps: Vec<String> = client.option_list_expirations("SPY").await?;
+let exps: Vec<String> = tdx.option_list_expirations("SPY").await?;
 
 // Strike prices for a given expiration
-let strikes: Vec<String> = client.option_list_strikes("SPY", "20240419").await?;
+let strikes: Vec<String> = tdx.option_list_strikes("SPY", "20240419").await?;
 
 // All contracts for a symbol on a date
-let table: proto::DataTable = client.option_list_contracts("EOD", "SPY", "20240315").await?;
+let contracts: Vec<OptionContract> = tdx.option_list_contracts("EOD", "SPY", "20240315").await?;
 ```
 ```python [Python]
 # All option underlying symbols
-symbols = client.option_list_symbols()
+symbols = tdx.option_list_symbols()
 
 # Expiration dates for an underlying
-exps = client.option_list_expirations("SPY")
+exps = tdx.option_list_expirations("SPY")
 print(exps[:10])
 
 # Strike prices for an expiration
-strikes = client.option_list_strikes("SPY", "20240419")
+strikes = tdx.option_list_strikes("SPY", "20240419")
 print(f"{len(strikes)} strikes")
 
 # Available dates for a contract
-dates = client.option_list_dates("EOD", "SPY", "20240419", "500000", "C")
+dates = tdx.option_list_dates("EOD", "SPY", "20240419", "500000", "C")
 
 # All contracts for a symbol on a date
-contracts = client.option_list_contracts("EOD", "SPY", "20240315")
+contracts = tdx.option_list_contracts("EOD", "SPY", "20240315")
 ```
 ```go [Go]
 symbols, _ := client.OptionListSymbols()
@@ -68,18 +68,18 @@ Option contracts are identified by four parameters: underlying symbol, expiratio
 
 ::: code-group
 ```rust [Rust]
-let ohlc = client.option_snapshot_ohlc("SPY", "20240419", "500000", "C").await?;
-let trades = client.option_snapshot_trade("SPY", "20240419", "500000", "C").await?;
-let quotes = client.option_snapshot_quote("SPY", "20240419", "500000", "C").await?;
-let oi = client.option_snapshot_open_interest("SPY", "20240419", "500000", "C").await?;
-let mv = client.option_snapshot_market_value("SPY", "20240419", "500000", "C").await?;
+let ohlc: Vec<OhlcTick> = tdx.option_snapshot_ohlc("SPY", "20240419", "500000", "C").await?;
+let trades: Vec<TradeTick> = tdx.option_snapshot_trade("SPY", "20240419", "500000", "C").await?;
+let quotes: Vec<QuoteTick> = tdx.option_snapshot_quote("SPY", "20240419", "500000", "C").await?;
+let oi: Vec<OpenInterestTick> = tdx.option_snapshot_open_interest("SPY", "20240419", "500000", "C").await?;
+let mv: Vec<MarketValueTick> = tdx.option_snapshot_market_value("SPY", "20240419", "500000", "C").await?;
 ```
 ```python [Python]
-ohlc = client.option_snapshot_ohlc("SPY", "20240419", "500000", "C")
-trades = client.option_snapshot_trade("SPY", "20240419", "500000", "C")
-quotes = client.option_snapshot_quote("SPY", "20240419", "500000", "C")
-oi = client.option_snapshot_open_interest("SPY", "20240419", "500000", "C")
-mv = client.option_snapshot_market_value("SPY", "20240419", "500000", "C")
+ohlc = tdx.option_snapshot_ohlc("SPY", "20240419", "500000", "C")
+trades = tdx.option_snapshot_trade("SPY", "20240419", "500000", "C")
+quotes = tdx.option_snapshot_quote("SPY", "20240419", "500000", "C")
+oi = tdx.option_snapshot_open_interest("SPY", "20240419", "500000", "C")
+mv = tdx.option_snapshot_market_value("SPY", "20240419", "500000", "C")
 ```
 ```go [Go]
 ohlc, _ := client.OptionSnapshotOHLC("SPY", "20240419", "500000", "C")
@@ -102,27 +102,27 @@ auto mv = client.option_snapshot_market_value("SPY", "20240419", "500000", "C");
 ::: code-group
 ```rust [Rust]
 // All Greeks at once
-let all = client.option_snapshot_greeks_all("SPY", "20240419", "500000", "C").await?;
+let all: Vec<GreeksTick> = tdx.option_snapshot_greeks_all("SPY", "20240419", "500000", "C").await?;
 
 // By order
-let first = client.option_snapshot_greeks_first_order("SPY", "20240419", "500000", "C").await?;
-let second = client.option_snapshot_greeks_second_order("SPY", "20240419", "500000", "C").await?;
-let third = client.option_snapshot_greeks_third_order("SPY", "20240419", "500000", "C").await?;
+let first: Vec<GreeksTick> = tdx.option_snapshot_greeks_first_order("SPY", "20240419", "500000", "C").await?;
+let second: Vec<GreeksTick> = tdx.option_snapshot_greeks_second_order("SPY", "20240419", "500000", "C").await?;
+let third: Vec<GreeksTick> = tdx.option_snapshot_greeks_third_order("SPY", "20240419", "500000", "C").await?;
 
 // Just IV
-let iv = client.option_snapshot_greeks_implied_volatility("SPY", "20240419", "500000", "C").await?;
+let iv: Vec<IvTick> = tdx.option_snapshot_greeks_implied_volatility("SPY", "20240419", "500000", "C").await?;
 ```
 ```python [Python]
 # All Greeks at once
-all_g = client.option_snapshot_greeks_all("SPY", "20240419", "500000", "C")
+all_g = tdx.option_snapshot_greeks_all("SPY", "20240419", "500000", "C")
 
 # By order
-first = client.option_snapshot_greeks_first_order("SPY", "20240419", "500000", "C")
-second = client.option_snapshot_greeks_second_order("SPY", "20240419", "500000", "C")
-third = client.option_snapshot_greeks_third_order("SPY", "20240419", "500000", "C")
+first = tdx.option_snapshot_greeks_first_order("SPY", "20240419", "500000", "C")
+second = tdx.option_snapshot_greeks_second_order("SPY", "20240419", "500000", "C")
+third = tdx.option_snapshot_greeks_third_order("SPY", "20240419", "500000", "C")
 
 # Just IV
-iv = client.option_snapshot_greeks_implied_volatility("SPY", "20240419", "500000", "C")
+iv = tdx.option_snapshot_greeks_implied_volatility("SPY", "20240419", "500000", "C")
 ```
 ```go [Go]
 all, _ := client.OptionSnapshotGreeksAll("SPY", "20240419", "500000", "C")
@@ -145,56 +145,56 @@ auto iv = client.option_snapshot_greeks_implied_volatility("SPY", "20240419", "5
 ::: code-group
 ```rust [Rust]
 // End-of-day option data
-let eod: Vec<EodTick> = client.option_history_eod(
+let eod: Vec<EodTick> = tdx.option_history_eod(
     "SPY", "20240419", "500000", "C", "20240101", "20240301"
 ).await?;
 
 // Intraday OHLC bars
-let bars: Vec<OhlcTick> = client.option_history_ohlc(
+let bars: Vec<OhlcTick> = tdx.option_history_ohlc(
     "SPY", "20240419", "500000", "C", "20240315", "60000"
 ).await?;
 
 // All trades for a date
-let trades: Vec<TradeTick> = client.option_history_trade(
+let trades: Vec<TradeTick> = tdx.option_history_trade(
     "SPY", "20240419", "500000", "C", "20240315"
 ).await?;
 
 // NBBO quotes at a given interval
-let quotes: Vec<QuoteTick> = client.option_history_quote(
+let quotes: Vec<QuoteTick> = tdx.option_history_quote(
     "SPY", "20240419", "500000", "C", "20240315", "60000"
 ).await?;
 
 // Combined trade + quote ticks
-let table = client.option_history_trade_quote(
+let tq: Vec<TradeQuoteTick> = tdx.option_history_trade_quote(
     "SPY", "20240419", "500000", "C", "20240315"
 ).await?;
 
 // Open interest history
-let table = client.option_history_open_interest(
+let oi: Vec<OpenInterestTick> = tdx.option_history_open_interest(
     "SPY", "20240419", "500000", "C", "20240315"
 ).await?;
 ```
 ```python [Python]
 # End-of-day option data
-eod = client.option_history_eod("SPY", "20240419", "500000", "C",
+eod = tdx.option_history_eod("SPY", "20240419", "500000", "C",
                                 "20240101", "20240301")
 
 # Intraday OHLC bars
-bars = client.option_history_ohlc("SPY", "20240419", "500000", "C",
+bars = tdx.option_history_ohlc("SPY", "20240419", "500000", "C",
                                   "20240315", "60000")
 
 # All trades
-trades = client.option_history_trade("SPY", "20240419", "500000", "C", "20240315")
+trades = tdx.option_history_trade("SPY", "20240419", "500000", "C", "20240315")
 
 # NBBO quotes
-quotes = client.option_history_quote("SPY", "20240419", "500000", "C",
+quotes = tdx.option_history_quote("SPY", "20240419", "500000", "C",
                                      "20240315", "60000")
 
 # Combined trade + quote ticks
-result = client.option_history_trade_quote("SPY", "20240419", "500000", "C", "20240315")
+result = tdx.option_history_trade_quote("SPY", "20240419", "500000", "C", "20240315")
 
 # Open interest history
-oi = client.option_history_open_interest("SPY", "20240419", "500000", "C", "20240315")
+oi = tdx.option_history_open_interest("SPY", "20240419", "500000", "C", "20240315")
 ```
 ```go [Go]
 eod, _ := client.OptionHistoryEOD("SPY", "20240419", "500000", "C", "20240101", "20240301")
@@ -219,42 +219,42 @@ auto oi = client.option_history_open_interest("SPY", "20240419", "500000", "C", 
 ::: code-group
 ```rust [Rust]
 // EOD Greeks over a date range
-let table = client.option_history_greeks_eod(
+let greeks_eod: Vec<GreeksTick> = tdx.option_history_greeks_eod(
     "SPY", "20240419", "500000", "C", "20240101", "20240301"
 ).await?;
 
 // Intraday Greeks sampled by interval
-let all = client.option_history_greeks_all(
+let all: Vec<GreeksTick> = tdx.option_history_greeks_all(
     "SPY", "20240419", "500000", "C", "20240315", "60000"
 ).await?;
-let first = client.option_history_greeks_first_order(
+let first: Vec<GreeksTick> = tdx.option_history_greeks_first_order(
     "SPY", "20240419", "500000", "C", "20240315", "60000"
 ).await?;
-let second = client.option_history_greeks_second_order(
+let second: Vec<GreeksTick> = tdx.option_history_greeks_second_order(
     "SPY", "20240419", "500000", "C", "20240315", "60000"
 ).await?;
-let third = client.option_history_greeks_third_order(
+let third: Vec<GreeksTick> = tdx.option_history_greeks_third_order(
     "SPY", "20240419", "500000", "C", "20240315", "60000"
 ).await?;
-let iv = client.option_history_greeks_implied_volatility(
+let iv: Vec<IvTick> = tdx.option_history_greeks_implied_volatility(
     "SPY", "20240419", "500000", "C", "20240315", "60000"
 ).await?;
 ```
 ```python [Python]
 # EOD Greeks over a date range
-greeks_eod = client.option_history_greeks_eod("SPY", "20240419", "500000", "C",
+greeks_eod = tdx.option_history_greeks_eod("SPY", "20240419", "500000", "C",
                                                "20240101", "20240301")
 
 # Intraday Greeks sampled by interval
-all_g = client.option_history_greeks_all("SPY", "20240419", "500000", "C",
+all_g = tdx.option_history_greeks_all("SPY", "20240419", "500000", "C",
                                           "20240315", "60000")
-first = client.option_history_greeks_first_order("SPY", "20240419", "500000", "C",
+first = tdx.option_history_greeks_first_order("SPY", "20240419", "500000", "C",
                                                   "20240315", "60000")
-second = client.option_history_greeks_second_order("SPY", "20240419", "500000", "C",
+second = tdx.option_history_greeks_second_order("SPY", "20240419", "500000", "C",
                                                     "20240315", "60000")
-third = client.option_history_greeks_third_order("SPY", "20240419", "500000", "C",
+third = tdx.option_history_greeks_third_order("SPY", "20240419", "500000", "C",
                                                   "20240315", "60000")
-iv_hist = client.option_history_greeks_implied_volatility("SPY", "20240419", "500000", "C",
+iv_hist = tdx.option_history_greeks_implied_volatility("SPY", "20240419", "500000", "C",
                                                            "20240315", "60000")
 ```
 ```go [Go]
@@ -279,28 +279,28 @@ Greeks computed on each individual trade:
 
 ::: code-group
 ```rust [Rust]
-let all = client.option_history_trade_greeks_all(
+let all: Vec<GreeksTick> = tdx.option_history_trade_greeks_all(
     "SPY", "20240419", "500000", "C", "20240315"
 ).await?;
-let first = client.option_history_trade_greeks_first_order(
+let first: Vec<GreeksTick> = tdx.option_history_trade_greeks_first_order(
     "SPY", "20240419", "500000", "C", "20240315"
 ).await?;
-let second = client.option_history_trade_greeks_second_order(
+let second: Vec<GreeksTick> = tdx.option_history_trade_greeks_second_order(
     "SPY", "20240419", "500000", "C", "20240315"
 ).await?;
-let third = client.option_history_trade_greeks_third_order(
+let third: Vec<GreeksTick> = tdx.option_history_trade_greeks_third_order(
     "SPY", "20240419", "500000", "C", "20240315"
 ).await?;
-let iv = client.option_history_trade_greeks_implied_volatility(
+let iv: Vec<IvTick> = tdx.option_history_trade_greeks_implied_volatility(
     "SPY", "20240419", "500000", "C", "20240315"
 ).await?;
 ```
 ```python [Python]
-all_tg = client.option_history_trade_greeks_all("SPY", "20240419", "500000", "C", "20240315")
-first_tg = client.option_history_trade_greeks_first_order("SPY", "20240419", "500000", "C", "20240315")
-second_tg = client.option_history_trade_greeks_second_order("SPY", "20240419", "500000", "C", "20240315")
-third_tg = client.option_history_trade_greeks_third_order("SPY", "20240419", "500000", "C", "20240315")
-iv_tg = client.option_history_trade_greeks_implied_volatility("SPY", "20240419", "500000", "C", "20240315")
+all_tg = tdx.option_history_trade_greeks_all("SPY", "20240419", "500000", "C", "20240315")
+first_tg = tdx.option_history_trade_greeks_first_order("SPY", "20240419", "500000", "C", "20240315")
+second_tg = tdx.option_history_trade_greeks_second_order("SPY", "20240419", "500000", "C", "20240315")
+third_tg = tdx.option_history_trade_greeks_third_order("SPY", "20240419", "500000", "C", "20240315")
+iv_tg = tdx.option_history_trade_greeks_implied_volatility("SPY", "20240419", "500000", "C", "20240315")
 ```
 ```go [Go]
 tgAll, _ := client.OptionHistoryTradeGreeksAll("SPY", "20240419", "500000", "C", "20240315")
@@ -320,20 +320,20 @@ auto tg_iv = client.option_history_trade_greeks_implied_volatility("SPY", "20240
 
 ::: code-group
 ```rust [Rust]
-let trades: Vec<TradeTick> = client.option_at_time_trade(
+let trades: Vec<TradeTick> = tdx.option_at_time_trade(
     "SPY", "20240419", "500000", "C",
     "20240101", "20240301", "34200000"  // 9:30 AM ET
 ).await?;
 
-let quotes: Vec<QuoteTick> = client.option_at_time_quote(
+let quotes: Vec<QuoteTick> = tdx.option_at_time_quote(
     "SPY", "20240419", "500000", "C",
     "20240101", "20240301", "34200000"
 ).await?;
 ```
 ```python [Python]
-trades = client.option_at_time_trade("SPY", "20240419", "500000", "C",
+trades = tdx.option_at_time_trade("SPY", "20240419", "500000", "C",
                                      "20240101", "20240301", "34200000")
-quotes = client.option_at_time_quote("SPY", "20240419", "500000", "C",
+quotes = tdx.option_at_time_quote("SPY", "20240419", "500000", "C",
                                      "20240101", "20240301", "34200000")
 ```
 ```go [Go]
@@ -353,12 +353,12 @@ auto quotes = client.option_at_time_quote("SPY", "20240419", "500000", "C",
 ## Streaming Large Option Responses (Rust)
 
 ```rust
-client.option_history_trade_stream(
+tdx.option_history_trade_stream(
     "SPY", "20240419", "500000", "C", "20240315",
     |chunk| { Ok(()) }
 ).await?;
 
-client.option_history_quote_stream(
+tdx.option_history_quote_stream(
     "SPY", "20240419", "500000", "C", "20240315", "0",
     |chunk| { Ok(()) }
 ).await?;

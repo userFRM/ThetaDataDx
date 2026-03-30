@@ -57,12 +57,12 @@ Point-in-time lookups across a date range.
 For endpoints returning millions of rows, the Rust SDK provides `_stream` variants that process data chunk by chunk without holding everything in memory:
 
 ```rust
-client.stock_history_trade_stream("AAPL", "20240315", |chunk| {
+tdx.stock_history_trade_stream("AAPL", "20240315", |chunk| {
     println!("Got {} trades in this chunk", chunk.len());
     Ok(())
 }).await?;
 
-client.stock_history_quote_stream("AAPL", "20240315", "0", |chunk| {
+tdx.stock_history_quote_stream("AAPL", "20240315", "0", |chunk| {
     println!("Got {} quotes in this chunk", chunk.len());
     Ok(())
 }).await?;

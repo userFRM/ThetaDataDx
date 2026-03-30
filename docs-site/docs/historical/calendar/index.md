@@ -19,14 +19,14 @@ Market calendar data for determining trading schedules, holidays, and early clos
 
 ::: code-group
 ```rust [Rust]
-let table: proto::DataTable = client.calendar_open_today().await?;
-let table: proto::DataTable = client.calendar_on_date("20240315").await?;
-let table: proto::DataTable = client.calendar_year("2024").await?;
+let days: Vec<CalendarDay> = tdx.calendar_open_today().await?;
+let days: Vec<CalendarDay> = tdx.calendar_on_date("20240315").await?;
+let days: Vec<CalendarDay> = tdx.calendar_year("2024").await?;
 ```
 ```python [Python]
-result = client.calendar_open_today()
-result = client.calendar_on_date("20240315")
-result = client.calendar_year("2024")
+result = tdx.calendar_open_today()
+result = tdx.calendar_on_date("20240315")
+result = tdx.calendar_year("2024")
 ```
 ```go [Go]
 result, _ := client.CalendarOpenToday()

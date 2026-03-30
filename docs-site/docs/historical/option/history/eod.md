@@ -13,7 +13,7 @@ Retrieve end-of-day option data across a date range. Returns one row per trading
 
 ::: code-group
 ```rust [Rust]
-let eod: Vec<EodTick> = client.option_history_eod(
+let eod: Vec<EodTick> = tdx.option_history_eod(
     "SPY", "20241220", "500000", "C", "20240101", "20240301"
 ).await?;
 for t in &eod {
@@ -22,7 +22,7 @@ for t in &eod {
 }
 ```
 ```python [Python]
-eod = client.option_history_eod("SPY", "20241220", "500000", "C",
+eod = tdx.option_history_eod("SPY", "20241220", "500000", "C",
                                 "20240101", "20240301")
 ```
 ```go [Go]
@@ -37,26 +37,70 @@ auto eod = client.option_history_eod("SPY", "20241220", "500000", "C",
 
 ## Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `symbol` | string | Yes | Underlying symbol |
-| `expiration` | string | Yes | Expiration date (`YYYYMMDD`) |
-| `strike` | string | Yes | Strike price (scaled integer) |
-| `right` | string | Yes | `"C"` or `"P"` |
-| `start_date` | string | Yes | Start date (`YYYYMMDD`) |
-| `end_date` | string | Yes | End date (`YYYYMMDD`) |
-| `max_dte` | int | No | Maximum days to expiration |
-| `strike_range` | int | No | Strike range filter |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>symbol</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Underlying symbol</div>
+</div>
+<div class="param">
+<div class="param-header"><code>expiration</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Expiration date in <code>YYYYMMDD</code> format</div>
+</div>
+<div class="param">
+<div class="param-header"><code>strike</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Strike price as scaled integer</div>
+</div>
+<div class="param">
+<div class="param-header"><code>right</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc"><code>"C"</code> for call, <code>"P"</code> for put</div>
+</div>
+<div class="param">
+<div class="param-header"><code>start_date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Start date in <code>YYYYMMDD</code> format</div>
+</div>
+<div class="param">
+<div class="param-header"><code>end_date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">End date in <code>YYYYMMDD</code> format</div>
+</div>
+<div class="param">
+<div class="param-header"><code>max_dte</code><span class="param-type">int</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Maximum days to expiration</div>
+</div>
+<div class="param">
+<div class="param-header"><code>strike_range</code><span class="param-type">int</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Strike range filter</div>
+</div>
+</div>
 
 ## Response
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `date` | string | Trading date |
-| `open` | float | Opening price |
-| `high` | float | High price |
-| `low` | float | Low price |
-| `close` | float | Closing price |
-| `volume` | int | Daily volume |
-| `open_interest` | int | Open interest |
-
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>date</code><span class="param-type">string</span></div>
+<div class="param-desc">Trading date</div>
+</div>
+<div class="param">
+<div class="param-header"><code>open</code><span class="param-type">float</span></div>
+<div class="param-desc">Opening price</div>
+</div>
+<div class="param">
+<div class="param-header"><code>high</code><span class="param-type">float</span></div>
+<div class="param-desc">High price</div>
+</div>
+<div class="param">
+<div class="param-header"><code>low</code><span class="param-type">float</span></div>
+<div class="param-desc">Low price</div>
+</div>
+<div class="param">
+<div class="param-header"><code>close</code><span class="param-type">float</span></div>
+<div class="param-desc">Closing price</div>
+</div>
+<div class="param">
+<div class="param-header"><code>volume</code><span class="param-type">int</span></div>
+<div class="param-desc">Daily volume</div>
+</div>
+<div class="param">
+<div class="param-header"><code>open_interest</code><span class="param-type">int</span></div>
+<div class="param-desc">Open interest</div>
+</div>
+</div>

@@ -13,12 +13,12 @@ Retrieve first-order Greeks (delta, theta, vega, rho, epsilon, lambda) sampled a
 
 ::: code-group
 ```rust [Rust]
-let g = client.option_history_greeks_first_order(
+let g: Vec<GreeksTick> = tdx.option_history_greeks_first_order(
     "SPY", "20241220", "500000", "C", "20240315", "60000"
 ).await?;
 ```
 ```python [Python]
-g = client.option_history_greeks_first_order("SPY", "20241220", "500000", "C",
+g = tdx.option_history_greeks_first_order("SPY", "20241220", "500000", "C",
                                               "20240315", "60000")
 ```
 ```go [Go]
@@ -35,32 +35,94 @@ auto g = client.option_history_greeks_first_order("SPY", "20241220", "500000", "
 
 Parameters are identical to [option_history_greeks_all](./greeks-all#parameters).
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `symbol` | string | Yes | Underlying symbol |
-| `expiration` | string | Yes | Expiration date (`YYYYMMDD`) |
-| `strike` | string | Yes | Strike price (scaled integer) |
-| `right` | string | Yes | `"C"` or `"P"` |
-| `date` | string | Yes | Date (`YYYYMMDD`) |
-| `interval` | string | Yes | Sampling interval in ms |
-| `annual_dividend` | float | No | Override annual dividend |
-| `rate_type` | string | No | Interest rate type |
-| `rate_value` | float | No | Override interest rate value |
-| `version` | string | No | Greeks calculation version |
-| `strike_range` | int | No | Strike range filter |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>symbol</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Underlying symbol</div>
+</div>
+<div class="param">
+<div class="param-header"><code>expiration</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Expiration date in <code>YYYYMMDD</code> format</div>
+</div>
+<div class="param">
+<div class="param-header"><code>strike</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Strike price as scaled integer</div>
+</div>
+<div class="param">
+<div class="param-header"><code>right</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc"><code>"C"</code> for call, <code>"P"</code> for put</div>
+</div>
+<div class="param">
+<div class="param-header"><code>date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Date in <code>YYYYMMDD</code> format</div>
+</div>
+<div class="param">
+<div class="param-header"><code>interval</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Sampling interval in milliseconds</div>
+</div>
+<div class="param">
+<div class="param-header"><code>annual_dividend</code><span class="param-type">float</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Override annual dividend</div>
+</div>
+<div class="param">
+<div class="param-header"><code>rate_type</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Interest rate type</div>
+</div>
+<div class="param">
+<div class="param-header"><code>rate_value</code><span class="param-type">float</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Override interest rate value</div>
+</div>
+<div class="param">
+<div class="param-header"><code>version</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Greeks calculation version</div>
+</div>
+<div class="param">
+<div class="param-header"><code>strike_range</code><span class="param-type">int</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Strike range filter</div>
+</div>
+</div>
 
 ## Response
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `implied_volatility` | float | Implied volatility |
-| `delta` | float | Rate of change of option price w.r.t. underlying price |
-| `theta` | float | Rate of change of option price w.r.t. time |
-| `vega` | float | Rate of change of option price w.r.t. volatility |
-| `rho` | float | Rate of change of option price w.r.t. interest rate |
-| `epsilon` | float | Rate of change of option price w.r.t. dividend yield |
-| `lambda` | float | Percentage change of option per percentage change of underlying |
-| `underlying_price` | float | Underlying price |
-| `date` | string | Date |
-| `ms_of_day` | int | Milliseconds from midnight |
-
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>implied_volatility</code><span class="param-type">float</span></div>
+<div class="param-desc">Implied volatility</div>
+</div>
+<div class="param">
+<div class="param-header"><code>delta</code><span class="param-type">float</span></div>
+<div class="param-desc">Rate of change of option price w.r.t. underlying price</div>
+</div>
+<div class="param">
+<div class="param-header"><code>theta</code><span class="param-type">float</span></div>
+<div class="param-desc">Rate of change of option price w.r.t. time</div>
+</div>
+<div class="param">
+<div class="param-header"><code>vega</code><span class="param-type">float</span></div>
+<div class="param-desc">Rate of change of option price w.r.t. volatility</div>
+</div>
+<div class="param">
+<div class="param-header"><code>rho</code><span class="param-type">float</span></div>
+<div class="param-desc">Rate of change of option price w.r.t. interest rate</div>
+</div>
+<div class="param">
+<div class="param-header"><code>epsilon</code><span class="param-type">float</span></div>
+<div class="param-desc">Rate of change of option price w.r.t. dividend yield</div>
+</div>
+<div class="param">
+<div class="param-header"><code>lambda</code><span class="param-type">float</span></div>
+<div class="param-desc">Percentage change of option per percentage change of underlying</div>
+</div>
+<div class="param">
+<div class="param-header"><code>underlying_price</code><span class="param-type">float</span></div>
+<div class="param-desc">Underlying price</div>
+</div>
+<div class="param">
+<div class="param-header"><code>date</code><span class="param-type">string</span></div>
+<div class="param-desc">Date</div>
+</div>
+<div class="param">
+<div class="param-header"><code>ms_of_day</code><span class="param-type">int</span></div>
+<div class="param-desc">Milliseconds from midnight</div>
+</div>
+</div>

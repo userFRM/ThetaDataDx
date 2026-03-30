@@ -5,7 +5,7 @@ Command-line interface for querying ThetaData market data. No JVM required.
 ## Install
 
 ```bash
-cargo install --path crates/thetadatadx-cli
+cargo install --path tools/cli
 ```
 
 Or build from the workspace root:

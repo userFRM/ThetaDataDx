@@ -66,13 +66,13 @@ int main() {
 
 ### Credentials
 
-- `Credentials::from_file(path)` -- load from file (line 1 = email, line 2 = password)
-- `Credentials::from_email(email, password)` -- direct construction
+- `Credentials::from_file(path)` - load from file (line 1 = email, line 2 = password)
+- `Credentials::from_email(email, password)` - direct construction
 
 ### Config
 
-- `Config::production()` -- ThetaData NJ production servers
-- `Config::dev()` -- dev servers with shorter timeouts
+- `Config::production()` - ThetaData NJ production servers
+- `Config::dev()` - dev servers with shorter timeouts
 
 ### Client
 
@@ -82,14 +82,14 @@ RAII class. All methods throw `std::runtime_error` on failure.
 auto client = tdx::Client::connect(creds, tdx::Config::production());
 ```
 
-#### Stock -- List (2)
+#### Stock - List (2)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `stock_list_symbols()` | `vector<string>` | All stock symbols |
 | `stock_list_dates(req_type, symbol)` | `vector<string>` | Available dates for a stock |
 
-#### Stock -- Snapshot (4)
+#### Stock - Snapshot (4)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -98,7 +98,7 @@ auto client = tdx::Client::connect(creds, tdx::Config::production());
 | `stock_snapshot_quote(symbols)` | `vector<QuoteTick>` | Latest NBBO quote snapshot |
 | `stock_snapshot_market_value(symbols)` | `vector<MarketValueTick>` | Latest market value snapshot |
 
-#### Stock -- History (6)
+#### Stock - History (6)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -109,14 +109,14 @@ auto client = tdx::Client::connect(creds, tdx::Config::production());
 | `stock_history_quote(sym, date, interval)` | `vector<QuoteTick>` | NBBO quotes |
 | `stock_history_trade_quote(sym, date)` | `vector<TradeQuoteTick>` | Combined trade + quote ticks |
 
-#### Stock -- At-Time (2)
+#### Stock - At-Time (2)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `stock_at_time_trade(sym, start, end, time)` | `vector<TradeTick>` | Trade at a specific time across date range |
 | `stock_at_time_quote(sym, start, end, time)` | `vector<QuoteTick>` | Quote at a specific time across date range |
 
-#### Option -- List (5)
+#### Option - List (5)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -126,7 +126,7 @@ auto client = tdx::Client::connect(creds, tdx::Config::production());
 | `option_list_strikes(sym, exp)` | `vector<string>` | Strike prices |
 | `option_list_contracts(req, sym, date)` | `vector<OptionContract>` | All option contracts on a date |
 
-#### Option -- Snapshot (10)
+#### Option - Snapshot (10)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -141,7 +141,7 @@ auto client = tdx::Client::connect(creds, tdx::Config::production());
 | `option_snapshot_greeks_second_order(sym, exp, strike, right)` | `vector<GreeksTick>` | Second-order Greeks snapshot |
 | `option_snapshot_greeks_third_order(sym, exp, strike, right)` | `vector<GreeksTick>` | Third-order Greeks snapshot |
 
-#### Option -- History (6)
+#### Option - History (6)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -152,7 +152,7 @@ auto client = tdx::Client::connect(creds, tdx::Config::production());
 | `option_history_trade_quote(sym, exp, strike, right, date)` | `vector<TradeQuoteTick>` | Combined trade + quote for an option |
 | `option_history_open_interest(sym, exp, strike, right, date)` | `vector<OpenInterestTick>` | Open interest history |
 
-#### Option -- History Greeks (11)
+#### Option - History Greeks (11)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -168,21 +168,21 @@ auto client = tdx::Client::connect(creds, tdx::Config::production());
 | `option_history_greeks_implied_volatility(sym, exp, strike, right, date, interval)` | `vector<IvTick>` | IV history (intraday) |
 | `option_history_trade_greeks_implied_volatility(sym, exp, strike, right, date)` | `vector<IvTick>` | IV on each trade |
 
-#### Option -- At-Time (2)
+#### Option - At-Time (2)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `option_at_time_trade(sym, exp, strike, right, start, end, time)` | `vector<TradeTick>` | Trade at a specific time for an option |
 | `option_at_time_quote(sym, exp, strike, right, start, end, time)` | `vector<QuoteTick>` | Quote at a specific time for an option |
 
-#### Index -- List (2)
+#### Index - List (2)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `index_list_symbols()` | `vector<string>` | All index symbols |
 | `index_list_dates(sym)` | `vector<string>` | Available dates for an index |
 
-#### Index -- Snapshot (3)
+#### Index - Snapshot (3)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -190,7 +190,7 @@ auto client = tdx::Client::connect(creds, tdx::Config::production());
 | `index_snapshot_price(symbols)` | `vector<PriceTick>` | Latest price snapshot for indices |
 | `index_snapshot_market_value(symbols)` | `vector<MarketValueTick>` | Latest market value for indices |
 
-#### Index -- History (3)
+#### Index - History (3)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -198,7 +198,7 @@ auto client = tdx::Client::connect(creds, tdx::Config::production());
 | `index_history_ohlc(sym, start, end, interval)` | `vector<OhlcTick>` | Intraday OHLC for an index |
 | `index_history_price(sym, date, interval)` | `vector<PriceTick>` | Intraday price history |
 
-#### Index -- At-Time (1)
+#### Index - At-Time (1)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -244,10 +244,10 @@ All endpoints return fully typed C++ structs. No raw JSON.
 | `GreeksTick` | ms_of_day, value, delta, gamma, theta, vega, rho, iv, iv_error, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda, date | Greeks snapshot/history |
 | `IvTick` | ms_of_day, iv, iv_error, date | IV-only endpoints |
 | `PriceTick` | ms_of_day, price, date | Index price endpoints |
-| `MarketValueTick` | ms_of_day, value, date | Market value endpoints |
+| `MarketValueTick` | ms_of_day, market_cap, shares_outstanding, enterprise_value, book_value, free_float, date | Market value endpoints |
 | `OptionContract` | root, expiration, strike, right | option_list_contracts |
-| `CalendarDay` | date, is_open, open_time, close_time | Calendar endpoints |
-| `InterestRateTick` | rate, date | Interest rate endpoints |
+| `CalendarDay` | date, is_open, open_time, close_time, status | Calendar endpoints |
+| `InterestRateTick` | ms_of_day, rate, date | Interest rate endpoints |
 | `Greeks` | value, delta, gamma, theta, vega, rho, iv, iv_error, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda | Standalone all_greeks() |
 
 ## FPSS Streaming
@@ -284,7 +284,7 @@ int main() {
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `FpssClient(creds, config)` | -- | Connect to FPSS streaming servers |
+| `FpssClient(creds, config)` | - | Connect to FPSS streaming servers |
 | `subscribe_quotes(symbol)` | `int` | Subscribe to quote data for a stock symbol |
 | `subscribe_trades(symbol)` | `int` | Subscribe to trade data for a stock symbol |
 | `subscribe_open_interest(symbol)` | `int` | Subscribe to open interest data for a stock symbol |

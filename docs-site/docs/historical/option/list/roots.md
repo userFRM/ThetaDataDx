@@ -13,11 +13,11 @@ List all available option underlying symbols (roots). Use this to discover which
 
 ::: code-group
 ```rust [Rust]
-let symbols: Vec<String> = client.option_list_symbols().await?;
+let symbols: Vec<String> = tdx.option_list_symbols().await?;
 println!("{} option roots available", symbols.len());
 ```
 ```python [Python]
-symbols = client.option_list_symbols()
+symbols = tdx.option_list_symbols()
 print(f"{len(symbols)} option roots available")
 ```
 ```go [Go]
@@ -38,10 +38,12 @@ None.
 
 ## Response
 
-| Field | Type | Description |
-|-------|------|-------------|
-| (list) | string[] | Underlying ticker symbols with available option chains |
-
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>(list)</code><span class="param-type">string[]</span></div>
+<div class="param-desc">Underlying ticker symbols with available option chains</div>
+</div>
+</div>
 
 ## Notes
 

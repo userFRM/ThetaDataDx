@@ -7,16 +7,16 @@ description: Latest price snapshot for one or more indices.
 
 <TierBadge tier="value" />
 
-Get the latest price snapshot for one or more index symbols. Returns the most recent price data as a raw DataTable.
+Get the latest price snapshot for one or more index symbols. Returns the most recent price data as `Vec<PriceTick>`.
 
 ## Code Example
 
 ::: code-group
 ```rust [Rust]
-let table: proto::DataTable = client.index_snapshot_price(&["SPX", "NDX"]).await?;
+let ticks: Vec<PriceTick> = tdx.index_snapshot_price(&["SPX", "NDX"]).await?;
 ```
 ```python [Python]
-price = client.index_snapshot_price(["SPX", "NDX"])
+price = tdx.index_snapshot_price(["SPX", "NDX"])
 ```
 ```go [Go]
 price, err := client.IndexSnapshotPrice([]string{"SPX"})
@@ -31,24 +31,37 @@ auto price = client.index_snapshot_price({"SPX"});
 
 ## Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `symbols` | string[] | Yes | One or more index symbols |
-| `min_time` | string | No | Minimum time of day (ms from midnight) |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>symbols</code><span class="param-type">string[]</span><span class="param-badge required">required</span></div>
+<div class="param-desc">One or more index symbols</div>
+</div>
+<div class="param">
+<div class="param-header"><code>min_time</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Minimum time of day as milliseconds from midnight</div>
+</div>
+</div>
 
 ## Response
 
-Returns a `DataTable` with price fields:
+Returns a `Vec<PriceTick>` with price fields:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `price` | f64 | Current index price/level |
-| `ms_of_day` | u32 | Milliseconds from midnight ET |
-| `date` | u32 | Date as `YYYYMMDD` integer |
-
- - requires Value plan or higher.
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>price</code><span class="param-type">f64</span></div>
+<div class="param-desc">Current index price/level</div>
+</div>
+<div class="param">
+<div class="param-header"><code>ms_of_day</code><span class="param-type">u32</span></div>
+<div class="param-desc">Milliseconds from midnight ET</div>
+</div>
+<div class="param">
+<div class="param-header"><code>date</code><span class="param-type">u32</span></div>
+<div class="param-desc">Date as <code>YYYYMMDD</code> integer</div>
+</div>
+</div>
 
 ## Notes
 
-- Returns raw `DataTable` (protobuf) rather than typed ticks.
+- Returns `Vec<PriceTick>` in Rust.
 - For OHLC-structured data, use [index_snapshot_ohlc](./ohlc) instead.
