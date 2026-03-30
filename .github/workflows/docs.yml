@@ -18,12 +18,15 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - uses: peaceiris/actions-mdbook@v2
+      - uses: actions/setup-node@v4
         with:
-          mdbook-version: latest
-      - run: mdbook build docs-site
+          node-version: 20
+          cache: npm
+          cache-dependency-path: docs-site/package-lock.json
+      - run: cd docs-site && npm ci
+      - run: cd docs-site && npx vitepress build docs
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: docs-site/book
+          path: docs-site/docs/.vitepress/dist
       - id: deployment
         uses: actions/deploy-pages@v4
