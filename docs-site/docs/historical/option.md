@@ -24,7 +24,7 @@ let exps: Vec<String> = client.option_list_expirations("SPY").await?;
 let strikes: Vec<String> = client.option_list_strikes("SPY", "20240419").await?;
 
 // All contracts for a symbol on a date
-let table: proto::DataTable = client.option_list_contracts("EOD", "SPY", "20240315").await?;
+let contracts: Vec<OptionContract> = tdx.option_list_contracts("EOD", "SPY", "20240315").await?;
 ```
 ```python [Python]
 # All option underlying symbols

@@ -13,7 +13,7 @@ Get the latest market value snapshot for one or more index symbols.
 
 ::: code-group
 ```rust [Rust]
-let table: proto::DataTable = client.index_snapshot_market_value(&["SPX"]).await?;
+let ticks: Vec<MarketValueTick> = tdx.index_snapshot_market_value(&["SPX"]).await?;
 ```
 ```python [Python]
 mv = client.index_snapshot_market_value(["SPX"])
@@ -44,7 +44,7 @@ auto mv = client.index_snapshot_market_value({"SPX"});
 
 ## Response
 
-Returns a `DataTable` with market value fields:
+Returns a `Vec<MarketValueTick>` with market value fields:
 
 <div class="param-list">
 <div class="param">
@@ -63,5 +63,5 @@ Returns a `DataTable` with market value fields:
 
 ## Notes
 
-- Returns raw `DataTable` (protobuf) rather than typed ticks.
+- Returns `Vec<MarketValueTick>` in Rust.
 - Market value represents the total capitalization of the index constituents.

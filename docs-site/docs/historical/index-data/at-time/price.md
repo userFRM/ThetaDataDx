@@ -13,7 +13,7 @@ Retrieve the index price at a specific time of day for every trading day in a da
 
 ::: code-group
 ```rust [Rust]
-let table: proto::DataTable = client.index_at_time_price(
+let ticks: Vec<PriceTick> = tdx.index_at_time_price(
     "SPX", "20240101", "20240301", "34200000"  // 9:30 AM ET
 ).await?;
 ```
@@ -54,7 +54,7 @@ auto at_time = client.index_at_time_price("SPX", "20240101", "20240301", "342000
 
 ## Response
 
-Returns a `DataTable` with one entry per trading day:
+Returns a `Vec<PriceTick>` with one entry per trading day:
 
 <div class="param-list">
 <div class="param">

@@ -13,7 +13,7 @@ Latest market value snapshot for one or more stocks.
 
 ::: code-group
 ```rust [Rust]
-let mv: proto::DataTable = tdx.stock_snapshot_market_value(&["AAPL"]).await?;
+let ticks: Vec<MarketValueTick> = tdx.stock_snapshot_market_value(&["AAPL"]).await?;
 ```
 ```python [Python]
 mv = tdx.stock_snapshot_market_value(["AAPL"])
@@ -48,9 +48,9 @@ auto mv = client.stock_snapshot_market_value({"AAPL"});
 
 ## Response
 
-DataTable with market value fields. The exact fields depend on the data available for the requested symbols.
+`Vec<MarketValueTick>` with market value fields. The exact fields depend on the data available for the requested symbols.
 
 ## Notes
 
 - Accepts multiple symbols in a single call.
-- Returns raw DataTable format rather than a typed tick structure.
+- Returns `Vec<MarketValueTick>` in Rust.

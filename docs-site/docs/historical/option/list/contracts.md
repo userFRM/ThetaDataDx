@@ -13,7 +13,7 @@ List all option contracts available for a given underlying symbol on a specific 
 
 ::: code-group
 ```rust [Rust]
-let table: proto::DataTable = client.option_list_contracts("EOD", "SPY", "20240315").await?;
+let contracts: Vec<OptionContract> = tdx.option_list_contracts("EOD", "SPY", "20240315").await?;
 ```
 ```python [Python]
 contracts = client.option_list_contracts("EOD", "SPY", "20240315")

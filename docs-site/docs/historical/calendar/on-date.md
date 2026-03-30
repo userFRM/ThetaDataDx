@@ -13,7 +13,7 @@ Retrieve the trading schedule for a specific date, including whether it is a reg
 
 ::: code-group
 ```rust [Rust]
-let table: proto::DataTable = client.calendar_on_date("20240315").await?;
+let days: Vec<CalendarDay> = tdx.calendar_on_date("20240315").await?;
 ```
 ```python [Python]
 result = client.calendar_on_date("20240315")
@@ -40,7 +40,7 @@ auto date_info = client.calendar_on_date("20240315");
 
 ## Response
 
-Returns a `DataTable` with calendar information:
+Returns a `Vec<CalendarDay>` with calendar information:
 
 <div class="param-list">
 <div class="param">

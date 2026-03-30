@@ -13,7 +13,7 @@ Retrieve the complete trading calendar for an entire year, including every tradi
 
 ::: code-group
 ```rust [Rust]
-let table: proto::DataTable = client.calendar_year("2024").await?;
+let days: Vec<CalendarDay> = tdx.calendar_year("2024").await?;
 ```
 ```python [Python]
 result = client.calendar_year("2024")
@@ -40,7 +40,7 @@ auto year_info = client.calendar_year("2024");
 
 ## Response
 
-Returns a `DataTable` with calendar info for every trading day in the year:
+Returns a `Vec<CalendarDay>` with calendar info for every trading day in the year:
 
 <div class="param-list">
 <div class="param">

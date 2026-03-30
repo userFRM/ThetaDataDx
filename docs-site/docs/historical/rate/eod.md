@@ -13,12 +13,12 @@ Retrieve end-of-day interest rate data across a date range. Supports SOFR and al
 
 ::: code-group
 ```rust [Rust]
-let table: proto::DataTable = client.interest_rate_history_eod(
+let rates: Vec<InterestRateTick> = tdx.interest_rate_history_eod(
     "SOFR", "20240101", "20240301"
 ).await?;
 
 // Treasury 10-year yield
-let table: proto::DataTable = client.interest_rate_history_eod(
+let rates: Vec<InterestRateTick> = tdx.interest_rate_history_eod(
     "TREASURY_Y10", "20240101", "20240301"
 ).await?;
 ```
@@ -64,7 +64,7 @@ auto t10 = client.interest_rate_history_eod("TREASURY_Y10", "20240101", "2024030
 
 ## Response
 
-Returns a `DataTable` with rate data per trading day:
+Returns a `Vec<InterestRateTick>` with rate data per trading day:
 
 <div class="param-list">
 <div class="param">

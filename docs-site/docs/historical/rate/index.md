@@ -17,7 +17,7 @@ Historical interest rate data for use in options pricing, Greeks computation, an
 
 ::: code-group
 ```rust [Rust]
-let table: proto::DataTable = client.interest_rate_history_eod(
+let rates: Vec<InterestRateTick> = tdx.interest_rate_history_eod(
     "SOFR", "20240101", "20240301"
 ).await?;
 ```

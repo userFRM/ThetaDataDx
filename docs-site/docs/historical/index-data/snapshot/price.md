@@ -7,13 +7,13 @@ description: Latest price snapshot for one or more indices.
 
 <TierBadge tier="value" />
 
-Get the latest price snapshot for one or more index symbols. Returns the most recent price data as a raw DataTable.
+Get the latest price snapshot for one or more index symbols. Returns the most recent price data as `Vec<PriceTick>`.
 
 ## Code Example
 
 ::: code-group
 ```rust [Rust]
-let table: proto::DataTable = client.index_snapshot_price(&["SPX", "NDX"]).await?;
+let ticks: Vec<PriceTick> = tdx.index_snapshot_price(&["SPX", "NDX"]).await?;
 ```
 ```python [Python]
 price = client.index_snapshot_price(["SPX", "NDX"])
@@ -44,7 +44,7 @@ auto price = client.index_snapshot_price({"SPX"});
 
 ## Response
 
-Returns a `DataTable` with price fields:
+Returns a `Vec<PriceTick>` with price fields:
 
 <div class="param-list">
 <div class="param">
@@ -63,5 +63,5 @@ Returns a `DataTable` with price fields:
 
 ## Notes
 
-- Returns raw `DataTable` (protobuf) rather than typed ticks.
+- Returns `Vec<PriceTick>` in Rust.
 - For OHLC-structured data, use [index_snapshot_ohlc](./ohlc) instead.

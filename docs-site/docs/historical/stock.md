@@ -55,7 +55,7 @@ for q in &ticks {
 }
 
 // Latest market value snapshot
-let table: proto::DataTable = client.stock_snapshot_market_value(&["AAPL"]).await?;
+let ticks: Vec<MarketValueTick> = tdx.stock_snapshot_market_value(&["AAPL"]).await?;
 ```
 ```python [Python]
 # Latest OHLC snapshot (one or more symbols)
@@ -124,8 +124,8 @@ let trades: Vec<TradeTick> = client.stock_history_trade("AAPL", "20240315").awai
 // NBBO quotes at a given interval (use "0" for every quote change)
 let quotes: Vec<QuoteTick> = client.stock_history_quote("AAPL", "20240315", "60000").await?;
 
-// Combined trade + quote ticks (returns raw DataTable)
-let table: proto::DataTable = client.stock_history_trade_quote("AAPL", "20240315").await?;
+// Combined trade + quote ticks
+let ticks: Vec<TradeQuoteTick> = tdx.stock_history_trade_quote("AAPL", "20240315").await?;
 ```
 ```python [Python]
 # End-of-day data for a date range

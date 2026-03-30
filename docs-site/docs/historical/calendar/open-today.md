@@ -13,7 +13,7 @@ Check whether the market is open today and retrieve the current day's trading sc
 
 ::: code-group
 ```rust [Rust]
-let table: proto::DataTable = client.calendar_open_today().await?;
+let days: Vec<CalendarDay> = tdx.calendar_open_today().await?;
 ```
 ```python [Python]
 result = client.calendar_open_today()
@@ -35,7 +35,7 @@ None.
 
 ## Response
 
-Returns a `DataTable` with market status fields:
+Returns a `Vec<CalendarDay>` with market status fields:
 
 <div class="param-list">
 <div class="param">

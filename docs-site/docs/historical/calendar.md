@@ -9,7 +9,7 @@ description: Market calendar and interest rate endpoints - trading schedules, ho
 
 ::: code-group
 ```rust [Rust]
-let table: proto::DataTable = client.interest_rate_history_eod(
+let rates: Vec<InterestRateTick> = tdx.interest_rate_history_eod(
     "SOFR", "20240101", "20240301"
 ).await?;
 ```
@@ -49,9 +49,9 @@ Use interest rate data to set the risk-free rate parameter when computing option
 
 ::: code-group
 ```rust [Rust]
-let table: proto::DataTable = client.calendar_open_today().await?;
-let table: proto::DataTable = client.calendar_on_date("20240315").await?;
-let table: proto::DataTable = client.calendar_year("2024").await?;
+let days: Vec<CalendarDay> = tdx.calendar_open_today().await?;
+let days: Vec<CalendarDay> = tdx.calendar_on_date("20240315").await?;
+let days: Vec<CalendarDay> = tdx.calendar_year("2024").await?;
 ```
 ```python [Python]
 result = client.calendar_open_today()

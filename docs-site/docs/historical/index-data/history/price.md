@@ -7,13 +7,13 @@ description: Intraday price history for an index.
 
 <TierBadge tier="standard" />
 
-Retrieve intraday price history for an index on a single date at a specified interval. Returns raw price data as a DataTable.
+Retrieve intraday price history for an index on a single date at a specified interval. Returns price data as `Vec<PriceTick>`.
 
 ## Code Example
 
 ::: code-group
 ```rust [Rust]
-let table: proto::DataTable = client.index_history_price("SPX", "20240315", "60000").await?;
+let ticks: Vec<PriceTick> = tdx.index_history_price("SPX", "20240315", "60000").await?;
 ```
 ```python [Python]
 price = client.index_history_price("SPX", "20240315", "60000")
@@ -56,7 +56,7 @@ auto price_hist = client.index_history_price("SPX", "20240315", "60000");
 
 ## Response
 
-Returns a `DataTable` with price and time fields:
+Returns a `Vec<PriceTick>` with price and time fields:
 
 <div class="param-list">
 <div class="param">
@@ -75,6 +75,6 @@ Returns a `DataTable` with price and time fields:
 
 ## Notes
 
-- Returns raw `DataTable` (protobuf) rather than typed ticks.
+- Returns `Vec<PriceTick>` in Rust.
 - For OHLC-structured data across a date range, use [index_history_ohlc](./ohlc) instead.
 - Operates on a single date only. For multi-day queries, use [index_history_eod](./eod) or [index_history_ohlc](./ohlc).
