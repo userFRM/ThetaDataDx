@@ -31,25 +31,47 @@ auto price_hist = client.index_history_price("SPX", "20240315", "60000");
 
 ## Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `symbol` | string | Yes | Index symbol (e.g. `"SPX"`) |
-| `date` | string | Yes | Date (`YYYYMMDD`) |
-| `interval` | string | Yes | Sampling interval in milliseconds |
-| `start_time` | string | No | Start time of day (ms from midnight) |
-| `end_time` | string | No | End time of day (ms from midnight) |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>symbol</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Index symbol (e.g. <code>"SPX"</code>)</div>
+</div>
+<div class="param">
+<div class="param-header"><code>date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Date in <code>YYYYMMDD</code> format</div>
+</div>
+<div class="param">
+<div class="param-header"><code>interval</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Sampling interval in milliseconds</div>
+</div>
+<div class="param">
+<div class="param-header"><code>start_time</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Start time of day as milliseconds from midnight</div>
+</div>
+<div class="param">
+<div class="param-header"><code>end_time</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">End time of day as milliseconds from midnight</div>
+</div>
+</div>
 
 ## Response
 
 Returns a `DataTable` with price and time fields:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `price` | f64 | Index price/level |
-| `ms_of_day` | u32 | Milliseconds from midnight ET |
-| `date` | u32 | Date as `YYYYMMDD` integer |
-
- - requires Standard plan or higher.
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>price</code><span class="param-type">f64</span></div>
+<div class="param-desc">Index price/level</div>
+</div>
+<div class="param">
+<div class="param-header"><code>ms_of_day</code><span class="param-type">u32</span></div>
+<div class="param-desc">Milliseconds from midnight ET</div>
+</div>
+<div class="param">
+<div class="param-header"><code>date</code><span class="param-type">u32</span></div>
+<div class="param-desc">Date as <code>YYYYMMDD</code> integer</div>
+</div>
+</div>
 
 ## Notes
 

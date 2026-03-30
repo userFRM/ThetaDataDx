@@ -31,14 +31,32 @@ auto tq = client.stock_history_trade_quote("AAPL", "20240315");
 
 ## Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `symbol` | string | Yes | Ticker symbol |
-| `date` | string | Yes | Date (`YYYYMMDD`) |
-| `start_time` | string | No | Start time (ms from midnight ET) |
-| `end_time` | string | No | End time (ms from midnight ET) |
-| `exclusive` | bool | No | Exclusive time bounds |
-| `venue` | string | No | Data venue filter |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>symbol</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Ticker symbol</div>
+</div>
+<div class="param">
+<div class="param-header"><code>date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Date in <code>YYYYMMDD</code> format</div>
+</div>
+<div class="param">
+<div class="param-header"><code>start_time</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Start time as milliseconds from midnight ET</div>
+</div>
+<div class="param">
+<div class="param-header"><code>end_time</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">End time as milliseconds from midnight ET</div>
+</div>
+<div class="param">
+<div class="param-header"><code>exclusive</code><span class="param-type">bool</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Use exclusive time bounds</div>
+</div>
+<div class="param">
+<div class="param-header"><code>venue</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Data venue filter</div>
+</div>
+</div>
 
 ## Response Fields (TradeQuoteTick)
 

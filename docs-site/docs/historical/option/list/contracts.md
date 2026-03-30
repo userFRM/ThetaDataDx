@@ -28,22 +28,45 @@ auto contracts = client.option_list_contracts("EOD", "SPY", "20240315");
 
 ## Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `request_type` | string | Yes | Data type (e.g. `"EOD"`, `"TRADE"`) |
-| `symbol` | string | Yes | Underlying symbol |
-| `date` | string | Yes | Date (`YYYYMMDD`) |
-| `max_dte` | int | No | Maximum days to expiration filter |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>request_type</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Data type (e.g. <code>"EOD"</code>, <code>"TRADE"</code>)</div>
+</div>
+<div class="param">
+<div class="param-header"><code>symbol</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Underlying symbol</div>
+</div>
+<div class="param">
+<div class="param-header"><code>date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Date in <code>YYYYMMDD</code> format</div>
+</div>
+<div class="param">
+<div class="param-header"><code>max_dte</code><span class="param-type">int</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Maximum days to expiration filter</div>
+</div>
+</div>
 
 ## Response
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `root` | string | Underlying symbol |
-| `expiration` | string | Expiration date |
-| `strike` | string | Strike price (scaled integer) |
-| `right` | string | `"C"` or `"P"` |
-
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>root</code><span class="param-type">string</span></div>
+<div class="param-desc">Underlying symbol</div>
+</div>
+<div class="param">
+<div class="param-header"><code>expiration</code><span class="param-type">string</span></div>
+<div class="param-desc">Expiration date in <code>YYYYMMDD</code> format</div>
+</div>
+<div class="param">
+<div class="param-header"><code>strike</code><span class="param-type">string</span></div>
+<div class="param-desc">Strike price as scaled integer</div>
+</div>
+<div class="param">
+<div class="param-header"><code>right</code><span class="param-type">string</span></div>
+<div class="param-desc"><code>"C"</code> for call, <code>"P"</code> for put</div>
+</div>
+</div>
 
 ## Notes
 

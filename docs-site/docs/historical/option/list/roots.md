@@ -38,10 +38,12 @@ None.
 
 ## Response
 
-| Field | Type | Description |
-|-------|------|-------------|
-| (list) | string[] | Underlying ticker symbols with available option chains |
-
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>(list)</code><span class="param-type">string[]</span></div>
+<div class="param-desc">Underlying ticker symbols with available option chains</div>
+</div>
+</div>
 
 ## Notes
 

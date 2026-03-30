@@ -34,31 +34,81 @@ auto quotes = client.option_at_time_quote("SPY", "20241220", "500000", "C",
 
 ## Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `symbol` | string | Yes | Underlying symbol |
-| `expiration` | string | Yes | Expiration date (`YYYYMMDD`) |
-| `strike` | string | Yes | Strike price (scaled integer) |
-| `right` | string | Yes | `"C"` or `"P"` |
-| `start_date` | string | Yes | Start date (`YYYYMMDD`) |
-| `end_date` | string | Yes | End date (`YYYYMMDD`) |
-| `time_of_day` | string | Yes | Milliseconds from midnight ET (e.g. `"34200000"` = 9:30 AM) |
-| `max_dte` | int | No | Maximum days to expiration |
-| `strike_range` | int | No | Strike range filter |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>symbol</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Underlying symbol</div>
+</div>
+<div class="param">
+<div class="param-header"><code>expiration</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Expiration date in <code>YYYYMMDD</code> format</div>
+</div>
+<div class="param">
+<div class="param-header"><code>strike</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Strike price as scaled integer</div>
+</div>
+<div class="param">
+<div class="param-header"><code>right</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc"><code>"C"</code> for call, <code>"P"</code> for put</div>
+</div>
+<div class="param">
+<div class="param-header"><code>start_date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Start date in <code>YYYYMMDD</code> format</div>
+</div>
+<div class="param">
+<div class="param-header"><code>end_date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">End date in <code>YYYYMMDD</code> format</div>
+</div>
+<div class="param">
+<div class="param-header"><code>time_of_day</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Milliseconds from midnight ET (e.g. <code>"34200000"</code> = 9:30 AM)</div>
+</div>
+<div class="param">
+<div class="param-header"><code>max_dte</code><span class="param-type">int</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Maximum days to expiration</div>
+</div>
+<div class="param">
+<div class="param-header"><code>strike_range</code><span class="param-type">int</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Strike range filter</div>
+</div>
+</div>
 
 ## Response
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `bid_price` | float | Best bid price |
-| `bid_size` | int | Bid size |
-| `ask_price` | float | Best ask price |
-| `ask_size` | int | Ask size |
-| `date` | string | Date |
-| `ms_of_day` | int | Milliseconds from midnight |
-| `bid_exchange` | int | Bid exchange code |
-| `ask_exchange` | int | Ask exchange code |
-
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>bid_price</code><span class="param-type">float</span></div>
+<div class="param-desc">Best bid price</div>
+</div>
+<div class="param">
+<div class="param-header"><code>bid_size</code><span class="param-type">int</span></div>
+<div class="param-desc">Bid size</div>
+</div>
+<div class="param">
+<div class="param-header"><code>ask_price</code><span class="param-type">float</span></div>
+<div class="param-desc">Best ask price</div>
+</div>
+<div class="param">
+<div class="param-header"><code>ask_size</code><span class="param-type">int</span></div>
+<div class="param-desc">Ask size</div>
+</div>
+<div class="param">
+<div class="param-header"><code>date</code><span class="param-type">string</span></div>
+<div class="param-desc">Date</div>
+</div>
+<div class="param">
+<div class="param-header"><code>ms_of_day</code><span class="param-type">int</span></div>
+<div class="param-desc">Milliseconds from midnight</div>
+</div>
+<div class="param">
+<div class="param-header"><code>bid_exchange</code><span class="param-type">int</span></div>
+<div class="param-desc">Bid exchange code</div>
+</div>
+<div class="param">
+<div class="param-header"><code>ask_exchange</code><span class="param-type">int</span></div>
+<div class="param-desc">Ask exchange code</div>
+</div>
+</div>
 
 ## Notes
 

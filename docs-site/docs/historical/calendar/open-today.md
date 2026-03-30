@@ -37,15 +37,28 @@ None.
 
 Returns a `DataTable` with market status fields:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `is_open` | bool | Whether the market is open today |
-| `open_time` | u32 | Market open time (ms from midnight ET) |
-| `close_time` | u32 | Market close time (ms from midnight ET) |
-| `early_close` | bool | Whether today is an early close day |
-| `date` | u32 | Today's date as `YYYYMMDD` integer |
-
- - available on all plans.
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>is_open</code><span class="param-type">bool</span></div>
+<div class="param-desc">Whether the market is open today</div>
+</div>
+<div class="param">
+<div class="param-header"><code>open_time</code><span class="param-type">u32</span></div>
+<div class="param-desc">Market open time (milliseconds from midnight ET)</div>
+</div>
+<div class="param">
+<div class="param-header"><code>close_time</code><span class="param-type">u32</span></div>
+<div class="param-desc">Market close time (milliseconds from midnight ET)</div>
+</div>
+<div class="param">
+<div class="param-header"><code>early_close</code><span class="param-type">bool</span></div>
+<div class="param-desc">Whether today is an early close day</div>
+</div>
+<div class="param">
+<div class="param-header"><code>date</code><span class="param-type">u32</span></div>
+<div class="param-desc">Today's date as <code>YYYYMMDD</code> integer</div>
+</div>
+</div>
 
 ## Notes
 

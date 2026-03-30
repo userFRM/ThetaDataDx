@@ -36,10 +36,16 @@ std::cout << "First: " << dates.front()
 
 ## Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `request_type` | string | Yes | Data type: `"EOD"`, `"TRADE"`, `"QUOTE"`, `"OHLC"` |
-| `symbol` | string | Yes | Ticker symbol (e.g. `"AAPL"`) |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>request_type</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Data type: <code>"EOD"</code>, <code>"TRADE"</code>, <code>"QUOTE"</code>, or <code>"OHLC"</code></div>
+</div>
+<div class="param">
+<div class="param-header"><code>symbol</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Ticker symbol (e.g. <code>"AAPL"</code>)</div>
+</div>
+</div>
 
 ## Response
 

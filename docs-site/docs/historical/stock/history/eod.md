@@ -51,28 +51,65 @@ for (auto& tick : eod) {
 
 ## Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `symbol` | string | Yes | Ticker symbol (e.g. `"AAPL"`) |
-| `start_date` | string | Yes | Start date (`YYYYMMDD`) |
-| `end_date` | string | Yes | End date (`YYYYMMDD`) |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>symbol</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Ticker symbol (e.g. <code>"AAPL"</code>)</div>
+</div>
+<div class="param">
+<div class="param-header"><code>start_date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Start date in <code>YYYYMMDD</code> format</div>
+</div>
+<div class="param">
+<div class="param-header"><code>end_date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">End date in <code>YYYYMMDD</code> format. Range is inclusive on both ends.</div>
+</div>
+</div>
 
 ## Response Fields (EodTick)
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `ms_of_day` / `ms_of_day2` | i32 | Timestamps |
-| `open` / `high` / `low` / `close` | i32 | Fixed-point OHLC prices |
-| `volume` | i32 | Total daily volume |
-| `count` | i32 | Total trade count |
-| `bid_size` / `ask_size` | i32 | Closing quote sizes |
-| `bid_exchange` / `ask_exchange` | i32 | Closing quote exchanges |
-| `bid` / `ask` | i32 | Closing bid/ask (fixed-point) |
-| `bid_condition` / `ask_condition` | i32 | Closing quote conditions |
-| `price_type` | i32 | Decimal type |
-| `date` | i32 | Date as YYYYMMDD |
-
-Helper methods: `open_price()`, `high_price()`, `low_price()`, `close_price()`, `bid_price()`, `ask_price()`, `midpoint_value()`
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>ms_of_day</code> / <code>ms_of_day2</code><span class="param-type">i32</span></div>
+<div class="param-desc">Timestamps (milliseconds since midnight Eastern Time)</div>
+</div>
+<div class="param">
+<div class="param-header"><code>open</code> / <code>high</code> / <code>low</code> / <code>close</code><span class="param-type">i32</span></div>
+<div class="param-desc">Fixed-point OHLC prices. Use <code>open_price()</code>, <code>high_price()</code>, <code>low_price()</code>, <code>close_price()</code> to get decoded <code>f64</code> values.</div>
+</div>
+<div class="param">
+<div class="param-header"><code>volume</code><span class="param-type">i32</span></div>
+<div class="param-desc">Total daily volume</div>
+</div>
+<div class="param">
+<div class="param-header"><code>count</code><span class="param-type">i32</span></div>
+<div class="param-desc">Total trade count for the day</div>
+</div>
+<div class="param">
+<div class="param-header"><code>bid_size</code> / <code>ask_size</code><span class="param-type">i32</span></div>
+<div class="param-desc">Closing quote sizes</div>
+</div>
+<div class="param">
+<div class="param-header"><code>bid_exchange</code> / <code>ask_exchange</code><span class="param-type">i32</span></div>
+<div class="param-desc">Closing quote exchange codes</div>
+</div>
+<div class="param">
+<div class="param-header"><code>bid</code> / <code>ask</code><span class="param-type">i32</span></div>
+<div class="param-desc">Closing bid/ask prices (fixed-point). Use <code>bid_price()</code>, <code>ask_price()</code>, <code>midpoint_value()</code>.</div>
+</div>
+<div class="param">
+<div class="param-header"><code>bid_condition</code> / <code>ask_condition</code><span class="param-type">i32</span></div>
+<div class="param-desc">Closing quote condition codes</div>
+</div>
+<div class="param">
+<div class="param-header"><code>price_type</code><span class="param-type">i32</span></div>
+<div class="param-desc">Decimal type used for fixed-point price decoding</div>
+</div>
+<div class="param">
+<div class="param-header"><code>date</code><span class="param-type">i32</span></div>
+<div class="param-desc">Date as <code>YYYYMMDD</code> integer</div>
+</div>
+</div>
 
 ## Notes
 

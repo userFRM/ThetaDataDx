@@ -35,17 +35,21 @@ std::cout << "Available from " << dates.front() << " to " << dates.back() << std
 
 ## Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `symbol` | string | Yes | Index symbol (e.g. `"SPX"`) |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>symbol</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Index symbol (e.g. <code>"SPX"</code>)</div>
+</div>
+</div>
 
 ## Response
 
-| Field | Type | Description |
-|-------|------|-------------|
-| dates | string[] | List of date strings in `YYYYMMDD` format |
-
- - available on all plans.
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>dates</code><span class="param-type">string[]</span></div>
+<div class="param-desc">List of date strings in <code>YYYYMMDD</code> format</div>
+</div>
+</div>
 
 ## Notes
 

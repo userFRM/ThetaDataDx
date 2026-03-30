@@ -30,17 +30,25 @@ auto strikes = client.option_list_strikes("SPY", "20241220");
 
 ## Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `symbol` | string | Yes | Underlying symbol |
-| `expiration` | string | Yes | Expiration date (`YYYYMMDD`) |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>symbol</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Underlying symbol</div>
+</div>
+<div class="param">
+<div class="param-header"><code>expiration</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Expiration date in <code>YYYYMMDD</code> format</div>
+</div>
+</div>
 
 ## Response
 
-| Field | Type | Description |
-|-------|------|-------------|
-| (list) | string[] | Strike prices as scaled integer strings |
-
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>(list)</code><span class="param-type">string[]</span></div>
+<div class="param-desc">Strike prices as scaled integer strings</div>
+</div>
+</div>
 
 ## Notes
 

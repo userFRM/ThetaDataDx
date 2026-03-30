@@ -31,11 +31,20 @@ auto mv = client.stock_snapshot_market_value({"AAPL"});
 
 ## Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `symbols` | string[] | Yes | One or more ticker symbols |
-| `venue` | string | No | Data venue filter |
-| `min_time` | string | No | Minimum time of day (ms from midnight ET) |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>symbols</code><span class="param-type">string[]</span><span class="param-badge required">required</span></div>
+<div class="param-desc">One or more ticker symbols</div>
+</div>
+<div class="param">
+<div class="param-header"><code>venue</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Data venue filter</div>
+</div>
+<div class="param">
+<div class="param-header"><code>min_time</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Minimum time of day as milliseconds from midnight ET</div>
+</div>
+</div>
 
 ## Response
 

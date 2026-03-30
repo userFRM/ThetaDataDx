@@ -50,31 +50,85 @@ for (auto& t : trades) {
 
 ## Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `symbol` | string | Yes | Ticker symbol |
-| `start_date` | string | Yes | Start date (`YYYYMMDD`) |
-| `end_date` | string | Yes | End date (`YYYYMMDD`) |
-| `time_of_day` | string | Yes | Milliseconds from midnight ET (e.g. `"34200000"` = 9:30 AM) |
-| `venue` | string | No | Data venue filter |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>symbol</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Ticker symbol</div>
+</div>
+<div class="param">
+<div class="param-header"><code>start_date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Start date in <code>YYYYMMDD</code> format</div>
+</div>
+<div class="param">
+<div class="param-header"><code>end_date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">End date in <code>YYYYMMDD</code> format</div>
+</div>
+<div class="param">
+<div class="param-header"><code>time_of_day</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Milliseconds from midnight ET (e.g. <code>"34200000"</code> = 9:30 AM)</div>
+</div>
+<div class="param">
+<div class="param-header"><code>venue</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Data venue filter</div>
+</div>
+</div>
 
 ## Response Fields (TradeTick)
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `ms_of_day` | i32 | Milliseconds since midnight ET |
-| `sequence` | i32 | Sequence number |
-| `ext_condition1` through `ext_condition4` | i32 | Extended trade condition codes |
-| `condition` | i32 | Trade condition code |
-| `size` | i32 | Trade size (shares) |
-| `exchange` | i32 | Exchange code |
-| `price` | i32 | Fixed-point price (use `get_price()`) |
-| `condition_flags` | i32 | Condition flags bitmap |
-| `price_flags` | i32 | Price flags bitmap |
-| `volume_type` | i32 | 0 = incremental, 1 = cumulative |
-| `records_back` | i32 | Records back count |
-| `price_type` | i32 | Decimal type for price decoding |
-| `date` | i32 | Date as YYYYMMDD integer |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>ms_of_day</code><span class="param-type">i32</span></div>
+<div class="param-desc">Milliseconds since midnight ET</div>
+</div>
+<div class="param">
+<div class="param-header"><code>sequence</code><span class="param-type">i32</span></div>
+<div class="param-desc">Sequence number</div>
+</div>
+<div class="param">
+<div class="param-header"><code>ext_condition1</code> through <code>ext_condition4</code><span class="param-type">i32</span></div>
+<div class="param-desc">Extended trade condition codes</div>
+</div>
+<div class="param">
+<div class="param-header"><code>condition</code><span class="param-type">i32</span></div>
+<div class="param-desc">Trade condition code</div>
+</div>
+<div class="param">
+<div class="param-header"><code>size</code><span class="param-type">i32</span></div>
+<div class="param-desc">Trade size in shares</div>
+</div>
+<div class="param">
+<div class="param-header"><code>exchange</code><span class="param-type">i32</span></div>
+<div class="param-desc">Exchange code</div>
+</div>
+<div class="param">
+<div class="param-header"><code>price</code><span class="param-type">i32</span></div>
+<div class="param-desc">Fixed-point price. Use <code>get_price()</code> for decoded <code>f64</code>.</div>
+</div>
+<div class="param">
+<div class="param-header"><code>condition_flags</code><span class="param-type">i32</span></div>
+<div class="param-desc">Condition flags bitmap</div>
+</div>
+<div class="param">
+<div class="param-header"><code>price_flags</code><span class="param-type">i32</span></div>
+<div class="param-desc">Price flags bitmap</div>
+</div>
+<div class="param">
+<div class="param-header"><code>volume_type</code><span class="param-type">i32</span></div>
+<div class="param-desc"><code>0</code> = incremental volume, <code>1</code> = cumulative volume</div>
+</div>
+<div class="param">
+<div class="param-header"><code>records_back</code><span class="param-type">i32</span></div>
+<div class="param-desc">Records back count</div>
+</div>
+<div class="param">
+<div class="param-header"><code>price_type</code><span class="param-type">i32</span></div>
+<div class="param-desc">Decimal type for price decoding</div>
+</div>
+<div class="param">
+<div class="param-header"><code>date</code><span class="param-type">i32</span></div>
+<div class="param-desc">Date as <code>YYYYMMDD</code> integer</div>
+</div>
+</div>
 
 Helper methods: `get_price()`, `is_cancelled()`, `regular_trading_hours()`, `is_seller()`, `is_incremental_volume()`
 

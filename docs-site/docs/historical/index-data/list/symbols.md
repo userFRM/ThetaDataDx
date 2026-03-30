@@ -43,11 +43,12 @@ None.
 
 ## Response
 
-| Field | Type | Description |
-|-------|------|-------------|
-| symbols | string[] | List of index ticker symbols (e.g. `"SPX"`, `"NDX"`, `"DJI"`) |
-
- - available on all plans.
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>symbols</code><span class="param-type">string[]</span></div>
+<div class="param-desc">List of index ticker symbols (e.g. <code>"SPX"</code>, <code>"NDX"</code>, <code>"DJI"</code>)</div>
+</div>
+</div>
 
 ## Notes
 

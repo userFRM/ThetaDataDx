@@ -170,6 +170,117 @@ div[class*='language-'] .lang {
   border: 1px solid var(--vp-c-divider);
 }
 
+/* ===== Parameter & Response Field Cards ===== */
+/*
+ * Usage pattern in markdown:
+ *
+ * <div class="param-list">
+ * <div class="param">
+ * <div class="param-header"><code>symbol</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+ * <div class="param-desc">Ticker symbol (e.g. <code>"AAPL"</code>)</div>
+ * </div>
+ * </div>
+ */
+
+.param-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 16px 0 24px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.param {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg);
+  transition: background 0.15s ease;
+}
+
+.param:last-child {
+  border-bottom: none;
+}
+
+.param:hover {
+  background: var(--vp-c-bg-soft);
+}
+
+.param-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+/* Override the global inline code style inside param-header for the name */
+.param-header > code:first-child {
+  font-size: 13.5px;
+  font-weight: 700;
+  font-family: var(--vp-font-family-mono);
+  color: var(--vp-c-text-1);
+  background: transparent;
+  border: none;
+  padding: 0;
+  letter-spacing: -0.01em;
+}
+
+.param-type {
+  font-size: 11.5px;
+  font-weight: 500;
+  font-family: var(--vp-font-family-mono);
+  color: var(--vp-c-text-2);
+  background: var(--vp-c-bg-mute);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 4px;
+  padding: 1px 6px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.param-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-radius: 4px;
+  padding: 2px 7px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.param-badge.required {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--vp-c-brand-1);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+.dark .param-badge.required {
+  background: rgba(96, 165, 250, 0.12);
+  color: #93c5fd;
+  border-color: rgba(96, 165, 250, 0.25);
+}
+
+.param-badge.optional {
+  background: var(--vp-c-bg-mute);
+  color: var(--vp-c-text-3);
+  border: 1px solid var(--vp-c-divider);
+}
+
+.param-desc {
+  font-size: 13.5px;
+  color: var(--vp-c-text-2);
+  line-height: 1.6;
+  padding-left: 0;
+}
+
+/* Inline code inside descriptions gets the standard styled treatment */
+.param-desc code {
+  font-size: 12.5px;
+}
+
 /* ===== Scrollbar (dark mode) ===== */
 .dark ::-webkit-scrollbar {
   width: 8px;

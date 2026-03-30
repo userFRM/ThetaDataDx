@@ -33,24 +33,43 @@ auto at_time = client.index_at_time_price("SPX", "20240101", "20240301", "342000
 
 ## Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `symbol` | string | Yes | Index symbol (e.g. `"SPX"`) |
-| `start_date` | string | Yes | Start date (`YYYYMMDD`) |
-| `end_date` | string | Yes | End date (`YYYYMMDD`) |
-| `time_of_day` | string | Yes | Milliseconds from midnight ET (e.g. `"34200000"` for 9:30 AM) |
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>symbol</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Index symbol (e.g. <code>"SPX"</code>)</div>
+</div>
+<div class="param">
+<div class="param-header"><code>start_date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Start date in <code>YYYYMMDD</code> format</div>
+</div>
+<div class="param">
+<div class="param-header"><code>end_date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">End date in <code>YYYYMMDD</code> format</div>
+</div>
+<div class="param">
+<div class="param-header"><code>time_of_day</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Milliseconds from midnight ET (e.g. <code>"34200000"</code> for 9:30 AM)</div>
+</div>
+</div>
 
 ## Response
 
 Returns a `DataTable` with one entry per trading day:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `price` | f64 | Index price/level at the specified time |
-| `ms_of_day` | u32 | Actual milliseconds from midnight ET |
-| `date` | u32 | Date as `YYYYMMDD` integer |
-
- - requires Standard plan or higher.
+<div class="param-list">
+<div class="param">
+<div class="param-header"><code>price</code><span class="param-type">f64</span></div>
+<div class="param-desc">Index price/level at the specified time</div>
+</div>
+<div class="param">
+<div class="param-header"><code>ms_of_day</code><span class="param-type">u32</span></div>
+<div class="param-desc">Actual milliseconds from midnight ET</div>
+</div>
+<div class="param">
+<div class="param-header"><code>date</code><span class="param-type">u32</span></div>
+<div class="param-desc">Date as <code>YYYYMMDD</code> integer</div>
+</div>
+</div>
 
 ## Time Reference
 
