@@ -1,0 +1,207 @@
+/*
+ * ThetaDataDx Documentation — Custom Theme
+ * Matches ThetaData's clean, professional documentation style
+ */
+
+/* ===== Brand Colors ===== */
+:root {
+  --vp-c-brand-1: #3b82f6;
+  --vp-c-brand-2: #2563eb;
+  --vp-c-brand-3: #1d4ed8;
+  --vp-c-brand-soft: rgba(59, 130, 246, 0.12);
+
+  /* Hero gradient */
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(135deg, #3b82f6, #06b6d4);
+
+  /* Hero image glow */
+  --vp-home-hero-image-background-image: linear-gradient(
+    135deg,
+    rgba(59, 130, 246, 0.3),
+    rgba(6, 182, 212, 0.3)
+  );
+  --vp-home-hero-image-filter: blur(56px);
+}
+
+.dark {
+  --vp-c-brand-1: #60a5fa;
+  --vp-c-brand-2: #3b82f6;
+  --vp-c-brand-3: #2563eb;
+  --vp-c-brand-soft: rgba(96, 165, 250, 0.12);
+
+  --vp-home-hero-image-background-image: linear-gradient(
+    135deg,
+    rgba(59, 130, 246, 0.2),
+    rgba(6, 182, 212, 0.2)
+  );
+}
+
+/* ===== Typography refinements ===== */
+:root {
+  --vp-font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
+  --vp-font-family-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono',
+    SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+}
+
+/* ===== Layout ===== */
+.VPDoc .container {
+  max-width: 1080px;
+}
+
+/* ===== Sidebar ===== */
+.VPSidebar .group + .group {
+  border-top: 1px solid var(--vp-c-divider);
+  padding-top: 12px;
+}
+
+/* ===== Code Blocks ===== */
+.vp-code-group .tabs label {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+div[class*='language-'] {
+  border-radius: 8px;
+  border: 1px solid var(--vp-c-divider);
+}
+
+div[class*='language-'] code {
+  font-size: 13.5px;
+  line-height: 1.7;
+}
+
+div[class*='language-'] .lang {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.7;
+}
+
+/* ===== Inline Code ===== */
+:not(pre) > code {
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.9em;
+  background: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-divider);
+  color: var(--vp-c-brand-1);
+  font-weight: 500;
+}
+
+/* ===== Custom Containers / Callouts ===== */
+.custom-block.tip {
+  border-color: var(--vp-c-brand-1);
+}
+
+.custom-block.warning {
+  border-color: #f59e0b;
+}
+
+.custom-block.danger {
+  border-color: #ef4444;
+}
+
+/* ===== Hero Section ===== */
+.VPHero .name {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.VPHero .tagline {
+  font-size: 20px;
+  line-height: 1.5;
+  color: var(--vp-c-text-2);
+  max-width: 560px;
+}
+
+.VPHero .actions .VPButton {
+  border-radius: 8px;
+  font-weight: 600;
+  padding: 0 24px;
+  height: 44px;
+  font-size: 15px;
+}
+
+/* ===== Feature Cards ===== */
+.VPFeatures .VPFeature {
+  border-radius: 12px;
+  border: 1px solid var(--vp-c-divider);
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+
+.VPFeatures .VPFeature:hover {
+  border-color: var(--vp-c-brand-1);
+  box-shadow: 0 2px 12px var(--vp-c-brand-soft);
+}
+
+.VPFeature .title {
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.VPFeature .details {
+  font-size: 14px;
+  color: var(--vp-c-text-2);
+  line-height: 1.6;
+}
+
+/* ===== Tables ===== */
+.vp-doc table {
+  border-collapse: collapse;
+  width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.vp-doc th {
+  background: var(--vp-c-bg-soft);
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--vp-c-text-2);
+}
+
+.vp-doc td,
+.vp-doc th {
+  padding: 10px 16px;
+  border: 1px solid var(--vp-c-divider);
+}
+
+/* ===== Scrollbar (dark mode) ===== */
+.dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: var(--vp-c-divider);
+  border-radius: 4px;
+}
+
+/* ===== Quick Install Section on Homepage ===== */
+.install-section {
+  max-width: 800px;
+  margin: 48px auto;
+  padding: 0 24px;
+}
+
+.install-section h2 {
+  text-align: center;
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 24px;
+  color: var(--vp-c-text-1);
+}
+
+/* ===== Badge styles ===== */
+.vp-doc .header-anchor + .badge {
+  margin-left: 8px;
+  vertical-align: middle;
+}

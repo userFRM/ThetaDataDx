@@ -1,0 +1,16 @@
+{
+  "name": "thetadatadx-docs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ThetaDataDx documentation site",
+  "scripts": {
+    "dev": "vitepress dev docs",
+    "build": "vitepress build docs",
+    "preview": "vitepress preview docs"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.3",
+    "vue": "^3.5.13"
+  }
+}

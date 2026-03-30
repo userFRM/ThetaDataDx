@@ -1,0 +1,3325 @@
+openapi: 3.1.0
+
+info:
+  title: ThetaDataDx SDK
+  description: |
+    Multi-language SDK for ThetaData market data. Provides typed access to 61 historical
+    data endpoints via MDDS/gRPC and real-time streaming via FPSS/TCP. Native bindings for
+    Rust, Python (PyO3), Go (CGo), and C++ (C FFI).
+
+    All dates use YYYYMMDD format. Times use milliseconds since midnight ET.
+    Intervals use milliseconds (e.g. "60000" for 1-minute bars).
+    Prices are fixed-point integers decoded via price_type.
+  version: 1.0.0
+  contact:
+    name: ThetaDataDx
+    url: https://github.com/userFRM/thetadatadx
+  license:
+    name: Proprietary
+    url: https://thetadata.net/terms
+
+servers:
+  - url: grpc://mdds.thetadata.us
+    description: ThetaData MDDS production gRPC server (TLS)
+
+tags:
+  - name: Stock / List
+    description: Enumerate available stock symbols and dates
+  - name: Stock / Snapshot
+    description: Real-time stock snapshots (OHLC, trade, quote, market value)
+  - name: Stock / History
+    description: Historical stock data (EOD, intraday OHLC, trades, quotes)
+  - name: Stock / AtTime
+    description: Stock data at a specific time of day across a date range
+  - name: Option / List
+    description: Enumerate option symbols, dates, expirations, strikes, and contracts
+  - name: Option / Snapshot
+    description: Real-time option snapshots (OHLC, trade, quote, OI, market value)
+  - name: Option / Snapshot Greeks
+    description: Real-time option Greeks snapshots (IV, all, first/second/third order)
+  - name: Option / History
+    description: Historical option data (EOD, intraday OHLC, trades, quotes, OI)
+  - name: Option / History Greeks
+    description: Historical option Greeks (EOD, intraday, IV, first/second/third order)
+  - name: Option / History Trade Greeks
+    description: Greeks computed on each individual option trade
+  - name: Option / AtTime
+    description: Option data at a specific time of day across a date range
+  - name: Index / List
+    description: Enumerate available index symbols and dates
+  - name: Index / Snapshot
+    description: Real-time index snapshots (OHLC, price, market value)
+  - name: Index / History
+    description: Historical index data (EOD, intraday OHLC, price)
+  - name: Index / AtTime
+    description: Index data at a specific time of day across a date range
+  - name: Calendar
+    description: Market calendar operations (open today, date info, yearly calendar)
+  - name: Interest Rate
+    description: Interest rate data endpoints
+
+security:
+  - sessionAuth: []
+
+# ---------------------------------------------------------------------------
+# Reusable anchors for common parameter/schema objects
+# ---------------------------------------------------------------------------
+x-anchors:
+  # --- Common parameter shapes ---
+  symbol-param: &symbol-param
+    name: symbol
+    in: query
+    required: true
+    schema:
+      type: string
+    description: Ticker symbol (e.g. "AAPL")
+
+  symbols-param: &symbols-param
+    name: symbol
+    in: query
+    required: true
+    schema:
+      type: array
+      items:
+        type: string
+    description: One or more ticker symbols
+
+  start_date-param: &start_date-param
+    name: start_date
+    in: query
+    required: true
+    schema:
+      type: string
+      pattern: '^\d{8}$'
+    description: Start date in YYYYMMDD format
+
+  end_date-param: &end_date-param
+    name: end_date
+    in: query
+    required: true
+    schema:
+      type: string
+      pattern: '^\d{8}$'
+    description: End date in YYYYMMDD format
+
+  date-param: &date-param
+    name: date
+    in: query
+    required: true
+    schema:
+      type: string
+      pattern: '^\d{8}$'
+    description: Date in YYYYMMDD format
+
+  date-optional-param: &date-optional-param
+    name: date
+    in: query
+    required: false
+    schema:
+      type: string
+      pattern: '^\d{8}$'
+    description: Date in YYYYMMDD format (optional when using start_date/end_date)
+
+  interval-param: &interval-param
+    name: interval
+    in: query
+    required: true
+    schema:
+      type: string
+    description: Bar interval in milliseconds (e.g. "60000" for 1-minute bars)
+
+  time_of_day-param: &time_of_day-param
+    name: time_of_day
+    in: query
+    required: true
+    schema:
+      type: string
+    description: Milliseconds from midnight ET (e.g. "34200000" for 9:30 AM ET)
+
+  venue-param: &venue-param
+    name: venue
+    in: query
+    required: false
+    schema:
+      type: string
+    description: Data venue (e.g. "nqb" for Nasdaq Basic)
+
+  min_time-param: &min_time-param
+    name: min_time
+    in: query
+    required: false
+    schema:
+      type: string
+    description: Minimum timestamp filter
+
+  start_time-param: &start_time-param
+    name: start_time
+    in: query
+    required: false
+    schema:
+      type: string
+    description: Start time in milliseconds from midnight ET
+
+  end_time-param: &end_time-param
+    name: end_time
+    in: query
+    required: false
+    schema:
+      type: string
+    description: End time in milliseconds from midnight ET
+
+  request_type-param: &request_type-param
+    name: request_type
+    in: query
+    required: true
+    schema:
+      type: string
+      enum: [EOD, TRADE, QUOTE, OHLC, OPEN_INTEREST]
+    description: The type of data request
+
+  expiration-param: &expiration-param
+    name: expiration
+    in: query
+    required: true
+    schema:
+      type: string
+      pattern: '^\d{8}$'
+    description: Option expiration date in YYYYMMDD format
+
+  strike-param: &strike-param
+    name: strike
+    in: query
+    required: true
+    schema:
+      type: string
+    description: Strike price as scaled integer string (e.g. "500000" for $500)
+
+  right-param: &right-param
+    name: right
+    in: query
+    required: true
+    schema:
+      type: string
+      enum: [C, P]
+    description: Option right -- "C" for call, "P" for put
+
+  max_dte-param: &max_dte-param
+    name: max_dte
+    in: query
+    required: false
+    schema:
+      type: integer
+    description: Maximum days to expiration filter
+
+  strike_range-param: &strike_range-param
+    name: strike_range
+    in: query
+    required: false
+    schema:
+      type: integer
+    description: Number of strikes above/below ATM to include
+
+  exclusive-param: &exclusive-param
+    name: exclusive
+    in: query
+    required: false
+    schema:
+      type: boolean
+    description: Whether time boundaries are exclusive
+
+  # --- Greeks optional parameters ---
+  annual_dividend-param: &annual_dividend-param
+    name: annual_dividend
+    in: query
+    required: false
+    schema:
+      type: number
+      format: double
+    description: Annual dividend amount for Greeks calculation
+
+  rate_type-param: &rate_type-param
+    name: rate_type
+    in: query
+    required: false
+    schema:
+      type: string
+    description: Interest rate type for Greeks calculation
+
+  rate_value-param: &rate_value-param
+    name: rate_value
+    in: query
+    required: false
+    schema:
+      type: number
+      format: double
+    description: Interest rate value for Greeks calculation
+
+  stock_price-param: &stock_price-param
+    name: stock_price
+    in: query
+    required: false
+    schema:
+      type: number
+      format: double
+    description: Override underlying stock price for Greeks calculation
+
+  greeks_version-param: &greeks_version-param
+    name: version
+    in: query
+    required: false
+    schema:
+      type: string
+    description: Greeks calculation model version
+
+  use_market_value-param: &use_market_value-param
+    name: use_market_value
+    in: query
+    required: false
+    schema:
+      type: boolean
+    description: Use market value instead of midpoint for Greeks calculation
+
+  underlyer_use_nbbo-param: &underlyer_use_nbbo-param
+    name: underlyer_use_nbbo
+    in: query
+    required: false
+    schema:
+      type: boolean
+    description: Use NBBO midpoint for underlying price
+
+  # --- Common response schemas ---
+  ohlc-tick: &ohlc-tick
+    type: object
+    properties:
+      ms_of_day:
+        type: integer
+        description: Milliseconds since midnight ET
+      open:
+        type: integer
+        description: Opening price (fixed-point, decode with price_type)
+      high:
+        type: integer
+        description: Highest price (fixed-point)
+      low:
+        type: integer
+        description: Lowest price (fixed-point)
+      close:
+        type: integer
+        description: Closing price (fixed-point)
+      volume:
+        type: integer
+        description: Number of shares/contracts traded
+      count:
+        type: integer
+        description: Number of trades
+      price_type:
+        type: integer
+        description: Decimal type for price decoding (real_price = value * 10^(price_type - 10))
+      date:
+        type: integer
+        description: Date as YYYYMMDD integer
+
+  trade-tick: &trade-tick
+    type: object
+    properties:
+      ms_of_day:
+        type: integer
+        description: Milliseconds since midnight ET
+      sequence:
+        type: integer
+        description: Exchange sequence number
+      size:
+        type: integer
+        description: Trade size in shares
+      price:
+        type: integer
+        description: Trade price (fixed-point, decode with price_type)
+      exchange:
+        type: integer
+        description: Exchange code
+      condition:
+        type: integer
+        description: Trade condition code
+      price_type:
+        type: integer
+        description: Decimal type for price decoding
+      date:
+        type: integer
+        description: Date as YYYYMMDD integer
+
+  quote-tick: &quote-tick
+    type: object
+    properties:
+      ms_of_day:
+        type: integer
+        description: Milliseconds since midnight ET
+      bid:
+        type: integer
+        description: Bid price (fixed-point)
+      ask:
+        type: integer
+        description: Ask price (fixed-point)
+      bid_size:
+        type: integer
+        description: Bid size
+      ask_size:
+        type: integer
+        description: Ask size
+      price_type:
+        type: integer
+        description: Decimal type for price decoding
+      date:
+        type: integer
+        description: Date as YYYYMMDD integer
+
+  eod-tick: &eod-tick
+    type: object
+    properties:
+      ms_of_day:
+        type: integer
+      open:
+        type: integer
+      high:
+        type: integer
+      low:
+        type: integer
+      close:
+        type: integer
+      volume:
+        type: integer
+      count:
+        type: integer
+      bid:
+        type: integer
+      ask:
+        type: integer
+      bid_size:
+        type: integer
+      ask_size:
+        type: integer
+      price_type:
+        type: integer
+      date:
+        type: integer
+        description: Date as YYYYMMDD integer
+
+  open-interest-tick: &open-interest-tick
+    type: object
+    properties:
+      ms_of_day:
+        type: integer
+      open_interest:
+        type: integer
+      date:
+        type: integer
+
+  trade-quote-tick: &trade-quote-tick
+    type: object
+    description: Combined trade + quote tick (25 fields)
+    properties:
+      ms_of_day:
+        type: integer
+      sequence:
+        type: integer
+      size:
+        type: integer
+      price:
+        type: integer
+      exchange:
+        type: integer
+      condition:
+        type: integer
+      bid:
+        type: integer
+      ask:
+        type: integer
+      bid_size:
+        type: integer
+      ask_size:
+        type: integer
+      price_type:
+        type: integer
+      date:
+        type: integer
+
+  greeks-result: &greeks-result
+    type: object
+    properties:
+      value:
+        type: number
+        format: double
+      delta:
+        type: number
+        format: double
+      gamma:
+        type: number
+        format: double
+      theta:
+        type: number
+        format: double
+      vega:
+        type: number
+        format: double
+      rho:
+        type: number
+        format: double
+      iv:
+        type: number
+        format: double
+      iv_error:
+        type: number
+        format: double
+      vanna:
+        type: number
+        format: double
+      charm:
+        type: number
+        format: double
+      vomma:
+        type: number
+        format: double
+      veta:
+        type: number
+        format: double
+      speed:
+        type: number
+        format: double
+      zomma:
+        type: number
+        format: double
+      color:
+        type: number
+        format: double
+      ultima:
+        type: number
+        format: double
+      d1:
+        type: number
+        format: double
+      d2:
+        type: number
+        format: double
+      dual_delta:
+        type: number
+        format: double
+      dual_gamma:
+        type: number
+        format: double
+      epsilon:
+        type: number
+        format: double
+      lambda:
+        type: number
+        format: double
+
+  data-table: &data-table
+    type: object
+    description: Generic DataTable with string headers and typed cell values
+    properties:
+      headers:
+        type: array
+        items:
+          type: string
+      data_table:
+        type: array
+        items:
+          type: array
+          items:
+            oneOf:
+              - type: string
+              - type: integer
+              - type: number
+              - type: "null"
+
+  symbol-list: &symbol-list
+    type: array
+    items:
+      type: string
+
+  date-list: &date-list
+    type: array
+    items:
+      type: string
+      pattern: '^\d{8}$'
+
+  # --- Reusable response wrappers ---
+  ohlc-response: &ohlc-response
+    description: Successful response
+    content:
+      application/json:
+        schema:
+          type: array
+          items: *ohlc-tick
+
+  trade-response: &trade-response
+    description: Successful response
+    content:
+      application/json:
+        schema:
+          type: array
+          items: *trade-tick
+
+  quote-response: &quote-response
+    description: Successful response
+    content:
+      application/json:
+        schema:
+          type: array
+          items: *quote-tick
+
+  eod-response: &eod-response
+    description: Successful response
+    content:
+      application/json:
+        schema:
+          type: array
+          items: *eod-tick
+
+  data-table-response: &data-table-response
+    description: Successful response
+    content:
+      application/json:
+        schema: *data-table
+
+  symbol-list-response: &symbol-list-response
+    description: Successful response
+    content:
+      application/json:
+        schema: *symbol-list
+
+  date-list-response: &date-list-response
+    description: Successful response
+    content:
+      application/json:
+        schema: *date-list
+
+# ---------------------------------------------------------------------------
+# PATHS
+# ---------------------------------------------------------------------------
+paths:
+
+  # =========================================================================
+  # STOCK / LIST
+  # =========================================================================
+
+  /stock/list/symbols:
+    x-min-subscription: free
+    get:
+      operationId: stockListSymbols
+      summary: List all stock symbols
+      description: |
+        Returns all traded stock symbols. Updated overnight.
+        gRPC: GetStockListSymbols
+      tags: [Stock / List]
+      parameters: []
+      responses:
+        '200': *symbol-list-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let symbols = tdx.stock_list_symbols().await?;
+        - lang: python
+          label: Python
+          source: |
+            symbols = tdx.stock_list_symbols()
+        - lang: go
+          label: Go
+          source: |
+            symbols, err := client.StockListSymbols()
+        - lang: cpp
+          label: C++
+          source: |
+            auto symbols = client.stock_list_symbols();
+
+  /stock/list/dates:
+    x-min-subscription: free
+    get:
+      operationId: stockListDates
+      summary: List available dates for a stock
+      description: |
+        Lists all dates of data available for a stock by request type (EOD, TRADE, QUOTE, etc.).
+        Updated overnight.
+        gRPC: GetStockListDates
+      tags: [Stock / List]
+      parameters:
+        - *request_type-param
+        - *symbol-param
+      responses:
+        '200': *date-list-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let dates = tdx.stock_list_dates("TRADE", "AAPL").await?;
+        - lang: python
+          label: Python
+          source: |
+            dates = tdx.stock_list_dates("TRADE", "AAPL")
+        - lang: go
+          label: Go
+          source: |
+            dates, err := client.StockListDates("TRADE", "AAPL")
+        - lang: cpp
+          label: C++
+          source: |
+            auto dates = client.stock_list_dates("TRADE", "AAPL");
+
+  # =========================================================================
+  # STOCK / SNAPSHOT
+  # =========================================================================
+
+  /stock/snapshot/ohlc:
+    x-min-subscription: value
+    get:
+      operationId: stockSnapshotOhlc
+      summary: Stock OHLC snapshot
+      description: |
+        Real-time Open, High, Low, Close for the current trading day.
+        Returns real-time data with standard/pro subscription, 15-minute delayed with value subscription.
+        Snapshot cache resets at midnight ET daily.
+        gRPC: GetStockSnapshotOhlc
+      tags: [Stock / Snapshot]
+      parameters:
+        - *symbols-param
+        - *venue-param
+        - *min_time-param
+      responses:
+        '200': *ohlc-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let ohlc = tdx.stock_snapshot_ohlc(&["AAPL"]).await?;
+        - lang: python
+          label: Python
+          source: |
+            ohlc = tdx.stock_snapshot_ohlc(["AAPL"])
+        - lang: go
+          label: Go
+          source: |
+            ohlc, err := client.StockSnapshotOHLC([]string{"AAPL"})
+        - lang: cpp
+          label: C++
+          source: |
+            auto ohlc = client.stock_snapshot_ohlc({"AAPL"});
+
+  /stock/snapshot/trade:
+    x-min-subscription: standard
+    get:
+      operationId: stockSnapshotTrade
+      summary: Stock trade snapshot
+      description: |
+        Real-time last trade from the Nasdaq Basic feed.
+        Requires stocks standard or pro subscription.
+        Snapshot cache resets at midnight ET daily.
+        gRPC: GetStockSnapshotTrade
+      tags: [Stock / Snapshot]
+      parameters:
+        - *symbols-param
+        - *venue-param
+        - *min_time-param
+      responses:
+        '200': *trade-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let trades = tdx.stock_snapshot_trade(&["AAPL"]).await?;
+        - lang: python
+          label: Python
+          source: |
+            trades = tdx.stock_snapshot_trade(["AAPL"])
+        - lang: go
+          label: Go
+          source: |
+            trades, err := client.StockSnapshotTrade([]string{"AAPL"})
+        - lang: cpp
+          label: C++
+          source: |
+            auto trades = client.stock_snapshot_trade({"AAPL"});
+
+  /stock/snapshot/quote:
+    x-min-subscription: value
+    get:
+      operationId: stockSnapshotQuote
+      summary: Stock quote snapshot
+      description: |
+        Real-time last BBO quote from the Nasdaq Basic feed (standard/pro) or
+        15-minute delayed NBBO quote from UTP/CTA feeds (value subscription).
+        Snapshot cache resets at midnight ET daily.
+        gRPC: GetStockSnapshotQuote
+      tags: [Stock / Snapshot]
+      parameters:
+        - *symbols-param
+        - *venue-param
+        - *min_time-param
+      responses:
+        '200': *quote-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let quotes = tdx.stock_snapshot_quote(&["AAPL"]).await?;
+        - lang: python
+          label: Python
+          source: |
+            quotes = tdx.stock_snapshot_quote(["AAPL"])
+        - lang: go
+          label: Go
+          source: |
+            quotes, err := client.StockSnapshotQuote([]string{"AAPL"})
+        - lang: cpp
+          label: C++
+          source: |
+            auto quotes = client.stock_snapshot_quote({"AAPL"});
+
+  /stock/snapshot/market_value:
+    x-min-subscription: standard
+    get:
+      operationId: stockSnapshotMarketValue
+      summary: Stock market value snapshot
+      description: |
+        Latest market value snapshot for one or more stocks.
+        gRPC: GetStockSnapshotMarketValue
+      tags: [Stock / Snapshot]
+      parameters:
+        - *symbols-param
+        - *venue-param
+        - *min_time-param
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let mv = tdx.stock_snapshot_market_value(&["AAPL"]).await?;
+        - lang: python
+          label: Python
+          source: |
+            mv = tdx.stock_snapshot_market_value(["AAPL"])
+        - lang: go
+          label: Go
+          source: |
+            mv, err := client.StockSnapshotMarketValue([]string{"AAPL"})
+        - lang: cpp
+          label: C++
+          source: |
+            auto mv = client.stock_snapshot_market_value({"AAPL"});
+
+  # =========================================================================
+  # STOCK / HISTORY
+  # =========================================================================
+
+  /stock/history/eod:
+    x-min-subscription: value
+    get:
+      operationId: stockHistoryEod
+      summary: Stock end-of-day history
+      description: |
+        End-of-day stock data for a date range including OHLC + closing quote.
+        gRPC: GetStockHistoryEod
+      tags: [Stock / History]
+      parameters:
+        - *symbol-param
+        - *start_date-param
+        - *end_date-param
+      responses:
+        '200': *eod-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let eod = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
+        - lang: python
+          label: Python
+          source: |
+            eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
+            df = tdx.stock_history_eod_df("AAPL", "20240101", "20240301")
+        - lang: go
+          label: Go
+          source: |
+            eod, err := client.StockHistoryEOD("AAPL", "20240101", "20240301")
+        - lang: cpp
+          label: C++
+          source: |
+            auto eod = client.stock_history_eod("AAPL", "20240101", "20240301");
+
+  /stock/history/ohlc:
+    x-min-subscription: value
+    get:
+      operationId: stockHistoryOhlc
+      summary: Stock intraday OHLC bars
+      description: |
+        Intraday OHLC bars for a single date or date range.
+        Interval is in milliseconds (e.g. "60000" for 1-minute bars).
+        Use start_date/end_date instead of date for multi-day queries.
+        gRPC: GetStockHistoryOhlc
+      tags: [Stock / History]
+      parameters:
+        - *symbol-param
+        - *date-optional-param
+        - *interval-param
+        - *start_time-param
+        - *end_time-param
+        - *venue-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: '^\d{8}$'
+          description: Start date for multi-day range (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: '^\d{8}$'
+          description: End date for multi-day range (YYYYMMDD)
+      responses:
+        '200': *ohlc-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            // Single date
+            let bars = tdx.stock_history_ohlc("AAPL", "20240315", "60000").await?;
+            // Date range
+            let bars = tdx.stock_history_ohlc_range("AAPL", "20240101", "20240301", "60000").await?;
+        - lang: python
+          label: Python
+          source: |
+            bars = tdx.stock_history_ohlc("AAPL", "20240315", "60000")
+            bars = tdx.stock_history_ohlc_range("AAPL", "20240101", "20240301", "60000")
+        - lang: go
+          label: Go
+          source: |
+            bars, err := client.StockHistoryOHLC("AAPL", "20240315", "60000")
+            bars, err := client.StockHistoryOHLCRange("AAPL", "20240101", "20240301", "60000")
+        - lang: cpp
+          label: C++
+          source: |
+            auto bars = client.stock_history_ohlc("AAPL", "20240315", "60000");
+            auto bars = client.stock_history_ohlc_range("AAPL", "20240101", "20240301", "60000");
+
+  /stock/history/trade:
+    x-min-subscription: value
+    get:
+      operationId: stockHistoryTrade
+      summary: Stock trade history
+      description: |
+        All trades for a stock on a given date or date range.
+        gRPC: GetStockHistoryTrade
+      tags: [Stock / History]
+      parameters:
+        - *symbol-param
+        - *date-optional-param
+        - *start_time-param
+        - *end_time-param
+        - *venue-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date for multi-day range (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date for multi-day range (YYYYMMDD)
+      responses:
+        '200': *trade-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let trades = tdx.stock_history_trade("AAPL", "20240315").await?;
+        - lang: python
+          label: Python
+          source: |
+            trades = tdx.stock_history_trade("AAPL", "20240315")
+        - lang: go
+          label: Go
+          source: |
+            trades, err := client.StockHistoryTrade("AAPL", "20240315")
+        - lang: cpp
+          label: C++
+          source: |
+            auto trades = client.stock_history_trade("AAPL", "20240315");
+
+  /stock/history/quote:
+    x-min-subscription: value
+    get:
+      operationId: stockHistoryQuote
+      summary: Stock quote history
+      description: |
+        NBBO quotes at a given interval. Use "0" for every quote change.
+        gRPC: GetStockHistoryQuote
+      tags: [Stock / History]
+      parameters:
+        - *symbol-param
+        - *date-optional-param
+        - *interval-param
+        - *start_time-param
+        - *end_time-param
+        - *venue-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date for multi-day range (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date for multi-day range (YYYYMMDD)
+      responses:
+        '200': *quote-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let quotes = tdx.stock_history_quote("AAPL", "20240315", "60000").await?;
+        - lang: python
+          label: Python
+          source: |
+            quotes = tdx.stock_history_quote("AAPL", "20240315", "60000")
+        - lang: go
+          label: Go
+          source: |
+            quotes, err := client.StockHistoryQuote("AAPL", "20240315", "60000")
+        - lang: cpp
+          label: C++
+          source: |
+            auto quotes = client.stock_history_quote("AAPL", "20240315", "60000");
+
+  /stock/history/trade_quote:
+    x-min-subscription: pro
+    get:
+      operationId: stockHistoryTradeQuote
+      summary: Stock combined trade + quote history
+      description: |
+        Combined trade and quote ticks for a stock on a given date.
+        Returns a raw DataTable with both trade and quote fields.
+        gRPC: GetStockHistoryTradeQuote
+      tags: [Stock / History]
+      parameters:
+        - *symbol-param
+        - *date-optional-param
+        - *start_time-param
+        - *end_time-param
+        - *exclusive-param
+        - *venue-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date for multi-day range (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date for multi-day range (YYYYMMDD)
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let tq = tdx.stock_history_trade_quote("AAPL", "20240315").await?;
+        - lang: python
+          label: Python
+          source: |
+            tq = tdx.stock_history_trade_quote("AAPL", "20240315")
+        - lang: go
+          label: Go
+          source: |
+            tq, err := client.StockHistoryTradeQuote("AAPL", "20240315")
+        - lang: cpp
+          label: C++
+          source: |
+            auto tq = client.stock_history_trade_quote("AAPL", "20240315");
+
+  # =========================================================================
+  # STOCK / AT-TIME
+  # =========================================================================
+
+  /stock/at_time/trade:
+    x-min-subscription: value
+    get:
+      operationId: stockAtTimeTrade
+      summary: Stock trade at specific time
+      description: |
+        Trade at a specific time of day across a date range.
+        time_of_day is milliseconds from midnight ET (e.g. "34200000" for 9:30 AM ET).
+        gRPC: GetStockAtTimeTrade
+      tags: [Stock / AtTime]
+      parameters:
+        - *symbol-param
+        - *start_date-param
+        - *end_date-param
+        - *time_of_day-param
+        - *venue-param
+      responses:
+        '200': *trade-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let trades = tdx.stock_at_time_trade("AAPL", "20240101", "20240301", "34200000").await?;
+        - lang: python
+          label: Python
+          source: |
+            trades = tdx.stock_at_time_trade("AAPL", "20240101", "20240301", "34200000")
+        - lang: go
+          label: Go
+          source: |
+            trades, err := client.StockAtTimeTrade("AAPL", "20240101", "20240301", "34200000")
+        - lang: cpp
+          label: C++
+          source: |
+            auto trades = client.stock_at_time_trade("AAPL", "20240101", "20240301", "34200000");
+
+  /stock/at_time/quote:
+    x-min-subscription: value
+    get:
+      operationId: stockAtTimeQuote
+      summary: Stock quote at specific time
+      description: |
+        Quote at a specific time of day across a date range.
+        gRPC: GetStockAtTimeQuote
+      tags: [Stock / AtTime]
+      parameters:
+        - *symbol-param
+        - *start_date-param
+        - *end_date-param
+        - *time_of_day-param
+        - *venue-param
+      responses:
+        '200': *quote-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let quotes = tdx.stock_at_time_quote("AAPL", "20240101", "20240301", "34200000").await?;
+        - lang: python
+          label: Python
+          source: |
+            quotes = tdx.stock_at_time_quote("AAPL", "20240101", "20240301", "34200000")
+        - lang: go
+          label: Go
+          source: |
+            quotes, err := client.StockAtTimeQuote("AAPL", "20240101", "20240301", "34200000")
+        - lang: cpp
+          label: C++
+          source: |
+            auto quotes = client.stock_at_time_quote("AAPL", "20240101", "20240301", "34200000");
+
+  # =========================================================================
+  # OPTION / LIST
+  # =========================================================================
+
+  /option/list/symbols:
+    x-min-subscription: free
+    get:
+      operationId: optionListSymbols
+      summary: List all option underlying symbols
+      description: |
+        Returns all option underlying symbols. Updated overnight.
+        gRPC: GetOptionListSymbols
+      tags: [Option / List]
+      parameters: []
+      responses:
+        '200': *symbol-list-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let symbols = tdx.option_list_symbols().await?;
+        - lang: python
+          label: Python
+          source: |
+            symbols = tdx.option_list_symbols()
+        - lang: go
+          label: Go
+          source: |
+            symbols, err := client.OptionListSymbols()
+        - lang: cpp
+          label: C++
+          source: |
+            auto symbols = client.option_list_symbols();
+
+  /option/list/dates:
+    x-min-subscription: free
+    get:
+      operationId: optionListDates
+      summary: List available dates for an option contract
+      description: |
+        Lists all dates of data available for an option contract by request type.
+        gRPC: GetOptionListDates
+      tags: [Option / List]
+      parameters:
+        - *request_type-param
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+      responses:
+        '200': *date-list-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let dates = tdx.option_list_dates("TRADE", "SPY", "20240419", "500000", "C").await?;
+        - lang: python
+          label: Python
+          source: |
+            dates = tdx.option_list_dates("TRADE", "SPY", "20240419", "500000", "C")
+        - lang: go
+          label: Go
+          source: |
+            dates, err := client.OptionListDates("TRADE", "SPY", "20240419", "500000", "C")
+        - lang: cpp
+          label: C++
+          source: |
+            auto dates = client.option_list_dates("TRADE", "SPY", "20240419", "500000", "C");
+
+  /option/list/expirations:
+    x-min-subscription: free
+    get:
+      operationId: optionListExpirations
+      summary: List option expiration dates
+      description: |
+        Returns all expiration dates for an underlying symbol as YYYYMMDD strings.
+        gRPC: GetOptionListExpirations
+      tags: [Option / List]
+      parameters:
+        - *symbol-param
+      responses:
+        '200': *date-list-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let exps = tdx.option_list_expirations("SPY").await?;
+        - lang: python
+          label: Python
+          source: |
+            exps = tdx.option_list_expirations("SPY")
+        - lang: go
+          label: Go
+          source: |
+            exps, err := client.OptionListExpirations("SPY")
+        - lang: cpp
+          label: C++
+          source: |
+            auto exps = client.option_list_expirations("SPY");
+
+  /option/list/strikes:
+    x-min-subscription: free
+    get:
+      operationId: optionListStrikes
+      summary: List option strike prices
+      description: |
+        Returns all strike prices for a given underlying + expiration.
+        gRPC: GetOptionListStrikes
+      tags: [Option / List]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let strikes = tdx.option_list_strikes("SPY", "20240419").await?;
+        - lang: python
+          label: Python
+          source: |
+            strikes = tdx.option_list_strikes("SPY", "20240419")
+        - lang: go
+          label: Go
+          source: |
+            strikes, err := client.OptionListStrikes("SPY", "20240419")
+        - lang: cpp
+          label: C++
+          source: |
+            auto strikes = client.option_list_strikes("SPY", "20240419");
+
+  /option/list/contracts:
+    x-min-subscription: free
+    get:
+      operationId: optionListContracts
+      summary: List all option contracts for a date
+      description: |
+        Returns all option contracts for a symbol on a given date. Returns a DataTable
+        with contract details (root, expiration, strike, right).
+        gRPC: GetOptionListContracts
+      tags: [Option / List]
+      parameters:
+        - *request_type-param
+        - *symbol-param
+        - *date-param
+        - *max_dte-param
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let contracts = tdx.option_list_contracts("TRADE", "SPY", "20240315").await?;
+        - lang: python
+          label: Python
+          source: |
+            contracts = tdx.option_list_contracts("TRADE", "SPY", "20240315")
+        - lang: go
+          label: Go
+          source: |
+            contracts, err := client.OptionListContracts("TRADE", "SPY", "20240315")
+        - lang: cpp
+          label: C++
+          source: |
+            auto contracts = client.option_list_contracts("TRADE", "SPY", "20240315");
+
+  # =========================================================================
+  # OPTION / SNAPSHOT
+  # =========================================================================
+
+  /option/snapshot/ohlc:
+    x-min-subscription: value
+    get:
+      operationId: optionSnapshotOhlc
+      summary: Option OHLC snapshot
+      description: |
+        Latest OHLC snapshot for option contracts.
+        gRPC: GetOptionSnapshotOhlc
+      tags: [Option / Snapshot]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *max_dte-param
+        - *strike_range-param
+        - *min_time-param
+      responses:
+        '200': *ohlc-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let ohlc = tdx.option_snapshot_ohlc("SPY", "20240419", "500000", "C").await?;
+        - lang: python
+          label: Python
+          source: |
+            ohlc = tdx.option_snapshot_ohlc("SPY", "20240419", "500000", "C")
+        - lang: go
+          label: Go
+          source: |
+            ohlc, err := client.OptionSnapshotOHLC("SPY", "20240419", "500000", "C")
+        - lang: cpp
+          label: C++
+          source: |
+            auto ohlc = client.option_snapshot_ohlc("SPY", "20240419", "500000", "C");
+
+  /option/snapshot/trade:
+    x-min-subscription: standard
+    get:
+      operationId: optionSnapshotTrade
+      summary: Option trade snapshot
+      description: |
+        Latest trade snapshot for option contracts.
+        gRPC: GetOptionSnapshotTrade
+      tags: [Option / Snapshot]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *strike_range-param
+        - *min_time-param
+      responses:
+        '200': *trade-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let trades = tdx.option_snapshot_trade("SPY", "20240419", "500000", "C").await?;
+        - lang: python
+          label: Python
+          source: |
+            trades = tdx.option_snapshot_trade("SPY", "20240419", "500000", "C")
+        - lang: go
+          label: Go
+          source: |
+            trades, err := client.OptionSnapshotTrade("SPY", "20240419", "500000", "C")
+        - lang: cpp
+          label: C++
+          source: |
+            auto trades = client.option_snapshot_trade("SPY", "20240419", "500000", "C");
+
+  /option/snapshot/quote:
+    x-min-subscription: value
+    get:
+      operationId: optionSnapshotQuote
+      summary: Option quote snapshot
+      description: |
+        Latest NBBO quote snapshot for option contracts.
+        gRPC: GetOptionSnapshotQuote
+      tags: [Option / Snapshot]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *max_dte-param
+        - *strike_range-param
+        - *min_time-param
+      responses:
+        '200': *quote-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let quotes = tdx.option_snapshot_quote("SPY", "20240419", "500000", "C").await?;
+        - lang: python
+          label: Python
+          source: |
+            quotes = tdx.option_snapshot_quote("SPY", "20240419", "500000", "C")
+        - lang: go
+          label: Go
+          source: |
+            quotes, err := client.OptionSnapshotQuote("SPY", "20240419", "500000", "C")
+        - lang: cpp
+          label: C++
+          source: |
+            auto quotes = client.option_snapshot_quote("SPY", "20240419", "500000", "C");
+
+  /option/snapshot/open_interest:
+    x-min-subscription: value
+    get:
+      operationId: optionSnapshotOpenInterest
+      summary: Option open interest snapshot
+      description: |
+        Latest open interest snapshot for option contracts.
+        gRPC: GetOptionSnapshotOpenInterest
+      tags: [Option / Snapshot]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *max_dte-param
+        - *strike_range-param
+        - *min_time-param
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let oi = tdx.option_snapshot_open_interest("SPY", "20240419", "500000", "C").await?;
+        - lang: python
+          label: Python
+          source: |
+            oi = tdx.option_snapshot_open_interest("SPY", "20240419", "500000", "C")
+        - lang: go
+          label: Go
+          source: |
+            oi, err := client.OptionSnapshotOpenInterest("SPY", "20240419", "500000", "C")
+        - lang: cpp
+          label: C++
+          source: |
+            auto oi = client.option_snapshot_open_interest("SPY", "20240419", "500000", "C");
+
+  /option/snapshot/market_value:
+    x-min-subscription: standard
+    get:
+      operationId: optionSnapshotMarketValue
+      summary: Option market value snapshot
+      description: |
+        Latest market value snapshot for option contracts.
+        gRPC: GetOptionSnapshotMarketValue
+      tags: [Option / Snapshot]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *max_dte-param
+        - *strike_range-param
+        - *min_time-param
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let mv = tdx.option_snapshot_market_value("SPY", "20240419", "500000", "C").await?;
+        - lang: python
+          label: Python
+          source: |
+            mv = tdx.option_snapshot_market_value("SPY", "20240419", "500000", "C")
+        - lang: go
+          label: Go
+          source: |
+            mv, err := client.OptionSnapshotMarketValue("SPY", "20240419", "500000", "C")
+        - lang: cpp
+          label: C++
+          source: |
+            auto mv = client.option_snapshot_market_value("SPY", "20240419", "500000", "C");
+
+  # =========================================================================
+  # OPTION / SNAPSHOT GREEKS
+  # =========================================================================
+
+  /option/snapshot/greeks/implied_volatility:
+    x-min-subscription: value
+    get:
+      operationId: optionSnapshotGreeksImpliedVolatility
+      summary: Option implied volatility snapshot
+      description: |
+        Real-time implied volatility snapshot for option contracts.
+        gRPC: GetOptionSnapshotGreeksImpliedVolatility
+      tags: [Option / Snapshot Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *max_dte-param
+        - *strike_range-param
+        - *min_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *stock_price-param
+        - *greeks_version-param
+        - *use_market_value-param
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let iv = tdx.option_snapshot_greeks_implied_volatility("SPY", "20240419", "500000", "C").await?;
+        - lang: python
+          label: Python
+          source: |
+            iv = tdx.option_snapshot_greeks_implied_volatility("SPY", "20240419", "500000", "C")
+        - lang: go
+          label: Go
+          source: |
+            iv, err := client.OptionSnapshotGreeksIV("SPY", "20240419", "500000", "C")
+        - lang: cpp
+          label: C++
+          source: |
+            auto iv = client.option_snapshot_greeks_implied_volatility("SPY", "20240419", "500000", "C");
+
+  /option/snapshot/greeks/all:
+    x-min-subscription: value
+    get:
+      operationId: optionSnapshotGreeksAll
+      summary: Option all Greeks snapshot
+      description: |
+        Snapshot of all 22 Greeks (delta, gamma, theta, vega, rho, vanna, charm, vomma,
+        veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda, IV, value).
+        gRPC: GetOptionSnapshotGreeksAll
+      tags: [Option / Snapshot Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *max_dte-param
+        - *strike_range-param
+        - *min_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *stock_price-param
+        - *greeks_version-param
+        - *use_market_value-param
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let greeks = tdx.option_snapshot_greeks_all("SPY", "20240419", "500000", "C").await?;
+        - lang: python
+          label: Python
+          source: |
+            greeks = tdx.option_snapshot_greeks_all("SPY", "20240419", "500000", "C")
+        - lang: go
+          label: Go
+          source: |
+            greeks, err := client.OptionSnapshotGreeksAll("SPY", "20240419", "500000", "C")
+        - lang: cpp
+          label: C++
+          source: |
+            auto greeks = client.option_snapshot_greeks_all("SPY", "20240419", "500000", "C");
+
+  /option/snapshot/greeks/first_order:
+    x-min-subscription: value
+    get:
+      operationId: optionSnapshotGreeksFirstOrder
+      summary: Option first-order Greeks snapshot
+      description: |
+        First-order Greeks snapshot (delta, theta, vega, rho, epsilon, lambda).
+        gRPC: GetOptionSnapshotGreeksFirstOrder
+      tags: [Option / Snapshot Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *max_dte-param
+        - *strike_range-param
+        - *min_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *stock_price-param
+        - *greeks_version-param
+        - *use_market_value-param
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let g1 = tdx.option_snapshot_greeks_first_order("SPY", "20240419", "500000", "C").await?;
+        - lang: python
+          label: Python
+          source: |
+            g1 = tdx.option_snapshot_greeks_first_order("SPY", "20240419", "500000", "C")
+        - lang: go
+          label: Go
+          source: |
+            g1, err := client.OptionSnapshotGreeksFirstOrder("SPY", "20240419", "500000", "C")
+        - lang: cpp
+          label: C++
+          source: |
+            auto g1 = client.option_snapshot_greeks_first_order("SPY", "20240419", "500000", "C");
+
+  /option/snapshot/greeks/second_order:
+    x-min-subscription: value
+    get:
+      operationId: optionSnapshotGreeksSecondOrder
+      summary: Option second-order Greeks snapshot
+      description: |
+        Second-order Greeks snapshot (gamma, vanna, charm, vomma, veta, dual_delta, dual_gamma).
+        gRPC: GetOptionSnapshotGreeksSecondOrder
+      tags: [Option / Snapshot Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *max_dte-param
+        - *strike_range-param
+        - *min_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *stock_price-param
+        - *greeks_version-param
+        - *use_market_value-param
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let g2 = tdx.option_snapshot_greeks_second_order("SPY", "20240419", "500000", "C").await?;
+        - lang: python
+          label: Python
+          source: |
+            g2 = tdx.option_snapshot_greeks_second_order("SPY", "20240419", "500000", "C")
+        - lang: go
+          label: Go
+          source: |
+            g2, err := client.OptionSnapshotGreeksSecondOrder("SPY", "20240419", "500000", "C")
+        - lang: cpp
+          label: C++
+          source: |
+            auto g2 = client.option_snapshot_greeks_second_order("SPY", "20240419", "500000", "C");
+
+  /option/snapshot/greeks/third_order:
+    x-min-subscription: value
+    get:
+      operationId: optionSnapshotGreeksThirdOrder
+      summary: Option third-order Greeks snapshot
+      description: |
+        Third-order Greeks snapshot (speed, zomma, color, ultima).
+        gRPC: GetOptionSnapshotGreeksThirdOrder
+      tags: [Option / Snapshot Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *max_dte-param
+        - *strike_range-param
+        - *min_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *stock_price-param
+        - *greeks_version-param
+        - *use_market_value-param
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let g3 = tdx.option_snapshot_greeks_third_order("SPY", "20240419", "500000", "C").await?;
+        - lang: python
+          label: Python
+          source: |
+            g3 = tdx.option_snapshot_greeks_third_order("SPY", "20240419", "500000", "C")
+        - lang: go
+          label: Go
+          source: |
+            g3, err := client.OptionSnapshotGreeksThirdOrder("SPY", "20240419", "500000", "C")
+        - lang: cpp
+          label: C++
+          source: |
+            auto g3 = client.option_snapshot_greeks_third_order("SPY", "20240419", "500000", "C");
+
+  # =========================================================================
+  # OPTION / HISTORY
+  # =========================================================================
+
+  /option/history/eod:
+    x-min-subscription: value
+    get:
+      operationId: optionHistoryEod
+      summary: Option end-of-day history
+      description: |
+        End-of-day option data for a date range. Includes OHLC + closing quote.
+        gRPC: GetOptionHistoryEod
+      tags: [Option / History]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *start_date-param
+        - *end_date-param
+        - *max_dte-param
+        - *strike_range-param
+      responses:
+        '200': *eod-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let eod = tdx.option_history_eod("SPY", "20240419", "500000", "C", "20240101", "20240301").await?;
+        - lang: python
+          label: Python
+          source: |
+            eod = tdx.option_history_eod("SPY", "20240419", "500000", "C", "20240101", "20240301")
+            df = tdx.option_history_eod_df("SPY", "20240419", "500000", "C", "20240101", "20240301")
+        - lang: go
+          label: Go
+          source: |
+            eod, err := client.OptionHistoryEOD("SPY", "20240419", "500000", "C", "20240101", "20240301")
+        - lang: cpp
+          label: C++
+          source: |
+            auto eod = client.option_history_eod("SPY", "20240419", "500000", "C", "20240101", "20240301");
+
+  /option/history/ohlc:
+    x-min-subscription: value
+    get:
+      operationId: optionHistoryOhlc
+      summary: Option intraday OHLC bars
+      description: |
+        Intraday option OHLC bars for a given date and interval.
+        gRPC: GetOptionHistoryOhlc
+      tags: [Option / History]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *interval-param
+        - *start_time-param
+        - *end_time-param
+        - *strike_range-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date for multi-day range (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date for multi-day range (YYYYMMDD)
+      responses:
+        '200': *ohlc-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let bars = tdx.option_history_ohlc("SPY", "20240419", "500000", "C", "20240315", "60000").await?;
+        - lang: python
+          label: Python
+          source: |
+            bars = tdx.option_history_ohlc("SPY", "20240419", "500000", "C", "20240315", "60000")
+        - lang: go
+          label: Go
+          source: |
+            bars, err := client.OptionHistoryOHLC("SPY", "20240419", "500000", "C", "20240315", "60000")
+        - lang: cpp
+          label: C++
+          source: |
+            auto bars = client.option_history_ohlc("SPY", "20240419", "500000", "C", "20240315", "60000");
+
+  /option/history/trade:
+    x-min-subscription: value
+    get:
+      operationId: optionHistoryTrade
+      summary: Option trade history
+      description: |
+        All trades for an option contract on a given date.
+        gRPC: GetOptionHistoryTrade
+      tags: [Option / History]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *start_time-param
+        - *end_time-param
+        - *max_dte-param
+        - *strike_range-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date (YYYYMMDD)
+      responses:
+        '200': *trade-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let trades = tdx.option_history_trade("SPY", "20240419", "500000", "C", "20240315").await?;
+        - lang: python
+          label: Python
+          source: |
+            trades = tdx.option_history_trade("SPY", "20240419", "500000", "C", "20240315")
+        - lang: go
+          label: Go
+          source: |
+            trades, err := client.OptionHistoryTrade("SPY", "20240419", "500000", "C", "20240315")
+        - lang: cpp
+          label: C++
+          source: |
+            auto trades = client.option_history_trade("SPY", "20240419", "500000", "C", "20240315");
+
+  /option/history/quote:
+    x-min-subscription: value
+    get:
+      operationId: optionHistoryQuote
+      summary: Option quote history
+      description: |
+        NBBO quotes for an option contract at a given interval.
+        gRPC: GetOptionHistoryQuote
+      tags: [Option / History]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *interval-param
+        - *start_time-param
+        - *end_time-param
+        - *max_dte-param
+        - *strike_range-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date (YYYYMMDD)
+      responses:
+        '200': *quote-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let quotes = tdx.option_history_quote("SPY", "20240419", "500000", "C", "20240315", "60000").await?;
+        - lang: python
+          label: Python
+          source: |
+            quotes = tdx.option_history_quote("SPY", "20240419", "500000", "C", "20240315", "60000")
+        - lang: go
+          label: Go
+          source: |
+            quotes, err := client.OptionHistoryQuote("SPY", "20240419", "500000", "C", "20240315", "60000")
+        - lang: cpp
+          label: C++
+          source: |
+            auto quotes = client.option_history_quote("SPY", "20240419", "500000", "C", "20240315", "60000");
+
+  /option/history/trade_quote:
+    x-min-subscription: pro
+    get:
+      operationId: optionHistoryTradeQuote
+      summary: Option combined trade + quote history
+      description: |
+        Combined trade and quote ticks for an option contract.
+        gRPC: GetOptionHistoryTradeQuote
+      tags: [Option / History]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *start_time-param
+        - *end_time-param
+        - *exclusive-param
+        - *max_dte-param
+        - *strike_range-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date (YYYYMMDD)
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let tq = tdx.option_history_trade_quote("SPY", "20240419", "500000", "C", "20240315").await?;
+        - lang: python
+          label: Python
+          source: |
+            tq = tdx.option_history_trade_quote("SPY", "20240419", "500000", "C", "20240315")
+        - lang: go
+          label: Go
+          source: |
+            tq, err := client.OptionHistoryTradeQuote("SPY", "20240419", "500000", "C", "20240315")
+        - lang: cpp
+          label: C++
+          source: |
+            auto tq = client.option_history_trade_quote("SPY", "20240419", "500000", "C", "20240315");
+
+  /option/history/open_interest:
+    x-min-subscription: value
+    get:
+      operationId: optionHistoryOpenInterest
+      summary: Option open interest history
+      description: |
+        Open interest history for an option contract.
+        gRPC: GetOptionHistoryOpenInterest
+      tags: [Option / History]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *max_dte-param
+        - *strike_range-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date (YYYYMMDD)
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let oi = tdx.option_history_open_interest("SPY", "20240419", "500000", "C", "20240315").await?;
+        - lang: python
+          label: Python
+          source: |
+            oi = tdx.option_history_open_interest("SPY", "20240419", "500000", "C", "20240315")
+        - lang: go
+          label: Go
+          source: |
+            oi, err := client.OptionHistoryOpenInterest("SPY", "20240419", "500000", "C", "20240315")
+        - lang: cpp
+          label: C++
+          source: |
+            auto oi = client.option_history_open_interest("SPY", "20240419", "500000", "C", "20240315");
+
+  # =========================================================================
+  # OPTION / HISTORY GREEKS
+  # =========================================================================
+
+  /option/history/greeks/eod:
+    x-min-subscription: value
+    get:
+      operationId: optionHistoryGreeksEod
+      summary: Option EOD Greeks history
+      description: |
+        End-of-day Greeks history for an option contract.
+        gRPC: GetOptionHistoryGreeksEod
+      tags: [Option / History Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *start_date-param
+        - *end_date-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *greeks_version-param
+        - *underlyer_use_nbbo-param
+        - *max_dte-param
+        - *strike_range-param
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let greeks = tdx.option_history_greeks_eod("SPY", "20240419", "500000", "C", "20240101", "20240301").await?;
+        - lang: python
+          label: Python
+          source: |
+            greeks = tdx.option_history_greeks_eod("SPY", "20240419", "500000", "C", "20240101", "20240301")
+        - lang: go
+          label: Go
+          source: |
+            greeks, err := client.OptionHistoryGreeksEOD("SPY", "20240419", "500000", "C", "20240101", "20240301")
+        - lang: cpp
+          label: C++
+          source: |
+            auto greeks = client.option_history_greeks_eod("SPY", "20240419", "500000", "C", "20240101", "20240301");
+
+  /option/history/greeks/all:
+    x-min-subscription: value
+    get:
+      operationId: optionHistoryGreeksAll
+      summary: Option all Greeks history (intraday)
+      description: |
+        All 22 Greeks history, sampled at a given interval.
+        gRPC: GetOptionHistoryGreeksAll
+      tags: [Option / History Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *interval-param
+        - *start_time-param
+        - *end_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *greeks_version-param
+        - *strike_range-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date (YYYYMMDD)
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let greeks = tdx.option_history_greeks_all("SPY", "20240419", "500000", "C", "20240315", "60000").await?;
+        - lang: python
+          label: Python
+          source: |
+            greeks = tdx.option_history_greeks_all("SPY", "20240419", "500000", "C", "20240315", "60000")
+        - lang: go
+          label: Go
+          source: |
+            greeks, err := client.OptionHistoryGreeksAll("SPY", "20240419", "500000", "C", "20240315", "60000")
+        - lang: cpp
+          label: C++
+          source: |
+            auto greeks = client.option_history_greeks_all("SPY", "20240419", "500000", "C", "20240315", "60000");
+
+  /option/history/greeks/first_order:
+    x-min-subscription: value
+    get:
+      operationId: optionHistoryGreeksFirstOrder
+      summary: Option first-order Greeks history (intraday)
+      description: |
+        First-order Greeks history (delta, theta, vega, rho), sampled at a given interval.
+        gRPC: GetOptionHistoryGreeksFirstOrder
+      tags: [Option / History Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *interval-param
+        - *start_time-param
+        - *end_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *greeks_version-param
+        - *strike_range-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date (YYYYMMDD)
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let g1 = tdx.option_history_greeks_first_order("SPY", "20240419", "500000", "C", "20240315", "60000").await?;
+        - lang: python
+          label: Python
+          source: |
+            g1 = tdx.option_history_greeks_first_order("SPY", "20240419", "500000", "C", "20240315", "60000")
+        - lang: go
+          label: Go
+          source: |
+            g1, err := client.OptionHistoryGreeksFirstOrder("SPY", "20240419", "500000", "C", "20240315", "60000")
+        - lang: cpp
+          label: C++
+          source: |
+            auto g1 = client.option_history_greeks_first_order("SPY", "20240419", "500000", "C", "20240315", "60000");
+
+  /option/history/greeks/second_order:
+    x-min-subscription: value
+    get:
+      operationId: optionHistoryGreeksSecondOrder
+      summary: Option second-order Greeks history (intraday)
+      description: |
+        Second-order Greeks history (gamma, vanna, charm, vomma, veta), sampled at a given interval.
+        gRPC: GetOptionHistoryGreeksSecondOrder
+      tags: [Option / History Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *interval-param
+        - *start_time-param
+        - *end_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *greeks_version-param
+        - *strike_range-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date (YYYYMMDD)
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let g2 = tdx.option_history_greeks_second_order("SPY", "20240419", "500000", "C", "20240315", "60000").await?;
+        - lang: python
+          label: Python
+          source: |
+            g2 = tdx.option_history_greeks_second_order("SPY", "20240419", "500000", "C", "20240315", "60000")
+        - lang: go
+          label: Go
+          source: |
+            g2, err := client.OptionHistoryGreeksSecondOrder("SPY", "20240419", "500000", "C", "20240315", "60000")
+        - lang: cpp
+          label: C++
+          source: |
+            auto g2 = client.option_history_greeks_second_order("SPY", "20240419", "500000", "C", "20240315", "60000");
+
+  /option/history/greeks/third_order:
+    x-min-subscription: value
+    get:
+      operationId: optionHistoryGreeksThirdOrder
+      summary: Option third-order Greeks history (intraday)
+      description: |
+        Third-order Greeks history (speed, zomma, color, ultima), sampled at a given interval.
+        gRPC: GetOptionHistoryGreeksThirdOrder
+      tags: [Option / History Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *interval-param
+        - *start_time-param
+        - *end_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *greeks_version-param
+        - *strike_range-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date (YYYYMMDD)
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let g3 = tdx.option_history_greeks_third_order("SPY", "20240419", "500000", "C", "20240315", "60000").await?;
+        - lang: python
+          label: Python
+          source: |
+            g3 = tdx.option_history_greeks_third_order("SPY", "20240419", "500000", "C", "20240315", "60000")
+        - lang: go
+          label: Go
+          source: |
+            g3, err := client.OptionHistoryGreeksThirdOrder("SPY", "20240419", "500000", "C", "20240315", "60000")
+        - lang: cpp
+          label: C++
+          source: |
+            auto g3 = client.option_history_greeks_third_order("SPY", "20240419", "500000", "C", "20240315", "60000");
+
+  /option/history/greeks/implied_volatility:
+    x-min-subscription: value
+    get:
+      operationId: optionHistoryGreeksImpliedVolatility
+      summary: Option implied volatility history (intraday)
+      description: |
+        Implied volatility history, sampled at a given interval.
+        gRPC: GetOptionHistoryGreeksImpliedVolatility
+      tags: [Option / History Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *interval-param
+        - *start_time-param
+        - *end_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *greeks_version-param
+        - *strike_range-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date (YYYYMMDD)
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let iv = tdx.option_history_greeks_implied_volatility("SPY", "20240419", "500000", "C", "20240315", "60000").await?;
+        - lang: python
+          label: Python
+          source: |
+            iv = tdx.option_history_greeks_implied_volatility("SPY", "20240419", "500000", "C", "20240315", "60000")
+        - lang: go
+          label: Go
+          source: |
+            iv, err := client.OptionHistoryGreeksImpliedVolatility("SPY", "20240419", "500000", "C", "20240315", "60000")
+        - lang: cpp
+          label: C++
+          source: |
+            auto iv = client.option_history_greeks_implied_volatility("SPY", "20240419", "500000", "C", "20240315", "60000");
+
+  # =========================================================================
+  # OPTION / HISTORY TRADE GREEKS
+  # =========================================================================
+
+  /option/history/trade_greeks/all:
+    x-min-subscription: pro
+    get:
+      operationId: optionHistoryTradeGreeksAll
+      summary: Option all Greeks on each trade
+      description: |
+        All 22 Greeks computed on each individual trade for an option contract.
+        gRPC: GetOptionHistoryTradeGreeksAll
+      tags: [Option / History Trade Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *start_time-param
+        - *end_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *greeks_version-param
+        - *max_dte-param
+        - *strike_range-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date (YYYYMMDD)
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let tg = tdx.option_history_trade_greeks_all("SPY", "20240419", "500000", "C", "20240315").await?;
+        - lang: python
+          label: Python
+          source: |
+            tg = tdx.option_history_trade_greeks_all("SPY", "20240419", "500000", "C", "20240315")
+        - lang: go
+          label: Go
+          source: |
+            tg, err := client.OptionHistoryTradeGreeksAll("SPY", "20240419", "500000", "C", "20240315")
+        - lang: cpp
+          label: C++
+          source: |
+            auto tg = client.option_history_trade_greeks_all("SPY", "20240419", "500000", "C", "20240315");
+
+  /option/history/trade_greeks/first_order:
+    x-min-subscription: pro
+    get:
+      operationId: optionHistoryTradeGreeksFirstOrder
+      summary: Option first-order Greeks on each trade
+      description: |
+        First-order Greeks (delta, theta, vega, rho) computed on each individual trade.
+        gRPC: GetOptionHistoryTradeGreeksFirstOrder
+      tags: [Option / History Trade Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *start_time-param
+        - *end_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *greeks_version-param
+        - *max_dte-param
+        - *strike_range-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date (YYYYMMDD)
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let tg1 = tdx.option_history_trade_greeks_first_order("SPY", "20240419", "500000", "C", "20240315").await?;
+        - lang: python
+          label: Python
+          source: |
+            tg1 = tdx.option_history_trade_greeks_first_order("SPY", "20240419", "500000", "C", "20240315")
+        - lang: go
+          label: Go
+          source: |
+            tg1, err := client.OptionHistoryTradeGreeksFirstOrder("SPY", "20240419", "500000", "C", "20240315")
+        - lang: cpp
+          label: C++
+          source: |
+            auto tg1 = client.option_history_trade_greeks_first_order("SPY", "20240419", "500000", "C", "20240315");
+
+  /option/history/trade_greeks/second_order:
+    x-min-subscription: pro
+    get:
+      operationId: optionHistoryTradeGreeksSecondOrder
+      summary: Option second-order Greeks on each trade
+      description: |
+        Second-order Greeks (gamma, vanna, charm, vomma, veta) computed on each individual trade.
+        gRPC: GetOptionHistoryTradeGreeksSecondOrder
+      tags: [Option / History Trade Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *start_time-param
+        - *end_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *greeks_version-param
+        - *max_dte-param
+        - *strike_range-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date (YYYYMMDD)
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let tg2 = tdx.option_history_trade_greeks_second_order("SPY", "20240419", "500000", "C", "20240315").await?;
+        - lang: python
+          label: Python
+          source: |
+            tg2 = tdx.option_history_trade_greeks_second_order("SPY", "20240419", "500000", "C", "20240315")
+        - lang: go
+          label: Go
+          source: |
+            tg2, err := client.OptionHistoryTradeGreeksSecondOrder("SPY", "20240419", "500000", "C", "20240315")
+        - lang: cpp
+          label: C++
+          source: |
+            auto tg2 = client.option_history_trade_greeks_second_order("SPY", "20240419", "500000", "C", "20240315");
+
+  /option/history/trade_greeks/third_order:
+    x-min-subscription: pro
+    get:
+      operationId: optionHistoryTradeGreeksThirdOrder
+      summary: Option third-order Greeks on each trade
+      description: |
+        Third-order Greeks (speed, zomma, color, ultima) computed on each individual trade.
+        gRPC: GetOptionHistoryTradeGreeksThirdOrder
+      tags: [Option / History Trade Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *start_time-param
+        - *end_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *greeks_version-param
+        - *max_dte-param
+        - *strike_range-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date (YYYYMMDD)
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let tg3 = tdx.option_history_trade_greeks_third_order("SPY", "20240419", "500000", "C", "20240315").await?;
+        - lang: python
+          label: Python
+          source: |
+            tg3 = tdx.option_history_trade_greeks_third_order("SPY", "20240419", "500000", "C", "20240315")
+        - lang: go
+          label: Go
+          source: |
+            tg3, err := client.OptionHistoryTradeGreeksThirdOrder("SPY", "20240419", "500000", "C", "20240315")
+        - lang: cpp
+          label: C++
+          source: |
+            auto tg3 = client.option_history_trade_greeks_third_order("SPY", "20240419", "500000", "C", "20240315");
+
+  /option/history/trade_greeks/implied_volatility:
+    x-min-subscription: pro
+    get:
+      operationId: optionHistoryTradeGreeksImpliedVolatility
+      summary: Option implied volatility on each trade
+      description: |
+        Implied volatility computed on each individual trade.
+        gRPC: GetOptionHistoryTradeGreeksImpliedVolatility
+      tags: [Option / History Trade Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *start_time-param
+        - *end_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *greeks_version-param
+        - *max_dte-param
+        - *strike_range-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date (YYYYMMDD)
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let tiv = tdx.option_history_trade_greeks_implied_volatility("SPY", "20240419", "500000", "C", "20240315").await?;
+        - lang: python
+          label: Python
+          source: |
+            tiv = tdx.option_history_trade_greeks_implied_volatility("SPY", "20240419", "500000", "C", "20240315")
+        - lang: go
+          label: Go
+          source: |
+            tiv, err := client.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20240419", "500000", "C", "20240315")
+        - lang: cpp
+          label: C++
+          source: |
+            auto tiv = client.option_history_trade_greeks_implied_volatility("SPY", "20240419", "500000", "C", "20240315");
+
+  # =========================================================================
+  # OPTION / AT-TIME
+  # =========================================================================
+
+  /option/at_time/trade:
+    x-min-subscription: value
+    get:
+      operationId: optionAtTimeTrade
+      summary: Option trade at specific time
+      description: |
+        Trade at a specific time of day across a date range for an option contract.
+        gRPC: GetOptionAtTimeTrade
+      tags: [Option / AtTime]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *start_date-param
+        - *end_date-param
+        - *time_of_day-param
+        - *max_dte-param
+        - *strike_range-param
+      responses:
+        '200': *trade-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let trades = tdx.option_at_time_trade("SPY", "20240419", "500000", "C", "20240101", "20240301", "34200000").await?;
+        - lang: python
+          label: Python
+          source: |
+            trades = tdx.option_at_time_trade("SPY", "20240419", "500000", "C", "20240101", "20240301", "34200000")
+        - lang: go
+          label: Go
+          source: |
+            trades, err := client.OptionAtTimeTrade("SPY", "20240419", "500000", "C", "20240101", "20240301", "34200000")
+        - lang: cpp
+          label: C++
+          source: |
+            auto trades = client.option_at_time_trade("SPY", "20240419", "500000", "C", "20240101", "20240301", "34200000");
+
+  /option/at_time/quote:
+    x-min-subscription: value
+    get:
+      operationId: optionAtTimeQuote
+      summary: Option quote at specific time
+      description: |
+        Quote at a specific time of day across a date range for an option contract.
+        gRPC: GetOptionAtTimeQuote
+      tags: [Option / AtTime]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *start_date-param
+        - *end_date-param
+        - *time_of_day-param
+        - *max_dte-param
+        - *strike_range-param
+      responses:
+        '200': *quote-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let quotes = tdx.option_at_time_quote("SPY", "20240419", "500000", "C", "20240101", "20240301", "34200000").await?;
+        - lang: python
+          label: Python
+          source: |
+            quotes = tdx.option_at_time_quote("SPY", "20240419", "500000", "C", "20240101", "20240301", "34200000")
+        - lang: go
+          label: Go
+          source: |
+            quotes, err := client.OptionAtTimeQuote("SPY", "20240419", "500000", "C", "20240101", "20240301", "34200000")
+        - lang: cpp
+          label: C++
+          source: |
+            auto quotes = client.option_at_time_quote("SPY", "20240419", "500000", "C", "20240101", "20240301", "34200000");
+
+  # =========================================================================
+  # INDEX / LIST
+  # =========================================================================
+
+  /index/list/symbols:
+    x-min-subscription: free
+    get:
+      operationId: indexListSymbols
+      summary: List all index symbols
+      description: |
+        Returns all available index symbols. Updated overnight.
+        gRPC: GetIndexListSymbols
+      tags: [Index / List]
+      parameters: []
+      responses:
+        '200': *symbol-list-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let symbols = tdx.index_list_symbols().await?;
+        - lang: python
+          label: Python
+          source: |
+            symbols = tdx.index_list_symbols()
+        - lang: go
+          label: Go
+          source: |
+            symbols, err := client.IndexListSymbols()
+        - lang: cpp
+          label: C++
+          source: |
+            auto symbols = client.index_list_symbols();
+
+  /index/list/dates:
+    x-min-subscription: free
+    get:
+      operationId: indexListDates
+      summary: List available dates for an index
+      description: |
+        Lists all dates of data available for an index symbol.
+        gRPC: GetIndexListDates
+      tags: [Index / List]
+      parameters:
+        - *symbol-param
+      responses:
+        '200': *date-list-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let dates = tdx.index_list_dates("SPX").await?;
+        - lang: python
+          label: Python
+          source: |
+            dates = tdx.index_list_dates("SPX")
+        - lang: go
+          label: Go
+          source: |
+            dates, err := client.IndexListDates("SPX")
+        - lang: cpp
+          label: C++
+          source: |
+            auto dates = client.index_list_dates("SPX");
+
+  # =========================================================================
+  # INDEX / SNAPSHOT
+  # =========================================================================
+
+  /index/snapshot/ohlc:
+    x-min-subscription: value
+    get:
+      operationId: indexSnapshotOhlc
+      summary: Index OHLC snapshot
+      description: |
+        Latest OHLC snapshot for one or more indices.
+        gRPC: GetIndexSnapshotOhlc
+      tags: [Index / Snapshot]
+      parameters:
+        - *symbols-param
+        - *min_time-param
+      responses:
+        '200': *ohlc-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let ohlc = tdx.index_snapshot_ohlc(&["SPX"]).await?;
+        - lang: python
+          label: Python
+          source: |
+            ohlc = tdx.index_snapshot_ohlc(["SPX"])
+        - lang: go
+          label: Go
+          source: |
+            ohlc, err := client.IndexSnapshotOHLC([]string{"SPX"})
+        - lang: cpp
+          label: C++
+          source: |
+            auto ohlc = client.index_snapshot_ohlc({"SPX"});
+
+  /index/snapshot/price:
+    x-min-subscription: value
+    get:
+      operationId: indexSnapshotPrice
+      summary: Index price snapshot
+      description: |
+        Latest price snapshot for one or more indices.
+        gRPC: GetIndexSnapshotPrice
+      tags: [Index / Snapshot]
+      parameters:
+        - *symbols-param
+        - *min_time-param
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let price = tdx.index_snapshot_price(&["SPX"]).await?;
+        - lang: python
+          label: Python
+          source: |
+            price = tdx.index_snapshot_price(["SPX"])
+        - lang: go
+          label: Go
+          source: |
+            price, err := client.IndexSnapshotPrice([]string{"SPX"})
+        - lang: cpp
+          label: C++
+          source: |
+            auto price = client.index_snapshot_price({"SPX"});
+
+  /index/snapshot/market_value:
+    x-min-subscription: standard
+    get:
+      operationId: indexSnapshotMarketValue
+      summary: Index market value snapshot
+      description: |
+        Latest market value snapshot for one or more indices.
+        gRPC: GetIndexSnapshotMarketValue
+      tags: [Index / Snapshot]
+      parameters:
+        - *symbols-param
+        - *min_time-param
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let mv = tdx.index_snapshot_market_value(&["SPX"]).await?;
+        - lang: python
+          label: Python
+          source: |
+            mv = tdx.index_snapshot_market_value(["SPX"])
+        - lang: go
+          label: Go
+          source: |
+            mv, err := client.IndexSnapshotMarketValue([]string{"SPX"})
+        - lang: cpp
+          label: C++
+          source: |
+            auto mv = client.index_snapshot_market_value({"SPX"});
+
+  # =========================================================================
+  # INDEX / HISTORY
+  # =========================================================================
+
+  /index/history/eod:
+    x-min-subscription: value
+    get:
+      operationId: indexHistoryEod
+      summary: Index end-of-day history
+      description: |
+        End-of-day index data for a date range.
+        gRPC: GetIndexHistoryEod
+      tags: [Index / History]
+      parameters:
+        - *symbol-param
+        - *start_date-param
+        - *end_date-param
+      responses:
+        '200': *eod-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let eod = tdx.index_history_eod("SPX", "20240101", "20240301").await?;
+        - lang: python
+          label: Python
+          source: |
+            eod = tdx.index_history_eod("SPX", "20240101", "20240301")
+        - lang: go
+          label: Go
+          source: |
+            eod, err := client.IndexHistoryEOD("SPX", "20240101", "20240301")
+        - lang: cpp
+          label: C++
+          source: |
+            auto eod = client.index_history_eod("SPX", "20240101", "20240301");
+
+  /index/history/ohlc:
+    x-min-subscription: value
+    get:
+      operationId: indexHistoryOhlc
+      summary: Index intraday OHLC bars
+      description: |
+        Intraday OHLC bars for an index across a date range.
+        gRPC: GetIndexHistoryOhlc
+      tags: [Index / History]
+      parameters:
+        - *symbol-param
+        - *start_date-param
+        - *end_date-param
+        - *interval-param
+        - *start_time-param
+        - *end_time-param
+      responses:
+        '200': *ohlc-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let bars = tdx.index_history_ohlc("SPX", "20240101", "20240301", "60000").await?;
+        - lang: python
+          label: Python
+          source: |
+            bars = tdx.index_history_ohlc("SPX", "20240101", "20240301", "60000")
+        - lang: go
+          label: Go
+          source: |
+            bars, err := client.IndexHistoryOHLC("SPX", "20240101", "20240301", "60000")
+        - lang: cpp
+          label: C++
+          source: |
+            auto bars = client.index_history_ohlc("SPX", "20240101", "20240301", "60000");
+
+  /index/history/price:
+    x-min-subscription: value
+    get:
+      operationId: indexHistoryPrice
+      summary: Index intraday price history
+      description: |
+        Intraday price history for an index.
+        gRPC: GetIndexHistoryPrice
+      tags: [Index / History]
+      parameters:
+        - *symbol-param
+        - *date-optional-param
+        - *interval-param
+        - *start_time-param
+        - *end_time-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date (YYYYMMDD)
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let prices = tdx.index_history_price("SPX", "20240315", "60000").await?;
+        - lang: python
+          label: Python
+          source: |
+            prices = tdx.index_history_price("SPX", "20240315", "60000")
+        - lang: go
+          label: Go
+          source: |
+            prices, err := client.IndexHistoryPrice("SPX", "20240315", "60000")
+        - lang: cpp
+          label: C++
+          source: |
+            auto prices = client.index_history_price("SPX", "20240315", "60000");
+
+  # =========================================================================
+  # INDEX / AT-TIME
+  # =========================================================================
+
+  /index/at_time/price:
+    x-min-subscription: value
+    get:
+      operationId: indexAtTimePrice
+      summary: Index price at specific time
+      description: |
+        Index price at a specific time of day across a date range.
+        gRPC: GetIndexAtTimePrice
+      tags: [Index / AtTime]
+      parameters:
+        - *symbol-param
+        - *start_date-param
+        - *end_date-param
+        - *time_of_day-param
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let prices = tdx.index_at_time_price("SPX", "20240101", "20240301", "34200000").await?;
+        - lang: python
+          label: Python
+          source: |
+            prices = tdx.index_at_time_price("SPX", "20240101", "20240301", "34200000")
+        - lang: go
+          label: Go
+          source: |
+            prices, err := client.IndexAtTimePrice("SPX", "20240101", "20240301", "34200000")
+        - lang: cpp
+          label: C++
+          source: |
+            auto prices = client.index_at_time_price("SPX", "20240101", "20240301", "34200000");
+
+  # =========================================================================
+  # CALENDAR
+  # =========================================================================
+
+  /calendar/open_today:
+    x-min-subscription: free
+    get:
+      operationId: calendarOpenToday
+      summary: Is the market open today?
+      description: |
+        Returns whether the market is open today.
+        gRPC: GetCalendarOpenToday
+      tags: [Calendar]
+      parameters: []
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let open = tdx.calendar_open_today().await?;
+        - lang: python
+          label: Python
+          source: |
+            open = tdx.calendar_open_today()
+        - lang: go
+          label: Go
+          source: |
+            open, err := client.CalendarOpenToday()
+        - lang: cpp
+          label: C++
+          source: |
+            auto open = client.calendar_open_today();
+
+  /calendar/on_date:
+    x-min-subscription: free
+    get:
+      operationId: calendarOnDate
+      summary: Calendar info for a specific date
+      description: |
+        Returns calendar information (open/close times, early close, holiday) for a specific date.
+        gRPC: GetCalendarOnDate
+      tags: [Calendar]
+      parameters:
+        - *date-param
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let cal = tdx.calendar_on_date("20240315").await?;
+        - lang: python
+          label: Python
+          source: |
+            cal = tdx.calendar_on_date("20240315")
+        - lang: go
+          label: Go
+          source: |
+            cal, err := client.CalendarOnDate("20240315")
+        - lang: cpp
+          label: C++
+          source: |
+            auto cal = client.calendar_on_date("20240315");
+
+  /calendar/year:
+    x-min-subscription: free
+    get:
+      operationId: calendarYear
+      summary: Calendar for an entire year
+      description: |
+        Returns full calendar information for all trading days in a year.
+        gRPC: GetCalendarYear
+      tags: [Calendar]
+      parameters:
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{4}$'
+          description: Four-digit year (e.g. "2024")
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let cal = tdx.calendar_year("2024").await?;
+        - lang: python
+          label: Python
+          source: |
+            cal = tdx.calendar_year("2024")
+        - lang: go
+          label: Go
+          source: |
+            cal, err := client.CalendarYear("2024")
+        - lang: cpp
+          label: C++
+          source: |
+            auto cal = client.calendar_year("2024");
+
+  # =========================================================================
+  # INTEREST RATE
+  # =========================================================================
+
+  /interest_rate/history/eod:
+    x-min-subscription: free
+    get:
+      operationId: interestRateHistoryEod
+      summary: Interest rate EOD history
+      description: |
+        End-of-day interest rate history for a given rate symbol (e.g. "SOFR").
+        gRPC: GetInterestRateHistoryEod
+      tags: [Interest Rate]
+      parameters:
+        - *symbol-param
+        - *start_date-param
+        - *end_date-param
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let rates = tdx.interest_rate_history_eod("SOFR", "20240101", "20240301").await?;
+        - lang: python
+          label: Python
+          source: |
+            rates = tdx.interest_rate_history_eod("SOFR", "20240101", "20240301")
+        - lang: go
+          label: Go
+          source: |
+            rates, err := client.InterestRateHistoryEOD("SOFR", "20240101", "20240301")
+        - lang: cpp
+          label: C++
+          source: |
+            auto rates = client.interest_rate_history_eod("SOFR", "20240101", "20240301");
+
+# ---------------------------------------------------------------------------
+# COMPONENTS
+# ---------------------------------------------------------------------------
+components:
+  securitySchemes:
+    sessionAuth:
+      type: apiKey
+      in: header
+      name: X-Session-UUID
+      description: |
+        Session UUID obtained by authenticating credentials against the Nexus HTTP API.
+        The SDK handles this automatically via `ThetaDataDx::connect()`.
+
+  schemas:
+    OhlcTick: *ohlc-tick
+    TradeTick: *trade-tick
+    QuoteTick: *quote-tick
+    EodTick: *eod-tick
+    OpenInterestTick: *open-interest-tick
+    TradeQuoteTick: *trade-quote-tick
+    GreeksResult: *greeks-result
+    DataTable: *data-table
+
+    ContractSpec:
+      type: object
+      description: Option contract specification
+      required: [symbol, expiration]
+      properties:
+        symbol:
+          type: string
+          description: Underlying symbol (e.g. "SPY")
+        expiration:
+          type: string
+          description: Expiration date in YYYYMMDD format
+        strike:
+          type: string
+          description: Strike price as scaled integer string
+        right:
+          type: string
+          enum: [C, P]
+          description: '"C" for call, "P" for put'
+
+    Contract:
+      type: object
+      description: Full contract representation used in streaming
+      properties:
+        root:
+          type: string
+          description: Underlying symbol
+        sec_type:
+          type: integer
+          enum: [0, 1, 2, 3]
+          description: '0=Stock, 1=Option, 2=Index, 3=Rate'
+        exp_date:
+          type: integer
+          description: Expiration as YYYYMMDD integer (options only)
+        is_call:
+          type: boolean
+          description: true=call, false=put (options only)
+        strike:
+          type: integer
+          description: Scaled integer strike price (options only)
+
+    Price:
+      type: object
+      description: |
+        Fixed-point price with variable decimal precision.
+        Formula: real_price = value * 10^(price_type - 10)
+      properties:
+        value:
+          type: integer
+        price_type:
+          type: integer
+
+    FpssEvent:
+      type: object
+      description: Real-time streaming event from FPSS
+      oneOf:
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [Quote]
+            contract_id:
+              type: integer
+            ms_of_day:
+              type: integer
+            bid:
+              type: integer
+            ask:
+              type: integer
+            bid_size:
+              type: integer
+            ask_size:
+              type: integer
+            bid_exchange:
+              type: integer
+            ask_exchange:
+              type: integer
+            date:
+              type: integer
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [Trade]
+            contract_id:
+              type: integer
+            ms_of_day:
+              type: integer
+            sequence:
+              type: integer
+            price:
+              type: integer
+            size:
+              type: integer
+            exchange:
+              type: integer
+            condition:
+              type: integer
+            date:
+              type: integer
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [OpenInterest]
+            contract_id:
+              type: integer
+            ms_of_day:
+              type: integer
+            open_interest:
+              type: integer
+            date:
+              type: integer
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          enum: [Auth, Http, Grpc, NoData]
+        message:
+          type: string
+
+  parameters:
+    symbol:
+      <<: *symbol-param
+    symbols:
+      <<: *symbols-param
+    start_date:
+      <<: *start_date-param
+    end_date:
+      <<: *end_date-param
+    date:
+      <<: *date-param
+    interval:
+      <<: *interval-param
+    time_of_day:
+      <<: *time_of_day-param
+    venue:
+      <<: *venue-param
+    min_time:
+      <<: *min_time-param
+    request_type:
+      <<: *request_type-param
+    expiration:
+      <<: *expiration-param
+    strike:
+      <<: *strike-param
+    right:
+      <<: *right-param
+    max_dte:
+      <<: *max_dte-param
+    strike_range:
+      <<: *strike_range-param
