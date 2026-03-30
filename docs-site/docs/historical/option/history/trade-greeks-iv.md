@@ -13,12 +13,12 @@ Retrieve implied volatility computed on each individual trade for an option cont
 
 ::: code-group
 ```rust [Rust]
-let iv = client.option_history_trade_greeks_implied_volatility(
+let iv: Vec<IvTick> = tdx.option_history_trade_greeks_implied_volatility(
     "SPY", "20241220", "500000", "C", "20240315"
 ).await?;
 ```
 ```python [Python]
-iv = client.option_history_trade_greeks_implied_volatility(
+iv = tdx.option_history_trade_greeks_implied_volatility(
     "SPY", "20241220", "500000", "C", "20240315")
 ```
 ```go [Go]

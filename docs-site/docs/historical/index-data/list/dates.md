@@ -13,11 +13,11 @@ List all dates for which data is available for a given index symbol.
 
 ::: code-group
 ```rust [Rust]
-let dates: Vec<String> = client.index_list_dates("SPX").await?;
+let dates: Vec<String> = tdx.index_list_dates("SPX").await?;
 println!("First date: {}, Last date: {}", dates.first().unwrap(), dates.last().unwrap());
 ```
 ```python [Python]
-dates = client.index_list_dates("SPX")
+dates = tdx.index_list_dates("SPX")
 print(f"Available from {dates[0]} to {dates[-1]}")
 ```
 ```go [Go]

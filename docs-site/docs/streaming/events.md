@@ -240,6 +240,7 @@ while (true) {
 | `subscribe_trades` | `(symbol) -> int32_t` | Subscribe to trades |
 | `subscribe_open_interest` | `(symbol) -> int32_t` | Subscribe to OI |
 | `subscribe_full_trades` | `(sec_type) -> int32_t` | Subscribe to all trades for a security type |
+| `unsubscribe_quotes` | `(symbol) -> int32_t` | Unsubscribe from quotes |
 | `unsubscribe_trades` | `(symbol) -> int32_t` | Unsubscribe from trades |
 | `unsubscribe_open_interest` | `(symbol) -> int32_t` | Unsubscribe from OI |
 | `next_event` | `(timeout_ms) -> std::string` | Poll next event (empty on timeout) |

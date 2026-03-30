@@ -13,19 +13,19 @@ Retrieve end-of-day data for an index across a date range. Returns one row per t
 
 ::: code-group
 ```rust [Rust]
-let eod: Vec<EodTick> = client.index_history_eod("SPX", "20240101", "20240301").await?;
+let eod: Vec<EodTick> = tdx.index_history_eod("SPX", "20240101", "20240301").await?;
 for t in &eod {
     println!("{}: O={} H={} L={} C={}",
         t.date, t.open_price(), t.high_price(), t.low_price(), t.close_price());
 }
 ```
 ```python [Python]
-eod = client.index_history_eod("SPX", "20240101", "20240301")
+eod = tdx.index_history_eod("SPX", "20240101", "20240301")
 for tick in eod:
     print(f"{tick['date']}: O={tick['open']:.2f} C={tick['close']:.2f}")
 
 # DataFrame variant
-df = client.index_history_eod_df("SPX", "20240101", "20240301")
+df = tdx.index_history_eod_df("SPX", "20240101", "20240301")
 print(df.describe())
 ```
 ```go [Go]

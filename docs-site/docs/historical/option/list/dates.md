@@ -13,12 +13,12 @@ List available dates for a specific option contract, filtered by data request ty
 
 ::: code-group
 ```rust [Rust]
-let dates: Vec<String> = client.option_list_dates(
+let dates: Vec<String> = tdx.option_list_dates(
     "EOD", "SPY", "20241220", "500000", "C"
 ).await?;
 ```
 ```python [Python]
-dates = client.option_list_dates("EOD", "SPY", "20241220", "500000", "C")
+dates = tdx.option_list_dates("EOD", "SPY", "20241220", "500000", "C")
 ```
 ```go [Go]
 dates, err := client.OptionListDates("EOD", "SPY", "20241220", "500000", "C")

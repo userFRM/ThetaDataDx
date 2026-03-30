@@ -16,7 +16,7 @@ Get the latest market value snapshot for one or more index symbols.
 let ticks: Vec<MarketValueTick> = tdx.index_snapshot_market_value(&["SPX"]).await?;
 ```
 ```python [Python]
-mv = client.index_snapshot_market_value(["SPX"])
+mv = tdx.index_snapshot_market_value(["SPX"])
 ```
 ```go [Go]
 mv, err := client.IndexSnapshotMarketValue([]string{"SPX"})

@@ -16,7 +16,7 @@ Retrieve the trading schedule for a specific date, including whether it is a reg
 let days: Vec<CalendarDay> = tdx.calendar_on_date("20240315").await?;
 ```
 ```python [Python]
-result = client.calendar_on_date("20240315")
+result = tdx.calendar_on_date("20240315")
 ```
 ```go [Go]
 result, err := client.CalendarOnDate("20240315")

@@ -36,7 +36,7 @@ defer client.Close()
 ```
 ```cpp [C++]
 auto creds = tdx::Credentials::from_file("creds.txt");
-auto client = tdx::Client::connect(creds, tdx::Config::production());
+auto client = tdx::ThetaDataDx::connect(creds, tdx::Config::production());
 ```
 :::
 
@@ -2191,6 +2191,7 @@ fpss.UnsubscribeTrades("AAPL")
 fpss.UnsubscribeOpenInterest("AAPL")
 ```
 ```cpp [C++]
+fpss.unsubscribe_quotes("AAPL");
 fpss.unsubscribe_trades("AAPL");
 fpss.unsubscribe_open_interest("AAPL");
 ```
@@ -2241,8 +2242,7 @@ fpss.shutdown();
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `is_streaming` / `is_authenticated` | bool | Check if the streaming connection is live |
-| `server_addr` | string | Get connected server address |
+| `is_streaming` | bool | Check if the streaming connection is live |
 | `contract_map` / `contract_lookup` | map/string | Look up server-assigned contract IDs |
 | `active_subscriptions` | list/JSON | Get list of active subscriptions |
 
@@ -2283,36 +2283,34 @@ For historical endpoints that can return millions of rows, `_stream` variants pr
 ### stock_history_trade_stream
 
 ```rust
-tdx.stock_history_trade_stream("AAPL", "20240315", |trades: Vec<TradeTick>| {
-    for t in &trades {
+tdx.stock_history_trade_stream("AAPL", "20240315", |trades: &[TradeTick]| {
+    for t in trades {
         println!("{}: {}", t.date, t.get_price());
     }
-    Ok(())
 }).await?;
 ```
 
 ### stock_history_quote_stream
 
 ```rust
-tdx.stock_history_quote_stream("AAPL", "20240315", "0", |quotes: Vec<QuoteTick>| {
+tdx.stock_history_quote_stream("AAPL", "20240315", "0", |quotes: &[QuoteTick]| {
     println!("Chunk: {} quotes", quotes.len());
-    Ok(())
 }).await?;
 ```
 
 ### option_history_trade_stream
 
 ```rust
-tdx.option_history_trade_stream("SPY", "20241220", "500000", "C", "20240315", |trades| {
-    Ok(())
+tdx.option_history_trade_stream("SPY", "20241220", "500000", "C", "20240315", |trades: &[TradeTick]| {
+    println!("Chunk: {} trades", trades.len());
 }).await?;
 ```
 
 ### option_history_quote_stream
 
 ```rust
-tdx.option_history_quote_stream("SPY", "20241220", "500000", "C", "20240315", "0", |quotes| {
-    Ok(())
+tdx.option_history_quote_stream("SPY", "20241220", "500000", "C", "20240315", "0", |quotes: &[QuoteTick]| {
+    println!("Chunk: {} quotes", quotes.len());
 }).await?;
 ```
 

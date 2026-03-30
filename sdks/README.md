@@ -7,8 +7,8 @@ Multi-language SDKs for ThetaDataDx. All powered by the Rust core via FFI -- the
 | SDK | Install | Historical | Streaming | Greeks | README |
 |---|---|---|---|---|---|
 | **Python** | `pip install thetadatadx` | 61 endpoints | `ThetaDataDx` | `all_greeks()`, `to_polars()` / `to_dataframe()` | [sdks/python/](python/) |
-| **Go** | `go get github.com/userFRM/thetadatadx/sdks/go` | 61 endpoints | `ThetaDataDx` | via FFI | [sdks/go/](go/) |
-| **C++** | CMake `find_library` | 61 endpoints | `ThetaDataDx` | via FFI | [sdks/cpp/](cpp/) |
+| **Go** | `go get github.com/userFRM/thetadatadx/sdks/go` | 61 endpoints | `FpssClient` | via FFI | [sdks/go/](go/) |
+| **C++** | CMake `find_library` | 61 endpoints | `FpssClient` | via FFI | [sdks/cpp/](cpp/) |
 | **C FFI** | `cargo build --release -p thetadatadx-ffi` | 61 endpoints | 7 functions | `tdx_all_greeks` | [ffi/](../ffi/) |
 
 ## Architecture
@@ -74,7 +74,7 @@ creds = Credentials.from_file("creds.txt")
 tdx = ThetaDataDx(creds, Config.production())
 
 # Historical data
-eod = tdx.stock_history_eod(["AAPL"], "20240101", "20240315")
+eod = tdx.stock_history_eod("AAPL", "20240101", "20240315")
 
 # Greeks
 g = all_greeks(spot=150.0, strike=155.0, rate=0.05,
@@ -98,10 +98,12 @@ go get github.com/userFRM/thetadatadx/sdks/go
 ```go
 import tdx "github.com/userFRM/thetadatadx/sdks/go"
 
-creds := tdx.NewCredentials("email", "password")
-client := tdx.Connect(creds, tdx.ProductionConfig())
+creds, _ := tdx.NewCredentials("email", "password")
+defer creds.Close()
+client, _ := tdx.Connect(creds, tdx.ProductionConfig())
+defer client.Close()
 
-eod, _ := client.StockHistoryEOD([]string{"AAPL"}, "20240101", "20240315")
+eod, _ := client.StockHistoryEOD("AAPL", "20240101", "20240315")
 ```
 
 Requires Go 1.21+ and a C compiler (for CGo). See [sdks/go/README.md](go/README.md) for full documentation.
@@ -122,12 +124,12 @@ make
 ```
 
 ```cpp
-#include <thetadx.hpp>
+#include "thetadx.hpp"
 
 auto creds = tdx::Credentials::from_file("creds.txt");
 auto client = tdx::Client::connect(creds, tdx::Config::production());
 
-auto eod = client.stock_history_eod({"AAPL"}, "20240101", "20240315");
+auto eod = client.stock_history_eod("AAPL", "20240101", "20240315");
 ```
 
 Requires C++17, CMake 3.16+, and a C compiler. See [sdks/cpp/README.md](cpp/README.md) for full documentation.

@@ -13,11 +13,11 @@ List all available expiration dates for an underlying symbol. This is typically 
 
 ::: code-group
 ```rust [Rust]
-let exps: Vec<String> = client.option_list_expirations("SPY").await?;
+let exps: Vec<String> = tdx.option_list_expirations("SPY").await?;
 println!("{} expirations available", exps.len());
 ```
 ```python [Python]
-exps = client.option_list_expirations("SPY")
+exps = tdx.option_list_expirations("SPY")
 print(exps[:10])
 ```
 ```go [Go]

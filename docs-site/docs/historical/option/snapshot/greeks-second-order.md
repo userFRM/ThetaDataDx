@@ -13,12 +13,12 @@ Get a snapshot of second-order Greeks for an option contract: gamma, vanna, char
 
 ::: code-group
 ```rust [Rust]
-let g = client.option_snapshot_greeks_second_order(
+let g: Vec<GreeksTick> = tdx.option_snapshot_greeks_second_order(
     "SPY", "20241220", "500000", "C"
 ).await?;
 ```
 ```python [Python]
-g = client.option_snapshot_greeks_second_order("SPY", "20241220", "500000", "C")
+g = tdx.option_snapshot_greeks_second_order("SPY", "20241220", "500000", "C")
 ```
 ```go [Go]
 g, err := client.OptionSnapshotGreeksSecondOrder("SPY", "20241220", "500000", "C")

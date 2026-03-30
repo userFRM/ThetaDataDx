@@ -13,11 +13,11 @@ List all available strike prices for a given underlying symbol and expiration da
 
 ::: code-group
 ```rust [Rust]
-let strikes: Vec<String> = client.option_list_strikes("SPY", "20241220").await?;
+let strikes: Vec<String> = tdx.option_list_strikes("SPY", "20241220").await?;
 println!("{} strikes available", strikes.len());
 ```
 ```python [Python]
-strikes = client.option_list_strikes("SPY", "20241220")
+strikes = tdx.option_list_strikes("SPY", "20241220")
 print(f"{len(strikes)} strikes")
 ```
 ```go [Go]

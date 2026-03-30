@@ -13,12 +13,12 @@ Get a snapshot of third-order Greeks for an option contract: speed, zomma, color
 
 ::: code-group
 ```rust [Rust]
-let g = client.option_snapshot_greeks_third_order(
+let g: Vec<GreeksTick> = tdx.option_snapshot_greeks_third_order(
     "SPY", "20241220", "500000", "C"
 ).await?;
 ```
 ```python [Python]
-g = client.option_snapshot_greeks_third_order("SPY", "20241220", "500000", "C")
+g = tdx.option_snapshot_greeks_third_order("SPY", "20241220", "500000", "C")
 ```
 ```go [Go]
 g, err := client.OptionSnapshotGreeksThirdOrder("SPY", "20241220", "500000", "C")

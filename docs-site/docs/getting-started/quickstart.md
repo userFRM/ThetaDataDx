@@ -122,7 +122,7 @@ func main() {
 }
 ```
 ```cpp [C++]
-#include "thetadatadx.hpp"
+#include "thetadx.hpp"
 #include <iostream>
 #include <iomanip>
 

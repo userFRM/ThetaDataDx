@@ -67,6 +67,6 @@ Helper methods: `trade_price()`, `bid_price()`, `ask_price()`
 ## Notes
 
 - This endpoint merges trade and quote streams so each trade row includes the best bid/ask at the time of execution. Useful for computing effective spread, price improvement, and trade classification.
-- Returns `Vec<TradeQuoteTick>` in Rust. Python returns dicts, Go/C++ return JSON.
+- Returns `Vec<TradeQuoteTick>` in Rust, list of dicts in Python, `[]TradeQuoteTick` in Go, `vector<TradeQuoteTick>` in C++.
 - This is a Pro-tier endpoint. Value and Standard subscriptions do not have access.
 - The response can be very large for active symbols. Consider filtering with `start_time` / `end_time` or using date ranges that cover only the session you need.

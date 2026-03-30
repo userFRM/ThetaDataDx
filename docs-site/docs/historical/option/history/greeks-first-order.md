@@ -13,12 +13,12 @@ Retrieve first-order Greeks (delta, theta, vega, rho, epsilon, lambda) sampled a
 
 ::: code-group
 ```rust [Rust]
-let g = client.option_history_greeks_first_order(
+let g: Vec<GreeksTick> = tdx.option_history_greeks_first_order(
     "SPY", "20241220", "500000", "C", "20240315", "60000"
 ).await?;
 ```
 ```python [Python]
-g = client.option_history_greeks_first_order("SPY", "20241220", "500000", "C",
+g = tdx.option_history_greeks_first_order("SPY", "20241220", "500000", "C",
                                               "20240315", "60000")
 ```
 ```go [Go]

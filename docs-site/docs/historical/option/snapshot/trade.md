@@ -13,10 +13,10 @@ Get the latest trade snapshot for an option contract.
 
 ::: code-group
 ```rust [Rust]
-let trades = client.option_snapshot_trade("SPY", "20241220", "500000", "C").await?;
+let trades: Vec<TradeTick> = tdx.option_snapshot_trade("SPY", "20241220", "500000", "C").await?;
 ```
 ```python [Python]
-trades = client.option_snapshot_trade("SPY", "20241220", "500000", "C")
+trades = tdx.option_snapshot_trade("SPY", "20241220", "500000", "C")
 ```
 ```go [Go]
 trades, err := client.OptionSnapshotTrade("SPY", "20241220", "500000", "C")

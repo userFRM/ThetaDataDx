@@ -178,7 +178,7 @@ from thetadatadx import all_greeks
 
 g = all_greeks(
     spot=450.0, strike=455.0, rate=0.05,
-    div_yield=0.015, tte=30/365, option_price=8.50, is_call=True
+    div_yield=0.015, tte=30/365, price=8.50, is_call=True
 )
 
 print(f"IV:    {g['iv']:.4f}")

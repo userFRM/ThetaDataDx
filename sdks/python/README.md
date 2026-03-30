@@ -140,9 +140,9 @@ All 61 endpoints are available. Methods return lists of dicts.
 |--------|-------------|
 | `index_list_symbols()` | All index symbols |
 | `index_list_dates(symbol)` | Available dates for an index |
-| `index_snapshot_ohlc(symbol)` | Latest OHLC snapshot |
-| `index_snapshot_price(symbol)` | Latest price snapshot |
-| `index_snapshot_market_value(symbol)` | Latest market value snapshot |
+| `index_snapshot_ohlc(symbols)` | Latest OHLC snapshot |
+| `index_snapshot_price(symbols)` | Latest price snapshot |
+| `index_snapshot_market_value(symbols)` | Latest market value snapshot |
 | `index_history_eod(symbol, start, end)` | End-of-day index data |
 | `index_history_ohlc(symbol, start, end, interval)` | Intraday OHLC bars |
 | `index_history_price(symbol, date, interval)` | Intraday price history |

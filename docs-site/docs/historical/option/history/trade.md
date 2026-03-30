@@ -13,12 +13,12 @@ Retrieve all individual trades for an option contract on a given date.
 
 ::: code-group
 ```rust [Rust]
-let trades: Vec<TradeTick> = client.option_history_trade(
+let trades: Vec<TradeTick> = tdx.option_history_trade(
     "SPY", "20241220", "500000", "C", "20240315"
 ).await?;
 ```
 ```python [Python]
-trades = client.option_history_trade("SPY", "20241220", "500000", "C", "20240315")
+trades = tdx.option_history_trade("SPY", "20241220", "500000", "C", "20240315")
 ```
 ```go [Go]
 trades, err := client.OptionHistoryTrade("SPY", "20241220", "500000", "C", "20240315")

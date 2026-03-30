@@ -78,12 +78,12 @@ Data at a specific time of day across a date range.
 For endpoints returning millions of rows, the Rust SDK provides `_stream` variants:
 
 ```rust
-client.option_history_trade_stream(
+tdx.option_history_trade_stream(
     "SPY", "20240419", "500000", "C", "20240315",
     |chunk| { Ok(()) }
 ).await?;
 
-client.option_history_quote_stream(
+tdx.option_history_quote_stream(
     "SPY", "20240419", "500000", "C", "20240315", "0",
     |chunk| { Ok(()) }
 ).await?;

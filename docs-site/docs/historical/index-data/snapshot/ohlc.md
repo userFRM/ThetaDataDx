@@ -13,13 +13,13 @@ Get the latest OHLC (open, high, low, close) snapshot for one or more index symb
 
 ::: code-group
 ```rust [Rust]
-let bars: Vec<OhlcTick> = client.index_snapshot_ohlc(&["SPX", "VIX"]).await?;
+let bars: Vec<OhlcTick> = tdx.index_snapshot_ohlc(&["SPX", "VIX"]).await?;
 for bar in &bars {
     println!("O={} H={} L={} C={}", bar.open_price(), bar.high_price(), bar.low_price(), bar.close_price());
 }
 ```
 ```python [Python]
-bars = client.index_snapshot_ohlc(["SPX", "VIX"])
+bars = tdx.index_snapshot_ohlc(["SPX", "VIX"])
 for bar in bars:
     print(f"O={bar['open']:.2f} H={bar['high']:.2f} L={bar['low']:.2f} C={bar['close']:.2f}")
 ```

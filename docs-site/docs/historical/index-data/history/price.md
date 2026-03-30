@@ -16,7 +16,7 @@ Retrieve intraday price history for an index on a single date at a specified int
 let ticks: Vec<PriceTick> = tdx.index_history_price("SPX", "20240315", "60000").await?;
 ```
 ```python [Python]
-price = client.index_history_price("SPX", "20240315", "60000")
+price = tdx.index_history_price("SPX", "20240315", "60000")
 ```
 ```go [Go]
 priceHist, err := client.IndexHistoryPrice("SPX", "20240315", "60000")

@@ -23,10 +23,10 @@ let rates: Vec<InterestRateTick> = tdx.interest_rate_history_eod(
 ).await?;
 ```
 ```python [Python]
-result = client.interest_rate_history_eod("SOFR", "20240101", "20240301")
+result = tdx.interest_rate_history_eod("SOFR", "20240101", "20240301")
 
 # Treasury 10-year yield
-t10 = client.interest_rate_history_eod("TREASURY_Y10", "20240101", "20240301")
+t10 = tdx.interest_rate_history_eod("TREASURY_Y10", "20240101", "20240301")
 ```
 ```go [Go]
 result, err := client.InterestRateHistoryEOD("SOFR", "20240101", "20240301")

@@ -13,10 +13,10 @@ Get the latest OHLC (open, high, low, close) snapshot for an option contract.
 
 ::: code-group
 ```rust [Rust]
-let bars = client.option_snapshot_ohlc("SPY", "20241220", "500000", "C").await?;
+let bars: Vec<OhlcTick> = tdx.option_snapshot_ohlc("SPY", "20241220", "500000", "C").await?;
 ```
 ```python [Python]
-bars = client.option_snapshot_ohlc("SPY", "20241220", "500000", "C")
+bars = tdx.option_snapshot_ohlc("SPY", "20241220", "500000", "C")
 ```
 ```go [Go]
 bars, err := client.OptionSnapshotOHLC("SPY", "20241220", "500000", "C")

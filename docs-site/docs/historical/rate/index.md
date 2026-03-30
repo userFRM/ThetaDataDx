@@ -22,7 +22,7 @@ let rates: Vec<InterestRateTick> = tdx.interest_rate_history_eod(
 ).await?;
 ```
 ```python [Python]
-result = client.interest_rate_history_eod("SOFR", "20240101", "20240301")
+result = tdx.interest_rate_history_eod("SOFR", "20240101", "20240301")
 ```
 ```go [Go]
 result, _ := client.InterestRateHistoryEOD("SOFR", "20240101", "20240301")

@@ -18,7 +18,7 @@ let ticks: Vec<PriceTick> = tdx.index_at_time_price(
 ).await?;
 ```
 ```python [Python]
-result = client.index_at_time_price("SPX", "20240101", "20240301", "34200000")
+result = tdx.index_at_time_price("SPX", "20240101", "20240301", "34200000")
 ```
 ```go [Go]
 atTime, err := client.IndexAtTimePrice("SPX", "20240101", "20240301", "34200000")

@@ -14,7 +14,7 @@ let rates: Vec<InterestRateTick> = tdx.interest_rate_history_eod(
 ).await?;
 ```
 ```python [Python]
-result = client.interest_rate_history_eod("SOFR", "20240101", "20240301")
+result = tdx.interest_rate_history_eod("SOFR", "20240101", "20240301")
 ```
 ```go [Go]
 result, _ := client.InterestRateHistoryEOD("SOFR", "20240101", "20240301")
@@ -54,9 +54,9 @@ let days: Vec<CalendarDay> = tdx.calendar_on_date("20240315").await?;
 let days: Vec<CalendarDay> = tdx.calendar_year("2024").await?;
 ```
 ```python [Python]
-result = client.calendar_open_today()
-result = client.calendar_on_date("20240315")
-result = client.calendar_year("2024")
+result = tdx.calendar_open_today()
+result = tdx.calendar_on_date("20240315")
+result = tdx.calendar_year("2024")
 ```
 ```go [Go]
 result, _ := client.CalendarOpenToday()

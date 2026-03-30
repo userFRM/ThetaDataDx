@@ -24,9 +24,9 @@ let days: Vec<CalendarDay> = tdx.calendar_on_date("20240315").await?;
 let days: Vec<CalendarDay> = tdx.calendar_year("2024").await?;
 ```
 ```python [Python]
-result = client.calendar_open_today()
-result = client.calendar_on_date("20240315")
-result = client.calendar_year("2024")
+result = tdx.calendar_open_today()
+result = tdx.calendar_on_date("20240315")
+result = tdx.calendar_year("2024")
 ```
 ```go [Go]
 result, _ := client.CalendarOpenToday()

@@ -13,10 +13,10 @@ Get the latest NBBO (National Best Bid and Offer) quote snapshot for an option c
 
 ::: code-group
 ```rust [Rust]
-let quotes = client.option_snapshot_quote("SPY", "20241220", "500000", "C").await?;
+let quotes: Vec<QuoteTick> = tdx.option_snapshot_quote("SPY", "20241220", "500000", "C").await?;
 ```
 ```python [Python]
-quotes = client.option_snapshot_quote("SPY", "20241220", "500000", "C")
+quotes = tdx.option_snapshot_quote("SPY", "20241220", "500000", "C")
 ```
 ```go [Go]
 quotes, err := client.OptionSnapshotQuote("SPY", "20241220", "500000", "C")

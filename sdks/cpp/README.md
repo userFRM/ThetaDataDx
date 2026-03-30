@@ -244,10 +244,10 @@ All endpoints return fully typed C++ structs. No raw JSON.
 | `GreeksTick` | ms_of_day, value, delta, gamma, theta, vega, rho, iv, iv_error, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda, date | Greeks snapshot/history |
 | `IvTick` | ms_of_day, iv, iv_error, date | IV-only endpoints |
 | `PriceTick` | ms_of_day, price, date | Index price endpoints |
-| `MarketValueTick` | ms_of_day, value, date | Market value endpoints |
+| `MarketValueTick` | ms_of_day, market_cap, shares_outstanding, enterprise_value, book_value, free_float, date | Market value endpoints |
 | `OptionContract` | root, expiration, strike, right | option_list_contracts |
-| `CalendarDay` | date, is_open, open_time, close_time | Calendar endpoints |
-| `InterestRateTick` | rate, date | Interest rate endpoints |
+| `CalendarDay` | date, is_open, open_time, close_time, status | Calendar endpoints |
+| `InterestRateTick` | ms_of_day, rate, date | Interest rate endpoints |
 | `Greeks` | value, delta, gamma, theta, vega, rho, iv, iv_error, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda | Standalone all_greeks() |
 
 ## FPSS Streaming

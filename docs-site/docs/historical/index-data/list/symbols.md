@@ -13,13 +13,13 @@ List all available index ticker symbols from ThetaData.
 
 ::: code-group
 ```rust [Rust]
-let symbols: Vec<String> = client.index_list_symbols().await?;
+let symbols: Vec<String> = tdx.index_list_symbols().await?;
 for sym in &symbols {
     println!("{}", sym);
 }
 ```
 ```python [Python]
-symbols = client.index_list_symbols()
+symbols = tdx.index_list_symbols()
 print(symbols)  # e.g. ["SPX", "NDX", "DJI", "VIX", ...]
 ```
 ```go [Go]

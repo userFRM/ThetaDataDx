@@ -13,12 +13,12 @@ Retrieve NBBO quotes for an option contract, sampled at a specified interval.
 
 ::: code-group
 ```rust [Rust]
-let quotes: Vec<QuoteTick> = client.option_history_quote(
+let quotes: Vec<QuoteTick> = tdx.option_history_quote(
     "SPY", "20241220", "500000", "C", "20240315", "60000"
 ).await?;
 ```
 ```python [Python]
-quotes = client.option_history_quote("SPY", "20241220", "500000", "C",
+quotes = tdx.option_history_quote("SPY", "20241220", "500000", "C",
                                      "20240315", "60000")
 ```
 ```go [Go]

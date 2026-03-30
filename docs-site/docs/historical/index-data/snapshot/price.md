@@ -16,7 +16,7 @@ Get the latest price snapshot for one or more index symbols. Returns the most re
 let ticks: Vec<PriceTick> = tdx.index_snapshot_price(&["SPX", "NDX"]).await?;
 ```
 ```python [Python]
-price = client.index_snapshot_price(["SPX", "NDX"])
+price = tdx.index_snapshot_price(["SPX", "NDX"])
 ```
 ```go [Go]
 price, err := client.IndexSnapshotPrice([]string{"SPX"})

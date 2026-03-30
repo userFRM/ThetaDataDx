@@ -16,7 +16,7 @@ Retrieve the complete trading calendar for an entire year, including every tradi
 let days: Vec<CalendarDay> = tdx.calendar_year("2024").await?;
 ```
 ```python [Python]
-result = client.calendar_year("2024")
+result = tdx.calendar_year("2024")
 ```
 ```go [Go]
 result, err := client.CalendarYear("2024")

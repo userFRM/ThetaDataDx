@@ -16,7 +16,7 @@ Check whether the market is open today and retrieve the current day's trading sc
 let days: Vec<CalendarDay> = tdx.calendar_open_today().await?;
 ```
 ```python [Python]
-result = client.calendar_open_today()
+result = tdx.calendar_open_today()
 ```
 ```go [Go]
 result, err := client.CalendarOpenToday()

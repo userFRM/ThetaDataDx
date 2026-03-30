@@ -13,10 +13,10 @@ info:
   version: 1.0.0
   contact:
     name: ThetaDataDx
-    url: https://github.com/userFRM/thetadatadx
+    url: https://github.com/userFRM/ThetaDataDx
   license:
-    name: Proprietary
-    url: https://thetadata.net/terms
+    name: GPL-3.0-or-later
+    url: https://github.com/userFRM/ThetaDataDx/blob/main/LICENSE
 
 servers:
   - url: grpc://mdds.thetadata.us
@@ -201,7 +201,7 @@ x-anchors:
     schema:
       type: string
       enum: [C, P]
-    description: Option right -- "C" for call, "P" for put
+    description: Option right, "C" for call, "P" for put
 
   max_dte-param: &max_dte-param
     name: max_dte
@@ -574,6 +574,32 @@ x-anchors:
         schema:
           type: array
           items: *eod-tick
+
+  trade-quote-response: &trade-quote-response
+    description: Successful response
+    content:
+      application/json:
+        schema:
+          type: array
+          items: *trade-quote-tick
+
+  option-contract-response: &option-contract-response
+    description: Successful response
+    content:
+      application/json:
+        schema:
+          type: array
+          items:
+            type: object
+            properties:
+              root:
+                type: string
+              expiration:
+                type: string
+              strike:
+                type: string
+              right:
+                type: string
 
   data-table-response: &data-table-response
     description: Successful response
@@ -1005,7 +1031,7 @@ paths:
       summary: Stock combined trade + quote history
       description: |
         Combined trade and quote ticks for a stock on a given date.
-        Returns a raw DataTable with both trade and quote fields.
+        Returns typed TradeQuoteTick data with both trade and quote fields.
         gRPC: GetStockHistoryTradeQuote
       tags: [Stock / History]
       parameters:
@@ -1028,7 +1054,7 @@ paths:
             type: string
           description: End date for multi-day range (YYYYMMDD)
       responses:
-        '200': *data-table-response
+        '200': *trade-quote-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1267,8 +1293,8 @@ paths:
       operationId: optionListContracts
       summary: List all option contracts for a date
       description: |
-        Returns all option contracts for a symbol on a given date. Returns a DataTable
-        with contract details (root, expiration, strike, right).
+        Returns all option contracts for a symbol on a given date. Returns typed
+        OptionContract data with root, expiration, strike, and right fields.
         gRPC: GetOptionListContracts
       tags: [Option / List]
       parameters:
@@ -1277,7 +1303,7 @@ paths:
         - *date-param
         - *max_dte-param
       responses:
-        '200': *data-table-response
+        '200': *option-contract-response
       x-code-examples:
         - lang: rust
           label: Rust

@@ -13,12 +13,12 @@ Retrieve intraday OHLC bars for an option contract on a given date at a specifie
 
 ::: code-group
 ```rust [Rust]
-let bars: Vec<OhlcTick> = client.option_history_ohlc(
+let bars: Vec<OhlcTick> = tdx.option_history_ohlc(
     "SPY", "20241220", "500000", "C", "20240315", "60000"
 ).await?;
 ```
 ```python [Python]
-bars = client.option_history_ohlc("SPY", "20241220", "500000", "C",
+bars = tdx.option_history_ohlc("SPY", "20241220", "500000", "C",
                                   "20240315", "60000")
 ```
 ```go [Go]

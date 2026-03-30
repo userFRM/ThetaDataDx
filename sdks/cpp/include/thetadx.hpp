@@ -8,7 +8,7 @@
 #ifndef THETADX_HPP
 #define THETADX_HPP
 
-#include "thetadatadx.h"
+#include "thetadx.h"
 
 #include <cstdint>
 #include <memory>
