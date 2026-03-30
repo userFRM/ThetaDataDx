@@ -93,7 +93,7 @@ pub async fn stock_snapshot_quote(&self, symbols: &[&str]) -> Result<Vec<QuoteTi
 Latest NBBO quote snapshot for one or more stocks. gRPC: `GetStockSnapshotQuote`
 
 ```rust
-pub async fn stock_snapshot_market_value(&self, symbols: &[&str]) -> Result<proto::DataTable, Error>
+pub async fn stock_snapshot_market_value(&self, symbols: &[&str]) -> Result<Vec<MarketValueTick>, Error>
 ```
 
 Latest market value snapshot for one or more stocks. gRPC: `GetStockSnapshotMarketValue`
@@ -143,10 +143,10 @@ NBBO quotes at a given interval. Use `"0"` for every quote change. gRPC: `GetSto
 ```rust
 pub async fn stock_history_trade_quote(
     &self, symbol: &str, date: &str
-) -> Result<proto::DataTable, Error>
+) -> Result<Vec<TradeQuoteTick>, Error>
 ```
 
-Combined trade + quote ticks. Returns raw `DataTable`. gRPC: `GetStockHistoryTradeQuote`
+Combined trade + quote ticks. gRPC: `GetStockHistoryTradeQuote`
 
 ### Stock -- AtTime (2)
 
@@ -199,10 +199,10 @@ Strike prices for a given expiration. gRPC: `GetOptionListStrikes`
 ```rust
 pub async fn option_list_contracts(
     &self, request_type: &str, symbol: &str, date: &str
-) -> Result<proto::DataTable, Error>
+) -> Result<Vec<OptionContract>, Error>
 ```
 
-All option contracts for a symbol on a given date. Returns `DataTable` with contract details. gRPC: `GetOptionListContracts`
+All option contracts for a symbol on a given date. gRPC: `GetOptionListContracts`
 
 ### Option -- Snapshot (5)
 
@@ -233,7 +233,7 @@ Latest NBBO quote snapshot for option contracts. gRPC: `GetOptionSnapshotQuote`
 ```rust
 pub async fn option_snapshot_open_interest(
     &self, symbol: &str, expiration: &str, strike: &str, right: &str
-) -> Result<proto::DataTable, Error>
+) -> Result<Vec<OpenInterestTick>, Error>
 ```
 
 Latest open interest snapshot for option contracts. gRPC: `GetOptionSnapshotOpenInterest`
@@ -241,7 +241,7 @@ Latest open interest snapshot for option contracts. gRPC: `GetOptionSnapshotOpen
 ```rust
 pub async fn option_snapshot_market_value(
     &self, symbol: &str, expiration: &str, strike: &str, right: &str
-) -> Result<proto::DataTable, Error>
+) -> Result<Vec<MarketValueTick>, Error>
 ```
 
 Latest market value snapshot for option contracts. gRPC: `GetOptionSnapshotMarketValue`
@@ -251,7 +251,7 @@ Latest market value snapshot for option contracts. gRPC: `GetOptionSnapshotMarke
 ```rust
 pub async fn option_snapshot_greeks_implied_volatility(
     &self, symbol: &str, expiration: &str, strike: &str, right: &str
-) -> Result<proto::DataTable, Error>
+) -> Result<Vec<IvTick>, Error>
 ```
 
 Implied volatility snapshot. gRPC: `GetOptionSnapshotGreeksImpliedVolatility`
@@ -259,7 +259,7 @@ Implied volatility snapshot. gRPC: `GetOptionSnapshotGreeksImpliedVolatility`
 ```rust
 pub async fn option_snapshot_greeks_all(
     &self, symbol: &str, expiration: &str, strike: &str, right: &str
-) -> Result<proto::DataTable, Error>
+) -> Result<Vec<GreeksTick>, Error>
 ```
 
 All Greeks snapshot. gRPC: `GetOptionSnapshotGreeksAll`
@@ -267,7 +267,7 @@ All Greeks snapshot. gRPC: `GetOptionSnapshotGreeksAll`
 ```rust
 pub async fn option_snapshot_greeks_first_order(
     &self, symbol: &str, expiration: &str, strike: &str, right: &str
-) -> Result<proto::DataTable, Error>
+) -> Result<Vec<GreeksTick>, Error>
 ```
 
 First-order Greeks snapshot (delta, theta, rho, etc.). gRPC: `GetOptionSnapshotGreeksFirstOrder`
@@ -275,7 +275,7 @@ First-order Greeks snapshot (delta, theta, rho, etc.). gRPC: `GetOptionSnapshotG
 ```rust
 pub async fn option_snapshot_greeks_second_order(
     &self, symbol: &str, expiration: &str, strike: &str, right: &str
-) -> Result<proto::DataTable, Error>
+) -> Result<Vec<GreeksTick>, Error>
 ```
 
 Second-order Greeks snapshot (gamma, vanna, charm, etc.). gRPC: `GetOptionSnapshotGreeksSecondOrder`
@@ -283,7 +283,7 @@ Second-order Greeks snapshot (gamma, vanna, charm, etc.). gRPC: `GetOptionSnapsh
 ```rust
 pub async fn option_snapshot_greeks_third_order(
     &self, symbol: &str, expiration: &str, strike: &str, right: &str
-) -> Result<proto::DataTable, Error>
+) -> Result<Vec<GreeksTick>, Error>
 ```
 
 Third-order Greeks snapshot (speed, color, ultima, etc.). gRPC: `GetOptionSnapshotGreeksThirdOrder`
@@ -328,7 +328,7 @@ Option NBBO quotes. gRPC: `GetOptionHistoryQuote`
 ```rust
 pub async fn option_history_trade_quote(
     &self, symbol: &str, expiration: &str, strike: &str, right: &str, date: &str
-) -> Result<proto::DataTable, Error>
+) -> Result<Vec<TradeQuoteTick>, Error>
 ```
 
 Combined trade + quote ticks for an option contract. gRPC: `GetOptionHistoryTradeQuote`
@@ -336,7 +336,7 @@ Combined trade + quote ticks for an option contract. gRPC: `GetOptionHistoryTrad
 ```rust
 pub async fn option_history_open_interest(
     &self, symbol: &str, expiration: &str, strike: &str, right: &str, date: &str
-) -> Result<proto::DataTable, Error>
+) -> Result<Vec<OpenInterestTick>, Error>
 ```
 
 Open interest history for an option contract. gRPC: `GetOptionHistoryOpenInterest`
@@ -347,7 +347,7 @@ Open interest history for an option contract. gRPC: `GetOptionHistoryOpenInteres
 pub async fn option_history_greeks_eod(
     &self, symbol: &str, expiration: &str, strike: &str, right: &str,
     start_date: &str, end_date: &str
-) -> Result<proto::DataTable, Error>
+) -> Result<Vec<GreeksTick>, Error>
 ```
 
 EOD Greeks history for an option contract. gRPC: `GetOptionHistoryGreeksEod`
@@ -356,7 +356,7 @@ EOD Greeks history for an option contract. gRPC: `GetOptionHistoryGreeksEod`
 pub async fn option_history_greeks_all(
     &self, symbol: &str, expiration: &str, strike: &str, right: &str,
     date: &str, interval: &str
-) -> Result<proto::DataTable, Error>
+) -> Result<Vec<GreeksTick>, Error>
 ```
 
 All Greeks history (intraday, sampled by interval). gRPC: `GetOptionHistoryGreeksAll`
@@ -365,7 +365,7 @@ All Greeks history (intraday, sampled by interval). gRPC: `GetOptionHistoryGreek
 pub async fn option_history_greeks_first_order(
     &self, symbol: &str, expiration: &str, strike: &str, right: &str,
     date: &str, interval: &str
-) -> Result<proto::DataTable, Error>
+) -> Result<Vec<GreeksTick>, Error>
 ```
 
 First-order Greeks history (intraday, sampled by interval). gRPC: `GetOptionHistoryGreeksFirstOrder`
@@ -374,7 +374,7 @@ First-order Greeks history (intraday, sampled by interval). gRPC: `GetOptionHist
 pub async fn option_history_greeks_second_order(
     &self, symbol: &str, expiration: &str, strike: &str, right: &str,
     date: &str, interval: &str
-) -> Result<proto::DataTable, Error>
+) -> Result<Vec<GreeksTick>, Error>
 ```
 
 Second-order Greeks history (intraday, sampled by interval). gRPC: `GetOptionHistoryGreeksSecondOrder`
@@ -383,7 +383,7 @@ Second-order Greeks history (intraday, sampled by interval). gRPC: `GetOptionHis
 pub async fn option_history_greeks_third_order(
     &self, symbol: &str, expiration: &str, strike: &str, right: &str,
     date: &str, interval: &str
-) -> Result<proto::DataTable, Error>
+) -> Result<Vec<GreeksTick>, Error>
 ```
 
 Third-order Greeks history (intraday, sampled by interval). gRPC: `GetOptionHistoryGreeksThirdOrder`
@@ -392,7 +392,7 @@ Third-order Greeks history (intraday, sampled by interval). gRPC: `GetOptionHist
 pub async fn option_history_greeks_implied_volatility(
     &self, symbol: &str, expiration: &str, strike: &str, right: &str,
     date: &str, interval: &str
-) -> Result<proto::DataTable, Error>
+) -> Result<Vec<IvTick>, Error>
 ```
 
 Implied volatility history (intraday, sampled by interval). gRPC: `GetOptionHistoryGreeksImpliedVolatility`
@@ -402,7 +402,7 @@ Implied volatility history (intraday, sampled by interval). gRPC: `GetOptionHist
 ```rust
 pub async fn option_history_trade_greeks_all(
     &self, symbol: &str, expiration: &str, strike: &str, right: &str, date: &str
-) -> Result<proto::DataTable, Error>
+) -> Result<Vec<GreeksTick>, Error>
 ```
 
 All Greeks computed on each trade. gRPC: `GetOptionHistoryTradeGreeksAll`
@@ -410,7 +410,7 @@ All Greeks computed on each trade. gRPC: `GetOptionHistoryTradeGreeksAll`
 ```rust
 pub async fn option_history_trade_greeks_first_order(
     &self, symbol: &str, expiration: &str, strike: &str, right: &str, date: &str
-) -> Result<proto::DataTable, Error>
+) -> Result<Vec<GreeksTick>, Error>
 ```
 
 First-order Greeks on each trade. gRPC: `GetOptionHistoryTradeGreeksFirstOrder`
@@ -418,7 +418,7 @@ First-order Greeks on each trade. gRPC: `GetOptionHistoryTradeGreeksFirstOrder`
 ```rust
 pub async fn option_history_trade_greeks_second_order(
     &self, symbol: &str, expiration: &str, strike: &str, right: &str, date: &str
-) -> Result<proto::DataTable, Error>
+) -> Result<Vec<GreeksTick>, Error>
 ```
 
 Second-order Greeks on each trade. gRPC: `GetOptionHistoryTradeGreeksSecondOrder`
@@ -426,7 +426,7 @@ Second-order Greeks on each trade. gRPC: `GetOptionHistoryTradeGreeksSecondOrder
 ```rust
 pub async fn option_history_trade_greeks_third_order(
     &self, symbol: &str, expiration: &str, strike: &str, right: &str, date: &str
-) -> Result<proto::DataTable, Error>
+) -> Result<Vec<GreeksTick>, Error>
 ```
 
 Third-order Greeks on each trade. gRPC: `GetOptionHistoryTradeGreeksThirdOrder`
@@ -434,7 +434,7 @@ Third-order Greeks on each trade. gRPC: `GetOptionHistoryTradeGreeksThirdOrder`
 ```rust
 pub async fn option_history_trade_greeks_implied_volatility(
     &self, symbol: &str, expiration: &str, strike: &str, right: &str, date: &str
-) -> Result<proto::DataTable, Error>
+) -> Result<Vec<IvTick>, Error>
 ```
 
 Implied volatility on each trade. gRPC: `GetOptionHistoryTradeGreeksImpliedVolatility`
@@ -482,13 +482,13 @@ pub async fn index_snapshot_ohlc(&self, symbols: &[&str]) -> Result<Vec<OhlcTick
 Latest OHLC snapshot for one or more indices. gRPC: `GetIndexSnapshotOhlc`
 
 ```rust
-pub async fn index_snapshot_price(&self, symbols: &[&str]) -> Result<proto::DataTable, Error>
+pub async fn index_snapshot_price(&self, symbols: &[&str]) -> Result<Vec<PriceTick>, Error>
 ```
 
 Latest price snapshot for one or more indices. gRPC: `GetIndexSnapshotPrice`
 
 ```rust
-pub async fn index_snapshot_market_value(&self, symbols: &[&str]) -> Result<proto::DataTable, Error>
+pub async fn index_snapshot_market_value(&self, symbols: &[&str]) -> Result<Vec<MarketValueTick>, Error>
 ```
 
 Latest market value snapshot for one or more indices. gRPC: `GetIndexSnapshotMarketValue`
@@ -514,7 +514,7 @@ Intraday OHLC bars for an index. gRPC: `GetIndexHistoryOhlc`
 ```rust
 pub async fn index_history_price(
     &self, symbol: &str, date: &str, interval: &str
-) -> Result<proto::DataTable, Error>
+) -> Result<Vec<PriceTick>, Error>
 ```
 
 Intraday price history for an index. gRPC: `GetIndexHistoryPrice`
@@ -524,7 +524,7 @@ Intraday price history for an index. gRPC: `GetIndexHistoryPrice`
 ```rust
 pub async fn index_at_time_price(
     &self, symbol: &str, start_date: &str, end_date: &str, time_of_day: &str
-) -> Result<proto::DataTable, Error>
+) -> Result<Vec<PriceTick>, Error>
 ```
 
 Index price at a specific time of day across a date range. gRPC: `GetIndexAtTimePrice`
@@ -534,7 +534,7 @@ Index price at a specific time of day across a date range. gRPC: `GetIndexAtTime
 ```rust
 pub async fn interest_rate_history_eod(
     &self, symbol: &str, start_date: &str, end_date: &str
-) -> Result<proto::DataTable, Error>
+) -> Result<Vec<InterestRateTick>, Error>
 ```
 
 End-of-day interest rate history. gRPC: `GetInterestRateHistoryEod`
@@ -542,19 +542,19 @@ End-of-day interest rate history. gRPC: `GetInterestRateHistoryEod`
 ### Calendar (3)
 
 ```rust
-pub async fn calendar_open_today(&self) -> Result<proto::DataTable, Error>
+pub async fn calendar_open_today(&self) -> Result<Vec<CalendarDay>, Error>
 ```
 
 Whether the market is open today. gRPC: `GetCalendarOpenToday`
 
 ```rust
-pub async fn calendar_on_date(&self, date: &str) -> Result<proto::DataTable, Error>
+pub async fn calendar_on_date(&self, date: &str) -> Result<Vec<CalendarDay>, Error>
 ```
 
 Calendar information for a specific date. gRPC: `GetCalendarOnDate`
 
 ```rust
-pub async fn calendar_year(&self, year: &str) -> Result<proto::DataTable, Error>
+pub async fn calendar_year(&self, year: &str) -> Result<Vec<CalendarDay>, Error>
 ```
 
 Calendar information for an entire year. `year` is a 4-digit string (e.g. `"2024"`). gRPC: `GetCalendarYear`
@@ -858,7 +858,7 @@ let (contract, consumed) = Contract::from_bytes(&bytes)?;  // deserialize
 
 ## Tick Types
 
-All tick types are `Copy + Clone + Debug` structs with `i32` fields. Prices are stored in fixed-point encoding. Use the `*_price()` methods to get `Price` values with proper decimal handling.
+All 14 tick types are `Clone + Debug` structs generated from `endpoint_schema.toml`. Most are also `Copy` (except `OptionContract`, which contains a `String` field). Fields are typically `i32`, with `i64` for large values (e.g., `MarketValueTick.market_cap`), `f64` for Greeks/IV, and `String` for identifiers. Prices are stored in fixed-point encoding. Use the `*_price()` methods to get `Price` values with proper decimal handling.
 
 ### TradeTick
 
@@ -1005,7 +1005,7 @@ Methods: `get_price() -> Price`.
 
 ### TradeQuoteTick
 
-25-field combined trade + quote tick.
+26-field combined trade + quote tick.
 
 ```rust
 pub struct TradeQuoteTick {
@@ -1024,7 +1024,7 @@ pub struct TradeQuoteTick {
     pub price_flags: i32,
     pub volume_type: i32,
     pub records_back: i32,
-    // Quote portion (9 fields)
+    // Quote portion (10 fields)
     pub quote_ms_of_day: i32,
     pub bid_size: i32,
     pub bid_exchange: i32,
@@ -1034,6 +1034,7 @@ pub struct TradeQuoteTick {
     pub ask_exchange: i32,
     pub ask: i32,
     pub ask_condition: i32,
+    pub quote_price_type: i32,
     // Shared
     pub price_type: i32,
     pub date: i32,
@@ -1041,6 +1042,123 @@ pub struct TradeQuoteTick {
 ```
 
 Methods: `trade_price()`, `bid_price()`, `ask_price()` -- all return `Price`.
+
+### MarketValueTick
+
+7 fields -- market capitalization and related data.
+
+```rust
+pub struct MarketValueTick {
+    pub ms_of_day: i32,
+    pub market_cap: i64,
+    pub shares_outstanding: i64,
+    pub enterprise_value: i64,
+    pub book_value: i64,
+    pub free_float: i64,
+    pub date: i32,
+}
+```
+
+### GreeksTick
+
+24 fields -- full set of option Greeks.
+
+```rust
+pub struct GreeksTick {
+    pub ms_of_day: i32,
+    pub implied_volatility: f64,
+    pub delta: f64,
+    pub gamma: f64,
+    pub theta: f64,
+    pub vega: f64,
+    pub rho: f64,
+    pub iv_error: f64,
+    pub vanna: f64,
+    pub charm: f64,
+    pub vomma: f64,
+    pub veta: f64,
+    pub speed: f64,
+    pub zomma: f64,
+    pub color: f64,
+    pub ultima: f64,
+    pub d1: f64,
+    pub d2: f64,
+    pub dual_delta: f64,
+    pub dual_gamma: f64,
+    pub epsilon: f64,
+    pub lambda: f64,
+    pub vera: f64,
+    pub date: i32,
+}
+```
+
+### IvTick
+
+4 fields -- implied volatility.
+
+```rust
+pub struct IvTick {
+    pub ms_of_day: i32,
+    pub implied_volatility: f64,
+    pub iv_error: f64,
+    pub date: i32,
+}
+```
+
+### PriceTick
+
+4 fields -- generic price data point.
+
+```rust
+pub struct PriceTick {
+    pub ms_of_day: i32,
+    pub price: i32,
+    pub price_type: i32,
+    pub date: i32,
+}
+```
+
+Methods: `get_price() -> Price`.
+
+### CalendarDay
+
+5 fields -- market open/close schedule.
+
+```rust
+pub struct CalendarDay {
+    pub date: i32,
+    pub is_open: i32,
+    pub open_time: i32,
+    pub close_time: i32,
+    pub status: i32,
+}
+```
+
+### InterestRateTick
+
+3 fields -- end-of-day interest rate.
+
+```rust
+pub struct InterestRateTick {
+    pub ms_of_day: i32,
+    pub rate: f64,
+    pub date: i32,
+}
+```
+
+### OptionContract
+
+5 fields -- option contract specification. Not `Copy` due to `String` root field.
+
+```rust
+pub struct OptionContract {
+    pub root: String,
+    pub expiration: i32,
+    pub strike: i32,
+    pub right: i32,
+    pub strike_price_type: i32,
+}
+```
 
 ---
 

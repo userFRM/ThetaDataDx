@@ -152,6 +152,30 @@ Three response processing modes are available:
 - **`for_each_chunk`**: streaming callback that processes each chunk individually without accumulating the full response in memory.
 - **`_stream` endpoint variants**: `stock_history_trade_stream`, `stock_history_quote_stream`, `option_history_trade_stream`, `option_history_quote_stream` — these combine the gRPC call with `for_each_chunk` processing in a single method call, ideal for endpoints returning millions of rows.
 
+### TOML Codegen Pipeline
+
+All 14 tick type structs and their DataTable parsers are generated from `endpoint_schema.toml` at compile time:
+
+```mermaid
+flowchart LR
+    TOML["endpoint_schema.toml<br/><i>14 tick type definitions<br/>with column schemas</i>"]
+    BUILD["build.rs"]
+    STRUCTS["$OUT_DIR/tick_generated.rs<br/><i>struct definitions</i>"]
+    PARSERS["$OUT_DIR/decode_generated.rs<br/><i>parse_* functions</i>"]
+    TICK["types/tick.rs<br/><i>include!() + hand-written impl blocks</i>"]
+    DECODE["decode.rs<br/><i>include!() + hand-written helpers</i>"]
+
+    TOML --> BUILD
+    BUILD --> STRUCTS
+    BUILD --> PARSERS
+    STRUCTS --> TICK
+    PARSERS --> DECODE
+```
+
+The 14 generated tick types are: `TradeTick`, `QuoteTick`, `OhlcTick`, `EodTick`, `OpenInterestTick`, `SnapshotTradeTick`, `TradeQuoteTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`.
+
+Adding a new tick type requires only adding a TOML table to `endpoint_schema.toml` -- no hand-written struct or parser code needed. See `docs/endpoint-schema.md` for the full schema reference.
+
 ## FPSS Protocol (Real-Time Streaming)
 
 FPSS is a custom binary protocol over TLS/TCP.
@@ -474,13 +498,20 @@ graph TD
         subgraph types["types/"]
             T_ENUM["enums.rs<br/><i>80+ DataType codes</i>"]
             T_PRICE["price.rs<br/><i>fixed-point Price</i>"]
-            T_TICK["tick.rs<br/><i>Trade/Quote/OHLC/EOD</i>"]
+            T_TICK["tick.rs<br/><i>14 tick types (generated)<br/>TradeTick, QuoteTick, OhlcTick,<br/>EodTick, OpenInterestTick,<br/>SnapshotTradeTick, TradeQuoteTick,<br/>MarketValueTick, GreeksTick,<br/>IvTick, PriceTick, CalendarDay,<br/>InterestRateTick,<br/>OptionContract</i>"]
         end
 
+        UNIFIED["unified.rs<br/><i>ThetaDataDx — unified entry point<br/>Deref to DirectClient</i>"]
         DIRECT["direct.rs<br/><i>DirectClient (internal) — 61 endpoints<br/>via define_endpoint! macro</i>"]
         CONFIG["config.rs<br/><i>DirectConfig</i>"]
-        DECODE["decode.rs<br/><i>zstd + DataTable</i>"]
+        DECODE["decode.rs<br/><i>zstd + DataTable parsing<br/>(includes generated parsers)</i>"]
         GREEKS["greeks.rs<br/><i>22 Greeks + IV</i>"]
+        REGISTRY["registry.rs<br/><i>EndpointMeta, ENDPOINTS static</i>"]
+
+        subgraph codegen["TOML Codegen"]
+            SCHEMA["endpoint_schema.toml<br/><i>14 tick type definitions</i>"]
+            BUILD["build.rs<br/><i>reads TOML, generates:<br/>tick_generated.rs (structs)<br/>decode_generated.rs (parsers)</i>"]
+        end
 
         subgraph proto["proto/"]
             P_V1["endpoints.proto<br/><i>shared types</i>"]
@@ -488,9 +519,13 @@ graph TD
         end
     end
 
+    UNIFIED --> DIRECT
     DIRECT --> auth
     DIRECT --> DECODE
     DIRECT --> proto
+    SCHEMA --> BUILD
+    BUILD --> T_TICK
+    BUILD --> DECODE
     F_MOD --> codec
     F_MOD --> F_CONN
     F_MOD --> F_FRAME
