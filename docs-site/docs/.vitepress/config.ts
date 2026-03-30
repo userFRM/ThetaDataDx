@@ -43,11 +43,11 @@ export default defineConfig({
       },
       {
         text: 'Historical Data',
-        collapsed: false,
+        collapsed: true,
         items: [
           {
             text: 'Stock',
-            collapsed: false,
+            collapsed: true,
             items: [
               { text: 'Overview', link: '/historical/stock/' },
               {
@@ -92,7 +92,7 @@ export default defineConfig({
           {
             text: 'Option',
             link: '/historical/option/',
-            collapsed: false,
+            collapsed: true,
             items: [
               {
                 text: 'List',
@@ -156,7 +156,7 @@ export default defineConfig({
           {
             text: 'Index',
             link: '/historical/index-data/',
-            collapsed: false,
+            collapsed: true,
             items: [
               {
                 text: 'List',
@@ -196,7 +196,7 @@ export default defineConfig({
           {
             text: 'Calendar',
             link: '/historical/calendar/',
-            collapsed: false,
+            collapsed: true,
             items: [
               { text: 'Open Today', link: '/historical/calendar/open-today' },
               { text: 'On Date', link: '/historical/calendar/on-date' },
@@ -206,7 +206,7 @@ export default defineConfig({
           {
             text: 'Rate',
             link: '/historical/rate/',
-            collapsed: false,
+            collapsed: true,
             items: [
               { text: 'EOD', link: '/historical/rate/eod' },
             ],
@@ -215,7 +215,7 @@ export default defineConfig({
       },
       {
         text: 'Real-Time Streaming',
-        collapsed: false,
+        collapsed: true,
         items: [
           { text: 'Overview', link: '/streaming/' },
           { text: 'Connecting & Subscribing', link: '/streaming/connection' },
@@ -225,7 +225,7 @@ export default defineConfig({
       },
       {
         text: 'More',
-        collapsed: false,
+        collapsed: true,
         items: [
           { text: 'Options & Greeks', link: '/options' },
           { text: 'Configuration', link: '/configuration' },
@@ -234,14 +234,14 @@ export default defineConfig({
       },
       {
         text: 'Reference',
-        collapsed: false,
+        collapsed: true,
         items: [
           { text: 'API Reference', link: '/api-reference' },
         ],
       },
       {
         text: 'Tools',
-        collapsed: false,
+        collapsed: true,
         items: [
           { text: 'CLI', link: '/tools/cli' },
           { text: 'MCP Server', link: '/tools/mcp' },
