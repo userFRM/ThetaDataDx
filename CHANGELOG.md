@@ -5,14 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [3.2.0] - 2026-03-30
 
 ### Added
 
 - **Fully typed returns for all 61 endpoints** - 9 new tick types (`TradeQuoteTick`, `OpenInterestTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`). All 31 endpoints that returned raw `proto::DataTable` now return typed `Vec<T>`. The `raw_endpoint!` macro has been removed entirely. Zero raw protobuf in the public API.
-- **TOML-driven codegen** - `endpoint_schema.toml` is the single source of truth for all 13 tick type definitions and DataTable column schemas. `build.rs` generates Rust structs and parsers at compile time. Adding a new column = one line in the TOML.
+- **TOML-driven codegen** - `endpoint_schema.toml` is the single source of truth for all 14 tick type definitions and DataTable column schemas. `build.rs` generates Rust structs and parsers at compile time. Adding a new column = one line in the TOML.
+- **Proto maintenance guide** (`proto/MAINTENANCE.md`) - step-by-step instructions for ThetaData engineers to add columns, RPCs, or replace proto files.
 - 10 new parse functions in `decode.rs` (including `parse_eod_ticks` moved from inline in `direct.rs`)
 - All downstream consumers updated: FFI (9 new JSON converters), CLI (9 new renderers), Server (9 new sonic_rs serializers), MCP (9 new serializers), Python SDK (9 new dict converters)
+- Crate README (`crates/thetadatadx/README.md`) and FFI README (`ffi/README.md`)
+- Python SDK: polars support documented (`pip install thetadatadx[polars]`)
+
+### Fixed
+
+- **Comprehensive documentation sweep** - 6 parallel agents audited every doc page, README, notebook, and example file against the actual source code. Fixed fabricated homepage examples, wrong C++ include paths (`thetadatadx.hpp` -> `thetadx.hpp`), stale `client.` variable names, missing typed return annotations, wrong Python `all_greeks()` parameter name, version pins (`3.0` -> `3.1`), `for_each_chunk` signature in API reference, and MIT license in footer (should be GPL-3.0).
+- **Parameter/response display redesign** - replaced flat markdown tables with vertical card layout across 60 endpoint documentation pages.
+- Root README streamlined with navigation table (removed 90-line endpoint listing)
+- Notebook 105: fixed event kinds and removed raw payload access pattern
+- OpenAPI yaml: fixed license, GitHub URLs, removed DataTable response types
 
 ## [3.1.0] - 2026-03-27
 
@@ -363,7 +374,8 @@ See [TODO.md](TODO.md) for the production readiness checklist and performance ro
 - FIT decoder uses i64 accumulator with i32 saturation (no silent overflow)
 - Price type range enforced with `assert!` in release builds
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v3.1.0...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v3.2.0...HEAD
+[3.2.0]: https://github.com/userFRM/ThetaDataDx/compare/v3.1.0...v3.2.0
 [3.1.0]: https://github.com/userFRM/ThetaDataDx/compare/v3.0.0...v3.1.0
 [3.0.0]: https://github.com/userFRM/ThetaDataDx/compare/v2.0.0...v3.0.0
 [2.0.0]: https://github.com/userFRM/ThetaDataDx/compare/v1.2.2...v2.0.0
