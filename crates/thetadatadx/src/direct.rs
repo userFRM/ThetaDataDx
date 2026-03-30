@@ -109,35 +109,6 @@ macro_rules! parsed_endpoint {
     };
 }
 
-/// Generate an endpoint that returns the raw `proto::DataTable`.
-///
-/// Used for Greeks, calendar, interest rates, and other endpoints where the
-/// column schema varies or is best consumed as a raw table.
-macro_rules! raw_endpoint {
-    (
-        $(#[$meta:meta])*
-        fn $name:ident( $($arg:ident : $arg_ty:ty),* ) -> proto::DataTable;
-        grpc: $grpc:ident;
-        request: $req:ident;
-        query: $query:ident { $($field:ident : $val:expr),* $(,)? };
-        $(dates: $($date_arg:ident),+ ;)?
-    ) => {
-        $(#[$meta])*
-        pub async fn $name(&self, $($arg : $arg_ty),*) -> Result<proto::DataTable, Error> {
-            $($(validate_date($date_arg)?;)+)?
-            tracing::debug!(endpoint = stringify!($name), "gRPC request");
-            let _permit = self.request_semaphore.acquire().await
-                .map_err(|_| Error::Fpss("request semaphore closed".into()))?;
-            let request = proto_v3::$req {
-                query_info: Some(self.query_info()),
-                params: Some(proto_v3::$query { $($field : $val),* }),
-            };
-            let stream = self.stub().$grpc(request).await?.into_inner();
-            self.collect_stream(stream).await
-        }
-    };
-}
-
 /// Generate a streaming endpoint that yields parsed ticks per-chunk via a callback,
 /// without materializing the full response in memory.
 ///
@@ -525,11 +496,11 @@ impl DirectClient {
     }
 
     // 6. GetStockSnapshotMarketValue
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Get the latest market value snapshot for one or more stocks.
         ///
         /// gRPC: `BetaThetaTerminal/GetStockSnapshotMarketValue`
-        fn stock_snapshot_market_value(symbols: &[&str]) -> proto::DataTable;
+        fn stock_snapshot_market_value(symbols: &[&str]) -> Vec<MarketValueTick>;
         grpc: get_stock_snapshot_market_value;
         request: StockSnapshotMarketValueRequest;
         query: StockSnapshotMarketValueRequestQuery {
@@ -537,6 +508,7 @@ impl DirectClient {
             venue: None,
             min_time: None,
         };
+        parse: decode::parse_market_value_ticks;
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -558,7 +530,7 @@ impl DirectClient {
             start_date: start.to_string(),
             end_date: end.to_string(),
         };
-        parse: parse_eod_from_table;
+        parse: decode::parse_eod_ticks;
         dates: start, end;
     }
 
@@ -710,11 +682,11 @@ impl DirectClient {
     }
 
     // 11. GetStockHistoryTradeQuote
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Fetch combined trade + quote ticks for a stock on a given date.
         ///
         /// gRPC: `BetaThetaTerminal/GetStockHistoryTradeQuote`
-        fn stock_history_trade_quote(symbol: &str, date: &str) -> proto::DataTable;
+        fn stock_history_trade_quote(symbol: &str, date: &str) -> Vec<TradeQuoteTick>;
         grpc: get_stock_history_trade_quote;
         request: StockHistoryTradeQuoteRequest;
         query: StockHistoryTradeQuoteRequestQuery {
@@ -727,6 +699,7 @@ impl DirectClient {
             start_date: None,
             end_date: None,
         };
+        parse: decode::parse_trade_quote_ticks;
         dates: date;
     }
 
@@ -840,15 +813,15 @@ impl DirectClient {
     }
 
     // 18. GetOptionListContracts
-    raw_endpoint! {
+    parsed_endpoint! {
         /// List all option contracts for a symbol on a given date.
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionListContracts`
         ///
-        /// Returns a `DataTable` with contract details (symbol, expiration, strike, right).
+        /// Returns parsed contract details (root, expiration, strike, right).
         fn option_list_contracts(
             request_type: &str, symbol: &str, date: &str
-        ) -> proto::DataTable;
+        ) -> Vec<OptionContract>;
         grpc: get_option_list_contracts;
         request: OptionListContractsRequest;
         query: OptionListContractsRequestQuery {
@@ -857,6 +830,7 @@ impl DirectClient {
             date: date.to_string(),
             max_dte: None,
         };
+        parse: decode::parse_option_contracts;
         dates: date;
     }
 
@@ -924,13 +898,13 @@ impl DirectClient {
     }
 
     // 22. GetOptionSnapshotOpenInterest
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Get the latest open interest snapshot for option contracts.
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionSnapshotOpenInterest`
         fn option_snapshot_open_interest(
             symbol: &str, expiration: &str, strike: &str, right: &str
-        ) -> proto::DataTable;
+        ) -> Vec<OpenInterestTick>;
         grpc: get_option_snapshot_open_interest;
         request: OptionSnapshotOpenInterestRequest;
         query: OptionSnapshotOpenInterestRequestQuery {
@@ -940,16 +914,17 @@ impl DirectClient {
             strike_range: None,
             min_time: None,
         };
+        parse: decode::parse_open_interest_ticks;
     }
 
     // 23. GetOptionSnapshotMarketValue
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Get the latest market value snapshot for option contracts.
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionSnapshotMarketValue`
         fn option_snapshot_market_value(
             symbol: &str, expiration: &str, strike: &str, right: &str
-        ) -> proto::DataTable;
+        ) -> Vec<MarketValueTick>;
         grpc: get_option_snapshot_market_value;
         request: OptionSnapshotMarketValueRequest;
         query: OptionSnapshotMarketValueRequestQuery {
@@ -959,16 +934,17 @@ impl DirectClient {
             strike_range: None,
             min_time: None,
         };
+        parse: decode::parse_market_value_ticks;
     }
 
     // 24. GetOptionSnapshotGreeksImpliedVolatility
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Get implied volatility snapshot for option contracts.
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionSnapshotGreeksImpliedVolatility`
         fn option_snapshot_greeks_implied_volatility(
             symbol: &str, expiration: &str, strike: &str, right: &str
-        ) -> proto::DataTable;
+        ) -> Vec<IvTick>;
         grpc: get_option_snapshot_greeks_implied_volatility;
         request: OptionSnapshotGreeksImpliedVolatilityRequest;
         query: OptionSnapshotGreeksImpliedVolatilityRequestQuery {
@@ -984,16 +960,17 @@ impl DirectClient {
             min_time: None,
             use_market_value: None,
         };
+        parse: decode::parse_iv_ticks;
     }
 
     // 25. GetOptionSnapshotGreeksAll
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Get all Greeks snapshot for option contracts.
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionSnapshotGreeksAll`
         fn option_snapshot_greeks_all(
             symbol: &str, expiration: &str, strike: &str, right: &str
-        ) -> proto::DataTable;
+        ) -> Vec<GreeksTick>;
         grpc: get_option_snapshot_greeks_all;
         request: OptionSnapshotGreeksAllRequest;
         query: OptionSnapshotGreeksAllRequestQuery {
@@ -1009,16 +986,17 @@ impl DirectClient {
             min_time: None,
             use_market_value: None,
         };
+        parse: decode::parse_greeks_ticks;
     }
 
     // 26. GetOptionSnapshotGreeksFirstOrder
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Get first-order Greeks snapshot (delta, theta, rho, etc.).
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionSnapshotGreeksFirstOrder`
         fn option_snapshot_greeks_first_order(
             symbol: &str, expiration: &str, strike: &str, right: &str
-        ) -> proto::DataTable;
+        ) -> Vec<GreeksTick>;
         grpc: get_option_snapshot_greeks_first_order;
         request: OptionSnapshotGreeksFirstOrderRequest;
         query: OptionSnapshotGreeksFirstOrderRequestQuery {
@@ -1034,16 +1012,17 @@ impl DirectClient {
             min_time: None,
             use_market_value: None,
         };
+        parse: decode::parse_greeks_ticks;
     }
 
     // 27. GetOptionSnapshotGreeksSecondOrder
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Get second-order Greeks snapshot (gamma, vanna, charm, etc.).
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionSnapshotGreeksSecondOrder`
         fn option_snapshot_greeks_second_order(
             symbol: &str, expiration: &str, strike: &str, right: &str
-        ) -> proto::DataTable;
+        ) -> Vec<GreeksTick>;
         grpc: get_option_snapshot_greeks_second_order;
         request: OptionSnapshotGreeksSecondOrderRequest;
         query: OptionSnapshotGreeksSecondOrderRequestQuery {
@@ -1059,16 +1038,17 @@ impl DirectClient {
             min_time: None,
             use_market_value: None,
         };
+        parse: decode::parse_greeks_ticks;
     }
 
     // 28. GetOptionSnapshotGreeksThirdOrder
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Get third-order Greeks snapshot (speed, color, ultima, etc.).
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionSnapshotGreeksThirdOrder`
         fn option_snapshot_greeks_third_order(
             symbol: &str, expiration: &str, strike: &str, right: &str
-        ) -> proto::DataTable;
+        ) -> Vec<GreeksTick>;
         grpc: get_option_snapshot_greeks_third_order;
         request: OptionSnapshotGreeksThirdOrderRequest;
         query: OptionSnapshotGreeksThirdOrderRequestQuery {
@@ -1084,6 +1064,7 @@ impl DirectClient {
             min_time: None,
             use_market_value: None,
         };
+        parse: decode::parse_greeks_ticks;
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -1109,7 +1090,7 @@ impl DirectClient {
             max_dte: None,
             strike_range: None,
         };
-        parse: parse_eod_from_table;
+        parse: decode::parse_eod_ticks;
         dates: start, end;
     }
 
@@ -1250,13 +1231,13 @@ impl DirectClient {
     }
 
     // 33. GetOptionHistoryTradeQuote
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Fetch combined trade + quote ticks for an option contract.
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryTradeQuote`
         fn option_history_trade_quote(
             symbol: &str, expiration: &str, strike: &str, right: &str, date: &str
-        ) -> proto::DataTable;
+        ) -> Vec<TradeQuoteTick>;
         grpc: get_option_history_trade_quote;
         request: OptionHistoryTradeQuoteRequest;
         query: OptionHistoryTradeQuoteRequestQuery {
@@ -1271,17 +1252,18 @@ impl DirectClient {
             start_date: None,
             end_date: None,
         };
+        parse: decode::parse_trade_quote_ticks;
         dates: date;
     }
 
     // 34. GetOptionHistoryOpenInterest
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Fetch open interest history for an option contract.
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryOpenInterest`
         fn option_history_open_interest(
             symbol: &str, expiration: &str, strike: &str, right: &str, date: &str
-        ) -> proto::DataTable;
+        ) -> Vec<OpenInterestTick>;
         grpc: get_option_history_open_interest;
         request: OptionHistoryOpenInterestRequest;
         query: OptionHistoryOpenInterestRequestQuery {
@@ -1293,6 +1275,7 @@ impl DirectClient {
             start_date: None,
             end_date: None,
         };
+        parse: decode::parse_open_interest_ticks;
         dates: date;
     }
 
@@ -1301,14 +1284,14 @@ impl DirectClient {
     // ═══════════════════════════════════════════════════════════════════
 
     // 35. GetOptionHistoryGreeksEod
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Fetch end-of-day Greeks history for an option contract.
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryGreeksEod`
         fn option_history_greeks_eod(
             symbol: &str, expiration: &str, strike: &str, right: &str,
             start_date: &str, end_date: &str
-        ) -> proto::DataTable;
+        ) -> Vec<GreeksTick>;
         grpc: get_option_history_greeks_eod;
         request: OptionHistoryGreeksEodRequest;
         query: OptionHistoryGreeksEodRequestQuery {
@@ -1324,18 +1307,19 @@ impl DirectClient {
             max_dte: None,
             strike_range: None,
         };
+        parse: decode::parse_greeks_ticks;
         dates: start_date, end_date;
     }
 
     // 36. GetOptionHistoryGreeksAll
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryGreeksAll`
         fn option_history_greeks_all(
             symbol: &str, expiration: &str, strike: &str, right: &str,
             date: &str, interval: &str
-        ) -> proto::DataTable;
+        ) -> Vec<GreeksTick>;
         grpc: get_option_history_greeks_all;
         request: OptionHistoryGreeksAllRequest;
         query: OptionHistoryGreeksAllRequestQuery {
@@ -1353,17 +1337,18 @@ impl DirectClient {
             start_date: None,
             end_date: None,
         };
+        parse: decode::parse_greeks_ticks;
         dates: date;
     }
 
     // 37. GetOptionHistoryTradeGreeksAll
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Fetch all Greeks on each trade for an option contract.
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryTradeGreeksAll`
         fn option_history_trade_greeks_all(
             symbol: &str, expiration: &str, strike: &str, right: &str, date: &str
-        ) -> proto::DataTable;
+        ) -> Vec<GreeksTick>;
         grpc: get_option_history_trade_greeks_all;
         request: OptionHistoryTradeGreeksAllRequest;
         query: OptionHistoryTradeGreeksAllRequestQuery {
@@ -1381,18 +1366,19 @@ impl DirectClient {
             start_date: None,
             end_date: None,
         };
+        parse: decode::parse_greeks_ticks;
         dates: date;
     }
 
     // 38. GetOptionHistoryGreeksFirstOrder
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Fetch first-order Greeks history (intraday, sampled by interval).
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryGreeksFirstOrder`
         fn option_history_greeks_first_order(
             symbol: &str, expiration: &str, strike: &str, right: &str,
             date: &str, interval: &str
-        ) -> proto::DataTable;
+        ) -> Vec<GreeksTick>;
         grpc: get_option_history_greeks_first_order;
         request: OptionHistoryGreeksFirstOrderRequest;
         query: OptionHistoryGreeksFirstOrderRequestQuery {
@@ -1410,17 +1396,18 @@ impl DirectClient {
             start_date: None,
             end_date: None,
         };
+        parse: decode::parse_greeks_ticks;
         dates: date;
     }
 
     // 39. GetOptionHistoryTradeGreeksFirstOrder
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Fetch first-order Greeks on each trade for an option contract.
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryTradeGreeksFirstOrder`
         fn option_history_trade_greeks_first_order(
             symbol: &str, expiration: &str, strike: &str, right: &str, date: &str
-        ) -> proto::DataTable;
+        ) -> Vec<GreeksTick>;
         grpc: get_option_history_trade_greeks_first_order;
         request: OptionHistoryTradeGreeksFirstOrderRequest;
         query: OptionHistoryTradeGreeksFirstOrderRequestQuery {
@@ -1438,18 +1425,19 @@ impl DirectClient {
             start_date: None,
             end_date: None,
         };
+        parse: decode::parse_greeks_ticks;
         dates: date;
     }
 
     // 40. GetOptionHistoryGreeksSecondOrder
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Fetch second-order Greeks history (intraday, sampled by interval).
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryGreeksSecondOrder`
         fn option_history_greeks_second_order(
             symbol: &str, expiration: &str, strike: &str, right: &str,
             date: &str, interval: &str
-        ) -> proto::DataTable;
+        ) -> Vec<GreeksTick>;
         grpc: get_option_history_greeks_second_order;
         request: OptionHistoryGreeksSecondOrderRequest;
         query: OptionHistoryGreeksSecondOrderRequestQuery {
@@ -1467,17 +1455,18 @@ impl DirectClient {
             start_date: None,
             end_date: None,
         };
+        parse: decode::parse_greeks_ticks;
         dates: date;
     }
 
     // 41. GetOptionHistoryTradeGreeksSecondOrder
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Fetch second-order Greeks on each trade for an option contract.
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryTradeGreeksSecondOrder`
         fn option_history_trade_greeks_second_order(
             symbol: &str, expiration: &str, strike: &str, right: &str, date: &str
-        ) -> proto::DataTable;
+        ) -> Vec<GreeksTick>;
         grpc: get_option_history_trade_greeks_second_order;
         request: OptionHistoryTradeGreeksSecondOrderRequest;
         query: OptionHistoryTradeGreeksSecondOrderRequestQuery {
@@ -1495,18 +1484,19 @@ impl DirectClient {
             start_date: None,
             end_date: None,
         };
+        parse: decode::parse_greeks_ticks;
         dates: date;
     }
 
     // 42. GetOptionHistoryGreeksThirdOrder
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Fetch third-order Greeks history (intraday, sampled by interval).
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryGreeksThirdOrder`
         fn option_history_greeks_third_order(
             symbol: &str, expiration: &str, strike: &str, right: &str,
             date: &str, interval: &str
-        ) -> proto::DataTable;
+        ) -> Vec<GreeksTick>;
         grpc: get_option_history_greeks_third_order;
         request: OptionHistoryGreeksThirdOrderRequest;
         query: OptionHistoryGreeksThirdOrderRequestQuery {
@@ -1524,17 +1514,18 @@ impl DirectClient {
             start_date: None,
             end_date: None,
         };
+        parse: decode::parse_greeks_ticks;
         dates: date;
     }
 
     // 43. GetOptionHistoryTradeGreeksThirdOrder
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Fetch third-order Greeks on each trade for an option contract.
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryTradeGreeksThirdOrder`
         fn option_history_trade_greeks_third_order(
             symbol: &str, expiration: &str, strike: &str, right: &str, date: &str
-        ) -> proto::DataTable;
+        ) -> Vec<GreeksTick>;
         grpc: get_option_history_trade_greeks_third_order;
         request: OptionHistoryTradeGreeksThirdOrderRequest;
         query: OptionHistoryTradeGreeksThirdOrderRequestQuery {
@@ -1552,18 +1543,19 @@ impl DirectClient {
             start_date: None,
             end_date: None,
         };
+        parse: decode::parse_greeks_ticks;
         dates: date;
     }
 
     // 44. GetOptionHistoryGreeksImpliedVolatility
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Fetch implied volatility history (intraday, sampled by interval).
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryGreeksImpliedVolatility`
         fn option_history_greeks_implied_volatility(
             symbol: &str, expiration: &str, strike: &str, right: &str,
             date: &str, interval: &str
-        ) -> proto::DataTable;
+        ) -> Vec<IvTick>;
         grpc: get_option_history_greeks_implied_volatility;
         request: OptionHistoryGreeksImpliedVolatilityRequest;
         query: OptionHistoryGreeksImpliedVolatilityRequestQuery {
@@ -1581,17 +1573,18 @@ impl DirectClient {
             start_date: None,
             end_date: None,
         };
+        parse: decode::parse_iv_ticks;
         dates: date;
     }
 
     // 45. GetOptionHistoryTradeGreeksImpliedVolatility
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Fetch implied volatility on each trade for an option contract.
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryTradeGreeksImpliedVolatility`
         fn option_history_trade_greeks_implied_volatility(
             symbol: &str, expiration: &str, strike: &str, right: &str, date: &str
-        ) -> proto::DataTable;
+        ) -> Vec<IvTick>;
         grpc: get_option_history_trade_greeks_implied_volatility;
         request: OptionHistoryTradeGreeksImpliedVolatilityRequest;
         query: OptionHistoryTradeGreeksImpliedVolatilityRequestQuery {
@@ -1609,6 +1602,7 @@ impl DirectClient {
             start_date: None,
             end_date: None,
         };
+        parse: decode::parse_iv_ticks;
         dates: date;
     }
 
@@ -1712,31 +1706,33 @@ impl DirectClient {
     }
 
     // 51. GetIndexSnapshotPrice
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Get the latest price snapshot for one or more indices.
         ///
         /// gRPC: `BetaThetaTerminal/GetIndexSnapshotPrice`
-        fn index_snapshot_price(symbols: &[&str]) -> proto::DataTable;
+        fn index_snapshot_price(symbols: &[&str]) -> Vec<PriceTick>;
         grpc: get_index_snapshot_price;
         request: IndexSnapshotPriceRequest;
         query: IndexSnapshotPriceRequestQuery {
             symbol: symbols.iter().map(|s| s.to_string()).collect(),
             min_time: None,
         };
+        parse: decode::parse_price_ticks;
     }
 
     // 52. GetIndexSnapshotMarketValue
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Get the latest market value snapshot for one or more indices.
         ///
         /// gRPC: `BetaThetaTerminal/GetIndexSnapshotMarketValue`
-        fn index_snapshot_market_value(symbols: &[&str]) -> proto::DataTable;
+        fn index_snapshot_market_value(symbols: &[&str]) -> Vec<MarketValueTick>;
         grpc: get_index_snapshot_market_value;
         request: IndexSnapshotMarketValueRequest;
         query: IndexSnapshotMarketValueRequestQuery {
             symbol: symbols.iter().map(|s| s.to_string()).collect(),
             min_time: None,
         };
+        parse: decode::parse_market_value_ticks;
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -1756,7 +1752,7 @@ impl DirectClient {
             start_date: start.to_string(),
             end_date: end.to_string(),
         };
-        parse: parse_eod_from_table;
+        parse: decode::parse_eod_ticks;
         dates: start, end;
     }
 
@@ -1783,13 +1779,13 @@ impl DirectClient {
     }
 
     // 55. GetIndexHistoryPrice
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Fetch intraday price history for an index.
         ///
         /// gRPC: `BetaThetaTerminal/GetIndexHistoryPrice`
         fn index_history_price(
             symbol: &str, date: &str, interval: &str
-        ) -> proto::DataTable;
+        ) -> Vec<PriceTick>;
         grpc: get_index_history_price;
         request: IndexHistoryPriceRequest;
         query: IndexHistoryPriceRequestQuery {
@@ -1801,6 +1797,7 @@ impl DirectClient {
             start_date: None,
             end_date: None,
         };
+        parse: decode::parse_price_ticks;
         dates: date;
     }
 
@@ -1809,13 +1806,13 @@ impl DirectClient {
     // ═══════════════════════════════════════════════════════════════════
 
     // 56. GetIndexAtTimePrice
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Fetch the index price at a specific time of day across a date range.
         ///
         /// gRPC: `BetaThetaTerminal/GetIndexAtTimePrice`
         fn index_at_time_price(
             symbol: &str, start_date: &str, end_date: &str, time_of_day: &str
-        ) -> proto::DataTable;
+        ) -> Vec<PriceTick>;
         grpc: get_index_at_time_price;
         request: IndexAtTimePriceRequest;
         query: IndexAtTimePriceRequestQuery {
@@ -1824,6 +1821,7 @@ impl DirectClient {
             end_date: end_date.to_string(),
             time_of_day: time_of_day.to_string(),
         };
+        parse: decode::parse_price_ticks;
         dates: start_date, end_date;
     }
 
@@ -1832,43 +1830,46 @@ impl DirectClient {
     // ═══════════════════════════════════════════════════════════════════
 
     // 57. GetCalendarOpenToday
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Check whether the market is open today.
         ///
         /// gRPC: `BetaThetaTerminal/GetCalendarOpenToday`
-        fn calendar_open_today() -> proto::DataTable;
+        fn calendar_open_today() -> Vec<CalendarDay>;
         grpc: get_calendar_open_today;
         request: CalendarOpenTodayRequest;
         query: CalendarOpenTodayRequestQuery {};
+        parse: decode::parse_calendar_days;
     }
 
     // 58. GetCalendarOnDate
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Get calendar information for a specific date.
         ///
         /// gRPC: `BetaThetaTerminal/GetCalendarOnDate`
-        fn calendar_on_date(date: &str) -> proto::DataTable;
+        fn calendar_on_date(date: &str) -> Vec<CalendarDay>;
         grpc: get_calendar_on_date;
         request: CalendarOnDateRequest;
         query: CalendarOnDateRequestQuery {
             date: date.to_string(),
         };
+        parse: decode::parse_calendar_days;
         dates: date;
     }
 
     // 59. GetCalendarYear
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Get calendar information for an entire year.
         ///
         /// gRPC: `BetaThetaTerminal/GetCalendarYear`
         ///
         /// `year` is a 4-digit year string (e.g. `"2024"`).
-        fn calendar_year(year: &str) -> proto::DataTable;
+        fn calendar_year(year: &str) -> Vec<CalendarDay>;
         grpc: get_calendar_year;
         request: CalendarYearRequest;
         query: CalendarYearRequestQuery {
             year: year.to_string(),
         };
+        parse: decode::parse_calendar_days;
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -1876,13 +1877,13 @@ impl DirectClient {
     // ═══════════════════════════════════════════════════════════════════
 
     // 60. GetInterestRateHistoryEod
-    raw_endpoint! {
+    parsed_endpoint! {
         /// Fetch end-of-day interest rate history.
         ///
         /// gRPC: `BetaThetaTerminal/GetInterestRateHistoryEod`
         fn interest_rate_history_eod(
             symbol: &str, start_date: &str, end_date: &str
-        ) -> proto::DataTable;
+        ) -> Vec<InterestRateTick>;
         grpc: get_interest_rate_history_eod;
         request: InterestRateHistoryEodRequest;
         query: InterestRateHistoryEodRequestQuery {
@@ -1890,6 +1891,7 @@ impl DirectClient {
             start_date: start_date.to_string(),
             end_date: end_date.to_string(),
         };
+        parse: decode::parse_interest_rate_ticks;
         dates: start_date, end_date;
     }
 
@@ -1965,80 +1967,6 @@ fn validate_date(date: &str) -> Result<(), Error> {
     Ok(())
 }
 
-/// Parse EOD ticks from a `DataTable` using header-based column lookup.
-///
-/// Handles both Price-typed and Number-typed columns transparently.
-fn parse_eod_from_table(table: &proto::DataTable) -> Vec<EodTick> {
-    let h: Vec<&str> = table.headers.iter().map(|s| s.as_str()).collect();
-    let find = |name: &str| h.iter().position(|&s| s == name);
-
-    // EOD rows may have Price-typed cells (value + type) or plain Number cells.
-    // `eod_num` tries Price.value first, then Number, matching the dual-typed
-    // columns that EOD data can return. This is distinct from `decode::row_number`
-    // which only handles Number cells (used for pure tick data).
-    fn eod_num(row: &proto::DataValueList, idx: usize) -> i32 {
-        row.values
-            .get(idx)
-            .and_then(|dv| dv.data_type.as_ref())
-            .and_then(|dt| match dt {
-                proto::data_value::DataType::Number(n) => Some(*n as i32),
-                proto::data_value::DataType::Price(p) => Some(p.value),
-                _ => None,
-            })
-            .unwrap_or(0)
-    }
-
-    // Precompute all column indices once, outside the per-row loop.
-    let ms_of_day_idx = find("ms_of_day");
-    let ms_of_day2_idx = find("ms_of_day2");
-    let open_idx = find("open");
-    let high_idx = find("high");
-    let low_idx = find("low");
-    let close_idx = find("close");
-    let volume_idx = find("volume");
-    let count_idx = find("count");
-    let bid_size_idx = find("bid_size");
-    let bid_exchange_idx = find("bid_exchange");
-    let bid_idx = find("bid");
-    let bid_condition_idx = find("bid_condition");
-    let ask_size_idx = find("ask_size");
-    let ask_exchange_idx = find("ask_exchange");
-    let ask_idx = find("ask");
-    let ask_condition_idx = find("ask_condition");
-    let date_idx = find("date");
-
-    table
-        .data_table
-        .iter()
-        .map(|row| {
-            let pt = open_idx
-                .map(|i| decode::row_price_type(row, i))
-                .unwrap_or(0);
-
-            EodTick {
-                ms_of_day: ms_of_day_idx.map(|i| eod_num(row, i)).unwrap_or(0),
-                ms_of_day2: ms_of_day2_idx.map(|i| eod_num(row, i)).unwrap_or(0),
-                open: open_idx.map(|i| eod_num(row, i)).unwrap_or(0),
-                high: high_idx.map(|i| eod_num(row, i)).unwrap_or(0),
-                low: low_idx.map(|i| eod_num(row, i)).unwrap_or(0),
-                close: close_idx.map(|i| eod_num(row, i)).unwrap_or(0),
-                volume: volume_idx.map(|i| eod_num(row, i)).unwrap_or(0),
-                count: count_idx.map(|i| eod_num(row, i)).unwrap_or(0),
-                bid_size: bid_size_idx.map(|i| eod_num(row, i)).unwrap_or(0),
-                bid_exchange: bid_exchange_idx.map(|i| eod_num(row, i)).unwrap_or(0),
-                bid: bid_idx.map(|i| eod_num(row, i)).unwrap_or(0),
-                bid_condition: bid_condition_idx.map(|i| eod_num(row, i)).unwrap_or(0),
-                ask_size: ask_size_idx.map(|i| eod_num(row, i)).unwrap_or(0),
-                ask_exchange: ask_exchange_idx.map(|i| eod_num(row, i)).unwrap_or(0),
-                ask: ask_idx.map(|i| eod_num(row, i)).unwrap_or(0),
-                ask_condition: ask_condition_idx.map(|i| eod_num(row, i)).unwrap_or(0),
-                price_type: pt,
-                date: date_idx.map(|i| eod_num(row, i)).unwrap_or(0),
-            }
-        })
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2071,7 +1999,7 @@ mod tests {
             headers: vec!["ms_of_day".into(), "open".into(), "date".into()],
             data_table: vec![],
         };
-        let ticks = parse_eod_from_table(&table);
+        let ticks = decode::parse_eod_ticks(&table);
         assert!(ticks.is_empty());
     }
 
@@ -2101,7 +2029,7 @@ mod tests {
                 ],
             }],
         };
-        let ticks = parse_eod_from_table(&table);
+        let ticks = decode::parse_eod_ticks(&table);
         assert_eq!(ticks.len(), 1);
         assert_eq!(ticks[0].ms_of_day, 34200000);
         assert_eq!(ticks[0].open, 15000);

@@ -460,6 +460,528 @@ pub fn parse_ohlc_ticks(table: &proto::DataTable) -> Vec<OhlcTick> {
         .collect()
 }
 
+/// Helper to get an f64 from a row at a given column index, defaulting to 0.0.
+///
+/// Greeks and implied volatility columns use `Number` (f64) values in the DataTable,
+/// not `Price` cells. This helper extracts the raw f64 value.
+pub(crate) fn row_float(row: &proto::DataValueList, idx: usize) -> f64 {
+    row.values
+        .get(idx)
+        .and_then(|dv| dv.data_type.as_ref())
+        .and_then(|dt| match dt {
+            proto::data_value::DataType::Number(n) => Some(*n as f64),
+            _ => None,
+        })
+        .unwrap_or(0.0)
+}
+
+/// Helper to get a String from a row at a given column index, defaulting to empty.
+pub(crate) fn row_text(row: &proto::DataValueList, idx: usize) -> String {
+    row.values
+        .get(idx)
+        .and_then(|dv| dv.data_type.as_ref())
+        .and_then(|dt| match dt {
+            proto::data_value::DataType::Text(s) => Some(s.clone()),
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
+/// Helper to get an i64 from a row at a given column index, defaulting to 0.
+///
+/// Market value fields (market_cap, shares_outstanding, etc.) can exceed i32 range.
+pub(crate) fn row_number_i64(row: &proto::DataValueList, idx: usize) -> i64 {
+    row.values
+        .get(idx)
+        .and_then(|dv| dv.data_type.as_ref())
+        .and_then(|dt| match dt {
+            proto::data_value::DataType::Number(n) => Some(*n),
+            _ => None,
+        })
+        .unwrap_or(0)
+}
+
+/// Parse a DataTable into TradeQuoteTicks.
+///
+/// Expects headers matching the combined trade + quote schema.
+pub fn parse_trade_quote_ticks(table: &proto::DataTable) -> Vec<TradeQuoteTick> {
+    let h: Vec<&str> = table.headers.iter().map(|s| s.as_str()).collect();
+
+    let Some(ms_idx) = find_header(&h, "ms_of_day") else {
+        return vec![];
+    };
+    let Some(price_idx) = find_header(&h, "price") else {
+        return vec![];
+    };
+
+    let seq_idx = find_header(&h, "sequence");
+    let ext1_idx = find_header(&h, "ext_condition1");
+    let ext2_idx = find_header(&h, "ext_condition2");
+    let ext3_idx = find_header(&h, "ext_condition3");
+    let ext4_idx = find_header(&h, "ext_condition4");
+    let cond_idx = find_header(&h, "condition");
+    let size_idx = find_header(&h, "size");
+    let exg_idx = find_header(&h, "exchange");
+    let cf_idx = find_header(&h, "condition_flags");
+    let pf_idx = find_header(&h, "price_flags");
+    let vt_idx = find_header(&h, "volume_type");
+    let rb_idx = find_header(&h, "records_back");
+    let qms_idx = find_header(&h, "quote_ms_of_day");
+    let bs_idx = find_header(&h, "bid_size");
+    let be_idx = find_header(&h, "bid_exchange");
+    let bid_idx = find_header(&h, "bid");
+    let bc_idx = find_header(&h, "bid_condition");
+    let as_idx = find_header(&h, "ask_size");
+    let ae_idx = find_header(&h, "ask_exchange");
+    let ask_idx = find_header(&h, "ask");
+    let ac_idx = find_header(&h, "ask_condition");
+    let qpt_idx = find_header(&h, "quote_price_type");
+    let pt_idx = find_header(&h, "price_type");
+    let date_idx = find_header(&h, "date");
+
+    let price_is_typed = h.contains(&"price");
+
+    fn opt_number(row: &proto::DataValueList, idx: Option<usize>) -> i32 {
+        match idx {
+            Some(i) => row_number(row, i),
+            None => 0,
+        }
+    }
+
+    table
+        .data_table
+        .iter()
+        .map(|row| {
+            let pt = if price_is_typed {
+                row_price_type(row, price_idx)
+            } else {
+                opt_number(row, pt_idx)
+            };
+
+            TradeQuoteTick {
+                ms_of_day: row_number(row, ms_idx),
+                sequence: opt_number(row, seq_idx),
+                ext_condition1: opt_number(row, ext1_idx),
+                ext_condition2: opt_number(row, ext2_idx),
+                ext_condition3: opt_number(row, ext3_idx),
+                ext_condition4: opt_number(row, ext4_idx),
+                condition: opt_number(row, cond_idx),
+                size: opt_number(row, size_idx),
+                exchange: opt_number(row, exg_idx),
+                price: if price_is_typed {
+                    row_price_value(row, price_idx)
+                } else {
+                    row_number(row, price_idx)
+                },
+                condition_flags: opt_number(row, cf_idx),
+                price_flags: opt_number(row, pf_idx),
+                volume_type: opt_number(row, vt_idx),
+                records_back: opt_number(row, rb_idx),
+                quote_ms_of_day: opt_number(row, qms_idx),
+                bid_size: opt_number(row, bs_idx),
+                bid_exchange: opt_number(row, be_idx),
+                bid: match bid_idx {
+                    Some(i) => row_price_value(row, i),
+                    None => 0,
+                },
+                bid_condition: opt_number(row, bc_idx),
+                ask_size: opt_number(row, as_idx),
+                ask_exchange: opt_number(row, ae_idx),
+                ask: match ask_idx {
+                    Some(i) => row_price_value(row, i),
+                    None => 0,
+                },
+                ask_condition: opt_number(row, ac_idx),
+                quote_price_type: opt_number(row, qpt_idx),
+                price_type: pt,
+                date: opt_number(row, date_idx),
+            }
+        })
+        .collect()
+}
+
+/// Parse a DataTable into OpenInterestTicks.
+pub fn parse_open_interest_ticks(table: &proto::DataTable) -> Vec<OpenInterestTick> {
+    let h: Vec<&str> = table.headers.iter().map(|s| s.as_str()).collect();
+
+    let Some(ms_idx) = find_header(&h, "ms_of_day") else {
+        return vec![];
+    };
+
+    let oi_idx = find_header(&h, "open_interest");
+    let date_idx = find_header(&h, "date");
+
+    fn opt_number(row: &proto::DataValueList, idx: Option<usize>) -> i32 {
+        match idx {
+            Some(i) => row_number(row, i),
+            None => 0,
+        }
+    }
+
+    table
+        .data_table
+        .iter()
+        .map(|row| OpenInterestTick {
+            ms_of_day: row_number(row, ms_idx),
+            open_interest: opt_number(row, oi_idx),
+            date: opt_number(row, date_idx),
+        })
+        .collect()
+}
+
+/// Parse a DataTable into MarketValueTicks.
+pub fn parse_market_value_ticks(table: &proto::DataTable) -> Vec<MarketValueTick> {
+    let h: Vec<&str> = table.headers.iter().map(|s| s.as_str()).collect();
+
+    let Some(ms_idx) = find_header(&h, "ms_of_day") else {
+        return vec![];
+    };
+
+    let mc_idx = find_header(&h, "market_cap");
+    let so_idx = find_header(&h, "shares_outstanding");
+    let ev_idx = find_header(&h, "enterprise_value");
+    let bv_idx = find_header(&h, "book_value");
+    let ff_idx = find_header(&h, "free_float");
+    let date_idx = find_header(&h, "date");
+
+    fn opt_i64(row: &proto::DataValueList, idx: Option<usize>) -> i64 {
+        match idx {
+            Some(i) => row_number_i64(row, i),
+            None => 0,
+        }
+    }
+
+    table
+        .data_table
+        .iter()
+        .map(|row| MarketValueTick {
+            ms_of_day: row_number(row, ms_idx),
+            market_cap: opt_i64(row, mc_idx),
+            shares_outstanding: opt_i64(row, so_idx),
+            enterprise_value: opt_i64(row, ev_idx),
+            book_value: opt_i64(row, bv_idx),
+            free_float: opt_i64(row, ff_idx),
+            date: date_idx.map(|i| row_number(row, i)).unwrap_or(0),
+        })
+        .collect()
+}
+
+/// Parse a DataTable into GreeksTicks.
+///
+/// Greeks columns use `Number` (f64) values in the DataTable, not `Price` cells.
+pub fn parse_greeks_ticks(table: &proto::DataTable) -> Vec<GreeksTick> {
+    let h: Vec<&str> = table.headers.iter().map(|s| s.as_str()).collect();
+
+    let Some(ms_idx) = find_header(&h, "ms_of_day") else {
+        return vec![];
+    };
+
+    let iv_idx = find_header(&h, "implied_volatility");
+    let delta_idx = find_header(&h, "delta");
+    let gamma_idx = find_header(&h, "gamma");
+    let theta_idx = find_header(&h, "theta");
+    let vega_idx = find_header(&h, "vega");
+    let rho_idx = find_header(&h, "rho");
+    let ive_idx = find_header(&h, "iv_error");
+    let vanna_idx = find_header(&h, "vanna");
+    let charm_idx = find_header(&h, "charm");
+    let vomma_idx = find_header(&h, "vomma");
+    let veta_idx = find_header(&h, "veta");
+    let speed_idx = find_header(&h, "speed");
+    let zomma_idx = find_header(&h, "zomma");
+    let color_idx = find_header(&h, "color");
+    let ultima_idx = find_header(&h, "ultima");
+    let d1_idx = find_header(&h, "d1");
+    let d2_idx = find_header(&h, "d2");
+    let dd_idx = find_header(&h, "dual_delta");
+    let dg_idx = find_header(&h, "dual_gamma");
+    let eps_idx = find_header(&h, "epsilon");
+    let lam_idx = find_header(&h, "lambda");
+    let vera_idx = find_header(&h, "vera");
+    let date_idx = find_header(&h, "date");
+
+    fn opt_float(row: &proto::DataValueList, idx: Option<usize>) -> f64 {
+        match idx {
+            Some(i) => row_float(row, i),
+            None => 0.0,
+        }
+    }
+
+    fn opt_number(row: &proto::DataValueList, idx: Option<usize>) -> i32 {
+        match idx {
+            Some(i) => row_number(row, i),
+            None => 0,
+        }
+    }
+
+    table
+        .data_table
+        .iter()
+        .map(|row| GreeksTick {
+            ms_of_day: row_number(row, ms_idx),
+            implied_volatility: opt_float(row, iv_idx),
+            delta: opt_float(row, delta_idx),
+            gamma: opt_float(row, gamma_idx),
+            theta: opt_float(row, theta_idx),
+            vega: opt_float(row, vega_idx),
+            rho: opt_float(row, rho_idx),
+            iv_error: opt_float(row, ive_idx),
+            vanna: opt_float(row, vanna_idx),
+            charm: opt_float(row, charm_idx),
+            vomma: opt_float(row, vomma_idx),
+            veta: opt_float(row, veta_idx),
+            speed: opt_float(row, speed_idx),
+            zomma: opt_float(row, zomma_idx),
+            color: opt_float(row, color_idx),
+            ultima: opt_float(row, ultima_idx),
+            d1: opt_float(row, d1_idx),
+            d2: opt_float(row, d2_idx),
+            dual_delta: opt_float(row, dd_idx),
+            dual_gamma: opt_float(row, dg_idx),
+            epsilon: opt_float(row, eps_idx),
+            lambda: opt_float(row, lam_idx),
+            vera: opt_float(row, vera_idx),
+            date: opt_number(row, date_idx),
+        })
+        .collect()
+}
+
+/// Parse a DataTable into IvTicks.
+///
+/// IV columns use `Number` (f64) values in the DataTable.
+pub fn parse_iv_ticks(table: &proto::DataTable) -> Vec<IvTick> {
+    let h: Vec<&str> = table.headers.iter().map(|s| s.as_str()).collect();
+
+    let Some(ms_idx) = find_header(&h, "ms_of_day") else {
+        return vec![];
+    };
+
+    let iv_idx = find_header(&h, "implied_volatility");
+    let ive_idx = find_header(&h, "iv_error");
+    let date_idx = find_header(&h, "date");
+
+    fn opt_float(row: &proto::DataValueList, idx: Option<usize>) -> f64 {
+        match idx {
+            Some(i) => row_float(row, i),
+            None => 0.0,
+        }
+    }
+
+    table
+        .data_table
+        .iter()
+        .map(|row| IvTick {
+            ms_of_day: row_number(row, ms_idx),
+            implied_volatility: opt_float(row, iv_idx),
+            iv_error: opt_float(row, ive_idx),
+            date: date_idx.map(|i| row_number(row, i)).unwrap_or(0),
+        })
+        .collect()
+}
+
+/// Parse a DataTable into PriceTicks.
+pub fn parse_price_ticks(table: &proto::DataTable) -> Vec<PriceTick> {
+    let h: Vec<&str> = table.headers.iter().map(|s| s.as_str()).collect();
+
+    let Some(ms_idx) = find_header(&h, "ms_of_day") else {
+        return vec![];
+    };
+    let Some(price_idx) = find_header(&h, "price") else {
+        return vec![];
+    };
+
+    let pt_idx = find_header(&h, "price_type");
+    let date_idx = find_header(&h, "date");
+
+    let price_is_typed = h.contains(&"price");
+
+    fn opt_number(row: &proto::DataValueList, idx: Option<usize>) -> i32 {
+        match idx {
+            Some(i) => row_number(row, i),
+            None => 0,
+        }
+    }
+
+    table
+        .data_table
+        .iter()
+        .map(|row| {
+            let pt = if price_is_typed {
+                row_price_type(row, price_idx)
+            } else {
+                opt_number(row, pt_idx)
+            };
+
+            PriceTick {
+                ms_of_day: row_number(row, ms_idx),
+                price: if price_is_typed {
+                    row_price_value(row, price_idx)
+                } else {
+                    row_number(row, price_idx)
+                },
+                price_type: pt,
+                date: opt_number(row, date_idx),
+            }
+        })
+        .collect()
+}
+
+/// Parse a DataTable into CalendarDays.
+pub fn parse_calendar_days(table: &proto::DataTable) -> Vec<CalendarDay> {
+    let h: Vec<&str> = table.headers.iter().map(|s| s.as_str()).collect();
+
+    let Some(date_idx) = find_header(&h, "date") else {
+        return vec![];
+    };
+
+    let open_idx = find_header(&h, "is_open");
+    let ot_idx = find_header(&h, "open_time");
+    let ct_idx = find_header(&h, "close_time");
+    let status_idx = find_header(&h, "status");
+
+    fn opt_number(row: &proto::DataValueList, idx: Option<usize>) -> i32 {
+        match idx {
+            Some(i) => row_number(row, i),
+            None => 0,
+        }
+    }
+
+    table
+        .data_table
+        .iter()
+        .map(|row| CalendarDay {
+            date: row_number(row, date_idx),
+            is_open: opt_number(row, open_idx),
+            open_time: opt_number(row, ot_idx),
+            close_time: opt_number(row, ct_idx),
+            status: opt_number(row, status_idx),
+        })
+        .collect()
+}
+
+/// Parse a DataTable into InterestRateTicks.
+pub fn parse_interest_rate_ticks(table: &proto::DataTable) -> Vec<InterestRateTick> {
+    let h: Vec<&str> = table.headers.iter().map(|s| s.as_str()).collect();
+
+    let Some(ms_idx) = find_header(&h, "ms_of_day") else {
+        return vec![];
+    };
+
+    let rate_idx = find_header(&h, "rate");
+    let date_idx = find_header(&h, "date");
+
+    table
+        .data_table
+        .iter()
+        .map(|row| InterestRateTick {
+            ms_of_day: row_number(row, ms_idx),
+            rate: rate_idx.map(|i| row_float(row, i)).unwrap_or(0.0),
+            date: date_idx.map(|i| row_number(row, i)).unwrap_or(0),
+        })
+        .collect()
+}
+
+/// Parse a DataTable into OptionContracts.
+pub fn parse_option_contracts(table: &proto::DataTable) -> Vec<OptionContract> {
+    let h: Vec<&str> = table.headers.iter().map(|s| s.as_str()).collect();
+
+    let Some(root_idx) = find_header(&h, "root") else {
+        return vec![];
+    };
+
+    let exp_idx = find_header(&h, "expiration");
+    let strike_idx = find_header(&h, "strike");
+    let right_idx = find_header(&h, "right");
+    let spt_idx = find_header(&h, "strike_price_type");
+
+    fn opt_number(row: &proto::DataValueList, idx: Option<usize>) -> i32 {
+        match idx {
+            Some(i) => row_number(row, i),
+            None => 0,
+        }
+    }
+
+    table
+        .data_table
+        .iter()
+        .map(|row| OptionContract {
+            root: row_text(row, root_idx),
+            expiration: opt_number(row, exp_idx),
+            strike: opt_number(row, strike_idx),
+            right: opt_number(row, right_idx),
+            strike_price_type: opt_number(row, spt_idx),
+        })
+        .collect()
+}
+
+/// Parse EOD ticks from a `DataTable` using header-based column lookup.
+///
+/// Handles both Price-typed and Number-typed columns transparently.
+pub fn parse_eod_ticks(table: &proto::DataTable) -> Vec<EodTick> {
+    let h: Vec<&str> = table.headers.iter().map(|s| s.as_str()).collect();
+    let find = |name: &str| h.iter().position(|&s| s == name);
+
+    // EOD rows may have Price-typed cells (value + type) or plain Number cells.
+    fn eod_num(row: &proto::DataValueList, idx: usize) -> i32 {
+        row.values
+            .get(idx)
+            .and_then(|dv| dv.data_type.as_ref())
+            .and_then(|dt| match dt {
+                proto::data_value::DataType::Number(n) => Some(*n as i32),
+                proto::data_value::DataType::Price(p) => Some(p.value),
+                _ => None,
+            })
+            .unwrap_or(0)
+    }
+
+    let ms_of_day_idx = find("ms_of_day");
+    let ms_of_day2_idx = find("ms_of_day2");
+    let open_idx = find("open");
+    let high_idx = find("high");
+    let low_idx = find("low");
+    let close_idx = find("close");
+    let volume_idx = find("volume");
+    let count_idx = find("count");
+    let bid_size_idx = find("bid_size");
+    let bid_exchange_idx = find("bid_exchange");
+    let bid_idx = find("bid");
+    let bid_condition_idx = find("bid_condition");
+    let ask_size_idx = find("ask_size");
+    let ask_exchange_idx = find("ask_exchange");
+    let ask_idx = find("ask");
+    let ask_condition_idx = find("ask_condition");
+    let date_idx = find("date");
+
+    table
+        .data_table
+        .iter()
+        .map(|row| {
+            let pt = open_idx.map(|i| row_price_type(row, i)).unwrap_or(0);
+
+            EodTick {
+                ms_of_day: ms_of_day_idx.map(|i| eod_num(row, i)).unwrap_or(0),
+                ms_of_day2: ms_of_day2_idx.map(|i| eod_num(row, i)).unwrap_or(0),
+                open: open_idx.map(|i| eod_num(row, i)).unwrap_or(0),
+                high: high_idx.map(|i| eod_num(row, i)).unwrap_or(0),
+                low: low_idx.map(|i| eod_num(row, i)).unwrap_or(0),
+                close: close_idx.map(|i| eod_num(row, i)).unwrap_or(0),
+                volume: volume_idx.map(|i| eod_num(row, i)).unwrap_or(0),
+                count: count_idx.map(|i| eod_num(row, i)).unwrap_or(0),
+                bid_size: bid_size_idx.map(|i| eod_num(row, i)).unwrap_or(0),
+                bid_exchange: bid_exchange_idx.map(|i| eod_num(row, i)).unwrap_or(0),
+                bid: bid_idx.map(|i| eod_num(row, i)).unwrap_or(0),
+                bid_condition: bid_condition_idx.map(|i| eod_num(row, i)).unwrap_or(0),
+                ask_size: ask_size_idx.map(|i| eod_num(row, i)).unwrap_or(0),
+                ask_exchange: ask_exchange_idx.map(|i| eod_num(row, i)).unwrap_or(0),
+                ask: ask_idx.map(|i| eod_num(row, i)).unwrap_or(0),
+                ask_condition: ask_condition_idx.map(|i| eod_num(row, i)).unwrap_or(0),
+                price_type: pt,
+                date: date_idx.map(|i| eod_num(row, i)).unwrap_or(0),
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

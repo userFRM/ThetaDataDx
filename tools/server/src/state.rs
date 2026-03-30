@@ -8,10 +8,10 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use tokio::sync::broadcast;
 use thetadatadx::direct::DirectClient;
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::ThetaDataDx;
+use tokio::sync::broadcast;
 
 /// Capacity of the broadcast channel used to fan out FPSS events to WebSocket
 /// clients.  4096 is chosen because:

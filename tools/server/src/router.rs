@@ -98,12 +98,13 @@ pub fn build(state: AppState) -> Router {
         if let Some(path) = endpoint_to_path(ep) {
             let ep_arc: &'static EndpointMeta = ep;
             let ep_shared = Arc::new(ep_arc);
-            let handler_fn =
-                move |s: axum::extract::State<AppState>,
-                      q: axum::extract::Query<std::collections::HashMap<String, String>>| {
-                    let ep = Arc::clone(&ep_shared);
-                    async move { handler::generic(s, q, &ep).await }
-                };
+            let handler_fn = move |s: axum::extract::State<AppState>,
+                                   q: axum::extract::Query<
+                std::collections::HashMap<String, String>,
+            >| {
+                let ep = Arc::clone(&ep_shared);
+                async move { handler::generic(s, q, &ep).await }
+            };
             app = app.route(&path, get(handler_fn));
             registered += 1;
             tracing::debug!(endpoint = ep.name, path = %path, "registered route");
@@ -117,7 +118,10 @@ pub fn build(state: AppState) -> Router {
         }
     }
 
-    tracing::info!(count = registered, "registered endpoint routes from registry");
+    tracing::info!(
+        count = registered,
+        "registered endpoint routes from registry"
+    );
 
     // System routes
     app = app

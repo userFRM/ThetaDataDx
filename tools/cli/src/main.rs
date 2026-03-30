@@ -215,8 +215,8 @@ async fn dispatch_endpoint(
         }
         "stock_snapshot_market_value" => {
             let syms = parse_symbols(get_arg(m, "symbols"));
-            let table = client.stock_snapshot_market_value(&syms).await?;
-            render_data_table(&table, fmt);
+            let ticks = client.stock_snapshot_market_value(&syms).await?;
+            render_market_value(&ticks, fmt);
         }
 
         // ── Stock History ───────────────────────────────────────────
@@ -260,8 +260,8 @@ async fn dispatch_endpoint(
         "stock_history_trade_quote" => {
             let sym = get_arg(m, "symbol");
             let date = get_arg(m, "date");
-            let table = client.stock_history_trade_quote(sym, date).await?;
-            render_data_table(&table, fmt);
+            let ticks = client.stock_history_trade_quote(sym, date).await?;
+            render_trade_quotes(&ticks, fmt);
         }
 
         // ── Stock At-Time ───────────────────────────────────────────
@@ -313,8 +313,8 @@ async fn dispatch_endpoint(
             let rt = get_arg(m, "request_type");
             let sym = get_arg(m, "symbol");
             let date = get_arg(m, "date");
-            let table = client.option_list_contracts(rt, sym, date).await?;
-            render_data_table(&table, fmt);
+            let contracts = client.option_list_contracts(rt, sym, date).await?;
+            render_option_contracts(&contracts, fmt);
         }
 
         // ── Option Snapshot ─────────────────────────────────────────
@@ -339,52 +339,52 @@ async fn dispatch_endpoint(
         }
         "option_snapshot_open_interest" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
-            let table = client
+            let ticks = client
                 .option_snapshot_open_interest(sym, exp, strike, right)
                 .await?;
-            render_data_table(&table, fmt);
+            render_open_interest(&ticks, fmt);
         }
         "option_snapshot_market_value" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
-            let table = client
+            let ticks = client
                 .option_snapshot_market_value(sym, exp, strike, right)
                 .await?;
-            render_data_table(&table, fmt);
+            render_market_value(&ticks, fmt);
         }
         "option_snapshot_greeks_implied_volatility" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
-            let table = client
+            let ticks = client
                 .option_snapshot_greeks_implied_volatility(sym, exp, strike, right)
                 .await?;
-            render_data_table(&table, fmt);
+            render_iv(&ticks, fmt);
         }
         "option_snapshot_greeks_all" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
-            let table = client
+            let ticks = client
                 .option_snapshot_greeks_all(sym, exp, strike, right)
                 .await?;
-            render_data_table(&table, fmt);
+            render_greeks(&ticks, fmt);
         }
         "option_snapshot_greeks_first_order" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
-            let table = client
+            let ticks = client
                 .option_snapshot_greeks_first_order(sym, exp, strike, right)
                 .await?;
-            render_data_table(&table, fmt);
+            render_greeks(&ticks, fmt);
         }
         "option_snapshot_greeks_second_order" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
-            let table = client
+            let ticks = client
                 .option_snapshot_greeks_second_order(sym, exp, strike, right)
                 .await?;
-            render_data_table(&table, fmt);
+            render_greeks(&ticks, fmt);
         }
         "option_snapshot_greeks_third_order" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
-            let table = client
+            let ticks = client
                 .option_snapshot_greeks_third_order(sym, exp, strike, right)
                 .await?;
-            render_data_table(&table, fmt);
+            render_greeks(&ticks, fmt);
         }
 
         // ── Option History ──────────────────────────────────────────
@@ -426,18 +426,18 @@ async fn dispatch_endpoint(
         "option_history_trade_quote" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let date = get_arg(m, "date");
-            let table = client
+            let ticks = client
                 .option_history_trade_quote(sym, exp, strike, right, date)
                 .await?;
-            render_data_table(&table, fmt);
+            render_trade_quotes(&ticks, fmt);
         }
         "option_history_open_interest" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let date = get_arg(m, "date");
-            let table = client
+            let ticks = client
                 .option_history_open_interest(sym, exp, strike, right, date)
                 .await?;
-            render_data_table(&table, fmt);
+            render_open_interest(&ticks, fmt);
         }
 
         // ── Option History Greeks ───────────────────────────────────
@@ -445,95 +445,95 @@ async fn dispatch_endpoint(
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let start = get_arg(m, "start_date");
             let end = get_arg(m, "end_date");
-            let table = client
+            let ticks = client
                 .option_history_greeks_eod(sym, exp, strike, right, start, end)
                 .await?;
-            render_data_table(&table, fmt);
+            render_greeks(&ticks, fmt);
         }
         "option_history_greeks_all" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let date = get_arg(m, "date");
             let interval = get_arg(m, "interval");
-            let table = client
+            let ticks = client
                 .option_history_greeks_all(sym, exp, strike, right, date, interval)
                 .await?;
-            render_data_table(&table, fmt);
+            render_greeks(&ticks, fmt);
         }
         "option_history_trade_greeks_all" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let date = get_arg(m, "date");
-            let table = client
+            let ticks = client
                 .option_history_trade_greeks_all(sym, exp, strike, right, date)
                 .await?;
-            render_data_table(&table, fmt);
+            render_greeks(&ticks, fmt);
         }
         "option_history_greeks_first_order" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let date = get_arg(m, "date");
             let interval = get_arg(m, "interval");
-            let table = client
+            let ticks = client
                 .option_history_greeks_first_order(sym, exp, strike, right, date, interval)
                 .await?;
-            render_data_table(&table, fmt);
+            render_greeks(&ticks, fmt);
         }
         "option_history_trade_greeks_first_order" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let date = get_arg(m, "date");
-            let table = client
+            let ticks = client
                 .option_history_trade_greeks_first_order(sym, exp, strike, right, date)
                 .await?;
-            render_data_table(&table, fmt);
+            render_greeks(&ticks, fmt);
         }
         "option_history_greeks_second_order" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let date = get_arg(m, "date");
             let interval = get_arg(m, "interval");
-            let table = client
+            let ticks = client
                 .option_history_greeks_second_order(sym, exp, strike, right, date, interval)
                 .await?;
-            render_data_table(&table, fmt);
+            render_greeks(&ticks, fmt);
         }
         "option_history_trade_greeks_second_order" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let date = get_arg(m, "date");
-            let table = client
+            let ticks = client
                 .option_history_trade_greeks_second_order(sym, exp, strike, right, date)
                 .await?;
-            render_data_table(&table, fmt);
+            render_greeks(&ticks, fmt);
         }
         "option_history_greeks_third_order" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let date = get_arg(m, "date");
             let interval = get_arg(m, "interval");
-            let table = client
+            let ticks = client
                 .option_history_greeks_third_order(sym, exp, strike, right, date, interval)
                 .await?;
-            render_data_table(&table, fmt);
+            render_greeks(&ticks, fmt);
         }
         "option_history_trade_greeks_third_order" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let date = get_arg(m, "date");
-            let table = client
+            let ticks = client
                 .option_history_trade_greeks_third_order(sym, exp, strike, right, date)
                 .await?;
-            render_data_table(&table, fmt);
+            render_greeks(&ticks, fmt);
         }
         "option_history_greeks_implied_volatility" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let date = get_arg(m, "date");
             let interval = get_arg(m, "interval");
-            let table = client
+            let ticks = client
                 .option_history_greeks_implied_volatility(sym, exp, strike, right, date, interval)
                 .await?;
-            render_data_table(&table, fmt);
+            render_iv(&ticks, fmt);
         }
         "option_history_trade_greeks_implied_volatility" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let date = get_arg(m, "date");
-            let table = client
+            let ticks = client
                 .option_history_trade_greeks_implied_volatility(sym, exp, strike, right, date)
                 .await?;
-            render_data_table(&table, fmt);
+            render_iv(&ticks, fmt);
         }
 
         // ── Option At-Time ──────────────────────────────────────────
@@ -577,13 +577,13 @@ async fn dispatch_endpoint(
         }
         "index_snapshot_price" => {
             let syms = parse_symbols(get_arg(m, "symbols"));
-            let table = client.index_snapshot_price(&syms).await?;
-            render_data_table(&table, fmt);
+            let ticks = client.index_snapshot_price(&syms).await?;
+            render_price(&ticks, fmt);
         }
         "index_snapshot_market_value" => {
             let syms = parse_symbols(get_arg(m, "symbols"));
-            let table = client.index_snapshot_market_value(&syms).await?;
-            render_data_table(&table, fmt);
+            let ticks = client.index_snapshot_market_value(&syms).await?;
+            render_market_value(&ticks, fmt);
         }
 
         // ── Index History ───────────────────────────────────────────
@@ -606,8 +606,8 @@ async fn dispatch_endpoint(
             let sym = get_arg(m, "symbol");
             let date = get_arg(m, "date");
             let interval = get_arg(m, "interval");
-            let table = client.index_history_price(sym, date, interval).await?;
-            render_data_table(&table, fmt);
+            let ticks = client.index_history_price(sym, date, interval).await?;
+            render_price(&ticks, fmt);
         }
 
         // ── Index At-Time ───────────────────────────────────────────
@@ -616,24 +616,24 @@ async fn dispatch_endpoint(
             let start = get_arg(m, "start_date");
             let end = get_arg(m, "end_date");
             let tod = get_arg(m, "time_of_day");
-            let table = client.index_at_time_price(sym, start, end, tod).await?;
-            render_data_table(&table, fmt);
+            let ticks = client.index_at_time_price(sym, start, end, tod).await?;
+            render_price(&ticks, fmt);
         }
 
         // ── Calendar ────────────────────────────────────────────────
         "calendar_open_today" => {
-            let table = client.calendar_open_today().await?;
-            render_data_table(&table, fmt);
+            let days = client.calendar_open_today().await?;
+            render_calendar(&days, fmt);
         }
         "calendar_on_date" => {
             let date = get_arg(m, "date");
-            let table = client.calendar_on_date(date).await?;
-            render_data_table(&table, fmt);
+            let days = client.calendar_on_date(date).await?;
+            render_calendar(&days, fmt);
         }
         "calendar_year" => {
             let year = get_arg(m, "year");
-            let table = client.calendar_year(year).await?;
-            render_data_table(&table, fmt);
+            let days = client.calendar_year(year).await?;
+            render_calendar(&days, fmt);
         }
 
         // ── Interest Rate ───────────────────────────────────────────
@@ -641,8 +641,8 @@ async fn dispatch_endpoint(
             let sym = get_arg(m, "symbol");
             let start = get_arg(m, "start_date");
             let end = get_arg(m, "end_date");
-            let table = client.interest_rate_history_eod(sym, start, end).await?;
-            render_data_table(&table, fmt);
+            let ticks = client.interest_rate_history_eod(sym, start, end).await?;
+            render_interest_rates(&ticks, fmt);
         }
 
         other => {
@@ -842,6 +842,7 @@ impl TabularData {
 /// they render as proper `null`.
 const NULL_SENTINEL: &str = "\x00NULL\x00";
 
+#[allow(dead_code)]
 fn render_data_table(table: &thetadatadx::proto::DataTable, fmt: &OutputFormat) {
     let headers: Vec<&str> = table.headers.iter().map(|s| s.as_str()).collect();
     let mut td = TabularData::new(headers);
@@ -1020,6 +1021,177 @@ fn render_string_list(items: &[String], header: &str, fmt: &OutputFormat) {
     let mut td = TabularData::new(vec![header]);
     for s in items {
         td.push(vec![s.clone()]);
+    }
+    td.render(fmt);
+}
+
+fn render_trade_quotes(ticks: &[thetadatadx::types::tick::TradeQuoteTick], fmt: &OutputFormat) {
+    let mut td = TabularData::new(vec![
+        "date",
+        "time",
+        "price",
+        "size",
+        "exchange",
+        "condition",
+        "sequence",
+        "quote_time",
+        "bid",
+        "bid_size",
+        "ask",
+        "ask_size",
+    ]);
+    for t in ticks {
+        td.push(vec![
+            format_date(t.date),
+            format_ms(t.ms_of_day),
+            format_price(t.price, t.price_type),
+            format!("{}", t.size),
+            format!("{}", t.exchange),
+            format!("{}", t.condition),
+            format!("{}", t.sequence),
+            format_ms(t.quote_ms_of_day),
+            format_price(t.bid, t.price_type),
+            format!("{}", t.bid_size),
+            format_price(t.ask, t.price_type),
+            format!("{}", t.ask_size),
+        ]);
+    }
+    td.render(fmt);
+}
+
+fn render_open_interest(ticks: &[thetadatadx::types::tick::OpenInterestTick], fmt: &OutputFormat) {
+    let mut td = TabularData::new(vec!["date", "ms_of_day", "open_interest"]);
+    for t in ticks {
+        td.push(vec![
+            format_date(t.date),
+            format_ms(t.ms_of_day),
+            format!("{}", t.open_interest),
+        ]);
+    }
+    td.render(fmt);
+}
+
+fn render_market_value(ticks: &[thetadatadx::types::tick::MarketValueTick], fmt: &OutputFormat) {
+    let mut td = TabularData::new(vec![
+        "date",
+        "ms_of_day",
+        "market_cap",
+        "shares_outstanding",
+        "enterprise_value",
+        "book_value",
+        "free_float",
+    ]);
+    for t in ticks {
+        td.push(vec![
+            format_date(t.date),
+            format_ms(t.ms_of_day),
+            format!("{}", t.market_cap),
+            format!("{}", t.shares_outstanding),
+            format!("{}", t.enterprise_value),
+            format!("{}", t.book_value),
+            format!("{}", t.free_float),
+        ]);
+    }
+    td.render(fmt);
+}
+
+fn render_greeks(ticks: &[thetadatadx::types::tick::GreeksTick], fmt: &OutputFormat) {
+    let mut td = TabularData::new(vec![
+        "date",
+        "ms_of_day",
+        "iv",
+        "delta",
+        "gamma",
+        "theta",
+        "vega",
+        "rho",
+    ]);
+    for t in ticks {
+        td.push(vec![
+            format_date(t.date),
+            format_ms(t.ms_of_day),
+            format!("{:.6}", t.implied_volatility),
+            format!("{:.6}", t.delta),
+            format!("{:.6}", t.gamma),
+            format!("{:.6}", t.theta),
+            format!("{:.6}", t.vega),
+            format!("{:.6}", t.rho),
+        ]);
+    }
+    td.render(fmt);
+}
+
+fn render_iv(ticks: &[thetadatadx::types::tick::IvTick], fmt: &OutputFormat) {
+    let mut td = TabularData::new(vec!["date", "ms_of_day", "implied_volatility", "iv_error"]);
+    for t in ticks {
+        td.push(vec![
+            format_date(t.date),
+            format_ms(t.ms_of_day),
+            format!("{:.6}", t.implied_volatility),
+            format!("{:.6}", t.iv_error),
+        ]);
+    }
+    td.render(fmt);
+}
+
+fn render_price(ticks: &[thetadatadx::types::tick::PriceTick], fmt: &OutputFormat) {
+    let mut td = TabularData::new(vec!["date", "ms_of_day", "price", "price_type"]);
+    for t in ticks {
+        td.push(vec![
+            format_date(t.date),
+            format_ms(t.ms_of_day),
+            format_price(t.price, t.price_type),
+            format!("{}", t.price_type),
+        ]);
+    }
+    td.render(fmt);
+}
+
+fn render_calendar(days: &[thetadatadx::types::tick::CalendarDay], fmt: &OutputFormat) {
+    let mut td = TabularData::new(vec!["date", "is_open", "open_time", "close_time", "status"]);
+    for d in days {
+        td.push(vec![
+            format_date(d.date),
+            format!("{}", d.is_open),
+            format_ms(d.open_time),
+            format_ms(d.close_time),
+            format!("{}", d.status),
+        ]);
+    }
+    td.render(fmt);
+}
+
+fn render_interest_rates(ticks: &[thetadatadx::types::tick::InterestRateTick], fmt: &OutputFormat) {
+    let mut td = TabularData::new(vec!["date", "ms_of_day", "rate"]);
+    for t in ticks {
+        td.push(vec![
+            format_date(t.date),
+            format_ms(t.ms_of_day),
+            format!("{:.6}", t.rate),
+        ]);
+    }
+    td.render(fmt);
+}
+
+fn render_option_contracts(
+    contracts: &[thetadatadx::types::tick::OptionContract],
+    fmt: &OutputFormat,
+) {
+    let mut td = TabularData::new(vec![
+        "root",
+        "expiration",
+        "strike",
+        "right",
+        "strike_price_type",
+    ]);
+    for c in contracts {
+        td.push(vec![
+            c.root.clone(),
+            format!("{}", c.expiration),
+            format!("{}", c.strike),
+            format!("{}", c.right),
+            format!("{}", c.strike_price_type),
+        ]);
     }
     td.render(fmt);
 }

@@ -297,6 +297,7 @@ fn json_to_cstring(val: &serde_json::Value) -> *mut c_char {
 ///
 /// Each row is an array of values matching the header columns.
 /// Values are either strings (text), numbers (int64), or price objects `{"value":N,"type":T}`.
+#[allow(dead_code)]
 fn data_table_to_cstring(table: &thetadatadx::proto::DataTable) -> *mut c_char {
     let headers: Vec<serde_json::Value> = table
         .headers
@@ -536,6 +537,130 @@ fn quote_tick_to_json(t: &thetadatadx::types::tick::QuoteTick) -> serde_json::Va
     })
 }
 
+fn trade_quote_tick_to_json(t: &thetadatadx::types::tick::TradeQuoteTick) -> serde_json::Value {
+    serde_json::json!({
+        "ms_of_day": t.ms_of_day,
+        "sequence": t.sequence,
+        "condition": t.condition,
+        "size": t.size,
+        "exchange": t.exchange,
+        "price": t.trade_price().to_f64(),
+        "price_raw": t.price,
+        "price_type": t.price_type,
+        "condition_flags": t.condition_flags,
+        "price_flags": t.price_flags,
+        "volume_type": t.volume_type,
+        "records_back": t.records_back,
+        "quote_ms_of_day": t.quote_ms_of_day,
+        "bid_size": t.bid_size,
+        "bid_exchange": t.bid_exchange,
+        "bid": t.bid_price().to_f64(),
+        "bid_condition": t.bid_condition,
+        "ask_size": t.ask_size,
+        "ask_exchange": t.ask_exchange,
+        "ask": t.ask_price().to_f64(),
+        "ask_condition": t.ask_condition,
+        "quote_price_type": t.quote_price_type,
+        "date": t.date,
+    })
+}
+
+fn open_interest_tick_to_json(t: &thetadatadx::types::tick::OpenInterestTick) -> serde_json::Value {
+    serde_json::json!({
+        "ms_of_day": t.ms_of_day,
+        "open_interest": t.open_interest,
+        "date": t.date,
+    })
+}
+
+fn market_value_tick_to_json(t: &thetadatadx::types::tick::MarketValueTick) -> serde_json::Value {
+    serde_json::json!({
+        "ms_of_day": t.ms_of_day,
+        "market_cap": t.market_cap,
+        "shares_outstanding": t.shares_outstanding,
+        "enterprise_value": t.enterprise_value,
+        "book_value": t.book_value,
+        "free_float": t.free_float,
+        "date": t.date,
+    })
+}
+
+fn greeks_tick_to_json(t: &thetadatadx::types::tick::GreeksTick) -> serde_json::Value {
+    serde_json::json!({
+        "ms_of_day": t.ms_of_day,
+        "implied_volatility": t.implied_volatility,
+        "delta": t.delta,
+        "gamma": t.gamma,
+        "theta": t.theta,
+        "vega": t.vega,
+        "rho": t.rho,
+        "iv_error": t.iv_error,
+        "vanna": t.vanna,
+        "charm": t.charm,
+        "vomma": t.vomma,
+        "veta": t.veta,
+        "speed": t.speed,
+        "zomma": t.zomma,
+        "color": t.color,
+        "ultima": t.ultima,
+        "d1": t.d1,
+        "d2": t.d2,
+        "dual_delta": t.dual_delta,
+        "dual_gamma": t.dual_gamma,
+        "epsilon": t.epsilon,
+        "lambda": t.lambda,
+        "vera": t.vera,
+        "date": t.date,
+    })
+}
+
+fn iv_tick_to_json(t: &thetadatadx::types::tick::IvTick) -> serde_json::Value {
+    serde_json::json!({
+        "ms_of_day": t.ms_of_day,
+        "implied_volatility": t.implied_volatility,
+        "iv_error": t.iv_error,
+        "date": t.date,
+    })
+}
+
+fn price_tick_to_json(t: &thetadatadx::types::tick::PriceTick) -> serde_json::Value {
+    serde_json::json!({
+        "ms_of_day": t.ms_of_day,
+        "price": t.get_price().to_f64(),
+        "price_raw": t.price,
+        "price_type": t.price_type,
+        "date": t.date,
+    })
+}
+
+fn calendar_day_to_json(t: &thetadatadx::types::tick::CalendarDay) -> serde_json::Value {
+    serde_json::json!({
+        "date": t.date,
+        "is_open": t.is_open,
+        "open_time": t.open_time,
+        "close_time": t.close_time,
+        "status": t.status,
+    })
+}
+
+fn interest_rate_tick_to_json(t: &thetadatadx::types::tick::InterestRateTick) -> serde_json::Value {
+    serde_json::json!({
+        "ms_of_day": t.ms_of_day,
+        "rate": t.rate,
+        "date": t.date,
+    })
+}
+
+fn option_contract_to_json(t: &thetadatadx::types::tick::OptionContract) -> serde_json::Value {
+    serde_json::json!({
+        "root": t.root,
+        "expiration": t.expiration,
+        "strike": t.strike,
+        "right": t.right,
+        "strike_price_type": t.strike_price_type,
+    })
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 //  FFI macros — eliminate boilerplate across all endpoint wrappers
 // ═══════════════════════════════════════════════════════════════════════
@@ -659,49 +784,6 @@ macro_rules! ffi_snapshot_endpoint {
     };
 }
 
-/// FFI wrapper for raw snapshot endpoints (return DataTable as JSON).
-macro_rules! ffi_snapshot_raw_endpoint {
-    (
-        $(#[$meta:meta])*
-        $ffi_name:ident => $method:ident
-    ) => {
-        $(#[$meta])*
-        #[no_mangle]
-        pub unsafe extern "C" fn $ffi_name(
-            client: *const TdxClient,
-            symbols_json: *const c_char,
-        ) -> *mut c_char {
-            if client.is_null() {
-                set_error("client handle is null");
-                return ptr::null_mut();
-            }
-            let client = unsafe { &*client };
-            let json_str = match unsafe { cstr_to_str(symbols_json) } {
-                Some(s) => s,
-                None => {
-                    set_error("symbols_json is null or invalid UTF-8");
-                    return ptr::null_mut();
-                }
-            };
-            let symbols: Vec<String> = match serde_json::from_str(json_str) {
-                Ok(s) => s,
-                Err(e) => {
-                    set_error(&format!("invalid symbols JSON: {}", e));
-                    return ptr::null_mut();
-                }
-            };
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            match runtime().block_on(client.inner.$method(&refs)) {
-                Ok(table) => data_table_to_cstring(&table),
-                Err(e) => {
-                    set_error(&e.to_string());
-                    ptr::null_mut()
-                }
-            }
-        }
-    };
-}
-
 /// FFI wrapper for parsed tick endpoints with C string params.
 macro_rules! ffi_parsed_endpoint {
     (
@@ -743,48 +825,11 @@ macro_rules! ffi_parsed_endpoint {
     };
 }
 
-/// FFI wrapper for raw DataTable endpoints with C string params.
-macro_rules! ffi_raw_endpoint {
+/// FFI wrapper for parsed endpoints with no params.
+macro_rules! ffi_parsed_endpoint_no_params {
     (
         $(#[$meta:meta])*
-        $ffi_name:ident => $method:ident ( $($param:ident),+ )
-    ) => {
-        $(#[$meta])*
-        #[no_mangle]
-        pub unsafe extern "C" fn $ffi_name(
-            client: *const TdxClient,
-            $($param: *const c_char),+
-        ) -> *mut c_char {
-            if client.is_null() {
-                set_error("client handle is null");
-                return ptr::null_mut();
-            }
-            let client = unsafe { &*client };
-            $(
-                let $param = match unsafe { cstr_to_str($param) } {
-                    Some(s) => s,
-                    None => {
-                        set_error(concat!(stringify!($param), " is null or invalid UTF-8"));
-                        return ptr::null_mut();
-                    }
-                };
-            )+
-            match runtime().block_on(client.inner.$method($($param),+)) {
-                Ok(table) => data_table_to_cstring(&table),
-                Err(e) => {
-                    set_error(&e.to_string());
-                    ptr::null_mut()
-                }
-            }
-        }
-    };
-}
-
-/// FFI wrapper for raw DataTable endpoints with no params.
-macro_rules! ffi_raw_endpoint_no_params {
-    (
-        $(#[$meta:meta])*
-        $ffi_name:ident => $method:ident
+        $ffi_name:ident => $method:ident, $tick_to_json:ident
     ) => {
         $(#[$meta])*
         #[no_mangle]
@@ -795,7 +840,11 @@ macro_rules! ffi_raw_endpoint_no_params {
             }
             let client = unsafe { &*client };
             match runtime().block_on(client.inner.$method()) {
-                Ok(table) => data_table_to_cstring(&table),
+                Ok(ticks) => {
+                    let json =
+                        serde_json::Value::Array(ticks.iter().map($tick_to_json).collect());
+                    json_to_cstring(&json)
+                }
                 Err(e) => {
                     set_error(&e.to_string());
                     ptr::null_mut()
@@ -844,9 +893,9 @@ ffi_snapshot_endpoint! {
 }
 
 // 6. stock_snapshot_market_value
-ffi_snapshot_raw_endpoint! {
-    /// Get latest market value snapshot. symbols_json is JSON array. Returns JSON DataTable.
-    tdx_stock_snapshot_market_value => stock_snapshot_market_value
+ffi_snapshot_endpoint! {
+    /// Get latest market value snapshot. symbols_json is JSON array. Returns JSON array.
+    tdx_stock_snapshot_market_value => stock_snapshot_market_value, market_value_tick_to_json
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -884,9 +933,9 @@ ffi_parsed_endpoint! {
 }
 
 // 11. stock_history_trade_quote
-ffi_raw_endpoint! {
-    /// Fetch combined trade + quote ticks. Returns JSON DataTable.
-    tdx_stock_history_trade_quote => stock_history_trade_quote(symbol, date)
+ffi_parsed_endpoint! {
+    /// Fetch combined trade + quote ticks. Returns JSON array.
+    tdx_stock_history_trade_quote => stock_history_trade_quote, trade_quote_tick_to_json(symbol, date)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -934,9 +983,9 @@ ffi_list_endpoint! {
 }
 
 // 18. option_list_contracts
-ffi_raw_endpoint! {
-    /// List all option contracts for a symbol on a date. Returns JSON DataTable.
-    tdx_option_list_contracts => option_list_contracts(request_type, symbol, date)
+ffi_parsed_endpoint! {
+    /// List all option contracts for a symbol on a date. Returns JSON array.
+    tdx_option_list_contracts => option_list_contracts, option_contract_to_json(request_type, symbol, date)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -962,45 +1011,45 @@ ffi_parsed_endpoint! {
 }
 
 // 22. option_snapshot_open_interest
-ffi_raw_endpoint! {
-    /// Get latest open interest snapshot for options. Returns JSON DataTable.
-    tdx_option_snapshot_open_interest => option_snapshot_open_interest(symbol, expiration, strike, right)
+ffi_parsed_endpoint! {
+    /// Get latest open interest snapshot for options. Returns JSON array.
+    tdx_option_snapshot_open_interest => option_snapshot_open_interest, open_interest_tick_to_json(symbol, expiration, strike, right)
 }
 
 // 23. option_snapshot_market_value
-ffi_raw_endpoint! {
-    /// Get latest market value snapshot for options. Returns JSON DataTable.
-    tdx_option_snapshot_market_value => option_snapshot_market_value(symbol, expiration, strike, right)
+ffi_parsed_endpoint! {
+    /// Get latest market value snapshot for options. Returns JSON array.
+    tdx_option_snapshot_market_value => option_snapshot_market_value, market_value_tick_to_json(symbol, expiration, strike, right)
 }
 
 // 24. option_snapshot_greeks_implied_volatility
-ffi_raw_endpoint! {
-    /// Get IV snapshot for options. Returns JSON DataTable.
-    tdx_option_snapshot_greeks_implied_volatility => option_snapshot_greeks_implied_volatility(symbol, expiration, strike, right)
+ffi_parsed_endpoint! {
+    /// Get IV snapshot for options. Returns JSON array.
+    tdx_option_snapshot_greeks_implied_volatility => option_snapshot_greeks_implied_volatility, iv_tick_to_json(symbol, expiration, strike, right)
 }
 
 // 25. option_snapshot_greeks_all
-ffi_raw_endpoint! {
-    /// Get all Greeks snapshot for options. Returns JSON DataTable.
-    tdx_option_snapshot_greeks_all => option_snapshot_greeks_all(symbol, expiration, strike, right)
+ffi_parsed_endpoint! {
+    /// Get all Greeks snapshot for options. Returns JSON array.
+    tdx_option_snapshot_greeks_all => option_snapshot_greeks_all, greeks_tick_to_json(symbol, expiration, strike, right)
 }
 
 // 26. option_snapshot_greeks_first_order
-ffi_raw_endpoint! {
-    /// Get first-order Greeks snapshot. Returns JSON DataTable.
-    tdx_option_snapshot_greeks_first_order => option_snapshot_greeks_first_order(symbol, expiration, strike, right)
+ffi_parsed_endpoint! {
+    /// Get first-order Greeks snapshot. Returns JSON array.
+    tdx_option_snapshot_greeks_first_order => option_snapshot_greeks_first_order, greeks_tick_to_json(symbol, expiration, strike, right)
 }
 
 // 27. option_snapshot_greeks_second_order
-ffi_raw_endpoint! {
-    /// Get second-order Greeks snapshot. Returns JSON DataTable.
-    tdx_option_snapshot_greeks_second_order => option_snapshot_greeks_second_order(symbol, expiration, strike, right)
+ffi_parsed_endpoint! {
+    /// Get second-order Greeks snapshot. Returns JSON array.
+    tdx_option_snapshot_greeks_second_order => option_snapshot_greeks_second_order, greeks_tick_to_json(symbol, expiration, strike, right)
 }
 
 // 28. option_snapshot_greeks_third_order
-ffi_raw_endpoint! {
-    /// Get third-order Greeks snapshot. Returns JSON DataTable.
-    tdx_option_snapshot_greeks_third_order => option_snapshot_greeks_third_order(symbol, expiration, strike, right)
+ffi_parsed_endpoint! {
+    /// Get third-order Greeks snapshot. Returns JSON array.
+    tdx_option_snapshot_greeks_third_order => option_snapshot_greeks_third_order, greeks_tick_to_json(symbol, expiration, strike, right)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1032,15 +1081,15 @@ ffi_parsed_endpoint! {
 }
 
 // 33. option_history_trade_quote
-ffi_raw_endpoint! {
-    /// Fetch combined trade + quote ticks for an option contract. Returns JSON DataTable.
-    tdx_option_history_trade_quote => option_history_trade_quote(symbol, expiration, strike, right, date)
+ffi_parsed_endpoint! {
+    /// Fetch combined trade + quote ticks for an option contract. Returns JSON array.
+    tdx_option_history_trade_quote => option_history_trade_quote, trade_quote_tick_to_json(symbol, expiration, strike, right, date)
 }
 
 // 34. option_history_open_interest
-ffi_raw_endpoint! {
-    /// Fetch open interest history for an option contract. Returns JSON DataTable.
-    tdx_option_history_open_interest => option_history_open_interest(symbol, expiration, strike, right, date)
+ffi_parsed_endpoint! {
+    /// Fetch open interest history for an option contract. Returns JSON array.
+    tdx_option_history_open_interest => option_history_open_interest, open_interest_tick_to_json(symbol, expiration, strike, right, date)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1048,69 +1097,69 @@ ffi_raw_endpoint! {
 // ═══════════════════════════════════════════════════════════════════════
 
 // 35. option_history_greeks_eod
-ffi_raw_endpoint! {
-    /// Fetch EOD Greeks history. Returns JSON DataTable.
-    tdx_option_history_greeks_eod => option_history_greeks_eod(symbol, expiration, strike, right, start_date, end_date)
+ffi_parsed_endpoint! {
+    /// Fetch EOD Greeks history. Returns JSON array.
+    tdx_option_history_greeks_eod => option_history_greeks_eod, greeks_tick_to_json(symbol, expiration, strike, right, start_date, end_date)
 }
 
 // 36. option_history_greeks_all
-ffi_raw_endpoint! {
-    /// Fetch all Greeks history (intraday). Returns JSON DataTable.
-    tdx_option_history_greeks_all => option_history_greeks_all(symbol, expiration, strike, right, date, interval)
+ffi_parsed_endpoint! {
+    /// Fetch all Greeks history (intraday). Returns JSON array.
+    tdx_option_history_greeks_all => option_history_greeks_all, greeks_tick_to_json(symbol, expiration, strike, right, date, interval)
 }
 
 // 37. option_history_trade_greeks_all
-ffi_raw_endpoint! {
-    /// Fetch all Greeks on each trade. Returns JSON DataTable.
-    tdx_option_history_trade_greeks_all => option_history_trade_greeks_all(symbol, expiration, strike, right, date)
+ffi_parsed_endpoint! {
+    /// Fetch all Greeks on each trade. Returns JSON array.
+    tdx_option_history_trade_greeks_all => option_history_trade_greeks_all, greeks_tick_to_json(symbol, expiration, strike, right, date)
 }
 
 // 38. option_history_greeks_first_order
-ffi_raw_endpoint! {
-    /// Fetch first-order Greeks history. Returns JSON DataTable.
-    tdx_option_history_greeks_first_order => option_history_greeks_first_order(symbol, expiration, strike, right, date, interval)
+ffi_parsed_endpoint! {
+    /// Fetch first-order Greeks history. Returns JSON array.
+    tdx_option_history_greeks_first_order => option_history_greeks_first_order, greeks_tick_to_json(symbol, expiration, strike, right, date, interval)
 }
 
 // 39. option_history_trade_greeks_first_order
-ffi_raw_endpoint! {
-    /// Fetch first-order Greeks on each trade. Returns JSON DataTable.
-    tdx_option_history_trade_greeks_first_order => option_history_trade_greeks_first_order(symbol, expiration, strike, right, date)
+ffi_parsed_endpoint! {
+    /// Fetch first-order Greeks on each trade. Returns JSON array.
+    tdx_option_history_trade_greeks_first_order => option_history_trade_greeks_first_order, greeks_tick_to_json(symbol, expiration, strike, right, date)
 }
 
 // 40. option_history_greeks_second_order
-ffi_raw_endpoint! {
-    /// Fetch second-order Greeks history. Returns JSON DataTable.
-    tdx_option_history_greeks_second_order => option_history_greeks_second_order(symbol, expiration, strike, right, date, interval)
+ffi_parsed_endpoint! {
+    /// Fetch second-order Greeks history. Returns JSON array.
+    tdx_option_history_greeks_second_order => option_history_greeks_second_order, greeks_tick_to_json(symbol, expiration, strike, right, date, interval)
 }
 
 // 41. option_history_trade_greeks_second_order
-ffi_raw_endpoint! {
-    /// Fetch second-order Greeks on each trade. Returns JSON DataTable.
-    tdx_option_history_trade_greeks_second_order => option_history_trade_greeks_second_order(symbol, expiration, strike, right, date)
+ffi_parsed_endpoint! {
+    /// Fetch second-order Greeks on each trade. Returns JSON array.
+    tdx_option_history_trade_greeks_second_order => option_history_trade_greeks_second_order, greeks_tick_to_json(symbol, expiration, strike, right, date)
 }
 
 // 42. option_history_greeks_third_order
-ffi_raw_endpoint! {
-    /// Fetch third-order Greeks history. Returns JSON DataTable.
-    tdx_option_history_greeks_third_order => option_history_greeks_third_order(symbol, expiration, strike, right, date, interval)
+ffi_parsed_endpoint! {
+    /// Fetch third-order Greeks history. Returns JSON array.
+    tdx_option_history_greeks_third_order => option_history_greeks_third_order, greeks_tick_to_json(symbol, expiration, strike, right, date, interval)
 }
 
 // 43. option_history_trade_greeks_third_order
-ffi_raw_endpoint! {
-    /// Fetch third-order Greeks on each trade. Returns JSON DataTable.
-    tdx_option_history_trade_greeks_third_order => option_history_trade_greeks_third_order(symbol, expiration, strike, right, date)
+ffi_parsed_endpoint! {
+    /// Fetch third-order Greeks on each trade. Returns JSON array.
+    tdx_option_history_trade_greeks_third_order => option_history_trade_greeks_third_order, greeks_tick_to_json(symbol, expiration, strike, right, date)
 }
 
 // 44. option_history_greeks_implied_volatility
-ffi_raw_endpoint! {
-    /// Fetch IV history (intraday). Returns JSON DataTable.
-    tdx_option_history_greeks_implied_volatility => option_history_greeks_implied_volatility(symbol, expiration, strike, right, date, interval)
+ffi_parsed_endpoint! {
+    /// Fetch IV history (intraday). Returns JSON array.
+    tdx_option_history_greeks_implied_volatility => option_history_greeks_implied_volatility, iv_tick_to_json(symbol, expiration, strike, right, date, interval)
 }
 
 // 45. option_history_trade_greeks_implied_volatility
-ffi_raw_endpoint! {
-    /// Fetch IV on each trade. Returns JSON DataTable.
-    tdx_option_history_trade_greeks_implied_volatility => option_history_trade_greeks_implied_volatility(symbol, expiration, strike, right, date)
+ffi_parsed_endpoint! {
+    /// Fetch IV on each trade. Returns JSON array.
+    tdx_option_history_trade_greeks_implied_volatility => option_history_trade_greeks_implied_volatility, iv_tick_to_json(symbol, expiration, strike, right, date)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1156,15 +1205,15 @@ ffi_snapshot_endpoint! {
 }
 
 // 51. index_snapshot_price
-ffi_snapshot_raw_endpoint! {
-    /// Get latest price snapshot for indices. Returns JSON DataTable.
-    tdx_index_snapshot_price => index_snapshot_price
+ffi_snapshot_endpoint! {
+    /// Get latest price snapshot for indices. Returns JSON array.
+    tdx_index_snapshot_price => index_snapshot_price, price_tick_to_json
 }
 
 // 52. index_snapshot_market_value
-ffi_snapshot_raw_endpoint! {
-    /// Get latest market value snapshot for indices. Returns JSON DataTable.
-    tdx_index_snapshot_market_value => index_snapshot_market_value
+ffi_snapshot_endpoint! {
+    /// Get latest market value snapshot for indices. Returns JSON array.
+    tdx_index_snapshot_market_value => index_snapshot_market_value, market_value_tick_to_json
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1184,9 +1233,9 @@ ffi_parsed_endpoint! {
 }
 
 // 55. index_history_price
-ffi_raw_endpoint! {
-    /// Fetch intraday price history for an index. Returns JSON DataTable.
-    tdx_index_history_price => index_history_price(symbol, date, interval)
+ffi_parsed_endpoint! {
+    /// Fetch intraday price history for an index. Returns JSON array.
+    tdx_index_history_price => index_history_price, price_tick_to_json(symbol, date, interval)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1194,9 +1243,9 @@ ffi_raw_endpoint! {
 // ═══════════════════════════════════════════════════════════════════════
 
 // 56. index_at_time_price
-ffi_raw_endpoint! {
-    /// Fetch index price at a specific time across a date range. Returns JSON DataTable.
-    tdx_index_at_time_price => index_at_time_price(symbol, start_date, end_date, time_of_day)
+ffi_parsed_endpoint! {
+    /// Fetch index price at a specific time across a date range. Returns JSON array.
+    tdx_index_at_time_price => index_at_time_price, price_tick_to_json(symbol, start_date, end_date, time_of_day)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1204,21 +1253,21 @@ ffi_raw_endpoint! {
 // ═══════════════════════════════════════════════════════════════════════
 
 // 57. calendar_open_today
-ffi_raw_endpoint_no_params! {
-    /// Check whether the market is open today. Returns JSON DataTable.
-    tdx_calendar_open_today => calendar_open_today
+ffi_parsed_endpoint_no_params! {
+    /// Check whether the market is open today. Returns JSON array.
+    tdx_calendar_open_today => calendar_open_today, calendar_day_to_json
 }
 
 // 58. calendar_on_date
-ffi_raw_endpoint! {
-    /// Get calendar information for a specific date. Returns JSON DataTable.
-    tdx_calendar_on_date => calendar_on_date(date)
+ffi_parsed_endpoint! {
+    /// Get calendar information for a specific date. Returns JSON array.
+    tdx_calendar_on_date => calendar_on_date, calendar_day_to_json(date)
 }
 
 // 59. calendar_year
-ffi_raw_endpoint! {
-    /// Get calendar information for an entire year. Returns JSON DataTable.
-    tdx_calendar_year => calendar_year(year)
+ffi_parsed_endpoint! {
+    /// Get calendar information for an entire year. Returns JSON array.
+    tdx_calendar_year => calendar_year, calendar_day_to_json(year)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1226,9 +1275,9 @@ ffi_raw_endpoint! {
 // ═══════════════════════════════════════════════════════════════════════
 
 // 60. interest_rate_history_eod
-ffi_raw_endpoint! {
-    /// Fetch EOD interest rate history. Returns JSON DataTable.
-    tdx_interest_rate_history_eod => interest_rate_history_eod(symbol, start_date, end_date)
+ffi_parsed_endpoint! {
+    /// Fetch EOD interest rate history. Returns JSON array.
+    tdx_interest_rate_history_eod => interest_rate_history_eod, interest_rate_tick_to_json(symbol, start_date, end_date)
 }
 
 // ═══════════════════════════════════════════════════════════════════════

@@ -219,12 +219,16 @@ fn sanitize_error(msg: &str) -> String {
         // Email pattern: contains @ with word chars on both sides
         } else if bytes[i] == b'@' && i > 0 && is_email_boundary(&result, bytes, i, len) {
             // Walk back to erase the local part we already pushed
-            while result.ends_with(|c: char| c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-' || c == '+') {
+            while result.ends_with(|c: char| {
+                c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-' || c == '+'
+            }) {
                 result.pop();
             }
             // Skip forward past the domain part
             i += 1; // skip @
-            while i < len && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'.' || bytes[i] == b'-') {
+            while i < len
+                && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'.' || bytes[i] == b'-')
+            {
                 i += 1;
             }
             result.push_str("[REDACTED]");
@@ -424,6 +428,7 @@ fn tool_definitions() -> Vec<Value> {
 //  Serialization helpers
 // ═══════════════════════════════════════════════════════════════════════════
 
+#[allow(dead_code)]
 fn serialize_data_table(table: &thetadatadx::proto::DataTable) -> Value {
     let headers: Vec<&str> = table.headers.iter().map(|s| s.as_str()).collect();
     let rows: Vec<Value> = table
@@ -539,6 +544,129 @@ fn serialize_quote_ticks(ticks: &[thetadatadx::types::tick::QuoteTick]) -> Value
         })
         .collect();
     json!({ "ticks": rows, "count": rows.len() })
+}
+
+fn serialize_trade_quote_ticks(ticks: &[thetadatadx::types::tick::TradeQuoteTick]) -> Value {
+    let rows: Vec<Value> = ticks
+        .iter()
+        .map(|t| {
+            json!({
+                "date": t.date,
+                "ms_of_day": t.ms_of_day,
+                "price": t.trade_price().to_f64(),
+                "size": t.size,
+                "exchange": t.exchange,
+                "condition": t.condition,
+                "sequence": t.sequence,
+                "bid": t.bid_price().to_f64(),
+                "bid_size": t.bid_size,
+                "ask": t.ask_price().to_f64(),
+                "ask_size": t.ask_size,
+            })
+        })
+        .collect();
+    json!({ "ticks": rows, "count": rows.len() })
+}
+
+fn serialize_open_interest_ticks(ticks: &[thetadatadx::types::tick::OpenInterestTick]) -> Value {
+    let rows: Vec<Value> = ticks
+        .iter()
+        .map(
+            |t| json!({"date": t.date, "ms_of_day": t.ms_of_day, "open_interest": t.open_interest}),
+        )
+        .collect();
+    json!({ "ticks": rows, "count": rows.len() })
+}
+
+fn serialize_market_value_ticks(ticks: &[thetadatadx::types::tick::MarketValueTick]) -> Value {
+    let rows: Vec<Value> = ticks
+        .iter()
+        .map(|t| {
+            json!({
+                "date": t.date, "ms_of_day": t.ms_of_day,
+                "market_cap": t.market_cap, "shares_outstanding": t.shares_outstanding,
+                "enterprise_value": t.enterprise_value, "book_value": t.book_value,
+                "free_float": t.free_float,
+            })
+        })
+        .collect();
+    json!({ "ticks": rows, "count": rows.len() })
+}
+
+fn serialize_greeks_ticks(ticks: &[thetadatadx::types::tick::GreeksTick]) -> Value {
+    let rows: Vec<Value> = ticks
+        .iter()
+        .map(|t| {
+            json!({
+                "date": t.date, "ms_of_day": t.ms_of_day,
+                "implied_volatility": t.implied_volatility, "delta": t.delta,
+                "gamma": t.gamma, "theta": t.theta, "vega": t.vega, "rho": t.rho,
+                "iv_error": t.iv_error,
+            })
+        })
+        .collect();
+    json!({ "ticks": rows, "count": rows.len() })
+}
+
+fn serialize_iv_ticks(ticks: &[thetadatadx::types::tick::IvTick]) -> Value {
+    let rows: Vec<Value> = ticks
+        .iter()
+        .map(|t| {
+            json!({
+                "date": t.date, "ms_of_day": t.ms_of_day,
+                "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
+            })
+        })
+        .collect();
+    json!({ "ticks": rows, "count": rows.len() })
+}
+
+fn serialize_price_ticks(ticks: &[thetadatadx::types::tick::PriceTick]) -> Value {
+    let rows: Vec<Value> = ticks
+        .iter()
+        .map(|t| {
+            json!({
+                "date": t.date, "ms_of_day": t.ms_of_day,
+                "price": t.get_price().to_f64(),
+            })
+        })
+        .collect();
+    json!({ "ticks": rows, "count": rows.len() })
+}
+
+fn serialize_calendar_days(days: &[thetadatadx::types::tick::CalendarDay]) -> Value {
+    let rows: Vec<Value> = days
+        .iter()
+        .map(|d| {
+            json!({
+                "date": d.date, "is_open": d.is_open,
+                "open_time": d.open_time, "close_time": d.close_time,
+                "status": d.status,
+            })
+        })
+        .collect();
+    json!({ "days": rows, "count": rows.len() })
+}
+
+fn serialize_interest_rate_ticks(ticks: &[thetadatadx::types::tick::InterestRateTick]) -> Value {
+    let rows: Vec<Value> = ticks
+        .iter()
+        .map(|t| json!({"date": t.date, "ms_of_day": t.ms_of_day, "rate": t.rate}))
+        .collect();
+    json!({ "ticks": rows, "count": rows.len() })
+}
+
+fn serialize_option_contracts(contracts: &[thetadatadx::types::tick::OptionContract]) -> Value {
+    let rows: Vec<Value> = contracts
+        .iter()
+        .map(|c| {
+            json!({
+                "root": c.root, "expiration": c.expiration,
+                "strike": c.strike, "right": c.right,
+            })
+        })
+        .collect();
+    json!({ "contracts": rows, "count": rows.len() })
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -733,8 +861,8 @@ async fn execute_tool(
         "stock_snapshot_market_value" => {
             let syms_str = param!(arg_symbol(args, "symbols"));
             let syms = parse_symbols(syms_str);
-            let table = api!(client.stock_snapshot_market_value(&syms).await);
-            Ok(serialize_data_table(&table))
+            let ticks = api!(client.stock_snapshot_market_value(&syms).await);
+            Ok(serialize_market_value_ticks(&ticks))
         }
 
         // ── Stock History ───────────────────────────────────────────
@@ -780,8 +908,8 @@ async fn execute_tool(
         "stock_history_trade_quote" => {
             let sym = param!(arg_symbol(args, "symbol"));
             let date = param!(arg_date(args, "date"));
-            let table = api!(client.stock_history_trade_quote(sym, date).await);
-            Ok(serialize_data_table(&table))
+            let ticks = api!(client.stock_history_trade_quote(sym, date).await);
+            Ok(serialize_trade_quote_ticks(&ticks))
         }
 
         // ── Stock At-Time ───────────────────────────────────────────
@@ -831,8 +959,8 @@ async fn execute_tool(
             let rt = param!(arg_str(args, "request_type"));
             let sym = param!(arg_symbol(args, "symbol"));
             let date = param!(arg_date(args, "date"));
-            let table = api!(client.option_list_contracts(rt, sym, date).await);
-            Ok(serialize_data_table(&table))
+            let ticks = api!(client.option_list_contracts(rt, sym, date).await);
+            Ok(serialize_option_contracts(&ticks))
         }
 
         // ── Option Snapshot ─────────────────────────────────────────
@@ -864,60 +992,60 @@ async fn execute_tool(
                     Ok(serialize_quote_ticks(&ticks))
                 }
                 "option_snapshot_open_interest" => {
-                    let table = api!(
+                    let ticks = api!(
                         client
                             .option_snapshot_open_interest(sym, exp, strike, right)
                             .await
                     );
-                    Ok(serialize_data_table(&table))
+                    Ok(serialize_open_interest_ticks(&ticks))
                 }
                 "option_snapshot_market_value" => {
-                    let table = api!(
+                    let ticks = api!(
                         client
                             .option_snapshot_market_value(sym, exp, strike, right)
                             .await
                     );
-                    Ok(serialize_data_table(&table))
+                    Ok(serialize_market_value_ticks(&ticks))
                 }
                 "option_snapshot_greeks_implied_volatility" => {
-                    let table = api!(
+                    let ticks = api!(
                         client
                             .option_snapshot_greeks_implied_volatility(sym, exp, strike, right)
                             .await
                     );
-                    Ok(serialize_data_table(&table))
+                    Ok(serialize_iv_ticks(&ticks))
                 }
                 "option_snapshot_greeks_all" => {
-                    let table = api!(
+                    let ticks = api!(
                         client
                             .option_snapshot_greeks_all(sym, exp, strike, right)
                             .await
                     );
-                    Ok(serialize_data_table(&table))
+                    Ok(serialize_greeks_ticks(&ticks))
                 }
                 "option_snapshot_greeks_first_order" => {
-                    let table = api!(
+                    let ticks = api!(
                         client
                             .option_snapshot_greeks_first_order(sym, exp, strike, right)
                             .await
                     );
-                    Ok(serialize_data_table(&table))
+                    Ok(serialize_greeks_ticks(&ticks))
                 }
                 "option_snapshot_greeks_second_order" => {
-                    let table = api!(
+                    let ticks = api!(
                         client
                             .option_snapshot_greeks_second_order(sym, exp, strike, right)
                             .await
                     );
-                    Ok(serialize_data_table(&table))
+                    Ok(serialize_greeks_ticks(&ticks))
                 }
                 "option_snapshot_greeks_third_order" => {
-                    let table = api!(
+                    let ticks = api!(
                         client
                             .option_snapshot_greeks_third_order(sym, exp, strike, right)
                             .await
                     );
-                    Ok(serialize_data_table(&table))
+                    Ok(serialize_greeks_ticks(&ticks))
                 }
                 _ => unreachable!(),
             }
@@ -985,12 +1113,12 @@ async fn execute_tool(
             let strike = param!(arg_str(args, "strike"));
             let right = param!(arg_right(args, "right"));
             let date = param!(arg_date(args, "date"));
-            let table = api!(
+            let ticks = api!(
                 client
                     .option_history_trade_quote(sym, exp, strike, right, date)
                     .await
             );
-            Ok(serialize_data_table(&table))
+            Ok(serialize_trade_quote_ticks(&ticks))
         }
         "option_history_open_interest" => {
             let sym = param!(arg_symbol(args, "symbol"));
@@ -998,12 +1126,12 @@ async fn execute_tool(
             let strike = param!(arg_str(args, "strike"));
             let right = param!(arg_right(args, "right"));
             let date = param!(arg_date(args, "date"));
-            let table = api!(
+            let ticks = api!(
                 client
                     .option_history_open_interest(sym, exp, strike, right, date)
                     .await
             );
-            Ok(serialize_data_table(&table))
+            Ok(serialize_open_interest_ticks(&ticks))
         }
 
         // ── Option History Greeks ───────────────────────────────────
@@ -1014,26 +1142,25 @@ async fn execute_tool(
             let right = param!(arg_right(args, "right"));
             let start = param!(arg_date(args, "start_date"));
             let end = param!(arg_date(args, "end_date"));
-            let table = api!(
+            let ticks = api!(
                 client
                     .option_history_greeks_eod(sym, exp, strike, right, start, end)
                     .await
             );
-            Ok(serialize_data_table(&table))
+            Ok(serialize_greeks_ticks(&ticks))
         }
-        // Greeks with interval (6 endpoints)
+        // Greeks with interval (4 endpoints)
         "option_history_greeks_all"
         | "option_history_greeks_first_order"
         | "option_history_greeks_second_order"
-        | "option_history_greeks_third_order"
-        | "option_history_greeks_implied_volatility" => {
+        | "option_history_greeks_third_order" => {
             let sym = param!(arg_symbol(args, "symbol"));
             let exp = param!(arg_date(args, "expiration"));
             let strike = param!(arg_str(args, "strike"));
             let right = param!(arg_right(args, "right"));
             let date = param!(arg_date(args, "date"));
             let interval = param!(arg_interval(args, "interval"));
-            let table = match name {
+            let ticks = match name {
                 "option_history_greeks_all" => api!(
                     client
                         .option_history_greeks_all(sym, exp, strike, right, date, interval)
@@ -1046,7 +1173,9 @@ async fn execute_tool(
                 ),
                 "option_history_greeks_second_order" => api!(
                     client
-                        .option_history_greeks_second_order(sym, exp, strike, right, date, interval)
+                        .option_history_greeks_second_order(
+                            sym, exp, strike, right, date, interval,
+                        )
                         .await
                 ),
                 "option_history_greeks_third_order" => api!(
@@ -1054,29 +1183,37 @@ async fn execute_tool(
                         .option_history_greeks_third_order(sym, exp, strike, right, date, interval)
                         .await
                 ),
-                "option_history_greeks_implied_volatility" => api!(
-                    client
-                        .option_history_greeks_implied_volatility(
-                            sym, exp, strike, right, date, interval
-                        )
-                        .await
-                ),
                 _ => unreachable!(),
             };
-            Ok(serialize_data_table(&table))
+            Ok(serialize_greeks_ticks(&ticks))
         }
-        // Trade Greeks (5 endpoints, no interval)
-        "option_history_trade_greeks_all"
-        | "option_history_trade_greeks_first_order"
-        | "option_history_trade_greeks_second_order"
-        | "option_history_trade_greeks_third_order"
-        | "option_history_trade_greeks_implied_volatility" => {
+        "option_history_greeks_implied_volatility" => {
             let sym = param!(arg_symbol(args, "symbol"));
             let exp = param!(arg_date(args, "expiration"));
             let strike = param!(arg_str(args, "strike"));
             let right = param!(arg_right(args, "right"));
             let date = param!(arg_date(args, "date"));
-            let table = match name {
+            let interval = param!(arg_interval(args, "interval"));
+            let ticks = api!(
+                client
+                    .option_history_greeks_implied_volatility(
+                        sym, exp, strike, right, date, interval,
+                    )
+                    .await
+            );
+            Ok(serialize_iv_ticks(&ticks))
+        }
+        // Trade Greeks (4 endpoints, no interval)
+        "option_history_trade_greeks_all"
+        | "option_history_trade_greeks_first_order"
+        | "option_history_trade_greeks_second_order"
+        | "option_history_trade_greeks_third_order" => {
+            let sym = param!(arg_symbol(args, "symbol"));
+            let exp = param!(arg_date(args, "expiration"));
+            let strike = param!(arg_str(args, "strike"));
+            let right = param!(arg_right(args, "right"));
+            let date = param!(arg_date(args, "date"));
+            let ticks = match name {
                 "option_history_trade_greeks_all" => api!(
                     client
                         .option_history_trade_greeks_all(sym, exp, strike, right, date)
@@ -1097,16 +1234,22 @@ async fn execute_tool(
                         .option_history_trade_greeks_third_order(sym, exp, strike, right, date)
                         .await
                 ),
-                "option_history_trade_greeks_implied_volatility" => api!(
-                    client
-                        .option_history_trade_greeks_implied_volatility(
-                            sym, exp, strike, right, date
-                        )
-                        .await
-                ),
                 _ => unreachable!(),
             };
-            Ok(serialize_data_table(&table))
+            Ok(serialize_greeks_ticks(&ticks))
+        }
+        "option_history_trade_greeks_implied_volatility" => {
+            let sym = param!(arg_symbol(args, "symbol"));
+            let exp = param!(arg_date(args, "expiration"));
+            let strike = param!(arg_str(args, "strike"));
+            let right = param!(arg_right(args, "right"));
+            let date = param!(arg_date(args, "date"));
+            let ticks = api!(
+                client
+                    .option_history_trade_greeks_implied_volatility(sym, exp, strike, right, date)
+                    .await
+            );
+            Ok(serialize_iv_ticks(&ticks))
         }
 
         // ── Option At-Time ──────────────────────────────────────────
@@ -1162,14 +1305,14 @@ async fn execute_tool(
         "index_snapshot_price" => {
             let syms_str = param!(arg_symbol(args, "symbols"));
             let syms = parse_symbols(syms_str);
-            let table = api!(client.index_snapshot_price(&syms).await);
-            Ok(serialize_data_table(&table))
+            let ticks = api!(client.index_snapshot_price(&syms).await);
+            Ok(serialize_price_ticks(&ticks))
         }
         "index_snapshot_market_value" => {
             let syms_str = param!(arg_symbol(args, "symbols"));
             let syms = parse_symbols(syms_str);
-            let table = api!(client.index_snapshot_market_value(&syms).await);
-            Ok(serialize_data_table(&table))
+            let ticks = api!(client.index_snapshot_market_value(&syms).await);
+            Ok(serialize_market_value_ticks(&ticks))
         }
 
         // ── Index History ───────────────────────────────────────────
@@ -1192,8 +1335,8 @@ async fn execute_tool(
             let sym = param!(arg_symbol(args, "symbol"));
             let date = param!(arg_date(args, "date"));
             let interval = param!(arg_interval(args, "interval"));
-            let table = api!(client.index_history_price(sym, date, interval).await);
-            Ok(serialize_data_table(&table))
+            let ticks = api!(client.index_history_price(sym, date, interval).await);
+            Ok(serialize_price_ticks(&ticks))
         }
 
         // ── Index At-Time ───────────────────────────────────────────
@@ -1202,24 +1345,24 @@ async fn execute_tool(
             let start = param!(arg_date(args, "start_date"));
             let end = param!(arg_date(args, "end_date"));
             let tod = param!(arg_str(args, "time_of_day"));
-            let table = api!(client.index_at_time_price(sym, start, end, tod).await);
-            Ok(serialize_data_table(&table))
+            let ticks = api!(client.index_at_time_price(sym, start, end, tod).await);
+            Ok(serialize_price_ticks(&ticks))
         }
 
         // ── Calendar ────────────────────────────────────────────────
         "calendar_open_today" => {
-            let table = api!(client.calendar_open_today().await);
-            Ok(serialize_data_table(&table))
+            let ticks = api!(client.calendar_open_today().await);
+            Ok(serialize_calendar_days(&ticks))
         }
         "calendar_on_date" => {
             let date = param!(arg_date(args, "date"));
-            let table = api!(client.calendar_on_date(date).await);
-            Ok(serialize_data_table(&table))
+            let ticks = api!(client.calendar_on_date(date).await);
+            Ok(serialize_calendar_days(&ticks))
         }
         "calendar_year" => {
             let year = param!(arg_str(args, "year"));
-            let table = api!(client.calendar_year(year).await);
-            Ok(serialize_data_table(&table))
+            let ticks = api!(client.calendar_year(year).await);
+            Ok(serialize_calendar_days(&ticks))
         }
 
         // ── Interest Rate ───────────────────────────────────────────
@@ -1227,8 +1370,8 @@ async fn execute_tool(
             let sym = param!(arg_symbol(args, "symbol"));
             let start = param!(arg_date(args, "start_date"));
             let end = param!(arg_date(args, "end_date"));
-            let table = api!(client.interest_rate_history_eod(sym, start, end).await);
-            Ok(serialize_data_table(&table))
+            let ticks = api!(client.interest_rate_history_eod(sym, start, end).await);
+            Ok(serialize_interest_rate_ticks(&ticks))
         }
 
         _ => Err(ToolError::InvalidParams(format!("unknown tool: {name}"))),
