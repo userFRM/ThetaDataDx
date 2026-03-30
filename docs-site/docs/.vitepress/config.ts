@@ -3,6 +3,7 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: 'ThetaDataDx',
   description: 'Direct-wire SDK for ThetaData market data',
+  base: '/ThetaDataDx/',
   cleanUrls: true,
   ignoreDeadLinks: true,
 
