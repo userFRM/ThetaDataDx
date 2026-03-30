@@ -47,8 +47,9 @@ auto client = tdx::Client::connect(creds, tdx::Config::production());
 |----------|-----------|------|
 | Stocks | 14 endpoints -- list, snapshots, history, at-time, streaming | [Stock Endpoints](./stock) |
 | Options | 34 endpoints -- list, snapshots, history, Greeks, trade Greeks, at-time | [Option Endpoints](./option) |
-| Indices | 9 endpoints -- list, snapshots, history, at-time | [Index Endpoints](./index-data) |
-| Rates & Calendar | 4 endpoints -- interest rate EOD, market calendar | [Calendar & Rates](./calendar) |
+| Indices | 9 endpoints -- list, snapshots, history, at-time | [Index Endpoints](./index-data/) |
+| Calendar | 3 endpoints -- trading schedule, holidays, early closes | [Calendar](./calendar/) |
+| Rates | 1 endpoint -- interest rate EOD history | [Rates](./rate/) |
 
 ## Date Format
 

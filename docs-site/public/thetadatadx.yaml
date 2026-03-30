@@ -812,7 +812,7 @@ paths:
   # =========================================================================
 
   /stock/history/eod:
-    x-min-subscription: value
+    x-min-subscription: free
     get:
       operationId: stockHistoryEod
       summary: Stock end-of-day history
@@ -904,7 +904,7 @@ paths:
             auto bars = client.stock_history_ohlc_range("AAPL", "20240101", "20240301", "60000");
 
   /stock/history/trade:
-    x-min-subscription: value
+    x-min-subscription: standard
     get:
       operationId: stockHistoryTrade
       summary: Stock trade history
@@ -999,7 +999,7 @@ paths:
             auto quotes = client.stock_history_quote("AAPL", "20240315", "60000");
 
   /stock/history/trade_quote:
-    x-min-subscription: pro
+    x-min-subscription: standard
     get:
       operationId: stockHistoryTradeQuote
       summary: Stock combined trade + quote history
@@ -1052,7 +1052,7 @@ paths:
   # =========================================================================
 
   /stock/at_time/trade:
-    x-min-subscription: value
+    x-min-subscription: standard
     get:
       operationId: stockAtTimeTrade
       summary: Stock trade at specific time
@@ -1489,7 +1489,7 @@ paths:
   # =========================================================================
 
   /option/snapshot/greeks/implied_volatility:
-    x-min-subscription: value
+    x-min-subscription: standard
     get:
       operationId: optionSnapshotGreeksImpliedVolatility
       summary: Option implied volatility snapshot
@@ -1532,7 +1532,7 @@ paths:
             auto iv = client.option_snapshot_greeks_implied_volatility("SPY", "20240419", "500000", "C");
 
   /option/snapshot/greeks/all:
-    x-min-subscription: value
+    x-min-subscription: professional
     get:
       operationId: optionSnapshotGreeksAll
       summary: Option all Greeks snapshot
@@ -1576,7 +1576,7 @@ paths:
             auto greeks = client.option_snapshot_greeks_all("SPY", "20240419", "500000", "C");
 
   /option/snapshot/greeks/first_order:
-    x-min-subscription: value
+    x-min-subscription: standard
     get:
       operationId: optionSnapshotGreeksFirstOrder
       summary: Option first-order Greeks snapshot
@@ -1619,7 +1619,7 @@ paths:
             auto g1 = client.option_snapshot_greeks_first_order("SPY", "20240419", "500000", "C");
 
   /option/snapshot/greeks/second_order:
-    x-min-subscription: value
+    x-min-subscription: professional
     get:
       operationId: optionSnapshotGreeksSecondOrder
       summary: Option second-order Greeks snapshot
@@ -1662,7 +1662,7 @@ paths:
             auto g2 = client.option_snapshot_greeks_second_order("SPY", "20240419", "500000", "C");
 
   /option/snapshot/greeks/third_order:
-    x-min-subscription: value
+    x-min-subscription: professional
     get:
       operationId: optionSnapshotGreeksThirdOrder
       summary: Option third-order Greeks snapshot
@@ -1709,7 +1709,7 @@ paths:
   # =========================================================================
 
   /option/history/eod:
-    x-min-subscription: value
+    x-min-subscription: free
     get:
       operationId: optionHistoryEod
       summary: Option end-of-day history
@@ -1799,7 +1799,7 @@ paths:
             auto bars = client.option_history_ohlc("SPY", "20240419", "500000", "C", "20240315", "60000");
 
   /option/history/trade:
-    x-min-subscription: value
+    x-min-subscription: standard
     get:
       operationId: optionHistoryTrade
       summary: Option trade history
@@ -1902,7 +1902,7 @@ paths:
             auto quotes = client.option_history_quote("SPY", "20240419", "500000", "C", "20240315", "60000");
 
   /option/history/trade_quote:
-    x-min-subscription: pro
+    x-min-subscription: standard
     get:
       operationId: optionHistoryTradeQuote
       summary: Option combined trade + quote history
@@ -2007,7 +2007,7 @@ paths:
   # =========================================================================
 
   /option/history/greeks/eod:
-    x-min-subscription: value
+    x-min-subscription: standard
     get:
       operationId: optionHistoryGreeksEod
       summary: Option EOD Greeks history
