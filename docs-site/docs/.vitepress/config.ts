@@ -20,7 +20,7 @@ export default defineConfig({
     siteTitle: 'ThetaDataDx',
 
     nav: [
-      { text: 'Guide', link: '/getting-started' },
+      { text: 'Guide', link: '/getting-started/' },
       { text: 'API Reference', link: '/api-reference' },
       { text: 'Tools', link: '/tools/cli' },
       { text: 'Changelog', link: '/changelog' },
@@ -32,12 +32,40 @@ export default defineConfig({
 
     sidebar: [
       {
-        text: 'Guide',
+        text: 'Getting Started',
         collapsed: false,
         items: [
-          { text: 'Getting Started', link: '/getting-started' },
-          { text: 'Historical Data', link: '/historical' },
-          { text: 'Real-Time Streaming', link: '/streaming' },
+          { text: 'Overview', link: '/getting-started/' },
+          { text: 'Installation', link: '/getting-started/installation' },
+          { text: 'Authentication', link: '/getting-started/authentication' },
+          { text: 'Quick Start', link: '/getting-started/quickstart' },
+        ],
+      },
+      {
+        text: 'Historical Data',
+        collapsed: false,
+        items: [
+          { text: 'Overview', link: '/historical/' },
+          { text: 'Stock Endpoints', link: '/historical/stock' },
+          { text: 'Option Endpoints', link: '/historical/option' },
+          { text: 'Index Endpoints', link: '/historical/index-data' },
+          { text: 'Calendar & Rates', link: '/historical/calendar' },
+        ],
+      },
+      {
+        text: 'Real-Time Streaming',
+        collapsed: false,
+        items: [
+          { text: 'Overview', link: '/streaming/' },
+          { text: 'Connecting & Subscribing', link: '/streaming/connection' },
+          { text: 'Handling Events', link: '/streaming/events' },
+          { text: 'Reconnection & Errors', link: '/streaming/reconnection' },
+        ],
+      },
+      {
+        text: 'More',
+        collapsed: false,
+        items: [
           { text: 'Options & Greeks', link: '/options' },
           { text: 'Configuration', link: '/configuration' },
           { text: 'Jupyter Notebooks', link: '/notebooks' },
