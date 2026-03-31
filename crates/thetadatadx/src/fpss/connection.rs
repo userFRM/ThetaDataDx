@@ -24,7 +24,7 @@ use std::time::Duration;
 use rustls::pki_types::ServerName;
 use rustls::{ClientConfig, ClientConnection, StreamOwned};
 
-use super::protocol::{CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS, SERVERS};
+use tdx_encoding::protocol::{CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS, SERVERS};
 
 /// Type alias for the TLS-wrapped TCP stream (blocking).
 pub type FpssStream = StreamOwned<ClientConnection, TcpStream>;

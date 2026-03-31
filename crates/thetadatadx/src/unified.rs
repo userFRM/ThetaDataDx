@@ -39,9 +39,9 @@ use crate::auth::Credentials;
 use crate::config::DirectConfig;
 use crate::direct::DirectClient;
 use crate::error::Error;
-use crate::fpss::protocol::{Contract, SubscriptionKind};
 use crate::fpss::{FpssClient, FpssEvent};
 use crate::types::enums::SecType;
+use tdx_encoding::protocol::{Contract, SubscriptionKind};
 
 /// Unified ThetaData client.
 ///

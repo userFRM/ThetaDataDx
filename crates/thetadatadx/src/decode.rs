@@ -137,7 +137,7 @@ pub fn extract_text_column(table: &proto::DataTable, header: &str) -> Vec<Option
 pub fn extract_price_column(
     table: &proto::DataTable,
     header: &str,
-) -> Vec<Option<crate::types::Price>> {
+) -> Vec<Option<crate::types::price::Price>> {
     let col_idx = match table.headers.iter().position(|h| h == header) {
         Some(i) => i,
         None => return vec![],
@@ -152,7 +152,7 @@ pub fn extract_price_column(
                 .and_then(|dv| dv.data_type.as_ref())
                 .and_then(|dt| match dt {
                     proto::data_value::DataType::Price(p) => {
-                        Some(crate::types::Price::from_proto(p))
+                        Some(crate::proto_ext::price_from_proto(p))
                     }
                     _ => None,
                 })

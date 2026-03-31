@@ -96,16 +96,20 @@
 //! ```
 
 pub mod auth;
-pub mod codec;
 pub mod config;
 pub mod decode;
 pub mod direct;
 pub mod error;
 pub mod fpss;
 pub mod greeks;
+mod proto_ext;
 pub mod registry;
-pub mod types;
 pub mod unified;
+
+// Re-export encoding crate modules (codec, types, protocol were extracted to tdx-encoding)
+pub use tdx_encoding::codec;
+pub use tdx_encoding::protocol;
+pub use tdx_encoding::types;
 
 /// Generated protobuf types from `endpoints.proto` (shared types).
 ///

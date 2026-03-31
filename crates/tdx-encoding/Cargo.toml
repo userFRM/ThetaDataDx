@@ -1,0 +1,54 @@
+[package]
+name = "tdx-encoding"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+authors = ["userFRM"]
+description = "Wire-format encoding/decoding for ThetaData FPSS protocol -- zero networking dependencies"
+documentation = "https://docs.rs/tdx-encoding"
+homepage = "https://github.com/userFRM/ThetaDataDx"
+repository = "https://github.com/userFRM/ThetaDataDx"
+license = "GPL-3.0-or-later"
+keywords = ["thetadata", "encoding", "fit", "codec", "market-data"]
+categories = ["encoding", "finance"]
+include = ["src/**/*", "build.rs", "endpoint_schema.toml", "Cargo.toml"]
+
+[dependencies]
+thiserror = "2.0.18"
+tracing = "0.1.44"
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[build-dependencies]
+regex = "1"
+toml = "0.8"
+serde = { version = "1", features = ["derive"] }
+
+[[bench]]
+name = "bench_fit"
+harness = false
+
+[[bench]]
+name = "bench_fie"
+harness = false
+
+[[bench]]
+name = "bench_price"
+harness = false
+
+[[bench]]
+name = "bench_framing"
+harness = false
+
+[[bench]]
+name = "bench_protocol"
+harness = false
+
+[[bench]]
+name = "bench_enums"
+harness = false
+
+[[bench]]
+name = "bench_tick"
+harness = false

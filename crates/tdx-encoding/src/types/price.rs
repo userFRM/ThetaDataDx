@@ -91,19 +91,6 @@ impl Price {
         }
     }
 
-    /// Create from a protobuf Price message.
-    pub fn from_proto(proto: &crate::proto::Price) -> Self {
-        Self::new(proto.value, proto.r#type)
-    }
-
-    /// Convert to the protobuf Price message.
-    pub fn to_proto(&self) -> crate::proto::Price {
-        crate::proto::Price {
-            value: self.value,
-            r#type: self.price_type,
-        }
-    }
-
     /// Normalize both prices to the same type for comparison.
     #[inline]
     fn compare(&self, other: &Self) -> Ordering {

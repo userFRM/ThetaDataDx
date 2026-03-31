@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-use thetadatadx::types::tick::{OhlcTick, QuoteTick, TradeTick};
+use tdx_encoding::types::tick::{OhlcTick, QuoteTick, TradeTick};
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Tick operation benchmarks

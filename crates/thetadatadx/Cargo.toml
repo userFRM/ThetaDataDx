@@ -54,6 +54,9 @@ tracing = "0.1.44"
 # Lock-free ring buffer (LMAX Disruptor pattern) for FPSS event dispatch
 disruptor = "4"
 
+# Wire-format encoding (FIT/FIE codecs, types, FPSS protocol)
+tdx-encoding = { path = "../tdx-encoding" }
+
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
 
@@ -66,18 +69,6 @@ toml = "0.8"
 serde = { version = "1", features = ["derive"] }
 
 [[bench]]
-name = "bench_fit"
-harness = false
-
-[[bench]]
-name = "bench_fie"
-harness = false
-
-[[bench]]
-name = "bench_price"
-harness = false
-
-[[bench]]
 name = "bench_greeks"
 harness = false
 
@@ -86,21 +77,5 @@ name = "bench_decode"
 harness = false
 
 [[bench]]
-name = "bench_framing"
-harness = false
-
-[[bench]]
-name = "bench_protocol"
-harness = false
-
-[[bench]]
 name = "bench_auth"
-harness = false
-
-[[bench]]
-name = "bench_enums"
-harness = false
-
-[[bench]]
-name = "bench_tick"
 harness = false

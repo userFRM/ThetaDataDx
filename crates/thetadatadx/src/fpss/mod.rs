@@ -80,9 +80,11 @@
 //! - [`ring`] -- LMAX Disruptor ring buffer and adaptive wait strategy
 
 pub mod connection;
-pub mod framing;
-pub mod protocol;
 pub mod ring;
+
+// Re-export framing and protocol from tdx-encoding
+pub use tdx_encoding::protocol;
+pub use tdx_encoding::protocol::framing;
 
 use std::collections::HashMap;
 use std::io::BufReader;
@@ -101,10 +103,10 @@ use crate::codec::fit::{apply_deltas, FitReader};
 use crate::error::Error;
 use crate::types::enums::{RemoveReason, StreamMsgType, StreamResponseType};
 
-use self::framing::{
+use tdx_encoding::protocol::framing::{
     read_frame, read_frame_into, write_frame, write_raw_frame, write_raw_frame_no_flush, Frame,
 };
-use self::protocol::{
+use tdx_encoding::protocol::{
     build_credentials_payload, build_ping_payload, build_subscribe_payload, parse_contract_message,
     parse_disconnect_reason, parse_req_response, Contract, SubscriptionKind, PING_INTERVAL_MS,
     RECONNECT_DELAY_MS, TOO_MANY_REQUESTS_DELAY_MS,
@@ -892,9 +894,9 @@ fn io_loop<F>(
 }
 
 /// Check if an error is a read timeout (WouldBlock or TimedOut).
-fn is_read_timeout(e: &Error) -> bool {
+fn is_read_timeout(e: &tdx_encoding::Error) -> bool {
     match e {
-        Error::Io(io_err) => matches!(
+        tdx_encoding::Error::Io(io_err) => matches!(
             io_err.kind(),
             std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
         ),

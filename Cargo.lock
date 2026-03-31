@@ -2053,6 +2053,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "tdx-encoding"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "regex",
+ "serde",
+ "thiserror 2.0.18",
+ "toml",
+ "tracing",
+]
+
+[[package]]
 name = "tempfile"
 version = "3.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2078,6 +2090,7 @@ dependencies = [
  "reqwest",
  "rustls",
  "serde",
+ "tdx-encoding",
  "thiserror 2.0.18",
  "tokio",
  "tokio-rustls",

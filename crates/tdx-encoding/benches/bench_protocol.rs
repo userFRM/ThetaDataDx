@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-use thetadatadx::fpss::protocol::{build_credentials_payload, build_subscribe_payload, Contract};
+use tdx_encoding::protocol::{build_credentials_payload, build_subscribe_payload, Contract};
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  FPSS protocol benchmarks
