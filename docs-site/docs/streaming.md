@@ -23,6 +23,7 @@ use thetadatadx::fpss::{FpssData, FpssControl, FpssEvent};
 use thetadatadx::fpss::protocol::Contract;
 
 let creds = Credentials::from_file("creds.txt")?;
+// Or inline: let creds = Credentials::new("user@example.com", "your-password");
 let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 
 tdx.start_streaming(|event: &FpssEvent| {
@@ -44,12 +45,14 @@ tdx.start_streaming(|event: &FpssEvent| {
 from thetadatadx import Credentials, Config, ThetaDataDx
 
 creds = Credentials.from_file("creds.txt")
+# Or inline: creds = Credentials("user@example.com", "your-password")
 tdx = ThetaDataDx(creds, Config.production())
 
 tdx.start_streaming()
 ```
 ```go [Go]
 creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
+// Or inline: creds, _ := thetadatadx.NewCredentials("user@example.com", "your-password")
 defer creds.Close()
 
 config := thetadatadx.ProductionConfig()
@@ -60,6 +63,7 @@ defer fpss.Close()
 ```
 ```cpp [C++]
 auto creds = tdx::Credentials::from_file("creds.txt");
+// Or inline: auto creds = tdx::Credentials("user@example.com", "your-password");
 auto config = tdx::Config::production();
 tdx::FpssClient fpss(creds, config);
 ```
@@ -487,6 +491,7 @@ use std::sync::{Arc, Mutex};
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
+    // Or inline: let creds = Credentials::new("user@example.com", "your-password");
     let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 
     let contracts: Arc<Mutex<HashMap<i32, Contract>>> = Arc::new(Mutex::new(HashMap::new()));
@@ -533,6 +538,7 @@ import signal
 import sys
 
 creds = Credentials.from_file("creds.txt")
+# Or inline: creds = Credentials("user@example.com", "your-password")
 tdx = ThetaDataDx(creds, Config.production())
 
 # Start streaming
@@ -583,6 +589,7 @@ import (
 
 func main() {
     creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
+    // Or inline: creds, _ := thetadatadx.NewCredentials("user@example.com", "your-password")
     defer creds.Close()
 
     config := thetadatadx.ProductionConfig()
@@ -628,6 +635,7 @@ func main() {
 
 int main() {
     auto creds = tdx::Credentials::from_file("creds.txt");
+    // Or inline: auto creds = tdx::Credentials("user@example.com", "your-password");
     auto config = tdx::Config::production();
 
     // Historical client

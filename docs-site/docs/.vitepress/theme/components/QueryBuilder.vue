@@ -590,6 +590,7 @@ function pyHeader(): string {
   return `from thetadatadx import ThetaDataDx, Credentials, Config
 
 creds = Credentials.from_file("creds.txt")
+# Or inline: creds = Credentials("user@example.com", "your-password")
 tdx = ThetaDataDx(creds, Config.production())`
 }
 
@@ -603,6 +604,7 @@ function rustMain(body: string): string {
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
+    // Or inline: let creds = Credentials::new("user@example.com", "your-password");
     let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 
 ${body}
@@ -1246,6 +1248,7 @@ use std::sync::{Arc, Mutex};
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
+    // Or inline: let creds = Credentials::new("user@example.com", "your-password");
     let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 
     let contracts: Arc<Mutex<HashMap<i32, String>>> = Arc::new(Mutex::new(HashMap::new()));
@@ -1290,6 +1293,7 @@ use std::sync::{Arc, Mutex};
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
+    // Or inline: let creds = Credentials::new("user@example.com", "your-password");
     let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 
     let contracts: Arc<Mutex<HashMap<i32, String>>> = Arc::new(Mutex::new(HashMap::new()));
@@ -1334,6 +1338,7 @@ use std::sync::{Arc, Mutex};
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
+    // Or inline: let creds = Credentials::new("user@example.com", "your-password");
     let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 
     let min_size: u32 = ${minSize()};
@@ -1377,6 +1382,7 @@ use std::sync::{Arc, Mutex};
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
+    // Or inline: let creds = Credentials::new("user@example.com", "your-password");
     let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 
     let symbol = "${sym()}";

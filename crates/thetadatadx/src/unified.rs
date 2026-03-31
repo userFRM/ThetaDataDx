@@ -9,6 +9,7 @@
 //! #[tokio::main]
 //! async fn main() -> Result<(), thetadatadx::Error> {
 //!     // One connect, one auth. FPSS is NOT connected yet.
+//!     // Or inline: Credentials::new("user@example.com", "your-password")
 //!     let tdx = ThetaDataDx::connect(
 //!         &Credentials::from_file("creds.txt")?,
 //!         DirectConfig::production(),

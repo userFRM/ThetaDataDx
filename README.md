@@ -51,6 +51,7 @@ use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
+    // Or inline: let creds = Credentials::new("user@example.com", "your-password");
     let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 
     let eod = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
@@ -73,6 +74,7 @@ pip install thetadatadx
 from thetadatadx import Credentials, Config, ThetaDataDx
 
 creds = Credentials.from_file("creds.txt")
+# Or inline: creds = Credentials("user@example.com", "your-password")
 tdx = ThetaDataDx(creds, Config.production())
 
 eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")

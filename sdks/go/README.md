@@ -42,6 +42,7 @@ import (
 
 func main() {
     creds, err := thetadatadx.CredentialsFromFile("creds.txt")
+    // Or inline: creds, err := thetadatadx.NewCredentials("user@example.com", "your-password")
     if err != nil {
         log.Fatal(err)
     }
@@ -267,6 +268,7 @@ import (
 
 func main() {
     creds, err := thetadatadx.CredentialsFromFile("creds.txt")
+    // Or inline: creds, err := thetadatadx.NewCredentials("user@example.com", "your-password")
     if err != nil {
         log.Fatal(err)
     }

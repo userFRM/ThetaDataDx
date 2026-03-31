@@ -42,6 +42,7 @@ Run the example:
 
 int main() {
     auto creds = tdx::Credentials::from_file("creds.txt");
+    // Or inline: auto creds = tdx::Credentials("user@example.com", "your-password");
     auto client = tdx::Client::connect(creds, tdx::Config::production());
 
     // Fetch EOD stock data
@@ -260,6 +261,7 @@ Real-time market data via ThetaData's FPSS servers. Streaming uses a **separate 
 
 int main() {
     auto creds = tdx::Credentials::from_file("creds.txt");
+    // Or inline: auto creds = tdx::Credentials("user@example.com", "your-password");
     auto config = tdx::Config::production();
 
     // Create a streaming client (separate from the historical Client)

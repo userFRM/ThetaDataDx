@@ -29,6 +29,7 @@
 //! #[tokio::main]
 //! async fn main() -> Result<(), thetadatadx::Error> {
 //!     let creds = Credentials::from_file("creds.txt")?;
+//!     // Or inline: let creds = Credentials::new("user@example.com", "your-password");
 //!
 //!     // Connect -- authenticates once, historical ready immediately
 //!     let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
@@ -61,6 +62,7 @@
 //! use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
 //!
 //! let creds = Credentials::from_file("creds.txt")?;
+//! // Or inline: let creds = Credentials::new("user@example.com", "your-password");
 //! let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 //! let ticks = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
 //! ```

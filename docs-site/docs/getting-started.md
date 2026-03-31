@@ -85,6 +85,7 @@ use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
 async fn main() -> Result<(), thetadatadx::Error> {
     // Load credentials
     let creds = Credentials::from_file("creds.txt")?;
+    // Or inline: let creds = Credentials::new("user@example.com", "your-password");
 
     // Connect to ThetaData (authenticates automatically)
     let client = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
@@ -122,6 +123,7 @@ from thetadatadx import Credentials, Config, ThetaDataDx
 
 # Authenticate and connect
 creds = Credentials.from_file("creds.txt")
+# Or inline: creds = Credentials("user@example.com", "your-password")
 client = ThetaDataDx(creds, Config.production())
 
 # Fetch end-of-day stock data
@@ -156,6 +158,7 @@ import (
 func main() {
     // Load credentials
     creds, err := thetadatadx.CredentialsFromFile("creds.txt")
+    // Or inline: creds, err := thetadatadx.NewCredentials("user@example.com", "your-password")
     if err != nil {
         log.Fatal(err)
     }
@@ -197,6 +200,7 @@ func main() {
 int main() {
     // Load credentials
     auto creds = tdx::Credentials::from_file("creds.txt");
+    // Or inline: auto creds = tdx::Credentials("user@example.com", "your-password");
 
     // Connect
     auto client = tdx::Client::connect(creds, tdx::Config::production());
@@ -257,6 +261,7 @@ The Python SDK provides convenience methods that return pandas DataFrames direct
 from thetadatadx import Credentials, Config, ThetaDataDx, to_dataframe
 
 creds = Credentials.from_file("creds.txt")
+# Or inline: creds = Credentials("user@example.com", "your-password")
 client = ThetaDataDx(creds, Config.production())
 
 # Option 1: explicit conversion
@@ -279,6 +284,7 @@ All Go SDK objects that wrap FFI handles must be closed when no longer needed:
 
 ```go
 creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
+// Or inline: creds, _ := thetadatadx.NewCredentials("user@example.com", "your-password")
 defer creds.Close()  // frees the Rust-side allocation
 
 config := thetadatadx.ProductionConfig()

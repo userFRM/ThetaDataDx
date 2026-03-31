@@ -33,6 +33,7 @@ from thetadatadx import Credentials, Config, ThetaDataDx
 
 # Authenticate and connect
 creds = Credentials.from_file("creds.txt")
+# Or inline: creds = Credentials("user@example.com", "your-password")
 tdx = ThetaDataDx(creds, Config.production())
 
 # Fetch end-of-day data
@@ -279,6 +280,7 @@ Real-time market data via ThetaData's FPSS servers:
 from thetadatadx import Credentials, Config, ThetaDataDx
 
 creds = Credentials.from_file("creds.txt")
+# Or inline: creds = Credentials("user@example.com", "your-password")
 tdx = ThetaDataDx(creds, Config.production())
 
 # Start streaming and subscribe to real-time data
@@ -307,6 +309,7 @@ Convert any result to a pandas DataFrame:
 from thetadatadx import Credentials, Config, ThetaDataDx, to_dataframe
 
 creds = Credentials.from_file("creds.txt")
+# Or inline: creds = Credentials("user@example.com", "your-password")
 tdx = ThetaDataDx(creds, Config.production())
 
 # Option 1: convert an existing result
