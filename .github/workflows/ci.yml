@@ -69,11 +69,11 @@ jobs:
       - uses: arduino/setup-protoc@v3
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: cargo publish -p tdbe --allow-dirty
+      - run: cargo publish -p tdbe --allow-dirty || true
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
       - run: sleep 30
-      - run: cargo publish -p thetadatadx --allow-dirty
+      - run: cargo publish -p thetadatadx --allow-dirty || true
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
