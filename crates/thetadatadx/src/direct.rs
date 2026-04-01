@@ -457,7 +457,7 @@ impl DirectClient {
         request: StockSnapshotOhlcRequest;
         query: StockSnapshotOhlcRequestQuery {
             symbol: symbols.iter().map(|s| s.to_string()).collect(),
-            venue: None,
+            venue: Some("nqb".to_string()),
             min_time: None,
         };
         parse: decode::parse_ohlc_ticks;
@@ -473,7 +473,7 @@ impl DirectClient {
         request: StockSnapshotTradeRequest;
         query: StockSnapshotTradeRequestQuery {
             symbol: symbols.iter().map(|s| s.to_string()).collect(),
-            venue: None,
+            venue: Some("nqb".to_string()),
             min_time: None,
         };
         parse: decode::parse_trade_ticks;
@@ -489,7 +489,7 @@ impl DirectClient {
         request: StockSnapshotQuoteRequest;
         query: StockSnapshotQuoteRequestQuery {
             symbol: symbols.iter().map(|s| s.to_string()).collect(),
-            venue: None,
+            venue: Some("nqb".to_string()),
             min_time: None,
         };
         parse: decode::parse_quote_ticks;
@@ -505,7 +505,7 @@ impl DirectClient {
         request: StockSnapshotMarketValueRequest;
         query: StockSnapshotMarketValueRequestQuery {
             symbol: symbols.iter().map(|s| s.to_string()).collect(),
-            venue: None,
+            venue: Some("nqb".to_string()),
             min_time: None,
         };
         parse: decode::parse_market_value_ticks;
@@ -540,7 +540,7 @@ impl DirectClient {
         ///
         /// gRPC: `BetaThetaTerminal/GetStockHistoryOhlc`
         ///
-        /// `interval` is in milliseconds (e.g. `60000` for 1-minute bars, `300000` for 5-minute).
+        /// `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
         fn stock_history_ohlc(symbol: &str, date: &str, interval: &str) -> Vec<OhlcTick>;
         grpc: get_stock_history_ohlc;
         request: StockHistoryOhlcRequest;
@@ -550,7 +550,7 @@ impl DirectClient {
             interval: normalize_interval(interval),
             start_time: Some("09:30:00".to_string()),
             end_time: Some("16:00:00".to_string()),
-            venue: None,
+            venue: Some("nqb".to_string()),
             start_date: None,
             end_date: None,
         };
@@ -566,7 +566,7 @@ impl DirectClient {
         ///
         /// Uses `start_date`/`end_date` instead of single `date`.
         ///
-        /// `interval` is in milliseconds (e.g. `60000` for 1-minute bars, `300000` for 5-minute).
+        /// `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
         fn stock_history_ohlc_range(
             symbol: &str, start_date: &str, end_date: &str, interval: &str
         ) -> Vec<OhlcTick>;
@@ -578,7 +578,7 @@ impl DirectClient {
             interval: normalize_interval(interval),
             start_time: Some("09:30:00".to_string()),
             end_time: Some("16:00:00".to_string()),
-            venue: None,
+            venue: Some("nqb".to_string()),
             start_date: Some(start_date.to_string()),
             end_date: Some(end_date.to_string()),
         };
@@ -599,7 +599,7 @@ impl DirectClient {
             date: Some(date.to_string()),
             start_time: Some("09:30:00".to_string()),
             end_time: Some("16:00:00".to_string()),
-            venue: None,
+            venue: Some("nqb".to_string()),
             start_date: None,
             end_date: None,
         };
@@ -613,7 +613,7 @@ impl DirectClient {
         ///
         /// gRPC: `BetaThetaTerminal/GetStockHistoryQuote`
         ///
-        /// `interval` is in milliseconds (e.g. `60000` for 1-minute bars, `300000` for 5-minute).
+        /// `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
         fn stock_history_quote(symbol: &str, date: &str, interval: &str) -> Vec<QuoteTick>;
         grpc: get_stock_history_quote;
         request: StockHistoryQuoteRequest;
@@ -623,7 +623,7 @@ impl DirectClient {
             interval: normalize_interval(interval),
             start_time: Some("09:30:00".to_string()),
             end_time: Some("16:00:00".to_string()),
-            venue: None,
+            venue: Some("nqb".to_string()),
             start_date: None,
             end_date: None,
         };
@@ -653,7 +653,7 @@ impl DirectClient {
             date: Some(date.to_string()),
             start_time: Some("09:30:00".to_string()),
             end_time: Some("16:00:00".to_string()),
-            venue: None,
+            venue: Some("nqb".to_string()),
             start_date: None,
             end_date: None,
         };
@@ -667,7 +667,7 @@ impl DirectClient {
         ///
         /// gRPC: `BetaThetaTerminal/GetStockHistoryQuote`
         ///
-        /// `interval` is in milliseconds (e.g. `60000` for 1-minute bars, `300000` for 5-minute).
+        /// `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
         fn stock_history_quote_stream(symbol: &str, date: &str, interval: &str; handler: F) -> QuoteTick;
         grpc: get_stock_history_quote;
         request: StockHistoryQuoteRequest;
@@ -677,7 +677,7 @@ impl DirectClient {
             interval: normalize_interval(interval),
             start_time: Some("09:30:00".to_string()),
             end_time: Some("16:00:00".to_string()),
-            venue: None,
+            venue: Some("nqb".to_string()),
             start_date: None,
             end_date: None,
         };
@@ -699,7 +699,7 @@ impl DirectClient {
             start_time: Some("09:30:00".to_string()),
             end_time: Some("16:00:00".to_string()),
             exclusive: None,
-            venue: None,
+            venue: Some("nqb".to_string()),
             start_date: None,
             end_date: None,
         };
@@ -728,7 +728,7 @@ impl DirectClient {
             start_date: start_date.to_string(),
             end_date: end_date.to_string(),
             time_of_day: time_of_day.to_string(),
-            venue: None,
+            venue: Some("nqb".to_string()),
         };
         parse: decode::parse_trade_ticks;
         dates: start_date, end_date;
@@ -749,7 +749,7 @@ impl DirectClient {
             start_date: start_date.to_string(),
             end_date: end_date.to_string(),
             time_of_day: time_of_day.to_string(),
-            venue: None,
+            venue: Some("nqb".to_string()),
         };
         parse: decode::parse_quote_ticks;
         dates: start_date, end_date;
@@ -1104,7 +1104,7 @@ impl DirectClient {
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryOhlc`
         ///
-        /// `interval` is in milliseconds (e.g. `60000` for 1-minute bars, `300000` for 5-minute).
+        /// `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
         fn option_history_ohlc(
             symbol: &str, expiration: &str, strike: &str, right: &str,
             date: &str, interval: &str
@@ -1157,7 +1157,7 @@ impl DirectClient {
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryQuote`
         ///
-        /// `interval` is in milliseconds (e.g. `60000` for 1-minute bars, `300000` for 5-minute).
+        /// `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
         fn option_history_quote(
             symbol: &str, expiration: &str, strike: &str, right: &str,
             date: &str, interval: &str
@@ -1216,7 +1216,7 @@ impl DirectClient {
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryQuote`
         ///
-        /// `interval` is in milliseconds (e.g. `"60000"` for 1-minute bars, `"300000"` for 5-minute).
+        /// `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
         fn option_history_quote_stream(
             symbol: &str, expiration: &str, strike: &str, right: &str,
             date: &str, interval: &str;
@@ -1327,7 +1327,7 @@ impl DirectClient {
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryGreeksAll`
         ///
-        /// `interval` is in milliseconds (e.g. `"60000"` for 1-minute bars, `"300000"` for 5-minute).
+        /// `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
         fn option_history_greeks_all(
             symbol: &str, expiration: &str, strike: &str, right: &str,
             date: &str, interval: &str
@@ -1388,7 +1388,7 @@ impl DirectClient {
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryGreeksFirstOrder`
         ///
-        /// `interval` is in milliseconds (e.g. `"60000"` for 1-minute bars, `"300000"` for 5-minute).
+        /// `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
         fn option_history_greeks_first_order(
             symbol: &str, expiration: &str, strike: &str, right: &str,
             date: &str, interval: &str
@@ -1449,7 +1449,7 @@ impl DirectClient {
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryGreeksSecondOrder`
         ///
-        /// `interval` is in milliseconds (e.g. `"60000"` for 1-minute bars, `"300000"` for 5-minute).
+        /// `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
         fn option_history_greeks_second_order(
             symbol: &str, expiration: &str, strike: &str, right: &str,
             date: &str, interval: &str
@@ -1510,7 +1510,7 @@ impl DirectClient {
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryGreeksThirdOrder`
         ///
-        /// `interval` is in milliseconds (e.g. `"60000"` for 1-minute bars, `"300000"` for 5-minute).
+        /// `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
         fn option_history_greeks_third_order(
             symbol: &str, expiration: &str, strike: &str, right: &str,
             date: &str, interval: &str
@@ -1571,7 +1571,7 @@ impl DirectClient {
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryGreeksImpliedVolatility`
         ///
-        /// `interval` is in milliseconds (e.g. `"60000"` for 1-minute bars, `"300000"` for 5-minute).
+        /// `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
         fn option_history_greeks_implied_volatility(
             symbol: &str, expiration: &str, strike: &str, right: &str,
             date: &str, interval: &str
@@ -1782,7 +1782,7 @@ impl DirectClient {
         ///
         /// gRPC: `BetaThetaTerminal/GetIndexHistoryOhlc`
         ///
-        /// `interval` is in milliseconds (e.g. `"60000"` for 1-minute bars, `"300000"` for 5-minute).
+        /// `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
         fn index_history_ohlc(
             symbol: &str, start_date: &str, end_date: &str, interval: &str
         ) -> Vec<OhlcTick>;
@@ -1806,7 +1806,7 @@ impl DirectClient {
         ///
         /// gRPC: `BetaThetaTerminal/GetIndexHistoryPrice`
         ///
-        /// `interval` is in milliseconds (e.g. `"60000"` for 1-minute bars, `"300000"` for 5-minute).
+        /// `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
         fn index_history_price(
             symbol: &str, date: &str, interval: &str
         ) -> Vec<PriceTick>;

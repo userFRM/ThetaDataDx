@@ -76,7 +76,7 @@ auto bars = client.stock_history_ohlc_range("AAPL", "20240101", "20240301", "300
 </div>
 <div class="param">
 <div class="param-header"><code>interval</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">Bar interval in milliseconds (e.g. <code>"60000"</code> for 1-minute)</div>
+<div class="param-desc">Accepts milliseconds (<code>"60000"</code>) or shorthand (<code>"1m"</code>). Valid presets: <code>100ms</code>, <code>500ms</code>, <code>1s</code>, <code>5s</code>, <code>10s</code>, <code>15s</code>, <code>30s</code>, <code>1m</code>, <code>5m</code>, <code>10m</code>, <code>15m</code>, <code>30m</code>, <code>1h</code>.</div>
 </div>
 <div class="param">
 <div class="param-header"><code>start_time</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
@@ -109,7 +109,7 @@ auto bars = client.stock_history_ohlc_range("AAPL", "20240101", "20240301", "300
 </div>
 <div class="param">
 <div class="param-header"><code>interval</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">Bar interval in milliseconds</div>
+<div class="param-desc">Accepts milliseconds (<code>"60000"</code>) or shorthand (<code>"1m"</code>). Valid presets: <code>100ms</code>, <code>500ms</code>, <code>1s</code>, <code>5s</code>, <code>10s</code>, <code>15s</code>, <code>30s</code>, <code>1m</code>, <code>5m</code>, <code>10m</code>, <code>15m</code>, <code>30m</code>, <code>1h</code>.</div>
 </div>
 </div>
 
@@ -144,12 +144,14 @@ auto bars = client.stock_history_ohlc_range("AAPL", "20240101", "20240301", "300
 
 ## Common Intervals
 
-| Interval | Milliseconds |
-|----------|-------------|
-| 1 minute | `"60000"` |
-| 5 minutes | `"300000"` |
-| 15 minutes | `"900000"` |
-| 1 hour | `"3600000"` |
+| Shorthand | Milliseconds |
+|-----------|-------------|
+| `"1m"` | `"60000"` |
+| `"5m"` | `"300000"` |
+| `"15m"` | `"900000"` |
+| `"1h"` | `"3600000"` |
+
+Milliseconds are auto-converted to the nearest valid preset internally. Either form can be used.
 
 ## Notes
 

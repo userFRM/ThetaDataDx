@@ -228,11 +228,14 @@ const RECIPES: Recipe[] = [
 
 const INTERVAL_OPTIONS = [
   { label: 'Every tick', value: '0' },
-  { label: '1 min',      value: '60000' },
-  { label: '5 min',      value: '300000' },
-  { label: '15 min',     value: '900000' },
-  { label: '30 min',     value: '1800000' },
-  { label: '1 hour',     value: '3600000' },
+  { label: '1s',         value: '1s' },
+  { label: '5s',         value: '5s' },
+  { label: '30s',        value: '30s' },
+  { label: '1m',         value: '1m' },
+  { label: '5m',         value: '5m' },
+  { label: '15m',        value: '15m' },
+  { label: '30m',        value: '30m' },
+  { label: '1h',         value: '1h' },
 ]
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
@@ -329,7 +332,7 @@ const params = ref({
   start_date:  daysAgo(30),
   end_date:    lastTradingDay(),
   date:        lastTradingDay(),
-  interval:    '300000',
+  interval:    '5m',
   expiration:  '20251219',
   strike:      '500000',
   right:       'C' as 'C' | 'P',
@@ -626,7 +629,7 @@ eod = tdx.stock_history_eod(symbol, "${startDate()}", "${endDate()}")
 for tick in eod:
     print(f"{tick['date']}: open={tick['open']} high={tick['high']} low={tick['low']} close={tick['close']} vol={tick['volume']}")
 
-# Intraday OHLC (interval: ${interval()} ms)
+# Intraday OHLC (interval: ${interval()})
 ohlc = tdx.stock_history_ohlc(symbol, "${endDate()}", "${interval()}")
 for tick in ohlc:
     print(f"{tick['date']} ms={tick['ms_of_day']}: open={tick['open']} close={tick['close']} vol={tick['volume']}")`
@@ -798,7 +801,7 @@ exp    = "${exp()}"
 strike = "${strike()}"
 right  = "${right()}"  # "C" for call, "P" for put
 
-# Fetch historical Greeks at ${interval()} ms interval
+# Fetch historical Greeks at ${interval()} interval
 ticks = tdx.option_history_greeks_all(symbol, exp, strike, right, "${singleDate()}", "${interval()}")
 for tick in ticks:
     print(
@@ -1023,7 +1026,7 @@ function genRust(): string {
             tick.low_price(), tick.close_price(), tick.volume);
     }
 
-    // Intraday OHLC (interval: ${interval()} ms)
+    // Intraday OHLC (interval: ${interval()})
     let ohlc = tdx.stock_history_ohlc(symbol, "${endDate()}", "${interval()}").await?;
     for tick in &ohlc {
         println!("{} ms={}: open={} close={} vol={}",

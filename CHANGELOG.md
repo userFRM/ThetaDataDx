@@ -5,11 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [4.1.2] - 2026-04-01
+## [4.2.0] - 2026-04-01
 
-### Fixed
+### Fixed (battle-tested against live MDDS -- all 61 endpoints verified)
 
-- Interval parameter now auto-converts milliseconds to `HH:MM:SS.mmm` format for the MDDS gRPC server. Users pass `"60000"` for 1-minute bars as before -- conversion is internal and transparent.
+- **Interval conversion**: MDDS server accepts preset shorthand (`1m`, `5m`, `1h`), not raw milliseconds. `normalize_interval()` now converts `"60000"` -> `"1m"`, `"300000"` -> `"5m"`, etc. Sub-second presets supported: `"100"` -> `"100ms"`, `"500"` -> `"500ms"`. Users can pass either milliseconds or shorthand directly.
+- **Default start_time/end_time**: the Java terminal defaults these to `"09:30:00"` and `"16:00:00"`. Our SDK left them as None, causing `"Invalid time format: Expected hh:mm:ss.SSS"` on trade/quote/greeks endpoints. Now defaults to RTH.
+- **extract_text_column**: now handles Number and Price DataTable values. `option_list_strikes` was returning 0 results because strikes come as Number values, not Text.
+- **FPSS TLS certificate**: ThetaData's FPSS servers have certificates expired since Jan 2024. Skip certificate verification for FPSS connections (matching Java terminal behavior).
+
+### Supported interval presets
+
+`100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`
 
 ## [4.1.1] - 2026-04-01
 
@@ -452,7 +459,8 @@ See [TODO.md](TODO.md) for the production readiness checklist and performance ro
 - FIT decoder uses i64 accumulator with i32 saturation (no silent overflow)
 - Price type range enforced with `assert!` in release builds
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v4.1.2...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v4.2.0...HEAD
+[4.2.0]: https://github.com/userFRM/ThetaDataDx/compare/v4.1.2...v4.2.0
 [4.1.2]: https://github.com/userFRM/ThetaDataDx/compare/v4.1.1...v4.1.2
 [4.1.1]: https://github.com/userFRM/ThetaDataDx/compare/v4.1.0...v4.1.1
 [4.1.0]: https://github.com/userFRM/ThetaDataDx/compare/v4.0.0...v4.1.0

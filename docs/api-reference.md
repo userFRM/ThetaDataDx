@@ -115,7 +115,7 @@ pub async fn stock_history_ohlc(
 ) -> Result<Vec<OhlcTick>, Error>
 ```
 
-Intraday OHLC bars for a single date. `interval` is milliseconds (e.g., `"60000"` for 1-minute bars). gRPC: `GetStockHistoryOhlc`
+Intraday OHLC bars for a single date. `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. gRPC: `GetStockHistoryOhlc`
 
 ```rust
 pub async fn stock_history_ohlc_range(
@@ -123,7 +123,7 @@ pub async fn stock_history_ohlc_range(
 ) -> Result<Vec<OhlcTick>, Error>
 ```
 
-Intraday OHLC bars across a date range. Uses `start_date`/`end_date` instead of single `date`. gRPC: `GetStockHistoryOhlc`
+Intraday OHLC bars across a date range. Uses `start_date`/`end_date` instead of single `date`. `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. gRPC: `GetStockHistoryOhlc`
 
 ```rust
 pub async fn stock_history_trade(
@@ -139,7 +139,7 @@ pub async fn stock_history_quote(
 ) -> Result<Vec<QuoteTick>, Error>
 ```
 
-NBBO quotes at a given interval. Use `"0"` for every quote change. gRPC: `GetStockHistoryQuote`
+NBBO quotes at a given interval. `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. Use `"0"` for every quote change. gRPC: `GetStockHistoryQuote`
 
 ```rust
 pub async fn stock_history_trade_quote(
@@ -307,7 +307,7 @@ pub async fn option_history_ohlc(
 ) -> Result<Vec<OhlcTick>, Error>
 ```
 
-Intraday option OHLC bars. gRPC: `GetOptionHistoryOhlc`
+Intraday option OHLC bars. `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. gRPC: `GetOptionHistoryOhlc`
 
 ```rust
 pub async fn option_history_trade(
@@ -324,7 +324,7 @@ pub async fn option_history_quote(
 ) -> Result<Vec<QuoteTick>, Error>
 ```
 
-Option NBBO quotes. gRPC: `GetOptionHistoryQuote`
+Option NBBO quotes. `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. gRPC: `GetOptionHistoryQuote`
 
 ```rust
 pub async fn option_history_trade_quote(
@@ -360,7 +360,7 @@ pub async fn option_history_greeks_all(
 ) -> Result<Vec<GreeksTick>, Error>
 ```
 
-All Greeks history (intraday, sampled by interval). gRPC: `GetOptionHistoryGreeksAll`
+All Greeks history (intraday, sampled by interval). `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. gRPC: `GetOptionHistoryGreeksAll`
 
 ```rust
 pub async fn option_history_greeks_first_order(
@@ -369,7 +369,7 @@ pub async fn option_history_greeks_first_order(
 ) -> Result<Vec<GreeksTick>, Error>
 ```
 
-First-order Greeks history (intraday, sampled by interval). gRPC: `GetOptionHistoryGreeksFirstOrder`
+First-order Greeks history (intraday, sampled by interval). `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. gRPC: `GetOptionHistoryGreeksFirstOrder`
 
 ```rust
 pub async fn option_history_greeks_second_order(
@@ -378,7 +378,7 @@ pub async fn option_history_greeks_second_order(
 ) -> Result<Vec<GreeksTick>, Error>
 ```
 
-Second-order Greeks history (intraday, sampled by interval). gRPC: `GetOptionHistoryGreeksSecondOrder`
+Second-order Greeks history (intraday, sampled by interval). `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. gRPC: `GetOptionHistoryGreeksSecondOrder`
 
 ```rust
 pub async fn option_history_greeks_third_order(
@@ -387,7 +387,7 @@ pub async fn option_history_greeks_third_order(
 ) -> Result<Vec<GreeksTick>, Error>
 ```
 
-Third-order Greeks history (intraday, sampled by interval). gRPC: `GetOptionHistoryGreeksThirdOrder`
+Third-order Greeks history (intraday, sampled by interval). `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. gRPC: `GetOptionHistoryGreeksThirdOrder`
 
 ```rust
 pub async fn option_history_greeks_implied_volatility(
@@ -396,7 +396,7 @@ pub async fn option_history_greeks_implied_volatility(
 ) -> Result<Vec<IvTick>, Error>
 ```
 
-Implied volatility history (intraday, sampled by interval). gRPC: `GetOptionHistoryGreeksImpliedVolatility`
+Implied volatility history (intraday, sampled by interval). `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. gRPC: `GetOptionHistoryGreeksImpliedVolatility`
 
 ### Option - History Trade Greeks (5)
 
@@ -510,7 +510,7 @@ pub async fn index_history_ohlc(
 ) -> Result<Vec<OhlcTick>, Error>
 ```
 
-Intraday OHLC bars for an index. gRPC: `GetIndexHistoryOhlc`
+Intraday OHLC bars for an index. `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. gRPC: `GetIndexHistoryOhlc`
 
 ```rust
 pub async fn index_history_price(
@@ -518,7 +518,7 @@ pub async fn index_history_price(
 ) -> Result<Vec<PriceTick>, Error>
 ```
 
-Intraday price history for an index. gRPC: `GetIndexHistoryPrice`
+Intraday price history for an index. `interval` accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. gRPC: `GetIndexHistoryPrice`
 
 ### Index - AtTime (1)
 

@@ -42,8 +42,8 @@ for tick in eod:
     print(f"{tick['date']}: O={tick['open']:.2f} H={tick['high']:.2f} "
           f"L={tick['low']:.2f} C={tick['close']:.2f} V={tick['volume']}")
 
-# Intraday 1-minute OHLC bars
-bars = tdx.stock_history_ohlc("AAPL", "20240315", "60000")
+# Intraday 1-minute OHLC bars (shorthand or milliseconds)
+bars = tdx.stock_history_ohlc("AAPL", "20240315", "1m")
 print(f"{len(bars)} bars")
 
 # Option chain
@@ -94,10 +94,10 @@ All 61 endpoints are available. Methods return lists of dicts.
 | `stock_snapshot_quote(symbols)` | Latest NBBO quote snapshot |
 | `stock_snapshot_market_value(symbols)` | Latest market value snapshot |
 | `stock_history_eod(symbol, start, end)` | End-of-day data |
-| `stock_history_ohlc(symbol, date, interval)` | Intraday OHLC bars |
-| `stock_history_ohlc_range(symbol, start, end, interval)` | OHLC bars across date range |
+| `stock_history_ohlc(symbol, date, interval)` | Intraday OHLC bars. `interval` accepts ms (`"60000"`) or shorthand (`"1m"`). |
+| `stock_history_ohlc_range(symbol, start, end, interval)` | OHLC bars across date range. `interval` accepts ms or shorthand. |
 | `stock_history_trade(symbol, date)` | All trades for a date |
-| `stock_history_quote(symbol, date, interval)` | NBBO quotes |
+| `stock_history_quote(symbol, date, interval)` | NBBO quotes. `interval` accepts ms or shorthand. |
 | `stock_history_trade_quote(symbol, date)` | Combined trade+quote ticks |
 | `stock_at_time_trade(symbol, start, end, time)` | Trade at specific time across dates |
 | `stock_at_time_quote(symbol, start, end, time)` | Quote at specific time across dates |
@@ -319,7 +319,7 @@ print(df.head())
 
 # Option 2: use _df convenience methods
 df = tdx.stock_history_eod_df("AAPL", "20240101", "20240301")
-df = tdx.stock_history_ohlc_df("AAPL", "20240315", "60000")
+df = tdx.stock_history_ohlc_df("AAPL", "20240315", "1m")
 df = tdx.option_list_expirations_df("SPY")
 ```
 

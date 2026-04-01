@@ -566,7 +566,7 @@ fn generate_endpoint_registry() -> Result<(), Box<dyn std::error::Error>> {
     code.push_str("            ParamMeta {\n");
     code.push_str("                name: \"interval\",\n");
     code.push_str(
-        "                description: \"Interval in milliseconds (e.g. 60000 for 1-min bars)\",\n",
+        "                description: \"Accepts milliseconds (60000) or shorthand (1m). Presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.\",\n",
     );
     code.push_str("                param_type: ParamType::Interval,\n");
     code.push_str("                required: true,\n");
@@ -662,7 +662,7 @@ fn map_field(name: &str, proto_type: &str, is_repeated: bool) -> (String, String
         ("string", "date") => ("Date".into(), "Date YYYYMMDD".into()),
         ("string", "interval") => (
             "Interval".into(),
-            "Interval in milliseconds (e.g. 60000 for 1-min bars)".into(),
+            "Accepts milliseconds (60000) or shorthand (1m). Presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.".into(),
         ),
         ("string", "right") => ("Right".into(), "C for call, P for put".into()),
         ("string", "strike") => ("Strike".into(), "Strike price (raw integer)".into()),

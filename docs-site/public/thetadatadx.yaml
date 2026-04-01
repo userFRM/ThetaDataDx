@@ -8,7 +8,7 @@ info:
     Rust, Python (PyO3), Go (CGo), and C++ (C FFI).
 
     All dates use YYYYMMDD format. Times use milliseconds since midnight ET.
-    Intervals use milliseconds (e.g. "60000" for 1-minute bars).
+    Intervals accept milliseconds ("60000") or shorthand ("1m"). Valid presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.
     Prices are fixed-point integers decoded via price_type.
   version: 1.0.0
   contact:
@@ -126,7 +126,7 @@ x-anchors:
     required: true
     schema:
       type: string
-    description: Bar interval in milliseconds (e.g. "60000" for 1-minute bars)
+    description: 'Accepts milliseconds ("60000") or shorthand ("1m"). Valid presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.'
 
   time_of_day-param: &time_of_day-param
     name: time_of_day
@@ -878,7 +878,7 @@ paths:
       summary: Stock intraday OHLC bars
       description: |
         Intraday OHLC bars for a single date or date range.
-        Interval is in milliseconds (e.g. "60000" for 1-minute bars).
+        Interval accepts milliseconds ("60000") or shorthand ("1m"). Valid presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.
         Use start_date/end_date instead of date for multi-day queries.
         gRPC: GetStockHistoryOhlc
       tags: [Stock / History]

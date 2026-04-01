@@ -26,7 +26,7 @@ pub enum ParamType {
     Symbols,
     /// Date in YYYYMMDD format
     Date,
-    /// Interval in milliseconds (e.g. "60000" for 1 min)
+    /// Accepts milliseconds ("60000") or shorthand ("1m"). Presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.
     Interval,
     /// Option right: C or P
     Right,

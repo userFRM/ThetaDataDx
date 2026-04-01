@@ -104,10 +104,10 @@ auto client = tdx::Client::connect(creds, tdx::Config::production());
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `stock_history_eod(sym, start, end)` | `vector<EodTick>` | EOD data |
-| `stock_history_ohlc(sym, date, interval)` | `vector<OhlcTick>` | Intraday OHLC bars |
-| `stock_history_ohlc_range(sym, start, end, interval)` | `vector<OhlcTick>` | OHLC bars across date range |
+| `stock_history_ohlc(sym, date, interval)` | `vector<OhlcTick>` | Intraday OHLC bars. `interval` accepts ms (`"60000"`) or shorthand (`"1m"`). |
+| `stock_history_ohlc_range(sym, start, end, interval)` | `vector<OhlcTick>` | OHLC bars across date range. `interval` accepts ms or shorthand. |
 | `stock_history_trade(sym, date)` | `vector<TradeTick>` | All trades on a date |
-| `stock_history_quote(sym, date, interval)` | `vector<QuoteTick>` | NBBO quotes |
+| `stock_history_quote(sym, date, interval)` | `vector<QuoteTick>` | NBBO quotes. `interval` accepts ms or shorthand. |
 | `stock_history_trade_quote(sym, date)` | `vector<TradeQuoteTick>` | Combined trade + quote ticks |
 
 #### Stock - At-Time (2)

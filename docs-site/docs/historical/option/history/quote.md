@@ -56,7 +56,7 @@ auto quotes = client.option_history_quote("SPY", "20241220", "500000", "C",
 </div>
 <div class="param">
 <div class="param-header"><code>interval</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">Sampling interval in milliseconds. Use <code>"0"</code> for every quote change.</div>
+<div class="param-desc">Accepts milliseconds (<code>"60000"</code>) or shorthand (<code>"1m"</code>). Valid presets: <code>100ms</code>, <code>500ms</code>, <code>1s</code>, <code>5s</code>, <code>10s</code>, <code>15s</code>, <code>30s</code>, <code>1m</code>, <code>5m</code>, <code>10m</code>, <code>15m</code>, <code>30m</code>, <code>1h</code>. Use <code>"0"</code> for every quote change.</div>
 </div>
 <div class="param">
 <div class="param-header"><code>max_dte</code><span class="param-type">int</span><span class="param-badge optional">optional</span></div>

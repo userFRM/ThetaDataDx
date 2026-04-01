@@ -56,7 +56,7 @@ auto bars = client.option_history_ohlc("SPY", "20241220", "500000", "C",
 </div>
 <div class="param">
 <div class="param-header"><code>interval</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">Bar interval in milliseconds (e.g. <code>"60000"</code> for 1 min)</div>
+<div class="param-desc">Accepts milliseconds (<code>"60000"</code>) or shorthand (<code>"1m"</code>). Valid presets: <code>100ms</code>, <code>500ms</code>, <code>1s</code>, <code>5s</code>, <code>10s</code>, <code>15s</code>, <code>30s</code>, <code>1m</code>, <code>5m</code>, <code>10m</code>, <code>15m</code>, <code>30m</code>, <code>1h</code>.</div>
 </div>
 <div class="param">
 <div class="param-header"><code>start_time</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
@@ -111,4 +111,4 @@ auto bars = client.option_history_ohlc("SPY", "20241220", "500000", "C",
 
 ## Notes
 
-- Common intervals: `"60000"` (1 min), `"300000"` (5 min), `"900000"` (15 min), `"3600000"` (1 hour).
+- Shorthand is supported: `"1m"`, `"5m"`, `"15m"`, `"1h"`. Milliseconds (`"60000"`, `"300000"`, `"900000"`, `"3600000"`) are auto-converted to the nearest valid preset.

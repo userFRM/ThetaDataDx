@@ -195,6 +195,22 @@ As of v1.2.0:
 | **FPSS (TCP)** | Java's built-in TLS (JSSE) | `rustls` (ring backend) + `tokio-rustls` | Unified with MDDS — single TLS stack |
 | **Trust store** | Java cacerts | `webpki-roots` (Mozilla root certificates) | Equivalent for public CAs |
 
+### Default `start_time` / `end_time` on Interval Endpoints
+
+| | Java | Rust | Impact |
+|---|---|---|---|
+| **Behavior** | Defaults `start_time` to `"09:30:00"` and `end_time` to `"16:00:00"` when not explicitly provided | Now matches Java: all interval endpoints default to `"09:30:00"` / `"16:00:00"` | Identical behavior |
+| **Source** | Decompiled request builders in `providers/` handlers | `direct.rs` gRPC query construction |
+| **Rationale** | The Java terminal always sends regular-trading-hours defaults when the user omits time bounds. Previous Rust versions sent no time bounds, causing the server to return pre-market and after-hours data by default. As of v4.2.0, the Rust implementation matches the Java terminal's defaults exactly. |
+
+### FPSS TLS Certificate Verification Skip
+
+| | Java | Rust | Impact |
+|---|---|---|---|
+| **Behavior** | `SSLSocketFactory.getDefault()` accepts the expired FPSS certificate | `rustls` with `danger::ServerCertVerifier` disabled (NoVerifier) | Identical behavior |
+| **Source** | `FPSSClient.connect()` via default JSSE | `fpss/connection.rs:tls_client_config()` |
+| **Rationale** | ThetaData's FPSS servers use TLS certificates that have been expired since January 2024. Java's default `SSLSocketFactory` in practice accepts expired certificates without error. Rust's `rustls` strictly validates certificate expiry, causing connection failures. We skip certificate verification for FPSS connections only (not MDDS gRPC, which uses valid certificates) to match the Java terminal's behavior. This is a **pragmatic workaround** for a server-side certificate issue, not a security design choice. |
+
 ## What Is NOT Different
 
 These are identical to the Java terminal:

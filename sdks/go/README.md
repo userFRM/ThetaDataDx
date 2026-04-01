@@ -108,10 +108,10 @@ defer client.Close()
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `StockHistoryEOD(symbol, start, end)` | `([]EodTick, error)` | EOD data |
-| `StockHistoryOHLC(symbol, date, interval)` | `([]OhlcTick, error)` | Intraday OHLC |
-| `StockHistoryOHLCRange(symbol, start, end, interval)` | `([]OhlcTick, error)` | OHLC over date range |
+| `StockHistoryOHLC(symbol, date, interval)` | `([]OhlcTick, error)` | Intraday OHLC. `interval` accepts ms (`"60000"`) or shorthand (`"1m"`). |
+| `StockHistoryOHLCRange(symbol, start, end, interval)` | `([]OhlcTick, error)` | OHLC over date range. `interval` accepts ms or shorthand. |
 | `StockHistoryTrade(symbol, date)` | `([]TradeTick, error)` | All trades |
-| `StockHistoryQuote(symbol, date, interval)` | `([]QuoteTick, error)` | NBBO quotes |
+| `StockHistoryQuote(symbol, date, interval)` | `([]QuoteTick, error)` | NBBO quotes. `interval` accepts ms or shorthand. |
 | `StockHistoryTradeQuote(symbol, date)` | `([]TradeQuoteTick, error)` | Trade+quote combined |
 
 #### Stock - At-Time (2)

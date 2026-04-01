@@ -265,7 +265,7 @@ auto bars = client.stock_history_ohlc("AAPL", "20240315", "60000");
 |-----------|------|----------|-------------|
 | `symbol` | string | Yes | Ticker symbol |
 | `date` | string | Yes | Date (`YYYYMMDD`) |
-| `interval` | string | Yes | Bar interval in milliseconds (e.g. `"60000"` for 1-minute) |
+| `interval` | string | Yes | Accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. |
 | `start_time` | string | No | Start time (ms from midnight) |
 | `end_time` | string | No | End time (ms from midnight) |
 | `venue` | string | No | Data venue filter |
@@ -298,7 +298,7 @@ auto bars = client.stock_history_ohlc_range("AAPL", "20240101", "20240301", "600
 | `symbol` | string | Yes | Ticker symbol |
 | `start_date` | string | Yes | Start date (`YYYYMMDD`) |
 | `end_date` | string | Yes | End date (`YYYYMMDD`) |
-| `interval` | string | Yes | Bar interval in milliseconds |
+| `interval` | string | Yes | Accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. |
 
 **Returns:** List of [OhlcTick](#ohlctick).
 
@@ -360,7 +360,7 @@ auto quotes = client.stock_history_quote("AAPL", "20240315", "60000");
 |-----------|------|----------|-------------|
 | `symbol` | string | Yes | Ticker symbol |
 | `date` | string | Yes | Date (`YYYYMMDD`) |
-| `interval` | string | Yes | Sampling interval in ms (`"0"` for every change) |
+| `interval` | string | Yes | Accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. Use `"0"` for every change. |
 | `start_time` | string | No | Start time (ms from midnight) |
 | `end_time` | string | No | End time (ms from midnight) |
 | `venue` | string | No | Data venue filter |
@@ -1008,7 +1008,7 @@ auto bars = client.option_history_ohlc("SPY", "20241220", "500000", "C", "202403
 | `strike` | string | Yes | Strike price (scaled integer) |
 | `right` | string | Yes | `"C"` or `"P"` |
 | `date` | string | Yes | Date (`YYYYMMDD`) |
-| `interval` | string | Yes | Bar interval in milliseconds |
+| `interval` | string | Yes | Accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. |
 | `start_time` | string | No | Start time (ms from midnight) |
 | `end_time` | string | No | End time (ms from midnight) |
 | `strike_range` | int | No | Strike range filter |
@@ -1082,7 +1082,7 @@ auto quotes = client.option_history_quote("SPY", "20241220", "500000", "C", "202
 | `strike` | string | Yes | Strike price (scaled integer) |
 | `right` | string | Yes | `"C"` or `"P"` |
 | `date` | string | Yes | Date (`YYYYMMDD`) |
-| `interval` | string | Yes | Sampling interval in ms |
+| `interval` | string | Yes | Accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. |
 | `max_dte` | int | No | Maximum days to expiration |
 | `strike_range` | int | No | Strike range filter |
 
@@ -1234,14 +1234,14 @@ auto g = client.option_history_greeks_all("SPY", "20241220", "500000", "C", "202
 | `strike` | string | Yes | Strike price (scaled integer) |
 | `right` | string | Yes | `"C"` or `"P"` |
 | `date` | string | Yes | Date (`YYYYMMDD`) |
-| `interval` | string | Yes | Sampling interval in ms |
+| `interval` | string | Yes | Accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. |
 | `annual_dividend` | float | No | Override annual dividend |
 | `rate_type` | string | No | Interest rate type |
 | `rate_value` | float | No | Override interest rate value |
 | `version` | string | No | Greeks calculation version |
 | `strike_range` | int | No | Strike range filter |
 
-**Returns:** `Vec<GreeksTick>` with all 22 Greeks at each interval.
+**Returns:** `Vec<GreeksTick>` with all 22 Greeks at each sampled point.
 
 **Tier:** Pro
 
@@ -1311,7 +1311,7 @@ auto g = client.option_history_greeks_first_order("SPY", "20241220", "500000", "
 
 Parameters are identical to [option_history_greeks_all](#option_history_greeks_all).
 
-**Returns:** `Vec<GreeksTick>` with first-order Greeks at each interval.
+**Returns:** `Vec<GreeksTick>` with first-order Greeks at each sampled point.
 
 **Tier:** Pro
 
@@ -1369,7 +1369,7 @@ auto g = client.option_history_greeks_second_order("SPY", "20241220", "500000", 
 
 Parameters are identical to [option_history_greeks_all](#option_history_greeks_all).
 
-**Returns:** `Vec<GreeksTick>` with second-order Greeks at each interval.
+**Returns:** `Vec<GreeksTick>` with second-order Greeks at each sampled point.
 
 **Tier:** Pro
 
@@ -1427,7 +1427,7 @@ auto g = client.option_history_greeks_third_order("SPY", "20241220", "500000", "
 
 Parameters are identical to [option_history_greeks_all](#option_history_greeks_all).
 
-**Returns:** `Vec<GreeksTick>` with third-order Greeks at each interval.
+**Returns:** `Vec<GreeksTick>` with third-order Greeks at each sampled point.
 
 **Tier:** Pro
 
@@ -1485,7 +1485,7 @@ auto iv = client.option_history_greeks_implied_volatility("SPY", "20241220", "50
 
 Parameters are identical to [option_history_greeks_all](#option_history_greeks_all).
 
-**Returns:** `Vec<IvTick>` with implied volatility at each interval.
+**Returns:** `Vec<IvTick>` with implied volatility at each sampled point.
 
 **Tier:** Pro
 
@@ -1785,7 +1785,7 @@ auto bars = client.index_history_ohlc("SPX", "20240101", "20240301", "60000");
 | `symbol` | string | Yes | Index symbol |
 | `start_date` | string | Yes | Start date (`YYYYMMDD`) |
 | `end_date` | string | Yes | End date (`YYYYMMDD`) |
-| `interval` | string | Yes | Bar interval in milliseconds |
+| `interval` | string | Yes | Accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. |
 | `start_time` | string | No | Start time (ms from midnight) |
 | `end_time` | string | No | End time (ms from midnight) |
 
@@ -1816,11 +1816,11 @@ auto prices = client.index_history_price("SPX", "20240315", "60000");
 |-----------|------|----------|-------------|
 | `symbol` | string | Yes | Index symbol |
 | `date` | string | Yes | Date (`YYYYMMDD`) |
-| `interval` | string | Yes | Sampling interval in ms |
+| `interval` | string | Yes | Accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. |
 | `start_time` | string | No | Start time (ms from midnight) |
 | `end_time` | string | No | End time (ms from midnight) |
 
-**Returns:** `Vec<PriceTick>` with price at each interval.
+**Returns:** `Vec<PriceTick>` with price at each sampled point.
 
 ---
 
