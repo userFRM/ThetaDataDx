@@ -5,16 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.3.0] - 2026-04-01
+## [4.0.0] - 2026-04-01
+
+### Breaking Changes
+
+- **`tdbe` crate extracted** -- all data types, codecs, greeks, price, enums, and flags moved to standalone `tdbe` crate with zero networking dependencies. Users must add `tdbe` as a dependency and change imports: `use tdbe::{Price, TradeTick, EodTick}`.
+- `thetadatadx` no longer exports `types/`, `codec/`, `greeks.rs`. These modules live in `tdbe`.
 
 ### Added
 
-- **`tdbe` crate** (`crates/tdbe/`) -- standalone pure data-format crate with zero networking dependencies. Contains all tick types, FIT/FIE codecs, Greeks calculator, Price encoding, enums, and flags. `thetadatadx` now depends on `tdbe` for all type definitions.
+- **`tdbe` crate** (`crates/tdbe/`) -- pure data-format crate. Single dependency (`thiserror`). Contains:
+  - 14 hand-written tick structs (no build.rs codegen)
+  - FIT/FIE nibble codecs
+  - Price fixed-point encoding
+  - 22 Black-Scholes Greeks + IV solver
+  - All enums (SecType, DataType, StreamMsgType, etc.)
+  - Error types (Decode, Encode, Conversion, Io)
+  - Flags module (trade conditions, price flags, volume types)
+  - 6 criterion benchmarks
+- **Interactive Query Builder** on docs site -- 13 real-world recipes (GEX, vol surface, option chains, live trade tape, etc.) with symbol autocomplete, dynamic dates, and copy-paste code generation for Rust and Python
+- **Inline credential construction** -- all SDK examples now show both `from_file("creds.txt")` and `Credentials::new("email", "password")` patterns
+- **serde_json vs sonic_rs benchmark** (`bench_json`) -- criterion benchmark covering FPSS events, REST responses, DataTable serialization, and JSON parsing
+
+### Fixed
+
+- Go SDK `priceToFloat()` was fundamentally wrong -- used a switch statement instead of `value * 10^(type-10)`. Every price in the Go SDK was incorrect.
+- Python docs used `event["type"]` instead of `event["kind"]` in streaming examples
+- `Price::new()` used `assert!` in release builds -- changed to `debug_assert!` + silent clamp. Corrupt frames no longer crash production.
+- C++ `FpssClient` missing `unsubscribe_quotes()` method
+- FFI FPSS functions used `.lock().unwrap()` -- changed to poison recovery
+- WebSocket handler missing `OPEN_INTEREST` and `FULL_TRADES` dispatch
+- `Credentials.password` changed from `pub` to `pub(crate)` with accessor
+- Query builder syntax highlighter regex cross-contamination (visible `class="hl-string"` in rendered code)
 
 ### Changed
 
-- `thetadatadx` no longer directly contains `types/`, `codec/`, `greeks.rs`, `flags.rs`, or `error.rs` (encoding layer). These modules now live in `tdbe` and are re-exported where needed.
-- Documentation updated across 16 files to reflect the new import paths (`tdbe::greeks`, `tdbe::Price`, `tdbe::types::enums::RemoveReason`, etc.).
+- Tick types in `tdbe` are hand-written (no `include!()`, no `endpoint_schema.toml` codegen). IDE-navigable, visible in source.
+- Magic numbers in `TradeTick` impl replaced with `tdbe::flags::` named constants
+- Documentation updated across 17+ files for new import paths
 
 ## [3.2.2] - 2026-03-30
 
@@ -392,8 +420,8 @@ See [TODO.md](TODO.md) for the production readiness checklist and performance ro
 - FIT decoder uses i64 accumulator with i32 saturation (no silent overflow)
 - Price type range enforced with `assert!` in release builds
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v3.3.0...HEAD
-[3.3.0]: https://github.com/userFRM/ThetaDataDx/compare/v3.2.2...v3.3.0
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v4.0.0...HEAD
+[4.0.0]: https://github.com/userFRM/ThetaDataDx/compare/v3.2.2...v4.0.0
 [3.2.2]: https://github.com/userFRM/ThetaDataDx/compare/v3.2.0...v3.2.2
 [3.2.0]: https://github.com/userFRM/ThetaDataDx/compare/v3.1.0...v3.2.0
 [3.1.0]: https://github.com/userFRM/ThetaDataDx/compare/v3.0.0...v3.1.0
