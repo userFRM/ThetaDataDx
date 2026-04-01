@@ -20,7 +20,8 @@ No-JVM ThetaData Terminal - native Rust SDK for direct market data access.
 
 | Path | Description |
 |------|-------------|
-| [`crates/thetadatadx/`](crates/thetadatadx/) | Core Rust SDK - gRPC historical, FPSS streaming, Greeks, FIT codec |
+| [`crates/tdbe/`](crates/tdbe/) | ThetaData Binary Encoding - types, FIT/FIE codecs, Greeks, Price |
+| [`crates/thetadatadx/`](crates/thetadatadx/) | Core Rust SDK - gRPC historical, FPSS streaming (depends on `tdbe`) |
 | [`sdks/python/`](sdks/python/) | Python SDK (PyO3/maturin) - `pip install thetadatadx` |
 | [`sdks/go/`](sdks/go/) | Go SDK (CGo FFI) |
 | [`sdks/cpp/`](sdks/cpp/) | C++ SDK (RAII wrappers over C FFI) |

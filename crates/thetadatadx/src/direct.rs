@@ -32,7 +32,7 @@ use crate::error::Error;
 use crate::proto;
 use crate::proto_v3;
 use crate::proto_v3::beta_theta_terminal_client::BetaThetaTerminalClient;
-use crate::types::tick::*;
+use tdbe::types::tick::*;
 
 /// Crate version embedded in `QueryInfo.terminal_version` so ThetaData can
 /// identify this client in server-side logs.

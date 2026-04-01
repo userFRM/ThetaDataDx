@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-use thetadatadx::codec::fie::{fie_line_to_string, string_to_fie_line, try_string_to_fie_line};
+use tdbe::codec::fie::{fie_line_to_string, string_to_fie_line, try_string_to_fie_line};
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  FIE encoder benchmarks

@@ -1,0 +1,43 @@
+[package]
+name = "tdbe"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+authors = ["userFRM"]
+description = "ThetaData Binary Encoding -- market data types, FIT/FIE codecs, Black-Scholes Greeks"
+documentation = "https://docs.rs/tdbe"
+homepage = "https://github.com/userFRM/ThetaDataDx"
+repository = "https://github.com/userFRM/ThetaDataDx"
+license = "GPL-3.0-or-later"
+keywords = ["thetadata", "encoding", "market-data", "codec", "greeks"]
+categories = ["encoding", "finance"]
+
+[dependencies]
+thiserror = "2.0.18"
+
+[dev-dependencies]
+criterion = { version = "0.8.2", features = ["html_reports"] }
+
+[[bench]]
+name = "bench_fit"
+harness = false
+
+[[bench]]
+name = "bench_fie"
+harness = false
+
+[[bench]]
+name = "bench_price"
+harness = false
+
+[[bench]]
+name = "bench_greeks"
+harness = false
+
+[[bench]]
+name = "bench_enums"
+harness = false
+
+[[bench]]
+name = "bench_tick"
+harness = false

@@ -1265,8 +1265,8 @@ async fn main() -> Result<(), thetadatadx::Error> {
             }
             FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, price_type, .. }) => {
                 let name = contracts_clone.lock().unwrap().get(contract_id).cloned().unwrap_or_default();
-                let bid_f = thetadatadx::types::price::Price::new(*bid, *price_type).to_f64();
-                let ask_f = thetadatadx::types::price::Price::new(*ask, *price_type).to_f64();
+                let bid_f = tdbe::Price::new(*bid, *price_type).to_f64();
+                let ask_f = tdbe::Price::new(*ask, *price_type).to_f64();
                 let spread = ask_f - bid_f;
                 let mid = (bid_f + ask_f) / 2.0;
                 println!("{:<8}  {:>8.2}  {:>8.2}  {:>8.4}  {:>8.2}", name, bid_f, ask_f, spread, mid);
@@ -1310,7 +1310,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
             }
             FpssEvent::Data(FpssData::Trade { contract_id, price, size, ms_of_day, price_type, .. }) => {
                 let name = contracts_clone.lock().unwrap().get(contract_id).cloned().unwrap_or_default();
-                let price_f = thetadatadx::types::price::Price::new(*price, *price_type).to_f64();
+                let price_f = tdbe::Price::new(*price, *price_type).to_f64();
                 let h = ms_of_day / 3_600_000;
                 let m = (ms_of_day % 3_600_000) / 60_000;
                 let s = (ms_of_day % 60_000) / 1_000;
@@ -1357,7 +1357,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
             FpssEvent::Data(FpssData::Trade { contract_id, price, size, price_type, .. }) => {
                 if *size >= min_size {
                     let name = contracts_clone.lock().unwrap().get(contract_id).cloned().unwrap_or_default();
-                    let price_f = thetadatadx::types::price::Price::new(*price, *price_type).to_f64();
+                    let price_f = tdbe::Price::new(*price, *price_type).to_f64();
                     let premium = price_f * *size as f64 * 100.0;
                     println!("{:<35}  {:>6}  {:>8.2}  \${:>11,.0}",
                         name, size, price_f, premium);
@@ -1367,7 +1367,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
         }
     })?;
 
-    tdx.subscribe_full_trades(thetadatadx::types::enums::SecType::Option)?;
+    tdx.subscribe_full_trades(tdbe::SecType::Option)?;
 
     std::thread::park();
     Ok(())
@@ -1398,8 +1398,8 @@ async fn main() -> Result<(), thetadatadx::Error> {
             }
             FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, price_type, .. }) => {
                 let name = contracts_clone.lock().unwrap().get(contract_id).cloned().unwrap_or_default();
-                let bid_f = thetadatadx::types::price::Price::new(*bid, *price_type).to_f64();
-                let ask_f = thetadatadx::types::price::Price::new(*ask, *price_type).to_f64();
+                let bid_f = tdbe::Price::new(*bid, *price_type).to_f64();
+                let ask_f = tdbe::Price::new(*ask, *price_type).to_f64();
                 let spread = ask_f - bid_f;
                 let mid = (bid_f + ask_f) / 2.0;
                 println!("{:<30}  {:>8.2}  {:>8.2}  {:>8.4}  {:>8.2}",

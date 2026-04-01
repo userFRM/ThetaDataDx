@@ -26,7 +26,7 @@
 
 use std::io::{Read, Write};
 
-use crate::types::enums::StreamMsgType;
+use tdbe::types::enums::StreamMsgType;
 
 /// Maximum payload length (single unsigned byte).
 ///

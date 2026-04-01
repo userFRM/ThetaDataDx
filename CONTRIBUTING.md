@@ -83,6 +83,7 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
 
 | Scope | What it covers |
 |-------|---------------|
+| `tdbe` | `crates/tdbe/` |
 | `core` | `crates/thetadatadx/` |
 | `ffi` | `ffi/` |
 | `python` | `sdks/python/` |
@@ -124,6 +125,8 @@ Tick type structs and parsers are generated from `endpoint_schema.toml` by `buil
    - Add a `[types.YourTick]` block to `crates/thetadatadx/endpoint_schema.toml`
    - `cargo build` generates the struct and parser
    - See `docs/endpoint-schema.md` for the TOML format
+   - Note: tick type structs, `Price`, enums, codecs, and Greeks live in `crates/tdbe/`.
+     If you add a new tick type or modify existing types, edit `tdbe` first.
 
 3. **Wire up the endpoint in `direct.rs`**
    ```rust

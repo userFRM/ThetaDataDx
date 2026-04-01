@@ -1,8 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use std::io::Cursor;
 
+use tdbe::types::enums::StreamMsgType;
 use thetadatadx::fpss::framing::{read_frame, write_frame, Frame};
-use thetadatadx::types::enums::StreamMsgType;
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  FPSS framing benchmarks

@@ -2,7 +2,7 @@ use std::cell::RefCell;
 
 use crate::error::Error;
 use crate::proto;
-use crate::types::tick::*;
+use tdbe::types::tick::*;
 
 /// Helper: find a column index by name, logging a warning if not found.
 /// Returns `None` when the header is missing.
@@ -134,10 +134,7 @@ pub fn extract_text_column(table: &proto::DataTable, header: &str) -> Vec<Option
 }
 
 /// Extract a column of Price values from a DataTable by header name.
-pub fn extract_price_column(
-    table: &proto::DataTable,
-    header: &str,
-) -> Vec<Option<crate::types::Price>> {
+pub fn extract_price_column(table: &proto::DataTable, header: &str) -> Vec<Option<tdbe::Price>> {
     let col_idx = match table.headers.iter().position(|h| h == header) {
         Some(i) => i,
         None => return vec![],
@@ -152,7 +149,7 @@ pub fn extract_price_column(
                 .and_then(|dv| dv.data_type.as_ref())
                 .and_then(|dt| match dt {
                     proto::data_value::DataType::Price(p) => {
-                        Some(crate::types::Price::from_proto(p))
+                        Some(tdbe::Price::new(p.value, p.r#type))
                     }
                     _ => None,
                 })

@@ -34,7 +34,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
     println!("SPY expirations: {:?}", &exps[..5.min(exps.len())]);
 
     // Compute Greeks (offline, no server call)
-    let greeks = thetadatadx::greeks::all_greeks(
+    let greeks = tdbe::greeks::all_greeks(
         450.0,        // spot
         455.0,        // strike
         0.05,         // risk-free rate

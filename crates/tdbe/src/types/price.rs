@@ -59,17 +59,9 @@ impl Price {
             (0..20).contains(&price_type),
             "price_type must be 0..20, got {price_type}"
         );
-        let clamped = price_type.clamp(0, 19);
-        if clamped != price_type {
-            tracing::warn!(
-                price_type,
-                clamped,
-                "price_type out of range 0..20, clamping"
-            );
-        }
         Self {
             value,
-            price_type: clamped,
+            price_type: price_type.clamp(0, 19),
         }
     }
 
@@ -88,19 +80,6 @@ impl Price {
             self.value as f64 * POW10_F64[exp as usize]
         } else {
             self.value as f64 / POW10_F64[(-exp) as usize]
-        }
-    }
-
-    /// Create from a protobuf Price message.
-    pub fn from_proto(proto: &crate::proto::Price) -> Self {
-        Self::new(proto.value, proto.r#type)
-    }
-
-    /// Convert to the protobuf Price message.
-    pub fn to_proto(&self) -> crate::proto::Price {
-        crate::proto::Price {
-            value: self.value,
-            r#type: self.price_type,
         }
     }
 

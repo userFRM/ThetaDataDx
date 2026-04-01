@@ -1948,6 +1948,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "tdbe"
+version = "0.1.0"
+dependencies = [
+ "tracing",
+]
+
+[[package]]
 name = "tempfile"
 version = "3.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1972,6 +1979,7 @@ dependencies = [
  "reqwest",
  "rustls",
  "serde",
+ "tdbe",
  "thiserror 2.0.18",
  "tokio",
  "tokio-rustls",
@@ -1994,6 +2002,7 @@ dependencies = [
  "clap",
  "serde",
  "sonic-rs",
+ "tdbe",
  "thetadatadx",
  "tokio",
  "tower-http",

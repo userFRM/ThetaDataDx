@@ -97,9 +97,9 @@ use disruptor::{build_single_producer, Producer, Sequence};
 use self::ring::{AdaptiveWaitStrategy, RingEvent};
 
 use crate::auth::Credentials;
-use crate::codec::fit::{apply_deltas, FitReader};
 use crate::error::Error;
-use crate::types::enums::{RemoveReason, StreamMsgType, StreamResponseType};
+use tdbe::codec::fit::{apply_deltas, FitReader};
+use tdbe::types::enums::{RemoveReason, StreamMsgType, StreamResponseType};
 
 use self::framing::{
     read_frame, read_frame_into, write_frame, write_raw_frame, write_raw_frame_no_flush, Frame,
@@ -480,7 +480,7 @@ impl FpssClient {
     /// The server distinguishes this from per-contract subscriptions by payload length.
     pub fn subscribe_full_trades(
         &self,
-        sec_type: crate::types::enums::SecType,
+        sec_type: tdbe::types::enums::SecType,
     ) -> Result<i32, Error> {
         self.check_connected()?;
 

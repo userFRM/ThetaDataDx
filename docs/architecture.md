@@ -472,6 +472,27 @@ Characters are packed pairwise: `byte = (nibble(c1) << 4) | nibble(c2)`. Odd-len
 
 ```mermaid
 graph TD
+    subgraph "tdbe crate"
+        direction TB
+        TDBE_LIB["lib.rs<br/><i>crate root, re-exports</i>"]
+
+        subgraph tdbe_codec["codec/"]
+            C_MOD["mod.rs"]
+            C_FIT["fit.rs<br/><i>FIT nibble decoder</i>"]
+            C_FIE["fie.rs<br/><i>FIE string encoder</i>"]
+        end
+
+        subgraph tdbe_types["types/"]
+            T_ENUM["enums.rs<br/><i>80+ DataType codes</i>"]
+            T_PRICE["price.rs<br/><i>fixed-point Price</i>"]
+            T_TICK["tick.rs<br/><i>14 tick types (generated)<br/>TradeTick, QuoteTick, OhlcTick,<br/>EodTick, OpenInterestTick,<br/>SnapshotTradeTick, TradeQuoteTick,<br/>MarketValueTick, GreeksTick,<br/>IvTick, PriceTick, CalendarDay,<br/>InterestRateTick,<br/>OptionContract</i>"]
+        end
+
+        TDBE_GREEKS["greeks.rs<br/><i>22 Greeks + IV</i>"]
+        TDBE_FLAGS["flags.rs<br/><i>condition codes</i>"]
+        TDBE_ERROR["error.rs<br/><i>encoding errors</i>"]
+    end
+
     subgraph "thetadatadx crate"
         direction TB
         LIB["lib.rs<br/><i>crate root</i>"]
@@ -482,12 +503,6 @@ graph TD
             A_NEXUS["nexus.rs<br/><i>Nexus HTTP auth</i>"]
         end
 
-        subgraph codec["codec/"]
-            C_MOD["mod.rs"]
-            C_FIT["fit.rs<br/><i>FIT nibble decoder</i>"]
-            C_FIE["fie.rs<br/><i>FIE string encoder</i>"]
-        end
-
         subgraph fpss["fpss/"]
             F_MOD["mod.rs<br/><i>FpssClient (internal)</i>"]
             F_CONN["connection.rs<br/><i>TLS/TCP failover</i>"]
@@ -495,17 +510,10 @@ graph TD
             F_PROTO["protocol.rs<br/><i>contracts, messages</i>"]
         end
 
-        subgraph types["types/"]
-            T_ENUM["enums.rs<br/><i>80+ DataType codes</i>"]
-            T_PRICE["price.rs<br/><i>fixed-point Price</i>"]
-            T_TICK["tick.rs<br/><i>14 tick types (generated)<br/>TradeTick, QuoteTick, OhlcTick,<br/>EodTick, OpenInterestTick,<br/>SnapshotTradeTick, TradeQuoteTick,<br/>MarketValueTick, GreeksTick,<br/>IvTick, PriceTick, CalendarDay,<br/>InterestRateTick,<br/>OptionContract</i>"]
-        end
-
         UNIFIED["unified.rs<br/><i>ThetaDataDx — unified entry point<br/>Deref to DirectClient</i>"]
         DIRECT["direct.rs<br/><i>DirectClient (internal) — 61 endpoints<br/>via define_endpoint! macro</i>"]
         CONFIG["config.rs<br/><i>DirectConfig</i>"]
         DECODE["decode.rs<br/><i>zstd + DataTable parsing<br/>(includes generated parsers)</i>"]
-        GREEKS["greeks.rs<br/><i>22 Greeks + IV</i>"]
         REGISTRY["registry.rs<br/><i>EndpointMeta, ENDPOINTS static</i>"]
 
         subgraph codegen["TOML Codegen"]
@@ -519,6 +527,7 @@ graph TD
         end
     end
 
+    LIB --> TDBE_LIB
     UNIFIED --> DIRECT
     DIRECT --> auth
     DIRECT --> DECODE
@@ -526,7 +535,7 @@ graph TD
     SCHEMA --> BUILD
     BUILD --> T_TICK
     BUILD --> DECODE
-    F_MOD --> codec
+    F_MOD --> tdbe_codec
     F_MOD --> F_CONN
     F_MOD --> F_FRAME
     F_MOD --> F_PROTO

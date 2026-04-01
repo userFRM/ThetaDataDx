@@ -107,8 +107,8 @@ The extracted `.proto` files go into `proto/` in the crate root. Run `cargo buil
 | `net.thetadata.fpssclient.FPSSClient` | FPSS connection lifecycle, auth handshake, subscriptions, reconnection state machine | `fpss/mod.rs` |
 | `net.thetadata.fpssclient.PacketStream` | Wire framing (1-byte len + 1-byte code + payload), request ID generation | `fpss/framing.rs` |
 | `net.thetadata.fpssclient.Contract` | Contract binary serialization (stock/option/index wire format) | `fpss/protocol.rs` |
-| `net.thetadata.fie.FITReader` | FIT nibble decoder (4-bit variable-length integer compression) | `codec/fit.rs` |
-| `net.thetadata.FIE` | FIE string encoder (nibble packing for request building) | `codec/fie.rs` |
+| `net.thetadata.fie.FITReader` | FIT nibble decoder (4-bit variable-length integer compression) | `crates/tdbe/src/codec/fit.rs` |
+| `net.thetadata.FIE` | FIE string encoder (nibble packing for request building) | `crates/tdbe/src/codec/fie.rs` |
 | `net.thetadata.auth.UserAuthenticator` | Nexus HTTP auth endpoint, terminal key constant | `auth/nexus.rs` |
 | `net.thetadata.providers.ChannelProvider` | MDDS gRPC channel construction (host, port, TLS, keepalive) | `direct.rs` |
 | `net.thetadata.providers.MddsConnectionManager` | MDDS v3 gRPC path (single endpoint over TLS) | `config.rs` |
@@ -116,7 +116,7 @@ The extracted `.proto` files go into `proto/` in the crate root. Run `cargo buil
 | `net.thetadata.generated.v3grpc.Endpoints` | v3 proto file descriptor (BetaThetaTerminal service) | `proto/v3_endpoints.proto` |
 | `net.thetadata.generated.Endpoints` | Shared proto file descriptor (ResponseData, DataTable, Price) | `proto/endpoints.proto` |
 | `net.thetadata.config.ConfigurationManager` | Config keys (hosts, ports, timeouts) from `config_0.properties` | `config.rs` |
-| `net.thetadata.StreamMsgType` | FPSS message type enum (byte codes 0-53) | `types/enums.rs` |
+| `net.thetadata.StreamMsgType` | FPSS message type enum (byte codes 0-53) | `crates/tdbe/src/types/enums.rs` |
 
 ## 5. Hardcoded Constants
 
@@ -192,7 +192,7 @@ When ThetaData releases a new terminal version, here is the checklist:
 
 ### FPSS changes
 
-1. Check `StreamMsgType.java` for new or changed message codes - update `types/enums.rs` and `fpss/framing.rs`
+1. Check `StreamMsgType.java` for new or changed message codes - update `crates/tdbe/src/types/enums.rs` and `fpss/framing.rs`
 2. Check `FPSSClient.java` for changes to the connection/auth/reconnection state machine - update `fpss/mod.rs`
 3. Check `PacketStream.java` for framing changes - update `fpss/framing.rs`
 4. Check `Contract.java` for wire format changes - update `fpss/protocol.rs`
@@ -200,8 +200,8 @@ When ThetaData releases a new terminal version, here is the checklist:
 
 ### Codec changes
 
-1. Check `FITReader.java` for changes to nibble encoding or the SPACING constant - update `codec/fit.rs`
-2. Check `FIE.java` for changes to the nibble alphabet - update `codec/fie.rs`
+1. Check `FITReader.java` for changes to nibble encoding or the SPACING constant - update `crates/tdbe/src/codec/fit.rs`
+2. Check `FIE.java` for changes to the nibble alphabet - update `crates/tdbe/src/codec/fie.rs`
 3. Run the existing test suite - FIT test vectors will catch encoding changes
 
 ### Configuration changes

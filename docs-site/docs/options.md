@@ -147,7 +147,7 @@ The most common usage: compute IV from the market price, then derive all 22 Gree
 
 ::: code-group
 ```rust [Rust]
-use thetadatadx::greeks;
+use tdbe::greeks;
 
 let result = greeks::all_greeks(
     450.0,            // spot price
@@ -224,7 +224,7 @@ The solver uses bisection with up to 128 iterations. The `error` return is the r
 For targeted computation when you only need one or two values:
 
 ```rust
-use thetadatadx::greeks;
+use tdbe::greeks;
 
 let s = 450.0;  // spot
 let x = 455.0;  // strike

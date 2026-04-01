@@ -369,7 +369,7 @@ ThetaDataDx uses manual reconnection. When the server disconnects, you receive a
 
 ```rust
 use thetadatadx::ThetaDataDx;
-use thetadatadx::types::RemoveReason;
+use tdbe::types::enums::RemoveReason;
 
 match thetadatadx::fpss::reconnect_delay(reason) {
     None => {

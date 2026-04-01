@@ -11,6 +11,7 @@ crate-type = ["cdylib"]
 [dependencies]
 # The Rust SDK we're wrapping
 thetadatadx = { path = "../../crates/thetadatadx" }
+tdbe = { path = "../../crates/tdbe" }
 
 # PyO3 bindings
 pyo3 = { version = "=0.28.2", features = ["extension-module"] }

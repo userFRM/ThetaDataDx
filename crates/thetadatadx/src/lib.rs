@@ -6,6 +6,13 @@
 //! eliminating the Java terminal entirely. No JVM, no subprocess, no local proxy —
 //! just your application speaking the same wire protocol the terminal uses.
 //!
+//! ## Data types live in `tdbe`
+//!
+//! Tick types (`TradeTick`, `EodTick`, ...), `Price`, enums (`SecType`, `DataType`),
+//! the FIT/FIE codecs, and the Greeks calculator have been extracted into the
+//! [`tdbe`](https://crates.io/crates/tdbe) crate. This crate re-exports what it
+//! needs, but if you only want types and offline Greeks, depend on `tdbe` directly.
+//!
 //! ## Architecture
 //!
 //! ThetaData exposes two upstream services:
@@ -96,15 +103,12 @@
 //! ```
 
 pub mod auth;
-pub mod codec;
 pub mod config;
 pub mod decode;
 pub mod direct;
 pub mod error;
 pub mod fpss;
-pub mod greeks;
 pub mod registry;
-pub mod types;
 pub mod unified;
 
 /// Generated protobuf types from `endpoints.proto` (shared types).

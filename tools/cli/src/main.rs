@@ -2,8 +2,8 @@ use std::process;
 
 use clap::{Arg, ArgMatches, Command};
 use comfy_table::{presets::UTF8_FULL_CONDENSED, Cell, ContentArrangement, Table};
+use tdbe::types::price::Price;
 use thetadatadx::registry::{self, EndpointMeta};
-use thetadatadx::types::price::Price;
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  CLI construction from endpoint registry
@@ -896,7 +896,7 @@ async fn connect(
 //  Tick rendering helpers — reduce repetition across subcommands
 // ═══════════════════════════════════════════════════════════════════════════
 
-fn render_eod(ticks: &[thetadatadx::types::tick::EodTick], fmt: &OutputFormat) {
+fn render_eod(ticks: &[tdbe::types::tick::EodTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec![
         "date",
         "ms_of_day",
@@ -942,7 +942,7 @@ fn render_eod(ticks: &[thetadatadx::types::tick::EodTick], fmt: &OutputFormat) {
     td.render(fmt);
 }
 
-fn render_ohlc(ticks: &[thetadatadx::types::tick::OhlcTick], fmt: &OutputFormat) {
+fn render_ohlc(ticks: &[tdbe::types::tick::OhlcTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec![
         "date", "time", "open", "high", "low", "close", "volume", "count",
     ]);
@@ -961,7 +961,7 @@ fn render_ohlc(ticks: &[thetadatadx::types::tick::OhlcTick], fmt: &OutputFormat)
     td.render(fmt);
 }
 
-fn render_trades(ticks: &[thetadatadx::types::tick::TradeTick], fmt: &OutputFormat) {
+fn render_trades(ticks: &[tdbe::types::tick::TradeTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec![
         "date",
         "time",
@@ -985,7 +985,7 @@ fn render_trades(ticks: &[thetadatadx::types::tick::TradeTick], fmt: &OutputForm
     td.render(fmt);
 }
 
-fn render_quotes(ticks: &[thetadatadx::types::tick::QuoteTick], fmt: &OutputFormat) {
+fn render_quotes(ticks: &[tdbe::types::tick::QuoteTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec![
         "date",
         "ms_of_day",
@@ -1025,7 +1025,7 @@ fn render_string_list(items: &[String], header: &str, fmt: &OutputFormat) {
     td.render(fmt);
 }
 
-fn render_trade_quotes(ticks: &[thetadatadx::types::tick::TradeQuoteTick], fmt: &OutputFormat) {
+fn render_trade_quotes(ticks: &[tdbe::types::tick::TradeQuoteTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec![
         "date",
         "time",
@@ -1059,7 +1059,7 @@ fn render_trade_quotes(ticks: &[thetadatadx::types::tick::TradeQuoteTick], fmt: 
     td.render(fmt);
 }
 
-fn render_open_interest(ticks: &[thetadatadx::types::tick::OpenInterestTick], fmt: &OutputFormat) {
+fn render_open_interest(ticks: &[tdbe::types::tick::OpenInterestTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec!["date", "ms_of_day", "open_interest"]);
     for t in ticks {
         td.push(vec![
@@ -1071,7 +1071,7 @@ fn render_open_interest(ticks: &[thetadatadx::types::tick::OpenInterestTick], fm
     td.render(fmt);
 }
 
-fn render_market_value(ticks: &[thetadatadx::types::tick::MarketValueTick], fmt: &OutputFormat) {
+fn render_market_value(ticks: &[tdbe::types::tick::MarketValueTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec![
         "date",
         "ms_of_day",
@@ -1095,7 +1095,7 @@ fn render_market_value(ticks: &[thetadatadx::types::tick::MarketValueTick], fmt:
     td.render(fmt);
 }
 
-fn render_greeks(ticks: &[thetadatadx::types::tick::GreeksTick], fmt: &OutputFormat) {
+fn render_greeks(ticks: &[tdbe::types::tick::GreeksTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec![
         "date",
         "ms_of_day",
@@ -1121,7 +1121,7 @@ fn render_greeks(ticks: &[thetadatadx::types::tick::GreeksTick], fmt: &OutputFor
     td.render(fmt);
 }
 
-fn render_iv(ticks: &[thetadatadx::types::tick::IvTick], fmt: &OutputFormat) {
+fn render_iv(ticks: &[tdbe::types::tick::IvTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec!["date", "ms_of_day", "implied_volatility", "iv_error"]);
     for t in ticks {
         td.push(vec![
@@ -1134,7 +1134,7 @@ fn render_iv(ticks: &[thetadatadx::types::tick::IvTick], fmt: &OutputFormat) {
     td.render(fmt);
 }
 
-fn render_price(ticks: &[thetadatadx::types::tick::PriceTick], fmt: &OutputFormat) {
+fn render_price(ticks: &[tdbe::types::tick::PriceTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec!["date", "ms_of_day", "price", "price_type"]);
     for t in ticks {
         td.push(vec![
@@ -1147,7 +1147,7 @@ fn render_price(ticks: &[thetadatadx::types::tick::PriceTick], fmt: &OutputForma
     td.render(fmt);
 }
 
-fn render_calendar(days: &[thetadatadx::types::tick::CalendarDay], fmt: &OutputFormat) {
+fn render_calendar(days: &[tdbe::types::tick::CalendarDay], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec!["date", "is_open", "open_time", "close_time", "status"]);
     for d in days {
         td.push(vec![
@@ -1161,7 +1161,7 @@ fn render_calendar(days: &[thetadatadx::types::tick::CalendarDay], fmt: &OutputF
     td.render(fmt);
 }
 
-fn render_interest_rates(ticks: &[thetadatadx::types::tick::InterestRateTick], fmt: &OutputFormat) {
+fn render_interest_rates(ticks: &[tdbe::types::tick::InterestRateTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec!["date", "ms_of_day", "rate"]);
     for t in ticks {
         td.push(vec![
@@ -1173,10 +1173,7 @@ fn render_interest_rates(ticks: &[thetadatadx::types::tick::InterestRateTick], f
     td.render(fmt);
 }
 
-fn render_option_contracts(
-    contracts: &[thetadatadx::types::tick::OptionContract],
-    fmt: &OutputFormat,
-) {
+fn render_option_contracts(contracts: &[tdbe::types::tick::OptionContract], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec![
         "root",
         "expiration",
@@ -1288,15 +1285,8 @@ async fn run(matches: ArgMatches) -> Result<(), thetadatadx::Error> {
                 .map_err(|e| thetadatadx::Error::Config(format!("invalid option_price: {e}")))?;
             let is_call = get_arg(sub_m, "right") == "call";
 
-            let g = thetadatadx::greeks::all_greeks(
-                spot,
-                strike,
-                rate,
-                dividend,
-                time,
-                option_price,
-                is_call,
-            );
+            let g =
+                tdbe::greeks::all_greeks(spot, strike, rate, dividend, time, option_price, is_call);
             let mut td = TabularData::new(vec!["greek", "value"]);
             let rows = [
                 ("value", g.value),
@@ -1350,7 +1340,7 @@ async fn run(matches: ArgMatches) -> Result<(), thetadatadx::Error> {
                 .map_err(|e| thetadatadx::Error::Config(format!("invalid option_price: {e}")))?;
             let is_call = get_arg(sub_m, "right") == "call";
 
-            let (iv, iv_error) = thetadatadx::greeks::implied_volatility(
+            let (iv, iv_error) = tdbe::greeks::implied_volatility(
                 spot,
                 strike,
                 rate,

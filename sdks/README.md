@@ -39,10 +39,18 @@ Multi-language SDKs for ThetaDataDx. All powered by the Rust core via FFI - thes
                     | gRPC (tonic)    |
                     | Protobuf (prost)|
                     | zstd            |
-                    | FIT codec       |
                     | FPSS (TCP)      |
+                    +--------+--------+
+                             |
+                    +--------v--------+
+                    |      tdbe       |
+                    | (data format)   |
+                    +-----------------+
+                    | FIT/FIE codec   |
                     | Greeks (BSM)    |
                     | Price types     |
+                    | Tick structs    |
+                    | Enums & flags   |
                     +-----------------+
 ```
 

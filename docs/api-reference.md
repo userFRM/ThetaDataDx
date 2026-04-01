@@ -1434,7 +1434,7 @@ pub struct GreeksResult {
 Example:
 
 ```rust
-use thetadatadx::greeks;
+use tdbe::greeks;
 
 // SPY $450 call, strike $455, 30 DTE
 let result = greeks::all_greeks(

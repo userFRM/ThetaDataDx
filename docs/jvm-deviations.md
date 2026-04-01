@@ -34,7 +34,7 @@ As of v1.2.0:
 | | Java | Rust | Impact |
 |---|---|---|---|
 | **Behavior** | `int` wraps silently on overflow | `i64` accumulator, saturates to `i32::MAX/MIN` | None in practice |
-| **Source** | `FITReader.readChanges()` — `val = val * 10 + digit` | `codec/fit.rs:flush_digits()` | |
+| **Source** | `FITReader.readChanges()` — `val = val * 10 + digit` | `crates/tdbe/src/codec/fit.rs:flush_digits()` | |
 | **Trigger** | 10-digit value > 2,147,483,647 | Same | |
 | **Rationale** | Java wrapping produces corrupt tick data silently. Saturation preserves the sign and makes overflow detectable. Real market data never has values exceeding i32 range. | |
 
@@ -43,7 +43,7 @@ As of v1.2.0:
 | | Java | Rust | Impact |
 |---|---|---|---|
 | **Behavior** | Returns `NaN`/`Inf` for `t=0` or `v=0` | Returns `0.0` (or intrinsic value for `value()`) | Local computation only |
-| **Source** | `Greeks.java` — `d1()` divides by `v * sqrt(t)` | `greeks.rs:is_degenerate()` guard | |
+| **Source** | `Greeks.java` — `d1()` divides by `v * sqrt(t)` | `crates/tdbe/src/greeks.rs:is_degenerate()` guard | |
 | **Trigger** | At-expiry options, zero-volatility scenarios | Same | |
 | **Rationale** | NaN/Inf propagates silently through downstream calculations, corrupting portfolio analytics. Returning 0.0 is the mathematically correct limit for most Greeks at expiry. `value()` returns intrinsic value, which is the Black-Scholes limit as t→0. | |
 
@@ -52,7 +52,7 @@ As of v1.2.0:
 | | Java | Rust | Impact |
 |---|---|---|---|
 | **Behavior** | Each Greek function independently calls `d1()`, `d2()` | `all_greeks()` precomputes d1, d2, N(d1), N(d2), etc. once | Numerically identical |
-| **Source** | `Greeks.java` — 20+ independent `d1(s,x,v,r,q,t)` calls | `greeks.rs:all_greeks()` | |
+| **Source** | `Greeks.java` — 20+ independent `d1(s,x,v,r,q,t)` calls | `crates/tdbe/src/greeks.rs:all_greeks()` | |
 | **Rationale** | Same floating-point operations in same order — results are bit-identical. Individual Greek functions still compute independently (unchanged API). Only `all_greeks()` benefits from shared intermediates (~20x fewer transcendental function calls). | |
 
 ### Timeouts: Enforced vs Configurable
@@ -120,7 +120,7 @@ As of v1.2.0:
 | | Java | Rust | Impact |
 |---|---|---|---|
 | **Behavior** | `NormalDistribution.cumulativeProbability()` from Apache Commons Math | Horner-form Zelen & Severo approximation (~1e-7 accuracy) | Numerically equivalent for all practical inputs |
-| **Source** | `Greeks.java` via Apache Commons Math 3.x | `greeks.rs:norm_cdf()` |
+| **Source** | `Greeks.java` via Apache Commons Math 3.x | `crates/tdbe/src/greeks.rs:norm_cdf()` |
 | **Rationale** | Apache Commons Math uses a continued-fraction expansion (Abramowitz & Stegun 26.2.17). The Horner-form evaluation achieves ~1e-7 accuracy with fewer multiplications and no external dependency. Both are accurate to well beyond the precision needed for Greeks computation. The Horner form is also branch-free in the core polynomial, improving throughput on modern pipelines. |
 
 ### Streaming Response Processing
@@ -160,7 +160,7 @@ As of v1.2.0:
 | | Java | Rust | Impact |
 |---|---|---|---|
 | **Behavior** | `Math.pow(Math.E, x)` | `x.exp()` | Numerically more precise |
-| **Source** | `Greeks.java` | `greeks.rs` | |
+| **Source** | `Greeks.java` | `crates/tdbe/src/greeks.rs` | |
 | **Rationale** | `E.powf(x)` computes `e^(x * ln(e))` — the `ln(e)` multiply introduces a floating-point rounding step. `.exp()` is a direct hardware operation. The difference is ~1 ULP (unit in the last place) for typical inputs. | |
 
 ## TLS Stack

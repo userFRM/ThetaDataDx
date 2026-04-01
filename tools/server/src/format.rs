@@ -12,8 +12,8 @@
 
 use sonic_rs::prelude::*;
 use thetadatadx::proto;
-use thetadatadx::types::price::Price;
-use thetadatadx::types::tick::*;
+use tdbe::types::price::Price;
+use tdbe::types::tick::*;
 
 // ---------------------------------------------------------------------------
 //  JSON envelope

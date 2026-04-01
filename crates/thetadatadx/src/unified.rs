@@ -41,7 +41,7 @@ use crate::direct::DirectClient;
 use crate::error::Error;
 use crate::fpss::protocol::{Contract, SubscriptionKind};
 use crate::fpss::{FpssClient, FpssEvent};
-use crate::types::enums::SecType;
+use tdbe::types::enums::SecType;
 
 /// Unified ThetaData client.
 ///

@@ -1976,7 +1976,7 @@ Compute all 22 Greeks at once. Solves for IV first, then computes all Greeks usi
 
 ::: code-group
 ```rust [Rust]
-use thetadatadx::greeks;
+use tdbe::greeks;
 
 let g = greeks::all_greeks(
     450.0,          // spot

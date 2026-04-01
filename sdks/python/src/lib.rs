@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use thetadatadx::auth;
 use thetadatadx::config;
 use thetadatadx::fpss;
-use thetadatadx::types::tick;
+use tdbe::types::tick;
 
 /// Shared tokio runtime for running async Rust from sync Python.
 fn runtime() -> &'static tokio::runtime::Runtime {
@@ -340,7 +340,7 @@ fn all_greeks(
     is_call: bool,
 ) -> Py<PyAny> {
     let g =
-        thetadatadx::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, is_call);
+        tdbe::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, is_call);
     let dict = PyDict::new(py);
     dict.set_item("value", g.value).unwrap();
     dict.set_item("delta", g.delta).unwrap();
@@ -382,7 +382,7 @@ fn implied_volatility(
     option_price: f64,
     is_call: bool,
 ) -> (f64, f64) {
-    thetadatadx::greeks::implied_volatility(
+    tdbe::greeks::implied_volatility(
         spot,
         strike,
         rate,
@@ -466,7 +466,7 @@ enum BufferedEvent {
 
 /// Convert raw integer price to f64 using ThetaData's price_type encoding.
 fn price_to_f64(value: i32, price_type: i32) -> f64 {
-    thetadatadx::types::price::Price::new(value, price_type).to_f64()
+    tdbe::types::price::Price::new(value, price_type).to_f64()
 }
 
 fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
@@ -895,9 +895,9 @@ impl ThetaDataDx {
     /// Subscribe to all trades for a security type (full trade stream).
     fn subscribe_full_trades(&self, sec_type: &str) -> PyResult<i32> {
         let st = match sec_type.to_uppercase().as_str() {
-            "STOCK" => thetadatadx::types::enums::SecType::Stock,
-            "OPTION" => thetadatadx::types::enums::SecType::Option,
-            "INDEX" => thetadatadx::types::enums::SecType::Index,
+            "STOCK" => tdbe::types::enums::SecType::Stock,
+            "OPTION" => tdbe::types::enums::SecType::Option,
+            "INDEX" => tdbe::types::enums::SecType::Index,
             other => {
                 return Err(PyValueError::new_err(format!(
                     "unknown sec_type: {other:?} (expected STOCK, OPTION, or INDEX)"

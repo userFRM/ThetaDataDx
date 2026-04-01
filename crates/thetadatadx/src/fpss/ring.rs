@@ -142,10 +142,10 @@ pub(crate) fn next_power_of_two(n: usize) -> usize {
 mod tests {
     use super::*;
     use crate::fpss::{FpssControl, FpssData, FpssEvent};
-    use crate::types::enums::RemoveReason;
     use disruptor::{build_single_producer, Producer};
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::sync::Arc;
+    use tdbe::types::enums::RemoveReason;
 
     #[test]
     fn adaptive_wait_strategy_is_copy_send() {

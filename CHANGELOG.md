@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.0] - 2026-04-01
+
+### Added
+
+- **`tdbe` crate** (`crates/tdbe/`) -- standalone pure data-format crate with zero networking dependencies. Contains all tick types, FIT/FIE codecs, Greeks calculator, Price encoding, enums, and flags. `thetadatadx` now depends on `tdbe` for all type definitions.
+
+### Changed
+
+- `thetadatadx` no longer directly contains `types/`, `codec/`, `greeks.rs`, `flags.rs`, or `error.rs` (encoding layer). These modules now live in `tdbe` and are re-exported where needed.
+- Documentation updated across 16 files to reflect the new import paths (`tdbe::greeks`, `tdbe::Price`, `tdbe::types::enums::RemoveReason`, etc.).
+
 ## [3.2.2] - 2026-03-30
 
 ### Fixed
@@ -381,7 +392,8 @@ See [TODO.md](TODO.md) for the production readiness checklist and performance ro
 - FIT decoder uses i64 accumulator with i32 saturation (no silent overflow)
 - Price type range enforced with `assert!` in release builds
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v3.2.2...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v3.3.0...HEAD
+[3.3.0]: https://github.com/userFRM/ThetaDataDx/compare/v3.2.2...v3.3.0
 [3.2.2]: https://github.com/userFRM/ThetaDataDx/compare/v3.2.0...v3.2.2
 [3.2.0]: https://github.com/userFRM/ThetaDataDx/compare/v3.1.0...v3.2.0
 [3.1.0]: https://github.com/userFRM/ThetaDataDx/compare/v3.0.0...v3.1.0

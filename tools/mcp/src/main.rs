@@ -443,7 +443,7 @@ fn serialize_data_table(table: &thetadatadx::proto::DataTable) -> Value {
                     Some(thetadatadx::proto::data_value::DataType::Price(p)) => {
                         // Use Price::from_proto().to_f64() to avoid duplicating
                         // the scaling logic that already lives in types/price.rs.
-                        let price = thetadatadx::types::Price::from_proto(p);
+                        let price = tdbe::Price::new(p.value, p.r#type);
                         json!(price.to_f64())
                     }
                     Some(thetadatadx::proto::data_value::DataType::Text(s)) => json!(s),
@@ -467,7 +467,7 @@ fn serialize_data_table(table: &thetadatadx::proto::DataTable) -> Value {
     })
 }
 
-fn serialize_eod_ticks(ticks: &[thetadatadx::types::tick::EodTick]) -> Value {
+fn serialize_eod_ticks(ticks: &[tdbe::types::tick::EodTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -490,7 +490,7 @@ fn serialize_eod_ticks(ticks: &[thetadatadx::types::tick::EodTick]) -> Value {
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_ohlc_ticks(ticks: &[thetadatadx::types::tick::OhlcTick]) -> Value {
+fn serialize_ohlc_ticks(ticks: &[tdbe::types::tick::OhlcTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -509,7 +509,7 @@ fn serialize_ohlc_ticks(ticks: &[thetadatadx::types::tick::OhlcTick]) -> Value {
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_trade_ticks(ticks: &[thetadatadx::types::tick::TradeTick]) -> Value {
+fn serialize_trade_ticks(ticks: &[tdbe::types::tick::TradeTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -527,7 +527,7 @@ fn serialize_trade_ticks(ticks: &[thetadatadx::types::tick::TradeTick]) -> Value
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_quote_ticks(ticks: &[thetadatadx::types::tick::QuoteTick]) -> Value {
+fn serialize_quote_ticks(ticks: &[tdbe::types::tick::QuoteTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -546,7 +546,7 @@ fn serialize_quote_ticks(ticks: &[thetadatadx::types::tick::QuoteTick]) -> Value
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_trade_quote_ticks(ticks: &[thetadatadx::types::tick::TradeQuoteTick]) -> Value {
+fn serialize_trade_quote_ticks(ticks: &[tdbe::types::tick::TradeQuoteTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -568,7 +568,7 @@ fn serialize_trade_quote_ticks(ticks: &[thetadatadx::types::tick::TradeQuoteTick
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_open_interest_ticks(ticks: &[thetadatadx::types::tick::OpenInterestTick]) -> Value {
+fn serialize_open_interest_ticks(ticks: &[tdbe::types::tick::OpenInterestTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(
@@ -578,7 +578,7 @@ fn serialize_open_interest_ticks(ticks: &[thetadatadx::types::tick::OpenInterest
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_market_value_ticks(ticks: &[thetadatadx::types::tick::MarketValueTick]) -> Value {
+fn serialize_market_value_ticks(ticks: &[tdbe::types::tick::MarketValueTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -593,7 +593,7 @@ fn serialize_market_value_ticks(ticks: &[thetadatadx::types::tick::MarketValueTi
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_greeks_ticks(ticks: &[thetadatadx::types::tick::GreeksTick]) -> Value {
+fn serialize_greeks_ticks(ticks: &[tdbe::types::tick::GreeksTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -608,7 +608,7 @@ fn serialize_greeks_ticks(ticks: &[thetadatadx::types::tick::GreeksTick]) -> Val
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_iv_ticks(ticks: &[thetadatadx::types::tick::IvTick]) -> Value {
+fn serialize_iv_ticks(ticks: &[tdbe::types::tick::IvTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -621,7 +621,7 @@ fn serialize_iv_ticks(ticks: &[thetadatadx::types::tick::IvTick]) -> Value {
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_price_ticks(ticks: &[thetadatadx::types::tick::PriceTick]) -> Value {
+fn serialize_price_ticks(ticks: &[tdbe::types::tick::PriceTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -634,7 +634,7 @@ fn serialize_price_ticks(ticks: &[thetadatadx::types::tick::PriceTick]) -> Value
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_calendar_days(days: &[thetadatadx::types::tick::CalendarDay]) -> Value {
+fn serialize_calendar_days(days: &[tdbe::types::tick::CalendarDay]) -> Value {
     let rows: Vec<Value> = days
         .iter()
         .map(|d| {
@@ -648,7 +648,7 @@ fn serialize_calendar_days(days: &[thetadatadx::types::tick::CalendarDay]) -> Va
     json!({ "days": rows, "count": rows.len() })
 }
 
-fn serialize_interest_rate_ticks(ticks: &[thetadatadx::types::tick::InterestRateTick]) -> Value {
+fn serialize_interest_rate_ticks(ticks: &[tdbe::types::tick::InterestRateTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| json!({"date": t.date, "ms_of_day": t.ms_of_day, "rate": t.rate}))
@@ -656,7 +656,7 @@ fn serialize_interest_rate_ticks(ticks: &[thetadatadx::types::tick::InterestRate
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_option_contracts(contracts: &[thetadatadx::types::tick::OptionContract]) -> Value {
+fn serialize_option_contracts(contracts: &[tdbe::types::tick::OptionContract]) -> Value {
     let rows: Vec<Value> = contracts
         .iter()
         .map(|c| {
@@ -773,7 +773,7 @@ async fn execute_tool(
             let price = param!(arg_f64(args, "option_price"));
             let is_call = param!(arg_bool(args, "is_call"));
 
-            let g = thetadatadx::greeks::all_greeks(s, x, r, q, t, price, is_call);
+            let g = tdbe::greeks::all_greeks(s, x, r, q, t, price, is_call);
             return Ok(json!({
                 "value": g.value,
                 "iv": g.iv,
@@ -809,7 +809,7 @@ async fn execute_tool(
             let price = param!(arg_f64(args, "option_price"));
             let is_call = param!(arg_bool(args, "is_call"));
 
-            let (iv, err) = thetadatadx::greeks::implied_volatility(s, x, r, q, t, price, is_call);
+            let (iv, err) = tdbe::greeks::implied_volatility(s, x, r, q, t, price, is_call);
             return Ok(json!({
                 "implied_volatility": iv,
                 "error": err,

@@ -26,8 +26,8 @@ use tokio::sync::broadcast;
 
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{FpssControl, FpssData, FpssEvent};
-use thetadatadx::types::enums::SecType;
-use thetadatadx::types::price::Price;
+use tdbe::types::enums::SecType;
+use tdbe::types::price::Price;
 
 use crate::state::AppState;
 

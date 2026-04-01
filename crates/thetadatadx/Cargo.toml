@@ -22,6 +22,8 @@ rustdoc-args = ["--cfg", "docsrs"]
 default = []
 
 [dependencies]
+tdbe = { path = "../tdbe" }
+
 # gRPC + protobuf (tonic 0.14 extracted prost codec into tonic-prost)
 tonic = { version = "=0.14.5", features = ["tls-ring", "tls-native-roots", "channel", "transport"] }
 tonic-prost = "=0.14.5"
@@ -66,22 +68,6 @@ toml = "0.8"
 serde = { version = "1", features = ["derive"] }
 
 [[bench]]
-name = "bench_fit"
-harness = false
-
-[[bench]]
-name = "bench_fie"
-harness = false
-
-[[bench]]
-name = "bench_price"
-harness = false
-
-[[bench]]
-name = "bench_greeks"
-harness = false
-
-[[bench]]
 name = "bench_decode"
 harness = false
 
@@ -95,12 +81,4 @@ harness = false
 
 [[bench]]
 name = "bench_auth"
-harness = false
-
-[[bench]]
-name = "bench_enums"
-harness = false
-
-[[bench]]
-name = "bench_tick"
 harness = false

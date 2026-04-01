@@ -5,7 +5,7 @@
 //! ## Message codes (`StreamMsgType` in Java)
 //!
 //! Source: `StreamMsgType.java` — enum with byte codes for each message direction.
-//! See [`crate::types::enums::StreamMsgType`] for the Rust enum.
+//! See [`tdbe::types::enums::StreamMsgType`] for the Rust enum.
 //!
 //! ## Contract serialization (`Contract.java`)
 //!
@@ -38,7 +38,7 @@
 //! Source: `PacketStream.addQuote()`, `PacketStream.removeQuote()`,
 //!         `FPSSClient.onReqResponse()` in decompiled terminal.
 
-use crate::types::enums::{RemoveReason, SecType, StreamMsgType, StreamResponseType};
+use tdbe::types::enums::{RemoveReason, SecType, StreamMsgType, StreamResponseType};
 
 /// Maximum payload size for a single FPSS frame (1-byte length field).
 ///

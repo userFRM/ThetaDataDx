@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-use thetadatadx::types::enums::{DataType, StreamMsgType};
+use tdbe::types::enums::{DataType, StreamMsgType};
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Enum lookup benchmarks

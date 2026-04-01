@@ -121,7 +121,7 @@ struct FfiBufferedEvent {
 
 /// Convert raw integer price to f64 using ThetaData's price_type encoding.
 fn ffi_price_to_f64(value: i32, price_type: i32) -> f64 {
-    thetadatadx::types::price::Price::new(value, price_type).to_f64()
+    tdbe::types::price::Price::new(value, price_type).to_f64()
 }
 
 fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
@@ -476,7 +476,7 @@ pub unsafe extern "C" fn tdx_string_free(s: *mut c_char) {
 
 // ── Tick serialization helpers ──
 
-fn eod_tick_to_json(t: &thetadatadx::types::tick::EodTick) -> serde_json::Value {
+fn eod_tick_to_json(t: &tdbe::types::tick::EodTick) -> serde_json::Value {
     serde_json::json!({
         "ms_of_day": t.ms_of_day,
         "open": t.open_price().to_f64(),
@@ -491,7 +491,7 @@ fn eod_tick_to_json(t: &thetadatadx::types::tick::EodTick) -> serde_json::Value 
     })
 }
 
-fn ohlc_tick_to_json(t: &thetadatadx::types::tick::OhlcTick) -> serde_json::Value {
+fn ohlc_tick_to_json(t: &tdbe::types::tick::OhlcTick) -> serde_json::Value {
     serde_json::json!({
         "ms_of_day": t.ms_of_day,
         "open": t.open_price().to_f64(),
@@ -504,7 +504,7 @@ fn ohlc_tick_to_json(t: &thetadatadx::types::tick::OhlcTick) -> serde_json::Valu
     })
 }
 
-fn trade_tick_to_json(t: &thetadatadx::types::tick::TradeTick) -> serde_json::Value {
+fn trade_tick_to_json(t: &tdbe::types::tick::TradeTick) -> serde_json::Value {
     serde_json::json!({
         "ms_of_day": t.ms_of_day,
         "sequence": t.sequence,
@@ -522,7 +522,7 @@ fn trade_tick_to_json(t: &thetadatadx::types::tick::TradeTick) -> serde_json::Va
     })
 }
 
-fn quote_tick_to_json(t: &thetadatadx::types::tick::QuoteTick) -> serde_json::Value {
+fn quote_tick_to_json(t: &tdbe::types::tick::QuoteTick) -> serde_json::Value {
     serde_json::json!({
         "ms_of_day": t.ms_of_day,
         "bid_size": t.bid_size,
@@ -537,7 +537,7 @@ fn quote_tick_to_json(t: &thetadatadx::types::tick::QuoteTick) -> serde_json::Va
     })
 }
 
-fn trade_quote_tick_to_json(t: &thetadatadx::types::tick::TradeQuoteTick) -> serde_json::Value {
+fn trade_quote_tick_to_json(t: &tdbe::types::tick::TradeQuoteTick) -> serde_json::Value {
     serde_json::json!({
         "ms_of_day": t.ms_of_day,
         "sequence": t.sequence,
@@ -565,7 +565,7 @@ fn trade_quote_tick_to_json(t: &thetadatadx::types::tick::TradeQuoteTick) -> ser
     })
 }
 
-fn open_interest_tick_to_json(t: &thetadatadx::types::tick::OpenInterestTick) -> serde_json::Value {
+fn open_interest_tick_to_json(t: &tdbe::types::tick::OpenInterestTick) -> serde_json::Value {
     serde_json::json!({
         "ms_of_day": t.ms_of_day,
         "open_interest": t.open_interest,
@@ -573,7 +573,7 @@ fn open_interest_tick_to_json(t: &thetadatadx::types::tick::OpenInterestTick) ->
     })
 }
 
-fn market_value_tick_to_json(t: &thetadatadx::types::tick::MarketValueTick) -> serde_json::Value {
+fn market_value_tick_to_json(t: &tdbe::types::tick::MarketValueTick) -> serde_json::Value {
     serde_json::json!({
         "ms_of_day": t.ms_of_day,
         "market_cap": t.market_cap,
@@ -585,7 +585,7 @@ fn market_value_tick_to_json(t: &thetadatadx::types::tick::MarketValueTick) -> s
     })
 }
 
-fn greeks_tick_to_json(t: &thetadatadx::types::tick::GreeksTick) -> serde_json::Value {
+fn greeks_tick_to_json(t: &tdbe::types::tick::GreeksTick) -> serde_json::Value {
     serde_json::json!({
         "ms_of_day": t.ms_of_day,
         "implied_volatility": t.implied_volatility,
@@ -614,7 +614,7 @@ fn greeks_tick_to_json(t: &thetadatadx::types::tick::GreeksTick) -> serde_json::
     })
 }
 
-fn iv_tick_to_json(t: &thetadatadx::types::tick::IvTick) -> serde_json::Value {
+fn iv_tick_to_json(t: &tdbe::types::tick::IvTick) -> serde_json::Value {
     serde_json::json!({
         "ms_of_day": t.ms_of_day,
         "implied_volatility": t.implied_volatility,
@@ -623,7 +623,7 @@ fn iv_tick_to_json(t: &thetadatadx::types::tick::IvTick) -> serde_json::Value {
     })
 }
 
-fn price_tick_to_json(t: &thetadatadx::types::tick::PriceTick) -> serde_json::Value {
+fn price_tick_to_json(t: &tdbe::types::tick::PriceTick) -> serde_json::Value {
     serde_json::json!({
         "ms_of_day": t.ms_of_day,
         "price": t.get_price().to_f64(),
@@ -633,7 +633,7 @@ fn price_tick_to_json(t: &thetadatadx::types::tick::PriceTick) -> serde_json::Va
     })
 }
 
-fn calendar_day_to_json(t: &thetadatadx::types::tick::CalendarDay) -> serde_json::Value {
+fn calendar_day_to_json(t: &tdbe::types::tick::CalendarDay) -> serde_json::Value {
     serde_json::json!({
         "date": t.date,
         "is_open": t.is_open,
@@ -643,7 +643,7 @@ fn calendar_day_to_json(t: &thetadatadx::types::tick::CalendarDay) -> serde_json
     })
 }
 
-fn interest_rate_tick_to_json(t: &thetadatadx::types::tick::InterestRateTick) -> serde_json::Value {
+fn interest_rate_tick_to_json(t: &tdbe::types::tick::InterestRateTick) -> serde_json::Value {
     serde_json::json!({
         "ms_of_day": t.ms_of_day,
         "rate": t.rate,
@@ -651,7 +651,7 @@ fn interest_rate_tick_to_json(t: &thetadatadx::types::tick::InterestRateTick) ->
     })
 }
 
-fn option_contract_to_json(t: &thetadatadx::types::tick::OptionContract) -> serde_json::Value {
+fn option_contract_to_json(t: &tdbe::types::tick::OptionContract) -> serde_json::Value {
     serde_json::json!({
         "root": t.root,
         "expiration": t.expiration,
@@ -1298,7 +1298,7 @@ pub extern "C" fn tdx_all_greeks(
     option_price: f64,
     is_call: i32,
 ) -> *mut c_char {
-    let g = thetadatadx::greeks::all_greeks(
+    let g = tdbe::greeks::all_greeks(
         spot,
         strike,
         rate,
@@ -1354,7 +1354,7 @@ pub unsafe extern "C" fn tdx_implied_volatility(
         set_error("output pointers must not be null");
         return -1;
     }
-    let (iv, err) = thetadatadx::greeks::implied_volatility(
+    let (iv, err) = tdbe::greeks::implied_volatility(
         spot,
         strike,
         rate,
@@ -1645,9 +1645,9 @@ pub unsafe extern "C" fn tdx_unified_subscribe_full_trades(
         }
     };
     let st = match sec_type_str.to_uppercase().as_str() {
-        "STOCK" => thetadatadx::types::enums::SecType::Stock,
-        "OPTION" => thetadatadx::types::enums::SecType::Option,
-        "INDEX" => thetadatadx::types::enums::SecType::Index,
+        "STOCK" => tdbe::types::enums::SecType::Stock,
+        "OPTION" => tdbe::types::enums::SecType::Option,
+        "INDEX" => tdbe::types::enums::SecType::Index,
         _ => {
             set_error("invalid sec_type: expected STOCK, OPTION, or INDEX");
             return -1;
@@ -2142,9 +2142,9 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_full_trades(
         }
     };
     let st = match sec_type_str.to_uppercase().as_str() {
-        "STOCK" => thetadatadx::types::enums::SecType::Stock,
-        "OPTION" => thetadatadx::types::enums::SecType::Option,
-        "INDEX" => thetadatadx::types::enums::SecType::Index,
+        "STOCK" => tdbe::types::enums::SecType::Stock,
+        "OPTION" => tdbe::types::enums::SecType::Option,
+        "INDEX" => tdbe::types::enums::SecType::Index,
         other => {
             set_error(&format!(
                 "unknown sec_type: {other:?} (expected STOCK, OPTION, or INDEX)"
