@@ -540,7 +540,7 @@ impl DirectClient {
         ///
         /// gRPC: `BetaThetaTerminal/GetStockHistoryOhlc`
         ///
-        /// `interval` is in milliseconds (e.g. `"60000"` for 1-minute bars).
+        /// `interval` is in milliseconds (e.g. `"60000"` for 1-minute bars, `"300000"` for 5-minute).
         fn stock_history_ohlc(symbol: &str, date: &str, interval: &str) -> Vec<OhlcTick>;
         grpc: get_stock_history_ohlc;
         request: StockHistoryOhlcRequest;
@@ -565,6 +565,8 @@ impl DirectClient {
         /// gRPC: `BetaThetaTerminal/GetStockHistoryOhlc`
         ///
         /// Uses `start_date`/`end_date` instead of single `date`.
+        ///
+        /// `interval` is in milliseconds (e.g. `"60000"` for 1-minute bars, `"300000"` for 5-minute).
         fn stock_history_ohlc_range(
             symbol: &str, start_date: &str, end_date: &str, interval: &str
         ) -> Vec<OhlcTick>;
@@ -611,7 +613,7 @@ impl DirectClient {
         ///
         /// gRPC: `BetaThetaTerminal/GetStockHistoryQuote`
         ///
-        /// `interval` is in milliseconds (e.g. `"0"` for every quote change).
+        /// `interval` is in milliseconds (e.g. `"60000"` for 1-minute bars, `"300000"` for 5-minute).
         fn stock_history_quote(symbol: &str, date: &str, interval: &str) -> Vec<QuoteTick>;
         grpc: get_stock_history_quote;
         request: StockHistoryQuoteRequest;
@@ -664,6 +666,8 @@ impl DirectClient {
         /// Stream NBBO quotes for a stock on a given date, chunk-by-chunk.
         ///
         /// gRPC: `BetaThetaTerminal/GetStockHistoryQuote`
+        ///
+        /// `interval` is in milliseconds (e.g. `"60000"` for 1-minute bars, `"300000"` for 5-minute).
         fn stock_history_quote_stream(symbol: &str, date: &str, interval: &str; handler: F) -> QuoteTick;
         grpc: get_stock_history_quote;
         request: StockHistoryQuoteRequest;
@@ -1099,6 +1103,8 @@ impl DirectClient {
         /// Fetch intraday OHLC bars for an option contract.
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryOhlc`
+        ///
+        /// `interval` is in milliseconds (e.g. `"60000"` for 1-minute bars, `"300000"` for 5-minute).
         fn option_history_ohlc(
             symbol: &str, expiration: &str, strike: &str, right: &str,
             date: &str, interval: &str
@@ -1150,6 +1156,8 @@ impl DirectClient {
         /// Fetch NBBO quotes for an option contract on a given date.
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryQuote`
+        ///
+        /// `interval` is in milliseconds (e.g. `"60000"` for 1-minute bars, `"300000"` for 5-minute).
         fn option_history_quote(
             symbol: &str, expiration: &str, strike: &str, right: &str,
             date: &str, interval: &str
@@ -1207,6 +1215,8 @@ impl DirectClient {
         /// Stream NBBO quotes for an option contract on a given date, chunk-by-chunk.
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryQuote`
+        ///
+        /// `interval` is in milliseconds (e.g. `"60000"` for 1-minute bars, `"300000"` for 5-minute).
         fn option_history_quote_stream(
             symbol: &str, expiration: &str, strike: &str, right: &str,
             date: &str, interval: &str;
@@ -1316,6 +1326,8 @@ impl DirectClient {
         /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryGreeksAll`
+        ///
+        /// `interval` is in milliseconds (e.g. `"60000"` for 1-minute bars, `"300000"` for 5-minute).
         fn option_history_greeks_all(
             symbol: &str, expiration: &str, strike: &str, right: &str,
             date: &str, interval: &str
@@ -1375,6 +1387,8 @@ impl DirectClient {
         /// Fetch first-order Greeks history (intraday, sampled by interval).
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryGreeksFirstOrder`
+        ///
+        /// `interval` is in milliseconds (e.g. `"60000"` for 1-minute bars, `"300000"` for 5-minute).
         fn option_history_greeks_first_order(
             symbol: &str, expiration: &str, strike: &str, right: &str,
             date: &str, interval: &str
@@ -1434,6 +1448,8 @@ impl DirectClient {
         /// Fetch second-order Greeks history (intraday, sampled by interval).
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryGreeksSecondOrder`
+        ///
+        /// `interval` is in milliseconds (e.g. `"60000"` for 1-minute bars, `"300000"` for 5-minute).
         fn option_history_greeks_second_order(
             symbol: &str, expiration: &str, strike: &str, right: &str,
             date: &str, interval: &str
@@ -1493,6 +1509,8 @@ impl DirectClient {
         /// Fetch third-order Greeks history (intraday, sampled by interval).
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryGreeksThirdOrder`
+        ///
+        /// `interval` is in milliseconds (e.g. `"60000"` for 1-minute bars, `"300000"` for 5-minute).
         fn option_history_greeks_third_order(
             symbol: &str, expiration: &str, strike: &str, right: &str,
             date: &str, interval: &str
@@ -1552,6 +1570,8 @@ impl DirectClient {
         /// Fetch implied volatility history (intraday, sampled by interval).
         ///
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryGreeksImpliedVolatility`
+        ///
+        /// `interval` is in milliseconds (e.g. `"60000"` for 1-minute bars, `"300000"` for 5-minute).
         fn option_history_greeks_implied_volatility(
             symbol: &str, expiration: &str, strike: &str, right: &str,
             date: &str, interval: &str
@@ -1761,6 +1781,8 @@ impl DirectClient {
         /// Fetch intraday OHLC bars for an index.
         ///
         /// gRPC: `BetaThetaTerminal/GetIndexHistoryOhlc`
+        ///
+        /// `interval` is in milliseconds (e.g. `"60000"` for 1-minute bars, `"300000"` for 5-minute).
         fn index_history_ohlc(
             symbol: &str, start_date: &str, end_date: &str, interval: &str
         ) -> Vec<OhlcTick>;
@@ -1783,6 +1805,8 @@ impl DirectClient {
         /// Fetch intraday price history for an index.
         ///
         /// gRPC: `BetaThetaTerminal/GetIndexHistoryPrice`
+        ///
+        /// `interval` is in milliseconds (e.g. `"60000"` for 1-minute bars, `"300000"` for 5-minute).
         fn index_history_price(
             symbol: &str, date: &str, interval: &str
         ) -> Vec<PriceTick>;
