@@ -548,8 +548,8 @@ impl DirectClient {
             symbol: symbol.to_string(),
             date: Some(date.to_string()),
             interval: normalize_interval(interval),
-            start_time: None,
-            end_time: None,
+            start_time: Some("09:30:00".to_string()),
+            end_time: Some("16:00:00".to_string()),
             venue: None,
             start_date: None,
             end_date: None,
@@ -576,8 +576,8 @@ impl DirectClient {
             symbol: symbol.to_string(),
             date: None,
             interval: normalize_interval(interval),
-            start_time: None,
-            end_time: None,
+            start_time: Some("09:30:00".to_string()),
+            end_time: Some("16:00:00".to_string()),
             venue: None,
             start_date: Some(start_date.to_string()),
             end_date: Some(end_date.to_string()),
@@ -597,8 +597,8 @@ impl DirectClient {
         query: StockHistoryTradeRequestQuery {
             symbol: symbol.to_string(),
             date: Some(date.to_string()),
-            start_time: None,
-            end_time: None,
+            start_time: Some("09:30:00".to_string()),
+            end_time: Some("16:00:00".to_string()),
             venue: None,
             start_date: None,
             end_date: None,
@@ -621,8 +621,8 @@ impl DirectClient {
             symbol: symbol.to_string(),
             date: Some(date.to_string()),
             interval: normalize_interval(interval),
-            start_time: None,
-            end_time: None,
+            start_time: Some("09:30:00".to_string()),
+            end_time: Some("16:00:00".to_string()),
             venue: None,
             start_date: None,
             end_date: None,
@@ -651,8 +651,8 @@ impl DirectClient {
         query: StockHistoryTradeRequestQuery {
             symbol: symbol.to_string(),
             date: Some(date.to_string()),
-            start_time: None,
-            end_time: None,
+            start_time: Some("09:30:00".to_string()),
+            end_time: Some("16:00:00".to_string()),
             venue: None,
             start_date: None,
             end_date: None,
@@ -675,8 +675,8 @@ impl DirectClient {
             symbol: symbol.to_string(),
             date: Some(date.to_string()),
             interval: normalize_interval(interval),
-            start_time: None,
-            end_time: None,
+            start_time: Some("09:30:00".to_string()),
+            end_time: Some("16:00:00".to_string()),
             venue: None,
             start_date: None,
             end_date: None,
@@ -696,8 +696,8 @@ impl DirectClient {
         query: StockHistoryTradeQuoteRequestQuery {
             symbol: symbol.to_string(),
             date: Some(date.to_string()),
-            start_time: None,
-            end_time: None,
+            start_time: Some("09:30:00".to_string()),
+            end_time: Some("16:00:00".to_string()),
             exclusive: None,
             venue: None,
             start_date: None,
@@ -1116,8 +1116,8 @@ impl DirectClient {
             date: Some(date.to_string()),
             expiration: expiration.to_string(),
             interval: normalize_interval(interval),
-            start_time: None,
-            end_time: None,
+            start_time: Some("09:30:00".to_string()),
+            end_time: Some("16:00:00".to_string()),
             strike_range: None,
             start_date: None,
             end_date: None,
@@ -1140,8 +1140,8 @@ impl DirectClient {
             contract_spec: contract_spec!(symbol, expiration, strike, right),
             date: Some(date.to_string()),
             expiration: expiration.to_string(),
-            start_time: None,
-            end_time: None,
+            start_time: Some("09:30:00".to_string()),
+            end_time: Some("16:00:00".to_string()),
             max_dte: None,
             strike_range: None,
             start_date: None,
@@ -1168,8 +1168,8 @@ impl DirectClient {
             contract_spec: contract_spec!(symbol, expiration, strike, right),
             date: Some(date.to_string()),
             expiration: expiration.to_string(),
-            start_time: None,
-            end_time: None,
+            start_time: Some("09:30:00".to_string()),
+            end_time: Some("16:00:00".to_string()),
             interval: normalize_interval(interval),
             max_dte: None,
             strike_range: None,
@@ -1199,8 +1199,8 @@ impl DirectClient {
             contract_spec: contract_spec!(symbol, expiration, strike, right),
             date: Some(date.to_string()),
             expiration: expiration.to_string(),
-            start_time: None,
-            end_time: None,
+            start_time: Some("09:30:00".to_string()),
+            end_time: Some("16:00:00".to_string()),
             max_dte: None,
             strike_range: None,
             start_date: None,
@@ -1228,8 +1228,8 @@ impl DirectClient {
             contract_spec: contract_spec!(symbol, expiration, strike, right),
             date: Some(date.to_string()),
             expiration: expiration.to_string(),
-            start_time: None,
-            end_time: None,
+            start_time: Some("09:30:00".to_string()),
+            end_time: Some("16:00:00".to_string()),
             interval: normalize_interval(interval),
             max_dte: None,
             strike_range: None,
@@ -1254,8 +1254,8 @@ impl DirectClient {
             contract_spec: contract_spec!(symbol, expiration, strike, right),
             date: Some(date.to_string()),
             expiration: expiration.to_string(),
-            start_time: None,
-            end_time: None,
+            start_time: Some("09:30:00".to_string()),
+            end_time: Some("16:00:00".to_string()),
             exclusive: None,
             max_dte: None,
             strike_range: None,
@@ -1338,8 +1338,8 @@ impl DirectClient {
             contract_spec: contract_spec!(symbol, expiration, strike, right),
             date: Some(date.to_string()),
             expiration: expiration.to_string(),
-            start_time: None,
-            end_time: None,
+            start_time: Some("09:30:00".to_string()),
+            end_time: Some("16:00:00".to_string()),
             interval: normalize_interval(interval),
             annual_dividend: None,
             rate_type: None,
@@ -1367,8 +1367,8 @@ impl DirectClient {
             contract_spec: contract_spec!(symbol, expiration, strike, right),
             date: Some(date.to_string()),
             expiration: expiration.to_string(),
-            start_time: None,
-            end_time: None,
+            start_time: Some("09:30:00".to_string()),
+            end_time: Some("16:00:00".to_string()),
             annual_dividend: None,
             rate_type: None,
             rate_value: None,
@@ -1399,8 +1399,8 @@ impl DirectClient {
             contract_spec: contract_spec!(symbol, expiration, strike, right),
             date: Some(date.to_string()),
             expiration: expiration.to_string(),
-            start_time: None,
-            end_time: None,
+            start_time: Some("09:30:00".to_string()),
+            end_time: Some("16:00:00".to_string()),
             interval: normalize_interval(interval),
             annual_dividend: None,
             rate_type: None,
@@ -1428,8 +1428,8 @@ impl DirectClient {
             contract_spec: contract_spec!(symbol, expiration, strike, right),
             date: Some(date.to_string()),
             expiration: expiration.to_string(),
-            start_time: None,
-            end_time: None,
+            start_time: Some("09:30:00".to_string()),
+            end_time: Some("16:00:00".to_string()),
             annual_dividend: None,
             rate_type: None,
             rate_value: None,
@@ -1460,8 +1460,8 @@ impl DirectClient {
             contract_spec: contract_spec!(symbol, expiration, strike, right),
             date: Some(date.to_string()),
             expiration: expiration.to_string(),
-            start_time: None,
-            end_time: None,
+            start_time: Some("09:30:00".to_string()),
+            end_time: Some("16:00:00".to_string()),
             interval: normalize_interval(interval),
             annual_dividend: None,
             rate_type: None,
@@ -1489,8 +1489,8 @@ impl DirectClient {
             contract_spec: contract_spec!(symbol, expiration, strike, right),
             date: Some(date.to_string()),
             expiration: expiration.to_string(),
-            start_time: None,
-            end_time: None,
+            start_time: Some("09:30:00".to_string()),
+            end_time: Some("16:00:00".to_string()),
             annual_dividend: None,
             rate_type: None,
             rate_value: None,
@@ -1521,8 +1521,8 @@ impl DirectClient {
             contract_spec: contract_spec!(symbol, expiration, strike, right),
             date: Some(date.to_string()),
             expiration: expiration.to_string(),
-            start_time: None,
-            end_time: None,
+            start_time: Some("09:30:00".to_string()),
+            end_time: Some("16:00:00".to_string()),
             interval: normalize_interval(interval),
             annual_dividend: None,
             rate_type: None,
@@ -1550,8 +1550,8 @@ impl DirectClient {
             contract_spec: contract_spec!(symbol, expiration, strike, right),
             date: Some(date.to_string()),
             expiration: expiration.to_string(),
-            start_time: None,
-            end_time: None,
+            start_time: Some("09:30:00".to_string()),
+            end_time: Some("16:00:00".to_string()),
             annual_dividend: None,
             rate_type: None,
             rate_value: None,
@@ -1582,8 +1582,8 @@ impl DirectClient {
             contract_spec: contract_spec!(symbol, expiration, strike, right),
             date: Some(date.to_string()),
             expiration: expiration.to_string(),
-            start_time: None,
-            end_time: None,
+            start_time: Some("09:30:00".to_string()),
+            end_time: Some("16:00:00".to_string()),
             interval: normalize_interval(interval),
             annual_dividend: None,
             rate_type: None,
@@ -1611,8 +1611,8 @@ impl DirectClient {
             contract_spec: contract_spec!(symbol, expiration, strike, right),
             date: Some(date.to_string()),
             expiration: expiration.to_string(),
-            start_time: None,
-            end_time: None,
+            start_time: Some("09:30:00".to_string()),
+            end_time: Some("16:00:00".to_string()),
             annual_dividend: None,
             rate_type: None,
             rate_value: None,
@@ -1793,8 +1793,8 @@ impl DirectClient {
             start_date: start_date.to_string(),
             end_date: end_date.to_string(),
             interval: normalize_interval(interval),
-            start_time: None,
-            end_time: None,
+            start_time: Some("09:30:00".to_string()),
+            end_time: Some("16:00:00".to_string()),
         };
         parse: decode::parse_ohlc_ticks;
         dates: start_date, end_date;
@@ -1815,8 +1815,8 @@ impl DirectClient {
         query: IndexHistoryPriceRequestQuery {
             date: Some(date.to_string()),
             symbol: symbol.to_string(),
-            start_time: None,
-            end_time: None,
+            start_time: Some("09:30:00".to_string()),
+            end_time: Some("16:00:00".to_string()),
             interval: normalize_interval(interval),
             start_date: None,
             end_date: None,
@@ -1980,13 +1980,42 @@ impl DirectClient {
 //  Private helpers
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Pass the interval string through to the MDDS server as-is.
+/// Convert an interval to the format the MDDS gRPC server accepts.
 ///
-/// ThetaData accepts interval as milliseconds (e.g. `"60000"` for 1-minute bars).
-/// The exact format accepted varies by endpoint -- this matches the Java terminal
-/// behavior of forwarding the user's value without transformation.
+/// Users can pass either:
+/// - Milliseconds as a string: `"60000"`, `"300000"`, `"900000"`
+/// - Shorthand directly: `"1m"`, `"5m"`, `"1h"`
+///
+/// The server accepts these specific presets:
+/// `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`
+///
+/// If milliseconds are passed, they're converted to the nearest matching preset.
+/// If already a valid shorthand (contains 's', 'm', or 'h'), passed through as-is.
 fn normalize_interval(interval: &str) -> String {
-    interval.to_string()
+    // If it already looks like shorthand (ends with s/m/h), pass through.
+    if interval.ends_with('s') || interval.ends_with('m') || interval.ends_with('h') {
+        return interval.to_string();
+    }
+
+    // Try parsing as milliseconds and convert to preset shorthand.
+    match interval.parse::<u64>() {
+        Ok(ms) => match ms {
+            0 => "1s".to_string(), // tick-level -> 1s minimum
+            1..=1000 => "1s".to_string(),
+            1001..=5000 => "5s".to_string(),
+            5001..=10000 => "10s".to_string(),
+            10001..=15000 => "15s".to_string(),
+            15001..=30000 => "30s".to_string(),
+            30001..=60000 => "1m".to_string(),
+            60001..=300000 => "5m".to_string(),
+            300001..=600000 => "10m".to_string(),
+            600001..=900000 => "15m".to_string(),
+            900001..=1800000 => "30m".to_string(),
+            _ => "1h".to_string(),
+        },
+        // Not a number -- pass through and let the server decide.
+        Err(_) => interval.to_string(),
+    }
 }
 
 /// Validate that a date string is in YYYYMMDD format (exactly 8 ASCII digits).
