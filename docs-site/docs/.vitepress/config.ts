@@ -233,6 +233,7 @@ export default defineConfig({
           { text: 'Connecting & Subscribing', link: '/streaming/connection' },
           { text: 'Handling Events', link: '/streaming/events' },
           { text: 'Reconnection & Errors', link: '/streaming/reconnection' },
+          { text: 'Latency Measurement', link: '/streaming/latency' },
         ],
       },
       {
