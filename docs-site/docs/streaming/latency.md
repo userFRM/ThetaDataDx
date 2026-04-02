@@ -75,19 +75,6 @@ while True:
 
 Note: in Python, `received_at_ns` is the Rust-side receive time. The delta between `received_at_ns` and `time.time_ns()` measures Rust-to-Python bridging overhead (typically <1ms). The true wire latency is best computed on the Rust side using `tdbe::latency::latency_ns()`.
 
-## What the numbers mean
-
-| Component | Typical US | Typical EU |
-|-----------|-----------|-----------|
-| Exchange -> ThetaData FPSS server | <1ms | <1ms |
-| FPSS server batching (flush on PING) | 0-100ms | 0-100ms |
-| Network (ThetaData NJ -> you) | 1-5ms | 80-120ms |
-| TLS + frame decode | <1ms | <1ms |
-| Ring buffer -> your callback | <1us | <1us |
-| **Total** | **2-110ms** | **80-220ms** |
-
-The dominant factor is FPSS server batching: ThetaData's server flushes the write buffer every 100ms (on PING), so events can be delayed up to ~100ms server-side before they're sent.
-
 ## Latency histogram example (Rust)
 
 ```rust
