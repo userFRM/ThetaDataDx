@@ -3,6 +3,9 @@
  *
  * RAII wrappers around the C FFI layer. Provides idiomatic C++ access to
  * ThetaData market data with automatic resource management.
+ *
+ * Tick data is returned directly as #[repr(C)] structs — no JSON parsing.
+ * The C++ tick types are layout-compatible with the Rust originals.
  */
 
 #ifndef THETADX_HPP
@@ -16,63 +19,48 @@
 #include <string>
 #include <vector>
 #include <utility>
+#include <stdexcept>
 
 namespace tdx {
 
-// ── Tick types ──
+// ── Tick types (re-exported from thetadx.h for C++ convenience) ──
+// These are typedef aliases to the C types defined in thetadx.h.
+// They are #[repr(C)] layout-compatible with the Rust originals.
 
-struct EodTick {
-    int ms_of_day;
-    double open;
-    double high;
-    double low;
-    double close;
-    int volume;
-    int count;
-    double bid;
-    double ask;
-    int date;
-};
+using EodTick = TdxEodTick;
+using OhlcTick = TdxOhlcTick;
+using TradeTick = TdxTradeTick;
+using QuoteTick = TdxQuoteTick;
+using GreeksTick = TdxGreeksTick;
+using IvTick = TdxIvTick;
+using PriceTick = TdxPriceTick;
+using OpenInterestTick = TdxOpenInterestTick;
+using MarketValueTick = TdxMarketValueTick;
+using CalendarDay = TdxCalendarDay;
+using InterestRateTick = TdxInterestRateTick;
+using SnapshotTradeTick = TdxSnapshotTradeTick;
+using TradeQuoteTick = TdxTradeQuoteTick;
+using OptionContract = TdxOptionContract;
 
-struct OhlcTick {
-    int ms_of_day;
-    double open;
-    double high;
-    double low;
-    double close;
-    int volume;
-    int count;
-    int date;
-};
+// ── Price decoding utility ──
 
-struct TradeTick {
-    int ms_of_day;
-    int sequence;
-    int condition;
-    int size;
-    int exchange;
-    double price;
-    int price_raw;
-    int price_type;
-    int condition_flags;
-    int price_flags;
-    int volume_type;
-    int records_back;
-    int date;
-};
+/** Decode a raw integer price + price_type to f64.
+ *  ThetaData encoding: value * 10^(price_type - 10). */
+inline double price_to_f64(int32_t value, int32_t price_type) {
+    if (price_type == 0) return 0.0;
+    double v = static_cast<double>(value);
+    int exp = price_type - 10;
+    double factor = 1.0;
+    if (exp > 0) {
+        for (int i = 0; i < exp; ++i) factor *= 10.0;
+    } else if (exp < 0) {
+        for (int i = 0; i < -exp; ++i) factor *= 10.0;
+        factor = 1.0 / factor;
+    }
+    return v * factor;
+}
 
-struct QuoteTick {
-    int ms_of_day;
-    int bid_size;
-    int bid_exchange;
-    double bid;
-    int bid_condition;
-    int ask_size;
-    int ask_exchange;
-    double ask;
-    int ask_condition;
-    int date;
-};
+// ── Greeks result (from standalone tdx_all_greeks) ──
 
 struct Greeks {
     double value;
@@ -99,123 +87,53 @@ struct Greeks {
     double lambda;
 };
 
-// ── DataTable-derived tick types ──
-// These structs are parsed from the DataTable JSON format returned by the FFI layer.
-// DataTable format: {"headers": ["col1", ...], "rows": [[val1, ...], ...]}
-// Price cells are {"value": N, "type": T} objects; decoded to double by the parser.
+// ── RAII typed array wrappers ──
 
-/** Combined trade + quote tick (25 fields). Mirrors Rust TradeQuoteTick. */
-struct TradeQuoteTick {
-    int ms_of_day;
-    int sequence;
-    int ext_condition1;
-    int ext_condition2;
-    int ext_condition3;
-    int ext_condition4;
-    int condition;
-    int size;
-    int exchange;
-    double price;
-    int condition_flags;
-    int price_flags;
-    int volume_type;
-    int records_back;
-    int quote_ms_of_day;
-    int bid_size;
-    int bid_exchange;
-    double bid;
-    int bid_condition;
-    int ask_size;
-    int ask_exchange;
-    double ask;
-    int ask_condition;
-    int date;
+namespace detail {
+
+static std::string last_ffi_error() {
+    const char* err = tdx_last_error();
+    return err ? std::string(err) : "unknown error";
+}
+
+template<typename T>
+std::vector<T> to_vector(const T* data, size_t len) {
+    if (data == nullptr || len == 0) return {};
+    return std::vector<T>(data, data + len);
+}
+
+inline std::vector<std::string> string_array_to_vector(TdxStringArray arr) {
+    std::vector<std::string> result;
+    if (arr.data != nullptr && arr.len > 0) {
+        result.reserve(arr.len);
+        for (size_t i = 0; i < arr.len; ++i) {
+            result.emplace_back(arr.data[i] ? arr.data[i] : "");
+        }
+    }
+    tdx_string_array_free(arr);
+    return result;
+}
+
+// Check a TdxStringArray for errors (empty may be an error).
+inline std::vector<std::string> check_string_array(TdxStringArray arr) {
+    // Note: empty array is valid (no results), not an error.
+    // Errors are signaled by tdx_last_error().
+    return string_array_to_vector(arr);
+}
+
+/// Managed C string from FFI: auto-frees on destruction.
+struct FfiString {
+    char* ptr;
+    FfiString(char* p) : ptr(p) {}
+    ~FfiString() { if (ptr) tdx_string_free(ptr); }
+    FfiString(const FfiString&) = delete;
+    FfiString& operator=(const FfiString&) = delete;
+
+    std::string str() const { return ptr ? std::string(ptr) : ""; }
+    bool ok() const { return ptr != nullptr; }
 };
 
-/** Open interest tick (3 fields). Mirrors Rust OpenInterestTick. */
-struct OpenInterestTick {
-    int ms_of_day;
-    int open_interest;
-    int date;
-};
-
-/** Greeks tick with timestamp. For greeks history and greeks snapshot endpoints. */
-struct GreeksTick {
-    int ms_of_day;
-    double value;
-    double delta;
-    double gamma;
-    double theta;
-    double vega;
-    double rho;
-    double iv;
-    double iv_error;
-    double vanna;
-    double charm;
-    double vomma;
-    double veta;
-    double speed;
-    double zomma;
-    double color;
-    double ultima;
-    double d1;
-    double d2;
-    double dual_delta;
-    double dual_gamma;
-    double epsilon;
-    double lambda;
-    int date;
-};
-
-/** Implied volatility tick. For IV-only snapshot and history endpoints. */
-struct IvTick {
-    int ms_of_day;
-    double iv;
-    double iv_error;
-    int date;
-};
-
-/** Index price tick. For index price snapshot, history, and at-time endpoints. */
-struct PriceTick {
-    int ms_of_day;
-    double price;
-    int date;
-};
-
-/** Market value tick. For stock/option/index market value endpoints. */
-struct MarketValueTick {
-    int ms_of_day;
-    double market_cap;
-    int64_t shares_outstanding;
-    double enterprise_value;
-    double book_value;
-    int64_t free_float;
-    int date;
-};
-
-/** Option contract descriptor. For option_list_contracts. */
-struct OptionContract {
-    std::string root;
-    int expiration;
-    int strike;
-    std::string right;
-};
-
-/** Calendar day entry. For calendar endpoints. */
-struct CalendarDay {
-    int date;
-    int is_open;
-    int open_time;
-    int close_time;
-    std::string status;
-};
-
-/** Interest rate EOD tick. For interest_rate_history_eod. */
-struct InterestRateTick {
-    int ms_of_day;
-    double rate;
-    int date;
-};
+} // namespace detail
 
 // ── RAII deleters ──
 
@@ -375,7 +293,9 @@ public:
     std::vector<std::string> option_list_strikes(const std::string& symbol,
                                                   const std::string& expiration) const;
 
-    /** 18. List all option contracts on a date. */
+    /** 18. List all option contracts on a date.
+     *  NOTE: Caller is responsible for NOT holding references to OptionContract.root
+     *  after the returned vector is destroyed. */
     std::vector<OptionContract> option_list_contracts(const std::string& request_type,
                                                       const std::string& symbol,
                                                       const std::string& date) const;
@@ -384,43 +304,24 @@ public:
     //  Option — Snapshot endpoints (10)
     // ═══════════════════════════════════════════════════════════════
 
-    /** 19. Get latest OHLC snapshot for options. */
     std::vector<OhlcTick> option_snapshot_ohlc(const std::string& symbol, const std::string& expiration,
                                                const std::string& strike, const std::string& right) const;
-
-    /** 20. Get latest trade snapshot for options. */
     std::vector<TradeTick> option_snapshot_trade(const std::string& symbol, const std::string& expiration,
                                                   const std::string& strike, const std::string& right) const;
-
-    /** 21. Get latest quote snapshot for options. */
     std::vector<QuoteTick> option_snapshot_quote(const std::string& symbol, const std::string& expiration,
                                                   const std::string& strike, const std::string& right) const;
-
-    /** 22. Get latest open interest snapshot. */
     std::vector<OpenInterestTick> option_snapshot_open_interest(const std::string& symbol, const std::string& expiration,
                                                                 const std::string& strike, const std::string& right) const;
-
-    /** 23. Get latest market value snapshot for options. */
     std::vector<MarketValueTick> option_snapshot_market_value(const std::string& symbol, const std::string& expiration,
                                                               const std::string& strike, const std::string& right) const;
-
-    /** 24. Get IV snapshot. */
     std::vector<IvTick> option_snapshot_greeks_implied_volatility(const std::string& symbol, const std::string& expiration,
                                                                   const std::string& strike, const std::string& right) const;
-
-    /** 25. Get all Greeks snapshot. */
     std::vector<GreeksTick> option_snapshot_greeks_all(const std::string& symbol, const std::string& expiration,
                                                        const std::string& strike, const std::string& right) const;
-
-    /** 26. Get first-order Greeks snapshot. */
     std::vector<GreeksTick> option_snapshot_greeks_first_order(const std::string& symbol, const std::string& expiration,
                                                                const std::string& strike, const std::string& right) const;
-
-    /** 27. Get second-order Greeks snapshot. */
     std::vector<GreeksTick> option_snapshot_greeks_second_order(const std::string& symbol, const std::string& expiration,
                                                                 const std::string& strike, const std::string& right) const;
-
-    /** 28. Get third-order Greeks snapshot. */
     std::vector<GreeksTick> option_snapshot_greeks_third_order(const std::string& symbol, const std::string& expiration,
                                                                const std::string& strike, const std::string& right) const;
 
@@ -428,32 +329,21 @@ public:
     //  Option — History endpoints (6)
     // ═══════════════════════════════════════════════════════════════
 
-    /** 29. Fetch EOD option data. */
     std::vector<EodTick> option_history_eod(const std::string& symbol, const std::string& expiration,
                                             const std::string& strike, const std::string& right,
                                             const std::string& start_date, const std::string& end_date) const;
-
-    /** 30. Fetch intraday OHLC for options. */
     std::vector<OhlcTick> option_history_ohlc(const std::string& symbol, const std::string& expiration,
                                               const std::string& strike, const std::string& right,
                                               const std::string& date, const std::string& interval) const;
-
-    /** 31. Fetch all trades for an option. */
     std::vector<TradeTick> option_history_trade(const std::string& symbol, const std::string& expiration,
                                                  const std::string& strike, const std::string& right,
                                                  const std::string& date) const;
-
-    /** 32. Fetch quotes for an option. */
     std::vector<QuoteTick> option_history_quote(const std::string& symbol, const std::string& expiration,
                                                  const std::string& strike, const std::string& right,
                                                  const std::string& date, const std::string& interval) const;
-
-    /** 33. Fetch combined trade + quote for an option. */
     std::vector<TradeQuoteTick> option_history_trade_quote(const std::string& symbol, const std::string& expiration,
                                                            const std::string& strike, const std::string& right,
                                                            const std::string& date) const;
-
-    /** 34. Fetch open interest history. */
     std::vector<OpenInterestTick> option_history_open_interest(const std::string& symbol, const std::string& expiration,
                                                                const std::string& strike, const std::string& right,
                                                                const std::string& date) const;
@@ -462,57 +352,36 @@ public:
     //  Option — History Greeks endpoints (11)
     // ═══════════════════════════════════════════════════════════════
 
-    /** 35. Fetch EOD Greeks history. */
     std::vector<GreeksTick> option_history_greeks_eod(const std::string& symbol, const std::string& expiration,
                                                       const std::string& strike, const std::string& right,
                                                       const std::string& start_date, const std::string& end_date) const;
-
-    /** 36. Fetch all Greeks history (intraday). */
     std::vector<GreeksTick> option_history_greeks_all(const std::string& symbol, const std::string& expiration,
                                                       const std::string& strike, const std::string& right,
                                                       const std::string& date, const std::string& interval) const;
-
-    /** 37. Fetch all Greeks on each trade. */
     std::vector<GreeksTick> option_history_trade_greeks_all(const std::string& symbol, const std::string& expiration,
                                                             const std::string& strike, const std::string& right,
                                                             const std::string& date) const;
-
-    /** 38. Fetch first-order Greeks history. */
     std::vector<GreeksTick> option_history_greeks_first_order(const std::string& symbol, const std::string& expiration,
                                                               const std::string& strike, const std::string& right,
                                                               const std::string& date, const std::string& interval) const;
-
-    /** 39. Fetch first-order Greeks on each trade. */
     std::vector<GreeksTick> option_history_trade_greeks_first_order(const std::string& symbol, const std::string& expiration,
                                                                     const std::string& strike, const std::string& right,
                                                                     const std::string& date) const;
-
-    /** 40. Fetch second-order Greeks history. */
     std::vector<GreeksTick> option_history_greeks_second_order(const std::string& symbol, const std::string& expiration,
                                                                const std::string& strike, const std::string& right,
                                                                const std::string& date, const std::string& interval) const;
-
-    /** 41. Fetch second-order Greeks on each trade. */
     std::vector<GreeksTick> option_history_trade_greeks_second_order(const std::string& symbol, const std::string& expiration,
                                                                      const std::string& strike, const std::string& right,
                                                                      const std::string& date) const;
-
-    /** 42. Fetch third-order Greeks history. */
     std::vector<GreeksTick> option_history_greeks_third_order(const std::string& symbol, const std::string& expiration,
                                                               const std::string& strike, const std::string& right,
                                                               const std::string& date, const std::string& interval) const;
-
-    /** 43. Fetch third-order Greeks on each trade. */
     std::vector<GreeksTick> option_history_trade_greeks_third_order(const std::string& symbol, const std::string& expiration,
                                                                     const std::string& strike, const std::string& right,
                                                                     const std::string& date) const;
-
-    /** 44. Fetch IV history (intraday). */
     std::vector<IvTick> option_history_greeks_implied_volatility(const std::string& symbol, const std::string& expiration,
                                                                  const std::string& strike, const std::string& right,
                                                                  const std::string& date, const std::string& interval) const;
-
-    /** 45. Fetch IV on each trade. */
     std::vector<IvTick> option_history_trade_greeks_implied_volatility(const std::string& symbol, const std::string& expiration,
                                                                        const std::string& strike, const std::string& right,
                                                                        const std::string& date) const;
@@ -521,89 +390,50 @@ public:
     //  Option — At-Time endpoints (2)
     // ═══════════════════════════════════════════════════════════════
 
-    /** 46. Fetch trade at a specific time for an option. */
     std::vector<TradeTick> option_at_time_trade(const std::string& symbol, const std::string& expiration,
                                                  const std::string& strike, const std::string& right,
                                                  const std::string& start_date, const std::string& end_date,
                                                  const std::string& time_of_day) const;
-
-    /** 47. Fetch quote at a specific time for an option. */
     std::vector<QuoteTick> option_at_time_quote(const std::string& symbol, const std::string& expiration,
                                                  const std::string& strike, const std::string& right,
                                                  const std::string& start_date, const std::string& end_date,
                                                  const std::string& time_of_day) const;
 
     // ═══════════════════════════════════════════════════════════════
-    //  Index — List endpoints (2)
+    //  Index — List + Snapshot + History + At-Time
     // ═══════════════════════════════════════════════════════════════
 
-    /** 48. List all index symbols. */
     std::vector<std::string> index_list_symbols() const;
-
-    /** 49. List available dates for an index. */
     std::vector<std::string> index_list_dates(const std::string& symbol) const;
 
-    // ═══════════════════════════════════════════════════════════════
-    //  Index — Snapshot endpoints (3)
-    // ═══════════════════════════════════════════════════════════════
-
-    /** 50. Get latest OHLC snapshot for indices. */
     std::vector<OhlcTick> index_snapshot_ohlc(const std::vector<std::string>& symbols) const;
-
-    /** 51. Get latest price snapshot for indices. */
     std::vector<PriceTick> index_snapshot_price(const std::vector<std::string>& symbols) const;
-
-    /** 52. Get latest market value for indices. */
     std::vector<MarketValueTick> index_snapshot_market_value(const std::vector<std::string>& symbols) const;
 
-    // ═══════════════════════════════════════════════════════════════
-    //  Index — History endpoints (3)
-    // ═══════════════════════════════════════════════════════════════
-
-    /** 53. Fetch EOD index data. */
     std::vector<EodTick> index_history_eod(const std::string& symbol,
                                            const std::string& start_date,
                                            const std::string& end_date) const;
-
-    /** 54. Fetch intraday OHLC for an index. */
     std::vector<OhlcTick> index_history_ohlc(const std::string& symbol,
                                              const std::string& start_date,
                                              const std::string& end_date,
                                              const std::string& interval) const;
-
-    /** 55. Fetch intraday price history. */
     std::vector<PriceTick> index_history_price(const std::string& symbol,
                                                const std::string& date,
                                                const std::string& interval) const;
 
-    // ═══════════════════════════════════════════════════════════════
-    //  Index — At-Time endpoints (1)
-    // ═══════════════════════════════════════════════════════════════
-
-    /** 56. Fetch index price at a specific time. */
     std::vector<PriceTick> index_at_time_price(const std::string& symbol,
                                                const std::string& start_date,
                                                const std::string& end_date,
                                                const std::string& time_of_day) const;
 
     // ═══════════════════════════════════════════════════════════════
-    //  Calendar endpoints (3)
+    //  Calendar + Interest Rate
     // ═══════════════════════════════════════════════════════════════
 
-    /** 57. Check whether the market is open today. */
     std::vector<CalendarDay> calendar_open_today() const;
-
-    /** 58. Get calendar for a specific date. */
     std::vector<CalendarDay> calendar_on_date(const std::string& date) const;
-
-    /** 59. Get calendar for a year. */
     std::vector<CalendarDay> calendar_year(const std::string& year) const;
 
-    // ═══════════════════════════════════════════════════════════════
-    //  Interest Rate endpoints (1)
-    // ═══════════════════════════════════════════════════════════════
-
-    /** 60. Fetch EOD interest rate history. */
     std::vector<InterestRateTick> interest_rate_history_eod(const std::string& symbol,
                                                             const std::string& start_date,
                                                             const std::string& end_date) const;
@@ -620,46 +450,21 @@ public:
     /** Connect to FPSS streaming servers. Throws on failure. */
     FpssClient(const Credentials& creds, const Config& config);
 
-    /** Subscribe to quote data for a stock symbol. Returns request ID. */
     int subscribe_quotes(const std::string& symbol);
-
-    /** Subscribe to trade data for a stock symbol. Returns request ID. */
     int subscribe_trades(const std::string& symbol);
-
-    /** Subscribe to open interest data for a stock symbol. Returns request ID. */
     int subscribe_open_interest(const std::string& symbol);
-
-    /** Subscribe to all trades for a security type ("STOCK", "OPTION", "INDEX"). Returns request ID. */
     int subscribe_full_trades(const std::string& sec_type);
-
-    /** Unsubscribe from quote data. Returns request ID. */
     int unsubscribe_quotes(const std::string& symbol);
-
-    /** Unsubscribe from open interest data. Returns request ID. */
     int unsubscribe_open_interest(const std::string& symbol);
-
-    /** Unsubscribe from trade data. Returns request ID. */
     int unsubscribe_trades(const std::string& symbol);
 
-    /** Check if the client is currently authenticated. */
     bool is_authenticated() const;
-
-    /** Look up a contract by server-assigned ID. Returns empty optional if not found. */
     std::optional<std::string> contract_lookup(int id) const;
-
-    /** Get active subscriptions as a JSON array string. */
     std::string active_subscriptions() const;
-
-    /** Poll for the next event. Returns JSON string, or empty string on timeout. */
     std::string next_event(uint64_t timeout_ms);
-
-    /** Shut down the FPSS client. */
     void shutdown();
-
-    /** Destructor: shuts down and frees the handle. */
     ~FpssClient();
 
-    // Non-copyable, movable.
     FpssClient(const FpssClient&) = delete;
     FpssClient& operator=(const FpssClient&) = delete;
     FpssClient(FpssClient&& other) noexcept : handle_(std::move(other.handle_)) {}

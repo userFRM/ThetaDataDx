@@ -7,15 +7,18 @@
  * Memory model:
  * - Opaque handles (TdxCredentials*, TdxClient*, TdxConfig*) are heap-allocated
  *   by the Rust side and MUST be freed with the corresponding tdx_*_free function.
- * - String results (char*) are heap-allocated JSON and MUST be freed with tdx_string_free.
- * - Functions that can fail return NULL and set a thread-local error string
- *   retrievable via tdx_last_error().
+ * - Tick data is returned as #[repr(C)] struct arrays. Each array type has a
+ *   corresponding tdx_*_array_free function that MUST be called.
+ * - String arrays (TdxStringArray) must be freed with tdx_string_array_free.
+ * - Functions that can fail return empty arrays (data=NULL, len=0) and set a
+ *   thread-local error string retrievable via tdx_last_error().
  */
 
 #ifndef THETADX_H
 #define THETADX_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,6 +29,249 @@ typedef struct TdxCredentials TdxCredentials;
 typedef struct TdxClient TdxClient;
 typedef struct TdxConfig TdxConfig;
 typedef struct TdxFpssHandle TdxFpssHandle;
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/*  #[repr(C)] tick types — layout-compatible with Rust tdbe structs      */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+/* All tick structs are 64-byte aligned to match Rust's #[repr(C, align(64))]. */
+
+typedef struct __attribute__((aligned(64))) {
+    int32_t date;
+    int32_t is_open;
+    int32_t open_time;
+    int32_t close_time;
+    int32_t status;
+} TdxCalendarDay;
+
+typedef struct __attribute__((aligned(64))) {
+    int32_t ms_of_day;
+    int32_t ms_of_day2;
+    int32_t open;
+    int32_t high;
+    int32_t low;
+    int32_t close;
+    int32_t volume;
+    int32_t count;
+    int32_t bid_size;
+    int32_t bid_exchange;
+    int32_t bid;
+    int32_t bid_condition;
+    int32_t ask_size;
+    int32_t ask_exchange;
+    int32_t ask;
+    int32_t ask_condition;
+    int32_t price_type;
+    int32_t date;
+} TdxEodTick;
+
+typedef struct __attribute__((aligned(64))) {
+    int32_t ms_of_day;
+    /* 4 bytes padding before f64 */
+    double implied_volatility;
+    double delta;
+    double gamma;
+    double theta;
+    double vega;
+    double rho;
+    double iv_error;
+    double vanna;
+    double charm;
+    double vomma;
+    double veta;
+    double speed;
+    double zomma;
+    double color;
+    double ultima;
+    double d1;
+    double d2;
+    double dual_delta;
+    double dual_gamma;
+    double epsilon;
+    double lambda;
+    double vera;
+    int32_t date;
+} TdxGreeksTick;
+
+typedef struct __attribute__((aligned(64))) {
+    int32_t ms_of_day;
+    /* 4 bytes padding before f64 */
+    double rate;
+    int32_t date;
+} TdxInterestRateTick;
+
+typedef struct __attribute__((aligned(64))) {
+    int32_t ms_of_day;
+    /* 4 bytes padding before f64 */
+    double implied_volatility;
+    double iv_error;
+    int32_t date;
+} TdxIvTick;
+
+typedef struct __attribute__((aligned(64))) {
+    int32_t ms_of_day;
+    /* 4 bytes padding before i64 */
+    int64_t market_cap;
+    int64_t shares_outstanding;
+    int64_t enterprise_value;
+    int64_t book_value;
+    int64_t free_float;
+    int32_t date;
+} TdxMarketValueTick;
+
+typedef struct __attribute__((aligned(64))) {
+    int32_t ms_of_day;
+    int32_t open;
+    int32_t high;
+    int32_t low;
+    int32_t close;
+    int32_t volume;
+    int32_t count;
+    int32_t price_type;
+    int32_t date;
+} TdxOhlcTick;
+
+typedef struct __attribute__((aligned(64))) {
+    int32_t ms_of_day;
+    int32_t open_interest;
+    int32_t date;
+} TdxOpenInterestTick;
+
+typedef struct __attribute__((aligned(64))) {
+    int32_t ms_of_day;
+    int32_t price;
+    int32_t price_type;
+    int32_t date;
+} TdxPriceTick;
+
+typedef struct __attribute__((aligned(64))) {
+    int32_t ms_of_day;
+    int32_t bid_size;
+    int32_t bid_exchange;
+    int32_t bid;
+    int32_t bid_condition;
+    int32_t ask_size;
+    int32_t ask_exchange;
+    int32_t ask;
+    int32_t ask_condition;
+    int32_t price_type;
+    int32_t date;
+} TdxQuoteTick;
+
+typedef struct __attribute__((aligned(64))) {
+    int32_t ms_of_day;
+    int32_t sequence;
+    int32_t size;
+    int32_t condition;
+    int32_t price;
+    int32_t price_type;
+    int32_t date;
+} TdxSnapshotTradeTick;
+
+typedef struct __attribute__((aligned(64))) {
+    int32_t ms_of_day;
+    int32_t sequence;
+    int32_t ext_condition1;
+    int32_t ext_condition2;
+    int32_t ext_condition3;
+    int32_t ext_condition4;
+    int32_t condition;
+    int32_t size;
+    int32_t exchange;
+    int32_t price;
+    int32_t condition_flags;
+    int32_t price_flags;
+    int32_t volume_type;
+    int32_t records_back;
+    int32_t quote_ms_of_day;
+    int32_t bid_size;
+    int32_t bid_exchange;
+    int32_t bid;
+    int32_t bid_condition;
+    int32_t ask_size;
+    int32_t ask_exchange;
+    int32_t ask;
+    int32_t ask_condition;
+    int32_t quote_price_type;
+    int32_t price_type;
+    int32_t date;
+} TdxTradeQuoteTick;
+
+typedef struct __attribute__((aligned(64))) {
+    int32_t ms_of_day;
+    int32_t sequence;
+    int32_t ext_condition1;
+    int32_t ext_condition2;
+    int32_t ext_condition3;
+    int32_t ext_condition4;
+    int32_t condition;
+    int32_t size;
+    int32_t exchange;
+    int32_t price;
+    int32_t condition_flags;
+    int32_t price_flags;
+    int32_t volume_type;
+    int32_t records_back;
+    int32_t price_type;
+    int32_t date;
+} TdxTradeTick;
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/*  Typed array return types                                              */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+typedef struct { const TdxEodTick* data; size_t len; } TdxEodTickArray;
+typedef struct { const TdxOhlcTick* data; size_t len; } TdxOhlcTickArray;
+typedef struct { const TdxTradeTick* data; size_t len; } TdxTradeTickArray;
+typedef struct { const TdxQuoteTick* data; size_t len; } TdxQuoteTickArray;
+typedef struct { const TdxGreeksTick* data; size_t len; } TdxGreeksTickArray;
+typedef struct { const TdxIvTick* data; size_t len; } TdxIvTickArray;
+typedef struct { const TdxPriceTick* data; size_t len; } TdxPriceTickArray;
+typedef struct { const TdxOpenInterestTick* data; size_t len; } TdxOpenInterestTickArray;
+typedef struct { const TdxMarketValueTick* data; size_t len; } TdxMarketValueTickArray;
+typedef struct { const TdxCalendarDay* data; size_t len; } TdxCalendarDayArray;
+typedef struct { const TdxInterestRateTick* data; size_t len; } TdxInterestRateTickArray;
+typedef struct { const TdxSnapshotTradeTick* data; size_t len; } TdxSnapshotTradeTickArray;
+typedef struct { const TdxTradeQuoteTick* data; size_t len; } TdxTradeQuoteTickArray;
+
+/* ── OptionContract (has heap-allocated root string) ── */
+
+typedef struct {
+    const char* root;       /* heap-allocated, freed with tdx_option_contract_array_free */
+    int32_t expiration;
+    int32_t strike;
+    int32_t right;
+    int32_t strike_price_type;
+} TdxOptionContract;
+
+typedef struct { const TdxOptionContract* data; size_t len; } TdxOptionContractArray;
+
+/* ── String array (for list endpoints) ── */
+
+typedef struct {
+    const char* const* data;  /* array of NUL-terminated C strings */
+    size_t len;
+} TdxStringArray;
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/*  Free functions for typed arrays                                       */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+void tdx_eod_tick_array_free(TdxEodTickArray arr);
+void tdx_ohlc_tick_array_free(TdxOhlcTickArray arr);
+void tdx_trade_tick_array_free(TdxTradeTickArray arr);
+void tdx_quote_tick_array_free(TdxQuoteTickArray arr);
+void tdx_greeks_tick_array_free(TdxGreeksTickArray arr);
+void tdx_iv_tick_array_free(TdxIvTickArray arr);
+void tdx_price_tick_array_free(TdxPriceTickArray arr);
+void tdx_open_interest_tick_array_free(TdxOpenInterestTickArray arr);
+void tdx_market_value_tick_array_free(TdxMarketValueTickArray arr);
+void tdx_calendar_day_array_free(TdxCalendarDayArray arr);
+void tdx_interest_rate_tick_array_free(TdxInterestRateTickArray arr);
+void tdx_snapshot_trade_tick_array_free(TdxSnapshotTradeTickArray arr);
+void tdx_trade_quote_tick_array_free(TdxTradeQuoteTickArray arr);
+void tdx_option_contract_array_free(TdxOptionContractArray arr);
+void tdx_string_array_free(TdxStringArray arr);
 
 /* ── Error ── */
 
@@ -73,304 +319,294 @@ void tdx_string_free(char* s);
 /*  Stock — List endpoints (2)                                            */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/** 1. List all stock symbols. Returns JSON array. */
-char* tdx_stock_list_symbols(const TdxClient* client);
+/** 1. List all stock symbols. Returns TdxStringArray. */
+TdxStringArray tdx_stock_list_symbols(const TdxClient* client);
 
-/** 2. List available dates for a stock by request type. Returns JSON array. */
-char* tdx_stock_list_dates(const TdxClient* client, const char* request_type, const char* symbol);
+/** 2. List available dates for a stock by request type. Returns TdxStringArray. */
+TdxStringArray tdx_stock_list_dates(const TdxClient* client, const char* request_type, const char* symbol);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Stock — Snapshot endpoints (4)                                        */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/** 3. Get latest OHLC snapshot. symbols_json is JSON array. Returns JSON array. */
-char* tdx_stock_snapshot_ohlc(const TdxClient* client, const char* symbols_json);
+/** 3. Get latest OHLC snapshot. symbols_json is JSON array. */
+TdxOhlcTickArray tdx_stock_snapshot_ohlc(const TdxClient* client, const char* symbols_json);
 
-/** 4. Get latest trade snapshot. symbols_json is JSON array. Returns JSON array. */
-char* tdx_stock_snapshot_trade(const TdxClient* client, const char* symbols_json);
+/** 4. Get latest trade snapshot. symbols_json is JSON array. */
+TdxTradeTickArray tdx_stock_snapshot_trade(const TdxClient* client, const char* symbols_json);
 
-/** 5. Get latest NBBO quote snapshot. symbols_json is JSON array. Returns JSON array. */
-char* tdx_stock_snapshot_quote(const TdxClient* client, const char* symbols_json);
+/** 5. Get latest NBBO quote snapshot. symbols_json is JSON array. */
+TdxQuoteTickArray tdx_stock_snapshot_quote(const TdxClient* client, const char* symbols_json);
 
-/** 6. Get latest market value snapshot. symbols_json is JSON array. Returns JSON DataTable. */
-char* tdx_stock_snapshot_market_value(const TdxClient* client, const char* symbols_json);
+/** 6. Get latest market value snapshot. symbols_json is JSON array. */
+TdxMarketValueTickArray tdx_stock_snapshot_market_value(const TdxClient* client, const char* symbols_json);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Stock — History endpoints (5 + bonus)                                 */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/** 7. Fetch stock EOD history. Returns JSON array. */
-char* tdx_stock_history_eod(const TdxClient* client, const char* symbol,
-                            const char* start_date, const char* end_date);
+/** 7. Fetch stock EOD history. */
+TdxEodTickArray tdx_stock_history_eod(const TdxClient* client, const char* symbol,
+                                      const char* start_date, const char* end_date);
 
-/** 8. Fetch stock intraday OHLC. Returns JSON array. */
-char* tdx_stock_history_ohlc(const TdxClient* client, const char* symbol,
-                             const char* date, const char* interval);
+/** 8. Fetch stock intraday OHLC. */
+TdxOhlcTickArray tdx_stock_history_ohlc(const TdxClient* client, const char* symbol,
+                                        const char* date, const char* interval);
 
-/** 8b. Fetch stock OHLC across date range. Returns JSON array. */
-char* tdx_stock_history_ohlc_range(const TdxClient* client, const char* symbol,
-                                   const char* start_date, const char* end_date,
-                                   const char* interval);
+/** 8b. Fetch stock OHLC across date range. */
+TdxOhlcTickArray tdx_stock_history_ohlc_range(const TdxClient* client, const char* symbol,
+                                              const char* start_date, const char* end_date,
+                                              const char* interval);
 
-/** 9. Fetch all trades on a date. Returns JSON array. */
-char* tdx_stock_history_trade(const TdxClient* client, const char* symbol, const char* date);
+/** 9. Fetch all trades on a date. */
+TdxTradeTickArray tdx_stock_history_trade(const TdxClient* client, const char* symbol, const char* date);
 
-/** 10. Fetch NBBO quotes. Returns JSON array. */
-char* tdx_stock_history_quote(const TdxClient* client, const char* symbol,
-                              const char* date, const char* interval);
+/** 10. Fetch NBBO quotes. */
+TdxQuoteTickArray tdx_stock_history_quote(const TdxClient* client, const char* symbol,
+                                          const char* date, const char* interval);
 
-/** 11. Fetch combined trade + quote ticks. Returns JSON DataTable. */
-char* tdx_stock_history_trade_quote(const TdxClient* client, const char* symbol, const char* date);
+/** 11. Fetch combined trade + quote ticks. */
+TdxTradeQuoteTickArray tdx_stock_history_trade_quote(const TdxClient* client, const char* symbol, const char* date);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Stock — At-Time endpoints (2)                                         */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/** 12. Fetch trade at a specific time across a date range. Returns JSON array. */
-char* tdx_stock_at_time_trade(const TdxClient* client, const char* symbol,
-                              const char* start_date, const char* end_date,
-                              const char* time_of_day);
+/** 12. Fetch trade at a specific time across a date range. */
+TdxTradeTickArray tdx_stock_at_time_trade(const TdxClient* client, const char* symbol,
+                                          const char* start_date, const char* end_date,
+                                          const char* time_of_day);
 
-/** 13. Fetch quote at a specific time across a date range. Returns JSON array. */
-char* tdx_stock_at_time_quote(const TdxClient* client, const char* symbol,
-                              const char* start_date, const char* end_date,
-                              const char* time_of_day);
+/** 13. Fetch quote at a specific time across a date range. */
+TdxQuoteTickArray tdx_stock_at_time_quote(const TdxClient* client, const char* symbol,
+                                          const char* start_date, const char* end_date,
+                                          const char* time_of_day);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Option — List endpoints (5)                                           */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/** 14. List all option underlyings. Returns JSON array. */
-char* tdx_option_list_symbols(const TdxClient* client);
+/** 14. List all option underlyings. */
+TdxStringArray tdx_option_list_symbols(const TdxClient* client);
 
-/** 15. List available dates for an option contract. Returns JSON array. */
-char* tdx_option_list_dates(const TdxClient* client, const char* request_type,
-                            const char* symbol, const char* expiration,
-                            const char* strike, const char* right);
+/** 15. List available dates for an option contract. */
+TdxStringArray tdx_option_list_dates(const TdxClient* client, const char* request_type,
+                                     const char* symbol, const char* expiration,
+                                     const char* strike, const char* right);
 
-/** 16. List expiration dates. Returns JSON array. */
-char* tdx_option_list_expirations(const TdxClient* client, const char* symbol);
+/** 16. List expiration dates. */
+TdxStringArray tdx_option_list_expirations(const TdxClient* client, const char* symbol);
 
-/** 17. List strike prices. Returns JSON array. */
-char* tdx_option_list_strikes(const TdxClient* client, const char* symbol,
-                              const char* expiration);
+/** 17. List strike prices. */
+TdxStringArray tdx_option_list_strikes(const TdxClient* client, const char* symbol,
+                                       const char* expiration);
 
-/** 18. List all option contracts on a date. Returns JSON DataTable. */
-char* tdx_option_list_contracts(const TdxClient* client, const char* request_type,
-                                const char* symbol, const char* date);
+/** 18. List all option contracts on a date. */
+TdxOptionContractArray tdx_option_list_contracts(const TdxClient* client, const char* request_type,
+                                                 const char* symbol, const char* date);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Option — Snapshot endpoints (10)                                      */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/** 19. Get latest OHLC snapshot for options. Returns JSON array. */
-char* tdx_option_snapshot_ohlc(const TdxClient* client, const char* symbol,
-                               const char* expiration, const char* strike, const char* right);
+/** 19. Get latest OHLC snapshot for options. */
+TdxOhlcTickArray tdx_option_snapshot_ohlc(const TdxClient* client, const char* symbol,
+                                          const char* expiration, const char* strike, const char* right);
 
-/** 20. Get latest trade snapshot for options. Returns JSON array. */
-char* tdx_option_snapshot_trade(const TdxClient* client, const char* symbol,
-                                const char* expiration, const char* strike, const char* right);
+/** 20. Get latest trade snapshot for options. */
+TdxTradeTickArray tdx_option_snapshot_trade(const TdxClient* client, const char* symbol,
+                                            const char* expiration, const char* strike, const char* right);
 
-/** 21. Get latest NBBO quote snapshot for options. Returns JSON array. */
-char* tdx_option_snapshot_quote(const TdxClient* client, const char* symbol,
-                                const char* expiration, const char* strike, const char* right);
+/** 21. Get latest NBBO quote snapshot for options. */
+TdxQuoteTickArray tdx_option_snapshot_quote(const TdxClient* client, const char* symbol,
+                                            const char* expiration, const char* strike, const char* right);
 
-/** 22. Get latest open interest snapshot. Returns JSON DataTable. */
-char* tdx_option_snapshot_open_interest(const TdxClient* client, const char* symbol,
-                                        const char* expiration, const char* strike, const char* right);
+/** 22. Get latest open interest snapshot. */
+TdxOpenInterestTickArray tdx_option_snapshot_open_interest(const TdxClient* client, const char* symbol,
+                                                           const char* expiration, const char* strike, const char* right);
 
-/** 23. Get latest market value snapshot for options. Returns JSON DataTable. */
-char* tdx_option_snapshot_market_value(const TdxClient* client, const char* symbol,
-                                       const char* expiration, const char* strike, const char* right);
+/** 23. Get latest market value snapshot for options. */
+TdxMarketValueTickArray tdx_option_snapshot_market_value(const TdxClient* client, const char* symbol,
+                                                         const char* expiration, const char* strike, const char* right);
 
-/** 24. Get IV snapshot for options. Returns JSON DataTable. */
-char* tdx_option_snapshot_greeks_implied_volatility(const TdxClient* client, const char* symbol,
-                                                     const char* expiration, const char* strike, const char* right);
+/** 24. Get IV snapshot for options. */
+TdxIvTickArray tdx_option_snapshot_greeks_implied_volatility(const TdxClient* client, const char* symbol,
+                                                             const char* expiration, const char* strike, const char* right);
 
-/** 25. Get all Greeks snapshot. Returns JSON DataTable. */
-char* tdx_option_snapshot_greeks_all(const TdxClient* client, const char* symbol,
-                                     const char* expiration, const char* strike, const char* right);
+/** 25. Get all Greeks snapshot. */
+TdxGreeksTickArray tdx_option_snapshot_greeks_all(const TdxClient* client, const char* symbol,
+                                                   const char* expiration, const char* strike, const char* right);
 
-/** 26. Get first-order Greeks snapshot. Returns JSON DataTable. */
-char* tdx_option_snapshot_greeks_first_order(const TdxClient* client, const char* symbol,
-                                              const char* expiration, const char* strike, const char* right);
+/** 26. Get first-order Greeks snapshot. */
+TdxGreeksTickArray tdx_option_snapshot_greeks_first_order(const TdxClient* client, const char* symbol,
+                                                           const char* expiration, const char* strike, const char* right);
 
-/** 27. Get second-order Greeks snapshot. Returns JSON DataTable. */
-char* tdx_option_snapshot_greeks_second_order(const TdxClient* client, const char* symbol,
-                                               const char* expiration, const char* strike, const char* right);
+/** 27. Get second-order Greeks snapshot. */
+TdxGreeksTickArray tdx_option_snapshot_greeks_second_order(const TdxClient* client, const char* symbol,
+                                                            const char* expiration, const char* strike, const char* right);
 
-/** 28. Get third-order Greeks snapshot. Returns JSON DataTable. */
-char* tdx_option_snapshot_greeks_third_order(const TdxClient* client, const char* symbol,
-                                              const char* expiration, const char* strike, const char* right);
+/** 28. Get third-order Greeks snapshot. */
+TdxGreeksTickArray tdx_option_snapshot_greeks_third_order(const TdxClient* client, const char* symbol,
+                                                           const char* expiration, const char* strike, const char* right);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Option — History endpoints (6)                                        */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/** 29. Fetch EOD option data. Returns JSON array. */
-char* tdx_option_history_eod(const TdxClient* client, const char* symbol, const char* expiration,
-                             const char* strike, const char* right,
-                             const char* start_date, const char* end_date);
+/** 29. Fetch EOD option data. */
+TdxEodTickArray tdx_option_history_eod(const TdxClient* client, const char* symbol, const char* expiration,
+                                       const char* strike, const char* right,
+                                       const char* start_date, const char* end_date);
 
-/** 30. Fetch intraday OHLC for options. Returns JSON array. */
-char* tdx_option_history_ohlc(const TdxClient* client, const char* symbol, const char* expiration,
-                              const char* strike, const char* right,
-                              const char* date, const char* interval);
+/** 30. Fetch intraday OHLC for options. */
+TdxOhlcTickArray tdx_option_history_ohlc(const TdxClient* client, const char* symbol, const char* expiration,
+                                         const char* strike, const char* right,
+                                         const char* date, const char* interval);
 
-/** 31. Fetch all trades for an option. Returns JSON array. */
-char* tdx_option_history_trade(const TdxClient* client, const char* symbol, const char* expiration,
-                               const char* strike, const char* right, const char* date);
+/** 31. Fetch all trades for an option. */
+TdxTradeTickArray tdx_option_history_trade(const TdxClient* client, const char* symbol, const char* expiration,
+                                           const char* strike, const char* right, const char* date);
 
-/** 32. Fetch NBBO quotes for an option. Returns JSON array. */
-char* tdx_option_history_quote(const TdxClient* client, const char* symbol, const char* expiration,
-                               const char* strike, const char* right,
-                               const char* date, const char* interval);
+/** 32. Fetch NBBO quotes for an option. */
+TdxQuoteTickArray tdx_option_history_quote(const TdxClient* client, const char* symbol, const char* expiration,
+                                           const char* strike, const char* right,
+                                           const char* date, const char* interval);
 
-/** 33. Fetch combined trade + quote for an option. Returns JSON DataTable. */
-char* tdx_option_history_trade_quote(const TdxClient* client, const char* symbol, const char* expiration,
-                                     const char* strike, const char* right, const char* date);
+/** 33. Fetch combined trade + quote for an option. */
+TdxTradeQuoteTickArray tdx_option_history_trade_quote(const TdxClient* client, const char* symbol, const char* expiration,
+                                                      const char* strike, const char* right, const char* date);
 
-/** 34. Fetch open interest history. Returns JSON DataTable. */
-char* tdx_option_history_open_interest(const TdxClient* client, const char* symbol, const char* expiration,
-                                       const char* strike, const char* right, const char* date);
+/** 34. Fetch open interest history. */
+TdxOpenInterestTickArray tdx_option_history_open_interest(const TdxClient* client, const char* symbol, const char* expiration,
+                                                          const char* strike, const char* right, const char* date);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Option — History Greeks endpoints (11)                                */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/** 35. Fetch EOD Greeks history. Returns JSON DataTable. */
-char* tdx_option_history_greeks_eod(const TdxClient* client, const char* symbol, const char* expiration,
-                                    const char* strike, const char* right,
-                                    const char* start_date, const char* end_date);
+/** 35-45: Greeks history endpoints all return TdxGreeksTickArray or TdxIvTickArray. */
+TdxGreeksTickArray tdx_option_history_greeks_eod(const TdxClient* client, const char* symbol, const char* expiration,
+                                                  const char* strike, const char* right,
+                                                  const char* start_date, const char* end_date);
 
-/** 36. Fetch all Greeks history (intraday). Returns JSON DataTable. */
-char* tdx_option_history_greeks_all(const TdxClient* client, const char* symbol, const char* expiration,
-                                    const char* strike, const char* right,
-                                    const char* date, const char* interval);
+TdxGreeksTickArray tdx_option_history_greeks_all(const TdxClient* client, const char* symbol, const char* expiration,
+                                                  const char* strike, const char* right,
+                                                  const char* date, const char* interval);
 
-/** 37. Fetch all Greeks on each trade. Returns JSON DataTable. */
-char* tdx_option_history_trade_greeks_all(const TdxClient* client, const char* symbol, const char* expiration,
-                                          const char* strike, const char* right, const char* date);
+TdxGreeksTickArray tdx_option_history_trade_greeks_all(const TdxClient* client, const char* symbol, const char* expiration,
+                                                        const char* strike, const char* right, const char* date);
 
-/** 38. Fetch first-order Greeks history. Returns JSON DataTable. */
-char* tdx_option_history_greeks_first_order(const TdxClient* client, const char* symbol, const char* expiration,
-                                            const char* strike, const char* right,
-                                            const char* date, const char* interval);
+TdxGreeksTickArray tdx_option_history_greeks_first_order(const TdxClient* client, const char* symbol, const char* expiration,
+                                                          const char* strike, const char* right,
+                                                          const char* date, const char* interval);
 
-/** 39. Fetch first-order Greeks on each trade. Returns JSON DataTable. */
-char* tdx_option_history_trade_greeks_first_order(const TdxClient* client, const char* symbol, const char* expiration,
-                                                   const char* strike, const char* right, const char* date);
+TdxGreeksTickArray tdx_option_history_trade_greeks_first_order(const TdxClient* client, const char* symbol, const char* expiration,
+                                                                const char* strike, const char* right, const char* date);
 
-/** 40. Fetch second-order Greeks history. Returns JSON DataTable. */
-char* tdx_option_history_greeks_second_order(const TdxClient* client, const char* symbol, const char* expiration,
-                                             const char* strike, const char* right,
-                                             const char* date, const char* interval);
+TdxGreeksTickArray tdx_option_history_greeks_second_order(const TdxClient* client, const char* symbol, const char* expiration,
+                                                           const char* strike, const char* right,
+                                                           const char* date, const char* interval);
 
-/** 41. Fetch second-order Greeks on each trade. Returns JSON DataTable. */
-char* tdx_option_history_trade_greeks_second_order(const TdxClient* client, const char* symbol, const char* expiration,
-                                                    const char* strike, const char* right, const char* date);
+TdxGreeksTickArray tdx_option_history_trade_greeks_second_order(const TdxClient* client, const char* symbol, const char* expiration,
+                                                                 const char* strike, const char* right, const char* date);
 
-/** 42. Fetch third-order Greeks history. Returns JSON DataTable. */
-char* tdx_option_history_greeks_third_order(const TdxClient* client, const char* symbol, const char* expiration,
-                                            const char* strike, const char* right,
-                                            const char* date, const char* interval);
+TdxGreeksTickArray tdx_option_history_greeks_third_order(const TdxClient* client, const char* symbol, const char* expiration,
+                                                          const char* strike, const char* right,
+                                                          const char* date, const char* interval);
 
-/** 43. Fetch third-order Greeks on each trade. Returns JSON DataTable. */
-char* tdx_option_history_trade_greeks_third_order(const TdxClient* client, const char* symbol, const char* expiration,
-                                                   const char* strike, const char* right, const char* date);
+TdxGreeksTickArray tdx_option_history_trade_greeks_third_order(const TdxClient* client, const char* symbol, const char* expiration,
+                                                                const char* strike, const char* right, const char* date);
 
-/** 44. Fetch IV history (intraday). Returns JSON DataTable. */
-char* tdx_option_history_greeks_implied_volatility(const TdxClient* client, const char* symbol, const char* expiration,
-                                                    const char* strike, const char* right,
-                                                    const char* date, const char* interval);
+TdxIvTickArray tdx_option_history_greeks_implied_volatility(const TdxClient* client, const char* symbol, const char* expiration,
+                                                             const char* strike, const char* right,
+                                                             const char* date, const char* interval);
 
-/** 45. Fetch IV on each trade. Returns JSON DataTable. */
-char* tdx_option_history_trade_greeks_implied_volatility(const TdxClient* client, const char* symbol, const char* expiration,
-                                                          const char* strike, const char* right, const char* date);
+TdxIvTickArray tdx_option_history_trade_greeks_implied_volatility(const TdxClient* client, const char* symbol, const char* expiration,
+                                                                   const char* strike, const char* right, const char* date);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Option — At-Time endpoints (2)                                        */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/** 46. Fetch trade at a specific time for an option. Returns JSON array. */
-char* tdx_option_at_time_trade(const TdxClient* client, const char* symbol, const char* expiration,
-                               const char* strike, const char* right,
-                               const char* start_date, const char* end_date, const char* time_of_day);
+/** 46. Fetch trade at a specific time for an option. */
+TdxTradeTickArray tdx_option_at_time_trade(const TdxClient* client, const char* symbol, const char* expiration,
+                                           const char* strike, const char* right,
+                                           const char* start_date, const char* end_date, const char* time_of_day);
 
-/** 47. Fetch quote at a specific time for an option. Returns JSON array. */
-char* tdx_option_at_time_quote(const TdxClient* client, const char* symbol, const char* expiration,
-                               const char* strike, const char* right,
-                               const char* start_date, const char* end_date, const char* time_of_day);
+/** 47. Fetch quote at a specific time for an option. */
+TdxQuoteTickArray tdx_option_at_time_quote(const TdxClient* client, const char* symbol, const char* expiration,
+                                           const char* strike, const char* right,
+                                           const char* start_date, const char* end_date, const char* time_of_day);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Index — List endpoints (2)                                            */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/** 48. List all index symbols. Returns JSON array. */
-char* tdx_index_list_symbols(const TdxClient* client);
+/** 48. List all index symbols. */
+TdxStringArray tdx_index_list_symbols(const TdxClient* client);
 
-/** 49. List available dates for an index. Returns JSON array. */
-char* tdx_index_list_dates(const TdxClient* client, const char* symbol);
+/** 49. List available dates for an index. */
+TdxStringArray tdx_index_list_dates(const TdxClient* client, const char* symbol);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Index — Snapshot endpoints (3)                                        */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/** 50. Get latest OHLC snapshot for indices. symbols_json is JSON array. Returns JSON array. */
-char* tdx_index_snapshot_ohlc(const TdxClient* client, const char* symbols_json);
+/** 50. Get latest OHLC snapshot for indices. symbols_json is JSON array. */
+TdxOhlcTickArray tdx_index_snapshot_ohlc(const TdxClient* client, const char* symbols_json);
 
-/** 51. Get latest price snapshot for indices. symbols_json is JSON array. Returns JSON DataTable. */
-char* tdx_index_snapshot_price(const TdxClient* client, const char* symbols_json);
+/** 51. Get latest price snapshot for indices. symbols_json is JSON array. */
+TdxPriceTickArray tdx_index_snapshot_price(const TdxClient* client, const char* symbols_json);
 
-/** 52. Get latest market value for indices. symbols_json is JSON array. Returns JSON DataTable. */
-char* tdx_index_snapshot_market_value(const TdxClient* client, const char* symbols_json);
+/** 52. Get latest market value for indices. symbols_json is JSON array. */
+TdxMarketValueTickArray tdx_index_snapshot_market_value(const TdxClient* client, const char* symbols_json);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Index — History endpoints (3)                                         */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/** 53. Fetch EOD index data. Returns JSON array. */
-char* tdx_index_history_eod(const TdxClient* client, const char* symbol,
-                            const char* start_date, const char* end_date);
+/** 53. Fetch EOD index data. */
+TdxEodTickArray tdx_index_history_eod(const TdxClient* client, const char* symbol,
+                                      const char* start_date, const char* end_date);
 
-/** 54. Fetch intraday OHLC for an index. Returns JSON array. */
-char* tdx_index_history_ohlc(const TdxClient* client, const char* symbol,
-                             const char* start_date, const char* end_date,
-                             const char* interval);
+/** 54. Fetch intraday OHLC for an index. */
+TdxOhlcTickArray tdx_index_history_ohlc(const TdxClient* client, const char* symbol,
+                                        const char* start_date, const char* end_date,
+                                        const char* interval);
 
-/** 55. Fetch intraday price history for an index. Returns JSON DataTable. */
-char* tdx_index_history_price(const TdxClient* client, const char* symbol,
-                              const char* date, const char* interval);
+/** 55. Fetch intraday price history for an index. */
+TdxPriceTickArray tdx_index_history_price(const TdxClient* client, const char* symbol,
+                                          const char* date, const char* interval);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Index — At-Time endpoints (1)                                         */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/** 56. Fetch index price at a specific time. Returns JSON DataTable. */
-char* tdx_index_at_time_price(const TdxClient* client, const char* symbol,
-                              const char* start_date, const char* end_date,
-                              const char* time_of_day);
+/** 56. Fetch index price at a specific time. */
+TdxPriceTickArray tdx_index_at_time_price(const TdxClient* client, const char* symbol,
+                                          const char* start_date, const char* end_date,
+                                          const char* time_of_day);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Calendar endpoints (3)                                                */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/** 57. Check whether the market is open today. Returns JSON DataTable. */
-char* tdx_calendar_open_today(const TdxClient* client);
+/** 57. Check whether the market is open today. */
+TdxCalendarDayArray tdx_calendar_open_today(const TdxClient* client);
 
-/** 58. Get calendar for a specific date. Returns JSON DataTable. */
-char* tdx_calendar_on_date(const TdxClient* client, const char* date);
+/** 58. Get calendar for a specific date. */
+TdxCalendarDayArray tdx_calendar_on_date(const TdxClient* client, const char* date);
 
-/** 59. Get calendar for an entire year. Returns JSON DataTable. */
-char* tdx_calendar_year(const TdxClient* client, const char* year);
+/** 59. Get calendar for an entire year. */
+TdxCalendarDayArray tdx_calendar_year(const TdxClient* client, const char* year);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Interest Rate endpoints (1)                                           */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/** 60. Fetch EOD interest rate history. Returns JSON DataTable. */
-char* tdx_interest_rate_history_eod(const TdxClient* client, const char* symbol,
-                                    const char* start_date, const char* end_date);
+/** 60. Fetch EOD interest rate history. */
+TdxInterestRateTickArray tdx_interest_rate_history_eod(const TdxClient* client, const char* symbol,
+                                                       const char* start_date, const char* end_date);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Greeks (standalone)                                                   */

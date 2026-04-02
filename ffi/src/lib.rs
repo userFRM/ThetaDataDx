@@ -10,7 +10,7 @@
 //! - Pointer arguments must be either null (handled gracefully) or valid pointers
 //!   obtained from a prior `tdx_*` call.
 //! - `*const c_char` arguments must point to valid, NUL-terminated C strings.
-//! - Returned `*mut` pointers are heap-allocated and must be freed with the
+//! - Returned typed arrays are heap-allocated and must be freed with the
 //!   corresponding `tdx_*_free` function.
 //! - Functions are not thread-safe on the same handle; callers must synchronize.
 //!
@@ -18,13 +18,15 @@
 //!
 //! - Opaque handles (`*mut TdxClient`, `*mut TdxCredentials`, etc.) are heap-allocated
 //!   via `Box::into_raw` and freed via the corresponding `tdx_*_free` function.
-//! - String results are returned as JSON (`*mut c_char`), freed with `tdx_string_free`.
-//! - The caller MUST free every non-null pointer returned by this library.
+//! - Tick arrays are returned as `#[repr(C)]` structs with a `data` pointer and `len`.
+//!   They MUST be freed with the corresponding `tdx_*_array_free` function.
+//! - String arrays (`TdxStringArray`) must be freed with `tdx_string_array_free`.
+//! - The caller MUST free every non-null pointer / non-empty array returned by this library.
 //!
 //! # Error handling
 //!
-//! Functions that can fail return a null pointer on error and set a thread-local
-//! error string retrievable via `tdx_last_error`.
+//! Functions that can fail return an empty array (data=null, len=0) on error and set
+//! a thread-local error string retrievable via `tdx_last_error`.
 
 #![allow(clippy::missing_safety_doc)]
 
@@ -293,52 +295,6 @@ fn json_to_cstring(val: &serde_json::Value) -> *mut c_char {
     }
 }
 
-/// Helper: serialize a `DataTable` as JSON `{ "headers": [...], "rows": [[...], ...] }`.
-///
-/// Each row is an array of values matching the header columns.
-/// Values are either strings (text), numbers (int64), or price objects `{"value":N,"type":T}`.
-#[allow(dead_code)]
-fn data_table_to_cstring(table: &thetadatadx::proto::DataTable) -> *mut c_char {
-    let headers: Vec<serde_json::Value> = table
-        .headers
-        .iter()
-        .map(|h| serde_json::Value::String(h.clone()))
-        .collect();
-
-    let rows: Vec<serde_json::Value> = table
-        .data_table
-        .iter()
-        .map(|row| {
-            let vals: Vec<serde_json::Value> = row
-                .values
-                .iter()
-                .map(|v| {
-                    use thetadatadx::proto::data_value::DataType;
-                    match &v.data_type {
-                        Some(DataType::Text(s)) => serde_json::Value::String(s.clone()),
-                        Some(DataType::Number(n)) => serde_json::json!(*n),
-                        Some(DataType::Price(p)) => {
-                            serde_json::json!({"value": p.value, "type": p.r#type})
-                        }
-                        Some(DataType::Timestamp(ts)) => serde_json::json!({
-                            "epoch_ms": ts.epoch_ms,
-                            "zone": ts.zone,
-                        }),
-                        Some(DataType::NullValue(_)) | None => serde_json::Value::Null,
-                    }
-                })
-                .collect();
-            serde_json::Value::Array(vals)
-        })
-        .collect();
-
-    let json = serde_json::json!({
-        "headers": headers,
-        "rows": rows,
-    });
-    json_to_cstring(&json)
-}
-
 // ── Credentials ──
 
 /// Create credentials from email and password strings.
@@ -474,195 +430,223 @@ pub unsafe extern "C" fn tdx_string_free(s: *mut c_char) {
     }
 }
 
-// ── Tick serialization helpers ──
+// ═══════════════════════════════════════════════════════════════════════
+//  #[repr(C)] typed array types — zero-copy tick buffers for FFI
+// ═══════════════════════════════════════════════════════════════════════
 
-fn eod_tick_to_json(t: &tdbe::types::tick::EodTick) -> serde_json::Value {
-    serde_json::json!({
-        "ms_of_day": t.ms_of_day,
-        "open": t.open_price().to_f64(),
-        "high": t.high_price().to_f64(),
-        "low": t.low_price().to_f64(),
-        "close": t.close_price().to_f64(),
-        "volume": t.volume,
-        "count": t.count,
-        "bid": t.bid_price().to_f64(),
-        "ask": t.ask_price().to_f64(),
-        "date": t.date,
-    })
+/// Generate a `#[repr(C)]` array wrapper for a tick type, plus a free function.
+///
+/// Each generated type has:
+/// - `data`: pointer to the first element (null if empty)
+/// - `len`: number of elements
+/// - `from_vec()`: consumes a `Vec<T>` and returns the array
+/// - `free()`: deallocates the backing memory
+macro_rules! tick_array_type {
+    ($name:ident, $tick:ty) => {
+        /// Heap-allocated array of ticks returned from FFI.
+        /// Caller MUST free with the corresponding `tdx_*_array_free` function.
+        #[repr(C)]
+        pub struct $name {
+            pub data: *const $tick,
+            pub len: usize,
+        }
+
+        impl $name {
+            #[allow(dead_code)]
+            fn from_vec(v: Vec<$tick>) -> Self {
+                let len = v.len();
+                if len == 0 {
+                    return Self {
+                        data: ptr::null(),
+                        len: 0,
+                    };
+                }
+                let boxed = v.into_boxed_slice();
+                let data = Box::into_raw(boxed) as *const $tick;
+                Self { data, len }
+            }
+
+            unsafe fn free(self) {
+                if !self.data.is_null() && self.len > 0 {
+                    let _ = unsafe {
+                        Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+                            self.data as *mut $tick,
+                            self.len,
+                        ))
+                    };
+                }
+            }
+        }
+    };
 }
 
-fn ohlc_tick_to_json(t: &tdbe::types::tick::OhlcTick) -> serde_json::Value {
-    serde_json::json!({
-        "ms_of_day": t.ms_of_day,
-        "open": t.open_price().to_f64(),
-        "high": t.high_price().to_f64(),
-        "low": t.low_price().to_f64(),
-        "close": t.close_price().to_f64(),
-        "volume": t.volume,
-        "count": t.count,
-        "date": t.date,
-    })
+tick_array_type!(TdxEodTickArray, tdbe::EodTick);
+tick_array_type!(TdxOhlcTickArray, tdbe::OhlcTick);
+tick_array_type!(TdxTradeTickArray, tdbe::TradeTick);
+tick_array_type!(TdxQuoteTickArray, tdbe::QuoteTick);
+tick_array_type!(TdxGreeksTickArray, tdbe::GreeksTick);
+tick_array_type!(TdxIvTickArray, tdbe::IvTick);
+tick_array_type!(TdxPriceTickArray, tdbe::PriceTick);
+tick_array_type!(TdxOpenInterestTickArray, tdbe::OpenInterestTick);
+tick_array_type!(TdxMarketValueTickArray, tdbe::MarketValueTick);
+tick_array_type!(TdxCalendarDayArray, tdbe::CalendarDay);
+tick_array_type!(TdxInterestRateTickArray, tdbe::InterestRateTick);
+tick_array_type!(TdxSnapshotTradeTickArray, tdbe::SnapshotTradeTick);
+tick_array_type!(TdxTradeQuoteTickArray, tdbe::TradeQuoteTick);
+
+/// Generate a `#[no_mangle] extern "C"` free function for a tick array type.
+macro_rules! tick_array_free {
+    ($fn_name:ident, $array_type:ident) => {
+        /// Free a tick array returned by an FFI endpoint.
+        #[no_mangle]
+        pub unsafe extern "C" fn $fn_name(arr: $array_type) {
+            unsafe { arr.free() };
+        }
+    };
 }
 
-fn trade_tick_to_json(t: &tdbe::types::tick::TradeTick) -> serde_json::Value {
-    serde_json::json!({
-        "ms_of_day": t.ms_of_day,
-        "sequence": t.sequence,
-        "condition": t.condition,
-        "size": t.size,
-        "exchange": t.exchange,
-        "price": t.get_price().to_f64(),
-        "price_raw": t.price,
-        "price_type": t.price_type,
-        "condition_flags": t.condition_flags,
-        "price_flags": t.price_flags,
-        "volume_type": t.volume_type,
-        "records_back": t.records_back,
-        "date": t.date,
-    })
+tick_array_free!(tdx_eod_tick_array_free, TdxEodTickArray);
+tick_array_free!(tdx_ohlc_tick_array_free, TdxOhlcTickArray);
+tick_array_free!(tdx_trade_tick_array_free, TdxTradeTickArray);
+tick_array_free!(tdx_quote_tick_array_free, TdxQuoteTickArray);
+tick_array_free!(tdx_greeks_tick_array_free, TdxGreeksTickArray);
+tick_array_free!(tdx_iv_tick_array_free, TdxIvTickArray);
+tick_array_free!(tdx_price_tick_array_free, TdxPriceTickArray);
+tick_array_free!(tdx_open_interest_tick_array_free, TdxOpenInterestTickArray);
+tick_array_free!(tdx_market_value_tick_array_free, TdxMarketValueTickArray);
+tick_array_free!(tdx_calendar_day_array_free, TdxCalendarDayArray);
+tick_array_free!(tdx_interest_rate_tick_array_free, TdxInterestRateTickArray);
+tick_array_free!(
+    tdx_snapshot_trade_tick_array_free,
+    TdxSnapshotTradeTickArray
+);
+tick_array_free!(tdx_trade_quote_tick_array_free, TdxTradeQuoteTickArray);
+
+// ═══════════════════════════════════════════════════════════════════════
+//  OptionContract FFI type (String field requires special handling)
+// ═══════════════════════════════════════════════════════════════════════
+
+/// FFI-safe option contract descriptor.
+///
+/// The `root` field is a heap-allocated C string. Freed when the array is freed.
+#[repr(C)]
+pub struct TdxOptionContract {
+    /// Heap-allocated NUL-terminated C string. Freed with the array.
+    pub root: *const c_char,
+    pub expiration: i32,
+    pub strike: i32,
+    pub right: i32,
+    pub strike_price_type: i32,
 }
 
-fn quote_tick_to_json(t: &tdbe::types::tick::QuoteTick) -> serde_json::Value {
-    serde_json::json!({
-        "ms_of_day": t.ms_of_day,
-        "bid_size": t.bid_size,
-        "bid_exchange": t.bid_exchange,
-        "bid": t.bid_price().to_f64(),
-        "bid_condition": t.bid_condition,
-        "ask_size": t.ask_size,
-        "ask_exchange": t.ask_exchange,
-        "ask": t.ask_price().to_f64(),
-        "ask_condition": t.ask_condition,
-        "date": t.date,
-    })
+/// Array of FFI-safe option contracts.
+#[repr(C)]
+pub struct TdxOptionContractArray {
+    pub data: *const TdxOptionContract,
+    pub len: usize,
 }
 
-fn trade_quote_tick_to_json(t: &tdbe::types::tick::TradeQuoteTick) -> serde_json::Value {
-    serde_json::json!({
-        "ms_of_day": t.ms_of_day,
-        "sequence": t.sequence,
-        "condition": t.condition,
-        "size": t.size,
-        "exchange": t.exchange,
-        "price": t.trade_price().to_f64(),
-        "price_raw": t.price,
-        "price_type": t.price_type,
-        "condition_flags": t.condition_flags,
-        "price_flags": t.price_flags,
-        "volume_type": t.volume_type,
-        "records_back": t.records_back,
-        "quote_ms_of_day": t.quote_ms_of_day,
-        "bid_size": t.bid_size,
-        "bid_exchange": t.bid_exchange,
-        "bid": t.bid_price().to_f64(),
-        "bid_condition": t.bid_condition,
-        "ask_size": t.ask_size,
-        "ask_exchange": t.ask_exchange,
-        "ask": t.ask_price().to_f64(),
-        "ask_condition": t.ask_condition,
-        "quote_price_type": t.quote_price_type,
-        "date": t.date,
-    })
+impl TdxOptionContractArray {
+    fn from_vec(contracts: Vec<tdbe::OptionContract>) -> Self {
+        let len = contracts.len();
+        if len == 0 {
+            return Self {
+                data: ptr::null(),
+                len: 0,
+            };
+        }
+        let ffi_contracts: Vec<TdxOptionContract> = contracts
+            .into_iter()
+            .map(|c| {
+                let root = CString::new(c.root).unwrap_or_default();
+                TdxOptionContract {
+                    root: root.into_raw() as *const c_char,
+                    expiration: c.expiration,
+                    strike: c.strike,
+                    right: c.right,
+                    strike_price_type: c.strike_price_type,
+                }
+            })
+            .collect();
+        let boxed = ffi_contracts.into_boxed_slice();
+        let data = Box::into_raw(boxed) as *const TdxOptionContract;
+        Self { data, len }
+    }
 }
 
-fn open_interest_tick_to_json(t: &tdbe::types::tick::OpenInterestTick) -> serde_json::Value {
-    serde_json::json!({
-        "ms_of_day": t.ms_of_day,
-        "open_interest": t.open_interest,
-        "date": t.date,
-    })
-}
-
-fn market_value_tick_to_json(t: &tdbe::types::tick::MarketValueTick) -> serde_json::Value {
-    serde_json::json!({
-        "ms_of_day": t.ms_of_day,
-        "market_cap": t.market_cap,
-        "shares_outstanding": t.shares_outstanding,
-        "enterprise_value": t.enterprise_value,
-        "book_value": t.book_value,
-        "free_float": t.free_float,
-        "date": t.date,
-    })
-}
-
-fn greeks_tick_to_json(t: &tdbe::types::tick::GreeksTick) -> serde_json::Value {
-    serde_json::json!({
-        "ms_of_day": t.ms_of_day,
-        "implied_volatility": t.implied_volatility,
-        "delta": t.delta,
-        "gamma": t.gamma,
-        "theta": t.theta,
-        "vega": t.vega,
-        "rho": t.rho,
-        "iv_error": t.iv_error,
-        "vanna": t.vanna,
-        "charm": t.charm,
-        "vomma": t.vomma,
-        "veta": t.veta,
-        "speed": t.speed,
-        "zomma": t.zomma,
-        "color": t.color,
-        "ultima": t.ultima,
-        "d1": t.d1,
-        "d2": t.d2,
-        "dual_delta": t.dual_delta,
-        "dual_gamma": t.dual_gamma,
-        "epsilon": t.epsilon,
-        "lambda": t.lambda,
-        "vera": t.vera,
-        "date": t.date,
-    })
-}
-
-fn iv_tick_to_json(t: &tdbe::types::tick::IvTick) -> serde_json::Value {
-    serde_json::json!({
-        "ms_of_day": t.ms_of_day,
-        "implied_volatility": t.implied_volatility,
-        "iv_error": t.iv_error,
-        "date": t.date,
-    })
-}
-
-fn price_tick_to_json(t: &tdbe::types::tick::PriceTick) -> serde_json::Value {
-    serde_json::json!({
-        "ms_of_day": t.ms_of_day,
-        "price": t.get_price().to_f64(),
-        "price_raw": t.price,
-        "price_type": t.price_type,
-        "date": t.date,
-    })
-}
-
-fn calendar_day_to_json(t: &tdbe::types::tick::CalendarDay) -> serde_json::Value {
-    serde_json::json!({
-        "date": t.date,
-        "is_open": t.is_open,
-        "open_time": t.open_time,
-        "close_time": t.close_time,
-        "status": t.status,
-    })
-}
-
-fn interest_rate_tick_to_json(t: &tdbe::types::tick::InterestRateTick) -> serde_json::Value {
-    serde_json::json!({
-        "ms_of_day": t.ms_of_day,
-        "rate": t.rate,
-        "date": t.date,
-    })
-}
-
-fn option_contract_to_json(t: &tdbe::types::tick::OptionContract) -> serde_json::Value {
-    serde_json::json!({
-        "root": t.root,
-        "expiration": t.expiration,
-        "strike": t.strike,
-        "right": t.right,
-        "strike_price_type": t.strike_price_type,
-    })
+/// Free an option contract array, including all heap-allocated root strings.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_option_contract_array_free(arr: TdxOptionContractArray) {
+    if !arr.data.is_null() && arr.len > 0 {
+        // First free each root C string
+        let slice = unsafe { std::slice::from_raw_parts(arr.data, arr.len) };
+        for contract in slice {
+            if !contract.root.is_null() {
+                drop(unsafe { CString::from_raw(contract.root as *mut c_char) });
+            }
+        }
+        // Then free the array itself
+        let _ = unsafe {
+            Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+                arr.data as *mut TdxOptionContract,
+                arr.len,
+            ))
+        };
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  FFI macros — eliminate boilerplate across all endpoint wrappers
+//  TdxStringArray — for list endpoints returning Vec<String>
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Array of heap-allocated C strings.
+#[repr(C)]
+pub struct TdxStringArray {
+    /// Array of pointers to NUL-terminated C strings.
+    pub data: *const *const c_char,
+    pub len: usize,
+}
+
+impl TdxStringArray {
+    fn from_vec(strings: Vec<String>) -> Self {
+        let len = strings.len();
+        if len == 0 {
+            return Self {
+                data: ptr::null(),
+                len: 0,
+            };
+        }
+        let cstrings: Vec<*const c_char> = strings
+            .into_iter()
+            .map(|s| CString::new(s).unwrap_or_default().into_raw() as *const c_char)
+            .collect();
+        let boxed = cstrings.into_boxed_slice();
+        let data = Box::into_raw(boxed) as *const *const c_char;
+        Self { data, len }
+    }
+}
+
+/// Free a string array, including all individual C strings.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_string_array_free(arr: TdxStringArray) {
+    if !arr.data.is_null() && arr.len > 0 {
+        let slice = unsafe { std::slice::from_raw_parts(arr.data, arr.len) };
+        for &s in slice {
+            if !s.is_null() {
+                drop(unsafe { CString::from_raw(s as *mut c_char) });
+            }
+        }
+        let _ = unsafe {
+            Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+                arr.data as *mut *const c_char,
+                arr.len,
+            ))
+        };
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  FFI endpoint macros — typed array returns (no JSON serialization)
 // ═══════════════════════════════════════════════════════════════════════
 
 /// FFI wrapper for list endpoints that return `Vec<String>` (no extra params beyond client).
@@ -673,22 +657,18 @@ macro_rules! ffi_list_endpoint_no_params {
     ) => {
         $(#[$meta])*
         #[no_mangle]
-        pub unsafe extern "C" fn $ffi_name(client: *const TdxClient) -> *mut c_char {
+        pub unsafe extern "C" fn $ffi_name(client: *const TdxClient) -> TdxStringArray {
+            let empty = TdxStringArray { data: ptr::null(), len: 0 };
             if client.is_null() {
                 set_error("client handle is null");
-                return ptr::null_mut();
+                return empty;
             }
             let client = unsafe { &*client };
             match runtime().block_on(client.inner.$method()) {
-                Ok(items) => {
-                    let json = serde_json::Value::Array(
-                        items.into_iter().map(serde_json::Value::String).collect(),
-                    );
-                    json_to_cstring(&json)
-                }
+                Ok(items) => TdxStringArray::from_vec(items),
                 Err(e) => {
                     set_error(&e.to_string());
-                    ptr::null_mut()
+                    empty
                 }
             }
         }
@@ -706,10 +686,11 @@ macro_rules! ffi_list_endpoint {
         pub unsafe extern "C" fn $ffi_name(
             client: *const TdxClient,
             $($param: *const c_char),+
-        ) -> *mut c_char {
+        ) -> TdxStringArray {
+            let empty = TdxStringArray { data: ptr::null(), len: 0 };
             if client.is_null() {
                 set_error("client handle is null");
-                return ptr::null_mut();
+                return empty;
             }
             let client = unsafe { &*client };
             $(
@@ -717,89 +698,82 @@ macro_rules! ffi_list_endpoint {
                     Some(s) => s,
                     None => {
                         set_error(concat!(stringify!($param), " is null or invalid UTF-8"));
-                        return ptr::null_mut();
+                        return empty;
                     }
                 };
             )+
             match runtime().block_on(client.inner.$method($($param),+)) {
-                Ok(items) => {
-                    let json = serde_json::Value::Array(
-                        items.into_iter().map(serde_json::Value::String).collect(),
-                    );
-                    json_to_cstring(&json)
-                }
+                Ok(items) => TdxStringArray::from_vec(items),
                 Err(e) => {
                     set_error(&e.to_string());
-                    ptr::null_mut()
+                    empty
                 }
             }
         }
     };
 }
 
-/// FFI wrapper for snapshot endpoints that take a JSON array of symbols and return tick arrays.
-macro_rules! ffi_snapshot_endpoint {
+/// FFI wrapper for snapshot endpoints that take a JSON array of symbols and return typed tick arrays.
+macro_rules! ffi_typed_snapshot_endpoint {
     (
         $(#[$meta:meta])*
-        $ffi_name:ident => $method:ident, $tick_to_json:ident
+        $ffi_name:ident => $method:ident, $array_type:ident
     ) => {
         $(#[$meta])*
         #[no_mangle]
         pub unsafe extern "C" fn $ffi_name(
             client: *const TdxClient,
             symbols_json: *const c_char,
-        ) -> *mut c_char {
+        ) -> $array_type {
+            let empty = $array_type { data: ptr::null(), len: 0 };
             if client.is_null() {
                 set_error("client handle is null");
-                return ptr::null_mut();
+                return empty;
             }
             let client = unsafe { &*client };
             let json_str = match unsafe { cstr_to_str(symbols_json) } {
                 Some(s) => s,
                 None => {
                     set_error("symbols_json is null or invalid UTF-8");
-                    return ptr::null_mut();
+                    return empty;
                 }
             };
             let symbols: Vec<String> = match serde_json::from_str(json_str) {
                 Ok(s) => s,
                 Err(e) => {
                     set_error(&format!("invalid symbols JSON: {}", e));
-                    return ptr::null_mut();
+                    return empty;
                 }
             };
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             match runtime().block_on(client.inner.$method(&refs)) {
-                Ok(ticks) => {
-                    let json =
-                        serde_json::Value::Array(ticks.iter().map($tick_to_json).collect());
-                    json_to_cstring(&json)
-                }
+                Ok(ticks) => $array_type::from_vec(ticks),
                 Err(e) => {
                     set_error(&e.to_string());
-                    ptr::null_mut()
+                    empty
                 }
             }
         }
     };
 }
 
-/// FFI wrapper for parsed tick endpoints with C string params.
-macro_rules! ffi_parsed_endpoint {
+/// FFI wrapper for typed tick endpoints with C string params.
+macro_rules! ffi_typed_endpoint {
     // Variant with trailing extra args (e.g. None, None for optional time params)
     (
         $(#[$meta:meta])*
-        $ffi_name:ident => $method:ident, $tick_to_json:ident ( $($param:ident),+ ) [ $($trailing:expr),* ]
+        $ffi_name:ident => $method:ident, $array_type:ident ( $($param:ident),+ ) [ $($trailing:expr),* ]
     ) => {
         $(#[$meta])*
         #[no_mangle]
         pub unsafe extern "C" fn $ffi_name(
             client: *const TdxClient,
             $($param: *const c_char),+
-        ) -> *mut c_char {
+        ) -> $array_type {
+            let empty = $array_type { data: ptr::null(), len: 0 };
             if client.is_null() {
                 set_error("client handle is null");
-                return ptr::null_mut();
+                return empty;
             }
             let client = unsafe { &*client };
             $(
@@ -807,37 +781,34 @@ macro_rules! ffi_parsed_endpoint {
                     Some(s) => s,
                     None => {
                         set_error(concat!(stringify!($param), " is null or invalid UTF-8"));
-                        return ptr::null_mut();
+                        return empty;
                     }
                 };
             )+
             match runtime().block_on(client.inner.$method($($param,)+ $($trailing),*)) {
-                Ok(ticks) => {
-                    let json =
-                        serde_json::Value::Array(ticks.iter().map($tick_to_json).collect());
-                    json_to_cstring(&json)
-                }
+                Ok(ticks) => $array_type::from_vec(ticks),
                 Err(e) => {
                     set_error(&e.to_string());
-                    ptr::null_mut()
+                    empty
                 }
             }
         }
     };
-    // Original variant without trailing args (for endpoints that don't need them)
+    // Variant without trailing args
     (
         $(#[$meta:meta])*
-        $ffi_name:ident => $method:ident, $tick_to_json:ident ( $($param:ident),+ )
+        $ffi_name:ident => $method:ident, $array_type:ident ( $($param:ident),+ )
     ) => {
         $(#[$meta])*
         #[no_mangle]
         pub unsafe extern "C" fn $ffi_name(
             client: *const TdxClient,
             $($param: *const c_char),+
-        ) -> *mut c_char {
+        ) -> $array_type {
+            let empty = $array_type { data: ptr::null(), len: 0 };
             if client.is_null() {
                 set_error("client handle is null");
-                return ptr::null_mut();
+                return empty;
             }
             let client = unsafe { &*client };
             $(
@@ -845,48 +816,41 @@ macro_rules! ffi_parsed_endpoint {
                     Some(s) => s,
                     None => {
                         set_error(concat!(stringify!($param), " is null or invalid UTF-8"));
-                        return ptr::null_mut();
+                        return empty;
                     }
                 };
             )+
             match runtime().block_on(client.inner.$method($($param),+)) {
-                Ok(ticks) => {
-                    let json =
-                        serde_json::Value::Array(ticks.iter().map($tick_to_json).collect());
-                    json_to_cstring(&json)
-                }
+                Ok(ticks) => $array_type::from_vec(ticks),
                 Err(e) => {
                     set_error(&e.to_string());
-                    ptr::null_mut()
+                    empty
                 }
             }
         }
     };
 }
 
-/// FFI wrapper for parsed endpoints with no params.
-macro_rules! ffi_parsed_endpoint_no_params {
+/// FFI wrapper for typed endpoints with no params.
+macro_rules! ffi_typed_endpoint_no_params {
     (
         $(#[$meta:meta])*
-        $ffi_name:ident => $method:ident, $tick_to_json:ident
+        $ffi_name:ident => $method:ident, $array_type:ident
     ) => {
         $(#[$meta])*
         #[no_mangle]
-        pub unsafe extern "C" fn $ffi_name(client: *const TdxClient) -> *mut c_char {
+        pub unsafe extern "C" fn $ffi_name(client: *const TdxClient) -> $array_type {
+            let empty = $array_type { data: ptr::null(), len: 0 };
             if client.is_null() {
                 set_error("client handle is null");
-                return ptr::null_mut();
+                return empty;
             }
             let client = unsafe { &*client };
             match runtime().block_on(client.inner.$method()) {
-                Ok(ticks) => {
-                    let json =
-                        serde_json::Value::Array(ticks.iter().map($tick_to_json).collect());
-                    json_to_cstring(&json)
-                }
+                Ok(ticks) => $array_type::from_vec(ticks),
                 Err(e) => {
                     set_error(&e.to_string());
-                    ptr::null_mut()
+                    empty
                 }
             }
         }
@@ -899,13 +863,13 @@ macro_rules! ffi_parsed_endpoint_no_params {
 
 // 1. stock_list_symbols
 ffi_list_endpoint_no_params! {
-    /// List all available stock symbols. Returns JSON array of strings.
+    /// List all available stock symbols. Returns TdxStringArray.
     tdx_stock_list_symbols => stock_list_symbols
 }
 
 // 2. stock_list_dates
 ffi_list_endpoint! {
-    /// List available dates for a stock by request type. Returns JSON array of date strings.
+    /// List available dates for a stock by request type. Returns TdxStringArray.
     tdx_stock_list_dates => stock_list_dates(request_type, symbol)
 }
 
@@ -914,27 +878,27 @@ ffi_list_endpoint! {
 // ═══════════════════════════════════════════════════════════════════════
 
 // 3. stock_snapshot_ohlc
-ffi_snapshot_endpoint! {
-    /// Get latest OHLC snapshot. symbols_json is JSON array. Returns JSON array of OHLC ticks.
-    tdx_stock_snapshot_ohlc => stock_snapshot_ohlc, ohlc_tick_to_json
+ffi_typed_snapshot_endpoint! {
+    /// Get latest OHLC snapshot. symbols_json is JSON array. Returns TdxOhlcTickArray.
+    tdx_stock_snapshot_ohlc => stock_snapshot_ohlc, TdxOhlcTickArray
 }
 
 // 4. stock_snapshot_trade
-ffi_snapshot_endpoint! {
-    /// Get latest trade snapshot. symbols_json is JSON array. Returns JSON array of trade ticks.
-    tdx_stock_snapshot_trade => stock_snapshot_trade, trade_tick_to_json
+ffi_typed_snapshot_endpoint! {
+    /// Get latest trade snapshot. symbols_json is JSON array. Returns TdxTradeTickArray.
+    tdx_stock_snapshot_trade => stock_snapshot_trade, TdxTradeTickArray
 }
 
 // 5. stock_snapshot_quote
-ffi_snapshot_endpoint! {
-    /// Get latest NBBO quote snapshot. symbols_json is JSON array. Returns JSON array of quote ticks.
-    tdx_stock_snapshot_quote => stock_snapshot_quote, quote_tick_to_json
+ffi_typed_snapshot_endpoint! {
+    /// Get latest NBBO quote snapshot. symbols_json is JSON array. Returns TdxQuoteTickArray.
+    tdx_stock_snapshot_quote => stock_snapshot_quote, TdxQuoteTickArray
 }
 
 // 6. stock_snapshot_market_value
-ffi_snapshot_endpoint! {
-    /// Get latest market value snapshot. symbols_json is JSON array. Returns JSON array.
-    tdx_stock_snapshot_market_value => stock_snapshot_market_value, market_value_tick_to_json
+ffi_typed_snapshot_endpoint! {
+    /// Get latest market value snapshot. symbols_json is JSON array. Returns TdxMarketValueTickArray.
+    tdx_stock_snapshot_market_value => stock_snapshot_market_value, TdxMarketValueTickArray
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -942,39 +906,39 @@ ffi_snapshot_endpoint! {
 // ═══════════════════════════════════════════════════════════════════════
 
 // 7. stock_history_eod
-ffi_parsed_endpoint! {
-    /// Fetch stock end-of-day history. Returns JSON array of EOD ticks.
-    tdx_stock_history_eod => stock_history_eod, eod_tick_to_json(symbol, start_date, end_date)
+ffi_typed_endpoint! {
+    /// Fetch stock end-of-day history. Returns TdxEodTickArray.
+    tdx_stock_history_eod => stock_history_eod, TdxEodTickArray(symbol, start_date, end_date)
 }
 
 // 8. stock_history_ohlc
-ffi_parsed_endpoint! {
-    /// Fetch stock intraday OHLC bars. Returns JSON array of OHLC ticks.
-    tdx_stock_history_ohlc => stock_history_ohlc, ohlc_tick_to_json(symbol, date, interval) [None, None]
+ffi_typed_endpoint! {
+    /// Fetch stock intraday OHLC bars. Returns TdxOhlcTickArray.
+    tdx_stock_history_ohlc => stock_history_ohlc, TdxOhlcTickArray(symbol, date, interval) [None, None]
 }
 
 // 8b. stock_history_ohlc_range
-ffi_parsed_endpoint! {
-    /// Fetch stock intraday OHLC bars across a date range. Returns JSON array.
-    tdx_stock_history_ohlc_range => stock_history_ohlc_range, ohlc_tick_to_json(symbol, start_date, end_date, interval) [None, None]
+ffi_typed_endpoint! {
+    /// Fetch stock intraday OHLC bars across a date range. Returns TdxOhlcTickArray.
+    tdx_stock_history_ohlc_range => stock_history_ohlc_range, TdxOhlcTickArray(symbol, start_date, end_date, interval) [None, None]
 }
 
 // 9. stock_history_trade
-ffi_parsed_endpoint! {
-    /// Fetch all trades on a date. Returns JSON array of trade ticks.
-    tdx_stock_history_trade => stock_history_trade, trade_tick_to_json(symbol, date) [None, None]
+ffi_typed_endpoint! {
+    /// Fetch all trades on a date. Returns TdxTradeTickArray.
+    tdx_stock_history_trade => stock_history_trade, TdxTradeTickArray(symbol, date) [None, None]
 }
 
 // 10. stock_history_quote
-ffi_parsed_endpoint! {
-    /// Fetch NBBO quotes. Returns JSON array of quote ticks.
-    tdx_stock_history_quote => stock_history_quote, quote_tick_to_json(symbol, date, interval) [None, None]
+ffi_typed_endpoint! {
+    /// Fetch NBBO quotes. Returns TdxQuoteTickArray.
+    tdx_stock_history_quote => stock_history_quote, TdxQuoteTickArray(symbol, date, interval) [None, None]
 }
 
 // 11. stock_history_trade_quote
-ffi_parsed_endpoint! {
-    /// Fetch combined trade + quote ticks. Returns JSON array.
-    tdx_stock_history_trade_quote => stock_history_trade_quote, trade_quote_tick_to_json(symbol, date) [None, None]
+ffi_typed_endpoint! {
+    /// Fetch combined trade + quote ticks. Returns TdxTradeQuoteTickArray.
+    tdx_stock_history_trade_quote => stock_history_trade_quote, TdxTradeQuoteTickArray(symbol, date) [None, None]
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -982,15 +946,15 @@ ffi_parsed_endpoint! {
 // ═══════════════════════════════════════════════════════════════════════
 
 // 12. stock_at_time_trade
-ffi_parsed_endpoint! {
+ffi_typed_endpoint! {
     /// Fetch the trade at a specific time of day across a date range.
-    tdx_stock_at_time_trade => stock_at_time_trade, trade_tick_to_json(symbol, start_date, end_date, time_of_day)
+    tdx_stock_at_time_trade => stock_at_time_trade, TdxTradeTickArray(symbol, start_date, end_date, time_of_day)
 }
 
 // 13. stock_at_time_quote
-ffi_parsed_endpoint! {
+ffi_typed_endpoint! {
     /// Fetch the quote at a specific time of day across a date range.
-    tdx_stock_at_time_quote => stock_at_time_quote, quote_tick_to_json(symbol, start_date, end_date, time_of_day)
+    tdx_stock_at_time_quote => stock_at_time_quote, TdxQuoteTickArray(symbol, start_date, end_date, time_of_day)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -999,32 +963,32 @@ ffi_parsed_endpoint! {
 
 // 14. option_list_symbols
 ffi_list_endpoint_no_params! {
-    /// List all option underlyings. Returns JSON array of strings.
+    /// List all option underlyings. Returns TdxStringArray.
     tdx_option_list_symbols => option_list_symbols
 }
 
 // 15. option_list_dates
 ffi_list_endpoint! {
-    /// List available dates for an option contract. Returns JSON array of date strings.
+    /// List available dates for an option contract. Returns TdxStringArray.
     tdx_option_list_dates => option_list_dates(request_type, symbol, expiration, strike, right)
 }
 
 // 16. option_list_expirations
 ffi_list_endpoint! {
-    /// List expiration dates. Returns JSON array of date strings.
+    /// List expiration dates. Returns TdxStringArray.
     tdx_option_list_expirations => option_list_expirations(symbol)
 }
 
 // 17. option_list_strikes
 ffi_list_endpoint! {
-    /// List strike prices. Returns JSON array of strings.
+    /// List strike prices. Returns TdxStringArray.
     tdx_option_list_strikes => option_list_strikes(symbol, expiration)
 }
 
 // 18. option_list_contracts
-ffi_parsed_endpoint! {
-    /// List all option contracts for a symbol on a date. Returns JSON array.
-    tdx_option_list_contracts => option_list_contracts, option_contract_to_json(request_type, symbol, date)
+ffi_typed_endpoint! {
+    /// List all option contracts for a symbol on a date. Returns TdxOptionContractArray.
+    tdx_option_list_contracts => option_list_contracts, TdxOptionContractArray(request_type, symbol, date)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1032,63 +996,63 @@ ffi_parsed_endpoint! {
 // ═══════════════════════════════════════════════════════════════════════
 
 // 19. option_snapshot_ohlc
-ffi_parsed_endpoint! {
-    /// Get latest OHLC snapshot for options. Returns JSON array.
-    tdx_option_snapshot_ohlc => option_snapshot_ohlc, ohlc_tick_to_json(symbol, expiration, strike, right)
+ffi_typed_endpoint! {
+    /// Get latest OHLC snapshot for options. Returns TdxOhlcTickArray.
+    tdx_option_snapshot_ohlc => option_snapshot_ohlc, TdxOhlcTickArray(symbol, expiration, strike, right)
 }
 
 // 20. option_snapshot_trade
-ffi_parsed_endpoint! {
-    /// Get latest trade snapshot for options. Returns JSON array.
-    tdx_option_snapshot_trade => option_snapshot_trade, trade_tick_to_json(symbol, expiration, strike, right)
+ffi_typed_endpoint! {
+    /// Get latest trade snapshot for options. Returns TdxTradeTickArray.
+    tdx_option_snapshot_trade => option_snapshot_trade, TdxTradeTickArray(symbol, expiration, strike, right)
 }
 
 // 21. option_snapshot_quote
-ffi_parsed_endpoint! {
-    /// Get latest NBBO quote snapshot for options. Returns JSON array.
-    tdx_option_snapshot_quote => option_snapshot_quote, quote_tick_to_json(symbol, expiration, strike, right)
+ffi_typed_endpoint! {
+    /// Get latest NBBO quote snapshot for options. Returns TdxQuoteTickArray.
+    tdx_option_snapshot_quote => option_snapshot_quote, TdxQuoteTickArray(symbol, expiration, strike, right)
 }
 
 // 22. option_snapshot_open_interest
-ffi_parsed_endpoint! {
-    /// Get latest open interest snapshot for options. Returns JSON array.
-    tdx_option_snapshot_open_interest => option_snapshot_open_interest, open_interest_tick_to_json(symbol, expiration, strike, right)
+ffi_typed_endpoint! {
+    /// Get latest open interest snapshot for options. Returns TdxOpenInterestTickArray.
+    tdx_option_snapshot_open_interest => option_snapshot_open_interest, TdxOpenInterestTickArray(symbol, expiration, strike, right)
 }
 
 // 23. option_snapshot_market_value
-ffi_parsed_endpoint! {
-    /// Get latest market value snapshot for options. Returns JSON array.
-    tdx_option_snapshot_market_value => option_snapshot_market_value, market_value_tick_to_json(symbol, expiration, strike, right)
+ffi_typed_endpoint! {
+    /// Get latest market value snapshot for options. Returns TdxMarketValueTickArray.
+    tdx_option_snapshot_market_value => option_snapshot_market_value, TdxMarketValueTickArray(symbol, expiration, strike, right)
 }
 
 // 24. option_snapshot_greeks_implied_volatility
-ffi_parsed_endpoint! {
-    /// Get IV snapshot for options. Returns JSON array.
-    tdx_option_snapshot_greeks_implied_volatility => option_snapshot_greeks_implied_volatility, iv_tick_to_json(symbol, expiration, strike, right)
+ffi_typed_endpoint! {
+    /// Get IV snapshot for options. Returns TdxIvTickArray.
+    tdx_option_snapshot_greeks_implied_volatility => option_snapshot_greeks_implied_volatility, TdxIvTickArray(symbol, expiration, strike, right)
 }
 
 // 25. option_snapshot_greeks_all
-ffi_parsed_endpoint! {
-    /// Get all Greeks snapshot for options. Returns JSON array.
-    tdx_option_snapshot_greeks_all => option_snapshot_greeks_all, greeks_tick_to_json(symbol, expiration, strike, right)
+ffi_typed_endpoint! {
+    /// Get all Greeks snapshot for options. Returns TdxGreeksTickArray.
+    tdx_option_snapshot_greeks_all => option_snapshot_greeks_all, TdxGreeksTickArray(symbol, expiration, strike, right)
 }
 
 // 26. option_snapshot_greeks_first_order
-ffi_parsed_endpoint! {
-    /// Get first-order Greeks snapshot. Returns JSON array.
-    tdx_option_snapshot_greeks_first_order => option_snapshot_greeks_first_order, greeks_tick_to_json(symbol, expiration, strike, right)
+ffi_typed_endpoint! {
+    /// Get first-order Greeks snapshot. Returns TdxGreeksTickArray.
+    tdx_option_snapshot_greeks_first_order => option_snapshot_greeks_first_order, TdxGreeksTickArray(symbol, expiration, strike, right)
 }
 
 // 27. option_snapshot_greeks_second_order
-ffi_parsed_endpoint! {
-    /// Get second-order Greeks snapshot. Returns JSON array.
-    tdx_option_snapshot_greeks_second_order => option_snapshot_greeks_second_order, greeks_tick_to_json(symbol, expiration, strike, right)
+ffi_typed_endpoint! {
+    /// Get second-order Greeks snapshot. Returns TdxGreeksTickArray.
+    tdx_option_snapshot_greeks_second_order => option_snapshot_greeks_second_order, TdxGreeksTickArray(symbol, expiration, strike, right)
 }
 
 // 28. option_snapshot_greeks_third_order
-ffi_parsed_endpoint! {
-    /// Get third-order Greeks snapshot. Returns JSON array.
-    tdx_option_snapshot_greeks_third_order => option_snapshot_greeks_third_order, greeks_tick_to_json(symbol, expiration, strike, right)
+ffi_typed_endpoint! {
+    /// Get third-order Greeks snapshot. Returns TdxGreeksTickArray.
+    tdx_option_snapshot_greeks_third_order => option_snapshot_greeks_third_order, TdxGreeksTickArray(symbol, expiration, strike, right)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1096,39 +1060,39 @@ ffi_parsed_endpoint! {
 // ═══════════════════════════════════════════════════════════════════════
 
 // 29. option_history_eod
-ffi_parsed_endpoint! {
-    /// Fetch EOD option data for a contract over a date range. Returns JSON array of EOD ticks.
-    tdx_option_history_eod => option_history_eod, eod_tick_to_json(symbol, expiration, strike, right, start_date, end_date)
+ffi_typed_endpoint! {
+    /// Fetch EOD option data for a contract over a date range. Returns TdxEodTickArray.
+    tdx_option_history_eod => option_history_eod, TdxEodTickArray(symbol, expiration, strike, right, start_date, end_date)
 }
 
 // 30. option_history_ohlc
-ffi_parsed_endpoint! {
-    /// Fetch intraday OHLC bars for an option contract. Returns JSON array.
-    tdx_option_history_ohlc => option_history_ohlc, ohlc_tick_to_json(symbol, expiration, strike, right, date, interval) [None, None]
+ffi_typed_endpoint! {
+    /// Fetch intraday OHLC bars for an option contract. Returns TdxOhlcTickArray.
+    tdx_option_history_ohlc => option_history_ohlc, TdxOhlcTickArray(symbol, expiration, strike, right, date, interval) [None, None]
 }
 
 // 31. option_history_trade
-ffi_parsed_endpoint! {
-    /// Fetch all trades for an option contract on a date. Returns JSON array.
-    tdx_option_history_trade => option_history_trade, trade_tick_to_json(symbol, expiration, strike, right, date) [None, None]
+ffi_typed_endpoint! {
+    /// Fetch all trades for an option contract on a date. Returns TdxTradeTickArray.
+    tdx_option_history_trade => option_history_trade, TdxTradeTickArray(symbol, expiration, strike, right, date) [None, None]
 }
 
 // 32. option_history_quote
-ffi_parsed_endpoint! {
-    /// Fetch NBBO quotes for an option contract on a date. Returns JSON array.
-    tdx_option_history_quote => option_history_quote, quote_tick_to_json(symbol, expiration, strike, right, date, interval) [None, None]
+ffi_typed_endpoint! {
+    /// Fetch NBBO quotes for an option contract on a date. Returns TdxQuoteTickArray.
+    tdx_option_history_quote => option_history_quote, TdxQuoteTickArray(symbol, expiration, strike, right, date, interval) [None, None]
 }
 
 // 33. option_history_trade_quote
-ffi_parsed_endpoint! {
-    /// Fetch combined trade + quote ticks for an option contract. Returns JSON array.
-    tdx_option_history_trade_quote => option_history_trade_quote, trade_quote_tick_to_json(symbol, expiration, strike, right, date) [None, None]
+ffi_typed_endpoint! {
+    /// Fetch combined trade + quote ticks for an option contract. Returns TdxTradeQuoteTickArray.
+    tdx_option_history_trade_quote => option_history_trade_quote, TdxTradeQuoteTickArray(symbol, expiration, strike, right, date) [None, None]
 }
 
 // 34. option_history_open_interest
-ffi_parsed_endpoint! {
-    /// Fetch open interest history for an option contract. Returns JSON array.
-    tdx_option_history_open_interest => option_history_open_interest, open_interest_tick_to_json(symbol, expiration, strike, right, date)
+ffi_typed_endpoint! {
+    /// Fetch open interest history for an option contract. Returns TdxOpenInterestTickArray.
+    tdx_option_history_open_interest => option_history_open_interest, TdxOpenInterestTickArray(symbol, expiration, strike, right, date)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1136,69 +1100,69 @@ ffi_parsed_endpoint! {
 // ═══════════════════════════════════════════════════════════════════════
 
 // 35. option_history_greeks_eod
-ffi_parsed_endpoint! {
-    /// Fetch EOD Greeks history. Returns JSON array.
-    tdx_option_history_greeks_eod => option_history_greeks_eod, greeks_tick_to_json(symbol, expiration, strike, right, start_date, end_date)
+ffi_typed_endpoint! {
+    /// Fetch EOD Greeks history. Returns TdxGreeksTickArray.
+    tdx_option_history_greeks_eod => option_history_greeks_eod, TdxGreeksTickArray(symbol, expiration, strike, right, start_date, end_date)
 }
 
 // 36. option_history_greeks_all
-ffi_parsed_endpoint! {
-    /// Fetch all Greeks history (intraday). Returns JSON array.
-    tdx_option_history_greeks_all => option_history_greeks_all, greeks_tick_to_json(symbol, expiration, strike, right, date, interval) [None, None]
+ffi_typed_endpoint! {
+    /// Fetch all Greeks history (intraday). Returns TdxGreeksTickArray.
+    tdx_option_history_greeks_all => option_history_greeks_all, TdxGreeksTickArray(symbol, expiration, strike, right, date, interval) [None, None]
 }
 
 // 37. option_history_trade_greeks_all
-ffi_parsed_endpoint! {
-    /// Fetch all Greeks on each trade. Returns JSON array.
-    tdx_option_history_trade_greeks_all => option_history_trade_greeks_all, greeks_tick_to_json(symbol, expiration, strike, right, date) [None, None]
+ffi_typed_endpoint! {
+    /// Fetch all Greeks on each trade. Returns TdxGreeksTickArray.
+    tdx_option_history_trade_greeks_all => option_history_trade_greeks_all, TdxGreeksTickArray(symbol, expiration, strike, right, date) [None, None]
 }
 
 // 38. option_history_greeks_first_order
-ffi_parsed_endpoint! {
-    /// Fetch first-order Greeks history. Returns JSON array.
-    tdx_option_history_greeks_first_order => option_history_greeks_first_order, greeks_tick_to_json(symbol, expiration, strike, right, date, interval) [None, None]
+ffi_typed_endpoint! {
+    /// Fetch first-order Greeks history. Returns TdxGreeksTickArray.
+    tdx_option_history_greeks_first_order => option_history_greeks_first_order, TdxGreeksTickArray(symbol, expiration, strike, right, date, interval) [None, None]
 }
 
 // 39. option_history_trade_greeks_first_order
-ffi_parsed_endpoint! {
-    /// Fetch first-order Greeks on each trade. Returns JSON array.
-    tdx_option_history_trade_greeks_first_order => option_history_trade_greeks_first_order, greeks_tick_to_json(symbol, expiration, strike, right, date) [None, None]
+ffi_typed_endpoint! {
+    /// Fetch first-order Greeks on each trade. Returns TdxGreeksTickArray.
+    tdx_option_history_trade_greeks_first_order => option_history_trade_greeks_first_order, TdxGreeksTickArray(symbol, expiration, strike, right, date) [None, None]
 }
 
 // 40. option_history_greeks_second_order
-ffi_parsed_endpoint! {
-    /// Fetch second-order Greeks history. Returns JSON array.
-    tdx_option_history_greeks_second_order => option_history_greeks_second_order, greeks_tick_to_json(symbol, expiration, strike, right, date, interval) [None, None]
+ffi_typed_endpoint! {
+    /// Fetch second-order Greeks history. Returns TdxGreeksTickArray.
+    tdx_option_history_greeks_second_order => option_history_greeks_second_order, TdxGreeksTickArray(symbol, expiration, strike, right, date, interval) [None, None]
 }
 
 // 41. option_history_trade_greeks_second_order
-ffi_parsed_endpoint! {
-    /// Fetch second-order Greeks on each trade. Returns JSON array.
-    tdx_option_history_trade_greeks_second_order => option_history_trade_greeks_second_order, greeks_tick_to_json(symbol, expiration, strike, right, date) [None, None]
+ffi_typed_endpoint! {
+    /// Fetch second-order Greeks on each trade. Returns TdxGreeksTickArray.
+    tdx_option_history_trade_greeks_second_order => option_history_trade_greeks_second_order, TdxGreeksTickArray(symbol, expiration, strike, right, date) [None, None]
 }
 
 // 42. option_history_greeks_third_order
-ffi_parsed_endpoint! {
-    /// Fetch third-order Greeks history. Returns JSON array.
-    tdx_option_history_greeks_third_order => option_history_greeks_third_order, greeks_tick_to_json(symbol, expiration, strike, right, date, interval) [None, None]
+ffi_typed_endpoint! {
+    /// Fetch third-order Greeks history. Returns TdxGreeksTickArray.
+    tdx_option_history_greeks_third_order => option_history_greeks_third_order, TdxGreeksTickArray(symbol, expiration, strike, right, date, interval) [None, None]
 }
 
 // 43. option_history_trade_greeks_third_order
-ffi_parsed_endpoint! {
-    /// Fetch third-order Greeks on each trade. Returns JSON array.
-    tdx_option_history_trade_greeks_third_order => option_history_trade_greeks_third_order, greeks_tick_to_json(symbol, expiration, strike, right, date) [None, None]
+ffi_typed_endpoint! {
+    /// Fetch third-order Greeks on each trade. Returns TdxGreeksTickArray.
+    tdx_option_history_trade_greeks_third_order => option_history_trade_greeks_third_order, TdxGreeksTickArray(symbol, expiration, strike, right, date) [None, None]
 }
 
 // 44. option_history_greeks_implied_volatility
-ffi_parsed_endpoint! {
-    /// Fetch IV history (intraday). Returns JSON array.
-    tdx_option_history_greeks_implied_volatility => option_history_greeks_implied_volatility, iv_tick_to_json(symbol, expiration, strike, right, date, interval) [None, None]
+ffi_typed_endpoint! {
+    /// Fetch IV history (intraday). Returns TdxIvTickArray.
+    tdx_option_history_greeks_implied_volatility => option_history_greeks_implied_volatility, TdxIvTickArray(symbol, expiration, strike, right, date, interval) [None, None]
 }
 
 // 45. option_history_trade_greeks_implied_volatility
-ffi_parsed_endpoint! {
-    /// Fetch IV on each trade. Returns JSON array.
-    tdx_option_history_trade_greeks_implied_volatility => option_history_trade_greeks_implied_volatility, iv_tick_to_json(symbol, expiration, strike, right, date) [None, None]
+ffi_typed_endpoint! {
+    /// Fetch IV on each trade. Returns TdxIvTickArray.
+    tdx_option_history_trade_greeks_implied_volatility => option_history_trade_greeks_implied_volatility, TdxIvTickArray(symbol, expiration, strike, right, date) [None, None]
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1206,15 +1170,15 @@ ffi_parsed_endpoint! {
 // ═══════════════════════════════════════════════════════════════════════
 
 // 46. option_at_time_trade
-ffi_parsed_endpoint! {
-    /// Fetch the trade at a specific time for an option contract. Returns JSON array.
-    tdx_option_at_time_trade => option_at_time_trade, trade_tick_to_json(symbol, expiration, strike, right, start_date, end_date, time_of_day)
+ffi_typed_endpoint! {
+    /// Fetch the trade at a specific time for an option contract. Returns TdxTradeTickArray.
+    tdx_option_at_time_trade => option_at_time_trade, TdxTradeTickArray(symbol, expiration, strike, right, start_date, end_date, time_of_day)
 }
 
 // 47. option_at_time_quote
-ffi_parsed_endpoint! {
-    /// Fetch the quote at a specific time for an option contract. Returns JSON array.
-    tdx_option_at_time_quote => option_at_time_quote, quote_tick_to_json(symbol, expiration, strike, right, start_date, end_date, time_of_day)
+ffi_typed_endpoint! {
+    /// Fetch the quote at a specific time for an option contract. Returns TdxQuoteTickArray.
+    tdx_option_at_time_quote => option_at_time_quote, TdxQuoteTickArray(symbol, expiration, strike, right, start_date, end_date, time_of_day)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1223,13 +1187,13 @@ ffi_parsed_endpoint! {
 
 // 48. index_list_symbols
 ffi_list_endpoint_no_params! {
-    /// List all index symbols. Returns JSON array of strings.
+    /// List all index symbols. Returns TdxStringArray.
     tdx_index_list_symbols => index_list_symbols
 }
 
 // 49. index_list_dates
 ffi_list_endpoint! {
-    /// List available dates for an index. Returns JSON array of date strings.
+    /// List available dates for an index. Returns TdxStringArray.
     tdx_index_list_dates => index_list_dates(symbol)
 }
 
@@ -1238,21 +1202,21 @@ ffi_list_endpoint! {
 // ═══════════════════════════════════════════════════════════════════════
 
 // 50. index_snapshot_ohlc
-ffi_snapshot_endpoint! {
-    /// Get latest OHLC snapshot for indices. Returns JSON array.
-    tdx_index_snapshot_ohlc => index_snapshot_ohlc, ohlc_tick_to_json
+ffi_typed_snapshot_endpoint! {
+    /// Get latest OHLC snapshot for indices. Returns TdxOhlcTickArray.
+    tdx_index_snapshot_ohlc => index_snapshot_ohlc, TdxOhlcTickArray
 }
 
 // 51. index_snapshot_price
-ffi_snapshot_endpoint! {
-    /// Get latest price snapshot for indices. Returns JSON array.
-    tdx_index_snapshot_price => index_snapshot_price, price_tick_to_json
+ffi_typed_snapshot_endpoint! {
+    /// Get latest price snapshot for indices. Returns TdxPriceTickArray.
+    tdx_index_snapshot_price => index_snapshot_price, TdxPriceTickArray
 }
 
 // 52. index_snapshot_market_value
-ffi_snapshot_endpoint! {
-    /// Get latest market value snapshot for indices. Returns JSON array.
-    tdx_index_snapshot_market_value => index_snapshot_market_value, market_value_tick_to_json
+ffi_typed_snapshot_endpoint! {
+    /// Get latest market value snapshot for indices. Returns TdxMarketValueTickArray.
+    tdx_index_snapshot_market_value => index_snapshot_market_value, TdxMarketValueTickArray
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1260,21 +1224,21 @@ ffi_snapshot_endpoint! {
 // ═══════════════════════════════════════════════════════════════════════
 
 // 53. index_history_eod
-ffi_parsed_endpoint! {
-    /// Fetch EOD index data for a date range. Returns JSON array of EOD ticks.
-    tdx_index_history_eod => index_history_eod, eod_tick_to_json(symbol, start_date, end_date)
+ffi_typed_endpoint! {
+    /// Fetch EOD index data for a date range. Returns TdxEodTickArray.
+    tdx_index_history_eod => index_history_eod, TdxEodTickArray(symbol, start_date, end_date)
 }
 
 // 54. index_history_ohlc
-ffi_parsed_endpoint! {
-    /// Fetch intraday OHLC bars for an index. Returns JSON array.
-    tdx_index_history_ohlc => index_history_ohlc, ohlc_tick_to_json(symbol, start_date, end_date, interval) [None, None]
+ffi_typed_endpoint! {
+    /// Fetch intraday OHLC bars for an index. Returns TdxOhlcTickArray.
+    tdx_index_history_ohlc => index_history_ohlc, TdxOhlcTickArray(symbol, start_date, end_date, interval) [None, None]
 }
 
 // 55. index_history_price
-ffi_parsed_endpoint! {
-    /// Fetch intraday price history for an index. Returns JSON array.
-    tdx_index_history_price => index_history_price, price_tick_to_json(symbol, date, interval) [None, None]
+ffi_typed_endpoint! {
+    /// Fetch intraday price history for an index. Returns TdxPriceTickArray.
+    tdx_index_history_price => index_history_price, TdxPriceTickArray(symbol, date, interval) [None, None]
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1282,9 +1246,9 @@ ffi_parsed_endpoint! {
 // ═══════════════════════════════════════════════════════════════════════
 
 // 56. index_at_time_price
-ffi_parsed_endpoint! {
-    /// Fetch index price at a specific time across a date range. Returns JSON array.
-    tdx_index_at_time_price => index_at_time_price, price_tick_to_json(symbol, start_date, end_date, time_of_day)
+ffi_typed_endpoint! {
+    /// Fetch index price at a specific time across a date range. Returns TdxPriceTickArray.
+    tdx_index_at_time_price => index_at_time_price, TdxPriceTickArray(symbol, start_date, end_date, time_of_day)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1292,21 +1256,21 @@ ffi_parsed_endpoint! {
 // ═══════════════════════════════════════════════════════════════════════
 
 // 57. calendar_open_today
-ffi_parsed_endpoint_no_params! {
-    /// Check whether the market is open today. Returns JSON array.
-    tdx_calendar_open_today => calendar_open_today, calendar_day_to_json
+ffi_typed_endpoint_no_params! {
+    /// Check whether the market is open today. Returns TdxCalendarDayArray.
+    tdx_calendar_open_today => calendar_open_today, TdxCalendarDayArray
 }
 
 // 58. calendar_on_date
-ffi_parsed_endpoint! {
-    /// Get calendar information for a specific date. Returns JSON array.
-    tdx_calendar_on_date => calendar_on_date, calendar_day_to_json(date)
+ffi_typed_endpoint! {
+    /// Get calendar information for a specific date. Returns TdxCalendarDayArray.
+    tdx_calendar_on_date => calendar_on_date, TdxCalendarDayArray(date)
 }
 
 // 59. calendar_year
-ffi_parsed_endpoint! {
-    /// Get calendar information for an entire year. Returns JSON array.
-    tdx_calendar_year => calendar_year, calendar_day_to_json(year)
+ffi_typed_endpoint! {
+    /// Get calendar information for an entire year. Returns TdxCalendarDayArray.
+    tdx_calendar_year => calendar_year, TdxCalendarDayArray(year)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1314,9 +1278,9 @@ ffi_parsed_endpoint! {
 // ═══════════════════════════════════════════════════════════════════════
 
 // 60. interest_rate_history_eod
-ffi_parsed_endpoint! {
-    /// Fetch EOD interest rate history. Returns JSON array.
-    tdx_interest_rate_history_eod => interest_rate_history_eod, interest_rate_tick_to_json(symbol, start_date, end_date)
+ffi_typed_endpoint! {
+    /// Fetch EOD interest rate history. Returns TdxInterestRateTickArray.
+    tdx_interest_rate_history_eod => interest_rate_history_eod, TdxInterestRateTickArray(symbol, start_date, end_date)
 }
 
 // ═══════════════════════════════════════════════════════════════════════

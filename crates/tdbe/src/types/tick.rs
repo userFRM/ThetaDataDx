@@ -115,6 +115,7 @@ pub struct OhlcTick {
 
 /// Open interest tick.
 #[derive(Debug, Clone, Copy)]
+#[repr(C, align(64))]
 pub struct OpenInterestTick {
     pub ms_of_day: i32,
     pub open_interest: i32,
@@ -160,6 +161,7 @@ pub struct QuoteTick {
 
 /// Snapshot trade tick. Abbreviated trade for snapshots.
 #[derive(Debug, Clone, Copy)]
+#[repr(C, align(64))]
 pub struct SnapshotTradeTick {
     pub ms_of_day: i32,
     pub sequence: i32,
@@ -172,6 +174,7 @@ pub struct SnapshotTradeTick {
 
 /// Combined trade + quote tick.
 #[derive(Debug, Clone, Copy)]
+#[repr(C, align(64))]
 pub struct TradeQuoteTick {
     pub ms_of_day: i32,
     pub sequence: i32,
