@@ -133,7 +133,7 @@ pub mod proto_v3 {
 }
 
 pub use auth::Credentials;
-pub use config::DirectConfig;
+pub use config::{DirectConfig, FpssFlushMode};
 pub use error::Error;
 pub use registry::{EndpointMeta, ParamMeta, ParamType, ReturnType, ENDPOINTS};
 pub use unified::ThetaDataDx;

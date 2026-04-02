@@ -34,6 +34,17 @@
 
 use crate::error::Error;
 
+/// Controls when the FPSS write buffer is flushed.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum FpssFlushMode {
+    /// Flush only on PING frames (every 100ms). Matches Java terminal.
+    /// Lower syscall overhead, up to 100ms additional latency.
+    #[default]
+    Batched,
+    /// Flush after every frame write. Lowest latency, higher syscall overhead.
+    Immediate,
+}
+
 /// Configuration for connecting to ThetaData servers directly.
 ///
 /// Use [`DirectConfig::production()`] for the standard NJ production servers.
@@ -99,6 +110,14 @@ pub struct DirectConfig {
     /// NOTE: Not automatically wired — the connection module uses `protocol::CONNECT_TIMEOUT_MS`.
     /// Override that constant or pass this value when a configurable connect is added.
     pub fpss_connect_timeout_ms: u64,
+
+    /// Controls when the FPSS write buffer is flushed.
+    ///
+    /// - [`FpssFlushMode::Batched`] (default): only flush on PING frames (~100ms),
+    ///   matching the Java terminal. Lower syscall overhead.
+    /// - [`FpssFlushMode::Immediate`]: flush after every frame write. Lowest
+    ///   latency, higher syscall overhead.
+    pub fpss_flush_mode: FpssFlushMode,
 
     // -- MDDS tuning --
     /// Max concurrent in-flight gRPC requests.
@@ -190,6 +209,7 @@ impl DirectConfig {
             fpss_ring_size: 131_072,        // 2^17, covers ~13s at 10k events/sec
             fpss_ping_interval_ms: 100,     // FPSSClient.startPinging()
             fpss_connect_timeout_ms: 2_000, // FPSSClient socket.connect timeout
+            fpss_flush_mode: FpssFlushMode::Batched,
 
             // Concurrency: 0 = auto-detect from subscription tier at auth time.
             mdds_concurrent_requests: 0,
@@ -232,6 +252,7 @@ impl DirectConfig {
             fpss_ring_size: 65_536, // 2^16, smaller for dev
             fpss_ping_interval_ms: 100,
             fpss_connect_timeout_ms: 2_000,
+            fpss_flush_mode: FpssFlushMode::Batched,
 
             // Dev: conservative concurrency (Free tier)
             mdds_concurrent_requests: 1,

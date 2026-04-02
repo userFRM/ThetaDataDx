@@ -28,7 +28,7 @@
 //! # use thetadatadx::auth::Credentials;
 //! # fn example() -> Result<(), thetadatadx::error::Error> {
 //! let creds = Credentials::new("user@example.com", "pw");
-//! let client = FpssClient::connect(&creds, 4096, |event: &FpssEvent| {
+//! let client = FpssClient::connect(&creds, 4096, Default::default(), |event: &FpssEvent| {
 //!     // Runs on the Disruptor consumer thread -- keep it fast.
 //!     // Push to your own queue for heavy processing.
 //!     match event {
@@ -97,6 +97,7 @@ use disruptor::{build_single_producer, Producer, Sequence};
 use self::ring::{AdaptiveWaitStrategy, RingEvent};
 
 use crate::auth::Credentials;
+use crate::config::FpssFlushMode;
 use crate::error::Error;
 use tdbe::codec::fit::{apply_deltas, FitReader};
 use tdbe::types::enums::{RemoveReason, StreamMsgType, StreamResponseType};
@@ -304,12 +305,25 @@ impl FpssClient {
     ///
     /// Source: `FPSSClient.connect()` and `FPSSClient.sendCredentials()`.
     /// Connect with default settings (OHLCVC derivation enabled).
-    pub fn connect<F>(creds: &Credentials, ring_size: usize, handler: F) -> Result<Self, Error>
+    pub fn connect<F>(
+        creds: &Credentials,
+        ring_size: usize,
+        flush_mode: FpssFlushMode,
+        handler: F,
+    ) -> Result<Self, Error>
     where
         F: FnMut(&FpssEvent) + Send + 'static,
     {
         let (stream, server_addr) = connection::connect()?;
-        Self::connect_with_stream(creds, stream, server_addr, ring_size, true, handler)
+        Self::connect_with_stream(
+            creds,
+            stream,
+            server_addr,
+            ring_size,
+            true,
+            flush_mode,
+            handler,
+        )
     }
 
     /// Connect with OHLCVC derivation disabled.
@@ -321,13 +335,22 @@ impl FpssClient {
     pub fn connect_no_ohlcvc<F>(
         creds: &Credentials,
         ring_size: usize,
+        flush_mode: FpssFlushMode,
         handler: F,
     ) -> Result<Self, Error>
     where
         F: FnMut(&FpssEvent) + Send + 'static,
     {
         let (stream, server_addr) = connection::connect()?;
-        Self::connect_with_stream(creds, stream, server_addr, ring_size, false, handler)
+        Self::connect_with_stream(
+            creds,
+            stream,
+            server_addr,
+            ring_size,
+            false,
+            flush_mode,
+            handler,
+        )
     }
 
     /// Connect using a pre-established stream (for testing with mock sockets).
@@ -337,6 +360,7 @@ impl FpssClient {
         server_addr: String,
         ring_size: usize,
         derive_ohlcvc: bool,
+        flush_mode: FpssFlushMode,
         handler: F,
     ) -> Result<Self, Error>
     where
@@ -411,6 +435,7 @@ impl FpssClient {
                     permissions,
                     io_server_addr,
                     derive_ohlcvc,
+                    flush_mode,
                 );
             })
             .map_err(|e| Error::Fpss(format!("failed to spawn fpss-io thread: {e}")))?;
@@ -874,6 +899,7 @@ fn io_loop<F>(
     permissions: String,
     _server_addr: String,
     derive_ohlcvc: bool,
+    flush_mode: FpssFlushMode,
 ) where
     F: FnMut(&FpssEvent) + Send + 'static,
 {
@@ -1005,13 +1031,15 @@ fn io_loop<F>(
                 Ok(IoCommand::WriteFrame { code, payload }) => {
                     // Get mutable access to the underlying stream through BufReader.
                     let writer = reader.get_mut();
-                    // Only flush on PING frames — let other writes batch.
-                    // Source: Java terminal only flushes on pings.
-                    let result = if code == StreamMsgType::Ping {
-                        write_raw_frame(writer, code, &payload)
-                    } else {
-                        write_raw_frame_no_flush(writer, code, &payload)
-                    };
+                    // Flush discipline: in Batched mode, only PING frames
+                    // trigger a flush (matching the Java terminal). In Immediate
+                    // mode, every frame is flushed for lowest latency.
+                    let result =
+                        if code == StreamMsgType::Ping || flush_mode == FpssFlushMode::Immediate {
+                            write_raw_frame(writer, code, &payload)
+                        } else {
+                            write_raw_frame_no_flush(writer, code, &payload)
+                        };
                     if let Err(e) = result {
                         tracing::warn!(error = %e, "failed to write frame");
                         // Don't break the read loop for write errors -- the read
@@ -1684,6 +1712,7 @@ pub fn reconnect<F>(
     previous_full_subs: Vec<(SubscriptionKind, tdbe::types::enums::SecType)>,
     delay_ms: u64,
     ring_size: usize,
+    flush_mode: FpssFlushMode,
     handler: F,
 ) -> Result<FpssClient, Error>
 where
@@ -1692,7 +1721,7 @@ where
     tracing::info!(delay_ms, "waiting before FPSS reconnection");
     thread::sleep(Duration::from_millis(delay_ms));
 
-    let client = FpssClient::connect(creds, ring_size, handler)?;
+    let client = FpssClient::connect(creds, ring_size, flush_mode, handler)?;
 
     // Re-subscribe all previous per-contract subscriptions with req_id = -1
     // Source: FPSSClient.java -- reconnect logic uses req_id = -1 for re-subscriptions
