@@ -8,7 +8,7 @@ Intentional differences between this Rust implementation and the decompiled Java
 
 As of v1.2.0:
 - **Contract wire format** — now matches Java exactly (fixed in PR #12; previous versions had a protocol-level bug in option contract serialization).
-- **Greeks formulas** — operator precedence now matches Java exactly, including `vera` (fixed in PR #12).
+- **Greeks formulas** — operator precedence now matches Java exactly (fixed in PR #12). Note: `vera` (DataType code 166) is returned by the server in Greeks responses, not computed locally by the SDK.
 - **OHLCVC-from-trade derivation** — matches Java behavior when enabled (default). Unlike Java, this is **opt-in/out**: use `ThetaDataDx::start_streaming_no_ohlcvc()` to disable derived OHLCVC events and reduce per-trade throughput overhead. The Java terminal always derives OHLCVC with no way to disable it.
 
 ## Client-Side Behavior
@@ -219,6 +219,46 @@ As of v1.2.0:
 | **Source** | `FPSSClient.connect()` via default JSSE | `fpss/connection.rs:tls_client_config()` |
 | **Rationale** | ThetaData's FPSS servers use TLS certificates that have been expired since January 2024. Java's default `SSLSocketFactory` in practice accepts expired certificates without error. Rust's `rustls` strictly validates certificate expiry, causing connection failures. We skip certificate verification for FPSS connections only (not MDDS gRPC, which uses valid certificates) to match the Java terminal's behavior. This is a **pragmatic workaround** for a server-side certificate issue, not a security design choice. |
 
+### Interval Normalization: Shorthand Conversion
+
+| | Java | Rust | Impact |
+|---|---|---|---|
+| **Behavior** | Passes raw interval string to gRPC (or defaults to `"1s"` when null) | `normalize_interval()` converts millisecond strings to shorthand presets (e.g., `"60000"` → `"1m"`) | Different wire value, server accepts both |
+| **Source** | REST/gRPC request builders in decompiled terminal | `direct.rs:normalize_interval()` |
+| **Rationale** | Java sends the raw interval string as-is (e.g., `"60000"`). Rust's `normalize_interval()` maps known millisecond values to their shorthand equivalents (`"60000"` → `"1m"`, `"1000"` → `"1s"`, etc.). The server accepts both forms, so this has no functional impact. The wire value differs: Java sends `"60000"`, Rust sends `"1m"`. |
+
+### QueryInfo: `terminal_git_commit` Empty
+
+| | Java | Rust | Impact |
+|---|---|---|---|
+| **Behavior** | Sends the actual build git commit hash | Sends an empty string | Server accepts both |
+| **Source** | `BuildInfo.java` / gRPC `QueryInfo` field | `direct.rs` gRPC query construction |
+| **Rationale** | Java embeds the git commit hash at build time via `BuildInfo` and sends it in every gRPC request's `QueryInfo`. Rust sends an empty string. The server accepts both, but this means server-side logging cannot identify the Rust client's exact build. |
+
+### QueryInfo: `client_type` and `terminal_version`
+
+| | Java | Rust | Impact |
+|---|---|---|---|
+| **Behavior** | Leaves `client_type` and `terminal_version` empty | Sets `client_type` to `"rust-thetadatadx"` and `terminal_version` to the crate version | Intentional improvement |
+| **Source** | gRPC `QueryInfo` fields | `direct.rs` gRPC query construction |
+| **Rationale** | Java does not populate these fields. Rust sets them to enable server-side telemetry to distinguish Rust SDK requests and identify the client version. This is an **intentional improvement** — the server accepts and logs both. |
+
+### FPSS Subscription Tracking: Per-Instance vs Static
+
+| | Java | Rust | Impact |
+|---|---|---|---|
+| **Behavior** | Static `ConcurrentHashMap` for subscription tracking (shared across all `FPSSClient` instances in the JVM) | Per-instance `Mutex` fields on each `FpssClient` | Isolated subscription state per client |
+| **Source** | `FPSSClient` static fields | `fpss/mod.rs` instance fields |
+| **Rationale** | Java uses static (class-level) `ConcurrentHashMap`s, meaning all `FPSSClient` instances in the same JVM share subscription tracking state. Rust uses per-instance `Mutex` fields, so each `FpssClient` has isolated subscription state. This prevents cross-contamination if multiple clients are created in the same process. |
+
+### OHLCVC Trade Field Indexing
+
+| | Java | Rust | Impact |
+|---|---|---|---|
+| **Behavior** | `OHLCVC.processTrade()` accesses `data[4]` (price), `data[6]` (priceType), `data[2]` (size) | Extracts `f[9]`, `f[14]`, `f[7]` from the FIT-decoded field layout | Same values, different index paths |
+| **Source** | `OHLCVC.java:processTrade()` | `fpss/mod.rs` OHLCVC accumulator |
+| **Rationale** | Java's `processTrade()` indexes into a pre-parsed trade tick array where fields are already extracted by position. Rust indexes into the raw FIT-decoded field array before tick-type-specific extraction. Both arrive at the correct price, priceType, and size values — the different indices reflect different stages in the decode pipeline, not different data. |
+
 ## What Is NOT Different
 
 These are identical to the Java terminal:
@@ -244,4 +284,4 @@ These are identical to the Java terminal:
 - All enum codes (StreamMsgType, RemoveReason, SecType, DataType, etc.)
 - Greeks formulas (operator precedence matched to Java) — **fixed in v1.2.0**
 - OHLCVC-from-trade derivation (server-seeded, then incremental) — **added in v1.2.0**
-- Vera (DataType code 166) in second-order Greeks — **added in v1.2.0**
+- Vera (DataType code 166) — server-returned value in Greeks responses, not locally computed — **added in v1.2.0**

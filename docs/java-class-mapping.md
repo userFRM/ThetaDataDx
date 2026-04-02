@@ -22,6 +22,8 @@ Complete enumeration of all 588 Java classes in ThetaTerminal v202603181 and the
 | `config/ConfigurationManager.java` | `config.rs::DirectConfig` | Server addresses, timeouts |
 | `config/BuildInfo.java` | `CARGO_PKG_VERSION` constant | Version identification |
 | `math/Greeks.java` | `tdbe::greeks` | 22 Black-Scholes Greeks + IV solver |
+| `RestResource.java` | `direct.rs` | REST-to-gRPC bridge, contains all endpoint defaults (venue, start_time, interval). Our SDK replicates these defaults in direct.rs. |
+| `BetaThetaTerminalGrpc.java` | `proto_v3::beta_theta_terminal_client` | v3 gRPC service stub. Rust equivalent: `proto_v3::beta_theta_terminal_client` |
 
 ## Enums (IMPLEMENTED)
 
@@ -161,6 +163,7 @@ These classes handle server-side user management or admin functions not relevant
 | `UserDB.java` | Server-side user database | Client-side only |
 | `User2.java` | Server-side user model | Auth response parsed into `AuthUser` |
 | `session/SessionInfo.java` | Session POJO | Internal to auth flow |
+| `session/SessionInfoV3.java` | v3 session POJO | Internal to auth flow (v3 session metadata) |
 | `session/SessionRequest.java` | Session request POJO | Internal to auth flow |
 | `session/SessionResponse.java` | Session response POJO | Internal to auth flow |
 | `session/DisconnectRequest.java` | Disconnect request POJO | Internal to auth flow |
@@ -173,13 +176,13 @@ These classes handle server-side user management or admin functions not relevant
 | `config/AbstractConfigurationManager.java` | Base config class | `DirectConfig` is simpler |
 | `config/AbstractCredentialsConfigurationManager.java` | Credential config base | `Credentials` struct handles this |
 
-## Generated Protobuf Classes (~400 classes)
+## Generated Protobuf Classes (497 classes)
 
-The `generated/` and `generated/v3grpc/` directories contain 400+ protobuf-generated Java classes (Request/Response/OrBuilder types for every RPC). These are the Java equivalent of our `tonic::include_proto!()` output.
+The `generated/` and `generated/v3grpc/` directories contain 497 protobuf-generated Java classes (Request/Response/OrBuilder types for every RPC). These are the Java equivalent of our `tonic::include_proto!()` output.
 
 | Package | Class Count | Rust Equivalent |
 |---------|------------|----------------|
-| `generated/` (v2 proto) | ~200 | `proto` module via `tonic::include_proto!("endpoints")` |
-| `generated/v3grpc/` (v3 proto) | ~200 | `proto_v3` module via `tonic::include_proto!("beta_endpoints")` |
+| `generated/` (v2 proto) | ~250 | `proto` module via `tonic::include_proto!("endpoints")` |
+| `generated/v3grpc/` (v3 proto) | ~247 | `proto_v3` module via `tonic::include_proto!("beta_endpoints")` |
 
 All 60 v3 gRPC RPCs are covered. The v2 proto types exist for backward compatibility but are not used by the v3 terminal.
