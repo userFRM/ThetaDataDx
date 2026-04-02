@@ -154,6 +154,7 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
     // Emit opt_number / opt_float / opt_i64 helpers (non-eod only)
     if !def.eod_style {
         if needs_opt_number {
+            out.push_str("    #[allow(dead_code)]\n");
             out.push_str("    fn opt_number(row: &crate::proto::DataValueList, idx: Option<usize>) -> i32 {\n");
             out.push_str("        match idx {\n");
             out.push_str("            Some(i) => row_number(row, i),\n");
