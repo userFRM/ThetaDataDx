@@ -138,10 +138,13 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
     }
 
     // Determine which columns need the opt_number helper
-    let needs_opt_number = def
-        .columns
-        .iter()
-        .any(|c| c.r#type == "i32" && !def.required.contains(&c.name) && c.price_source.is_none());
+    let needs_opt_number = def.columns.iter().any(|c| {
+        (c.r#type == "i32"
+            && !def.required.contains(&c.name)
+            && c.price_source.is_none()
+            && c.field != "date")
+            || c.price_source.is_some() // price_source fallback uses opt_number
+    });
     let needs_opt_float = def
         .columns
         .iter()
@@ -154,7 +157,6 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
     // Emit opt_number / opt_float / opt_i64 helpers (non-eod only)
     if !def.eod_style {
         if needs_opt_number {
-            out.push_str("    #[allow(dead_code)]\n");
             out.push_str("    fn opt_number(row: &crate::proto::DataValueList, idx: Option<usize>) -> i32 {\n");
             out.push_str("        match idx {\n");
             out.push_str("            Some(i) => row_number(row, i),\n");
