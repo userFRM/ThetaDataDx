@@ -843,7 +843,7 @@ async fn execute_tool(
         "stock_snapshot_ohlc" => {
             let syms_str = param!(arg_symbol(args, "symbols"));
             let syms = parse_symbols(syms_str);
-            let ticks = api!(client.stock_snapshot_ohlc(&syms, &Default::default()).await);
+            let ticks = api!(client.stock_snapshot_ohlc(&syms).await);
             Ok(serialize_ohlc_ticks(&ticks))
         }
         "stock_snapshot_trade" => {
@@ -851,7 +851,7 @@ async fn execute_tool(
             let syms = parse_symbols(syms_str);
             let ticks = api!(
                 client
-                    .stock_snapshot_trade(&syms, &Default::default())
+                    .stock_snapshot_trade(&syms)
                     .await
             );
             Ok(serialize_trade_ticks(&ticks))
@@ -861,7 +861,7 @@ async fn execute_tool(
             let syms = parse_symbols(syms_str);
             let ticks = api!(
                 client
-                    .stock_snapshot_quote(&syms, &Default::default())
+                    .stock_snapshot_quote(&syms)
                     .await
             );
             Ok(serialize_quote_ticks(&ticks))
@@ -871,7 +871,7 @@ async fn execute_tool(
             let syms = parse_symbols(syms_str);
             let ticks = api!(
                 client
-                    .stock_snapshot_market_value(&syms, &Default::default())
+                    .stock_snapshot_market_value(&syms)
                     .await
             );
             Ok(serialize_market_value_ticks(&ticks))
@@ -891,7 +891,7 @@ async fn execute_tool(
             let interval = param!(arg_interval(args, "interval"));
             let ticks = api!(
                 client
-                    .stock_history_ohlc(sym, date, interval, None, None, &Default::default())
+                    .stock_history_ohlc(sym, date, interval)
                     .await
             );
             Ok(serialize_ohlc_ticks(&ticks))
@@ -907,10 +907,7 @@ async fn execute_tool(
                         sym,
                         start,
                         end,
-                        interval,
-                        None,
-                        None,
-                        &Default::default()
+                        interval
                     )
                     .await
             );
@@ -921,7 +918,7 @@ async fn execute_tool(
             let date = param!(arg_date(args, "date"));
             let ticks = api!(
                 client
-                    .stock_history_trade(sym, date, None, None, &Default::default())
+                    .stock_history_trade(sym, date)
                     .await
             );
             Ok(serialize_trade_ticks(&ticks))
@@ -932,7 +929,7 @@ async fn execute_tool(
             let interval = param!(arg_interval(args, "interval"));
             let ticks = api!(
                 client
-                    .stock_history_quote(sym, date, interval, None, None, &Default::default())
+                    .stock_history_quote(sym, date, interval)
                     .await
             );
             Ok(serialize_quote_ticks(&ticks))
@@ -942,7 +939,7 @@ async fn execute_tool(
             let date = param!(arg_date(args, "date"));
             let ticks = api!(
                 client
-                    .stock_history_trade_quote(sym, date, None, None, &Default::default())
+                    .stock_history_trade_quote(sym, date)
                     .await
             );
             Ok(serialize_trade_quote_ticks(&ticks))
@@ -956,7 +953,7 @@ async fn execute_tool(
             let tod = param!(arg_str(args, "time_of_day"));
             let ticks = api!(
                 client
-                    .stock_at_time_trade(sym, start, end, tod, &Default::default())
+                    .stock_at_time_trade(sym, start, end, tod)
                     .await
             );
             Ok(serialize_trade_ticks(&ticks))
@@ -968,7 +965,7 @@ async fn execute_tool(
             let tod = param!(arg_str(args, "time_of_day"));
             let ticks = api!(
                 client
-                    .stock_at_time_quote(sym, start, end, tod, &Default::default())
+                    .stock_at_time_quote(sym, start, end, tod)
                     .await
             );
             Ok(serialize_quote_ticks(&ticks))
@@ -1005,7 +1002,7 @@ async fn execute_tool(
             let date = param!(arg_date(args, "date"));
             let ticks = api!(
                 client
-                    .option_list_contracts(rt, sym, date, &Default::default())
+                    .option_list_contracts(rt, sym, date)
                     .await
             );
             Ok(serialize_option_contracts(&ticks))
@@ -1030,7 +1027,7 @@ async fn execute_tool(
                 "option_snapshot_ohlc" => {
                     let ticks = api!(
                         client
-                            .option_snapshot_ohlc(sym, exp, strike, right, &Default::default())
+                            .option_snapshot_ohlc(sym, exp, strike, right)
                             .await
                     );
                     Ok(serialize_ohlc_ticks(&ticks))
@@ -1038,7 +1035,7 @@ async fn execute_tool(
                 "option_snapshot_trade" => {
                     let ticks = api!(
                         client
-                            .option_snapshot_trade(sym, exp, strike, right, &Default::default())
+                            .option_snapshot_trade(sym, exp, strike, right)
                             .await
                     );
                     Ok(serialize_trade_ticks(&ticks))
@@ -1046,7 +1043,7 @@ async fn execute_tool(
                 "option_snapshot_quote" => {
                     let ticks = api!(
                         client
-                            .option_snapshot_quote(sym, exp, strike, right, &Default::default())
+                            .option_snapshot_quote(sym, exp, strike, right)
                             .await
                     );
                     Ok(serialize_quote_ticks(&ticks))
@@ -1058,8 +1055,7 @@ async fn execute_tool(
                                 sym,
                                 exp,
                                 strike,
-                                right,
-                                &Default::default()
+                                right
                             )
                             .await
                     );
@@ -1072,8 +1068,7 @@ async fn execute_tool(
                                 sym,
                                 exp,
                                 strike,
-                                right,
-                                &Default::default()
+                                right
                             )
                             .await
                     );
@@ -1086,8 +1081,7 @@ async fn execute_tool(
                                 sym,
                                 exp,
                                 strike,
-                                right,
-                                &Default::default()
+                                right
                             )
                             .await
                     );
@@ -1100,8 +1094,7 @@ async fn execute_tool(
                                 sym,
                                 exp,
                                 strike,
-                                right,
-                                &Default::default()
+                                right
                             )
                             .await
                     );
@@ -1114,8 +1107,7 @@ async fn execute_tool(
                                 sym,
                                 exp,
                                 strike,
-                                right,
-                                &Default::default()
+                                right
                             )
                             .await
                     );
@@ -1128,8 +1120,7 @@ async fn execute_tool(
                                 sym,
                                 exp,
                                 strike,
-                                right,
-                                &Default::default()
+                                right
                             )
                             .await
                     );
@@ -1142,8 +1133,7 @@ async fn execute_tool(
                                 sym,
                                 exp,
                                 strike,
-                                right,
-                                &Default::default()
+                                right
                             )
                             .await
                     );
@@ -1163,7 +1153,7 @@ async fn execute_tool(
             let end = param!(arg_date(args, "end_date"));
             let ticks = api!(
                 client
-                    .option_history_eod(sym, exp, strike, right, start, end, &Default::default())
+                    .option_history_eod(sym, exp, strike, right, start, end)
                     .await
             );
             Ok(serialize_eod_ticks(&ticks))
@@ -1183,10 +1173,7 @@ async fn execute_tool(
                         strike,
                         right,
                         date,
-                        interval,
-                        None,
-                        None,
-                        &Default::default()
+                        interval
                     )
                     .await
             );
@@ -1205,10 +1192,7 @@ async fn execute_tool(
                         exp,
                         strike,
                         right,
-                        date,
-                        None,
-                        None,
-                        &Default::default()
+                        date
                     )
                     .await
             );
@@ -1229,10 +1213,7 @@ async fn execute_tool(
                         strike,
                         right,
                         date,
-                        interval,
-                        None,
-                        None,
-                        &Default::default()
+                        interval
                     )
                     .await
             );
@@ -1251,10 +1232,7 @@ async fn execute_tool(
                         exp,
                         strike,
                         right,
-                        date,
-                        None,
-                        None,
-                        &Default::default()
+                        date
                     )
                     .await
             );
@@ -1273,8 +1251,7 @@ async fn execute_tool(
                         exp,
                         strike,
                         right,
-                        date,
-                        &Default::default()
+                        date
                     )
                     .await
             );
@@ -1297,8 +1274,7 @@ async fn execute_tool(
                         strike,
                         right,
                         start,
-                        end,
-                        &Default::default()
+                        end
                     )
                     .await
             );
@@ -1324,10 +1300,7 @@ async fn execute_tool(
                             strike,
                             right,
                             date,
-                            interval,
-                            None,
-                            None,
-                            &Default::default()
+                            interval
                         )
                         .await
                 ),
@@ -1339,10 +1312,7 @@ async fn execute_tool(
                             strike,
                             right,
                             date,
-                            interval,
-                            None,
-                            None,
-                            &Default::default()
+                            interval
                         )
                         .await
                 ),
@@ -1355,9 +1325,6 @@ async fn execute_tool(
                             right,
                             date,
                             interval,
-                            None,
-                            None,
-                            &Default::default(),
                         )
                         .await
                 ),
@@ -1369,10 +1336,7 @@ async fn execute_tool(
                             strike,
                             right,
                             date,
-                            interval,
-                            None,
-                            None,
-                            &Default::default()
+                            interval
                         )
                         .await
                 ),
@@ -1396,9 +1360,6 @@ async fn execute_tool(
                         right,
                         date,
                         interval,
-                        None,
-                        None,
-                        &Default::default(),
                     )
                     .await
             );
@@ -1422,10 +1383,7 @@ async fn execute_tool(
                             exp,
                             strike,
                             right,
-                            date,
-                            None,
-                            None,
-                            &Default::default()
+                            date
                         )
                         .await
                 ),
@@ -1436,10 +1394,7 @@ async fn execute_tool(
                             exp,
                             strike,
                             right,
-                            date,
-                            None,
-                            None,
-                            &Default::default()
+                            date
                         )
                         .await
                 ),
@@ -1450,10 +1405,7 @@ async fn execute_tool(
                             exp,
                             strike,
                             right,
-                            date,
-                            None,
-                            None,
-                            &Default::default()
+                            date
                         )
                         .await
                 ),
@@ -1464,10 +1416,7 @@ async fn execute_tool(
                             exp,
                             strike,
                             right,
-                            date,
-                            None,
-                            None,
-                            &Default::default()
+                            date
                         )
                         .await
                 ),
@@ -1488,10 +1437,7 @@ async fn execute_tool(
                         exp,
                         strike,
                         right,
-                        date,
-                        None,
-                        None,
-                        &Default::default()
+                        date
                     )
                     .await
             );
@@ -1516,8 +1462,7 @@ async fn execute_tool(
                         right,
                         start,
                         end,
-                        tod,
-                        &Default::default()
+                        tod
                     )
                     .await
             );
@@ -1540,8 +1485,7 @@ async fn execute_tool(
                         right,
                         start,
                         end,
-                        tod,
-                        &Default::default()
+                        tod
                     )
                     .await
             );
@@ -1563,7 +1507,7 @@ async fn execute_tool(
         "index_snapshot_ohlc" => {
             let syms_str = param!(arg_symbol(args, "symbols"));
             let syms = parse_symbols(syms_str);
-            let ticks = api!(client.index_snapshot_ohlc(&syms, &Default::default()).await);
+            let ticks = api!(client.index_snapshot_ohlc(&syms).await);
             Ok(serialize_ohlc_ticks(&ticks))
         }
         "index_snapshot_price" => {
@@ -1571,7 +1515,7 @@ async fn execute_tool(
             let syms = parse_symbols(syms_str);
             let ticks = api!(
                 client
-                    .index_snapshot_price(&syms, &Default::default())
+                    .index_snapshot_price(&syms)
                     .await
             );
             Ok(serialize_price_ticks(&ticks))
@@ -1581,7 +1525,7 @@ async fn execute_tool(
             let syms = parse_symbols(syms_str);
             let ticks = api!(
                 client
-                    .index_snapshot_market_value(&syms, &Default::default())
+                    .index_snapshot_market_value(&syms)
                     .await
             );
             Ok(serialize_market_value_ticks(&ticks))
@@ -1602,7 +1546,7 @@ async fn execute_tool(
             let interval = param!(arg_interval(args, "interval"));
             let ticks = api!(
                 client
-                    .index_history_ohlc(sym, start, end, interval, None, None)
+                    .index_history_ohlc(sym, start, end, interval)
                     .await
             );
             Ok(serialize_ohlc_ticks(&ticks))
@@ -1613,7 +1557,7 @@ async fn execute_tool(
             let interval = param!(arg_interval(args, "interval"));
             let ticks = api!(
                 client
-                    .index_history_price(sym, date, interval, None, None, &Default::default())
+                    .index_history_price(sym, date, interval)
                     .await
             );
             Ok(serialize_price_ticks(&ticks))

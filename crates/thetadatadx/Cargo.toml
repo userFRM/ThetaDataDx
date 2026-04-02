@@ -50,6 +50,9 @@ zstd = "0.13.3"
 # Error handling
 thiserror = "2.0.18"
 
+# Macro utility (identifier concatenation in macros)
+paste = "1"
+
 # Logging
 tracing = "0.1.44"
 

@@ -1,9 +1,19 @@
-//! Optional parameter structs for ThetaData endpoints.
+//! **Deprecated** -- retained for reference only.
 //!
-//! These structs let callers pass optional filters (venue, date ranges, Greeks
-//! parameters, etc.) to endpoints that support them, without changing the
-//! required positional signature. All fields default to `None`, which preserves
-//! existing behavior.
+//! Optional parameters are now set via the builder pattern on each endpoint.
+//! Instead of passing an options struct, chain setter methods before `.await`:
+//!
+//! ```rust,ignore
+//! // Before:
+//! let ticks = client.stock_snapshot_ohlc(&["AAPL"], &Default::default()).await?;
+//!
+//! // After:
+//! let ticks = client.stock_snapshot_ohlc(&["AAPL"]).await?;
+//! let ticks = client.stock_snapshot_ohlc(&["AAPL"]).venue("arca").await?;
+//! ```
+//!
+//! These structs were previously used to pass optional filters (venue, date
+//! ranges, Greeks parameters, etc.) to endpoints. All fields default to `None`.
 //!
 //! # Usage
 //!

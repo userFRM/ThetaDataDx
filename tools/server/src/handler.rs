@@ -203,7 +203,7 @@ async fn dispatch(
             let s = syms_str();
             let syms = parse_symbols(&s);
             let ticks = client
-                .stock_snapshot_ohlc(&syms, &Default::default())
+                .stock_snapshot_ohlc(&syms)
                 .await?;
             Ok(format::ok_envelope(format::ohlc_ticks_to_json(&ticks)))
         }
@@ -211,7 +211,7 @@ async fn dispatch(
             let s = syms_str();
             let syms = parse_symbols(&s);
             let ticks = client
-                .stock_snapshot_trade(&syms, &Default::default())
+                .stock_snapshot_trade(&syms)
                 .await?;
             Ok(format::ok_envelope(format::trade_ticks_to_json(&ticks)))
         }
@@ -219,7 +219,7 @@ async fn dispatch(
             let s = syms_str();
             let syms = parse_symbols(&s);
             let ticks = client
-                .stock_snapshot_quote(&syms, &Default::default())
+                .stock_snapshot_quote(&syms)
                 .await?;
             Ok(format::ok_envelope(format::quote_ticks_to_json(&ticks)))
         }
@@ -227,7 +227,7 @@ async fn dispatch(
             let s = syms_str();
             let syms = parse_symbols(&s);
             let ticks = client
-                .stock_snapshot_market_value(&syms, &Default::default())
+                .stock_snapshot_market_value(&syms)
                 .await?;
             Ok(format::ok_envelope(format::market_value_ticks_to_json(
                 &ticks,
@@ -245,9 +245,6 @@ async fn dispatch(
                     &sym(),
                     &date(),
                     &interval(),
-                    None,
-                    None,
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::ohlc_ticks_to_json(&ticks)))
@@ -259,16 +256,13 @@ async fn dispatch(
                     &start(),
                     &end(),
                     &interval(),
-                    None,
-                    None,
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::ohlc_ticks_to_json(&ticks)))
         }
         "stock_history_trade" => {
             let ticks = client
-                .stock_history_trade(&sym(), &date(), None, None, &Default::default())
+                .stock_history_trade(&sym(), &date())
                 .await?;
             Ok(format::ok_envelope(format::trade_ticks_to_json(&ticks)))
         }
@@ -278,16 +272,13 @@ async fn dispatch(
                     &sym(),
                     &date(),
                     &interval_quote(),
-                    None,
-                    None,
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::quote_ticks_to_json(&ticks)))
         }
         "stock_history_trade_quote" => {
             let ticks = client
-                .stock_history_trade_quote(&sym(), &date(), None, None, &Default::default())
+                .stock_history_trade_quote(&sym(), &date())
                 .await?;
             Ok(format::ok_envelope(format::trade_quote_ticks_to_json(
                 &ticks,
@@ -302,7 +293,6 @@ async fn dispatch(
                     &start(),
                     &end(),
                     &time_of_day(),
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::trade_ticks_to_json(&ticks)))
@@ -314,7 +304,6 @@ async fn dispatch(
                     &start(),
                     &end(),
                     &time_of_day(),
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::quote_ticks_to_json(&ticks)))
@@ -341,7 +330,7 @@ async fn dispatch(
         }
         "option_list_contracts" => {
             let ticks = client
-                .option_list_contracts(&request_type(), &sym(), &date(), &Default::default())
+                .option_list_contracts(&request_type(), &sym(), &date())
                 .await?;
             Ok(format::ok_envelope(format::option_contracts_to_json(
                 &ticks,
@@ -351,19 +340,19 @@ async fn dispatch(
         // ── Option Snapshot (10) ────────────────────────────────────
         "option_snapshot_ohlc" => {
             let ticks = client
-                .option_snapshot_ohlc(&sym(), &exp(), &strike(), &right(), &Default::default())
+                .option_snapshot_ohlc(&sym(), &exp(), &strike(), &right())
                 .await?;
             Ok(format::ok_envelope(format::ohlc_ticks_to_json(&ticks)))
         }
         "option_snapshot_trade" => {
             let ticks = client
-                .option_snapshot_trade(&sym(), &exp(), &strike(), &right(), &Default::default())
+                .option_snapshot_trade(&sym(), &exp(), &strike(), &right())
                 .await?;
             Ok(format::ok_envelope(format::trade_ticks_to_json(&ticks)))
         }
         "option_snapshot_quote" => {
             let ticks = client
-                .option_snapshot_quote(&sym(), &exp(), &strike(), &right(), &Default::default())
+                .option_snapshot_quote(&sym(), &exp(), &strike(), &right())
                 .await?;
             Ok(format::ok_envelope(format::quote_ticks_to_json(&ticks)))
         }
@@ -374,7 +363,6 @@ async fn dispatch(
                     &exp(),
                     &strike(),
                     &right(),
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::open_interest_ticks_to_json(
@@ -388,7 +376,6 @@ async fn dispatch(
                     &exp(),
                     &strike(),
                     &right(),
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::market_value_ticks_to_json(
@@ -402,7 +389,6 @@ async fn dispatch(
                     &exp(),
                     &strike(),
                     &right(),
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::iv_ticks_to_json(&ticks)))
@@ -414,7 +400,6 @@ async fn dispatch(
                     &exp(),
                     &strike(),
                     &right(),
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::greeks_ticks_to_json(&ticks)))
@@ -426,7 +411,6 @@ async fn dispatch(
                     &exp(),
                     &strike(),
                     &right(),
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::greeks_ticks_to_json(&ticks)))
@@ -438,7 +422,6 @@ async fn dispatch(
                     &exp(),
                     &strike(),
                     &right(),
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::greeks_ticks_to_json(&ticks)))
@@ -450,7 +433,6 @@ async fn dispatch(
                     &exp(),
                     &strike(),
                     &right(),
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::greeks_ticks_to_json(&ticks)))
@@ -459,7 +441,7 @@ async fn dispatch(
         // ── Option History (6) ──────────────────────────────────────
         "option_history_eod" => {
             let ticks = client
-                .option_history_eod(&sym(), &exp(), &strike(), &right(), &start(), &end(), &Default::default())
+                .option_history_eod(&sym(), &exp(), &strike(), &right(), &start(), &end())
                 .await?;
             Ok(format::ok_envelope(format::eod_ticks_to_json(&ticks)))
         }
@@ -472,9 +454,6 @@ async fn dispatch(
                     &right(),
                     &date(),
                     &interval(),
-                    None,
-                    None,
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::ohlc_ticks_to_json(&ticks)))
@@ -487,9 +466,6 @@ async fn dispatch(
                     &strike(),
                     &right(),
                     &date(),
-                    None,
-                    None,
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::trade_ticks_to_json(&ticks)))
@@ -503,9 +479,6 @@ async fn dispatch(
                     &right(),
                     &date(),
                     &interval_quote(),
-                    None,
-                    None,
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::quote_ticks_to_json(&ticks)))
@@ -518,9 +491,6 @@ async fn dispatch(
                     &strike(),
                     &right(),
                     &date(),
-                    None,
-                    None,
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::trade_quote_ticks_to_json(
@@ -535,7 +505,6 @@ async fn dispatch(
                     &strike(),
                     &right(),
                     &date(),
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::open_interest_ticks_to_json(
@@ -553,7 +522,6 @@ async fn dispatch(
                     &right(),
                     &start(),
                     &end(),
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::greeks_ticks_to_json(&ticks)))
@@ -567,9 +535,6 @@ async fn dispatch(
                     &right(),
                     &date(),
                     &interval(),
-                    None,
-                    None,
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::greeks_ticks_to_json(&ticks)))
@@ -582,9 +547,6 @@ async fn dispatch(
                     &strike(),
                     &right(),
                     &date(),
-                    None,
-                    None,
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::greeks_ticks_to_json(&ticks)))
@@ -598,9 +560,6 @@ async fn dispatch(
                     &right(),
                     &date(),
                     &interval(),
-                    None,
-                    None,
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::greeks_ticks_to_json(&ticks)))
@@ -613,9 +572,6 @@ async fn dispatch(
                     &strike(),
                     &right(),
                     &date(),
-                    None,
-                    None,
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::greeks_ticks_to_json(&ticks)))
@@ -629,9 +585,6 @@ async fn dispatch(
                     &right(),
                     &date(),
                     &interval(),
-                    None,
-                    None,
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::greeks_ticks_to_json(&ticks)))
@@ -644,9 +597,6 @@ async fn dispatch(
                     &strike(),
                     &right(),
                     &date(),
-                    None,
-                    None,
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::greeks_ticks_to_json(&ticks)))
@@ -660,9 +610,6 @@ async fn dispatch(
                     &right(),
                     &date(),
                     &interval(),
-                    None,
-                    None,
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::greeks_ticks_to_json(&ticks)))
@@ -675,9 +622,6 @@ async fn dispatch(
                     &strike(),
                     &right(),
                     &date(),
-                    None,
-                    None,
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::greeks_ticks_to_json(&ticks)))
@@ -691,9 +635,6 @@ async fn dispatch(
                     &right(),
                     &date(),
                     &interval(),
-                    None,
-                    None,
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::iv_ticks_to_json(&ticks)))
@@ -706,9 +647,6 @@ async fn dispatch(
                     &strike(),
                     &right(),
                     &date(),
-                    None,
-                    None,
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::iv_ticks_to_json(&ticks)))
@@ -725,7 +663,6 @@ async fn dispatch(
                     &start(),
                     &end(),
                     &time_of_day(),
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::trade_ticks_to_json(&ticks)))
@@ -740,7 +677,6 @@ async fn dispatch(
                     &start(),
                     &end(),
                     &time_of_day(),
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::quote_ticks_to_json(&ticks)))
@@ -761,7 +697,7 @@ async fn dispatch(
             let s = syms_str();
             let syms = parse_symbols(&s);
             let ticks = client
-                .index_snapshot_ohlc(&syms, &Default::default())
+                .index_snapshot_ohlc(&syms)
                 .await?;
             Ok(format::ok_envelope(format::ohlc_ticks_to_json(&ticks)))
         }
@@ -769,7 +705,7 @@ async fn dispatch(
             let s = syms_str();
             let syms = parse_symbols(&s);
             let ticks = client
-                .index_snapshot_price(&syms, &Default::default())
+                .index_snapshot_price(&syms)
                 .await?;
             Ok(format::ok_envelope(format::price_ticks_to_json(&ticks)))
         }
@@ -777,7 +713,7 @@ async fn dispatch(
             let s = syms_str();
             let syms = parse_symbols(&s);
             let ticks = client
-                .index_snapshot_market_value(&syms, &Default::default())
+                .index_snapshot_market_value(&syms)
                 .await?;
             Ok(format::ok_envelope(format::market_value_ticks_to_json(
                 &ticks,
@@ -791,7 +727,7 @@ async fn dispatch(
         }
         "index_history_ohlc" => {
             let ticks = client
-                .index_history_ohlc(&sym(), &start(), &end(), &interval(), None, None)
+                .index_history_ohlc(&sym(), &start(), &end(), &interval())
                 .await?;
             Ok(format::ok_envelope(format::ohlc_ticks_to_json(&ticks)))
         }
@@ -801,9 +737,6 @@ async fn dispatch(
                     &sym(),
                     &date(),
                     &interval(),
-                    None,
-                    None,
-                    &Default::default(),
                 )
                 .await?;
             Ok(format::ok_envelope(format::price_ticks_to_json(&ticks)))

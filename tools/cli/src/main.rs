@@ -200,30 +200,22 @@ async fn dispatch_endpoint(
         // ── Stock Snapshot ──────────────────────────────────────────
         "stock_snapshot_ohlc" => {
             let syms = parse_symbols(get_arg(m, "symbols"));
-            let ticks = client
-                .stock_snapshot_ohlc(&syms, &Default::default())
-                .await?;
+            let ticks = client.stock_snapshot_ohlc(&syms).await?;
             render_ohlc(&ticks, fmt);
         }
         "stock_snapshot_trade" => {
             let syms = parse_symbols(get_arg(m, "symbols"));
-            let ticks = client
-                .stock_snapshot_trade(&syms, &Default::default())
-                .await?;
+            let ticks = client.stock_snapshot_trade(&syms).await?;
             render_trades(&ticks, fmt);
         }
         "stock_snapshot_quote" => {
             let syms = parse_symbols(get_arg(m, "symbols"));
-            let ticks = client
-                .stock_snapshot_quote(&syms, &Default::default())
-                .await?;
+            let ticks = client.stock_snapshot_quote(&syms).await?;
             render_quotes(&ticks, fmt);
         }
         "stock_snapshot_market_value" => {
             let syms = parse_symbols(get_arg(m, "symbols"));
-            let ticks = client
-                .stock_snapshot_market_value(&syms, &Default::default())
-                .await?;
+            let ticks = client.stock_snapshot_market_value(&syms).await?;
             render_market_value(&ticks, fmt);
         }
 
@@ -239,9 +231,7 @@ async fn dispatch_endpoint(
             let sym = get_arg(m, "symbol");
             let date = get_arg(m, "date");
             let interval = get_arg(m, "interval");
-            let ticks = client
-                .stock_history_ohlc(sym, date, interval, None, None, &Default::default())
-                .await?;
+            let ticks = client.stock_history_ohlc(sym, date, interval).await?;
             render_ohlc(&ticks, fmt);
         }
         "stock_history_ohlc_range" => {
@@ -250,41 +240,27 @@ async fn dispatch_endpoint(
             let end = get_arg(m, "end_date");
             let interval = get_arg(m, "interval");
             let ticks = client
-                .stock_history_ohlc_range(
-                    sym,
-                    start,
-                    end,
-                    interval,
-                    None,
-                    None,
-                    &Default::default(),
-                )
+                .stock_history_ohlc_range(sym, start, end, interval)
                 .await?;
             render_ohlc(&ticks, fmt);
         }
         "stock_history_trade" => {
             let sym = get_arg(m, "symbol");
             let date = get_arg(m, "date");
-            let ticks = client
-                .stock_history_trade(sym, date, None, None, &Default::default())
-                .await?;
+            let ticks = client.stock_history_trade(sym, date).await?;
             render_trades(&ticks, fmt);
         }
         "stock_history_quote" => {
             let sym = get_arg(m, "symbol");
             let date = get_arg(m, "date");
             let interval = get_arg(m, "interval");
-            let ticks = client
-                .stock_history_quote(sym, date, interval, None, None, &Default::default())
-                .await?;
+            let ticks = client.stock_history_quote(sym, date, interval).await?;
             render_quotes(&ticks, fmt);
         }
         "stock_history_trade_quote" => {
             let sym = get_arg(m, "symbol");
             let date = get_arg(m, "date");
-            let ticks = client
-                .stock_history_trade_quote(sym, date, None, None, &Default::default())
-                .await?;
+            let ticks = client.stock_history_trade_quote(sym, date).await?;
             render_trade_quotes(&ticks, fmt);
         }
 
@@ -294,9 +270,7 @@ async fn dispatch_endpoint(
             let start = get_arg(m, "start_date");
             let end = get_arg(m, "end_date");
             let tod = get_arg(m, "time_of_day");
-            let ticks = client
-                .stock_at_time_trade(sym, start, end, tod, &Default::default())
-                .await?;
+            let ticks = client.stock_at_time_trade(sym, start, end, tod).await?;
             render_trades(&ticks, fmt);
         }
         "stock_at_time_quote" => {
@@ -304,9 +278,7 @@ async fn dispatch_endpoint(
             let start = get_arg(m, "start_date");
             let end = get_arg(m, "end_date");
             let tod = get_arg(m, "time_of_day");
-            let ticks = client
-                .stock_at_time_quote(sym, start, end, tod, &Default::default())
-                .await?;
+            let ticks = client.stock_at_time_quote(sym, start, end, tod).await?;
             render_quotes(&ticks, fmt);
         }
 
@@ -341,86 +313,76 @@ async fn dispatch_endpoint(
             let rt = get_arg(m, "request_type");
             let sym = get_arg(m, "symbol");
             let date = get_arg(m, "date");
-            let contracts = client
-                .option_list_contracts(rt, sym, date, &Default::default())
-                .await?;
+            let contracts = client.option_list_contracts(rt, sym, date).await?;
             render_option_contracts(&contracts, fmt);
         }
 
         // ── Option Snapshot ─────────────────────────────────────────
         "option_snapshot_ohlc" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
-            let ticks = client
-                .option_snapshot_ohlc(sym, exp, strike, right, &Default::default())
-                .await?;
+            let ticks = client.option_snapshot_ohlc(sym, exp, strike, right).await?;
             render_ohlc(&ticks, fmt);
         }
         "option_snapshot_trade" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let ticks = client
-                .option_snapshot_trade(sym, exp, strike, right, &Default::default())
+                .option_snapshot_trade(sym, exp, strike, right)
                 .await?;
             render_trades(&ticks, fmt);
         }
         "option_snapshot_quote" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let ticks = client
-                .option_snapshot_quote(sym, exp, strike, right, &Default::default())
+                .option_snapshot_quote(sym, exp, strike, right)
                 .await?;
             render_quotes(&ticks, fmt);
         }
         "option_snapshot_open_interest" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let ticks = client
-                .option_snapshot_open_interest(sym, exp, strike, right, &Default::default())
+                .option_snapshot_open_interest(sym, exp, strike, right)
                 .await?;
             render_open_interest(&ticks, fmt);
         }
         "option_snapshot_market_value" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let ticks = client
-                .option_snapshot_market_value(sym, exp, strike, right, &Default::default())
+                .option_snapshot_market_value(sym, exp, strike, right)
                 .await?;
             render_market_value(&ticks, fmt);
         }
         "option_snapshot_greeks_implied_volatility" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let ticks = client
-                .option_snapshot_greeks_implied_volatility(
-                    sym,
-                    exp,
-                    strike,
-                    right,
-                    &Default::default(),
-                )
+                .option_snapshot_greeks_implied_volatility(sym, exp, strike, right)
                 .await?;
             render_iv(&ticks, fmt);
         }
         "option_snapshot_greeks_all" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let ticks = client
-                .option_snapshot_greeks_all(sym, exp, strike, right, &Default::default())
+                .option_snapshot_greeks_all(sym, exp, strike, right)
                 .await?;
             render_greeks(&ticks, fmt);
         }
         "option_snapshot_greeks_first_order" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let ticks = client
-                .option_snapshot_greeks_first_order(sym, exp, strike, right, &Default::default())
+                .option_snapshot_greeks_first_order(sym, exp, strike, right)
                 .await?;
             render_greeks(&ticks, fmt);
         }
         "option_snapshot_greeks_second_order" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let ticks = client
-                .option_snapshot_greeks_second_order(sym, exp, strike, right, &Default::default())
+                .option_snapshot_greeks_second_order(sym, exp, strike, right)
                 .await?;
             render_greeks(&ticks, fmt);
         }
         "option_snapshot_greeks_third_order" => {
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let ticks = client
-                .option_snapshot_greeks_third_order(sym, exp, strike, right, &Default::default())
+                .option_snapshot_greeks_third_order(sym, exp, strike, right)
                 .await?;
             render_greeks(&ticks, fmt);
         }
@@ -431,7 +393,7 @@ async fn dispatch_endpoint(
             let start = get_arg(m, "start_date");
             let end = get_arg(m, "end_date");
             let ticks = client
-                .option_history_eod(sym, exp, strike, right, start, end, &Default::default())
+                .option_history_eod(sym, exp, strike, right, start, end)
                 .await?;
             render_eod(&ticks, fmt);
         }
@@ -440,17 +402,7 @@ async fn dispatch_endpoint(
             let date = get_arg(m, "date");
             let interval = get_arg(m, "interval");
             let ticks = client
-                .option_history_ohlc(
-                    sym,
-                    exp,
-                    strike,
-                    right,
-                    date,
-                    interval,
-                    None,
-                    None,
-                    &Default::default(),
-                )
+                .option_history_ohlc(sym, exp, strike, right, date, interval)
                 .await?;
             render_ohlc(&ticks, fmt);
         }
@@ -458,16 +410,7 @@ async fn dispatch_endpoint(
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let date = get_arg(m, "date");
             let ticks = client
-                .option_history_trade(
-                    sym,
-                    exp,
-                    strike,
-                    right,
-                    date,
-                    None,
-                    None,
-                    &Default::default(),
-                )
+                .option_history_trade(sym, exp, strike, right, date)
                 .await?;
             render_trades(&ticks, fmt);
         }
@@ -476,17 +419,7 @@ async fn dispatch_endpoint(
             let date = get_arg(m, "date");
             let interval = get_arg(m, "interval");
             let ticks = client
-                .option_history_quote(
-                    sym,
-                    exp,
-                    strike,
-                    right,
-                    date,
-                    interval,
-                    None,
-                    None,
-                    &Default::default(),
-                )
+                .option_history_quote(sym, exp, strike, right, date, interval)
                 .await?;
             render_quotes(&ticks, fmt);
         }
@@ -494,16 +427,7 @@ async fn dispatch_endpoint(
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let date = get_arg(m, "date");
             let ticks = client
-                .option_history_trade_quote(
-                    sym,
-                    exp,
-                    strike,
-                    right,
-                    date,
-                    None,
-                    None,
-                    &Default::default(),
-                )
+                .option_history_trade_quote(sym, exp, strike, right, date)
                 .await?;
             render_trade_quotes(&ticks, fmt);
         }
@@ -511,7 +435,7 @@ async fn dispatch_endpoint(
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let date = get_arg(m, "date");
             let ticks = client
-                .option_history_open_interest(sym, exp, strike, right, date, &Default::default())
+                .option_history_open_interest(sym, exp, strike, right, date)
                 .await?;
             render_open_interest(&ticks, fmt);
         }
@@ -522,7 +446,7 @@ async fn dispatch_endpoint(
             let start = get_arg(m, "start_date");
             let end = get_arg(m, "end_date");
             let ticks = client
-                .option_history_greeks_eod(sym, exp, strike, right, start, end, &Default::default())
+                .option_history_greeks_eod(sym, exp, strike, right, start, end)
                 .await?;
             render_greeks(&ticks, fmt);
         }
@@ -531,17 +455,7 @@ async fn dispatch_endpoint(
             let date = get_arg(m, "date");
             let interval = get_arg(m, "interval");
             let ticks = client
-                .option_history_greeks_all(
-                    sym,
-                    exp,
-                    strike,
-                    right,
-                    date,
-                    interval,
-                    None,
-                    None,
-                    &Default::default(),
-                )
+                .option_history_greeks_all(sym, exp, strike, right, date, interval)
                 .await?;
             render_greeks(&ticks, fmt);
         }
@@ -549,16 +463,7 @@ async fn dispatch_endpoint(
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let date = get_arg(m, "date");
             let ticks = client
-                .option_history_trade_greeks_all(
-                    sym,
-                    exp,
-                    strike,
-                    right,
-                    date,
-                    None,
-                    None,
-                    &Default::default(),
-                )
+                .option_history_trade_greeks_all(sym, exp, strike, right, date)
                 .await?;
             render_greeks(&ticks, fmt);
         }
@@ -567,17 +472,7 @@ async fn dispatch_endpoint(
             let date = get_arg(m, "date");
             let interval = get_arg(m, "interval");
             let ticks = client
-                .option_history_greeks_first_order(
-                    sym,
-                    exp,
-                    strike,
-                    right,
-                    date,
-                    interval,
-                    None,
-                    None,
-                    &Default::default(),
-                )
+                .option_history_greeks_first_order(sym, exp, strike, right, date, interval)
                 .await?;
             render_greeks(&ticks, fmt);
         }
@@ -585,16 +480,7 @@ async fn dispatch_endpoint(
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let date = get_arg(m, "date");
             let ticks = client
-                .option_history_trade_greeks_first_order(
-                    sym,
-                    exp,
-                    strike,
-                    right,
-                    date,
-                    None,
-                    None,
-                    &Default::default(),
-                )
+                .option_history_trade_greeks_first_order(sym, exp, strike, right, date)
                 .await?;
             render_greeks(&ticks, fmt);
         }
@@ -603,17 +489,7 @@ async fn dispatch_endpoint(
             let date = get_arg(m, "date");
             let interval = get_arg(m, "interval");
             let ticks = client
-                .option_history_greeks_second_order(
-                    sym,
-                    exp,
-                    strike,
-                    right,
-                    date,
-                    interval,
-                    None,
-                    None,
-                    &Default::default(),
-                )
+                .option_history_greeks_second_order(sym, exp, strike, right, date, interval)
                 .await?;
             render_greeks(&ticks, fmt);
         }
@@ -621,16 +497,7 @@ async fn dispatch_endpoint(
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let date = get_arg(m, "date");
             let ticks = client
-                .option_history_trade_greeks_second_order(
-                    sym,
-                    exp,
-                    strike,
-                    right,
-                    date,
-                    None,
-                    None,
-                    &Default::default(),
-                )
+                .option_history_trade_greeks_second_order(sym, exp, strike, right, date)
                 .await?;
             render_greeks(&ticks, fmt);
         }
@@ -639,17 +506,7 @@ async fn dispatch_endpoint(
             let date = get_arg(m, "date");
             let interval = get_arg(m, "interval");
             let ticks = client
-                .option_history_greeks_third_order(
-                    sym,
-                    exp,
-                    strike,
-                    right,
-                    date,
-                    interval,
-                    None,
-                    None,
-                    &Default::default(),
-                )
+                .option_history_greeks_third_order(sym, exp, strike, right, date, interval)
                 .await?;
             render_greeks(&ticks, fmt);
         }
@@ -657,16 +514,7 @@ async fn dispatch_endpoint(
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let date = get_arg(m, "date");
             let ticks = client
-                .option_history_trade_greeks_third_order(
-                    sym,
-                    exp,
-                    strike,
-                    right,
-                    date,
-                    None,
-                    None,
-                    &Default::default(),
-                )
+                .option_history_trade_greeks_third_order(sym, exp, strike, right, date)
                 .await?;
             render_greeks(&ticks, fmt);
         }
@@ -675,17 +523,7 @@ async fn dispatch_endpoint(
             let date = get_arg(m, "date");
             let interval = get_arg(m, "interval");
             let ticks = client
-                .option_history_greeks_implied_volatility(
-                    sym,
-                    exp,
-                    strike,
-                    right,
-                    date,
-                    interval,
-                    None,
-                    None,
-                    &Default::default(),
-                )
+                .option_history_greeks_implied_volatility(sym, exp, strike, right, date, interval)
                 .await?;
             render_iv(&ticks, fmt);
         }
@@ -693,16 +531,7 @@ async fn dispatch_endpoint(
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let date = get_arg(m, "date");
             let ticks = client
-                .option_history_trade_greeks_implied_volatility(
-                    sym,
-                    exp,
-                    strike,
-                    right,
-                    date,
-                    None,
-                    None,
-                    &Default::default(),
-                )
+                .option_history_trade_greeks_implied_volatility(sym, exp, strike, right, date)
                 .await?;
             render_iv(&ticks, fmt);
         }
@@ -714,16 +543,7 @@ async fn dispatch_endpoint(
             let end = get_arg(m, "end_date");
             let tod = get_arg(m, "time_of_day");
             let ticks = client
-                .option_at_time_trade(
-                    sym,
-                    exp,
-                    strike,
-                    right,
-                    start,
-                    end,
-                    tod,
-                    &Default::default(),
-                )
+                .option_at_time_trade(sym, exp, strike, right, start, end, tod)
                 .await?;
             render_trades(&ticks, fmt);
         }
@@ -733,16 +553,7 @@ async fn dispatch_endpoint(
             let end = get_arg(m, "end_date");
             let tod = get_arg(m, "time_of_day");
             let ticks = client
-                .option_at_time_quote(
-                    sym,
-                    exp,
-                    strike,
-                    right,
-                    start,
-                    end,
-                    tod,
-                    &Default::default(),
-                )
+                .option_at_time_quote(sym, exp, strike, right, start, end, tod)
                 .await?;
             render_quotes(&ticks, fmt);
         }
@@ -761,23 +572,17 @@ async fn dispatch_endpoint(
         // ── Index Snapshot ──────────────────────────────────────────
         "index_snapshot_ohlc" => {
             let syms = parse_symbols(get_arg(m, "symbols"));
-            let ticks = client
-                .index_snapshot_ohlc(&syms, &Default::default())
-                .await?;
+            let ticks = client.index_snapshot_ohlc(&syms).await?;
             render_ohlc(&ticks, fmt);
         }
         "index_snapshot_price" => {
             let syms = parse_symbols(get_arg(m, "symbols"));
-            let ticks = client
-                .index_snapshot_price(&syms, &Default::default())
-                .await?;
+            let ticks = client.index_snapshot_price(&syms).await?;
             render_price(&ticks, fmt);
         }
         "index_snapshot_market_value" => {
             let syms = parse_symbols(get_arg(m, "symbols"));
-            let ticks = client
-                .index_snapshot_market_value(&syms, &Default::default())
-                .await?;
+            let ticks = client.index_snapshot_market_value(&syms).await?;
             render_market_value(&ticks, fmt);
         }
 
@@ -794,18 +599,14 @@ async fn dispatch_endpoint(
             let start = get_arg(m, "start_date");
             let end = get_arg(m, "end_date");
             let interval = get_arg(m, "interval");
-            let ticks = client
-                .index_history_ohlc(sym, start, end, interval, None, None)
-                .await?;
+            let ticks = client.index_history_ohlc(sym, start, end, interval).await?;
             render_ohlc(&ticks, fmt);
         }
         "index_history_price" => {
             let sym = get_arg(m, "symbol");
             let date = get_arg(m, "date");
             let interval = get_arg(m, "interval");
-            let ticks = client
-                .index_history_price(sym, date, interval, None, None, &Default::default())
-                .await?;
+            let ticks = client.index_history_price(sym, date, interval).await?;
             render_price(&ticks, fmt);
         }
 
