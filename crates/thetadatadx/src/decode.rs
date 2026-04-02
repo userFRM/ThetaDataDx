@@ -39,23 +39,95 @@ fn find_header(headers: &[&str], name: &str) -> Option<usize> {
     None
 }
 
-/// Convert epoch_ms to milliseconds-of-day in Eastern Time.
+/// Eastern Time UTC offset in milliseconds for a given epoch_ms.
 ///
-/// ThetaData uses New York timezone. EDT = UTC-4, EST = UTC-5.
-/// Approximate with UTC-4 (correct for most trading days Mar-Nov).
+/// US DST rule (Energy Policy Act of 2005):
+/// - EDT (UTC-4): second Sunday of March at 2:00 AM local -> first Sunday of November at 2:00 AM local
+/// - EST (UTC-5): rest of the year
+///
+/// We compute the transition points in UTC and compare. This avoids
+/// external timezone crate dependencies while being correct for all
+/// dates from 2007 onward (when the current DST rule took effect).
+fn eastern_offset_ms(epoch_ms: u64) -> i64 {
+    // First, determine the UTC year/month/day to find DST boundaries.
+    let epoch_secs = epoch_ms as i64 / 1000;
+    let days_since_epoch = epoch_secs / 86400;
+
+    // Civil date from days since 1970-01-01 (Euclidean algorithm).
+    let z = days_since_epoch + 719468;
+    let era = if z >= 0 { z } else { z - 146096 } / 146097;
+    let doe = (z - era * 146097) as u32;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let year = yoe as i32 + (era * 400) as i32;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = if month <= 2 { year + 1 } else { year };
+
+    // Find DST start: second Sunday of March at 2:00 AM EST (= 7:00 AM UTC).
+    let dst_start_utc = march_second_sunday_utc(year);
+    // Find DST end: first Sunday of November at 2:00 AM EDT (= 6:00 AM UTC).
+    let dst_end_utc = november_first_sunday_utc(year);
+
+    let epoch_ms_i64 = epoch_ms as i64;
+    if epoch_ms_i64 >= dst_start_utc && epoch_ms_i64 < dst_end_utc {
+        -4 * 3600 * 1000 // EDT
+    } else {
+        -5 * 3600 * 1000 // EST
+    }
+}
+
+/// Epoch ms of the second Sunday of March at 7:00 AM UTC (= 2:00 AM EST).
+fn march_second_sunday_utc(year: i32) -> i64 {
+    // March 1 day-of-week, then find second Sunday.
+    let mar1 = civil_to_epoch_days(year, 3, 1);
+    // 1970-01-01 is Thursday. (days + 3) % 7 gives 0=Mon..6=Sun.
+    let dow = ((mar1 + 3) % 7 + 7) % 7;
+    let days_to_first_sunday = (6 - dow + 7) % 7; // days from Mar 1 to first Sunday
+    let second_sunday = mar1 + days_to_first_sunday + 7; // second Sunday
+    second_sunday * 86_400_000 + 7 * 3600 * 1000 // 7:00 AM UTC = 2:00 AM EST
+}
+
+/// Epoch ms of the first Sunday of November at 6:00 AM UTC (= 2:00 AM EDT).
+fn november_first_sunday_utc(year: i32) -> i64 {
+    let nov1 = civil_to_epoch_days(year, 11, 1);
+    let dow = ((nov1 + 3) % 7 + 7) % 7;
+    let days_to_first_sunday = (6 - dow + 7) % 7;
+    let first_sunday = nov1 + days_to_first_sunday;
+    first_sunday * 86_400_000 + 6 * 3600 * 1000 // 6:00 AM UTC = 2:00 AM EDT
+}
+
+/// Convert civil date to days since 1970-01-01 (inverse of the Euclidean algorithm).
+fn civil_to_epoch_days(year: i32, month: u32, day: u32) -> i64 {
+    let y = if month <= 2 {
+        year as i64 - 1
+    } else {
+        year as i64
+    };
+    let m = if month <= 2 {
+        month as i64 + 9
+    } else {
+        month as i64 - 3
+    };
+    let era = if y >= 0 { y } else { y - 399 } / 400;
+    let yoe = (y - era * 400) as u64;
+    let doy = (153 * m as u64 + 2) / 5 + day as u64 - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146097 + doe as i64 - 719468
+}
+
+/// Convert epoch_ms to milliseconds-of-day in Eastern Time (DST-aware).
 fn timestamp_to_ms_of_day(epoch_ms: u64) -> i32 {
-    let epoch_ms = epoch_ms as i64;
-    let et_offset_ms: i64 = -4 * 3600 * 1000;
-    let local_ms = epoch_ms + et_offset_ms;
+    let offset = eastern_offset_ms(epoch_ms);
+    let local_ms = epoch_ms as i64 + offset;
     (local_ms.rem_euclid(86_400_000)) as i32
 }
 
-/// Convert epoch_ms to YYYYMMDD date integer in Eastern Time.
+/// Convert epoch_ms to YYYYMMDD date integer in Eastern Time (DST-aware).
 pub(crate) fn timestamp_to_date(epoch_ms: u64) -> i32 {
-    let epoch_ms = epoch_ms as i64;
-    let et_offset_ms: i64 = -4 * 3600 * 1000;
-    let local_secs = (epoch_ms + et_offset_ms) / 1000;
-    let days = local_secs / 86400 + 719468; // days since 0000-03-01
+    let offset = eastern_offset_ms(epoch_ms);
+    let local_secs = (epoch_ms as i64 + offset) / 1000;
+    let days = local_secs / 86400 + 719468;
     let era = if days >= 0 { days } else { days - 146096 } / 146097;
     let doe = (days - era * 146097) as u32;
     let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
@@ -492,5 +564,46 @@ mod tests {
 
         let col = extract_number_column(&table, "val");
         assert_eq!(col, vec![Some(10), None, Some(30)]);
+    }
+
+    #[test]
+    fn timestamp_to_ms_of_day_edt() {
+        // 2026-04-01 09:30:00 ET (EDT, UTC-4) = 2026-04-01 13:30:00 UTC
+        // epoch_ms for 2026-04-01 13:30:00 UTC
+        let epoch_ms: u64 = 1_775_050_200_000; // Apr 1 2026, 13:30 UTC
+        let ms = super::timestamp_to_ms_of_day(epoch_ms);
+        assert_eq!(ms, 34_200_000, "9:30 AM ET in milliseconds");
+    }
+
+    #[test]
+    fn timestamp_to_ms_of_day_est() {
+        // 2026-01-15 09:30:00 ET (EST, UTC-5) = 2026-01-15 14:30:00 UTC
+        let epoch_ms: u64 = 1_768_487_400_000;
+        let ms = super::timestamp_to_ms_of_day(epoch_ms);
+        assert_eq!(ms, 34_200_000, "9:30 AM ET in milliseconds (winter)");
+    }
+
+    #[test]
+    fn timestamp_to_date_edt() {
+        let epoch_ms: u64 = 1_775_050_200_000; // Apr 1 2026, 13:30 UTC
+        let date = super::timestamp_to_date(epoch_ms);
+        assert_eq!(date, 20260401);
+    }
+
+    #[test]
+    fn timestamp_to_date_est() {
+        let epoch_ms: u64 = 1_768_487_400_000; // Jan 15 2026, 14:30 UTC
+        let date = super::timestamp_to_date(epoch_ms);
+        assert_eq!(date, 20260115);
+    }
+
+    #[test]
+    fn dst_transition_march_2026() {
+        // 2026 DST starts March 8 (second Sunday of March)
+        // Before: EST (UTC-5) at 06:59 UTC. After: EDT (UTC-4) at 07:01 UTC.
+        let before: u64 = 1_772_953_140_000; // Mar 8 2026, 06:59 UTC
+        assert_eq!(super::eastern_offset_ms(before), -5 * 3600 * 1000);
+        let after: u64 = 1_772_953_260_000; // Mar 8 2026, 07:01 UTC
+        assert_eq!(super::eastern_offset_ms(after), -4 * 3600 * 1000);
     }
 }
