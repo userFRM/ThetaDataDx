@@ -132,58 +132,72 @@ impl ThetaDataDx {
         f(client)
     }
 
+    /// Subscribe to quote updates for a contract.
     pub fn subscribe_quotes(&self, contract: &Contract) -> Result<i32, Error> {
         self.with_streaming(|s| s.subscribe_quotes(contract))
     }
 
+    /// Subscribe to trade updates for a contract.
     pub fn subscribe_trades(&self, contract: &Contract) -> Result<i32, Error> {
         self.with_streaming(|s| s.subscribe_trades(contract))
     }
 
+    /// Subscribe to open interest updates for a contract.
     pub fn subscribe_open_interest(&self, contract: &Contract) -> Result<i32, Error> {
         self.with_streaming(|s| s.subscribe_open_interest(contract))
     }
 
+    /// Subscribe to all trades for a security type (firehose).
     pub fn subscribe_full_trades(&self, sec_type: SecType) -> Result<i32, Error> {
         self.with_streaming(|s| s.subscribe_full_trades(sec_type))
     }
 
+    /// Subscribe to all open interest for a security type (firehose).
     pub fn subscribe_full_open_interest(&self, sec_type: SecType) -> Result<i32, Error> {
         self.with_streaming(|s| s.subscribe_full_open_interest(sec_type))
     }
 
+    /// Unsubscribe from quote updates for a contract.
     pub fn unsubscribe_quotes(&self, contract: &Contract) -> Result<i32, Error> {
         self.with_streaming(|s| s.unsubscribe_quotes(contract))
     }
 
+    /// Unsubscribe from trade updates for a contract.
     pub fn unsubscribe_trades(&self, contract: &Contract) -> Result<i32, Error> {
         self.with_streaming(|s| s.unsubscribe_trades(contract))
     }
 
+    /// Unsubscribe from open interest updates for a contract.
     pub fn unsubscribe_open_interest(&self, contract: &Contract) -> Result<i32, Error> {
         self.with_streaming(|s| s.unsubscribe_open_interest(contract))
     }
 
+    /// Unsubscribe from all trades for a security type.
     pub fn unsubscribe_full_trades(&self, sec_type: SecType) -> Result<i32, Error> {
         self.with_streaming(|s| s.unsubscribe_full_trades(sec_type))
     }
 
+    /// Unsubscribe from all open interest for a security type.
     pub fn unsubscribe_full_open_interest(&self, sec_type: SecType) -> Result<i32, Error> {
         self.with_streaming(|s| s.unsubscribe_full_open_interest(sec_type))
     }
 
+    /// Get the current contract ID to Contract mapping.
     pub fn contract_map(&self) -> Result<HashMap<i32, Contract>, Error> {
         self.with_streaming(|s| Ok(s.contract_map()))
     }
 
+    /// Look up a contract by its server-assigned ID.
     pub fn contract_lookup(&self, id: i32) -> Result<Option<Contract>, Error> {
         self.with_streaming(|s| Ok(s.contract_lookup(id)))
     }
 
+    /// Get all active per-contract subscriptions.
     pub fn active_subscriptions(&self) -> Result<Vec<(SubscriptionKind, Contract)>, Error> {
         self.with_streaming(|s| Ok(s.active_subscriptions()))
     }
 
+    /// Get all active full-type (firehose) subscriptions.
     pub fn active_full_subscriptions(&self) -> Result<Vec<(SubscriptionKind, SecType)>, Error> {
         self.with_streaming(|s| Ok(s.active_full_subscriptions()))
     }

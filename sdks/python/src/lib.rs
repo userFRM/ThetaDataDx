@@ -1036,7 +1036,7 @@ impl ThetaDataDx {
         drop(rx_outer);
         let timeout = std::time::Duration::from_millis(timeout_ms);
         let result = py.detach(move || {
-            let rx = rx_arc.lock().unwrap();
+            let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());
             rx.recv_timeout(timeout).ok()
         });
         match result {
