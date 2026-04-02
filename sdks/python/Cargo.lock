@@ -1550,7 +1550,7 @@ checksum = "adb6935a6f5c20170eeceb1a3835a49e12e19d792f6dd344ccc76a985ca5a6ca"
 name = "tdbe"
 version = "0.1.0"
 dependencies = [
- "tracing",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -1568,7 +1568,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "3.2.2"
+version = "4.5.0"
 dependencies = [
  "disruptor",
  "prost",
@@ -1595,7 +1595,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-py"
-version = "3.2.2"
+version = "4.5.0"
 dependencies = [
  "pyo3",
  "tdbe",

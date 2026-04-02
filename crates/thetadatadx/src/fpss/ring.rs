@@ -262,6 +262,7 @@ mod tests {
                 ask_condition: 0,
                 price_type: 8,
                 date: 20240315,
+                received_at_ns: 0,
             }));
         });
 
@@ -356,6 +357,7 @@ mod tests {
                     ask_condition: 0,
                     price_type: 0,
                     date: 0,
+                    received_at_ns: 0,
                 }));
             });
         }

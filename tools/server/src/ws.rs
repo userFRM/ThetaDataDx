@@ -291,6 +291,7 @@ fn fpss_event_to_ws_json(
                     ask_condition,
                     price_type,
                     date,
+                    received_at_ns,
                 } => (
                     "QUOTE",
                     *contract_id,
@@ -305,6 +306,7 @@ fn fpss_event_to_ws_json(
                         "ask": Price::new(*ask, *price_type).to_f64(),
                         "ask_condition": ask_condition,
                         "date": date,
+                        "received_at_ns": received_at_ns,
                     }),
                 ),
                 FpssData::Trade {
@@ -317,6 +319,7 @@ fn fpss_event_to_ws_json(
                     price,
                     price_type,
                     date,
+                    received_at_ns,
                     ..
                 } => (
                     "TRADE",
@@ -329,6 +332,7 @@ fn fpss_event_to_ws_json(
                         "exchange": exchange,
                         "price": Price::new(*price, *price_type).to_f64(),
                         "date": date,
+                        "received_at_ns": received_at_ns,
                     }),
                 ),
                 FpssData::Ohlcvc {
@@ -342,6 +346,7 @@ fn fpss_event_to_ws_json(
                     count,
                     price_type,
                     date,
+                    received_at_ns,
                 } => (
                     "OHLC",
                     *contract_id,
@@ -354,6 +359,7 @@ fn fpss_event_to_ws_json(
                         "volume": volume,
                         "count": count,
                         "date": date,
+                        "received_at_ns": received_at_ns,
                     }),
                 ),
                 FpssData::OpenInterest {
@@ -361,6 +367,7 @@ fn fpss_event_to_ws_json(
                     ms_of_day,
                     open_interest,
                     date,
+                    received_at_ns,
                 } => (
                     "OPEN_INTEREST",
                     *contract_id,
@@ -368,6 +375,7 @@ fn fpss_event_to_ws_json(
                         "ms_of_day": ms_of_day,
                         "open_interest": open_interest,
                         "date": date,
+                        "received_at_ns": received_at_ns,
                     }),
                 ),
                 _ => return None,

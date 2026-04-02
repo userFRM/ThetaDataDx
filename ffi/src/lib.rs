@@ -142,6 +142,7 @@ fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
             ask_condition,
             price_type,
             date,
+            received_at_ns,
         }) => serde_json::json!({
             "kind": "quote",
             "contract_id": contract_id,
@@ -155,6 +156,7 @@ fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
             "ask": ffi_price_to_f64(*ask, *price_type),
             "ask_condition": ask_condition,
             "date": date,
+            "received_at_ns": received_at_ns,
         }),
         FpssEvent::Data(FpssData::Trade {
             contract_id,
@@ -170,6 +172,7 @@ fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
             records_back,
             price_type,
             date,
+            received_at_ns,
             ..
         }) => serde_json::json!({
             "kind": "trade",
@@ -187,18 +190,21 @@ fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
             "volume_type": volume_type,
             "records_back": records_back,
             "date": date,
+            "received_at_ns": received_at_ns,
         }),
         FpssEvent::Data(FpssData::OpenInterest {
             contract_id,
             ms_of_day,
             open_interest,
             date,
+            received_at_ns,
         }) => serde_json::json!({
             "kind": "open_interest",
             "contract_id": contract_id,
             "ms_of_day": ms_of_day,
             "open_interest": open_interest,
             "date": date,
+            "received_at_ns": received_at_ns,
         }),
         FpssEvent::Data(FpssData::Ohlcvc {
             contract_id,
@@ -211,6 +217,7 @@ fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
             count,
             price_type,
             date,
+            received_at_ns,
         }) => serde_json::json!({
             "kind": "ohlcvc",
             "contract_id": contract_id,
@@ -222,6 +229,7 @@ fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
             "volume": volume,
             "count": count,
             "date": date,
+            "received_at_ns": received_at_ns,
         }),
         FpssEvent::RawData { code, payload } => {
             use std::fmt::Write;

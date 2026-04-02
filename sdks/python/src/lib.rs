@@ -417,6 +417,7 @@ enum BufferedEvent {
         ask: f64,
         ask_condition: i32,
         date: i32,
+        received_at_ns: u64,
     },
     /// Trade tick with decoded fields.
     Trade {
@@ -434,6 +435,7 @@ enum BufferedEvent {
         volume_type: i32,
         records_back: i32,
         date: i32,
+        received_at_ns: u64,
     },
     /// Open interest tick.
     OpenInterest {
@@ -441,6 +443,7 @@ enum BufferedEvent {
         ms_of_day: i32,
         open_interest: i32,
         date: i32,
+        received_at_ns: u64,
     },
     /// OHLCVC bar with decoded fields.
     Ohlcvc {
@@ -453,6 +456,7 @@ enum BufferedEvent {
         volume: i32,
         count: i32,
         date: i32,
+        received_at_ns: u64,
     },
     /// Raw undecoded data (fallback).
     RawData { code: u8, payload: Vec<u8> },
@@ -485,6 +489,7 @@ fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                 ask_condition,
                 price_type,
                 date,
+                received_at_ns,
             } => BufferedEvent::Quote {
                 contract_id: *contract_id,
                 ms_of_day: *ms_of_day,
@@ -497,6 +502,7 @@ fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                 ask: price_to_f64(*ask, *price_type),
                 ask_condition: *ask_condition,
                 date: *date,
+                received_at_ns: *received_at_ns,
             },
             fpss::FpssData::Trade {
                 contract_id,
@@ -512,6 +518,7 @@ fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                 records_back,
                 price_type,
                 date,
+                received_at_ns,
                 ..
             } => BufferedEvent::Trade {
                 contract_id: *contract_id,
@@ -528,17 +535,20 @@ fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                 volume_type: *volume_type,
                 records_back: *records_back,
                 date: *date,
+                received_at_ns: *received_at_ns,
             },
             fpss::FpssData::OpenInterest {
                 contract_id,
                 ms_of_day,
                 open_interest,
                 date,
+                received_at_ns,
             } => BufferedEvent::OpenInterest {
                 contract_id: *contract_id,
                 ms_of_day: *ms_of_day,
                 open_interest: *open_interest,
                 date: *date,
+                received_at_ns: *received_at_ns,
             },
             fpss::FpssData::Ohlcvc {
                 contract_id,
@@ -551,6 +561,7 @@ fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                 count,
                 price_type,
                 date,
+                received_at_ns,
             } => BufferedEvent::Ohlcvc {
                 contract_id: *contract_id,
                 ms_of_day: *ms_of_day,
@@ -561,6 +572,7 @@ fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                 volume: *volume,
                 count: *count,
                 date: *date,
+                received_at_ns: *received_at_ns,
             },
             _ => BufferedEvent::Simple {
                 kind: "unknown_data".to_string(),
@@ -642,6 +654,7 @@ fn buffered_event_to_py(py: Python<'_>, event: &BufferedEvent) -> Py<PyAny> {
             ask,
             ask_condition,
             date,
+            received_at_ns,
         } => {
             dict.set_item("kind", "quote").unwrap();
             dict.set_item("contract_id", contract_id).unwrap();
@@ -655,6 +668,7 @@ fn buffered_event_to_py(py: Python<'_>, event: &BufferedEvent) -> Py<PyAny> {
             dict.set_item("ask", ask).unwrap();
             dict.set_item("ask_condition", ask_condition).unwrap();
             dict.set_item("date", date).unwrap();
+            dict.set_item("received_at_ns", received_at_ns).unwrap();
         }
         BufferedEvent::Trade {
             contract_id,
@@ -671,6 +685,7 @@ fn buffered_event_to_py(py: Python<'_>, event: &BufferedEvent) -> Py<PyAny> {
             volume_type,
             records_back,
             date,
+            received_at_ns,
         } => {
             dict.set_item("kind", "trade").unwrap();
             dict.set_item("contract_id", contract_id).unwrap();
@@ -687,18 +702,21 @@ fn buffered_event_to_py(py: Python<'_>, event: &BufferedEvent) -> Py<PyAny> {
             dict.set_item("volume_type", volume_type).unwrap();
             dict.set_item("records_back", records_back).unwrap();
             dict.set_item("date", date).unwrap();
+            dict.set_item("received_at_ns", received_at_ns).unwrap();
         }
         BufferedEvent::OpenInterest {
             contract_id,
             ms_of_day,
             open_interest,
             date,
+            received_at_ns,
         } => {
             dict.set_item("kind", "open_interest").unwrap();
             dict.set_item("contract_id", contract_id).unwrap();
             dict.set_item("ms_of_day", ms_of_day).unwrap();
             dict.set_item("open_interest", open_interest).unwrap();
             dict.set_item("date", date).unwrap();
+            dict.set_item("received_at_ns", received_at_ns).unwrap();
         }
         BufferedEvent::Ohlcvc {
             contract_id,
@@ -710,6 +728,7 @@ fn buffered_event_to_py(py: Python<'_>, event: &BufferedEvent) -> Py<PyAny> {
             volume,
             count,
             date,
+            received_at_ns,
         } => {
             dict.set_item("kind", "ohlcvc").unwrap();
             dict.set_item("contract_id", contract_id).unwrap();
@@ -721,6 +740,7 @@ fn buffered_event_to_py(py: Python<'_>, event: &BufferedEvent) -> Py<PyAny> {
             dict.set_item("volume", volume).unwrap();
             dict.set_item("count", count).unwrap();
             dict.set_item("date", date).unwrap();
+            dict.set_item("received_at_ns", received_at_ns).unwrap();
         }
         BufferedEvent::RawData { code, payload } => {
             dict.set_item("kind", "raw_data").unwrap();

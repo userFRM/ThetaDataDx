@@ -17,6 +17,7 @@ pub mod codec;
 pub mod error;
 pub mod flags;
 pub mod greeks;
+pub mod latency;
 pub mod types;
 
 // Convenience re-exports at crate root

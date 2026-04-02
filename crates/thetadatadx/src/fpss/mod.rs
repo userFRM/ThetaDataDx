@@ -132,6 +132,8 @@ pub enum FpssData {
         ask_condition: i32,
         price_type: i32,
         date: i32,
+        /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
+        received_at_ns: u64,
     },
     /// Decoded trade tick (code 22). 16 FIT fields + contract_id.
     Trade {
@@ -152,6 +154,8 @@ pub enum FpssData {
         records_back: i32,
         price_type: i32,
         date: i32,
+        /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
+        received_at_ns: u64,
     },
     /// Decoded open interest tick (code 23). 3 FIT fields + contract_id.
     OpenInterest {
@@ -159,6 +163,8 @@ pub enum FpssData {
         ms_of_day: i32,
         open_interest: i32,
         date: i32,
+        /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
+        received_at_ns: u64,
     },
     /// Decoded OHLCVC bar (code 24 or trade-derived).
     Ohlcvc {
@@ -172,6 +178,8 @@ pub enum FpssData {
         count: i32,
         price_type: i32,
         date: i32,
+        /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
+        received_at_ns: u64,
     },
 }
 
@@ -1313,6 +1321,12 @@ fn decode_frame(
     delta_state: &mut DeltaState,
     derive_ohlcvc: bool,
 ) -> (Option<FpssEvent>, Option<FpssEvent>) {
+    // Capture wall-clock timestamp once per frame for all data variants.
+    let received_at_ns = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos() as u64;
+
     match code {
         StreamMsgType::Metadata => {
             // Can arrive again after reconnection
@@ -1370,6 +1384,7 @@ fn decode_frame(
                         ask_condition: f[8],
                         price_type: f[9],
                         date: f[10],
+                        received_at_ns,
                     })),
                     None,
                 ),
@@ -1410,6 +1425,7 @@ fn decode_frame(
                         records_back: f[13],
                         price_type,
                         date,
+                        received_at_ns,
                     });
                     // Derive OHLCVC from trade (Java: OHLCVC.processTrade).
                     // Only if enabled AND the server has already seeded a bar.
@@ -1429,6 +1445,7 @@ fn decode_frame(
                                     count: acc.count,
                                     price_type: acc.price_type,
                                     date: acc.date,
+                                    received_at_ns,
                                 }))
                             } else {
                                 None
@@ -1462,6 +1479,7 @@ fn decode_frame(
                         ms_of_day: f[0],
                         open_interest: f[1],
                         date: f[2],
+                        received_at_ns,
                     })),
                     None,
                 ),
@@ -1497,6 +1515,7 @@ fn decode_frame(
                             count: f[6],
                             price_type: f[7],
                             date: f[8],
+                            received_at_ns,
                         })),
                         None,
                     )
@@ -1864,6 +1883,7 @@ mod tests {
             records_back: 0,
             price_type: 8,
             date: 20240315,
+            received_at_ns: 0,
         });
         match &data_evt {
             FpssEvent::Data(FpssData::Trade {
