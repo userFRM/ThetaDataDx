@@ -1599,6 +1599,7 @@ impl ThetaDataDx {
                 runtime()
                     .block_on(self.tdx.option_history_eod(
                         symbol, expiration, strike, right, start_date, end_date,
+                        &Default::default(),
                     ))
                     .map_err(to_py_err)
             })?;

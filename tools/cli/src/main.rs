@@ -431,7 +431,7 @@ async fn dispatch_endpoint(
             let start = get_arg(m, "start_date");
             let end = get_arg(m, "end_date");
             let ticks = client
-                .option_history_eod(sym, exp, strike, right, start, end)
+                .option_history_eod(sym, exp, strike, right, start, end, &Default::default())
                 .await?;
             render_eod(&ticks, fmt);
         }

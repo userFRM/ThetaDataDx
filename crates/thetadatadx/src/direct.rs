@@ -1087,7 +1087,7 @@ impl DirectClient {
         /// gRPC: `BetaThetaTerminal/GetOptionHistoryEod`
         fn option_history_eod(
             symbol: &str, expiration: &str, strike: &str, right: &str,
-            start: &str, end: &str
+            start: &str, end: &str, opts: &crate::options::OptionHistoryOptions
         ) -> Vec<EodTick>;
         grpc: get_option_history_eod;
         request: OptionHistoryEodRequest;
@@ -1096,8 +1096,8 @@ impl DirectClient {
             start_date: start.to_string(),
             end_date: end.to_string(),
             expiration: expiration.to_string(),
-            max_dte: None,
-            strike_range: None,
+            max_dte: opts.max_dte,
+            strike_range: opts.strike_range,
         };
         parse: decode::parse_eod_ticks;
         dates: start, end;

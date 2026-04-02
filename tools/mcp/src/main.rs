@@ -1163,7 +1163,7 @@ async fn execute_tool(
             let end = param!(arg_date(args, "end_date"));
             let ticks = api!(
                 client
-                    .option_history_eod(sym, exp, strike, right, start, end)
+                    .option_history_eod(sym, exp, strike, right, start, end, &Default::default())
                     .await
             );
             Ok(serialize_eod_ticks(&ticks))

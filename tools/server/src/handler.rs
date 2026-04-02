@@ -459,7 +459,7 @@ async fn dispatch(
         // ── Option History (6) ──────────────────────────────────────
         "option_history_eod" => {
             let ticks = client
-                .option_history_eod(&sym(), &exp(), &strike(), &right(), &start(), &end())
+                .option_history_eod(&sym(), &exp(), &strike(), &right(), &start(), &end(), &Default::default())
                 .await?;
             Ok(format::ok_envelope(format::eod_ticks_to_json(&ticks)))
         }

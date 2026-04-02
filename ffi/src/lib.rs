@@ -1198,7 +1198,7 @@ ffi_typed_endpoint! {
 // 29. option_history_eod
 ffi_typed_endpoint! {
     /// Fetch EOD option data for a contract over a date range. Returns TdxEodTickArray.
-    tdx_option_history_eod => option_history_eod, TdxEodTickArray(symbol, expiration, strike, right, start_date, end_date)
+    tdx_option_history_eod => option_history_eod, TdxEodTickArray(symbol, expiration, strike, right, start_date, end_date) with_opts
 }
 
 // 30. option_history_ohlc
