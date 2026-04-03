@@ -1713,12 +1713,25 @@ fn decode_frame(
         }
 
         StreamMsgType::Error => {
-            let message = String::from_utf8_lossy(payload).to_string();
-            tracing::warn!(message = %message, "server error");
-            (
-                Some(FpssEvent::Control(FpssControl::ServerError { message })),
-                None,
-            )
+            // The dev server's replay loop boundary leaks FIT tick data into
+            // Error frames. Detect binary content and skip silently -- these
+            // are not real errors, just replay artifacts. Matches Java terminal
+            // behavior (logs and ignores).
+            let is_binary = framing::is_binary_payload(payload);
+            if is_binary {
+                tracing::debug!(
+                    len = payload.len(),
+                    "skipping binary Error frame (replay boundary artifact)"
+                );
+                (None, None)
+            } else {
+                let message = String::from_utf8_lossy(payload).to_string();
+                tracing::warn!(message = %message, "server error");
+                (
+                    Some(FpssEvent::Control(FpssControl::ServerError { message })),
+                    None,
+                )
+            }
         }
 
         StreamMsgType::Disconnected => {
