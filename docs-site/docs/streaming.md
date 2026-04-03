@@ -1,18 +1,30 @@
 ---
 title: Real-Time Streaming
-description: Subscribe to live market data via ThetaData's FPSS servers with quote, trade, open interest, and OHLC streaming across Rust, Python, Go, and C++.
+description: Subscribe to live market data via ThetaData's FPSS servers with quote, trade, open interest, and OHLCVC streaming across Rust, Python, Go, and C++.
 ---
 
 # Real-Time Streaming
 
-Real-time market data is delivered via ThetaData's FPSS (Feed Protocol Streaming Service) servers. FPSS delivers live quotes, trades, open interest, and OHLC snapshots over a persistent TLS/TCP connection.
+Real-time market data is delivered via ThetaData's FPSS (Feed Processing Streaming Server) over persistent TLS/TCP connections. FPSS delivers live quotes, trades, open interest, and OHLCVC bars as typed, zero-copy events.
 
 Each SDK exposes FPSS differently:
 
-- **Rust** - Fully synchronous callback model. Events are dispatched through an LMAX Disruptor ring buffer. No Tokio on the streaming hot path.
-- **Python** - Polling model with `next_event()`. Events are returned as Python dicts.
-- **Go** - Polling model with `NextEvent()`. Events are returned as JSON.
-- **C++** - Polling model with `next_event()`. Events are returned as JSON strings. RAII handles cleanup automatically.
+- **Rust** -- Fully synchronous callback model. Events dispatched through an LMAX Disruptor ring buffer. No Tokio on the streaming hot path.
+- **Python** -- Polling model with `next_event()`. Events returned as Python dicts with all fields.
+- **Go** -- Polling model with `NextEvent()`. Events returned as typed `*FpssEvent` structs. Use `PriceToF64()` for price decoding.
+- **C++** -- Polling model with `next_event()`. Events returned as `FpssEventPtr` (`unique_ptr<TdxFpssEvent>`, RAII). `#[repr(C)]` layout-compatible structs.
+
+::: warning No JSON in FFI
+Go and C++ receive typed `#[repr(C)]` structs directly from Rust -- not JSON. All field access is zero-copy struct member access.
+:::
+
+## Server Environments
+
+| Config | FPSS Ports | Purpose |
+|--------|-----------|---------|
+| `DirectConfig::production()` | 20000, 20001 | Live production data |
+| `DirectConfig::dev()` | 20200, 20201 | Historical day replay at max speed (testing when markets are closed) |
+| `DirectConfig::stage()` | 20100, 20101 | Staging/testing (frequent reboots, unstable) |
 
 ## Connect
 
@@ -23,16 +35,18 @@ use thetadatadx::fpss::{FpssData, FpssControl, FpssEvent};
 use thetadatadx::fpss::protocol::Contract;
 
 let creds = Credentials::from_file("creds.txt")?;
-// Or inline: let creds = Credentials::new("user@example.com", "your-password");
+// Production, dev, or stage:
 let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+// let tdx = ThetaDataDx::connect(&creds, DirectConfig::dev()).await?;
+// let tdx = ThetaDataDx::connect(&creds, DirectConfig::stage()).await?;
 
 tdx.start_streaming(|event: &FpssEvent| {
     match event {
-        FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, .. }) => {
-            println!("Quote: contract={contract_id} bid={bid} ask={ask}");
+        FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, received_at_ns, .. }) => {
+            println!("Quote: contract={contract_id} bid={bid} ask={ask} rx={received_at_ns}ns");
         }
-        FpssEvent::Data(FpssData::Trade { contract_id, price, size, .. }) => {
-            println!("Trade: contract={contract_id} price={price} size={size}");
+        FpssEvent::Data(FpssData::Trade { contract_id, price, size, received_at_ns, .. }) => {
+            println!("Trade: contract={contract_id} price={price} size={size} rx={received_at_ns}ns");
         }
         FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
             println!("Contract {id} = {contract}");
@@ -45,17 +59,21 @@ tdx.start_streaming(|event: &FpssEvent| {
 from thetadatadx import Credentials, Config, ThetaDataDx
 
 creds = Credentials.from_file("creds.txt")
-# Or inline: creds = Credentials("user@example.com", "your-password")
+# Production, dev, or stage:
 tdx = ThetaDataDx(creds, Config.production())
+# tdx = ThetaDataDx(creds, Config.dev())
+# tdx = ThetaDataDx(creds, Config.stage())
 
 tdx.start_streaming()
 ```
 ```go [Go]
 creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
-// Or inline: creds, _ := thetadatadx.NewCredentials("user@example.com", "your-password")
 defer creds.Close()
 
+// Production, dev, or stage:
 config := thetadatadx.ProductionConfig()
+// config := thetadatadx.DevConfig()
+// config := thetadatadx.StageConfig()
 defer config.Close()
 
 fpss, _ := thetadatadx.NewFpssClient(creds, config)
@@ -63,13 +81,28 @@ defer fpss.Close()
 ```
 ```cpp [C++]
 auto creds = tdx::Credentials::from_file("creds.txt");
-// Or inline: auto creds = tdx::Credentials("user@example.com", "your-password");
+// Production, dev, or stage:
 auto config = tdx::Config::production();
+// auto config = tdx::Config::dev();
+// auto config = tdx::Config::stage();
 tdx::FpssClient fpss(creds, config);
 ```
 :::
 
-The ring buffer size for event dispatch is configured via `DirectConfig` (Rust only).
+## Flush Mode
+
+`FpssFlushMode` controls the latency/syscall tradeoff:
+
+| Mode | Flush trigger | Added latency | Best for |
+|------|--------------|---------------|----------|
+| `Batched` (default) | PING frames every ~100ms | Up to 100ms | Production throughput |
+| `Immediate` | Every frame write | None | Lowest latency |
+
+```rust
+use thetadatadx::config::FpssFlushMode;
+let mut config = DirectConfig::production();
+config.fpss_flush_mode = FpssFlushMode::Immediate;
+```
 
 ## Subscribe
 
@@ -77,53 +110,41 @@ The ring buffer size for event dispatch is configured via `DirectConfig` (Rust o
 ```rust [Rust]
 // Stock quotes
 let req_id = tdx.subscribe_quotes(&Contract::stock("AAPL"))?;
-println!("Subscribed (req_id={req_id})");
 
 // Stock trades
 tdx.subscribe_trades(&Contract::stock("MSFT"))?;
 
 // Option quotes
-let opt = Contract::option("SPY", 20261218, true, 60000); // call, strike $600
+let opt = Contract::option("SPY", 20261218, true, 60000);
 tdx.subscribe_quotes(&opt)?;
 
 // Open interest
 tdx.subscribe_open_interest(&Contract::stock("AAPL"))?;
 
-// All trades for a security type
+// Firehose: all trades for a security type
 tdx.subscribe_full_trades(SecType::Stock)?;
+tdx.subscribe_full_open_interest(SecType::Option)?;
 ```
 ```python [Python]
 tdx.subscribe_quotes("AAPL")
 tdx.subscribe_trades("MSFT")
 tdx.subscribe_open_interest("SPY")
+tdx.subscribe_full_trades("STOCK")
+tdx.subscribe_full_open_interest("OPTION")
 ```
 ```go [Go]
-// Stock quotes
-reqID, _ := fpss.SubscribeQuotes("AAPL")
-fmt.Printf("Subscribed (req_id=%d)\n", reqID)
-
-// Stock trades
+fpss.SubscribeQuotes("AAPL")
 fpss.SubscribeTrades("MSFT")
-
-// Open interest
 fpss.SubscribeOpenInterest("AAPL")
-
-// All trades for a security type
 fpss.SubscribeFullTrades("STOCK")
+fpss.SubscribeFullOpenInterest("OPTION")
 ```
 ```cpp [C++]
-// Stock quotes
-int32_t req_id = fpss.subscribe_quotes("AAPL");
-std::cout << "Subscribed (req_id=" << req_id << ")" << std::endl;
-
-// Stock trades
+fpss.subscribe_quotes("AAPL");
 fpss.subscribe_trades("MSFT");
-
-// Open interest
 fpss.subscribe_open_interest("AAPL");
-
-// All trades for a security type
 fpss.subscribe_full_trades("STOCK");
+fpss.subscribe_full_open_interest("OPTION");
 ```
 :::
 
@@ -133,81 +154,58 @@ fpss.subscribe_full_trades("STOCK");
 ```rust [Rust]
 tdx.start_streaming(|event: &FpssEvent| {
     match event {
-        // --- Data events ---
         FpssEvent::Data(FpssData::Quote {
-            contract_id, ms_of_day, bid, ask, bid_size, ask_size, price_type, ..
+            contract_id, ms_of_day, bid, ask, bid_size, ask_size,
+            price_type, received_at_ns, ..
         }) => {
             let bid_price = Price::new(*bid, *price_type);
             let ask_price = Price::new(*ask, *price_type);
             println!("Quote: id={contract_id} bid={bid_price} ask={ask_price}");
         }
         FpssEvent::Data(FpssData::Trade {
-            contract_id, price, size, price_type, ..
+            contract_id, price, size, price_type, sequence, received_at_ns, ..
         }) => {
             let trade_price = Price::new(*price, *price_type);
             println!("Trade: id={contract_id} price={trade_price} size={size}");
         }
         FpssEvent::Data(FpssData::OpenInterest {
-            contract_id, open_interest, ..
+            contract_id, open_interest, received_at_ns, ..
         }) => {
             println!("OI: id={contract_id} oi={open_interest}");
         }
         FpssEvent::Data(FpssData::Ohlcvc {
-            contract_id, open, high, low, close, volume, count, ..
+            contract_id, open, high, low, close, volume, count, received_at_ns, ..
         }) => {
+            // volume and count are i64 to avoid overflow
             println!("OHLCVC: id={contract_id} O={open} H={high} L={low} C={close}");
         }
-
-        // --- Control events ---
-        FpssEvent::Control(FpssControl::LoginSuccess { permissions }) => {
-            println!("Logged in: {permissions}");
+        FpssEvent::Control(ctrl) => {
+            println!("Control: {:?}", ctrl);
         }
-        FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
-            println!("Contract {id} assigned: {contract}");
-        }
-        FpssEvent::Control(FpssControl::ReqResponse { req_id, result }) => {
-            println!("Request {req_id}: {:?}", result);
-        }
-        FpssEvent::Control(FpssControl::MarketOpen) => {
-            println!("Market opened");
-        }
-        FpssEvent::Control(FpssControl::MarketClose) => {
-            println!("Market closed");
-        }
-        FpssEvent::Control(FpssControl::Disconnected { reason }) => {
-            println!("Disconnected: {:?}", reason);
+        FpssEvent::RawData { code, payload } => {
+            eprintln!("Raw frame: code={code} len={}", payload.len());
         }
         _ => {}
     }
 })?;
-
-// Block the main thread until you want to stop
-std::thread::park();
 ```
 ```python [Python]
-# Track contract_id -> symbol mapping
 contracts = {}
 
 while True:
     event = tdx.next_event(timeout_ms=5000)
     if event is None:
-        continue  # timeout, no event
+        continue
 
-    # Control events
     if event["kind"] == "contract_assigned":
         contracts[event["id"]] = event["contract"]
-        print(f"Contract {event['id']} = {event['contract']}")
         continue
 
-    if event["kind"] == "login_success":
-        print(f"Logged in: {event['permissions']}")
-        continue
-
-    # Data events
     if event["kind"] == "quote":
         contract_id = event["contract_id"]
         symbol = contracts.get(contract_id, f"id={contract_id}")
-        print(f"Quote: {symbol} bid={event['bid']} ask={event['ask']}")
+        print(f"Quote: {symbol} bid={event['bid']} ask={event['ask']} "
+              f"rx={event['received_at_ns']}ns")
 
     elif event["kind"] == "trade":
         contract_id = event["contract_id"]
@@ -222,29 +220,92 @@ while True:
               f"O={event['open']} H={event['high']} L={event['low']} C={event['close']}")
 
     elif event["kind"] == "disconnected":
-        print(f"Disconnected: {event['reason']}")
+        print(f"Disconnected: {event.get('detail')}")
         break
 ```
 ```go [Go]
 for {
-    event, err := fpss.NextEvent(5000) // 5s timeout
+    event, err := fpss.NextEvent(5000)
     if err != nil {
         log.Println("Error:", err)
         break
     }
     if event == nil {
-        continue // timeout
+        continue
     }
-    fmt.Printf("Event: %s\n", string(event))
+
+    switch event.Kind {
+    case thetadatadx.FpssQuoteEvent:
+        q := event.Quote
+        bid := thetadatadx.PriceToF64(q.Bid, q.PriceType)
+        ask := thetadatadx.PriceToF64(q.Ask, q.PriceType)
+        fmt.Printf("Quote: contract=%d bid=%.4f ask=%.4f rx=%dns\n",
+            q.ContractID, bid, ask, q.ReceivedAtNs)
+
+    case thetadatadx.FpssTradeEvent:
+        t := event.Trade
+        price := thetadatadx.PriceToF64(t.Price, t.PriceType)
+        fmt.Printf("Trade: contract=%d price=%.4f size=%d\n",
+            t.ContractID, price, t.Size)
+
+    case thetadatadx.FpssOpenInterestEvent:
+        oi := event.OpenInterest
+        fmt.Printf("OI: contract=%d oi=%d\n", oi.ContractID, oi.OpenInterest)
+
+    case thetadatadx.FpssOhlcvcEvent:
+        o := event.Ohlcvc
+        fmt.Printf("OHLCVC: contract=%d vol=%d count=%d\n",
+            o.ContractID, o.Volume, o.Count)
+
+    case thetadatadx.FpssControlEvent:
+        ctrl := event.Control
+        fmt.Printf("Control: kind=%d detail=%s\n", ctrl.Kind, ctrl.Detail)
+    }
 }
 ```
 ```cpp [C++]
 while (true) {
-    auto event = fpss.next_event(5000); // 5s timeout
-    if (event.empty()) {
-        continue; // timeout
+    auto event = fpss.next_event(5000);
+    if (!event) continue;
+
+    switch (event->kind) {
+    case TDX_FPSS_QUOTE: {
+        auto& q = event->quote;
+        double bid = tdx::price_to_f64(q.bid, q.price_type);
+        double ask = tdx::price_to_f64(q.ask, q.price_type);
+        std::cout << "Quote: contract=" << q.contract_id
+                  << " bid=" << bid << " ask=" << ask
+                  << " rx=" << q.received_at_ns << "ns" << std::endl;
+        break;
     }
-    std::cout << "Event: " << event << std::endl;
+    case TDX_FPSS_TRADE: {
+        auto& t = event->trade;
+        double price = tdx::price_to_f64(t.price, t.price_type);
+        std::cout << "Trade: contract=" << t.contract_id
+                  << " price=" << price << " size=" << t.size << std::endl;
+        break;
+    }
+    case TDX_FPSS_OPEN_INTEREST: {
+        auto& oi = event->open_interest;
+        std::cout << "OI: contract=" << oi.contract_id
+                  << " oi=" << oi.open_interest << std::endl;
+        break;
+    }
+    case TDX_FPSS_OHLCVC: {
+        auto& o = event->ohlcvc;
+        std::cout << "OHLCVC: contract=" << o.contract_id
+                  << " vol=" << o.volume << " count=" << o.count << std::endl;
+        break;
+    }
+    case TDX_FPSS_CONTROL: {
+        auto& c = event->control;
+        std::cout << "Control: kind=" << c.kind;
+        if (c.detail) std::cout << " " << c.detail;
+        std::cout << std::endl;
+        break;
+    }
+    default: break;
+    }
 }
 ```
 :::
@@ -281,7 +342,6 @@ tdx.start_streaming(move |event: &FpssEvent| {
 let map: HashMap<i32, Contract> = tdx.contract_map()?;
 ```
 ```python [Python]
-# Build a mapping as events arrive
 contracts = {}
 
 while True:
@@ -296,25 +356,23 @@ while True:
         print(f"[QUOTE] {name}: bid={event['bid']} ask={event['ask']}")
 ```
 ```go [Go]
-// Look up a contract by its server-assigned ID
 contract, err := fpss.ContractLookup(42)
 if err != nil {
     log.Fatal(err)
 }
 fmt.Println("Contract:", contract)
 
-// List all active subscriptions
 subs, _ := fpss.ActiveSubscriptions()
-fmt.Println("Active:", string(subs))
+for _, s := range subs {
+    fmt.Printf("  %s: %s\n", s.Kind, s.Contract)
+}
 ```
 ```cpp [C++]
-// Look up a contract by its server-assigned ID
 auto contract = fpss.contract_lookup(42);
 if (contract.has_value()) {
     std::cout << "Contract: " << contract.value() << std::endl;
 }
 
-// List all active subscriptions
 auto subs = fpss.active_subscriptions();
 std::cout << "Active: " << subs << std::endl;
 ```
@@ -327,21 +385,29 @@ std::cout << "Active: " << subs << std::endl;
 tdx.unsubscribe_quotes(&Contract::stock("AAPL"))?;
 tdx.unsubscribe_trades(&Contract::stock("MSFT"))?;
 tdx.unsubscribe_open_interest(&Contract::stock("AAPL"))?;
+tdx.unsubscribe_full_trades(SecType::Stock)?;
+tdx.unsubscribe_full_open_interest(SecType::Option)?;
 ```
 ```python [Python]
 tdx.unsubscribe_quotes("AAPL")
 tdx.unsubscribe_trades("MSFT")
 tdx.unsubscribe_open_interest("SPY")
+tdx.unsubscribe_full_trades("STOCK")
+tdx.unsubscribe_full_open_interest("OPTION")
 ```
 ```go [Go]
 fpss.UnsubscribeQuotes("AAPL")
 fpss.UnsubscribeTrades("MSFT")
 fpss.UnsubscribeOpenInterest("AAPL")
+fpss.UnsubscribeFullTrades("STOCK")
+fpss.UnsubscribeFullOpenInterest("OPTION")
 ```
 ```cpp [C++]
 fpss.unsubscribe_quotes("AAPL");
 fpss.unsubscribe_trades("MSFT");
 fpss.unsubscribe_open_interest("AAPL");
+fpss.unsubscribe_full_trades("STOCK");
+fpss.unsubscribe_full_open_interest("OPTION");
 ```
 :::
 
@@ -365,127 +431,44 @@ fpss.shutdown();
 
 ## Reconnection (Rust)
 
-ThetaDataDx uses manual reconnection. When the server disconnects, you receive an `FpssControl::Disconnected` event with a reason code.
+ThetaDataDx provides `reconnect_streaming()` for automatic reconnection with subscription recovery:
 
 ```rust
-use thetadatadx::ThetaDataDx;
 use tdbe::types::enums::RemoveReason;
 
 match thetadatadx::fpss::reconnect_delay(reason) {
     None => {
-        // Permanent error (bad credentials, etc.) - do NOT retry
+        // Permanent error (bad credentials, etc.) -- do NOT retry
         eprintln!("Permanent disconnect: {:?}", reason);
     }
     Some(delay_ms) => {
-        // Wait and reconnect streaming
         std::thread::sleep(std::time::Duration::from_millis(delay_ms));
-        tdx.start_streaming(handler)?;
-        // Re-subscribe to previous subscriptions
+        // Saves subs, stops, reconnects, and re-subscribes everything
+        tdx.reconnect_streaming(handler)?;
     }
 }
 ```
 
-### Disconnect Categories
+| Category | Codes | Delay | Action |
+|----------|-------|-------|--------|
+| Permanent | 0, 1, 2, 6, 9, 17, 18 | -- | Do NOT reconnect |
+| Rate-limited | 12 | 130 seconds | Wait full cooldown |
+| Transient | All others | 2 seconds | Reconnect |
 
-| Category | Codes | Action |
-|----------|-------|--------|
-| Permanent | 0, 1, 2, 6, 9, 17, 18 | Do NOT reconnect |
-| Rate-limited | 12 | Wait 130 seconds, then reconnect |
-| Transient | All others | Wait 2 seconds, then reconnect |
-
-## Streaming Methods Reference
-
-### Rust (`ThetaDataDx`)
-
-| Method | Description |
-|--------|-------------|
-| `start_streaming(callback)` | Begin streaming with an event callback |
-| `subscribe_quotes(contract)` | Subscribe to quote data |
-| `subscribe_trades(contract)` | Subscribe to trade data |
-| `subscribe_open_interest(contract)` | Subscribe to open interest |
-| `subscribe_full_trades(sec_type)` | Subscribe to all trades for a security type |
-| `subscribe_full_open_interest(sec_type)` | Subscribe to all OI for a security type |
-| `unsubscribe_full_trades(sec_type)` | Unsubscribe from all trades for a security type |
-| `unsubscribe_full_open_interest(sec_type)` | Unsubscribe from all OI for a security type |
-| `unsubscribe_quotes(contract)` | Unsubscribe from quotes |
-| `unsubscribe_trades(contract)` | Unsubscribe from trades |
-| `unsubscribe_open_interest(contract)` | Unsubscribe from OI |
-| `reconnect_streaming(handler)` | Reconnect with new handler, re-subscribe all |
-| `start_streaming_no_ohlcvc(handler)` | Start without OHLCVC derivation |
-| `is_streaming()` | Check if FPSS is active |
-| `contract_lookup(id)` | Look up contract by ID |
-| `active_subscriptions()` | Get active per-contract subs |
-| `active_full_subscriptions()` | Get active firehose subs |
-| `contract_map()` | Get current contract ID mapping |
-| `stop_streaming()` | Stop the streaming connection |
-
-### Python (`ThetaDataDx`)
-
-| Method | Description |
-|--------|-------------|
-| `start_streaming()` | Connect to FPSS streaming servers |
-| `subscribe_quotes(symbol)` | Subscribe to quote data |
-| `subscribe_trades(symbol)` | Subscribe to trade data |
-| `subscribe_open_interest(symbol)` | Subscribe to open interest |
-| `subscribe_full_trades(sec_type)` | Subscribe to all trades for a security type |
-| `subscribe_full_open_interest(sec_type)` | Subscribe to all OI for a security type |
-| `unsubscribe_quotes(symbol)` | Unsubscribe from quotes |
-| `unsubscribe_trades(symbol)` | Unsubscribe from trades |
-| `unsubscribe_open_interest(symbol)` | Unsubscribe from OI |
-| `unsubscribe_full_trades(sec_type)` | Unsubscribe from all trades for a security type |
-| `unsubscribe_full_open_interest(sec_type)` | Unsubscribe from all OI for a security type |
-| `next_event(timeout_ms=5000)` | Poll next event (dict or `None`) |
-| `stop_streaming()` | Graceful shutdown of streaming |
-
-### Go (`FpssClient`)
-
-| Method | Signature | Description |
-|--------|-----------|-------------|
-| `SubscribeQuotes` | `(symbol string) (int, error)` | Subscribe to quotes |
-| `SubscribeTrades` | `(symbol string) (int, error)` | Subscribe to trades |
-| `SubscribeOpenInterest` | `(symbol string) (int, error)` | Subscribe to OI |
-| `SubscribeFullTrades` | `(secType string) (int, error)` | Subscribe to all trades for a security type |
-| `SubscribeFullOpenInterest` | `(secType string) (int, error)` | Subscribe to all OI for a security type |
-| `UnsubscribeQuotes` | `(symbol string) (int, error)` | Unsubscribe from quotes |
-| `UnsubscribeTrades` | `(symbol string) (int, error)` | Unsubscribe from trades |
-| `UnsubscribeOpenInterest` | `(symbol string) (int, error)` | Unsubscribe from OI |
-| `UnsubscribeFullTrades` | `(secType string) (int, error)` | Unsubscribe from all trades for a security type |
-| `UnsubscribeFullOpenInterest` | `(secType string) (int, error)` | Unsubscribe from all OI for a security type |
-| `NextEvent` | `(timeoutMs uint64) (json.RawMessage, error)` | Poll next event |
-| `IsAuthenticated` | `() bool` | Check FPSS auth status |
-| `ContractLookup` | `(id int) (string, error)` | Look up contract by server-assigned ID |
-| `ActiveSubscriptions` | `() (json.RawMessage, error)` | Get active subscriptions |
-| `Shutdown` | `()` | Graceful shutdown |
-
-### C++ (`FpssClient`)
-
-| Method | Signature | Description |
-|--------|-----------|-------------|
-| `subscribe_quotes` | `(symbol) -> int32_t` | Subscribe to quotes |
-| `subscribe_trades` | `(symbol) -> int32_t` | Subscribe to trades |
-| `subscribe_open_interest` | `(symbol) -> int32_t` | Subscribe to OI |
-| `subscribe_full_trades` | `(sec_type) -> int32_t` | Subscribe to all trades for a security type |
-| `subscribe_full_open_interest` | `(sec_type) -> int32_t` | Subscribe to all OI for a security type |
-| `unsubscribe_full_trades` | `(sec_type) -> int32_t` | Unsubscribe from all trades for a security type |
-| `unsubscribe_full_open_interest` | `(sec_type) -> int32_t` | Unsubscribe from all OI for a security type |
-| `unsubscribe_trades` | `(symbol) -> int32_t` | Unsubscribe from trades |
-| `unsubscribe_open_interest` | `(symbol) -> int32_t` | Unsubscribe from OI |
-| `next_event` | `(timeout_ms) -> std::string` | Poll next event (empty on timeout) |
-| `is_authenticated` | `() -> bool` | Check FPSS auth status |
-| `contract_lookup` | `(id) -> std::optional<std::string>` | Look up contract by server-assigned ID |
-| `active_subscriptions` | `() -> std::string` | Get active subscriptions as JSON |
-| `shutdown` | `() -> void` | Graceful shutdown |
+See [Reconnection & Error Handling](./streaming/reconnection) for complete reconnection examples across all SDKs.
 
 ## Event Reference
 
 ### Data Events
 
-| Event | Key Fields |
-|-------|------------|
-| `Quote` | contract_id, ms_of_day, bid, ask, bid_size, ask_size, price_type, date |
-| `Trade` | contract_id, ms_of_day, price, size, exchange, condition, price_type, date |
-| `OpenInterest` | contract_id, ms_of_day, open_interest, date |
-| `Ohlcvc` | contract_id, ms_of_day, open, high, low, close, volume, count, price_type, date |
+Every data event carries `received_at_ns` (wall-clock nanoseconds since UNIX epoch).
+
+| Event | Key Fields | Notes |
+|-------|------------|-------|
+| `Quote` | contract_id, ms_of_day, bid, ask, bid_size, ask_size, bid_exchange, ask_exchange, bid_condition, ask_condition, price_type, date, received_at_ns | 11 fields + received_at_ns |
+| `Trade` | contract_id, ms_of_day, sequence, ext_condition1-4, condition, size, exchange, price, condition_flags, price_flags, volume_type, records_back, price_type, date, received_at_ns | 16 fields + received_at_ns. Dev server sends 8-field format (handled transparently). |
+| `OpenInterest` | contract_id, ms_of_day, open_interest, date, received_at_ns | 3 fields + received_at_ns |
+| `Ohlcvc` | contract_id, ms_of_day, open, high, low, close, volume (i64), count (i64), price_type, date, received_at_ns | volume/count are i64 to avoid overflow |
 
 ### Control Events
 
@@ -500,187 +483,103 @@ match thetadatadx::fpss::reconnect_delay(reason) {
 | `Disconnected` | reason (RemoveReason enum) |
 | `Error` | message |
 
-## Complete Example
+### RawData
 
-::: code-group
-```rust [Rust]
-use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
-use thetadatadx::fpss::{FpssData, FpssControl, FpssEvent};
-use thetadatadx::fpss::protocol::Contract;
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+Undecoded fallback for corrupt or unrecognized frames. Fields: `code` (u8), `payload` (bytes).
 
-#[tokio::main]
-async fn main() -> Result<(), thetadatadx::Error> {
-    let creds = Credentials::from_file("creds.txt")?;
-    // Or inline: let creds = Credentials::new("user@example.com", "your-password");
-    let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+## Streaming Methods Reference
 
-    let contracts: Arc<Mutex<HashMap<i32, Contract>>> = Arc::new(Mutex::new(HashMap::new()));
-    let contracts_clone = contracts.clone();
+### Rust (`ThetaDataDx`)
 
-    tdx.start_streaming(move |event: &FpssEvent| {
-        match event {
-            FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
-                contracts_clone.lock().unwrap().insert(*id, contract.clone());
-            }
-            FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, price_type, .. }) => {
-                if let Some(c) = contracts_clone.lock().unwrap().get(contract_id) {
-                    let bid_p = Price::new(*bid, *price_type);
-                    let ask_p = Price::new(*ask, *price_type);
-                    println!("[QUOTE] {}: bid={} ask={}", c.root, bid_p, ask_p);
-                }
-            }
-            FpssEvent::Data(FpssData::Trade { contract_id, price, size, price_type, .. }) => {
-                if let Some(c) = contracts_clone.lock().unwrap().get(contract_id) {
-                    let trade_p = Price::new(*price, *price_type);
-                    println!("[TRADE] {}: price={} size={}", c.root, trade_p, size);
-                }
-            }
-            FpssEvent::Control(FpssControl::Disconnected { reason }) => {
-                eprintln!("Disconnected: {:?}", reason);
-            }
-            _ => {}
-        }
-    })?;
+| Method | Description |
+|--------|-------------|
+| `start_streaming(callback)` | Begin streaming with an event callback |
+| `start_streaming_no_ohlcvc(callback)` | Start without local OHLCVC derivation |
+| `subscribe_quotes(contract)` | Subscribe to quote data |
+| `subscribe_trades(contract)` | Subscribe to trade data |
+| `subscribe_open_interest(contract)` | Subscribe to open interest |
+| `subscribe_full_trades(sec_type)` | Subscribe to all trades for a security type (firehose) |
+| `subscribe_full_open_interest(sec_type)` | Subscribe to all OI for a security type (firehose) |
+| `unsubscribe_quotes(contract)` | Unsubscribe from quotes |
+| `unsubscribe_trades(contract)` | Unsubscribe from trades |
+| `unsubscribe_open_interest(contract)` | Unsubscribe from OI |
+| `unsubscribe_full_trades(sec_type)` | Unsubscribe from all trades |
+| `unsubscribe_full_open_interest(sec_type)` | Unsubscribe from all OI |
+| `reconnect_streaming(handler)` | Reconnect with new handler, re-subscribe all previous subs |
+| `is_streaming()` | Check if FPSS is active |
+| `contract_lookup(id)` | Look up contract by server-assigned ID |
+| `contract_map()` | Get current contract ID mapping |
+| `active_subscriptions()` | Get active per-contract subscriptions |
+| `active_full_subscriptions()` | Get active firehose subscriptions |
+| `stop_streaming()` | Stop the streaming connection |
 
-    tdx.subscribe_quotes(&Contract::stock("AAPL"))?;
-    tdx.subscribe_trades(&Contract::stock("AAPL"))?;
-    tdx.subscribe_quotes(&Contract::stock("MSFT"))?;
+### Python (`ThetaDataDx`)
 
-    // Block until interrupted
-    std::thread::park();
-    tdx.stop_streaming();
-    Ok(())
-}
-```
-```python [Python]
-from thetadatadx import Credentials, Config, ThetaDataDx
-import signal
-import sys
+| Method | Description |
+|--------|-------------|
+| `start_streaming()` | Connect to FPSS streaming servers |
+| `start_streaming_no_ohlcvc()` | Connect without OHLCVC derivation |
+| `subscribe_quotes(symbol)` | Subscribe to quote data |
+| `subscribe_trades(symbol)` | Subscribe to trade data |
+| `subscribe_open_interest(symbol)` | Subscribe to open interest |
+| `subscribe_full_trades(sec_type)` | Subscribe to all trades for a security type |
+| `subscribe_full_open_interest(sec_type)` | Subscribe to all OI for a security type |
+| `unsubscribe_quotes(symbol)` | Unsubscribe from quotes |
+| `unsubscribe_trades(symbol)` | Unsubscribe from trades |
+| `unsubscribe_open_interest(symbol)` | Unsubscribe from OI |
+| `unsubscribe_full_trades(sec_type)` | Unsubscribe from all trades |
+| `unsubscribe_full_open_interest(sec_type)` | Unsubscribe from all OI |
+| `next_event(timeout_ms=5000)` | Poll next event (returns dict or `None`) |
+| `stop_streaming()` | Graceful shutdown of streaming |
 
-creds = Credentials.from_file("creds.txt")
-# Or inline: creds = Credentials("user@example.com", "your-password")
-tdx = ThetaDataDx(creds, Config.production())
+### Go (`FpssClient`)
 
-# Start streaming
-tdx.start_streaming()
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `SubscribeQuotes` | `(symbol string) (int, error)` | Subscribe to quotes |
+| `SubscribeTrades` | `(symbol string) (int, error)` | Subscribe to trades |
+| `SubscribeOpenInterest` | `(symbol string) (int, error)` | Subscribe to OI |
+| `SubscribeFullTrades` | `(secType string) (int, error)` | Subscribe to all trades for a security type |
+| `SubscribeFullOpenInterest` | `(secType string) (int, error)` | Subscribe to all OI for a security type |
+| `UnsubscribeQuotes` | `(symbol string) (int, error)` | Unsubscribe from quotes |
+| `UnsubscribeTrades` | `(symbol string) (int, error)` | Unsubscribe from trades |
+| `UnsubscribeOpenInterest` | `(symbol string) (int, error)` | Unsubscribe from OI |
+| `UnsubscribeFullTrades` | `(secType string) (int, error)` | Unsubscribe from all trades |
+| `UnsubscribeFullOpenInterest` | `(secType string) (int, error)` | Unsubscribe from all OI |
+| `NextEvent` | `(timeoutMs uint64) (*FpssEvent, error)` | Poll next event as typed struct (nil on timeout) |
+| `IsAuthenticated` | `() bool` | Check FPSS auth status |
+| `ContractLookup` | `(id int) (string, error)` | Look up contract by server-assigned ID |
+| `ActiveSubscriptions` | `() ([]Subscription, error)` | Get active subscriptions as typed structs |
+| `Shutdown` | `()` | Graceful shutdown |
+| `Close` | `()` | Free the FPSS handle |
 
-# Graceful shutdown on Ctrl+C
-def shutdown_handler(sig, frame):
-    tdx.stop_streaming()
-    sys.exit(0)
+Helper: `PriceToF64(value int32, priceType int32) float64`
 
-signal.signal(signal.SIGINT, shutdown_handler)
+### C++ (`tdx::FpssClient`)
 
-# Subscribe to multiple streams
-tdx.subscribe_quotes("AAPL")
-tdx.subscribe_trades("AAPL")
-tdx.subscribe_quotes("MSFT")
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `subscribe_quotes` | `(symbol) -> int` | Subscribe to quotes |
+| `subscribe_trades` | `(symbol) -> int` | Subscribe to trades |
+| `subscribe_open_interest` | `(symbol) -> int` | Subscribe to OI |
+| `subscribe_full_trades` | `(sec_type) -> int` | Subscribe to all trades for a security type |
+| `subscribe_full_open_interest` | `(sec_type) -> int` | Subscribe to all OI for a security type |
+| `unsubscribe_quotes` | `(symbol) -> int` | Unsubscribe from quotes |
+| `unsubscribe_trades` | `(symbol) -> int` | Unsubscribe from trades |
+| `unsubscribe_open_interest` | `(symbol) -> int` | Unsubscribe from OI |
+| `unsubscribe_full_trades` | `(sec_type) -> int` | Unsubscribe from all trades |
+| `unsubscribe_full_open_interest` | `(sec_type) -> int` | Unsubscribe from all OI |
+| `next_event` | `(timeout_ms) -> FpssEventPtr` | Poll next event (nullptr on timeout). RAII: auto-freed. |
+| `is_authenticated` | `() -> bool` | Check FPSS auth status |
+| `contract_lookup` | `(id) -> std::optional<std::string>` | Look up contract by server-assigned ID |
+| `active_subscriptions` | `() -> std::string` | Get active subscriptions |
+| `shutdown` | `() -> void` | Graceful shutdown |
 
-contracts = {}
+Helper: `tdx::price_to_f64(int32_t value, int32_t price_type) -> double`
 
-while True:
-    event = tdx.next_event(timeout_ms=5000)
-    if event is None:
-        continue
+## Detailed Documentation
 
-    if event["kind"] == "contract_assigned":
-        contracts[event["id"]] = event["contract"]
-    elif event["kind"] == "quote":
-        name = contracts.get(event["contract_id"], "?")
-        print(f"[QUOTE] {name}: bid={event['bid']} ask={event['ask']}")
-    elif event["kind"] == "trade":
-        name = contracts.get(event["contract_id"], "?")
-        print(f"[TRADE] {name}: price={event['price']} size={event['size']}")
-    elif event["kind"] == "disconnected":
-        print(f"Disconnected: {event['reason']}")
-        break
-
-tdx.stop_streaming()
-```
-```go [Go]
-package main
-
-import (
-    "fmt"
-    "log"
-
-    thetadatadx "github.com/userFRM/ThetaDataDx/sdks/go"
-)
-
-func main() {
-    creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
-    // Or inline: creds, _ := thetadatadx.NewCredentials("user@example.com", "your-password")
-    defer creds.Close()
-
-    config := thetadatadx.ProductionConfig()
-    defer config.Close()
-
-    // Historical client
-    client, err := thetadatadx.Connect(creds, config)
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer client.Close()
-
-    // Streaming client (separate connection, same credentials)
-    fpss, err := thetadatadx.NewFpssClient(creds, config)
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer fpss.Close()
-
-    // Subscribe to real-time data
-    fpss.SubscribeQuotes("AAPL")
-    fpss.SubscribeTrades("AAPL")
-
-    // Process events
-    for {
-        event, err := fpss.NextEvent(5000)
-        if err != nil {
-            log.Println("Error:", err)
-            break
-        }
-        if event == nil {
-            continue
-        }
-        fmt.Printf("Event: %s\n", string(event))
-    }
-
-    fpss.Shutdown()
-}
-```
-```cpp [C++]
-#include "thetadx.hpp"
-#include <iostream>
-
-int main() {
-    auto creds = tdx::Credentials::from_file("creds.txt");
-    // Or inline: auto creds = tdx::Credentials("user@example.com", "your-password");
-    auto config = tdx::Config::production();
-
-    // Historical client
-    auto client = tdx::Client::connect(creds, config);
-
-    // Streaming client (separate connection, same credentials)
-    tdx::FpssClient fpss(creds, config);
-
-    // Subscribe to quotes and trades
-    fpss.subscribe_quotes("AAPL");
-    fpss.subscribe_trades("AAPL");
-    fpss.subscribe_trades("MSFT");
-
-    // Process events
-    while (true) {
-        auto event = fpss.next_event(5000);
-        if (event.empty()) {
-            continue;
-        }
-        std::cout << "Event: " << event << std::endl;
-    }
-
-    fpss.shutdown();
-}
-```
-:::
+- [Connecting & Subscribing](./streaming/connection) -- server environments, flush mode, custom hosts, subscription management
+- [Handling Events](./streaming/events) -- complete field reference tables for all event types, SDK-specific representations
+- [Latency Measurement](./streaming/latency) -- `received_at_ns`, `tdbe::latency::latency_ns()`, lowest-latency configuration
+- [Reconnection & Error Handling](./streaming/reconnection) -- `reconnect_streaming()`, disconnect categories, complete examples

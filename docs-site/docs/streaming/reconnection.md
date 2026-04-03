@@ -1,52 +1,104 @@
 ---
 title: Reconnection & Error Handling
-description: Handle FPSS disconnects, implement reconnection logic, and manage streaming errors.
+description: Handle FPSS disconnects, implement reconnection logic with reconnect_streaming(), and manage streaming errors.
 ---
 
 # Reconnection & Error Handling
 
-## Reconnection (Rust)
+## Reconnection with `reconnect_streaming()` (Recommended)
 
-ThetaDataDx uses manual reconnection. When the server disconnects, you receive an `FpssControl::Disconnected` event with a reason code.
+The unified `ThetaDataDx` client provides `reconnect_streaming()` which handles the full reconnection cycle automatically:
+
+1. Saves all active per-contract and firehose subscriptions
+2. Stops the current streaming connection
+3. Starts a new streaming connection with your handler
+4. Re-subscribes everything that was previously active
 
 ```rust
-use thetadatadx::ThetaDataDx;
+use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
+use thetadatadx::fpss::{FpssData, FpssControl, FpssEvent};
 use tdbe::types::enums::RemoveReason;
 
+// When you detect a disconnect, reconnect with a new handler:
 match thetadatadx::fpss::reconnect_delay(reason) {
     None => {
-        // Permanent error (bad credentials, etc.) - do NOT retry
+        // Permanent error (bad credentials, etc.) -- do NOT retry
         eprintln!("Permanent disconnect: {:?}", reason);
     }
     Some(delay_ms) => {
-        // Wait and reconnect streaming
         std::thread::sleep(std::time::Duration::from_millis(delay_ms));
-        tdx.start_streaming(handler)?;
-        // Re-subscribe to previous subscriptions
+        // reconnect_streaming() saves subs, stops, reconnects, and re-subscribes
+        tdx.reconnect_streaming(|event: &FpssEvent| {
+            // Your event handler -- same signature as start_streaming()
+            match event {
+                FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, .. }) => {
+                    println!("Quote: {contract_id} {bid}/{ask}");
+                }
+                _ => {}
+            }
+        })?;
     }
 }
 ```
 
-::: warning
-After reconnection, you must re-subscribe to all previously active streams. The server does not remember your subscriptions across connections.
+::: tip
+`reconnect_streaming()` uses the same `DirectConfig` (including `fpss_hosts`) that was passed at `ThetaDataDx::connect()` time. If hosts change, create a new `ThetaDataDx` instance.
 :::
+
+## Manual Reconnection (Low-Level)
+
+For fine-grained control, use the low-level `fpss::reconnect()` function directly:
+
+```rust
+use thetadatadx::fpss;
+use thetadatadx::config::FpssFlushMode;
+
+let new_client = fpss::reconnect(
+    &creds,
+    &config.fpss_hosts,       // hosts to connect to
+    previous_subs,             // Vec<(SubscriptionKind, Contract)>
+    previous_full_subs,        // Vec<(SubscriptionKind, SecType)>
+    delay_ms,                  // reconnection delay
+    config.fpss_ring_size,     // Disruptor ring size
+    config.fpss_flush_mode,    // Batched or Immediate
+    handler,                   // FnMut(&FpssEvent)
+)?;
+```
+
+This is the Rust equivalent of Java's `FPSSClient.handleInvoluntaryDisconnect()`. It waits the specified delay, connects to a new server, and re-subscribes all previous subscriptions with `req_id = -1`.
+
+## `reconnect_delay()`
+
+The `fpss::reconnect_delay()` helper classifies disconnect reasons and returns the appropriate delay:
+
+```rust
+pub fn reconnect_delay(reason: RemoveReason) -> Option<u64>
+```
+
+- Returns `None` for permanent errors (do not reconnect)
+- Returns `Some(130_000)` for rate-limited disconnects (130 seconds)
+- Returns `Some(2_000)` for transient disconnects (2 seconds)
 
 ## Disconnect Categories
 
-| Category | Codes | Action |
-|----------|-------|--------|
-| Permanent | 0, 1, 2, 6, 9, 17, 18 | Do NOT reconnect |
-| Rate-limited | 12 | Wait 130 seconds, then reconnect |
-| Transient | All others | Wait 2 seconds, then reconnect |
+| Category | Codes | Delay | Action |
+|----------|-------|-------|--------|
+| **Permanent** | 0, 1, 2, 6, 9, 17, 18 | -- | Do NOT reconnect. Bad credentials, suspended account, or server-side permanent error. |
+| **Rate-limited** | 12 (TooManyRequests) | 130 seconds | Wait the full cooldown or it resets. |
+| **Transient** | All others | 2 seconds | Network glitch, server restart, etc. |
 
 ### Permanent Disconnect Reasons
 
 Permanent disconnects indicate a problem that will not resolve by retrying:
 
-- **Code 0, 1, 2** - Authentication failures (bad credentials, expired subscription)
-- **Code 6** - Account suspended
-- **Code 9** - Invalid request parameters
-- **Code 17, 18** - Server-side permanent errors
+- **Code 0, 1, 2** -- Authentication failures (bad credentials, expired subscription)
+- **Code 6** -- Account suspended
+- **Code 9** -- Invalid request parameters
+- **Code 17, 18** -- Server-side permanent errors
+
+::: warning
+Unlike the Java terminal (which only treats `AccountAlreadyConnected` as permanent), ThetaDataDx treats all 7 credential/account error codes as permanent. No amount of retrying will fix bad credentials.
+:::
 
 ### Rate-Limited Disconnect
 
@@ -79,21 +131,28 @@ async fn main() -> Result<(), thetadatadx::Error> {
             FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
                 contracts_clone.lock().unwrap().insert(*id, contract.clone());
             }
-            FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, price_type, .. }) => {
+            FpssEvent::Data(FpssData::Quote {
+                contract_id, bid, ask, price_type, received_at_ns, ..
+            }) => {
                 if let Some(c) = contracts_clone.lock().unwrap().get(contract_id) {
                     let bid_p = Price::new(*bid, *price_type);
                     let ask_p = Price::new(*ask, *price_type);
-                    println!("[QUOTE] {}: bid={} ask={}", c.root, bid_p, ask_p);
+                    println!("[QUOTE] {}: bid={} ask={} rx={}ns",
+                        c.root, bid_p, ask_p, received_at_ns);
                 }
             }
-            FpssEvent::Data(FpssData::Trade { contract_id, price, size, price_type, .. }) => {
+            FpssEvent::Data(FpssData::Trade {
+                contract_id, price, size, price_type, received_at_ns, ..
+            }) => {
                 if let Some(c) = contracts_clone.lock().unwrap().get(contract_id) {
                     let trade_p = Price::new(*price, *price_type);
-                    println!("[TRADE] {}: price={} size={}", c.root, trade_p, size);
+                    println!("[TRADE] {}: price={} size={} rx={}ns",
+                        c.root, trade_p, size, received_at_ns);
                 }
             }
             FpssEvent::Control(FpssControl::Disconnected { reason }) => {
                 eprintln!("Disconnected: {:?}", reason);
+                // Handle reconnection in your outer loop
             }
             _ => {}
         }
@@ -143,12 +202,14 @@ while True:
         contracts[event["id"]] = event["contract"]
     elif event["kind"] == "quote":
         name = contracts.get(event["contract_id"], "?")
-        print(f"[QUOTE] {name}: bid={event['bid']} ask={event['ask']}")
+        print(f"[QUOTE] {name}: bid={event['bid']} ask={event['ask']} "
+              f"rx={event['received_at_ns']}ns")
     elif event["kind"] == "trade":
         name = contracts.get(event["contract_id"], "?")
-        print(f"[TRADE] {name}: price={event['price']} size={event['size']}")
+        print(f"[TRADE] {name}: price={event['price']} size={event['size']} "
+              f"rx={event['received_at_ns']}ns")
     elif event["kind"] == "disconnected":
-        print(f"Disconnected: {event['reason']}")
+        print(f"Disconnected: {event.get('detail')}")
         break
 
 tdx.stop_streaming()
@@ -170,14 +231,6 @@ func main() {
     config := thetadatadx.ProductionConfig()
     defer config.Close()
 
-    // Historical client
-    client, err := thetadatadx.Connect(creds, config)
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer client.Close()
-
-    // Streaming client (separate connection, same credentials)
     fpss, err := thetadatadx.NewFpssClient(creds, config)
     if err != nil {
         log.Fatal(err)
@@ -188,7 +241,7 @@ func main() {
     fpss.SubscribeQuotes("AAPL")
     fpss.SubscribeTrades("AAPL")
 
-    // Process events
+    // Process typed events
     for {
         event, err := fpss.NextEvent(5000)
         if err != nil {
@@ -198,7 +251,27 @@ func main() {
         if event == nil {
             continue
         }
-        fmt.Printf("Event: %s\n", string(event))
+
+        switch event.Kind {
+        case thetadatadx.FpssQuoteEvent:
+            q := event.Quote
+            bid := thetadatadx.PriceToF64(q.Bid, q.PriceType)
+            ask := thetadatadx.PriceToF64(q.Ask, q.PriceType)
+            fmt.Printf("[QUOTE] contract=%d bid=%.4f ask=%.4f rx=%dns\n",
+                q.ContractID, bid, ask, q.ReceivedAtNs)
+
+        case thetadatadx.FpssTradeEvent:
+            t := event.Trade
+            price := thetadatadx.PriceToF64(t.Price, t.PriceType)
+            fmt.Printf("[TRADE] contract=%d price=%.4f size=%d\n",
+                t.ContractID, price, t.Size)
+
+        case thetadatadx.FpssControlEvent:
+            ctrl := event.Control
+            if ctrl.Kind == 6 { // Disconnected
+                fmt.Printf("Disconnected: %s\n", ctrl.Detail)
+            }
+        }
     }
 
     fpss.Shutdown()
@@ -212,10 +285,6 @@ int main() {
     auto creds = tdx::Credentials::from_file("creds.txt");
     auto config = tdx::Config::production();
 
-    // Historical client
-    auto client = tdx::Client::connect(creds, config);
-
-    // Streaming client (separate connection, same credentials)
     tdx::FpssClient fpss(creds, config);
 
     // Subscribe to quotes and trades
@@ -223,13 +292,42 @@ int main() {
     fpss.subscribe_trades("AAPL");
     fpss.subscribe_trades("MSFT");
 
-    // Process events
+    // Process typed events
     while (true) {
         auto event = fpss.next_event(5000);
-        if (event.empty()) {
+        if (!event) {
             continue;
         }
-        std::cout << "Event: " << event << std::endl;
+
+        switch (event->kind) {
+        case TDX_FPSS_QUOTE: {
+            auto& q = event->quote;
+            double bid = tdx::price_to_f64(q.bid, q.price_type);
+            double ask = tdx::price_to_f64(q.ask, q.price_type);
+            std::cout << "[QUOTE] contract=" << q.contract_id
+                      << " bid=" << bid << " ask=" << ask
+                      << " rx=" << q.received_at_ns << "ns" << std::endl;
+            break;
+        }
+        case TDX_FPSS_TRADE: {
+            auto& t = event->trade;
+            double price = tdx::price_to_f64(t.price, t.price_type);
+            std::cout << "[TRADE] contract=" << t.contract_id
+                      << " price=" << price << " size=" << t.size << std::endl;
+            break;
+        }
+        case TDX_FPSS_CONTROL: {
+            auto& c = event->control;
+            if (c.kind == 6) { // Disconnected
+                std::cout << "Disconnected";
+                if (c.detail) std::cout << ": " << c.detail;
+                std::cout << std::endl;
+            }
+            break;
+        }
+        default:
+            break;
+        }
     }
 
     fpss.shutdown();
