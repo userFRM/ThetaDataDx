@@ -18,7 +18,7 @@ use thetadatadx::DirectConfig;
 // Production (ThetaData NJ datacenter, gRPC over TLS)
 let config = DirectConfig::production();
 
-// Dev (same servers, shorter timeouts for faster iteration)
+// Dev (Dev FPSS servers (port 20200) -- infinite replay of historical day)
 let config = DirectConfig::dev();
 ```
 ```python [Python]
@@ -27,7 +27,7 @@ from thetadatadx import Config
 # Production (ThetaData NJ datacenter, gRPC over TLS)
 config = Config.production()
 
-# Dev (same servers, shorter timeouts for faster iteration)
+# Dev (Dev FPSS servers (port 20200) -- infinite replay of historical day)
 config = Config.dev()
 ```
 :::

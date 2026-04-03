@@ -76,7 +76,7 @@ func main() {
 
 ### Config
 - `ProductionConfig()` - ThetaData NJ production servers
-- `DevConfig()` - dev servers with shorter timeouts
+- `DevConfig()` - Dev FPSS servers (port 20200, infinite historical replay)
 
 ### Client (Historical Data)
 

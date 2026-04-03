@@ -1534,7 +1534,7 @@ pub struct DirectConfig {
 
 ```rust
 DirectConfig::production()  // NJ datacenter, TLS, 4 FPSS hosts, 10s timeout
-DirectConfig::dev()         // Same servers, 2 FPSS hosts, 5s timeout
+DirectConfig::dev()         // Dev FPSS servers (port 20200, infinite replay)
 ```
 
 ### Methods

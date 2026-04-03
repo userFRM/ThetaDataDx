@@ -73,7 +73,7 @@ int main() {
 ### Config
 
 - `Config::production()` - ThetaData NJ production servers
-- `Config::dev()` - dev servers with shorter timeouts
+- `Config::dev()` - Dev FPSS servers (port 20200, infinite historical replay)
 
 ### Client
 

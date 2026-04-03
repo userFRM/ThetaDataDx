@@ -77,7 +77,7 @@ iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30/365, 8.50, True)
 
 ### `Config`
 - `Config.production()` - ThetaData NJ production servers
-- `Config.dev()` - dev servers with shorter timeouts
+- `Config.dev()` - Dev FPSS servers (port 20200, infinite historical replay)
 
 ### `ThetaDataDx(creds, config)`
 
