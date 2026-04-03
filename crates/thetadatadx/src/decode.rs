@@ -13,6 +13,8 @@ const HEADER_ALIASES: &[(&str, &str)] = &[
     ("ms_of_day2", "last_trade"),
     ("date", "timestamp"),
     ("date", "created"),
+    // option_list_contracts returns "symbol" where the schema says "root"
+    ("root", "symbol"),
 ];
 
 /// Helper: find a column index by name, with alias fallback.
@@ -676,4 +678,95 @@ mod tests {
             "mid-February 2006 should be EST under old DST rules"
         );
     }
+}
+
+/// Hand-written parser for OptionContract that handles the v3 server's
+/// text-formatted fields (expiration as ISO date, right as "PUT"/"CALL").
+pub fn parse_option_contracts_v3(table: &crate::proto::DataTable) -> Vec<OptionContract> {
+    let h: Vec<&str> = table.headers.iter().map(|s| s.as_str()).collect();
+
+    let root_idx = match find_header(&h, "root") {
+        Some(i) => i,
+        None => return vec![],
+    };
+    let exp_idx = find_header(&h, "expiration");
+    let strike_idx = find_header(&h, "strike");
+    let right_idx = find_header(&h, "right");
+
+    table
+        .data_table
+        .iter()
+        .map(|row| {
+            let root = row_text(row, root_idx);
+
+            // Expiration: may be YYYYMMDD int or ISO date string "2026-04-13"
+            let expiration = exp_idx
+                .map(|i| {
+                    let n = row_number(row, i);
+                    if n != 0 {
+                        return n;
+                    }
+                    // Try text: "2026-04-13" -> 20260413
+                    let s = row_text(row, i);
+                    parse_iso_date(&s)
+                })
+                .unwrap_or(0);
+
+            // Strike: may be Price or Number
+            let (strike, strike_price_type) = strike_idx
+                .map(|i| {
+                    let pv = row_price_value(row, i);
+                    if pv != 0 {
+                        (pv, row_price_type(row, i))
+                    } else {
+                        (row_number(row, i), 0)
+                    }
+                })
+                .unwrap_or((0, 0));
+
+            // Right: may be int or text "PUT"/"CALL"/"C"/"P"
+            let right = right_idx
+                .map(|i| {
+                    let n = row_number(row, i);
+                    if n != 0 {
+                        return n;
+                    }
+                    let s = row_text(row, i);
+                    match s.as_str() {
+                        "CALL" | "C" => 67, // ASCII 'C'
+                        "PUT" | "P" => 80,  // ASCII 'P'
+                        _ => 0,
+                    }
+                })
+                .unwrap_or(0);
+
+            OptionContract {
+                root,
+                expiration,
+                strike,
+                right,
+                strike_price_type,
+            }
+        })
+        .collect()
+}
+
+/// Parse an ISO date string "2026-04-13" to YYYYMMDD integer 20260413.
+fn parse_iso_date(s: &str) -> i32 {
+    // Fast path: already numeric (YYYYMMDD)
+    if let Ok(n) = s.parse::<i32>() {
+        return n;
+    }
+    // ISO format: YYYY-MM-DD
+    let parts: Vec<&str> = s.split('-').collect();
+    if parts.len() == 3 {
+        if let (Ok(y), Ok(m), Ok(d)) = (
+            parts[0].parse::<i32>(),
+            parts[1].parse::<i32>(),
+            parts[2].parse::<i32>(),
+        ) {
+            return y * 10000 + m * 100 + d;
+        }
+    }
+    0
 }

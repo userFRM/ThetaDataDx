@@ -1114,7 +1114,7 @@ parsed_endpoint! {
         date: date.to_string(),
         max_dte: max_dte,
     };
-    parse: decode::parse_option_contracts;
+    parse: decode::parse_option_contracts_v3;
     dates: date;
     optional { max_dte: opt_i32 = None }
 }
