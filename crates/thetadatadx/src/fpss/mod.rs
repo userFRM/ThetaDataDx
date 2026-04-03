@@ -169,6 +169,8 @@ pub enum FpssData {
         received_at_ns: u64,
     },
     /// Decoded OHLCVC bar (code 24 or trade-derived).
+    ///
+    /// `volume` and `count` are `i64` to avoid overflow on high-volume symbols.
     Ohlcvc {
         contract_id: i32,
         ms_of_day: i32,
@@ -176,8 +178,8 @@ pub enum FpssData {
         high: i32,
         low: i32,
         close: i32,
-        volume: i32,
-        count: i32,
+        volume: i64,
+        count: i64,
         price_type: i32,
         date: i32,
         /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
@@ -1106,13 +1108,18 @@ const OI_FIELDS: usize = 3;
 const OHLCVC_FIELDS: usize = 9;
 
 /// Per-contract OHLCVC accumulator, updated on every Trade event.
+///
+/// `volume` and `count` use `i64` because they accumulate across many trades
+/// and can exceed `i32::MAX` for high-volume symbols (e.g. SPY). The Java
+/// terminal uses `int` (32-bit) but silently wraps on overflow; we use `i64`
+/// to avoid overflow entirely.
 struct OhlcvcAccumulator {
     open: i32,
     high: i32,
     low: i32,
     close: i32,
-    volume: i32,
-    count: i32,
+    volume: i64,
+    count: i64,
     price_type: i32,
     date: i32,
     ms_of_day: i32,
@@ -1153,8 +1160,8 @@ impl OhlcvcAccumulator {
         self.high = high;
         self.low = low;
         self.close = close;
-        self.volume = volume;
-        self.count = count;
+        self.volume = i64::from(volume);
+        self.count = i64::from(count);
         self.price_type = price_type;
         self.date = date;
         self.initialized = true;
@@ -1166,7 +1173,7 @@ impl OhlcvcAccumulator {
             self.high = price;
             self.low = price;
             self.close = price;
-            self.volume = size;
+            self.volume = i64::from(size);
             self.count = 1;
             self.price_type = price_type;
             self.date = date;
@@ -1175,7 +1182,7 @@ impl OhlcvcAccumulator {
         } else {
             self.ms_of_day = ms_of_day;
             let adjusted_price = change_price_type(price, price_type, self.price_type);
-            self.volume += size;
+            self.volume += i64::from(size);
             self.count += 1;
             if adjusted_price > self.high {
                 self.high = adjusted_price;
@@ -1558,8 +1565,8 @@ fn decode_frame(
                             high: f[2],
                             low: f[3],
                             close: f[4],
-                            volume: f[5],
-                            count: f[6],
+                            volume: i64::from(f[5]),
+                            count: i64::from(f[6]),
                             price_type: f[7],
                             date: f[8],
                             received_at_ns,
@@ -1904,6 +1911,16 @@ mod tests {
         assert_eq!(acc.low, 14900);
         assert_eq!(acc.volume, 1050);
         assert_eq!(acc.count, 11);
+    }
+
+    #[test]
+    fn ohlcvc_accumulator_no_overflow_on_high_volume() {
+        let mut acc = OhlcvcAccumulator::new();
+        acc.process_trade(34200000, 15025, i32::MAX, 8, 20240315);
+        acc.process_trade(34200100, 15100, i32::MAX, 8, 20240315);
+        // Would overflow i32 (2 * 2_147_483_647 = 4_294_967_294), fine in i64
+        assert_eq!(acc.volume, 2 * i64::from(i32::MAX));
+        assert_eq!(acc.count, 2);
     }
 
     #[test]
