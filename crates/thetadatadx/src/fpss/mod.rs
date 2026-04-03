@@ -2015,4 +2015,301 @@ mod tests {
         let ctrl = FpssEvent::Control(FpssControl::MarketOpen);
         assert!(matches!(&ctrl, FpssEvent::Control(FpssControl::MarketOpen)));
     }
+
+    // -----------------------------------------------------------------------
+    // FIT encoding helpers for trade mapping tests
+    // -----------------------------------------------------------------------
+
+    const FIELD_SEP: u8 = 0xB;
+    const END_NIB: u8 = 0xD;
+    const NEG_NIB: u8 = 0xE;
+
+    /// Collect the decimal digits of an absolute i32 value as nibbles.
+    /// Pushes a NEGATIVE nibble first if the value is negative.
+    fn int_to_nibbles(val: i32) -> Vec<u8> {
+        let mut nibbles = Vec::new();
+        if val < 0 {
+            nibbles.push(NEG_NIB);
+        }
+        let abs = (val as i64).unsigned_abs();
+        if abs == 0 {
+            nibbles.push(0);
+            return nibbles;
+        }
+        let s = abs.to_string();
+        for ch in s.chars() {
+            nibbles.push(ch.to_digit(10).unwrap() as u8);
+        }
+        nibbles
+    }
+
+    /// Encode a slice of i32 values into a FIT byte buffer.
+    /// Fields are separated by FIELD_SEP, terminated by END.
+    fn encode_fit_row(fields: &[i32]) -> Vec<u8> {
+        let mut nibbles: Vec<u8> = Vec::new();
+        for (i, &val) in fields.iter().enumerate() {
+            if i > 0 {
+                nibbles.push(FIELD_SEP);
+            }
+            nibbles.extend(int_to_nibbles(val));
+        }
+        nibbles.push(END_NIB);
+
+        // Pack nibbles into bytes (two per byte). Pad with 0 nibble if odd.
+        let mut bytes = Vec::new();
+        let mut i = 0;
+        while i < nibbles.len() {
+            let high = nibbles[i];
+            let low = if i + 1 < nibbles.len() {
+                nibbles[i + 1]
+            } else {
+                0
+            };
+            bytes.push((high << 4) | (low & 0x0F));
+            i += 2;
+        }
+        bytes
+    }
+
+    // -----------------------------------------------------------------------
+    // 8-field trade mapping
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn decode_tick_8field_trade_returns_correct_n_data_and_fields() {
+        // 8-field trade layout (dev server format):
+        //   FIT fields: [contract_id, ms_of_day, sequence, size, condition,
+        //                price, exchange, price_type, date]
+        //   = 1 contract_id + 8 data fields = 9 FIT fields total
+        let fit_payload = encode_fit_row(&[
+            100,      // contract_id
+            34200000, // ms_of_day
+            12345,    // sequence
+            50,       // size
+            6,        // condition
+            5500000,  // price
+            57,       // exchange
+            6,        // price_type
+            20250428, // date
+        ]);
+
+        let mut ds = DeltaState::new();
+        let msg_code = StreamMsgType::Trade as u8;
+        let result = ds.decode_tick(msg_code, &fit_payload, TRADE_FIELDS);
+
+        let (contract_id, f, n_data) = result.expect("decode_tick should succeed");
+
+        // Verify contract_id extraction.
+        assert_eq!(contract_id, 100);
+
+        // The first absolute tick records the actual field count.
+        // 9 FIT fields total - 1 contract_id = 8 data fields.
+        assert_eq!(n_data, 8, "n_data must be 8 for an 8-field trade");
+
+        // Verify 8-field mapping produces correct Trade event fields.
+        // 8-field layout: [ms_of_day, sequence, size, condition, price, exchange, price_type, date]
+        assert_eq!(f[0], 34200000, "ms_of_day");
+        assert_eq!(f[1], 12345, "sequence");
+        assert_eq!(f[2], 50, "size");
+        assert_eq!(f[3], 6, "condition");
+        assert_eq!(f[4], 5500000, "price");
+        assert_eq!(f[5], 57, "exchange");
+        assert_eq!(f[6], 6, "price_type");
+        assert_eq!(f[7], 20250428, "date");
+
+        // Verify the n_data <= 8 mapping path produces the correct Trade variant.
+        assert!(n_data <= 8);
+        // Simulate the mapping from decode_frame's Trade arm:
+        let trade = FpssData::Trade {
+            contract_id,
+            ms_of_day: f[0],
+            sequence: f[1],
+            ext_condition1: 0,
+            ext_condition2: 0,
+            ext_condition3: 0,
+            ext_condition4: 0,
+            condition: f[3],
+            size: f[2],
+            exchange: f[5],
+            price: f[4],
+            condition_flags: 0,
+            price_flags: 0,
+            volume_type: 0,
+            records_back: 0,
+            price_type: f[6],
+            date: f[7],
+            received_at_ns: 0,
+        };
+
+        match trade {
+            FpssData::Trade {
+                contract_id: cid,
+                ms_of_day,
+                sequence,
+                size,
+                condition,
+                price,
+                exchange,
+                price_type,
+                date,
+                ext_condition1,
+                ext_condition2,
+                ext_condition3,
+                ext_condition4,
+                condition_flags,
+                price_flags,
+                volume_type,
+                records_back,
+                ..
+            } => {
+                assert_eq!(cid, 100);
+                assert_eq!(ms_of_day, 34200000);
+                assert_eq!(sequence, 12345);
+                assert_eq!(size, 50);
+                assert_eq!(condition, 6);
+                assert_eq!(price, 5500000);
+                assert_eq!(exchange, 57);
+                assert_eq!(price_type, 6);
+                assert_eq!(date, 20250428);
+                // 8-field trades zero out extended fields.
+                assert_eq!(ext_condition1, 0);
+                assert_eq!(ext_condition2, 0);
+                assert_eq!(ext_condition3, 0);
+                assert_eq!(ext_condition4, 0);
+                assert_eq!(condition_flags, 0);
+                assert_eq!(price_flags, 0);
+                assert_eq!(volume_type, 0);
+                assert_eq!(records_back, 0);
+            }
+            other => panic!("expected Trade, got {other:?}"),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // 16-field trade mapping
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn decode_tick_16field_trade_returns_correct_n_data_and_fields() {
+        // 16-field trade layout (production format):
+        //   FIT fields: [contract_id, ms_of_day, sequence, ext1, ext2, ext3, ext4,
+        //                condition, size, exchange, price, cond_flags, price_flags,
+        //                vol_type, records_back, price_type, date]
+        //   = 1 contract_id + 16 data fields = 17 FIT fields total
+        let fit_payload = encode_fit_row(&[
+            200,      // contract_id
+            34200000, // ms_of_day (f[0])
+            99999,    // sequence  (f[1])
+            1,        // ext_condition1 (f[2])
+            2,        // ext_condition2 (f[3])
+            3,        // ext_condition3 (f[4])
+            4,        // ext_condition4 (f[5])
+            15,       // condition (f[6])
+            500,      // size (f[7])
+            57,       // exchange (f[8])
+            18750000, // price (f[9])
+            7,        // condition_flags (f[10])
+            3,        // price_flags (f[11])
+            1,        // volume_type (f[12])
+            0,        // records_back (f[13])
+            8,        // price_type (f[14])
+            20250428, // date (f[15])
+        ]);
+
+        let mut ds = DeltaState::new();
+        let msg_code = StreamMsgType::Trade as u8;
+        let result = ds.decode_tick(msg_code, &fit_payload, TRADE_FIELDS);
+
+        let (contract_id, f, n_data) = result.expect("decode_tick should succeed");
+
+        // Verify contract_id extraction.
+        assert_eq!(contract_id, 200);
+
+        // 17 FIT fields total - 1 contract_id = 16 data fields.
+        assert_eq!(n_data, 16, "n_data must be 16 for a 16-field trade");
+        assert_eq!(n_data, TRADE_FIELDS);
+
+        // Verify all 16 data fields.
+        assert_eq!(f[0], 34200000, "ms_of_day");
+        assert_eq!(f[1], 99999, "sequence");
+        assert_eq!(f[2], 1, "ext_condition1");
+        assert_eq!(f[3], 2, "ext_condition2");
+        assert_eq!(f[4], 3, "ext_condition3");
+        assert_eq!(f[5], 4, "ext_condition4");
+        assert_eq!(f[6], 15, "condition");
+        assert_eq!(f[7], 500, "size");
+        assert_eq!(f[8], 57, "exchange");
+        assert_eq!(f[9], 18750000, "price");
+        assert_eq!(f[10], 7, "condition_flags");
+        assert_eq!(f[11], 3, "price_flags");
+        assert_eq!(f[12], 1, "volume_type");
+        assert_eq!(f[13], 0, "records_back");
+        assert_eq!(f[14], 8, "price_type");
+        assert_eq!(f[15], 20250428, "date");
+
+        // Verify the n_data > 8 mapping path produces the correct Trade variant.
+        assert!(n_data > 8);
+        let trade = FpssData::Trade {
+            contract_id,
+            ms_of_day: f[0],
+            sequence: f[1],
+            ext_condition1: f[2],
+            ext_condition2: f[3],
+            ext_condition3: f[4],
+            ext_condition4: f[5],
+            condition: f[6],
+            size: f[7],
+            exchange: f[8],
+            price: f[9],
+            condition_flags: f[10],
+            price_flags: f[11],
+            volume_type: f[12],
+            records_back: f[13],
+            price_type: f[14],
+            date: f[15],
+            received_at_ns: 0,
+        };
+
+        match trade {
+            FpssData::Trade {
+                contract_id: cid,
+                ms_of_day,
+                sequence,
+                ext_condition1,
+                ext_condition2,
+                ext_condition3,
+                ext_condition4,
+                condition,
+                size,
+                exchange,
+                price,
+                condition_flags,
+                price_flags,
+                volume_type,
+                records_back,
+                price_type,
+                date,
+                ..
+            } => {
+                assert_eq!(cid, 200);
+                assert_eq!(ms_of_day, 34200000);
+                assert_eq!(sequence, 99999);
+                assert_eq!(ext_condition1, 1);
+                assert_eq!(ext_condition2, 2);
+                assert_eq!(ext_condition3, 3);
+                assert_eq!(ext_condition4, 4);
+                assert_eq!(condition, 15);
+                assert_eq!(size, 500);
+                assert_eq!(exchange, 57);
+                assert_eq!(price, 18750000);
+                assert_eq!(condition_flags, 7);
+                assert_eq!(price_flags, 3);
+                assert_eq!(volume_type, 1);
+                assert_eq!(records_back, 0);
+                assert_eq!(price_type, 8);
+                assert_eq!(date, 20250428);
+            }
+            other => panic!("expected Trade, got {other:?}"),
+        }
+    }
 }
