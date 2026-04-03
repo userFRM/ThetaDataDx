@@ -450,6 +450,11 @@ type EodTick struct {
 	Strike         int32   `json:"strike,omitempty"`
 	Right          int32   `json:"right,omitempty"`
 	StrikePriceType int32  `json:"strike_price_type,omitempty"`
+	// Display helpers
+	TimeStr         string `json:"time_str"`
+	DateStr         string `json:"date_str"`
+	BidExchangeName string `json:"bid_exchange_name,omitempty"`
+	AskExchangeName string `json:"ask_exchange_name,omitempty"`
 }
 
 type OhlcTick struct {
@@ -465,6 +470,9 @@ type OhlcTick struct {
 	Strike         int32   `json:"strike,omitempty"`
 	Right          int32   `json:"right,omitempty"`
 	StrikePriceType int32  `json:"strike_price_type,omitempty"`
+	// Display helpers
+	TimeStr string `json:"time_str"`
+	DateStr string `json:"date_str"`
 }
 
 type TradeTick struct {
@@ -484,6 +492,11 @@ type TradeTick struct {
 	Strike         int32   `json:"strike,omitempty"`
 	Right          int32   `json:"right,omitempty"`
 	StrikePriceType int32  `json:"strike_price_type,omitempty"`
+	// Display helpers
+	TimeStr        string `json:"time_str"`
+	DateStr        string `json:"date_str"`
+	ConditionName  string `json:"condition_name"`
+	ExchangeName   string `json:"exchange_name"`
 }
 
 type QuoteTick struct {
@@ -501,6 +514,11 @@ type QuoteTick struct {
 	Strike         int32   `json:"strike,omitempty"`
 	Right          int32   `json:"right,omitempty"`
 	StrikePriceType int32  `json:"strike_price_type,omitempty"`
+	// Display helpers
+	TimeStr         string `json:"time_str"`
+	DateStr         string `json:"date_str"`
+	BidExchangeName string `json:"bid_exchange_name"`
+	AskExchangeName string `json:"ask_exchange_name"`
 }
 
 type TradeQuoteTick struct {
@@ -528,6 +546,13 @@ type TradeQuoteTick struct {
 	Strike         int32   `json:"strike,omitempty"`
 	Right          int32   `json:"right,omitempty"`
 	StrikePriceType int32  `json:"strike_price_type,omitempty"`
+	// Display helpers
+	TimeStr         string `json:"time_str"`
+	DateStr         string `json:"date_str"`
+	ConditionName   string `json:"condition_name"`
+	ExchangeName    string `json:"exchange_name"`
+	BidExchangeName string `json:"bid_exchange_name"`
+	AskExchangeName string `json:"ask_exchange_name"`
 }
 
 type OpenInterestTick struct {
@@ -538,6 +563,9 @@ type OpenInterestTick struct {
 	Strike         int32 `json:"strike,omitempty"`
 	Right          int32 `json:"right,omitempty"`
 	StrikePriceType int32 `json:"strike_price_type,omitempty"`
+	// Display helpers
+	TimeStr string `json:"time_str"`
+	DateStr string `json:"date_str"`
 }
 
 type MarketValueTick struct {
@@ -552,6 +580,9 @@ type MarketValueTick struct {
 	Strike         int32   `json:"strike,omitempty"`
 	Right          int32   `json:"right,omitempty"`
 	StrikePriceType int32  `json:"strike_price_type,omitempty"`
+	// Display helpers
+	TimeStr string `json:"time_str"`
+	DateStr string `json:"date_str"`
 }
 
 type GreeksTick struct {
@@ -583,6 +614,9 @@ type GreeksTick struct {
 	Strike         int32   `json:"strike,omitempty"`
 	Right          int32   `json:"right,omitempty"`
 	StrikePriceType int32  `json:"strike_price_type,omitempty"`
+	// Display helpers
+	TimeStr string `json:"time_str"`
+	DateStr string `json:"date_str"`
 }
 
 type IVTick struct {
@@ -594,6 +628,9 @@ type IVTick struct {
 	Strike         int32   `json:"strike,omitempty"`
 	Right          int32   `json:"right,omitempty"`
 	StrikePriceType int32  `json:"strike_price_type,omitempty"`
+	// Display helpers
+	TimeStr string `json:"time_str"`
+	DateStr string `json:"date_str"`
 }
 
 type PriceTick struct {
@@ -601,6 +638,9 @@ type PriceTick struct {
 	Price    float64 `json:"price"`
 	PriceRaw int     `json:"price_raw,omitempty"`
 	Date     int     `json:"date"`
+	// Display helpers
+	TimeStr string `json:"time_str"`
+	DateStr string `json:"date_str"`
 }
 
 type CalendarDay struct {
@@ -615,6 +655,9 @@ type InterestRateTick struct {
 	MsOfDay int     `json:"ms_of_day"`
 	Rate    float64 `json:"rate"`
 	Date    int     `json:"date"`
+	// Display helpers
+	TimeStr string `json:"time_str"`
+	DateStr string `json:"date_str"`
 }
 
 type SnapshotTradeTick struct {
@@ -629,6 +672,10 @@ type SnapshotTradeTick struct {
 	Strike         int32   `json:"strike,omitempty"`
 	Right          int32   `json:"right,omitempty"`
 	StrikePriceType int32  `json:"strike_price_type,omitempty"`
+	// Display helpers
+	TimeStr       string `json:"time_str"`
+	DateStr       string `json:"date_str"`
+	ConditionName string `json:"condition_name"`
 }
 
 type OptionContract struct {
@@ -681,12 +728,15 @@ func convertEodTicks(arr C.TdxTickArray) []EodTick {
 	src := unsafe.Slice((*cEodTick)(arr.data), n)
 	result := make([]EodTick, n)
 	for i, t := range src {
+		msOfDay := int(t.MsOfDay); date := int(t.Date)
 		result[i] = EodTick{
-			MsOfDay: int(t.MsOfDay), Date: int(t.Date), Volume: int(t.Volume), Count: int(t.Count),
+			MsOfDay: msOfDay, Date: date, Volume: int(t.Volume), Count: int(t.Count),
 			Open: priceToFloat(t.Open, t.PriceType), High: priceToFloat(t.High, t.PriceType),
 			Low: priceToFloat(t.Low, t.PriceType), Close: priceToFloat(t.Close, t.PriceType),
 			Bid: priceToFloat(t.Bid, t.PriceType), Ask: priceToFloat(t.Ask, t.PriceType),
 			Expiration: t.Expiration, Strike: t.Strike, Right: t.Right, StrikePriceType: t.StrikePriceType,
+			TimeStr: TimeStr(msOfDay), DateStr: DateStr(date),
+			BidExchangeName: ExchangeName(int(t.BidExchange)), AskExchangeName: ExchangeName(int(t.AskExchange)),
 		}
 	}
 	return result
@@ -698,11 +748,13 @@ func convertOhlcTicks(arr C.TdxTickArray) []OhlcTick {
 	src := unsafe.Slice((*cOhlcTick)(arr.data), n)
 	result := make([]OhlcTick, n)
 	for i, t := range src {
+		msOfDay := int(t.MsOfDay); date := int(t.Date)
 		result[i] = OhlcTick{
-			MsOfDay: int(t.MsOfDay), Volume: int(t.Volume), Count: int(t.Count), Date: int(t.Date),
+			MsOfDay: msOfDay, Volume: int(t.Volume), Count: int(t.Count), Date: date,
 			Open: priceToFloat(t.Open, t.PriceType), High: priceToFloat(t.High, t.PriceType),
 			Low: priceToFloat(t.Low, t.PriceType), Close: priceToFloat(t.Close, t.PriceType),
 			Expiration: t.Expiration, Strike: t.Strike, Right: t.Right, StrikePriceType: t.StrikePriceType,
+			TimeStr: TimeStr(msOfDay), DateStr: DateStr(date),
 		}
 	}
 	return result
@@ -714,13 +766,16 @@ func convertTradeTicks(arr C.TdxTickArray) []TradeTick {
 	src := unsafe.Slice((*cTradeTick)(arr.data), n)
 	result := make([]TradeTick, n)
 	for i, t := range src {
+		msOfDay := int(t.MsOfDay); date := int(t.Date)
 		result[i] = TradeTick{
-			MsOfDay: int(t.MsOfDay), Sequence: int(t.Sequence), Condition: int(t.Condition),
+			MsOfDay: msOfDay, Sequence: int(t.Sequence), Condition: int(t.Condition),
 			Size: int(t.Size), Exchange: int(t.Exchange), Price: priceToFloat(t.Price, t.PriceType),
 			PriceRaw: int(t.Price), ConditionFlags: int(t.ConditionFlags),
 			PriceFlags: int(t.PriceFlags), VolumeType: int(t.VolumeType), RecordsBack: int(t.RecordsBack),
-			Date: int(t.Date),
+			Date: date,
 			Expiration: t.Expiration, Strike: t.Strike, Right: t.Right, StrikePriceType: t.StrikePriceType,
+			TimeStr: TimeStr(msOfDay), DateStr: DateStr(date),
+			ConditionName: ConditionName(int(t.Condition)), ExchangeName: ExchangeName(int(t.Exchange)),
 		}
 	}
 	return result
@@ -732,13 +787,16 @@ func convertQuoteTicks(arr C.TdxTickArray) []QuoteTick {
 	src := unsafe.Slice((*cQuoteTick)(arr.data), n)
 	result := make([]QuoteTick, n)
 	for i, t := range src {
+		msOfDay := int(t.MsOfDay); date := int(t.Date)
 		result[i] = QuoteTick{
-			MsOfDay: int(t.MsOfDay), BidSize: int(t.BidSize), BidExchange: int(t.BidExchange),
+			MsOfDay: msOfDay, BidSize: int(t.BidSize), BidExchange: int(t.BidExchange),
 			Bid: priceToFloat(t.Bid, t.PriceType), BidCondition: int(t.BidCondition),
 			AskSize: int(t.AskSize), AskExchange: int(t.AskExchange),
 			Ask: priceToFloat(t.Ask, t.PriceType), AskCondition: int(t.AskCondition),
-			Date: int(t.Date),
+			Date: date,
 			Expiration: t.Expiration, Strike: t.Strike, Right: t.Right, StrikePriceType: t.StrikePriceType,
+			TimeStr: TimeStr(msOfDay), DateStr: DateStr(date),
+			BidExchangeName: ExchangeName(int(t.BidExchange)), AskExchangeName: ExchangeName(int(t.AskExchange)),
 		}
 	}
 	return result
@@ -750,8 +808,9 @@ func convertTradeQuoteTicks(arr C.TdxTickArray) []TradeQuoteTick {
 	src := unsafe.Slice((*cTradeQuoteTick)(arr.data), n)
 	result := make([]TradeQuoteTick, n)
 	for i, t := range src {
+		msOfDay := int(t.MsOfDay); date := int(t.Date)
 		result[i] = TradeQuoteTick{
-			MsOfDay: int(t.MsOfDay), Sequence: int(t.Sequence), Condition: int(t.Condition),
+			MsOfDay: msOfDay, Sequence: int(t.Sequence), Condition: int(t.Condition),
 			Size: int(t.Size), Exchange: int(t.Exchange), Price: priceToFloat(t.Price, t.PriceType),
 			ConditionFlags: int(t.ConditionFlags), PriceFlags: int(t.PriceFlags),
 			VolumeType: int(t.VolumeType), RecordsBack: int(t.RecordsBack),
@@ -759,8 +818,11 @@ func convertTradeQuoteTicks(arr C.TdxTickArray) []TradeQuoteTick {
 			Bid: priceToFloat(t.Bid, t.QuotePriceType), BidCondition: int(t.BidCondition),
 			AskSize: int(t.AskSize), AskExchange: int(t.AskExchange),
 			Ask: priceToFloat(t.Ask, t.QuotePriceType), AskCondition: int(t.AskCondition),
-			Date: int(t.Date),
+			Date: date,
 			Expiration: t.Expiration, Strike: t.Strike, Right: t.Right, StrikePriceType: t.StrikePriceType,
+			TimeStr: TimeStr(msOfDay), DateStr: DateStr(date),
+			ConditionName: ConditionName(int(t.Condition)), ExchangeName: ExchangeName(int(t.Exchange)),
+			BidExchangeName: ExchangeName(int(t.BidExchange)), AskExchangeName: ExchangeName(int(t.AskExchange)),
 		}
 	}
 	return result
@@ -772,9 +834,11 @@ func convertOpenInterestTicks(arr C.TdxTickArray) []OpenInterestTick {
 	src := unsafe.Slice((*cOpenInterestTick)(arr.data), n)
 	result := make([]OpenInterestTick, n)
 	for i, t := range src {
+		msOfDay := int(t.MsOfDay); date := int(t.Date)
 		result[i] = OpenInterestTick{
-			MsOfDay: int(t.MsOfDay), OpenInterest: int(t.OpenInterest), Date: int(t.Date),
+			MsOfDay: msOfDay, OpenInterest: int(t.OpenInterest), Date: date,
 			Expiration: t.Expiration, Strike: t.Strike, Right: t.Right, StrikePriceType: t.StrikePriceType,
+			TimeStr: TimeStr(msOfDay), DateStr: DateStr(date),
 		}
 	}
 	return result
@@ -786,10 +850,12 @@ func convertMarketValueTicks(arr C.TdxTickArray) []MarketValueTick {
 	src := unsafe.Slice((*cMarketValueTick)(arr.data), n)
 	result := make([]MarketValueTick, n)
 	for i, t := range src {
+		msOfDay := int(t.MsOfDay); date := int(t.Date)
 		result[i] = MarketValueTick{
-			MsOfDay: int(t.MsOfDay), MarketCap: t.MarketCap, SharesOut: t.SharesOutstanding,
-			EntValue: t.EnterpriseValue, BookValue: t.BookValue, FreeFloat: t.FreeFloat, Date: int(t.Date),
+			MsOfDay: msOfDay, MarketCap: t.MarketCap, SharesOut: t.SharesOutstanding,
+			EntValue: t.EnterpriseValue, BookValue: t.BookValue, FreeFloat: t.FreeFloat, Date: date,
 			Expiration: t.Expiration, Strike: t.Strike, Right: t.Right, StrikePriceType: t.StrikePriceType,
+			TimeStr: TimeStr(msOfDay), DateStr: DateStr(date),
 		}
 	}
 	return result
@@ -801,14 +867,16 @@ func convertGreeksTicks(arr C.TdxTickArray) []GreeksTick {
 	src := unsafe.Slice((*cGreeksTick)(arr.data), n)
 	result := make([]GreeksTick, n)
 	for i, t := range src {
+		msOfDay := int(t.MsOfDay); date := int(t.Date)
 		result[i] = GreeksTick{
-			MsOfDay: int(t.MsOfDay), IV: t.ImpliedVolatility, Delta: t.Delta, Gamma: t.Gamma,
+			MsOfDay: msOfDay, IV: t.ImpliedVolatility, Delta: t.Delta, Gamma: t.Gamma,
 			Theta: t.Theta, Vega: t.Vega, Rho: t.Rho, IVError: t.IvError,
 			Vanna: t.Vanna, Charm: t.Charm, Vomma: t.Vomma, Veta: t.Veta,
 			Speed: t.Speed, Zomma: t.Zomma, Color: t.Color, Ultima: t.Ultima,
 			D1: t.D1, D2: t.D2, DualDelta: t.DualDelta, DualGamma: t.DualGamma,
-			Epsilon: t.Epsilon, Lambda: t.Lambda, Vera: t.Vera, Date: int(t.Date),
+			Epsilon: t.Epsilon, Lambda: t.Lambda, Vera: t.Vera, Date: date,
 			Expiration: t.Expiration, Strike: t.Strike, Right: t.Right, StrikePriceType: t.StrikePriceType,
+			TimeStr: TimeStr(msOfDay), DateStr: DateStr(date),
 		}
 	}
 	return result
@@ -820,9 +888,11 @@ func convertIvTicks(arr C.TdxTickArray) []IVTick {
 	src := unsafe.Slice((*cIvTick)(arr.data), n)
 	result := make([]IVTick, n)
 	for i, t := range src {
+		msOfDay := int(t.MsOfDay); date := int(t.Date)
 		result[i] = IVTick{
-			MsOfDay: int(t.MsOfDay), IV: t.ImpliedVolatility, IVError: t.IvError, Date: int(t.Date),
+			MsOfDay: msOfDay, IV: t.ImpliedVolatility, IVError: t.IvError, Date: date,
 			Expiration: t.Expiration, Strike: t.Strike, Right: t.Right, StrikePriceType: t.StrikePriceType,
+			TimeStr: TimeStr(msOfDay), DateStr: DateStr(date),
 		}
 	}
 	return result
@@ -834,7 +904,8 @@ func convertPriceTicks(arr C.TdxTickArray) []PriceTick {
 	src := unsafe.Slice((*cPriceTick)(arr.data), n)
 	result := make([]PriceTick, n)
 	for i, t := range src {
-		result[i] = PriceTick{MsOfDay: int(t.MsOfDay), Price: priceToFloat(t.Price, t.PriceType), PriceRaw: int(t.Price), Date: int(t.Date)}
+		msOfDay := int(t.MsOfDay); date := int(t.Date)
+		result[i] = PriceTick{MsOfDay: msOfDay, Price: priceToFloat(t.Price, t.PriceType), PriceRaw: int(t.Price), Date: date, TimeStr: TimeStr(msOfDay), DateStr: DateStr(date)}
 	}
 	return result
 }
@@ -853,7 +924,10 @@ func convertInterestRateTicks(arr C.TdxTickArray) []InterestRateTick {
 	n := int(arr.len)
 	src := unsafe.Slice((*cInterestRateTick)(arr.data), n)
 	result := make([]InterestRateTick, n)
-	for i, t := range src { result[i] = InterestRateTick{int(t.MsOfDay), t.Rate, int(t.Date)} }
+	for i, t := range src {
+		msOfDay := int(t.MsOfDay); date := int(t.Date)
+		result[i] = InterestRateTick{MsOfDay: msOfDay, Rate: t.Rate, Date: date, TimeStr: TimeStr(msOfDay), DateStr: DateStr(date)}
+	}
 	return result
 }
 
@@ -863,11 +937,14 @@ func convertSnapshotTradeTicks(arr C.TdxTickArray) []SnapshotTradeTick {
 	src := unsafe.Slice((*cSnapshotTradeTick)(arr.data), n)
 	result := make([]SnapshotTradeTick, n)
 	for i, t := range src {
+		msOfDay := int(t.MsOfDay); date := int(t.Date)
 		result[i] = SnapshotTradeTick{
-			MsOfDay: int(t.MsOfDay), Sequence: int(t.Sequence), Size: int(t.Size),
+			MsOfDay: msOfDay, Sequence: int(t.Sequence), Size: int(t.Size),
 			Condition: int(t.Condition), Price: priceToFloat(t.Price, t.PriceType),
-			PriceRaw: int(t.Price), Date: int(t.Date),
+			PriceRaw: int(t.Price), Date: date,
 			Expiration: t.Expiration, Strike: t.Strike, Right: t.Right, StrikePriceType: t.StrikePriceType,
+			TimeStr: TimeStr(msOfDay), DateStr: DateStr(date),
+			ConditionName: ConditionName(int(t.Condition)),
 		}
 	}
 	return result

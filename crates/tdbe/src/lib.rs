@@ -14,6 +14,7 @@
 //! For network access, use the `thetadatadx` crate which depends on `tdbe`.
 
 pub mod codec;
+pub mod display;
 pub mod error;
 pub mod flags;
 pub mod greeks;

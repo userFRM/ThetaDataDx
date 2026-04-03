@@ -1733,3 +1733,96 @@ pub fn fie_line_to_string(data: &[u8]) -> Option<String>;
 pub const fn char_to_nibble(c: u8) -> Option<u8>;
 pub const fn nibble_to_char(n: u8) -> Option<u8>;
 ```
+
+## Display Helpers (`tdbe::display`)
+
+Human-readable formatting for tick fields. All lookups use const arrays -- zero allocations on the lookup path, no `HashMap`, no `LazyLock`.
+
+### Time / Date
+
+```rust
+pub fn time_str(ms_of_day: i32) -> String       // "09:30:00.000"
+pub fn time_hms(ms_of_day: i32) -> (u8, u8, u8, u16)  // (h, m, s, ms)
+pub fn date_str(date: i32) -> String             // "2024-03-15"
+pub fn date_ymd(date: i32) -> (i32, u8, u8)     // (year, month, day)
+```
+
+### Exchange Lookup (78 exchanges, code 0..=77)
+
+```rust
+pub fn exchange_name(code: i32) -> &'static str   // "NasdaqExchange"
+pub fn exchange_symbol(code: i32) -> &'static str  // "NQEX"
+```
+
+### Trade Condition Lookup (149 conditions, code 0..=148)
+
+```rust
+pub fn condition_name(code: i32) -> &'static str
+pub fn condition_info(code: i32) -> Option<&'static TradeConditionInfo>
+
+pub struct TradeConditionInfo {
+    pub name: &'static str,
+    pub description: &'static str,
+    pub cancel: bool,
+    pub late_report: bool,
+    pub volume: bool,
+    pub high: bool,
+    pub low: bool,
+    pub last: bool,
+}
+```
+
+### Quote Condition Lookup (75 conditions, code 0..=74)
+
+```rust
+pub fn quote_condition_name(code: i32) -> &'static str
+```
+
+### Option Right
+
+```rust
+pub fn right_str(code: i32) -> &'static str  // "C", "P", or ""
+```
+
+### Request Type Constants
+
+```rust
+pub const REQUEST_TYPE_TRADE: &str = "trade";
+pub const REQUEST_TYPE_QUOTE: &str = "quote";
+```
+
+### Tick Type Convenience Methods
+
+All tick types with `ms_of_day` and `date` fields gain:
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `time_str()` | `String` | `ms_of_day` formatted as `"HH:MM:SS.mmm"` |
+| `date_str()` | `String` | `date` formatted as `"YYYY-MM-DD"` |
+
+Tick types with `condition` and `exchange` (TradeTick, TradeQuoteTick) gain:
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `condition_name()` | `&'static str` | Human-readable trade condition |
+| `exchange_name()` | `&'static str` | Exchange full name |
+| `exchange_symbol()` | `&'static str` | Exchange ticker symbol |
+
+SnapshotTradeTick gains `condition_name()` (no exchange field).
+
+Tick types with `bid_exchange` / `ask_exchange` (QuoteTick, EodTick, TradeQuoteTick) gain:
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `bid_exchange_name()` | `&'static str` | Bid exchange full name |
+| `ask_exchange_name()` | `&'static str` | Ask exchange full name |
+
+All contract-ID tick types gain `right_str()` returning `"C"`, `"P"`, or `""`.
+
+### SDK Integration
+
+**Python**: Every tick dict includes `time_str`, `date_str`. Trade ticks add `condition_name`, `exchange_name`. Quote/EOD ticks add `bid_exchange_name`, `ask_exchange_name`. Contract-ID ticks use `right_str()` for the `right` field.
+
+**Go**: All public tick structs include `TimeStr`, `DateStr` string fields. Trade ticks add `ConditionName`, `ExchangeName`. Quote ticks add `BidExchangeName`, `AskExchangeName`. Standalone functions `TimeStr()`, `DateStr()`, `ExchangeName()`, `ConditionName()`, `QuoteConditionName()`, `RightStr()` are available in the `thetadatadx` package.
+
+**C++**: Free functions `time_str()`, `date_str()`, `exchange_name()`, `condition_name()`, `quote_condition_name()` in the `tdx` namespace.

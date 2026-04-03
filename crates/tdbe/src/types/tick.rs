@@ -1,3 +1,4 @@
+use crate::display;
 use crate::flags;
 use crate::types::price::Price;
 
@@ -300,9 +301,111 @@ macro_rules! impl_contract_id {
             pub fn has_contract_id(&self) -> bool {
                 self.expiration != 0
             }
+            /// Human-readable right: `"C"`, `"P"`, or `""`.
+            #[inline]
+            pub fn right_str(&self) -> &'static str {
+                display::right_str(self.right)
+            }
         }
     };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Display helpers: time_str / date_str on all tick types with those fields
+// ─────────────────────────────────────────────────────────────────────────────
+
+macro_rules! impl_time_date_display {
+    ($ty:ident) => {
+        impl $ty {
+            /// Format `ms_of_day` as `"HH:MM:SS.mmm"`.
+            #[inline]
+            pub fn time_str(&self) -> String {
+                display::time_str(self.ms_of_day)
+            }
+            /// Format `date` as `"YYYY-MM-DD"`.
+            #[inline]
+            pub fn date_str(&self) -> String {
+                display::date_str(self.date)
+            }
+        }
+    };
+}
+
+impl_time_date_display!(TradeTick);
+impl_time_date_display!(QuoteTick);
+impl_time_date_display!(OhlcTick);
+impl_time_date_display!(EodTick);
+impl_time_date_display!(OpenInterestTick);
+impl_time_date_display!(SnapshotTradeTick);
+impl_time_date_display!(TradeQuoteTick);
+impl_time_date_display!(MarketValueTick);
+impl_time_date_display!(GreeksTick);
+impl_time_date_display!(IvTick);
+impl_time_date_display!(PriceTick);
+impl_time_date_display!(InterestRateTick);
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Display helpers: condition + exchange on trade-type ticks
+// ─────────────────────────────────────────────────────────────────────────────
+
+macro_rules! impl_trade_display {
+    ($ty:ident) => {
+        impl $ty {
+            /// Human-readable trade condition name.
+            #[inline]
+            pub fn condition_name(&self) -> &'static str {
+                display::condition_name(self.condition)
+            }
+            /// Human-readable exchange name.
+            #[inline]
+            pub fn exchange_name(&self) -> &'static str {
+                display::exchange_name(self.exchange)
+            }
+            /// Exchange ticker symbol.
+            #[inline]
+            pub fn exchange_symbol(&self) -> &'static str {
+                display::exchange_symbol(self.exchange)
+            }
+        }
+    };
+}
+
+impl_trade_display!(TradeTick);
+impl_trade_display!(TradeQuoteTick);
+
+// SnapshotTradeTick has condition but no exchange field.
+impl SnapshotTradeTick {
+    /// Human-readable trade condition name.
+    #[inline]
+    pub fn condition_name(&self) -> &'static str {
+        display::condition_name(self.condition)
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Display helpers: bid/ask exchange on quote-type ticks
+// ─────────────────────────────────────────────────────────────────────────────
+
+macro_rules! impl_quote_exchange_display {
+    ($ty:ident) => {
+        impl $ty {
+            /// Human-readable bid exchange name.
+            #[inline]
+            pub fn bid_exchange_name(&self) -> &'static str {
+                display::exchange_name(self.bid_exchange)
+            }
+            /// Human-readable ask exchange name.
+            #[inline]
+            pub fn ask_exchange_name(&self) -> &'static str {
+                display::exchange_name(self.ask_exchange)
+            }
+        }
+    };
+}
+
+impl_quote_exchange_display!(QuoteTick);
+impl_quote_exchange_display!(EodTick);
+impl_quote_exchange_display!(TradeQuoteTick);
 
 impl_contract_id!(TradeTick);
 impl_contract_id!(QuoteTick);

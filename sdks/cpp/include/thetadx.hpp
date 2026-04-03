@@ -106,6 +106,145 @@ inline double ask_f64(const TradeQuoteTick& t) { return price_to_f64(t.ask, t.pr
 /** Decode price to f64 for PriceTick. */
 inline double price_f64(const PriceTick& t) { return price_to_f64(t.price, t.price_type); }
 
+// ── Display helpers ──
+
+/** Format milliseconds-of-day as "HH:MM:SS.mmm". */
+inline std::string time_str(int32_t ms_of_day) {
+    uint32_t ms = static_cast<uint32_t>(ms_of_day);
+    uint32_t total_secs = ms / 1000;
+    uint32_t millis = ms % 1000;
+    uint32_t h = total_secs / 3600;
+    uint32_t m = (total_secs % 3600) / 60;
+    uint32_t s = total_secs % 60;
+    char buf[13];
+    snprintf(buf, sizeof(buf), "%02u:%02u:%02u.%03u", h, m, s, millis);
+    return std::string(buf);
+}
+
+/** Format YYYYMMDD integer as "YYYY-MM-DD". */
+inline std::string date_str(int32_t date) {
+    int y = date / 10000;
+    int m = (date % 10000) / 100;
+    int d = date % 100;
+    char buf[11];
+    snprintf(buf, sizeof(buf), "%04d-%02d-%02d", y, m, d);
+    return std::string(buf);
+}
+
+/** Exchange name by code. Returns "UNKNOWN" for out-of-range codes. */
+inline const char* exchange_name(int32_t code) {
+    static const char* names[] = {
+        "NanexComp", "NasdaqExchange", "NasdaqAlternativeDisplayFacility",
+        "NewYorkStockExchange", "AmericanStockExchange", "ChicagoBoardOptionsExchange",
+        "InternationalSecuritiesExchange", "NYSEARCA(Pacific)",
+        "NationalStockExchange(Cincinnati)", "PhiladelphiaStockExchange",
+        "OptionsPricingReportingAuthority", "BostonStock/OptionsExchange",
+        "NasdaqGlobal+SelectMarket(NMS)", "NasdaqCapitalMarket(SmallCap)",
+        "NasdaqBulletinBoard", "NasdaqOTC", "NasdaqIndexes(GIDS)",
+        "ChicagoStockExchange", "TorontoStockExchange", "CanadianVentureExchange",
+        "ChicagoMercantileExchange", "NewYorkBoardofTrade", "ISEMercury",
+        "COMEX(divisionofNYMEX)", "ChicagoBoardofTrade", "NewYorkMercantileExchange",
+        "KansasCityBoardofTrade", "MinneapolisGrainExchange", "NYSE/ARCABonds",
+        "NasdaqBasic", "DowJonesIndices", "ISEGemini",
+        "SingaporeInternationalMonetaryExchange", "LondonStockExchange", "Eurex",
+        "ImpliedPrice", "DataTransmissionNetwork", "LondonMetalsExchangeMatchedTrades",
+        "LondonMetalsExchange", "IntercontinentalExchange(IPE)",
+        "NasdaqMutualFunds(MFDS)", "COMEXClearport", "CBOEC2OptionExchange",
+        "MiamiExchange", "NYMEXClearport", "Barclays",
+        "MiamiEmeraldOptionsExchange", "NASDAQBoston", "HotSpotEurexUS",
+        "EurexUS", "EurexEU", "EuronextCommodities", "EuronextIndexDerivatives",
+        "EuronextInterestRates", "CBOEFuturesExchange", "PhiladelphiaBoardofTrade",
+        "FCME", "FINRA/NASDAQTradeReportingFacility", "BSETradeReportingFacility",
+        "NYSETradeReportingFacility", "BATSTrading", "CBOTFloor", "PinkSheets",
+        "BATSYExchange", "DirectEdgeA", "DirectEdgeX", "RussellIndexes",
+        "CMEIndexes", "InvestorsExchange", "MiamiPearlOptionsExchange",
+        "LondonStockExchange", "NYSEGlobalIndexFeed", "TSXIndexes",
+        "MembersExchange", "CBOECGI", "LongTermStockExchange", "MIAXSapphire",
+        "24XNationalExchange",
+    };
+    if (code >= 0 && code < 78) return names[code];
+    return "UNKNOWN";
+}
+
+/** Trade condition name by code. Returns "UNKNOWN" for out-of-range codes. */
+inline const char* condition_name(int32_t code) {
+    static const char* names[] = {
+        "REGULAR", "FORMT", "OUTOFSEQ", "AVGPRC", "AVGPRC_NASDAQ",
+        "OPENREPORTLATE", "OPENREPORTOUTOFSEQ", "OPENREPORTINSEQ",
+        "PRIORREFERENCEPRICE", "NEXTDAYSALE", "BUNCHED", "CASHSALE",
+        "SELLER", "SOLDLAST", "RULE127", "BUNCHEDSOLD", "NONBOARDLOT",
+        "POSIT", "AUTOEXECUTION", "HALT", "DELAYED", "REOPEN",
+        "ACQUISITION", "CASHMARKET", "NEXTDAYMARKET", "BURSTBASKET",
+        "OPENDETAIL", "INTRADETAIL", "BASKETONCLOSE", "RULE155",
+        "DISTRIBUTION", "SPLIT", "REGULARSETTLE", "CUSTOMBASKETCROSS",
+        "ADJTERMS", "SPREAD", "STRADDLE", "BUYWRITE", "COMBO", "STPD",
+        "CANC", "CANCLAST", "CANCOPEN", "CANCONLY", "CANCSTPD",
+        "MATCHCROSS", "FASTMARKET", "NOMINAL", "CABINET", "BLANKPRICE",
+        "NOTSPECIFIED", "MCOFFICIALCLOSE", "SPECIALTERMS", "CONTINGENTORDER",
+        "INTERNALCROSS", "STOPPEDREGULAR", "STOPPEDSOLDLAST", "STOPPEDOUTOFSEQ",
+        "BASIS", "VWAP", "SPECIALSESSION", "NANEXADMIN", "OPENREPORT",
+        "MARKETONCLOSE", "SETTLEPRICE", "OUTOFSEQPREMKT", "MCOFFICIALOPEN",
+        "FUTURESSPREAD", "OPENRANGE", "CLOSERANGE", "NOMINALCABINET",
+        "CHANGINGTRANS", "CHANGINGTRANSCAB", "NOMINALUPDATE", "PITSETTLEMENT",
+        "BLOCKTRADE", "EXGFORPHYSICAL", "VOLUMEADJUSTMENT", "VOLATILITYTRADE",
+        "YELLOWFLAG", "FLOORPRICE", "OFFICIALPRICE", "UNOFFICIALPRICE",
+        "MIDBIDASKPRICE", "ENDSESSIONHIGH", "ENDSESSIONLOW", "BACKWARDATION",
+        "CONTANGO", "HOLIDAY", "PREOPENING", "POSTFULL", "POSTRESTRICTED",
+        "CLOSINGAUCTION", "BATCH", "TRADING", "INTERMARKETSWEEP",
+        "DERIVATIVE", "REOPENING", "CLOSING", "CAPELECTION", "SPOTSETTLEMENT",
+        "BASISHIGH", "BASISLOW", "YIELD", "PRICEVARIATION",
+        "CONTINGENTTRADEFORMERLYSTOCKOPTION", "STOPPEDIM", "BENCHMARK",
+        "TRADETHRUEXEMPT", "IMPLIED", "OTC", "MKTSUPERVISION",
+        "RESERVED_77", "RESERVED_91", "CONTINGENTUTP", "ODDLOT",
+        "RESERVED_89", "CORRECTEDCSLAST", "OPRAEXTHOURS", "RESERVED_78",
+        "RESERVED_81", "RESERVED_84", "RESERVED_878", "RESERVED_90",
+        "QUALIFIEDCONTINGENTTRADE", "SINGLELEGAUCTIONNONISO",
+        "SINGLELEGAUCTIONISO", "SINGLELEGCROSSNONISO", "SINGLELEGCROSSISO",
+        "SINGLELEGFLOORTRADE", "MULTILEGAUTOELECTRONICTRADE",
+        "MULTILEGAUCTION", "MULTILEGCROSS", "MULTILEGFLOORTRADE",
+        "MULTILEGAUTOELECTRADEAGAINSTSINGLELEG", "STOCKOPTIONSAUCTION",
+        "MULTILEGAUCTIONAGAINSTSINGLELEG",
+        "MULTILEGFLOORTRADEAGAINSTSINGLELEG", "STOCKOPTIONSAUTOELECTRADE",
+        "STOCKOPTIONSCROSS", "STOCKOPTIONSFLOORTRADE",
+        "STOCKOPTIONSAUTOELECTRADEAGAINSTSINGLELEG",
+        "STOCKOPTIONSAUCTIONAGAINSTSINGLELEG",
+        "STOCKOPTIONSFLOORTRADEAGAINSTSINGLELEG",
+        "MULTILEGFLOORTRADEOFPROPRIETARYPRODUCTS", "BIDAGGRESSOR",
+        "ASKAGGRESSOR",
+        "MULTILATERALCOMPRESSIONTRADEOFPROPRIETARYDATAPRODUCTS",
+        "EXTENDEDHOURSTRADE",
+    };
+    if (code >= 0 && code < 149) return names[code];
+    return "UNKNOWN";
+}
+
+/** Quote condition name by code. Returns "UNKNOWN" for out-of-range codes. */
+inline const char* quote_condition_name(int32_t code) {
+    static const char* names[] = {
+        "REGULAR", "BID_ASK_AUTO_EXEC", "ROTATION", "SPECIALIST_ASK",
+        "SPECIALIST_BID", "LOCKED", "FAST_MARKET", "SPECIALIST_BID_ASK",
+        "ONE_SIDE", "OPENING_QUOTE", "CLOSING_QUOTE", "MARKET_MAKER_CLOSED",
+        "DEPTH_ON_ASK", "DEPTH_ON_BID", "DEPTH_ON_BID_ASK", "TIER_3",
+        "CROSSED", "HALTED", "OPERATIONAL_HALT", "NEWS_OUT", "NEWS_PENDING",
+        "NON_FIRM", "DUE_TO_RELATED", "RESUME", "NO_MARKET_MAKERS",
+        "ORDER_IMBALANCE", "ORDER_INFLUX", "INDICATED", "PRE_OPEN",
+        "IN_VIEW_OF_COMMON", "RELATED_NEWS_PENDING", "RELATED_NEWS_OUT",
+        "ADDITIONAL_INFO", "RELATED_ADD_INFO", "NO_OPEN_RESUME", "DELETED",
+        "REGULATORY_HALT", "SEC_SUSPENSION", "NON_COMLIANCE",
+        "FILINGS_NOT_CURRENT", "CATS_HALTED", "CATS", "EX_DIV_OR_SPLIT",
+        "UNASSIGNED", "INSIDE_OPEN", "INSIDE_CLOSED", "OFFER_WANTED",
+        "BID_WANTED", "CASH", "INACTIVE", "NATIONAL_BBO", "NOMINAL",
+        "CABINET", "NOMINAL_CABINET", "BLANK_PRICE", "SLOW_BID_ASK",
+        "SLOW_LIST", "SLOW_BID", "SLOW_ASK", "BID_OFFER_WANTED",
+        "SUBPENNY", "NON_BBO", "SPECIAL_OPEN", "BENCHMARK", "IMPLIED",
+        "EXCHANGE_BEST", "MKT_WIDE_HALT_1", "MKT_WIDE_HALT_2",
+        "MKT_WIDE_HALT_3", "ON_DEMAND_AUCTION", "NON_FIRM_BID",
+        "NON_FIRM_ASK", "RETAIL_BID", "RETAIL_ASK", "RETAIL_QTE",
+    };
+    if (code >= 0 && code < 75) return names[code];
+    return "UNKNOWN";
+}
+
 // ── Greeks result (from standalone tdx_all_greeks) ──
 
 struct Greeks {
