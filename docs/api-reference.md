@@ -729,7 +729,7 @@ typedef struct { TdxFpssEventKind kind; TdxFpssQuote quote; TdxFpssTrade trade;
                  TdxFpssControl control; TdxFpssRawData raw_data; } TdxFpssEvent;
 ```
 
-Check `event->kind` then read the corresponding field. Only the field matching `kind` is valid. Prices are raw integers with `price_type` -- decode with `Price::new(value, price_type).to_f64()`.
+Check `event->kind` then read the corresponding field. Only the field matching `kind` is valid. Prices are raw integers with `price_type` -- decode with `value / pow(10, priceType)`.
 
 ### Go SDK: Streaming
 

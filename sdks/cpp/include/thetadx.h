@@ -701,7 +701,7 @@ typedef struct {
 /** FPSS control event.
  *  kind: 0=login_success, 1=contract_assigned, 2=req_response,
  *        3=market_open, 4=market_close, 5=server_error,
- *        6=disconnected, 7=error
+ *        6=disconnected, 7=error, 8=unknown
  *  id:   contract_id or req_id where applicable, 0 otherwise.
  *  detail: NUL-terminated string, may be NULL. Do NOT free. */
 typedef struct {

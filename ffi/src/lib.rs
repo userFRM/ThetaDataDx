@@ -2208,12 +2208,10 @@ pub unsafe extern "C" fn tdx_unified_active_subscriptions(
 
 /// Poll for the next streaming event from the unified client.
 ///
-/// Blocks for up to `timeout_ms` milliseconds. Returns a JSON string.
-/// Returns null if no event arrived within the timeout (NOT an error),
-/// or if streaming has not been started yet (check `tdx_last_error()`).
-///
-/// Returns a heap-allocated `TdxFpssEvent` that MUST be freed with
-/// `tdx_fpss_event_free`. Returns null on timeout (not an error).
+/// Blocks for up to `timeout_ms` milliseconds. Returns a heap-allocated
+/// `TdxFpssEvent` that MUST be freed with `tdx_fpss_event_free`.
+/// Returns null on timeout (not an error), or if streaming has not been
+/// started yet (check `tdx_last_error()`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_unified_next_event(
     handle: *const TdxUnified,

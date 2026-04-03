@@ -318,7 +318,7 @@ func main() {
 }
 ```
 
-Prices in streaming events are raw integers with a `PriceType` field. Decode using `Price.ToF64()` from the `tdbe` crate, or apply the ThetaData encoding: `value * 10^(price_type - 10)`.
+Prices in streaming events are raw integers with a `PriceType` field. Decode using `PriceToF64(value, priceType)` from this Go SDK, or apply the formula: `value / pow(10, priceType)`.
 
 ### FpssClient API
 
@@ -350,7 +350,8 @@ Prices in streaming events are raw integers with a `PriceType` field. Decode usi
 | `FpssTrade` | ContractID, MsOfDay, Sequence, ExtCondition1-4, Condition, Size, Exchange, Price, ConditionFlags, PriceFlags, VolumeType, RecordsBack, PriceType, Date, ReceivedAtNs | `Kind == FpssTradeEvent` |
 | `FpssOpenInterestData` | ContractID, MsOfDay, OpenInterest, Date, ReceivedAtNs | `Kind == FpssOpenInterestEvent` |
 | `FpssOhlcvc` | ContractID, MsOfDay, Open, High, Low, Close, Volume (int64), Count (int64), PriceType, Date, ReceivedAtNs | `Kind == FpssOhlcvcEvent` |
-| `FpssControlData` | Kind (0-7), ID, Detail (string) | `Kind == FpssControlEvent` |
+| `FpssControlData` | Kind (0-8), ID, Detail (string) | `Kind == FpssControlEvent` |
+| Raw data | RawCode (uint8), RawPayload ([]byte) | `Kind == FpssRawDataEvent` |
 
 ## Architecture
 

@@ -127,8 +127,17 @@ import "C"
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"unsafe"
 )
+
+// PriceToF64 converts a ThetaData price-encoded integer to float64.
+func PriceToF64(value int32, priceType int32) float64 {
+	if priceType == 0 || value == 0 {
+		return 0.0
+	}
+	return float64(value) / math.Pow(10, float64(priceType))
+}
 
 // FpssEventKind identifies the type of an FPSS streaming event.
 type FpssEventKind int
@@ -143,7 +152,7 @@ const (
 )
 
 // FpssQuote is a real-time quote event from FPSS.
-// Prices are raw integers — use Price.ToF64(priceType) to decode.
+// Prices are raw integers — use PriceToF64(value, priceType) to decode.
 type FpssQuote struct {
 	ContractID   int32
 	MsOfDay      int32
@@ -212,7 +221,7 @@ type FpssOhlcvc struct {
 //
 //	0=login_success, 1=contract_assigned, 2=req_response,
 //	3=market_open, 4=market_close, 5=server_error,
-//	6=disconnected, 7=error
+//	6=disconnected, 7=error, 8=unknown
 //
 // ID carries the contract_id or req_id where applicable (0 otherwise).
 // Detail is a human-readable string (may be empty).
@@ -231,6 +240,8 @@ type FpssEvent struct {
 	OpenInterest *FpssOpenInterestData
 	Ohlcvc       *FpssOhlcvc
 	Control      *FpssControlData
+	RawCode      uint8
+	RawPayload   []byte
 }
 
 // FpssClient wraps the FPSS real-time streaming handle.
@@ -444,6 +455,12 @@ func (f *FpssClient) NextEvent(timeoutMs uint64) (*FpssEvent, error) {
 			Kind:   int32(ctrl.kind),
 			ID:     int32(ctrl.id),
 			Detail: detail,
+		}
+	case FpssRawDataEvent:
+		rd := raw.raw_data
+		event.RawCode = uint8(rd.code)
+		if rd.payload != nil && rd.payload_len > 0 {
+			event.RawPayload = C.GoBytes(unsafe.Pointer(rd.payload), C.int(rd.payload_len))
 		}
 	}
 
