@@ -61,6 +61,43 @@ impl Frame {
     }
 }
 
+const MAX_CONSECUTIVE_UNKNOWN_CODES: usize = 5;
+
+/// Read the 2-byte FPSS header, handling partial reads and clean EOF.
+fn read_header<R: Read>(reader: &mut R) -> Result<Option<[u8; 2]>, crate::error::Error> {
+    let mut header = [0u8; 2];
+    let mut n = 0usize;
+    loop {
+        match reader.read(&mut header[n..]) {
+            Ok(0) if n == 0 => return Ok(None),
+            Ok(0) => {
+                return Err(crate::error::Error::FpssProtocol(format!(
+                    "truncated FPSS header: got {n} byte(s), expected 2"
+                )))
+            }
+            Ok(read) => {
+                n += read;
+                if n >= 2 {
+                    return Ok(Some(header));
+                }
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof && n == 0 => return Ok(None),
+            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                return Err(crate::error::Error::FpssProtocol(format!(
+                    "truncated FPSS header: got {n} byte(s), expected 2"
+                )))
+            }
+            Err(e) => return Err(e.into()),
+        }
+    }
+}
+
+/// Returns true if the payload contains non-printable control bytes,
+/// indicating binary data rather than a human-readable error message.
+pub(crate) fn is_binary_payload(payload: &[u8]) -> bool {
+    payload.iter().any(|&b| b < 0x09 || (b > 0x0D && b < 0x20))
+}
+
 /// Read a single FPSS frame into a caller-owned buffer, avoiding per-frame
 /// heap allocation on the hot path.
 ///
@@ -73,62 +110,55 @@ impl Frame {
 /// `.resize()`d each call. Because `Vec` retains its capacity, repeated
 /// calls with similarly-sized frames hit zero allocator calls after the
 /// first frame.
+///
+/// # Unknown message codes
+///
+/// Frames with unrecognized codes are silently skipped (payload consumed
+/// to keep the stream aligned). After [`MAX_CONSECUTIVE_UNKNOWN_CODES`]
+/// consecutive unknown codes, returns an error to trigger reconnection.
 pub fn read_frame_into<R: Read>(
     reader: &mut R,
     buf: &mut Vec<u8>,
 ) -> Result<Option<(StreamMsgType, usize)>, crate::error::Error> {
-    buf.clear();
+    let mut consecutive_unknown = 0usize;
 
-    // Read the 2-byte header.
-    // Only treat as clean EOF if zero bytes were read (true connection close).
-    // A partial header (1 byte read then EOF) indicates framing corruption.
-    let mut header = [0u8; 2];
-    let mut header_read = 0usize;
     loop {
-        match reader.read(&mut header[header_read..]) {
-            Ok(0) => {
-                if header_read == 0 {
-                    // Clean EOF -- no bytes read at all.
-                    return Ok(None);
+        buf.clear();
+
+        let header = match read_header(reader)? {
+            Some(h) => h,
+            None => return Ok(None),
+        };
+
+        let payload_len = header[0] as usize;
+        let code_byte = header[1];
+
+        // Always consume the payload to keep the stream aligned.
+        buf.resize(payload_len, 0);
+        if payload_len > 0 {
+            reader.read_exact(buf)?;
+        }
+
+        match StreamMsgType::from_code(code_byte) {
+            Some(code) => return Ok(Some((code, payload_len))),
+            None => {
+                consecutive_unknown += 1;
+                if consecutive_unknown >= MAX_CONSECUTIVE_UNKNOWN_CODES {
+                    return Err(crate::error::Error::Fpss(format!(
+                        "framing corruption: {consecutive_unknown} consecutive \
+                         unknown message codes (last code: {code_byte})"
+                    )));
                 }
-                // Partial header -- got some bytes then EOF. This is framing corruption.
-                return Err(crate::error::Error::FpssProtocol(format!(
-                    "truncated FPSS header: got {header_read} byte(s), expected 2"
-                )));
+                tracing::debug!(
+                    code = code_byte,
+                    payload_len,
+                    consecutive_unknown,
+                    "skipping unknown FPSS message code"
+                );
+                continue;
             }
-            Ok(n) => {
-                header_read += n;
-                if header_read >= 2 {
-                    break;
-                }
-                // Got 1 byte, loop to read the second.
-            }
-            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
-                if header_read == 0 {
-                    return Ok(None);
-                }
-                return Err(crate::error::Error::FpssProtocol(format!(
-                    "truncated FPSS header: got {header_read} byte(s), expected 2"
-                )));
-            }
-            Err(e) => return Err(e.into()),
         }
     }
-
-    let payload_len = header[0] as usize;
-    let code_byte = header[1];
-
-    let code = StreamMsgType::from_code(code_byte).ok_or_else(|| {
-        crate::error::Error::FpssProtocol(format!("unknown message code: {code_byte}"))
-    })?;
-
-    // Read the payload into the reusable buffer.
-    buf.resize(payload_len, 0);
-    if payload_len > 0 {
-        reader.read_exact(buf)?;
-    }
-
-    Ok(Some((code, payload_len)))
 }
 
 /// Read a single FPSS frame from a blocking reader.
@@ -260,11 +290,13 @@ mod tests {
     }
 
     #[test]
-    fn read_frame_unknown_code() {
+    fn read_frame_unknown_code_skipped() {
+        // Unknown codes are silently skipped (dev server sends them).
+        // After skipping, the reader hits EOF and returns None.
         let data = encode_manual(0xFF, &[]);
         let mut cursor = Cursor::new(data);
-        let err = read_frame(&mut cursor).unwrap_err();
-        assert!(err.to_string().contains("unknown message code: 255"));
+        let result = read_frame(&mut cursor).unwrap();
+        assert!(result.is_none());
     }
 
     #[test]
