@@ -663,6 +663,12 @@ ThetaDataDx exposes **61 typed methods** (plus 4 `_stream` variants) covering al
 
 All 61 endpoints are exposed through the `thetadatadx-ffi` C ABI crate. Each method has a corresponding `extern "C"` function (e.g., `thetadatadx_stock_history_eod`). The Go and C++ SDKs wrap these FFI functions 1:1.
 
+**No JSON crosses the FFI boundary.** All inputs and outputs use typed `#[repr(C)]` structs:
+
+- **Bulk snapshot endpoints** (stock/index snapshot OHLC, trade, quote, market value, price) accept `symbols: *const *const c_char, symbols_len: usize` — a C array of C string pointers with a length.
+- **`tdx_all_greeks`** returns `*mut TdxGreeksResult` (22 `f64` fields). Caller frees with `tdx_greeks_result_free`.
+- **`tdx_unified_active_subscriptions` / `tdx_fpss_active_subscriptions`** return `*mut TdxSubscriptionArray` containing `TdxSubscription` entries with `kind` and `contract` C strings. Caller frees with `tdx_subscription_array_free`.
+
 ### Python SDK Coverage
 
 All 61 endpoints are available in the Python SDK via PyO3 bindings (e.g., `tdx.stock_history_eod(...)`). Streaming is available via `tdx.start_streaming()` / `tdx.next_event()`. DataFrame conversion is available via `to_dataframe()` and `_df` method variants (requires `pip install thetadatadx[pandas]`).

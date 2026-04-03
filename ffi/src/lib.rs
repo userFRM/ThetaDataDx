@@ -585,17 +585,6 @@ unsafe fn cstr_to_str<'a>(p: *const c_char) -> Option<&'a str> {
     unsafe { CStr::from_ptr(p) }.to_str().ok()
 }
 
-/// Helper: serialize a serde_json::Value to a C string.
-fn json_to_cstring(val: &serde_json::Value) -> *mut c_char {
-    match CString::new(val.to_string()) {
-        Ok(cs) => cs.into_raw(),
-        Err(_) => {
-            set_error("JSON serialization produced invalid C string");
-            ptr::null_mut()
-        }
-    }
-}
-
 // ── Credentials ──
 
 /// Create credentials from email and password strings.
@@ -1038,7 +1027,33 @@ macro_rules! ffi_list_endpoint {
     };
 }
 
-/// FFI wrapper for snapshot endpoints that take a JSON array of symbols and return typed tick arrays.
+/// Parse a C array of C string pointers into `Vec<String>`.
+///
+/// Returns `None` and sets the thread-local error if the array is null or
+/// any element is null / invalid UTF-8.
+unsafe fn parse_symbol_array(
+    symbols: *const *const c_char,
+    symbols_len: usize,
+) -> Option<Vec<String>> {
+    if symbols.is_null() {
+        set_error("symbols array pointer is null");
+        return None;
+    }
+    let ptrs = unsafe { std::slice::from_raw_parts(symbols, symbols_len) };
+    let mut out = Vec::with_capacity(symbols_len);
+    for (i, &p) in ptrs.iter().enumerate() {
+        match unsafe { cstr_to_str(p) } {
+            Some(s) => out.push(s.to_owned()),
+            None => {
+                set_error(&format!("symbols[{}] is null or invalid UTF-8", i));
+                return None;
+            }
+        }
+    }
+    Some(out)
+}
+
+/// FFI wrapper for snapshot endpoints that take a C string array of symbols and return typed tick arrays.
 macro_rules! ffi_typed_snapshot_endpoint {
     // Variant with opts (appends)
     (
@@ -1049,7 +1064,8 @@ macro_rules! ffi_typed_snapshot_endpoint {
         #[no_mangle]
         pub unsafe extern "C" fn $ffi_name(
             client: *const TdxClient,
-            symbols_json: *const c_char,
+            symbols: *const *const c_char,
+            symbols_len: usize,
         ) -> $array_type {
             let empty = $array_type { data: ptr::null(), len: 0 };
             if client.is_null() {
@@ -1057,21 +1073,11 @@ macro_rules! ffi_typed_snapshot_endpoint {
                 return empty;
             }
             let client = unsafe { &*client };
-            let json_str = match unsafe { cstr_to_str(symbols_json) } {
+            let syms = match unsafe { parse_symbol_array(symbols, symbols_len) } {
                 Some(s) => s,
-                None => {
-                    set_error("symbols_json is null or invalid UTF-8");
-                    return empty;
-                }
+                None => return empty,
             };
-            let symbols: Vec<String> = match serde_json::from_str(json_str) {
-                Ok(s) => s,
-                Err(e) => {
-                    set_error(&format!("invalid symbols JSON: {}", e));
-                    return empty;
-                }
-            };
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+            let refs: Vec<&str> = syms.iter().map(|s| s.as_str()).collect();
             match runtime().block_on(async { client.inner.$method(&refs).await }) {
                 Ok(ticks) => $array_type::from_vec(ticks),
                 Err(e) => {
@@ -1090,7 +1096,8 @@ macro_rules! ffi_typed_snapshot_endpoint {
         #[no_mangle]
         pub unsafe extern "C" fn $ffi_name(
             client: *const TdxClient,
-            symbols_json: *const c_char,
+            symbols: *const *const c_char,
+            symbols_len: usize,
         ) -> $array_type {
             let empty = $array_type { data: ptr::null(), len: 0 };
             if client.is_null() {
@@ -1098,21 +1105,11 @@ macro_rules! ffi_typed_snapshot_endpoint {
                 return empty;
             }
             let client = unsafe { &*client };
-            let json_str = match unsafe { cstr_to_str(symbols_json) } {
+            let syms = match unsafe { parse_symbol_array(symbols, symbols_len) } {
                 Some(s) => s,
-                None => {
-                    set_error("symbols_json is null or invalid UTF-8");
-                    return empty;
-                }
+                None => return empty,
             };
-            let symbols: Vec<String> = match serde_json::from_str(json_str) {
-                Ok(s) => s,
-                Err(e) => {
-                    set_error(&format!("invalid symbols JSON: {}", e));
-                    return empty;
-                }
-            };
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+            let refs: Vec<&str> = syms.iter().map(|s| s.as_str()).collect();
             match runtime().block_on(async { client.inner.$method(&refs).await }) {
                 Ok(ticks) => $array_type::from_vec(ticks),
                 Err(e) => {
@@ -1211,25 +1208,25 @@ ffi_list_endpoint! {
 
 // 3. stock_snapshot_ohlc
 ffi_typed_snapshot_endpoint! {
-    /// Get latest OHLC snapshot. symbols_json is JSON array. Returns TdxOhlcTickArray.
+    /// Get latest OHLC snapshot. Returns TdxOhlcTickArray.
     tdx_stock_snapshot_ohlc => stock_snapshot_ohlc, TdxOhlcTickArray
 }
 
 // 4. stock_snapshot_trade
 ffi_typed_snapshot_endpoint! {
-    /// Get latest trade snapshot. symbols_json is JSON array. Returns TdxTradeTickArray.
+    /// Get latest trade snapshot. Returns TdxTradeTickArray.
     tdx_stock_snapshot_trade => stock_snapshot_trade, TdxTradeTickArray
 }
 
 // 5. stock_snapshot_quote
 ffi_typed_snapshot_endpoint! {
-    /// Get latest NBBO quote snapshot. symbols_json is JSON array. Returns TdxQuoteTickArray.
+    /// Get latest NBBO quote snapshot. Returns TdxQuoteTickArray.
     tdx_stock_snapshot_quote => stock_snapshot_quote, TdxQuoteTickArray
 }
 
 // 6. stock_snapshot_market_value
 ffi_typed_snapshot_endpoint! {
-    /// Get latest market value snapshot. symbols_json is JSON array. Returns TdxMarketValueTickArray.
+    /// Get latest market value snapshot. Returns TdxMarketValueTickArray.
     tdx_stock_snapshot_market_value => stock_snapshot_market_value, TdxMarketValueTickArray
 }
 
@@ -1619,10 +1616,37 @@ ffi_typed_endpoint! {
 //  Greeks (standalone, not client methods)
 // ═══════════════════════════════════════════════════════════════════════
 
+/// All 22 Black-Scholes Greeks + IV as a typed C struct.
+#[repr(C)]
+pub struct TdxGreeksResult {
+    pub value: f64,
+    pub delta: f64,
+    pub gamma: f64,
+    pub theta: f64,
+    pub vega: f64,
+    pub rho: f64,
+    pub epsilon: f64,
+    pub lambda: f64,
+    pub vanna: f64,
+    pub charm: f64,
+    pub vomma: f64,
+    pub veta: f64,
+    pub speed: f64,
+    pub zomma: f64,
+    pub color: f64,
+    pub ultima: f64,
+    pub iv: f64,
+    pub iv_error: f64,
+    pub d1: f64,
+    pub d2: f64,
+    pub dual_delta: f64,
+    pub dual_gamma: f64,
+}
+
 /// Compute all 22 Black-Scholes Greeks + IV.
 ///
-/// Returns a JSON object with all greek values.
-/// Caller must free the result with `tdx_string_free`.
+/// Returns a heap-allocated `TdxGreeksResult` (null on error).
+/// Caller must free the result with `tdx_greeks_result_free`.
 #[no_mangle]
 pub extern "C" fn tdx_all_greeks(
     spot: f64,
@@ -1632,7 +1656,7 @@ pub extern "C" fn tdx_all_greeks(
     tte: f64,
     option_price: f64,
     is_call: i32,
-) -> *mut c_char {
+) -> *mut TdxGreeksResult {
     let g = tdbe::greeks::all_greeks(
         spot,
         strike,
@@ -1642,31 +1666,39 @@ pub extern "C" fn tdx_all_greeks(
         option_price,
         is_call != 0,
     );
-    let json = serde_json::json!({
-        "value": g.value,
-        "delta": g.delta,
-        "gamma": g.gamma,
-        "theta": g.theta,
-        "vega": g.vega,
-        "rho": g.rho,
-        "iv": g.iv,
-        "iv_error": g.iv_error,
-        "vanna": g.vanna,
-        "charm": g.charm,
-        "vomma": g.vomma,
-        "veta": g.veta,
-        "speed": g.speed,
-        "zomma": g.zomma,
-        "color": g.color,
-        "ultima": g.ultima,
-        "d1": g.d1,
-        "d2": g.d2,
-        "dual_delta": g.dual_delta,
-        "dual_gamma": g.dual_gamma,
-        "epsilon": g.epsilon,
-        "lambda": g.lambda,
-    });
-    json_to_cstring(&json)
+    let result = TdxGreeksResult {
+        value: g.value,
+        delta: g.delta,
+        gamma: g.gamma,
+        theta: g.theta,
+        vega: g.vega,
+        rho: g.rho,
+        epsilon: g.epsilon,
+        lambda: g.lambda,
+        vanna: g.vanna,
+        charm: g.charm,
+        vomma: g.vomma,
+        veta: g.veta,
+        speed: g.speed,
+        zomma: g.zomma,
+        color: g.color,
+        ultima: g.ultima,
+        iv: g.iv,
+        iv_error: g.iv_error,
+        d1: g.d1,
+        d2: g.d2,
+        dual_delta: g.dual_delta,
+        dual_gamma: g.dual_gamma,
+    };
+    Box::into_raw(Box::new(result))
+}
+
+/// Free a `TdxGreeksResult` returned by `tdx_all_greeks`.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_greeks_result_free(ptr: *mut TdxGreeksResult) {
+    if !ptr.is_null() {
+        drop(unsafe { Box::from_raw(ptr) });
+    }
 }
 
 /// Compute implied volatility via bisection.
@@ -1703,6 +1735,113 @@ pub unsafe extern "C" fn tdx_implied_volatility(
         *out_error = err;
     }
     0
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  Subscription types — used by both unified and FPSS active_subscriptions
+// ═══════════════════════════════════════════════════════════════════════
+
+/// A single active subscription entry.
+#[repr(C)]
+pub struct TdxSubscription {
+    /// Subscription kind as a C string (e.g. "Quote", "Trade", "OpenInterest").
+    pub kind: *const c_char,
+    /// Contract identifier as a C string (e.g. "SPY" or "SPY 20260417 550 C").
+    pub contract: *const c_char,
+}
+
+/// Array of active subscriptions returned by `tdx_unified_active_subscriptions`
+/// and `tdx_fpss_active_subscriptions`.
+#[repr(C)]
+pub struct TdxSubscriptionArray {
+    pub data: *const TdxSubscription,
+    pub len: usize,
+}
+
+/// Build a `TdxSubscriptionArray` from an iterator of `(kind_debug, contract_display)` pairs.
+fn build_subscription_array<I>(iter: I) -> *mut TdxSubscriptionArray
+where
+    I: Iterator<Item = (String, String)>,
+{
+    let pairs: Vec<(String, String)> = iter.collect();
+    let mut subs = Vec::with_capacity(pairs.len());
+    for (kind, contract) in &pairs {
+        let kind_c = match CString::new(kind.as_str()) {
+            Ok(c) => c,
+            Err(_) => {
+                // Free already-allocated CStrings before returning null
+                for s in &subs {
+                    let s: &TdxSubscription = s;
+                    if !s.kind.is_null() {
+                        drop(unsafe { CString::from_raw(s.kind as *mut c_char) });
+                    }
+                    if !s.contract.is_null() {
+                        drop(unsafe { CString::from_raw(s.contract as *mut c_char) });
+                    }
+                }
+                set_error("subscription kind contains null byte");
+                return ptr::null_mut();
+            }
+        };
+        let contract_c = match CString::new(contract.as_str()) {
+            Ok(c) => c,
+            Err(_) => {
+                drop(kind_c); // free the kind we just allocated
+                for s in &subs {
+                    let s: &TdxSubscription = s;
+                    if !s.kind.is_null() {
+                        drop(unsafe { CString::from_raw(s.kind as *mut c_char) });
+                    }
+                    if !s.contract.is_null() {
+                        drop(unsafe { CString::from_raw(s.contract as *mut c_char) });
+                    }
+                }
+                set_error("subscription contract contains null byte");
+                return ptr::null_mut();
+            }
+        };
+        subs.push(TdxSubscription {
+            kind: kind_c.into_raw() as *const c_char,
+            contract: contract_c.into_raw() as *const c_char,
+        });
+    }
+    let len = subs.len();
+    let data = if subs.is_empty() {
+        ptr::null()
+    } else {
+        let boxed = subs.into_boxed_slice();
+        Box::into_raw(boxed) as *const TdxSubscription
+    };
+    Box::into_raw(Box::new(TdxSubscriptionArray { data, len }))
+}
+
+/// Free a `TdxSubscriptionArray` returned by `tdx_unified_active_subscriptions`
+/// or `tdx_fpss_active_subscriptions`.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_subscription_array_free(arr: *mut TdxSubscriptionArray) {
+    if arr.is_null() {
+        return;
+    }
+    let arr = unsafe { Box::from_raw(arr) };
+    if !arr.data.is_null() && arr.len > 0 {
+        let slice =
+            unsafe { std::slice::from_raw_parts(arr.data as *mut TdxSubscription, arr.len) };
+        for sub in slice {
+            if !sub.kind.is_null() {
+                drop(unsafe { CString::from_raw(sub.kind as *mut c_char) });
+            }
+            if !sub.contract.is_null() {
+                drop(unsafe { CString::from_raw(sub.contract as *mut c_char) });
+            }
+        }
+        // Reconstruct and drop the boxed slice
+        drop(unsafe {
+            Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+                arr.data as *mut TdxSubscription,
+                arr.len,
+            ))
+        });
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -2175,11 +2314,13 @@ pub unsafe extern "C" fn tdx_unified_contract_lookup(
     }
 }
 
-/// Get active subscriptions as JSON array. Returns null on error.
+/// Get active subscriptions as a typed array. Returns null on error.
+///
+/// Caller must free the result with `tdx_subscription_array_free`.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_unified_active_subscriptions(
     handle: *const TdxUnified,
-) -> *mut c_char {
+) -> *mut TdxSubscriptionArray {
     if handle.is_null() {
         set_error("unified handle is null");
         return ptr::null_mut();
@@ -2187,17 +2328,7 @@ pub unsafe extern "C" fn tdx_unified_active_subscriptions(
     let handle = unsafe { &*handle };
     match handle.inner.active_subscriptions() {
         Ok(subs) => {
-            let json = serde_json::Value::Array(
-                subs.iter()
-                    .map(|(k, c)| {
-                        serde_json::json!({
-                            "kind": format!("{k:?}"),
-                            "contract": format!("{c}"),
-                        })
-                    })
-                    .collect(),
-            );
-            json_to_cstring(&json)
+            build_subscription_array(subs.iter().map(|(k, c)| (format!("{k:?}"), format!("{c}"))))
         }
         Err(e) => {
             set_error(&e.to_string());
@@ -2831,12 +2962,12 @@ pub unsafe extern "C" fn tdx_fpss_contract_lookup(
 
 /// Get a snapshot of currently active subscriptions.
 ///
-/// Returns a JSON array of objects with "kind" and "contract" keys.
-/// Caller must free the returned string with `tdx_string_free`.
+/// Returns a heap-allocated `TdxSubscriptionArray` (null on error).
+/// Caller must free the result with `tdx_subscription_array_free`.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_fpss_active_subscriptions(
     handle: *const TdxFpssHandle,
-) -> *mut c_char {
+) -> *mut TdxSubscriptionArray {
     if handle.is_null() {
         set_error("FPSS handle is null");
         return ptr::null_mut();
@@ -2851,20 +2982,10 @@ pub unsafe extern "C" fn tdx_fpss_active_subscriptions(
         }
     };
     let subs = client.active_subscriptions();
-    let json_array: Vec<serde_json::Value> = subs
-        .into_iter()
-        .map(|(kind, contract)| {
-            serde_json::json!({
-                "kind": format!("{kind:?}"),
-                "contract": format!("{contract}"),
-            })
-        })
-        .collect();
-    let json_str = serde_json::to_string(&json_array).unwrap_or_else(|_| "[]".to_string());
-    match CString::new(json_str) {
-        Ok(cs) => cs.into_raw(),
-        Err(_) => ptr::null_mut(),
-    }
+    build_subscription_array(
+        subs.into_iter()
+            .map(|(kind, contract)| (format!("{kind:?}"), format!("{contract}"))),
+    )
 }
 
 /// Poll for the next FPSS event as a typed `#[repr(C)]` struct.

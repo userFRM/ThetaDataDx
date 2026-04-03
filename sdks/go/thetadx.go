@@ -64,10 +64,10 @@ extern TdxStringArray tdx_stock_list_symbols(const TdxClient* client);
 extern TdxStringArray tdx_stock_list_dates(const TdxClient* client, const char* request_type, const char* symbol);
 
 // ── Stock — Snapshot endpoints ──
-extern TdxTickArray tdx_stock_snapshot_ohlc(const TdxClient* client, const char* symbols_json);
-extern TdxTickArray tdx_stock_snapshot_trade(const TdxClient* client, const char* symbols_json);
-extern TdxTickArray tdx_stock_snapshot_quote(const TdxClient* client, const char* symbols_json);
-extern TdxTickArray tdx_stock_snapshot_market_value(const TdxClient* client, const char* symbols_json);
+extern TdxTickArray tdx_stock_snapshot_ohlc(const TdxClient* client, const char* const* symbols, size_t symbols_len);
+extern TdxTickArray tdx_stock_snapshot_trade(const TdxClient* client, const char* const* symbols, size_t symbols_len);
+extern TdxTickArray tdx_stock_snapshot_quote(const TdxClient* client, const char* const* symbols, size_t symbols_len);
+extern TdxTickArray tdx_stock_snapshot_market_value(const TdxClient* client, const char* const* symbols, size_t symbols_len);
 
 // ── Stock — History endpoints ──
 extern TdxTickArray tdx_stock_history_eod(const TdxClient* client, const char* symbol, const char* start_date, const char* end_date);
@@ -128,9 +128,9 @@ extern TdxTickArray tdx_option_at_time_quote(const TdxClient* client, const char
 // ── Index ──
 extern TdxStringArray tdx_index_list_symbols(const TdxClient* client);
 extern TdxStringArray tdx_index_list_dates(const TdxClient* client, const char* symbol);
-extern TdxTickArray tdx_index_snapshot_ohlc(const TdxClient* client, const char* symbols_json);
-extern TdxTickArray tdx_index_snapshot_price(const TdxClient* client, const char* symbols_json);
-extern TdxTickArray tdx_index_snapshot_market_value(const TdxClient* client, const char* symbols_json);
+extern TdxTickArray tdx_index_snapshot_ohlc(const TdxClient* client, const char* const* symbols, size_t symbols_len);
+extern TdxTickArray tdx_index_snapshot_price(const TdxClient* client, const char* const* symbols, size_t symbols_len);
+extern TdxTickArray tdx_index_snapshot_market_value(const TdxClient* client, const char* const* symbols, size_t symbols_len);
 extern TdxTickArray tdx_index_history_eod(const TdxClient* client, const char* symbol, const char* start_date, const char* end_date);
 extern TdxTickArray tdx_index_history_ohlc(const TdxClient* client, const char* symbol, const char* start_date, const char* end_date, const char* interval);
 extern TdxTickArray tdx_index_history_price(const TdxClient* client, const char* symbol, const char* date, const char* interval);
@@ -144,9 +144,48 @@ extern TdxTickArray tdx_calendar_year(const TdxClient* client, const char* year)
 // ── Interest Rate ──
 extern TdxTickArray tdx_interest_rate_history_eod(const TdxClient* client, const char* symbol, const char* start_date, const char* end_date);
 
+// ── Greeks result struct ──
+typedef struct {
+    double value;
+    double delta;
+    double gamma;
+    double theta;
+    double vega;
+    double rho;
+    double epsilon;
+    double lambda;
+    double vanna;
+    double charm;
+    double vomma;
+    double veta;
+    double speed;
+    double zomma;
+    double color;
+    double ultima;
+    double iv;
+    double iv_error;
+    double d1;
+    double d2;
+    double dual_delta;
+    double dual_gamma;
+} TdxGreeksResult;
+
+// ── Subscription types ──
+typedef struct {
+    const char* kind;
+    const char* contract;
+} TdxSubscription;
+
+typedef struct {
+    const TdxSubscription* data;
+    size_t len;
+} TdxSubscriptionArray;
+
 // ── Greeks ──
-extern char* tdx_all_greeks(double spot, double strike, double rate, double div_yield, double tte, double option_price, int is_call);
+extern TdxGreeksResult* tdx_all_greeks(double spot, double strike, double rate, double div_yield, double tte, double option_price, int is_call);
+extern void tdx_greeks_result_free(TdxGreeksResult* result);
 extern int tdx_implied_volatility(double spot, double strike, double rate, double div_yield, double tte, double option_price, int is_call, double* out_iv, double* out_error);
+extern void tdx_subscription_array_free(TdxSubscriptionArray* arr);
 
 // ── FPSS (real-time streaming) ──
 extern TdxFpssHandle* tdx_fpss_connect(const TdxCredentials* creds, const TdxConfig* config);
@@ -169,7 +208,6 @@ extern void tdx_fpss_free(TdxFpssHandle* h);
 import "C"
 
 import (
-	"encoding/json"
 	"fmt"
 	"unsafe"
 )
@@ -181,17 +219,6 @@ func lastError() string {
 		return "unknown error"
 	}
 	return C.GoString(p)
-}
-
-// callJSON invokes an FFI function that returns a JSON C string,
-// parses it, and frees the C memory. Used only for Greeks (still JSON).
-func callJSON(cstr *C.char) (json.RawMessage, error) {
-	if cstr == nil {
-		return nil, fmt.Errorf("thetadatadx: %s", lastError())
-	}
-	goStr := C.GoString(cstr)
-	C.tdx_string_free(cstr)
-	return json.RawMessage(goStr), nil
 }
 
 // stringArrayToGo converts a TdxStringArray to a Go []string and frees the C memory.
@@ -284,10 +311,30 @@ func (c *Config) Close() {
 	}
 }
 
-func symbolsToJSON(symbols []string) (*C.char, error) {
-	b, err := json.Marshal(symbols)
-	if err != nil {
-		return nil, fmt.Errorf("thetadatadx: serialize symbols: %w", err)
+// symbolsToCArray converts a Go string slice into a C array of C strings.
+// The caller must free each element and the array itself with C.free.
+func symbolsToCArray(symbols []string) (**C.char, C.size_t) {
+	n := len(symbols)
+	if n == 0 {
+		return nil, 0
 	}
-	return C.CString(string(b)), nil
+	// Allocate an array of *C.char pointers.
+	cArray := C.malloc(C.size_t(n) * C.size_t(unsafe.Sizeof((*C.char)(nil))))
+	ptrs := (*[1 << 30]*C.char)(cArray)
+	for i, s := range symbols {
+		ptrs[i] = C.CString(s)
+	}
+	return (**C.char)(cArray), C.size_t(n)
+}
+
+// freeSymbolArray frees a C array of C strings allocated by symbolsToCArray.
+func freeSymbolArray(arr **C.char, n C.size_t) {
+	if arr == nil {
+		return
+	}
+	ptrs := (*[1 << 30]*C.char)(unsafe.Pointer(arr))
+	for i := C.size_t(0); i < n; i++ {
+		C.free(unsafe.Pointer(ptrs[i]))
+	}
+	C.free(unsafe.Pointer(arr))
 }

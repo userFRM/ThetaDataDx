@@ -114,7 +114,19 @@ extern int tdx_fpss_unsubscribe_full_trades(const TdxFpssHandle* h, const char* 
 extern int tdx_fpss_unsubscribe_full_open_interest(const TdxFpssHandle* h, const char* sec_type);
 extern int tdx_fpss_is_authenticated(const TdxFpssHandle* h);
 extern char* tdx_fpss_contract_lookup(const TdxFpssHandle* h, int id);
-extern char* tdx_fpss_active_subscriptions(const TdxFpssHandle* h);
+// ── Subscription types ──
+typedef struct {
+    const char* kind;
+    const char* contract;
+} TdxSubscription;
+
+typedef struct {
+    const TdxSubscription* data;
+    size_t len;
+} TdxSubscriptionArray;
+
+extern TdxSubscriptionArray* tdx_fpss_active_subscriptions(const TdxFpssHandle* h);
+extern void tdx_subscription_array_free(TdxSubscriptionArray* arr);
 extern TdxFpssEvent* tdx_fpss_next_event(const TdxFpssHandle* h, uint64_t timeout_ms);
 extern void tdx_fpss_event_free(TdxFpssEvent* event);
 extern void tdx_fpss_shutdown(const TdxFpssHandle* h);
@@ -125,7 +137,6 @@ extern void tdx_string_free(char* s);
 import "C"
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"unsafe"
@@ -357,15 +368,34 @@ func (f *FpssClient) ContractLookup(id int) (string, error) {
 	return goStr, nil
 }
 
-// ActiveSubscriptions returns the currently active subscriptions as JSON.
-func (f *FpssClient) ActiveSubscriptions() (json.RawMessage, error) {
-	cstr := C.tdx_fpss_active_subscriptions(f.handle)
-	if cstr == nil {
+// Subscription represents a single active subscription entry.
+type Subscription struct {
+	Kind     string // "Quote", "Trade", or "OpenInterest"
+	Contract string // "SPY" or "SPY 20260417 550 C"
+}
+
+// ActiveSubscriptions returns the currently active subscriptions as typed structs.
+func (f *FpssClient) ActiveSubscriptions() ([]Subscription, error) {
+	arr := C.tdx_fpss_active_subscriptions(f.handle)
+	if arr == nil {
 		return nil, fmt.Errorf("thetadatadx: %s", lastError())
 	}
-	goStr := C.GoString(cstr)
-	C.tdx_string_free(cstr)
-	return json.RawMessage(goStr), nil
+	defer C.tdx_subscription_array_free(arr)
+	n := int(arr.len)
+	if n == 0 || arr.data == nil {
+		return nil, nil
+	}
+	subs := unsafe.Slice(arr.data, n)
+	result := make([]Subscription, n)
+	for i := 0; i < n; i++ {
+		if subs[i].kind != nil {
+			result[i].Kind = C.GoString(subs[i].kind)
+		}
+		if subs[i].contract != nil {
+			result[i].Contract = C.GoString(subs[i].contract)
+		}
+	}
+	return result, nil
 }
 
 // NextEvent polls for the next streaming event with the given timeout in milliseconds.

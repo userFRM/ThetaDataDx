@@ -293,6 +293,45 @@ typedef struct {
     size_t len;
 } TdxStringArray;
 
+/* ── Greeks result (standalone tdx_all_greeks) ── */
+
+typedef struct {
+    double value;
+    double delta;
+    double gamma;
+    double theta;
+    double vega;
+    double rho;
+    double epsilon;
+    double lambda;
+    double vanna;
+    double charm;
+    double vomma;
+    double veta;
+    double speed;
+    double zomma;
+    double color;
+    double ultima;
+    double iv;
+    double iv_error;
+    double d1;
+    double d2;
+    double dual_delta;
+    double dual_gamma;
+} TdxGreeksResult;
+
+/* ── Subscription types (active_subscriptions) ── */
+
+typedef struct {
+    const char* kind;      /* "Quote", "Trade", or "OpenInterest" */
+    const char* contract;  /* "SPY" or "SPY 20260417 550 C" */
+} TdxSubscription;
+
+typedef struct {
+    const TdxSubscription* data;
+    size_t len;
+} TdxSubscriptionArray;
+
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Free functions for typed arrays                                       */
 /* ═══════════════════════════════════════════════════════════════════════ */
@@ -312,6 +351,8 @@ void tdx_snapshot_trade_tick_array_free(TdxSnapshotTradeTickArray arr);
 void tdx_trade_quote_tick_array_free(TdxTradeQuoteTickArray arr);
 void tdx_option_contract_array_free(TdxOptionContractArray arr);
 void tdx_string_array_free(TdxStringArray arr);
+void tdx_greeks_result_free(TdxGreeksResult* result);
+void tdx_subscription_array_free(TdxSubscriptionArray* arr);
 
 /* ── Error ── */
 
@@ -372,17 +413,17 @@ TdxStringArray tdx_stock_list_dates(const TdxClient* client, const char* request
 /*  Stock — Snapshot endpoints (4)                                        */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/** 3. Get latest OHLC snapshot. symbols_json is JSON array. */
-TdxOhlcTickArray tdx_stock_snapshot_ohlc(const TdxClient* client, const char* symbols_json);
+/** 3. Get latest OHLC snapshot. symbols is a C array of C strings with length symbols_len. */
+TdxOhlcTickArray tdx_stock_snapshot_ohlc(const TdxClient* client, const char* const* symbols, size_t symbols_len);
 
-/** 4. Get latest trade snapshot. symbols_json is JSON array. */
-TdxTradeTickArray tdx_stock_snapshot_trade(const TdxClient* client, const char* symbols_json);
+/** 4. Get latest trade snapshot. symbols is a C array of C strings with length symbols_len. */
+TdxTradeTickArray tdx_stock_snapshot_trade(const TdxClient* client, const char* const* symbols, size_t symbols_len);
 
-/** 5. Get latest NBBO quote snapshot. symbols_json is JSON array. */
-TdxQuoteTickArray tdx_stock_snapshot_quote(const TdxClient* client, const char* symbols_json);
+/** 5. Get latest NBBO quote snapshot. symbols is a C array of C strings with length symbols_len. */
+TdxQuoteTickArray tdx_stock_snapshot_quote(const TdxClient* client, const char* const* symbols, size_t symbols_len);
 
-/** 6. Get latest market value snapshot. symbols_json is JSON array. */
-TdxMarketValueTickArray tdx_stock_snapshot_market_value(const TdxClient* client, const char* symbols_json);
+/** 6. Get latest market value snapshot. symbols is a C array of C strings with length symbols_len. */
+TdxMarketValueTickArray tdx_stock_snapshot_market_value(const TdxClient* client, const char* const* symbols, size_t symbols_len);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Stock — History endpoints (5 + bonus)                                 */
@@ -595,14 +636,14 @@ TdxStringArray tdx_index_list_dates(const TdxClient* client, const char* symbol)
 /*  Index — Snapshot endpoints (3)                                        */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/** 50. Get latest OHLC snapshot for indices. symbols_json is JSON array. */
-TdxOhlcTickArray tdx_index_snapshot_ohlc(const TdxClient* client, const char* symbols_json);
+/** 50. Get latest OHLC snapshot for indices. symbols is a C array of C strings with length symbols_len. */
+TdxOhlcTickArray tdx_index_snapshot_ohlc(const TdxClient* client, const char* const* symbols, size_t symbols_len);
 
-/** 51. Get latest price snapshot for indices. symbols_json is JSON array. */
-TdxPriceTickArray tdx_index_snapshot_price(const TdxClient* client, const char* symbols_json);
+/** 51. Get latest price snapshot for indices. symbols is a C array of C strings with length symbols_len. */
+TdxPriceTickArray tdx_index_snapshot_price(const TdxClient* client, const char* const* symbols, size_t symbols_len);
 
-/** 52. Get latest market value for indices. symbols_json is JSON array. */
-TdxMarketValueTickArray tdx_index_snapshot_market_value(const TdxClient* client, const char* symbols_json);
+/** 52. Get latest market value for indices. symbols is a C array of C strings with length symbols_len. */
+TdxMarketValueTickArray tdx_index_snapshot_market_value(const TdxClient* client, const char* const* symbols, size_t symbols_len);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Index — History endpoints (3)                                         */
@@ -655,9 +696,9 @@ TdxInterestRateTickArray tdx_interest_rate_history_eod(const TdxClient* client, 
 /*  Greeks (standalone)                                                   */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/** Compute all 22 Greeks + IV. Returns JSON object. Caller must free with tdx_string_free. */
-char* tdx_all_greeks(double spot, double strike, double rate, double div_yield,
-                     double tte, double option_price, int is_call);
+/** Compute all 22 Greeks + IV. Returns heap-allocated TdxGreeksResult. Caller must free with tdx_greeks_result_free. */
+TdxGreeksResult* tdx_all_greeks(double spot, double strike, double rate, double div_yield,
+                                double tte, double option_price, int is_call);
 
 /** Compute implied volatility. Returns 0 on success, -1 on failure. */
 int tdx_implied_volatility(double spot, double strike, double rate, double div_yield,
@@ -812,8 +853,8 @@ int tdx_fpss_is_authenticated(const TdxFpssHandle* h);
 /** Look up a contract by server-assigned ID. Returns string or NULL. Caller must free with tdx_string_free. */
 char* tdx_fpss_contract_lookup(const TdxFpssHandle* h, int id);
 
-/** Get active subscriptions as JSON array. Caller must free with tdx_string_free. */
-char* tdx_fpss_active_subscriptions(const TdxFpssHandle* h);
+/** Get active subscriptions as typed array. Caller must free with tdx_subscription_array_free. */
+TdxSubscriptionArray* tdx_fpss_active_subscriptions(const TdxFpssHandle* h);
 
 /** Poll for the next event as a typed struct. Returns TdxFpssEvent* or NULL on timeout.
  *  Caller MUST free with tdx_fpss_event_free. */

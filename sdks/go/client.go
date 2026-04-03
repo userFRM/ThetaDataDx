@@ -38,10 +38,10 @@ extern void tdx_string_array_free(TdxStringArray arr);
 // All endpoint declarations
 extern TdxStringArray tdx_stock_list_symbols(const TdxClient* client);
 extern TdxStringArray tdx_stock_list_dates(const TdxClient* client, const char* request_type, const char* symbol);
-extern TdxTickArray tdx_stock_snapshot_ohlc(const TdxClient* client, const char* symbols_json);
-extern TdxTickArray tdx_stock_snapshot_trade(const TdxClient* client, const char* symbols_json);
-extern TdxTickArray tdx_stock_snapshot_quote(const TdxClient* client, const char* symbols_json);
-extern TdxTickArray tdx_stock_snapshot_market_value(const TdxClient* client, const char* symbols_json);
+extern TdxTickArray tdx_stock_snapshot_ohlc(const TdxClient* client, const char* const* symbols, size_t symbols_len);
+extern TdxTickArray tdx_stock_snapshot_trade(const TdxClient* client, const char* const* symbols, size_t symbols_len);
+extern TdxTickArray tdx_stock_snapshot_quote(const TdxClient* client, const char* const* symbols, size_t symbols_len);
+extern TdxTickArray tdx_stock_snapshot_market_value(const TdxClient* client, const char* const* symbols, size_t symbols_len);
 extern TdxTickArray tdx_stock_history_eod(const TdxClient* client, const char* symbol, const char* start_date, const char* end_date);
 extern TdxTickArray tdx_stock_history_ohlc(const TdxClient* client, const char* symbol, const char* date, const char* interval);
 extern TdxTickArray tdx_stock_history_ohlc_range(const TdxClient* client, const char* symbol, const char* start_date, const char* end_date, const char* interval);
@@ -86,9 +86,9 @@ extern TdxTickArray tdx_option_at_time_trade(const TdxClient* client, const char
 extern TdxTickArray tdx_option_at_time_quote(const TdxClient* client, const char* symbol, const char* expiration, const char* strike, const char* right, const char* start_date, const char* end_date, const char* time_of_day);
 extern TdxStringArray tdx_index_list_symbols(const TdxClient* client);
 extern TdxStringArray tdx_index_list_dates(const TdxClient* client, const char* symbol);
-extern TdxTickArray tdx_index_snapshot_ohlc(const TdxClient* client, const char* symbols_json);
-extern TdxTickArray tdx_index_snapshot_price(const TdxClient* client, const char* symbols_json);
-extern TdxTickArray tdx_index_snapshot_market_value(const TdxClient* client, const char* symbols_json);
+extern TdxTickArray tdx_index_snapshot_ohlc(const TdxClient* client, const char* const* symbols, size_t symbols_len);
+extern TdxTickArray tdx_index_snapshot_price(const TdxClient* client, const char* const* symbols, size_t symbols_len);
+extern TdxTickArray tdx_index_snapshot_market_value(const TdxClient* client, const char* const* symbols, size_t symbols_len);
 extern TdxTickArray tdx_index_history_eod(const TdxClient* client, const char* symbol, const char* start_date, const char* end_date);
 extern TdxTickArray tdx_index_history_ohlc(const TdxClient* client, const char* symbol, const char* start_date, const char* end_date, const char* interval);
 extern TdxTickArray tdx_index_history_price(const TdxClient* client, const char* symbol, const char* date, const char* interval);
@@ -97,7 +97,34 @@ extern TdxTickArray tdx_calendar_open_today(const TdxClient* client);
 extern TdxTickArray tdx_calendar_on_date(const TdxClient* client, const char* date);
 extern TdxTickArray tdx_calendar_year(const TdxClient* client, const char* year);
 extern TdxTickArray tdx_interest_rate_history_eod(const TdxClient* client, const char* symbol, const char* start_date, const char* end_date);
-extern char* tdx_all_greeks(double spot, double strike, double rate, double div_yield, double tte, double option_price, int is_call);
+// ── Greeks result struct ──
+typedef struct {
+    double value;
+    double delta;
+    double gamma;
+    double theta;
+    double vega;
+    double rho;
+    double epsilon;
+    double lambda;
+    double vanna;
+    double charm;
+    double vomma;
+    double veta;
+    double speed;
+    double zomma;
+    double color;
+    double ultima;
+    double iv;
+    double iv_error;
+    double d1;
+    double d2;
+    double dual_delta;
+    double dual_gamma;
+} TdxGreeksResult;
+
+extern TdxGreeksResult* tdx_all_greeks(double spot, double strike, double rate, double div_yield, double tte, double option_price, int is_call);
+extern void tdx_greeks_result_free(TdxGreeksResult* result);
 extern int tdx_implied_volatility(double spot, double strike, double rate, double div_yield, double tte, double option_price, int is_call, double* out_iv, double* out_error);
 
 // FPSS
@@ -122,7 +149,6 @@ extern void tdx_fpss_free(TdxFpssHandle* h);
 import "C"
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"unsafe"
@@ -883,23 +909,23 @@ func (c *Client) StockListDates(requestType, symbol string) ([]string, error) {
 }
 
 func (c *Client) StockSnapshotOHLC(symbols []string) ([]OhlcTick, error) {
-	cJSON, err := symbolsToJSON(symbols); if err != nil { return nil, err }; defer C.free(unsafe.Pointer(cJSON))
-	arr := C.tdx_stock_snapshot_ohlc(c.handle, cJSON); result := convertOhlcTicks(arr); C.tdx_ohlc_tick_array_free(arr); return result, nil
+	cSyms, cLen := symbolsToCArray(symbols); defer freeSymbolArray(cSyms, cLen)
+	arr := C.tdx_stock_snapshot_ohlc(c.handle, cSyms, cLen); result := convertOhlcTicks(arr); C.tdx_ohlc_tick_array_free(arr); return result, nil
 }
 
 func (c *Client) StockSnapshotTrade(symbols []string) ([]TradeTick, error) {
-	cJSON, err := symbolsToJSON(symbols); if err != nil { return nil, err }; defer C.free(unsafe.Pointer(cJSON))
-	arr := C.tdx_stock_snapshot_trade(c.handle, cJSON); result := convertTradeTicks(arr); C.tdx_trade_tick_array_free(arr); return result, nil
+	cSyms, cLen := symbolsToCArray(symbols); defer freeSymbolArray(cSyms, cLen)
+	arr := C.tdx_stock_snapshot_trade(c.handle, cSyms, cLen); result := convertTradeTicks(arr); C.tdx_trade_tick_array_free(arr); return result, nil
 }
 
 func (c *Client) StockSnapshotQuote(symbols []string) ([]QuoteTick, error) {
-	cJSON, err := symbolsToJSON(symbols); if err != nil { return nil, err }; defer C.free(unsafe.Pointer(cJSON))
-	arr := C.tdx_stock_snapshot_quote(c.handle, cJSON); result := convertQuoteTicks(arr); C.tdx_quote_tick_array_free(arr); return result, nil
+	cSyms, cLen := symbolsToCArray(symbols); defer freeSymbolArray(cSyms, cLen)
+	arr := C.tdx_stock_snapshot_quote(c.handle, cSyms, cLen); result := convertQuoteTicks(arr); C.tdx_quote_tick_array_free(arr); return result, nil
 }
 
 func (c *Client) StockSnapshotMarketValue(symbols []string) ([]MarketValueTick, error) {
-	cJSON, err := symbolsToJSON(symbols); if err != nil { return nil, err }; defer C.free(unsafe.Pointer(cJSON))
-	arr := C.tdx_stock_snapshot_market_value(c.handle, cJSON); result := convertMarketValueTicks(arr); C.tdx_market_value_tick_array_free(arr); return result, nil
+	cSyms, cLen := symbolsToCArray(symbols); defer freeSymbolArray(cSyms, cLen)
+	arr := C.tdx_stock_snapshot_market_value(c.handle, cSyms, cLen); result := convertMarketValueTicks(arr); C.tdx_market_value_tick_array_free(arr); return result, nil
 }
 
 func (c *Client) StockHistoryEOD(symbol, startDate, endDate string) ([]EodTick, error) {
@@ -1148,16 +1174,16 @@ func (c *Client) IndexListDates(symbol string) ([]string, error) {
 }
 
 func (c *Client) IndexSnapshotOHLC(symbols []string) ([]OhlcTick, error) {
-	cJSON, err := symbolsToJSON(symbols); if err != nil { return nil, err }; defer C.free(unsafe.Pointer(cJSON))
-	arr := C.tdx_index_snapshot_ohlc(c.handle, cJSON); result := convertOhlcTicks(arr); C.tdx_ohlc_tick_array_free(arr); return result, nil
+	cSyms, cLen := symbolsToCArray(symbols); defer freeSymbolArray(cSyms, cLen)
+	arr := C.tdx_index_snapshot_ohlc(c.handle, cSyms, cLen); result := convertOhlcTicks(arr); C.tdx_ohlc_tick_array_free(arr); return result, nil
 }
 func (c *Client) IndexSnapshotPrice(symbols []string) ([]PriceTick, error) {
-	cJSON, err := symbolsToJSON(symbols); if err != nil { return nil, err }; defer C.free(unsafe.Pointer(cJSON))
-	arr := C.tdx_index_snapshot_price(c.handle, cJSON); result := convertPriceTicks(arr); C.tdx_price_tick_array_free(arr); return result, nil
+	cSyms, cLen := symbolsToCArray(symbols); defer freeSymbolArray(cSyms, cLen)
+	arr := C.tdx_index_snapshot_price(c.handle, cSyms, cLen); result := convertPriceTicks(arr); C.tdx_price_tick_array_free(arr); return result, nil
 }
 func (c *Client) IndexSnapshotMarketValue(symbols []string) ([]MarketValueTick, error) {
-	cJSON, err := symbolsToJSON(symbols); if err != nil { return nil, err }; defer C.free(unsafe.Pointer(cJSON))
-	arr := C.tdx_index_snapshot_market_value(c.handle, cJSON); result := convertMarketValueTicks(arr); C.tdx_market_value_tick_array_free(arr); return result, nil
+	cSyms, cLen := symbolsToCArray(symbols); defer freeSymbolArray(cSyms, cLen)
+	arr := C.tdx_index_snapshot_market_value(c.handle, cSyms, cLen); result := convertMarketValueTicks(arr); C.tdx_market_value_tick_array_free(arr); return result, nil
 }
 
 func (c *Client) IndexHistoryEOD(symbol, startDate, endDate string) ([]EodTick, error) {
@@ -1203,15 +1229,38 @@ func (c *Client) InterestRateHistoryEOD(symbol, startDate, endDate string) ([]In
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  Greeks (standalone — still JSON)
+//  Greeks (standalone — typed struct, no JSON)
 // ═══════════════════════════════════════════════════════════════
 
 func AllGreeks(spot, strike, rate, divYield, tte, optionPrice float64, isCall bool) (*Greeks, error) {
 	call := C.int(0); if isCall { call = 1 }
-	raw, err := callJSON(C.tdx_all_greeks(C.double(spot), C.double(strike), C.double(rate), C.double(divYield), C.double(tte), C.double(optionPrice), call))
-	if err != nil { return nil, err }
-	var g Greeks
-	return &g, json.Unmarshal(raw, &g)
+	ptr := C.tdx_all_greeks(C.double(spot), C.double(strike), C.double(rate), C.double(divYield), C.double(tte), C.double(optionPrice), call)
+	if ptr == nil { return nil, fmt.Errorf("thetadatadx: %s", lastError()) }
+	defer C.tdx_greeks_result_free(ptr)
+	return &Greeks{
+		Value:     float64(ptr.value),
+		Delta:     float64(ptr.delta),
+		Gamma:     float64(ptr.gamma),
+		Theta:     float64(ptr.theta),
+		Vega:      float64(ptr.vega),
+		Rho:       float64(ptr.rho),
+		IV:        float64(ptr.iv),
+		IVError:   float64(ptr.iv_error),
+		Vanna:     float64(ptr.vanna),
+		Charm:     float64(ptr.charm),
+		Vomma:     float64(ptr.vomma),
+		Veta:      float64(ptr.veta),
+		Speed:     float64(ptr.speed),
+		Zomma:     float64(ptr.zomma),
+		Color:     float64(ptr.color),
+		Ultima:    float64(ptr.ultima),
+		D1:        float64(ptr.d1),
+		D2:        float64(ptr.d2),
+		DualDelta: float64(ptr.dual_delta),
+		DualGamma: float64(ptr.dual_gamma),
+		Epsilon:   float64(ptr.epsilon),
+		Lambda:    float64(ptr.lambda),
+	}, nil
 }
 
 func ImpliedVolatility(spot, strike, rate, divYield, tte, optionPrice float64, isCall bool) (float64, float64, error) {
