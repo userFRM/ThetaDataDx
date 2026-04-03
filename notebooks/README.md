@@ -121,7 +121,7 @@ A fully interactive, live-updating option chain rendered inside the notebook:
 - One-click and auto-refresh modes
 - IV smile plot and multi-expiration term structure visualization
 
-Requires `ipywidgets`. For a richer standalone GUI with tabbed expirations and configurable display, see the [Streamlit live-chain app](../tools/live-chain/).
+Requires `ipywidgets`. For a richer standalone GUI with tabbed expirations and configurable display, see the [Streamlit live-chain app](live-chain/).
 
 ### 107 - Full Trade Stream
 

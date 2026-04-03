@@ -1,9 +1,9 @@
 ---
-title: option_at_time_ohlc
+title: option_at_time_quote
 description: Quote at a specific time of day across a date range for an option contract.
 ---
 
-# option_at_time_ohlc
+# option_at_time_quote
 
 <TierBadge tier="free" />
 

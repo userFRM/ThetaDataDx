@@ -13,6 +13,7 @@ The `thetadatadx` client crate depends on `tdbe` for type definitions.
 | `codec` | FIT nibble decoder and FIE string encoder used by FPSS tick compression |
 | `greeks` | Full Black-Scholes calculator: 22 Greeks + IV bisection solver |
 | `flags` | Bit flags and condition codes for market data records |
+| `latency` | Wire-to-application latency computation (`latency_ns`) |
 | `error` | Encoding-layer error types |
 
 ## Quick start

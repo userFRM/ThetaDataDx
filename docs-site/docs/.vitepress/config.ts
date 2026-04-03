@@ -160,7 +160,7 @@ export default defineConfig({
                 collapsed: true,
                 items: [
                   { text: 'Trade', link: '/historical/option/at-time/trade' },
-                  { text: 'OHLC', link: '/historical/option/at-time/ohlc' },
+                  { text: 'Quote', link: '/historical/option/at-time/ohlc' },
                 ],
               },
             ],

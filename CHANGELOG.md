@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [4.4.0] - 2026-04-02
 
+v3 MDDS DataTable parsing (Timestamp cells), DST-aware timezone, gRPC flow control, header aliases for EOD. See v4.5.0 for cumulative details.
+
 ## [4.3.0] - 2026-04-02
 
 ### Added
@@ -63,6 +65,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Supported interval presets
 
 `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`
+
+## [4.1.2] - 2026-04-01
+
+Interval format conversion (later superseded by shorthand normalization in v4.2.0).
 
 ## [4.1.1] - 2026-04-01
 
@@ -114,13 +120,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Go SDK `priceToFloat()` was fundamentally wrong -- used a switch statement instead of `value * 10^(type-10)`. Every price in the Go SDK was incorrect.
-- Python docs used `event["type"]` instead of `event["kind"]` in streaming examples
-- `Price::new()` used `assert!` in release builds -- changed to `debug_assert!` + silent clamp. Corrupt frames no longer crash production.
-- C++ `FpssClient` missing `unsubscribe_quotes()` method
-- FFI FPSS functions used `.lock().unwrap()` -- changed to poison recovery
-- WebSocket handler missing `OPEN_INTEREST` and `FULL_TRADES` dispatch
-- `Credentials.password` changed from `pub` to `pub(crate)` with accessor
 - Query builder syntax highlighter regex cross-contamination (visible `class="hl-string"` in rendered code)
 
 ### Changed

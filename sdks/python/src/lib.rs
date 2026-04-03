@@ -982,6 +982,20 @@ impl ThetaDataDx {
         self.tdx.unsubscribe_trades(&contract).map_err(to_py_err)
     }
 
+    /// Unsubscribe from open interest data for an option contract.
+    fn unsubscribe_option_open_interest(
+        &self,
+        symbol: &str,
+        exp_date: i32,
+        is_call: bool,
+        strike: i32,
+    ) -> PyResult<i32> {
+        let contract = fpss::protocol::Contract::option(symbol, exp_date, is_call, strike);
+        self.tdx
+            .unsubscribe_open_interest(&contract)
+            .map_err(to_py_err)
+    }
+
     /// Get the current contract map (server-assigned IDs -> contract strings).
     fn contract_map(&self) -> PyResult<std::collections::HashMap<i32, String>> {
         self.tdx

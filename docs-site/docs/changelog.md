@@ -5,6 +5,130 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.5.0] - 2026-04-02
+
+### Breaking Changes
+
+- **FFI: `#[repr(C)]` typed struct arrays replace JSON** -- all 60 data endpoints now return native struct arrays across the FFI boundary. C++ and Go SDKs read fields directly, zero JSON serialization. FPSS streaming events remain JSON (variable schemas).
+- C++ `OptionContract` now uses `std::string root` (was `const char*`)
+- Go SDK gains 9 previously missing Greeks endpoints
+
+### Added
+
+- **DST-aware timezone conversion** -- `eastern_offset_ms()` correctly handles EST/EDT transitions using US Energy Policy Act 2005 rules. Historical data from November-March now has correct ms_of_day values. (#32)
+- **gRPC flow control config** -- `DirectConfig` gained `mdds_window_size_kb` and `mdds_connection_window_size_kb`, wired into tonic channel builder. (#36)
+- Go SDK: `OptionSnapshotGreeksFirstOrder`, `OptionSnapshotGreeksSecondOrder`, `OptionSnapshotGreeksThirdOrder`, `OptionHistoryGreeksFirstOrder/SecondOrder/ThirdOrder`, `OptionHistoryTradeGreeksFirstOrder/SecondOrder/ThirdOrder` (#39)
+- Go SDK: `SnapshotTradeTick` type and converter
+- Go SDK: `Vera` field on `GreeksTick`
+- FFI: 13 typed tick array types (`TdxEodTickArray`, `TdxOhlcTickArray`, etc.) with `from_vec`/`free`
+- FFI: `TdxStringArray` for list endpoints, `TdxOptionContractArray` for contracts
+- C++ header: `thetadx.h` with all `#[repr(C)]` struct definitions and function signatures
+
+### Fixed
+
+- **Timezone hardcoded UTC-4** -- was producing ms_of_day shifted +1 hour for all Nov-Mar historical data. Now DST-aware with 5 unit tests. (#32)
+- **EOD parser divergent alias system** -- unified to shared `find_header()`. (#34)
+- **reconnect_wait_ms** -- changed from 1000 to 2000 to match Java terminal. (#35)
+- **C++ OptionContract use-after-free** -- root string was dangling after array free. Now deep-copies to `std::string`. (#39)
+- **Active subscriptions not cleared on explicit shutdown** -- `shutdown()` clears, involuntary disconnect preserves for reconnect. (#38)
+- Mermaid diagram syntax in architecture.md (#30)
+
+### Documented
+
+- Price type per-row variation as known limitation in jvm-deviations.md (#37)
+- FPSS ring buffer capacity monitoring as known limitation
+
+## [4.4.0] - 2026-04-02
+
+## [4.3.0] - 2026-04-02
+
+### Added
+
+- **`start_time` and `end_time` parameters** exposed on all 25 endpoints that support time filtering. Pass `Some("04:00:00")` for pre-market, `Some("20:00:00")` for extended hours, or `None` for RTH defaults (09:30:00-16:00:00). Affects stock history/snapshot/at-time, option history, and index history endpoints.
+
+### Fixed
+
+- Version pins in README and getting-started docs updated to `"4.2"`
+- Default venue `"nqb"` (NASDAQ Best) documented in jvm-deviations.md
+
+## [4.2.0] - 2026-04-01
+
+### Fixed (battle-tested against live MDDS -- all 61 endpoints verified)
+
+- **Interval conversion**: MDDS server accepts preset shorthand (`1m`, `5m`, `1h`), not raw milliseconds. `normalize_interval()` now converts `"60000"` -> `"1m"`, `"300000"` -> `"5m"`, etc. Sub-second presets supported: `"100"` -> `"100ms"`, `"500"` -> `"500ms"`. Users can pass either milliseconds or shorthand directly.
+- **Default start_time/end_time**: the Java terminal defaults these to `"09:30:00"` and `"16:00:00"`. Our SDK left them as None, causing `"Invalid time format: Expected hh:mm:ss.SSS"` on trade/quote/greeks endpoints. Now defaults to RTH.
+- **extract_text_column**: now handles Number and Price DataTable values. `option_list_strikes` was returning 0 results because strikes come as Number values, not Text.
+- **FPSS TLS certificate**: ThetaData's FPSS servers have certificates expired since Jan 2024. Skip certificate verification for FPSS connections (matching Java terminal behavior).
+
+### Supported interval presets
+
+`100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`
+
+## [4.1.1] - 2026-04-01
+
+### Fixed
+
+- PyPI publish workflow: add `skip-existing: true` to prevent duplicate upload failures on tag re-push
+
+## [4.1.0] - 2026-04-01
+
+### Added
+
+- `subscribe_full_open_interest(sec_type)` -- firehose open interest subscription (was missing, Java terminal has it)
+- `unsubscribe_full_trades(sec_type)` -- firehose trade unsubscribe (was missing)
+- `unsubscribe_full_open_interest(sec_type)` -- firehose OI unsubscribe (was missing)
+- `reconnect_streaming(handler)` on `ThetaDataDx` -- saves active subscriptions, stops streaming, restarts with new handler, re-subscribes all per-contract and full-type subscriptions automatically
+- `active_full_subscriptions()` accessor for full-type subscription tracking
+- `docs/java-class-mapping.md` -- complete enumeration of all 588 Java terminal classes with Rust equivalents or justification for exclusion
+
+### Fixed
+
+- DNS hostname resolution in FPSS connection -- `SocketAddr::parse()` replaced with `ToSocketAddrs` to resolve hostnames like `nj-a.thetadata.us` (was silently failing)
+
+### Documented
+
+- Greeks operator precedence (veta, speed, zomma, color, dual_gamma) -- Java decompiler may have lost parenthesization, Rust follows textbook Black-Scholes formulas
+- FPSS ring buffer capacity monitoring -- documented as known limitation (disruptor-rs v4 has no fill-level API)
+
+## [4.0.0] - 2026-04-01
+
+### Breaking Changes
+
+- **`tdbe` crate extracted** -- all data types, codecs, greeks, price, enums, and flags moved to standalone `tdbe` crate with zero networking dependencies. Users must add `tdbe` as a dependency and change imports: `use tdbe::{Price, TradeTick, EodTick}`.
+- `thetadatadx` no longer exports `types/`, `codec/`, `greeks.rs`. These modules live in `tdbe`.
+
+### Added
+
+- **`tdbe` crate** (`crates/tdbe/`) -- pure data-format crate. Single dependency (`thiserror`). Contains:
+  - 14 hand-written tick structs (no build.rs codegen)
+  - FIT/FIE nibble codecs
+  - Price fixed-point encoding
+  - 22 Black-Scholes Greeks + IV solver
+  - All enums (SecType, DataType, StreamMsgType, etc.)
+  - Error types (Decode, Encode, Conversion, Io)
+  - Flags module (trade conditions, price flags, volume types)
+  - 6 criterion benchmarks
+- **Interactive Query Builder** on docs site -- 13 real-world recipes (GEX, vol surface, option chains, live trade tape, etc.) with symbol autocomplete, dynamic dates, and copy-paste code generation for Rust and Python
+- **Inline credential construction** -- all SDK examples now show both `from_file("creds.txt")` and `Credentials::new("email", "password")` patterns
+- **serde_json vs sonic_rs benchmark** (`bench_json`) -- criterion benchmark covering FPSS events, REST responses, DataTable serialization, and JSON parsing
+
+### Fixed
+
+- Go SDK `priceToFloat()` was fundamentally wrong -- used a switch statement instead of `value * 10^(type-10)`. Every price in the Go SDK was incorrect.
+- Python docs used `event["type"]` instead of `event["kind"]` in streaming examples
+- `Price::new()` used `assert!` in release builds -- changed to `debug_assert!` + silent clamp. Corrupt frames no longer crash production.
+- C++ `FpssClient` missing `unsubscribe_quotes()` method
+- FFI FPSS functions used `.lock().unwrap()` -- changed to poison recovery
+- WebSocket handler missing `OPEN_INTEREST` and `FULL_TRADES` dispatch
+- `Credentials.password` changed from `pub` to `pub(crate)` with accessor
+- Query builder syntax highlighter regex cross-contamination (visible `class="hl-string"` in rendered code)
+
+### Changed
+
+- Tick types in `tdbe` are hand-written (no `include!()`, no `endpoint_schema.toml` codegen). IDE-navigable, visible in source.
+- Magic numbers in `TradeTick` impl replaced with `tdbe::flags::` named constants
+- Documentation updated across 17+ files for new import paths
+
 ## [3.2.2] - 2026-03-30
 
 ### Fixed

@@ -36,7 +36,7 @@ defer client.Close()
 ```
 ```cpp [C++]
 auto creds = tdx::Credentials::from_file("creds.txt");
-auto client = tdx::ThetaDataDx::connect(creds, tdx::Config::production());
+auto client = tdx::Client::connect(creds, tdx::Config::production());
 ```
 :::
 

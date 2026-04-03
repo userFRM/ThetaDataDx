@@ -483,13 +483,14 @@ graph TD
         end
 
         subgraph tdbe_types["types/"]
-            T_ENUM["enums.rs<br/><i>80+ DataType codes</i>"]
+            T_ENUM["enums.rs<br/><i>91 DataType codes</i>"]
             T_PRICE["price.rs<br/><i>fixed-point Price</i>"]
             T_TICK["tick.rs<br/><i>14 tick types (generated)<br/>TradeTick, QuoteTick, OhlcTick,<br/>EodTick, OpenInterestTick,<br/>SnapshotTradeTick, TradeQuoteTick,<br/>MarketValueTick, GreeksTick,<br/>IvTick, PriceTick, CalendarDay,<br/>InterestRateTick,<br/>OptionContract</i>"]
         end
 
         TDBE_GREEKS["greeks.rs<br/><i>22 Greeks + IV</i>"]
         TDBE_FLAGS["flags.rs<br/><i>condition codes</i>"]
+        TDBE_LATENCY["latency.rs<br/><i>wire-to-app latency</i>"]
         TDBE_ERROR["error.rs<br/><i>encoding errors</i>"]
     end
 
@@ -508,6 +509,7 @@ graph TD
             F_CONN["connection.rs<br/><i>TLS/TCP failover</i>"]
             F_FRAME["framing.rs<br/><i>wire frames</i>"]
             F_PROTO["protocol.rs<br/><i>contracts, messages</i>"]
+            F_RING["ring.rs<br/><i>Disruptor ring buffer</i>"]
         end
 
         UNIFIED["unified.rs<br/><i>ThetaDataDx — unified entry point<br/>Deref to DirectClient</i>"]

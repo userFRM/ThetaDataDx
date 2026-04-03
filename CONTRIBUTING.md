@@ -11,6 +11,8 @@ you need to get started.
 - **maturin** - for building the PyO3 Python bindings (`pip install maturin`)
 - **Go 1.21+** - for the Go SDK
 
+Note: `protoc` is required even if you're not modifying `.proto` files, because `build.rs` compiles protos during `cargo build`.
+
 ## Development Setup
 
 ```bash

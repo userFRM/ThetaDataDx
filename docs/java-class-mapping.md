@@ -30,11 +30,11 @@ Complete enumeration of all 588 Java classes in ThetaTerminal v202603181 and the
 | Java Class | Rust Equivalent |
 |-----------|----------------|
 | `enums/StreamMsgType.java` | `tdbe::types::enums::StreamMsgType` (21 values, exact match) |
-| `enums/DataType.java` | `tdbe::types::enums::DataType` (75 values, exact match) |
+| `enums/DataType.java` | `tdbe::types::enums::DataType` (91 values, exact match) |
 | `enums/RemoveReason.java` | `tdbe::types::enums::RemoveReason` (18 values, exact match) |
 | `enums/SecType.java` | `tdbe::types::enums::SecType` (4 values; Java has IGNORE(-1), not needed) |
 | `enums/StreamResponseType.java` | `tdbe::types::enums::StreamResponseType` (4 values, exact match) |
-| `enums/ReqType.java` | `tdbe::types::enums::ReqType` (28 values, exact match) |
+| `enums/ReqType.java` | `tdbe::types::enums::ReqType` (39 values, exact match) |
 | `enums/RateType.java` | `tdbe::types::enums::RateType` (12 values, exact match) |
 | `enums/AccountType.java` | Parsed as `i32` tier in `AuthUser` (functional match) |
 | `enums/CalendarType.java` | Not needed (Java REST-layer enum, Rust sends values directly in gRPC) |
@@ -57,7 +57,7 @@ Complete enumeration of all 588 Java classes in ThetaTerminal v202603181 and the
 | `types/tick/PriceableTick.java` | `get_price()` / `bid_price()` / `ask_price()` methods on tick structs |
 | `types/Price.java` | `tdbe::Price` |
 | `types/Right.java` | `tdbe::types::enums::Right` |
-| `types/Venue.java` | `tdbe::types::enums::Venue` (if present) |
+| `types/Venue.java` | `tdbe::types::enums::Venue` (Nqb, UtpCta) |
 | `types/ResultsFormat.java` | Not needed (JSON/CSV/HTML enum for REST layer) |
 | `types/MarketHoliday.java` | `tdbe::CalendarDay` |
 

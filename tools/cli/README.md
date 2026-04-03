@@ -34,10 +34,10 @@ tdx auth --creds creds.txt
 tdx stock list_symbols
 tdx stock list_dates EOD AAPL
 tdx stock history_eod AAPL 20240101 20240301
-tdx stock history_ohlc AAPL 20240315 60000           # 1-min bars
-tdx stock history_ohlc_range AAPL 20240101 20240301 60000
+tdx stock history_ohlc AAPL 20240315 1m              # 1-min bars
+tdx stock history_ohlc_range AAPL 20240101 20240301 1m
 tdx stock history_trade AAPL 20240315
-tdx stock history_quote AAPL 20240315 60000
+tdx stock history_quote AAPL 20240315 1m
 tdx stock history_trade_quote AAPL 20240315
 tdx stock snapshot_ohlc AAPL,MSFT,GOOGL
 tdx stock snapshot_trade AAPL,MSFT,GOOGL
@@ -53,9 +53,9 @@ tdx option list_strikes SPY 20240419
 tdx option list_dates EOD SPY 20240419 500000 C
 tdx option list_contracts EOD SPY 20240315
 tdx option history_trade SPY 20240419 500000 C 20240315
-tdx option history_quote SPY 20240419 500000 C 20240315 60000
+tdx option history_quote SPY 20240419 500000 C 20240315 1m
 tdx option history_eod SPY 20240419 500000 C 20240101 20240301
-tdx option history_ohlc SPY 20240419 500000 C 20240315 60000
+tdx option history_ohlc SPY 20240419 500000 C 20240315 1m
 tdx option history_trade_quote SPY 20240419 500000 C 20240315
 tdx option history_open_interest SPY 20240419 500000 C 20240315
 
@@ -73,15 +73,15 @@ tdx option snapshot_greeks_third_order SPY 20240419 500000 C
 
 # Option Greeks history
 tdx option history_greeks_eod SPY 20240419 500000 C 20240101 20240301
-tdx option history_greeks_all SPY 20240419 500000 C 20240315 60000
+tdx option history_greeks_all SPY 20240419 500000 C 20240315 1m
 tdx option history_trade_greeks_all SPY 20240419 500000 C 20240315
-tdx option history_greeks_first_order SPY 20240419 500000 C 20240315 60000
+tdx option history_greeks_first_order SPY 20240419 500000 C 20240315 1m
 tdx option history_trade_greeks_first_order SPY 20240419 500000 C 20240315
-tdx option history_greeks_second_order SPY 20240419 500000 C 20240315 60000
+tdx option history_greeks_second_order SPY 20240419 500000 C 20240315 1m
 tdx option history_trade_greeks_second_order SPY 20240419 500000 C 20240315
-tdx option history_greeks_third_order SPY 20240419 500000 C 20240315 60000
+tdx option history_greeks_third_order SPY 20240419 500000 C 20240315 1m
 tdx option history_trade_greeks_third_order SPY 20240419 500000 C 20240315
-tdx option history_greeks_implied_volatility SPY 20240419 500000 C 20240315 60000
+tdx option history_greeks_implied_volatility SPY 20240419 500000 C 20240315 1m
 tdx option history_trade_greeks_implied_volatility SPY 20240419 500000 C 20240315
 
 # Option at-time queries
@@ -92,8 +92,8 @@ tdx option at_time_quote SPY 20240419 500000 C 20240101 20240301 34200000
 tdx index list_symbols
 tdx index list_dates SPX
 tdx index history_eod SPX 20240101 20240301
-tdx index history_ohlc SPX 20240101 20240301 60000
-tdx index history_price SPX 20240315 60000
+tdx index history_ohlc SPX 20240101 20240301 1m
+tdx index history_price SPX 20240315 1m
 tdx index snapshot_ohlc SPX,NDX,RUT
 tdx index snapshot_price SPX,NDX,RUT
 tdx index snapshot_market_value SPX,NDX,RUT

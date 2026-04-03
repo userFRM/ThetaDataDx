@@ -32,6 +32,8 @@ No-JVM ThetaData Terminal - native Rust SDK for direct market data access.
 | [`docs/`](docs/) | Architecture, API reference, JVM deviations, reverse-engineering guide |
 | [`docs-site/`](docs-site/) | mdBook documentation site (deployed to GitHub Pages) |
 | [`notebooks/`](notebooks/) | 7 Jupyter notebooks (101-107) |
+| [`examples/`](examples/) | Example programs and test scripts |
+| [`assets/`](assets/) | Logo and static assets |
 
 ## Quick Start
 
@@ -129,6 +131,7 @@ All endpoints return fully typed native structs in every language. Zero raw JSON
 | [JVM Deviations](docs/jvm-deviations.md) | Intentional differences from the Java terminal |
 | [Reverse-Engineering Guide](docs/reverse-engineering.md) | How to decompile the terminal and extract proto definitions |
 | [Endpoint Schema](docs/endpoint-schema.md) | TOML codegen format for adding new types/columns |
+| [Java Class Mapping](docs/java-class-mapping.md) | All 588 Java terminal classes enumerated |
 | [Proto Maintenance](crates/thetadatadx/proto/MAINTENANCE.md) | Guide for ThetaData engineers updating proto files |
 
 ## Contributing
