@@ -292,6 +292,7 @@ fn fpss_event_to_ws_json(
                     price_type,
                     date,
                     received_at_ns,
+                    ..
                 } => (
                     "QUOTE",
                     *contract_id,
@@ -347,6 +348,7 @@ fn fpss_event_to_ws_json(
                     price_type,
                     date,
                     received_at_ns,
+                    ..
                 } => (
                     "OHLC",
                     *contract_id,

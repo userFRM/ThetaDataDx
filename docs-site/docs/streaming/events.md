@@ -133,15 +133,15 @@ for {
     switch event.Kind {
     case thetadatadx.FpssQuoteEvent:
         q := event.Quote
-        price := thetadatadx.PriceToF64(q.Bid, q.PriceType)
-        fmt.Printf("Quote: contract=%d bid=%.4f rx=%dns\n",
-            q.ContractID, price, q.ReceivedAtNs)
+        // Bid and Ask are pre-decoded to float64
+        fmt.Printf("Quote: contract=%d bid=%.4f ask=%.4f rx=%dns\n",
+            q.ContractID, q.Bid, q.Ask, q.ReceivedAtNs)
 
     case thetadatadx.FpssTradeEvent:
         t := event.Trade
-        price := thetadatadx.PriceToF64(t.Price, t.PriceType)
+        // Price is pre-decoded to float64
         fmt.Printf("Trade: contract=%d price=%.4f size=%d seq=%d\n",
-            t.ContractID, price, t.Size, t.Sequence)
+            t.ContractID, t.Price, t.Size, t.Sequence)
 
     case thetadatadx.FpssOpenInterestEvent:
         oi := event.OpenInterest
@@ -149,8 +149,9 @@ for {
 
     case thetadatadx.FpssOhlcvcEvent:
         o := event.Ohlcvc
-        fmt.Printf("OHLCVC: contract=%d vol=%d count=%d\n",
-            o.ContractID, o.Volume, o.Count)
+        // OHLC prices are pre-decoded to float64
+        fmt.Printf("OHLCVC: contract=%d O=%.4f H=%.4f L=%.4f C=%.4f vol=%d count=%d\n",
+            o.ContractID, o.Open, o.High, o.Low, o.Close, o.Volume, o.Count)
 
     case thetadatadx.FpssControlEvent:
         ctrl := event.Control
@@ -168,18 +169,18 @@ while (true) {
     switch (event->kind) {
     case TDX_FPSS_QUOTE: {
         auto& q = event->quote;
-        double bid = tdx::price_to_f64(q.bid, q.price_type);
-        double ask = tdx::price_to_f64(q.ask, q.price_type);
+        // Use tdx::price_to_f64() to decode streaming prices
         std::cout << "Quote: contract=" << q.contract_id
-                  << " bid=" << bid << " ask=" << ask
+                  << " bid=" << tdx::price_to_f64(q.bid, q.price_type)
+                  << " ask=" << tdx::price_to_f64(q.ask, q.price_type)
                   << " rx=" << q.received_at_ns << "ns" << std::endl;
         break;
     }
     case TDX_FPSS_TRADE: {
         auto& t = event->trade;
-        double price = tdx::price_to_f64(t.price, t.price_type);
         std::cout << "Trade: contract=" << t.contract_id
-                  << " price=" << price << " size=" << t.size
+                  << " price=" << tdx::price_to_f64(t.price, t.price_type)
+                  << " size=" << t.size
                   << " seq=" << t.sequence << std::endl;
         break;
     }
@@ -192,6 +193,8 @@ while (true) {
     case TDX_FPSS_OHLCVC: {
         auto& o = event->ohlcvc;
         std::cout << "OHLCVC: contract=" << o.contract_id
+                  << " O=" << tdx::price_to_f64(o.open, o.price_type)
+                  << " H=" << tdx::price_to_f64(o.high, o.price_type)
                   << " vol=" << o.volume << " count=" << o.count << std::endl;
         break;
     }
@@ -364,7 +367,7 @@ Check `kind` first, then access the corresponding field. Only the field matching
 - `event.Ohlcvc` -- `*FpssOhlcvc` (non-nil when Kind is `FpssOhlcvcEvent`)
 - `event.Control` -- `*FpssControlData` (non-nil when Kind is `FpssControlEvent`)
 
-Use `PriceToF64(value, priceType)` to decode raw integer prices to `float64`.
+Price fields (`Bid`, `Ask`, `Price`, `Open`, `High`, `Low`, `Close`) are pre-decoded to `float64`. Raw integer values are available as `BidRaw`, `AskRaw`, `PriceRaw`, `OpenRaw`, etc. The `PriceToF64(value, priceType)` helper remains exported for custom decoding.
 
 ### C++
 
@@ -449,7 +452,7 @@ Use `PriceToF64(value, priceType)` to decode raw integer prices to `float64`.
 | `Shutdown` | `()` | Graceful shutdown |
 | `Close` | `()` | Free the FPSS handle (call after Shutdown) |
 
-Helper: `PriceToF64(value int32, priceType int32) float64` -- decode raw integer prices.
+Helper: `PriceToF64(value int32, priceType int32) float64` -- decode raw integer prices. Note: FPSS event price fields are pre-decoded to `float64` as of v5.2; this helper is for custom use cases.
 
 ### C++ (`tdx::FpssClient`)
 
@@ -471,4 +474,4 @@ Helper: `PriceToF64(value int32, priceType int32) float64` -- decode raw integer
 | `active_subscriptions` | `() -> std::string` | Get active subscriptions |
 | `shutdown` | `() -> void` | Graceful shutdown |
 
-Helper: `tdx::price_to_f64(int32_t value, int32_t price_type) -> double` -- decode raw integer prices.
+Helper: `tdx::price_to_f64(int32_t value, int32_t price_type) -> double` -- decode raw integer prices. For historical tick types, convenience functions are also available: `tdx::trade_price_f64(tick)`, `tdx::bid_f64(q)`, `tdx::open_f64(bar)`, etc.

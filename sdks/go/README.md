@@ -62,6 +62,7 @@ func main() {
         log.Fatal(err)
     }
     for _, tick := range eod {
+        // Prices are pre-decoded to float64 -- no manual conversion needed
         fmt.Printf("%d: O=%.2f H=%.2f L=%.2f C=%.2f\n",
             tick.Date, tick.Open, tick.High, tick.Low, tick.Close)
     }
@@ -236,7 +237,7 @@ defer client.Close()
 |------|--------|-------------|
 | `EodTick` | MsOfDay, Open, High, Low, Close, Volume, Count, Bid, Ask, Date, **Expiration, Strike, Right, StrikePriceType** | End-of-day bar |
 | `OhlcTick` | MsOfDay, Open, High, Low, Close, Volume, Count, Date, **Expiration, Strike, Right, StrikePriceType** | OHLC bar |
-| `TradeTick` | MsOfDay, Sequence, Condition, Size, Exchange, Price, PriceRaw, PriceType, ConditionFlags, PriceFlags, VolumeType, RecordsBack, Date, **Expiration, Strike, Right, StrikePriceType** | Individual trade |
+| `TradeTick` | MsOfDay, Sequence, Condition, Size, Exchange, Price (float64), PriceRaw, ConditionFlags, PriceFlags, VolumeType, RecordsBack, Date, **Expiration, Strike, Right, StrikePriceType** | Individual trade |
 | `QuoteTick` | MsOfDay, BidSize, BidExchange, Bid, BidCondition, AskSize, AskExchange, Ask, AskCondition, Date, **Expiration, Strike, Right, StrikePriceType** | NBBO quote |
 | `TradeQuoteTick` | All TradeTick fields + QuoteMsOfDay, BidSize, BidExchange, Bid, BidCondition, AskSize, AskExchange, Ask, AskCondition, Date, **Expiration, Strike, Right, StrikePriceType** | Combined trade+quote |
 
@@ -248,8 +249,8 @@ defer client.Close()
 | `MarketValueTick` | MsOfDay, MarketCap, SharesOut, EntValue, BookValue, FreeFloat, Date, **Expiration, Strike, Right, StrikePriceType** | Market value data |
 | `GreeksTick` | MsOfDay, Value, Delta, Gamma, Theta, Vega, Rho, IV, IVError, Vanna, Charm, Vomma, Veta, Speed, Zomma, Color, Ultima, D1, D2, DualDelta, DualGamma, Epsilon, Lambda, Date, **Expiration, Strike, Right, StrikePriceType** | Greeks time series |
 | `IVTick` | MsOfDay, IV, IVError, Date, **Expiration, Strike, Right, StrikePriceType** | Implied volatility data point |
-| `SnapshotTradeTick` | MsOfDay, Sequence, Size, Condition, Price, PriceRaw, PriceType, Date, **Expiration, Strike, Right, StrikePriceType** | Snapshot trade |
-| `PriceTick` | MsOfDay, Price, Date | Price data point (indices) |
+| `SnapshotTradeTick` | MsOfDay, Sequence, Size, Condition, Price (float64), PriceRaw, Date, **Expiration, Strike, Right, StrikePriceType** | Snapshot trade |
+| `PriceTick` | MsOfDay, Price (float64), PriceRaw, Date | Price data point (indices) |
 | `CalendarDay` | Date, IsOpen, OpenTime, CloseTime, Status | Market calendar day |
 | `InterestRate` | Date, Rate | Interest rate data point |
 | `Contract` | Symbol, Expiration, Strike, Right | Option contract identifier |
@@ -307,10 +308,10 @@ func main() {
         switch event.Kind {
         case thetadatadx.FpssQuoteEvent:
             q := event.Quote
-            fmt.Printf("Quote: bid=%d ask=%d date=%d\n", q.Bid, q.Ask, q.Date)
+            fmt.Printf("Quote: bid=%.4f ask=%.4f date=%d\n", q.Bid, q.Ask, q.Date)
         case thetadatadx.FpssTradeEvent:
             t := event.Trade
-            fmt.Printf("Trade: price=%d size=%d\n", t.Price, t.Size)
+            fmt.Printf("Trade: price=%.4f size=%d\n", t.Price, t.Size)
         case thetadatadx.FpssControlEvent:
             c := event.Control
             fmt.Printf("Control: kind=%d detail=%s\n", c.Kind, c.Detail)
@@ -321,7 +322,7 @@ func main() {
 }
 ```
 
-Prices in streaming events are raw integers with a `PriceType` field. Decode using `PriceToF64(value, priceType)` from this Go SDK, or apply the formula: `value / pow(10, priceType)`.
+Prices in streaming events are pre-decoded to `float64`. Raw integer values are available as `BidRaw`/`AskRaw`/`PriceRaw`/`OpenRaw`/etc. for cases where exact integer arithmetic is needed. The `PriceToF64(value, priceType)` helper remains exported for custom decoding.
 
 ### FpssClient API
 
@@ -349,10 +350,10 @@ Prices in streaming events are raw integers with a `PriceType` field. Decode usi
 
 | Type | Fields | Used when |
 |------|--------|-----------|
-| `FpssQuote` | ContractID, MsOfDay, BidSize, BidExchange, Bid, BidCondition, AskSize, AskExchange, Ask, AskCondition, PriceType, Date, ReceivedAtNs | `Kind == FpssQuoteEvent` |
-| `FpssTrade` | ContractID, MsOfDay, Sequence, ExtCondition1-4, Condition, Size, Exchange, Price, ConditionFlags, PriceFlags, VolumeType, RecordsBack, PriceType, Date, ReceivedAtNs | `Kind == FpssTradeEvent` |
+| `FpssQuote` | ContractID, MsOfDay, BidSize, BidExchange, Bid (float64), BidRaw, BidCondition, AskSize, AskExchange, Ask (float64), AskRaw, AskCondition, Date, ReceivedAtNs | `Kind == FpssQuoteEvent` |
+| `FpssTrade` | ContractID, MsOfDay, Sequence, ExtCondition1-4, Condition, Size, Exchange, Price (float64), PriceRaw, ConditionFlags, PriceFlags, VolumeType, RecordsBack, Date, ReceivedAtNs | `Kind == FpssTradeEvent` |
 | `FpssOpenInterestData` | ContractID, MsOfDay, OpenInterest, Date, ReceivedAtNs | `Kind == FpssOpenInterestEvent` |
-| `FpssOhlcvc` | ContractID, MsOfDay, Open, High, Low, Close, Volume (int64), Count (int64), PriceType, Date, ReceivedAtNs | `Kind == FpssOhlcvcEvent` |
+| `FpssOhlcvc` | ContractID, MsOfDay, Open/High/Low/Close (float64), OpenRaw/HighRaw/LowRaw/CloseRaw, Volume (int64), Count (int64), Date, ReceivedAtNs | `Kind == FpssOhlcvcEvent` |
 | `FpssControlData` | Kind (0-8), ID, Detail (string) | `Kind == FpssControlEvent` |
 | Raw data | RawCode (uint8), RawPayload ([]byte) | `Kind == FpssRawDataEvent` |
 

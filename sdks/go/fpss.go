@@ -26,10 +26,12 @@ typedef struct {
     int32_t bid_size;
     int32_t bid_exchange;
     int32_t bid;
+    double bid_f64;
     int32_t bid_condition;
     int32_t ask_size;
     int32_t ask_exchange;
     int32_t ask;
+    double ask_f64;
     int32_t ask_condition;
     int32_t price_type;
     int32_t date;
@@ -48,6 +50,7 @@ typedef struct {
     int32_t size;
     int32_t exchange;
     int32_t price;
+    double price_f64;
     int32_t condition_flags;
     int32_t price_flags;
     int32_t volume_type;
@@ -69,9 +72,13 @@ typedef struct {
     int32_t contract_id;
     int32_t ms_of_day;
     int32_t open;
+    double open_f64;
     int32_t high;
+    double high_f64;
     int32_t low;
+    double low_f64;
     int32_t close;
+    double close_f64;
     int64_t volume;
     int64_t count;
     int32_t price_type;
@@ -143,11 +150,14 @@ import (
 )
 
 // PriceToF64 converts a ThetaData price-encoded integer to float64.
+//
+// The encoding is: real_price = value * 10^(priceType - 10).
+// This matches the Rust Price::to_f64() and Go client.go priceToFloat.
 func PriceToF64(value int32, priceType int32) float64 {
 	if priceType == 0 || value == 0 {
 		return 0.0
 	}
-	return float64(value) / math.Pow(10, float64(priceType))
+	return float64(value) * math.Pow(10, float64(priceType-10))
 }
 
 // FpssEventKind identifies the type of an FPSS streaming event.
@@ -163,43 +173,45 @@ const (
 )
 
 // FpssQuote is a real-time quote event from FPSS.
-// Prices are raw integers — use PriceToF64(value, priceType) to decode.
+// Bid and Ask are pre-decoded to float64. Use BidRaw/AskRaw for the original integers.
 type FpssQuote struct {
 	ContractID   int32
 	MsOfDay      int32
 	BidSize      int32
 	BidExchange  int32
-	Bid          int32
+	Bid          float64
+	BidRaw       int32
 	BidCondition int32
 	AskSize      int32
 	AskExchange  int32
-	Ask          int32
+	Ask          float64
+	AskRaw       int32
 	AskCondition int32
-	PriceType    int32
 	Date         int32
 	ReceivedAtNs uint64
 }
 
 // FpssTrade is a real-time trade event from FPSS.
+// Price is pre-decoded to float64. Use PriceRaw for the original integer.
 type FpssTrade struct {
-	ContractID    int32
-	MsOfDay       int32
-	Sequence      int32
-	ExtCondition1 int32
-	ExtCondition2 int32
-	ExtCondition3 int32
-	ExtCondition4 int32
-	Condition     int32
-	Size          int32
-	Exchange      int32
-	Price         int32
+	ContractID     int32
+	MsOfDay        int32
+	Sequence       int32
+	ExtCondition1  int32
+	ExtCondition2  int32
+	ExtCondition3  int32
+	ExtCondition4  int32
+	Condition      int32
+	Size           int32
+	Exchange       int32
+	Price          float64
+	PriceRaw       int32
 	ConditionFlags int32
-	PriceFlags    int32
-	VolumeType    int32
-	RecordsBack   int32
-	PriceType     int32
-	Date          int32
-	ReceivedAtNs  uint64
+	PriceFlags     int32
+	VolumeType     int32
+	RecordsBack    int32
+	Date           int32
+	ReceivedAtNs   uint64
 }
 
 // FpssOpenInterestData is a real-time open interest event from FPSS.
@@ -212,16 +224,20 @@ type FpssOpenInterestData struct {
 }
 
 // FpssOhlcvc is a real-time OHLCVC bar event from FPSS.
+// Open/High/Low/Close are pre-decoded to float64. Use OpenRaw/HighRaw/LowRaw/CloseRaw for the original integers.
 type FpssOhlcvc struct {
 	ContractID   int32
 	MsOfDay      int32
-	Open         int32
-	High         int32
-	Low          int32
-	Close        int32
+	Open         float64
+	OpenRaw      int32
+	High         float64
+	HighRaw      int32
+	Low          float64
+	LowRaw       int32
+	Close        float64
+	CloseRaw     int32
 	Volume       int64
 	Count        int64
-	PriceType    int32
 	Date         int32
 	ReceivedAtNs uint64
 }
@@ -419,37 +435,38 @@ func (f *FpssClient) NextEvent(timeoutMs uint64) (*FpssEvent, error) {
 			MsOfDay:      int32(q.ms_of_day),
 			BidSize:      int32(q.bid_size),
 			BidExchange:  int32(q.bid_exchange),
-			Bid:          int32(q.bid),
+			Bid:          float64(q.bid_f64),
+			BidRaw:       int32(q.bid),
 			BidCondition: int32(q.bid_condition),
 			AskSize:      int32(q.ask_size),
 			AskExchange:  int32(q.ask_exchange),
-			Ask:          int32(q.ask),
+			Ask:          float64(q.ask_f64),
+			AskRaw:       int32(q.ask),
 			AskCondition: int32(q.ask_condition),
-			PriceType:    int32(q.price_type),
 			Date:         int32(q.date),
 			ReceivedAtNs: uint64(q.received_at_ns),
 		}
 	case FpssTradeEvent:
 		t := raw.trade
 		event.Trade = &FpssTrade{
-			ContractID:    int32(t.contract_id),
-			MsOfDay:       int32(t.ms_of_day),
-			Sequence:      int32(t.sequence),
-			ExtCondition1: int32(t.ext_condition1),
-			ExtCondition2: int32(t.ext_condition2),
-			ExtCondition3: int32(t.ext_condition3),
-			ExtCondition4: int32(t.ext_condition4),
-			Condition:     int32(t.condition),
-			Size:          int32(t.size),
-			Exchange:      int32(t.exchange),
-			Price:         int32(t.price),
+			ContractID:     int32(t.contract_id),
+			MsOfDay:        int32(t.ms_of_day),
+			Sequence:       int32(t.sequence),
+			ExtCondition1:  int32(t.ext_condition1),
+			ExtCondition2:  int32(t.ext_condition2),
+			ExtCondition3:  int32(t.ext_condition3),
+			ExtCondition4:  int32(t.ext_condition4),
+			Condition:      int32(t.condition),
+			Size:           int32(t.size),
+			Exchange:       int32(t.exchange),
+			Price:          float64(t.price_f64),
+			PriceRaw:       int32(t.price),
 			ConditionFlags: int32(t.condition_flags),
-			PriceFlags:    int32(t.price_flags),
-			VolumeType:    int32(t.volume_type),
-			RecordsBack:   int32(t.records_back),
-			PriceType:     int32(t.price_type),
-			Date:          int32(t.date),
-			ReceivedAtNs:  uint64(t.received_at_ns),
+			PriceFlags:     int32(t.price_flags),
+			VolumeType:     int32(t.volume_type),
+			RecordsBack:    int32(t.records_back),
+			Date:           int32(t.date),
+			ReceivedAtNs:   uint64(t.received_at_ns),
 		}
 	case FpssOpenInterestEvent:
 		oi := raw.open_interest
@@ -465,13 +482,16 @@ func (f *FpssClient) NextEvent(timeoutMs uint64) (*FpssEvent, error) {
 		event.Ohlcvc = &FpssOhlcvc{
 			ContractID:   int32(o.contract_id),
 			MsOfDay:      int32(o.ms_of_day),
-			Open:         int32(o.open),
-			High:         int32(o.high),
-			Low:          int32(o.low),
-			Close:        int32(o.close),
+			Open:         float64(o.open_f64),
+			OpenRaw:      int32(o.open),
+			High:         float64(o.high_f64),
+			HighRaw:      int32(o.high),
+			Low:          float64(o.low_f64),
+			LowRaw:       int32(o.low),
+			Close:        float64(o.close_f64),
+			CloseRaw:     int32(o.close),
 			Volume:       int64(o.volume),
 			Count:        int64(o.count),
-			PriceType:    int32(o.price_type),
 			Date:         int32(o.date),
 			ReceivedAtNs: uint64(o.received_at_ns),
 		}

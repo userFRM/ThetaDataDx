@@ -985,6 +985,7 @@ Methods:
 | Method | Return | Description |
 |--------|--------|-------------|
 | `get_price()` | `Price` | Trade price with decimal handling |
+| `price_f64()` | `f64` | Trade price decoded to f64 |
 | `is_cancelled()` | `bool` | Condition code 40-44 |
 | `trade_condition_no_last()` | `bool` | Condition flags bit 0 |
 | `price_condition_set_last()` | `bool` | Price flags bit 0 |
@@ -1019,7 +1020,7 @@ pub struct QuoteTick {
 }
 ```
 
-Methods: `bid_price()`, `ask_price()`, `midpoint_value()`, `midpoint_price()`, plus contract ID helpers.
+Methods: `bid_price()`, `ask_price()`, `midpoint_value()`, `midpoint_price()`, `bid_f64()`, `ask_f64()`, `midpoint_f64()`, plus contract ID helpers.
 
 ### OhlcTick
 
@@ -1041,7 +1042,7 @@ pub struct OhlcTick {
 }
 ```
 
-Methods: `open_price()`, `high_price()`, `low_price()`, `close_price()`, plus contract ID helpers.
+Methods: `open_price()`, `high_price()`, `low_price()`, `close_price()`, `open_f64()`, `high_f64()`, `low_f64()`, `close_f64()`, plus contract ID helpers.
 
 ### EodTick
 
@@ -1074,7 +1075,7 @@ pub struct EodTick {
 }
 ```
 
-Methods: `open_price()`, `high_price()`, `low_price()`, `close_price()`, `bid_price()`, `ask_price()`, `midpoint_value()`, plus contract ID helpers.
+Methods: `open_price()`, `high_price()`, `low_price()`, `close_price()`, `bid_price()`, `ask_price()`, `midpoint_value()`, `open_f64()`, `high_f64()`, `low_f64()`, `close_f64()`, `bid_f64()`, `ask_f64()`, plus contract ID helpers.
 
 ### OpenInterestTick
 
@@ -1108,7 +1109,7 @@ pub struct SnapshotTradeTick {
 }
 ```
 
-Methods: `get_price()`, plus contract ID helpers.
+Methods: `get_price()`, `price_f64()`, plus contract ID helpers.
 
 ### TradeQuoteTick
 
@@ -1152,7 +1153,7 @@ pub struct TradeQuoteTick {
 }
 ```
 
-Methods: `trade_price()`, `bid_price()`, `ask_price()`, plus contract ID helpers.
+Methods: `trade_price()`, `bid_price()`, `ask_price()`, `trade_price_f64()`, `bid_f64()`, `ask_f64()`, plus contract ID helpers.
 
 ### MarketValueTick
 
@@ -1235,7 +1236,7 @@ pub struct PriceTick {
 }
 ```
 
-Methods: `get_price() -> Price`.
+Methods: `get_price() -> Price`, `price_f64() -> f64`.
 
 ### CalendarDay
 

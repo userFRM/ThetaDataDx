@@ -726,10 +726,12 @@ typedef struct {
     int32_t bid_size;
     int32_t bid_exchange;
     int32_t bid;
+    double bid_f64;
     int32_t bid_condition;
     int32_t ask_size;
     int32_t ask_exchange;
     int32_t ask;
+    double ask_f64;
     int32_t ask_condition;
     int32_t price_type;
     int32_t date;
@@ -748,6 +750,7 @@ typedef struct {
     int32_t size;
     int32_t exchange;
     int32_t price;
+    double price_f64;
     int32_t condition_flags;
     int32_t price_flags;
     int32_t volume_type;
@@ -769,9 +772,13 @@ typedef struct {
     int32_t contract_id;
     int32_t ms_of_day;
     int32_t open;
+    double open_f64;
     int32_t high;
+    double high_f64;
     int32_t low;
+    double low_f64;
     int32_t close;
+    double close_f64;
     int64_t volume;
     int64_t count;
     int32_t price_type;

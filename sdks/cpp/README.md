@@ -45,16 +45,18 @@ int main() {
     // Or inline: auto creds = tdx::Credentials("user@example.com", "your-password");
     auto client = tdx::Client::connect(creds, tdx::Config::production());
 
-    // Fetch EOD stock data
+    // Fetch EOD stock data -- use convenience f64 functions
     auto eod = client.stock_history_eod("AAPL", "20240101", "20240301");
     for (auto& tick : eod) {
-        std::cout << tick.date << ": O=" << tick.open << std::endl;
+        std::cout << tick.date << ": O=" << tdx::open_f64(tick)
+                  << " H=" << tdx::high_f64(tick) << std::endl;
     }
 
     // Snapshot: latest quote for multiple symbols
     auto quotes = client.stock_snapshot_quote({"AAPL", "MSFT", "GOOG"});
     for (auto& q : quotes) {
-        std::cout << "bid=" << q.bid << " ask=" << q.ask << std::endl;
+        std::cout << "bid=" << tdx::bid_f64(q)
+                  << " ask=" << tdx::ask_f64(q) << std::endl;
     }
 
     // Greeks (no server connection needed)
@@ -301,7 +303,7 @@ int main() {
 }
 ```
 
-Prices in streaming events are raw integers with a `price_type` field. Decode with `tdx::price_to_f64(value, price_type)`.
+Prices in streaming events are raw integers with a `price_type` field. Decode with `tdx::price_to_f64(value, price_type)`. For historical tick types, convenience functions are also available: `tdx::trade_price_f64(tick)`, `tdx::bid_f64(q)`, `tdx::ask_f64(q)`, `tdx::open_f64(bar)`, etc.
 
 ### FpssClient API
 

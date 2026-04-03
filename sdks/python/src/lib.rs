@@ -549,6 +549,7 @@ fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                 price_type,
                 date,
                 received_at_ns,
+                ..
             } => BufferedEvent::Quote {
                 contract_id: *contract_id,
                 ms_of_day: *ms_of_day,
@@ -621,6 +622,7 @@ fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                 price_type,
                 date,
                 received_at_ns,
+                ..
             } => BufferedEvent::Ohlcvc {
                 contract_id: *contract_id,
                 ms_of_day: *ms_of_day,

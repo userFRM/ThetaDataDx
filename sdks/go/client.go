@@ -474,8 +474,7 @@ type TradeTick struct {
 	Size           int     `json:"size"`
 	Exchange       int     `json:"exchange"`
 	Price          float64 `json:"price"`
-	PriceRaw       int     `json:"price_raw"`
-	PriceType      int     `json:"price_type"`
+	PriceRaw       int     `json:"price_raw,omitempty"`
 	ConditionFlags int     `json:"condition_flags"`
 	PriceFlags     int     `json:"price_flags"`
 	VolumeType     int     `json:"volume_type"`
@@ -598,11 +597,10 @@ type IVTick struct {
 }
 
 type PriceTick struct {
-	MsOfDay   int     `json:"ms_of_day"`
-	Price     float64 `json:"price"`
-	PriceRaw  int     `json:"price_raw"`
-	PriceType int     `json:"price_type"`
-	Date      int     `json:"date"`
+	MsOfDay  int     `json:"ms_of_day"`
+	Price    float64 `json:"price"`
+	PriceRaw int     `json:"price_raw,omitempty"`
+	Date     int     `json:"date"`
 }
 
 type CalendarDay struct {
@@ -625,8 +623,7 @@ type SnapshotTradeTick struct {
 	Size           int     `json:"size"`
 	Condition      int     `json:"condition"`
 	Price          float64 `json:"price"`
-	PriceRaw       int     `json:"price_raw"`
-	PriceType      int     `json:"price_type"`
+	PriceRaw       int     `json:"price_raw,omitempty"`
 	Date           int     `json:"date"`
 	Expiration     int32   `json:"expiration,omitempty"`
 	Strike         int32   `json:"strike,omitempty"`
@@ -720,7 +717,7 @@ func convertTradeTicks(arr C.TdxTickArray) []TradeTick {
 		result[i] = TradeTick{
 			MsOfDay: int(t.MsOfDay), Sequence: int(t.Sequence), Condition: int(t.Condition),
 			Size: int(t.Size), Exchange: int(t.Exchange), Price: priceToFloat(t.Price, t.PriceType),
-			PriceRaw: int(t.Price), PriceType: int(t.PriceType), ConditionFlags: int(t.ConditionFlags),
+			PriceRaw: int(t.Price), ConditionFlags: int(t.ConditionFlags),
 			PriceFlags: int(t.PriceFlags), VolumeType: int(t.VolumeType), RecordsBack: int(t.RecordsBack),
 			Date: int(t.Date),
 			Expiration: t.Expiration, Strike: t.Strike, Right: t.Right, StrikePriceType: t.StrikePriceType,
@@ -837,7 +834,7 @@ func convertPriceTicks(arr C.TdxTickArray) []PriceTick {
 	src := unsafe.Slice((*cPriceTick)(arr.data), n)
 	result := make([]PriceTick, n)
 	for i, t := range src {
-		result[i] = PriceTick{int(t.MsOfDay), priceToFloat(t.Price, t.PriceType), int(t.Price), int(t.PriceType), int(t.Date)}
+		result[i] = PriceTick{MsOfDay: int(t.MsOfDay), Price: priceToFloat(t.Price, t.PriceType), PriceRaw: int(t.Price), Date: int(t.Date)}
 	}
 	return result
 }
@@ -869,7 +866,7 @@ func convertSnapshotTradeTicks(arr C.TdxTickArray) []SnapshotTradeTick {
 		result[i] = SnapshotTradeTick{
 			MsOfDay: int(t.MsOfDay), Sequence: int(t.Sequence), Size: int(t.Size),
 			Condition: int(t.Condition), Price: priceToFloat(t.Price, t.PriceType),
-			PriceRaw: int(t.Price), PriceType: int(t.PriceType), Date: int(t.Date),
+			PriceRaw: int(t.Price), Date: int(t.Date),
 			Expiration: t.Expiration, Strike: t.Strike, Right: t.Right, StrikePriceType: t.StrikePriceType,
 		}
 	}
