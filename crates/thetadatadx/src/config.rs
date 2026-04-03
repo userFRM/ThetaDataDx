@@ -232,43 +232,48 @@ impl DirectConfig {
         }
     }
 
-    /// Dev/staging configuration.
+    /// Dev FPSS configuration.
     ///
-    /// Uses the same servers as production (ThetaData has no public staging
-    /// environment), but with more aggressive timeouts for faster iteration.
+    /// Connects to ThetaData's dev FPSS servers (port 20200) which replay
+    /// a random historical trading day in an infinite loop at maximum speed.
+    /// Designed for development and testing when markets are closed.
+    ///
+    /// MDDS (historical) still uses production servers -- there is no dev MDDS.
+    ///
+    /// Source: `config.toml` `fpss_dev_hosts` and
+    /// <https://docs.thetadata.us/Streaming/Getting-Started.html>
+    ///
+    /// Note: dev server replays data at max speed, so queue and ring sizes
+    /// match production to avoid drops. Some contracts may not exist on
+    /// the replayed day.
     pub fn dev() -> Self {
-        Self {
-            mdds_host: "mdds-01.thetadata.us".to_string(),
-            mdds_port: 443,
-            mdds_tls: true,
+        let mut config = Self::production();
+        // Source: config.toml fpss_dev_hosts
+        config.fpss_hosts = vec![
+            ("nj-a.thetadata.us".to_string(), 20200),
+            ("test-server.thetadata.us".to_string(), 20200),
+            ("test-server.thetadata.us".to_string(), 20201),
+        ];
+        config
+    }
 
-            fpss_hosts: vec![
-                ("nj-a.thetadata.us".to_string(), 20000),
-                ("nj-a.thetadata.us".to_string(), 20001),
-            ],
-
-            fpss_timeout_ms: 5_000,
-            fpss_queue_depth: 100_000,
-            fpss_ring_size: 65_536, // 2^16, smaller for dev
-            fpss_ping_interval_ms: 100,
-            fpss_connect_timeout_ms: 2_000,
-            fpss_flush_mode: FpssFlushMode::Batched,
-
-            // Dev: conservative concurrency (Free tier)
-            mdds_concurrent_requests: 1,
-
-            mdds_max_message_size: 4 * 1024 * 1024,
-            mdds_keepalive_secs: 30,
-            mdds_keepalive_timeout_secs: 10,
-
-            mdds_window_size_kb: 64,
-            mdds_connection_window_size_kb: 64,
-
-            reconnect_wait_ms: 500,
-            reconnect_wait_rate_limited_ms: 130_000,
-
-            tokio_worker_threads: None,
-        }
+    /// Stage FPSS configuration.
+    ///
+    /// Connects to ThetaData's staging FPSS servers (port 20100).
+    /// Frequent reboots, testing data. Not stable.
+    ///
+    /// MDDS (historical) still uses production servers.
+    ///
+    /// Source: `config.toml` `fpss_stage_hosts`
+    pub fn stage() -> Self {
+        let mut config = Self::production();
+        // Source: config.toml fpss_stage_hosts
+        config.fpss_hosts = vec![
+            ("nj-a.thetadata.us".to_string(), 20100),
+            ("test-server.thetadata.us".to_string(), 20100),
+            ("test-server.thetadata.us".to_string(), 20101),
+        ];
+        config
     }
 
     /// Build the MDDS gRPC endpoint URI.
@@ -628,11 +633,22 @@ mod tests {
     }
 
     #[test]
-    fn dev_config_shorter_timeouts() {
+    fn dev_config_uses_dev_fpss_hosts() {
         let prod = DirectConfig::production();
         let dev = DirectConfig::dev();
-        assert!(dev.fpss_timeout_ms < prod.fpss_timeout_ms);
-        assert!(dev.reconnect_wait_ms < prod.reconnect_wait_ms);
+        // Dev uses port 20200 (replay server), production uses 20000
+        assert_eq!(dev.fpss_hosts[0].1, 20200);
+        assert_eq!(prod.fpss_hosts[0].1, 20000);
+        // Dev inherits production timeouts/queue/ring (replay is max speed)
+        assert_eq!(dev.fpss_timeout_ms, prod.fpss_timeout_ms);
+        assert_eq!(dev.fpss_queue_depth, prod.fpss_queue_depth);
+        assert_eq!(dev.fpss_ring_size, prod.fpss_ring_size);
+    }
+
+    #[test]
+    fn stage_config_uses_stage_fpss_hosts() {
+        let stage = DirectConfig::stage();
+        assert_eq!(stage.fpss_hosts[0].1, 20100);
     }
 
     // -- Config file tests (only compiled with the `config-file` feature) --
