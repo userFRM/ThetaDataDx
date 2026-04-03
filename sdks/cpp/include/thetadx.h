@@ -625,6 +625,111 @@ int tdx_implied_volatility(double spot, double strike, double rate, double div_y
                            double* out_iv, double* out_error);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
+/*  FPSS — #[repr(C)] streaming event types                               */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+/** FPSS event kind tag. Check this to determine which field of
+ *  TdxFpssEvent is valid. */
+typedef enum {
+    TDX_FPSS_QUOTE = 0,
+    TDX_FPSS_TRADE = 1,
+    TDX_FPSS_OPEN_INTEREST = 2,
+    TDX_FPSS_OHLCVC = 3,
+    TDX_FPSS_CONTROL = 4,
+    TDX_FPSS_RAW_DATA = 5,
+} TdxFpssEventKind;
+
+typedef struct {
+    int32_t contract_id;
+    int32_t ms_of_day;
+    int32_t bid_size;
+    int32_t bid_exchange;
+    int32_t bid;
+    int32_t bid_condition;
+    int32_t ask_size;
+    int32_t ask_exchange;
+    int32_t ask;
+    int32_t ask_condition;
+    int32_t price_type;
+    int32_t date;
+    uint64_t received_at_ns;
+} TdxFpssQuote;
+
+typedef struct {
+    int32_t contract_id;
+    int32_t ms_of_day;
+    int32_t sequence;
+    int32_t ext_condition1;
+    int32_t ext_condition2;
+    int32_t ext_condition3;
+    int32_t ext_condition4;
+    int32_t condition;
+    int32_t size;
+    int32_t exchange;
+    int32_t price;
+    int32_t condition_flags;
+    int32_t price_flags;
+    int32_t volume_type;
+    int32_t records_back;
+    int32_t price_type;
+    int32_t date;
+    uint64_t received_at_ns;
+} TdxFpssTrade;
+
+typedef struct {
+    int32_t contract_id;
+    int32_t ms_of_day;
+    int32_t open_interest;
+    int32_t date;
+    uint64_t received_at_ns;
+} TdxFpssOpenInterest;
+
+typedef struct {
+    int32_t contract_id;
+    int32_t ms_of_day;
+    int32_t open;
+    int32_t high;
+    int32_t low;
+    int32_t close;
+    int64_t volume;
+    int64_t count;
+    int32_t price_type;
+    int32_t date;
+    uint64_t received_at_ns;
+} TdxFpssOhlcvc;
+
+/** FPSS control event.
+ *  kind: 0=login_success, 1=contract_assigned, 2=req_response,
+ *        3=market_open, 4=market_close, 5=server_error,
+ *        6=disconnected, 7=error
+ *  id:   contract_id or req_id where applicable, 0 otherwise.
+ *  detail: NUL-terminated string, may be NULL. Do NOT free. */
+typedef struct {
+    int32_t kind;
+    int32_t id;
+    const char* detail;
+} TdxFpssControl;
+
+/** FPSS raw/undecoded data event. */
+typedef struct {
+    uint8_t code;
+    const uint8_t* payload;
+    size_t payload_len;
+} TdxFpssRawData;
+
+/** Tagged FPSS event. Check `kind` then read the corresponding field.
+ *  Only the field matching `kind` contains valid data. */
+typedef struct {
+    TdxFpssEventKind kind;
+    TdxFpssQuote quote;
+    TdxFpssTrade trade;
+    TdxFpssOpenInterest open_interest;
+    TdxFpssOhlcvc ohlcvc;
+    TdxFpssControl control;
+    TdxFpssRawData raw_data;
+} TdxFpssEvent;
+
+/* ═══════════════════════════════════════════════════════════════════════ */
 /*  FPSS — Real-time streaming client                                     */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
@@ -670,8 +775,12 @@ char* tdx_fpss_contract_lookup(const TdxFpssHandle* h, int id);
 /** Get active subscriptions as JSON array. Caller must free with tdx_string_free. */
 char* tdx_fpss_active_subscriptions(const TdxFpssHandle* h);
 
-/** Poll for the next event. Returns JSON string or NULL on timeout. Caller must free with tdx_string_free. */
-char* tdx_fpss_next_event(const TdxFpssHandle* h, uint64_t timeout_ms);
+/** Poll for the next event as a typed struct. Returns TdxFpssEvent* or NULL on timeout.
+ *  Caller MUST free with tdx_fpss_event_free. */
+TdxFpssEvent* tdx_fpss_next_event(const TdxFpssHandle* h, uint64_t timeout_ms);
+
+/** Free a TdxFpssEvent returned by tdx_fpss_next_event. */
+void tdx_fpss_event_free(TdxFpssEvent* event);
 
 /** Shut down the FPSS client. */
 void tdx_fpss_shutdown(const TdxFpssHandle* h);

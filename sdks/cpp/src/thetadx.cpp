@@ -433,7 +433,7 @@ std::vector<InterestRateTick> Client::interest_rate_history_eod(const std::strin
 #undef TDX_SNAPSHOT
 
 // ═══════════════════════════════════════════════════════════════
-//  FPSS (streaming) — unchanged, still JSON-based
+//  FPSS (streaming) — typed #[repr(C)] events
 // ═══════════════════════════════════════════════════════════════
 
 FpssClient::FpssClient(const Credentials& creds, const Config& config) {
@@ -466,9 +466,9 @@ std::string FpssClient::active_subscriptions() const {
     return result.ok() ? result.str() : "[]";
 }
 
-std::string FpssClient::next_event(uint64_t timeout_ms) {
-    detail::FfiString result(tdx_fpss_next_event(handle_.get(), timeout_ms));
-    return result.ok() ? result.str() : "";
+FpssEventPtr FpssClient::next_event(uint64_t timeout_ms) {
+    auto* raw = tdx_fpss_next_event(handle_.get(), timeout_ms);
+    return FpssEventPtr(raw);
 }
 
 void FpssClient::shutdown() { tdx_fpss_shutdown(handle_.get()); }

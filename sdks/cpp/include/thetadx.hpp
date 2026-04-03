@@ -453,7 +453,25 @@ private:
     std::unique_ptr<TdxClient, ClientDeleter> handle_;
 };
 
+// ── FPSS event types (re-exported from thetadx.h) ──
+
+using FpssEventKind = TdxFpssEventKind;
+using FpssQuote = TdxFpssQuote;
+using FpssTrade = TdxFpssTrade;
+using FpssOpenInterest = TdxFpssOpenInterest;
+using FpssOhlcvc = TdxFpssOhlcvc;
+using FpssControl = TdxFpssControl;
+using FpssRawData = TdxFpssRawData;
+using FpssEvent = TdxFpssEvent;
+
 // ── FPSS real-time streaming client ──
+
+struct FpssEventDeleter {
+    void operator()(TdxFpssEvent* p) const { if (p) tdx_fpss_event_free(p); }
+};
+
+/** Owned FPSS event pointer. Automatically freed when destroyed. */
+using FpssEventPtr = std::unique_ptr<TdxFpssEvent, FpssEventDeleter>;
 
 class FpssClient {
 public:
@@ -474,7 +492,10 @@ public:
     bool is_authenticated() const;
     std::optional<std::string> contract_lookup(int id) const;
     std::string active_subscriptions() const;
-    std::string next_event(uint64_t timeout_ms);
+
+    /** Poll for the next event as a typed struct. Returns nullptr on timeout. */
+    FpssEventPtr next_event(uint64_t timeout_ms);
+
     void shutdown();
     ~FpssClient();
 

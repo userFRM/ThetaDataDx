@@ -706,48 +706,71 @@ Install with pandas support: `pip install thetadatadx[pandas]`
 
 ### FFI FPSS Functions
 
-7 `extern "C"` functions for FPSS lifecycle management:
+`extern "C"` functions for FPSS lifecycle management. Events are returned as `#[repr(C)]` typed structs (not JSON).
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `thetadatadx_fpss_connect` | `(creds, buffer_size) -> *mut FpssHandle` | Connect and authenticate |
-| `thetadatadx_fpss_subscribe_quotes` | `(handle, root, sec_type) -> i32` | Subscribe to quotes |
-| `thetadatadx_fpss_subscribe_trades` | `(handle, root, sec_type) -> i32` | Subscribe to trades |
-| `thetadatadx_fpss_subscribe_open_interest` | `(handle, root, sec_type) -> i32` | Subscribe to OI |
-| `thetadatadx_fpss_next_event` | `(handle, timeout_ms) -> *mut FpssEventC` | Poll next event |
-| `thetadatadx_fpss_shutdown` | `(handle) -> i32` | Graceful shutdown |
-| `thetadatadx_fpss_free_event` | `(event) -> void` | Free an event |
+| `tdx_fpss_connect` | `(creds, config) -> *mut TdxFpssHandle` | Connect and authenticate |
+| `tdx_fpss_subscribe_quotes` | `(handle, symbol) -> i32` | Subscribe to quotes |
+| `tdx_fpss_subscribe_trades` | `(handle, symbol) -> i32` | Subscribe to trades |
+| `tdx_fpss_subscribe_open_interest` | `(handle, symbol) -> i32` | Subscribe to OI |
+| `tdx_fpss_next_event` | `(handle, timeout_ms) -> *mut TdxFpssEvent` | Poll next event (typed struct) |
+| `tdx_fpss_event_free` | `(event) -> void` | Free a `TdxFpssEvent` |
+| `tdx_fpss_shutdown` | `(handle) -> void` | Graceful shutdown |
+| `tdx_fpss_free` | `(handle) -> void` | Free the handle |
+
+#### FPSS Event Types (C)
+
+```c
+typedef enum { TDX_FPSS_QUOTE=0, TDX_FPSS_TRADE=1, TDX_FPSS_OPEN_INTEREST=2,
+               TDX_FPSS_OHLCVC=3, TDX_FPSS_CONTROL=4, TDX_FPSS_RAW_DATA=5 } TdxFpssEventKind;
+typedef struct { TdxFpssEventKind kind; TdxFpssQuote quote; TdxFpssTrade trade;
+                 TdxFpssOpenInterest open_interest; TdxFpssOhlcvc ohlcvc;
+                 TdxFpssControl control; TdxFpssRawData raw_data; } TdxFpssEvent;
+```
+
+Check `event->kind` then read the corresponding field. Only the field matching `kind` is valid. Prices are raw integers with `price_type` -- decode with `Price::new(value, price_type).to_f64()`.
 
 ### Go SDK: Streaming
 
 ```go
-tdx, _ := thetadatadx.Connect(creds, config)
-defer tdx.Close()
+fpss, _ := thetadatadx.NewFpssClient(creds, config)
+defer fpss.Close()
 
-tdx.StartStreaming(1024)
-tdx.SubscribeQuotes("AAPL", thetadatadx.SecTypeStock)
+fpss.SubscribeQuotes("AAPL")
 for {
-    event, _ := tdx.NextEvent(5000)
+    event, _ := fpss.NextEvent(5000) // returns *FpssEvent
     if event == nil {
-        break
+        continue // timeout
     }
-    fmt.Println(event)
+    switch event.Kind {
+    case thetadatadx.FpssQuoteEvent:
+        fmt.Printf("Quote: bid=%d ask=%d\n", event.Quote.Bid, event.Quote.Ask)
+    case thetadatadx.FpssTradeEvent:
+        fmt.Printf("Trade: price=%d size=%d\n", event.Trade.Price, event.Trade.Size)
+    }
 }
-tdx.StopStreaming()
+fpss.Shutdown()
 ```
 
 ### C++ SDK: Streaming
 
 ```cpp
-auto tdx = tdx::Client::connect(creds, tdx::Config::production());
+tdx::FpssClient fpss(creds, config);
 
-tdx.start_streaming(1024);
-tdx.subscribe_quotes("AAPL", tdx::SecType::Stock);
-while (auto event = tdx.next_event(5000)) {
-    std::cout << event->type() << std::endl;
+fpss.subscribe_quotes("AAPL");
+while (auto event = fpss.next_event(5000)) { // returns FpssEventPtr
+    switch (event->kind) {
+    case TDX_FPSS_QUOTE:
+        std::cout << "bid=" << event->quote.bid << std::endl;
+        break;
+    case TDX_FPSS_TRADE:
+        std::cout << "price=" << event->trade.price << std::endl;
+        break;
+    }
 }
 
-tdx.stop_streaming();
+fpss.shutdown();
 ```
 
 ---

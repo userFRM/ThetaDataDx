@@ -254,7 +254,7 @@ All endpoints return fully typed C++ structs. No raw JSON.
 
 ## FPSS Streaming
 
-Real-time market data via ThetaData's FPSS servers. Streaming uses a **separate `FpssClient` class**, not methods on `Client`.
+Real-time market data via ThetaData's FPSS servers. Streaming uses a **separate `FpssClient` class**, not methods on `Client`. Events are returned as typed `#[repr(C)]` structs -- no JSON parsing on the hot path.
 
 ```cpp
 #include "thetadx.hpp"
@@ -262,7 +262,6 @@ Real-time market data via ThetaData's FPSS servers. Streaming uses a **separate 
 
 int main() {
     auto creds = tdx::Credentials::from_file("creds.txt");
-    // Or inline: auto creds = tdx::Credentials("user@example.com", "your-password");
     auto config = tdx::Config::production();
 
     // Create a streaming client (separate from the historical Client)
@@ -272,16 +271,34 @@ int main() {
     int req_id = fpss.subscribe_quotes("AAPL");
     std::cout << "Subscribed (req_id=" << req_id << ")" << std::endl;
 
-    // Poll for events (returns JSON string, empty on timeout)
+    // Poll for events (returns FpssEventPtr, nullptr on timeout)
     while (true) {
-        std::string event = fpss.next_event(5000);  // 5s timeout
-        if (event.empty()) continue;
-        std::cout << "Event: " << event << std::endl;
+        auto event = fpss.next_event(5000);  // 5s timeout
+        if (!event) continue;
+
+        switch (event->kind) {
+        case TDX_FPSS_QUOTE:
+            std::cout << "Quote: bid=" << event->quote.bid
+                      << " ask=" << event->quote.ask << std::endl;
+            break;
+        case TDX_FPSS_TRADE:
+            std::cout << "Trade: price=" << event->trade.price
+                      << " size=" << event->trade.size << std::endl;
+            break;
+        case TDX_FPSS_CONTROL:
+            if (event->control.detail)
+                std::cout << "Control: " << event->control.detail << std::endl;
+            break;
+        default:
+            break;
+        }
     }
 
     fpss.shutdown();
 }
 ```
+
+Prices in streaming events are raw integers with a `price_type` field. Decode with `tdx::price_to_f64(value, price_type)`.
 
 ### FpssClient API
 
@@ -301,8 +318,18 @@ int main() {
 | `is_authenticated()` | `bool` | Check if the client is currently authenticated |
 | `contract_lookup(id)` | `optional<string>` | Look up a contract by server-assigned ID |
 | `active_subscriptions()` | `string` (JSON) | Get active subscriptions as a JSON array |
-| `next_event(timeout_ms)` | `string` | Poll for the next event (empty string on timeout) |
+| `next_event(timeout_ms)` | `FpssEventPtr` | Poll for the next event (nullptr on timeout) |
 | `shutdown()` | `void` | Shut down the FPSS client |
+
+### FPSS Event Types
+
+| Type | Fields | Used when |
+|------|--------|-----------|
+| `TdxFpssQuote` | contract_id, ms_of_day, bid_size, bid_exchange, bid, bid_condition, ask_size, ask_exchange, ask, ask_condition, price_type, date, received_at_ns | `kind == TDX_FPSS_QUOTE` |
+| `TdxFpssTrade` | contract_id, ms_of_day, sequence, ext_condition1-4, condition, size, exchange, price, condition_flags, price_flags, volume_type, records_back, price_type, date, received_at_ns | `kind == TDX_FPSS_TRADE` |
+| `TdxFpssOpenInterest` | contract_id, ms_of_day, open_interest, date, received_at_ns | `kind == TDX_FPSS_OPEN_INTEREST` |
+| `TdxFpssOhlcvc` | contract_id, ms_of_day, open, high, low, close, volume (i64), count (i64), price_type, date, received_at_ns | `kind == TDX_FPSS_OHLCVC` |
+| `TdxFpssControl` | kind (0-7), id, detail (nullable string) | `kind == TDX_FPSS_CONTROL` |
 
 `FpssClient` is non-copyable but movable. The destructor calls `shutdown()` automatically.
 

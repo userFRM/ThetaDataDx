@@ -112,23 +112,229 @@ pub struct TdxFpssHandle {
     rx: Arc<Mutex<std::sync::mpsc::Receiver<FfiBufferedEvent>>>,
 }
 
-/// Internal buffered event — carries decoded tick fields as JSON-ready data.
-///
-/// Tick data events carry all decoded fields directly. No raw payloads.
-#[derive(Clone, Debug)]
-struct FfiBufferedEvent {
-    /// JSON object containing all event fields.
-    json: serde_json::Value,
+// ═══════════════════════════════════════════════════════════════════════
+//  #[repr(C)] FPSS streaming event types — zero-copy across FFI
+// ═══════════════════════════════════════════════════════════════════════
+
+/// FPSS event kind tag. Check this to determine which field of
+/// `TdxFpssEvent` is valid.
+#[repr(C)]
+pub enum TdxFpssEventKind {
+    Quote = 0,
+    Trade = 1,
+    OpenInterest = 2,
+    Ohlcvc = 3,
+    Control = 4,
+    RawData = 5,
 }
 
-/// Convert raw integer price to f64 using ThetaData's price_type encoding.
-fn ffi_price_to_f64(value: i32, price_type: i32) -> f64 {
-    tdbe::types::price::Price::new(value, price_type).to_f64()
+/// `#[repr(C)]` FPSS quote event.
+#[repr(C)]
+pub struct TdxFpssQuote {
+    pub contract_id: i32,
+    pub ms_of_day: i32,
+    pub bid_size: i32,
+    pub bid_exchange: i32,
+    pub bid: i32,
+    pub bid_condition: i32,
+    pub ask_size: i32,
+    pub ask_exchange: i32,
+    pub ask: i32,
+    pub ask_condition: i32,
+    pub price_type: i32,
+    pub date: i32,
+    pub received_at_ns: u64,
 }
+
+/// `#[repr(C)]` FPSS trade event.
+#[repr(C)]
+pub struct TdxFpssTrade {
+    pub contract_id: i32,
+    pub ms_of_day: i32,
+    pub sequence: i32,
+    pub ext_condition1: i32,
+    pub ext_condition2: i32,
+    pub ext_condition3: i32,
+    pub ext_condition4: i32,
+    pub condition: i32,
+    pub size: i32,
+    pub exchange: i32,
+    pub price: i32,
+    pub condition_flags: i32,
+    pub price_flags: i32,
+    pub volume_type: i32,
+    pub records_back: i32,
+    pub price_type: i32,
+    pub date: i32,
+    pub received_at_ns: u64,
+}
+
+/// `#[repr(C)]` FPSS open interest event.
+#[repr(C)]
+pub struct TdxFpssOpenInterest {
+    pub contract_id: i32,
+    pub ms_of_day: i32,
+    pub open_interest: i32,
+    pub date: i32,
+    pub received_at_ns: u64,
+}
+
+/// `#[repr(C)]` FPSS OHLCVC event.
+///
+/// `volume` and `count` are `i64` to match the core crate and prevent
+/// overflow on high-volume symbols.
+#[repr(C)]
+pub struct TdxFpssOhlcvc {
+    pub contract_id: i32,
+    pub ms_of_day: i32,
+    pub open: i32,
+    pub high: i32,
+    pub low: i32,
+    pub close: i32,
+    pub volume: i64,
+    pub count: i64,
+    pub price_type: i32,
+    pub date: i32,
+    pub received_at_ns: u64,
+}
+
+/// `#[repr(C)]` FPSS control event.
+///
+/// `kind` encodes the control sub-type:
+///   0=login_success, 1=contract_assigned, 2=req_response,
+///   3=market_open, 4=market_close, 5=server_error,
+///   6=disconnected, 7=error
+///
+/// `id` carries the contract_id or req_id where applicable (0 otherwise).
+/// `detail` is a NUL-terminated C string (may be null).
+#[repr(C)]
+pub struct TdxFpssControl {
+    pub kind: i32,
+    pub id: i32,
+    pub detail: *const c_char,
+}
+
+/// `#[repr(C)]` FPSS raw/undecoded data event.
+///
+/// `code` is the wire message code. `payload` is a pointer to the raw
+/// bytes and `payload_len` is the number of bytes.
+#[repr(C)]
+pub struct TdxFpssRawData {
+    pub code: u8,
+    pub payload: *const u8,
+    pub payload_len: usize,
+}
+
+/// Tagged FPSS event for FFI. Check `kind` then read the corresponding
+/// field. Only the field matching `kind` contains valid data — this is
+/// a flat struct (not a C union) for simplicity and safety.
+#[repr(C)]
+pub struct TdxFpssEvent {
+    pub kind: TdxFpssEventKind,
+    pub quote: TdxFpssQuote,
+    pub trade: TdxFpssTrade,
+    pub open_interest: TdxFpssOpenInterest,
+    pub ohlcvc: TdxFpssOhlcvc,
+    pub control: TdxFpssControl,
+    pub raw_data: TdxFpssRawData,
+}
+
+/// Internal buffered event — owns heap data that backs the `TdxFpssEvent`.
+///
+/// `#[repr(C)]` guarantees `event` is at offset 0 so that casting
+/// `*mut FfiBufferedEvent` to `*mut TdxFpssEvent` is sound. The field
+/// is read through that pointer cast (not via `.event`), which the
+/// compiler cannot see — hence `pub(crate)`.
+///
+/// `_detail_string` and `_raw_payload` own the backing memory for
+/// pointer fields inside `event.control.detail` and
+/// `event.raw_data.payload` respectively.
+#[repr(C)]
+struct FfiBufferedEvent {
+    pub(crate) event: TdxFpssEvent,
+    /// Owns the CString backing `event.control.detail`, if any.
+    _detail_string: Option<CString>,
+    /// Owns the raw payload bytes backing `event.raw_data.payload`, if any.
+    _raw_payload: Option<Vec<u8>>,
+}
+
+// SAFETY: FfiBufferedEvent is sent across std::sync::mpsc channels.
+// The owned data (_detail_string, _raw_payload) is heap-allocated and
+// the pointers inside `event` point into that owned data. The event is
+// only accessed from the receiving thread after the send completes.
+unsafe impl Send for FfiBufferedEvent {}
+
+/// Zero-initialized defaults for inactive union-style fields.
+const ZERO_QUOTE: TdxFpssQuote = TdxFpssQuote {
+    contract_id: 0,
+    ms_of_day: 0,
+    bid_size: 0,
+    bid_exchange: 0,
+    bid: 0,
+    bid_condition: 0,
+    ask_size: 0,
+    ask_exchange: 0,
+    ask: 0,
+    ask_condition: 0,
+    price_type: 0,
+    date: 0,
+    received_at_ns: 0,
+};
+const ZERO_TRADE: TdxFpssTrade = TdxFpssTrade {
+    contract_id: 0,
+    ms_of_day: 0,
+    sequence: 0,
+    ext_condition1: 0,
+    ext_condition2: 0,
+    ext_condition3: 0,
+    ext_condition4: 0,
+    condition: 0,
+    size: 0,
+    exchange: 0,
+    price: 0,
+    condition_flags: 0,
+    price_flags: 0,
+    volume_type: 0,
+    records_back: 0,
+    price_type: 0,
+    date: 0,
+    received_at_ns: 0,
+};
+const ZERO_OI: TdxFpssOpenInterest = TdxFpssOpenInterest {
+    contract_id: 0,
+    ms_of_day: 0,
+    open_interest: 0,
+    date: 0,
+    received_at_ns: 0,
+};
+const ZERO_OHLCVC: TdxFpssOhlcvc = TdxFpssOhlcvc {
+    contract_id: 0,
+    ms_of_day: 0,
+    open: 0,
+    high: 0,
+    low: 0,
+    close: 0,
+    volume: 0,
+    count: 0,
+    price_type: 0,
+    date: 0,
+    received_at_ns: 0,
+};
+const ZERO_CONTROL: TdxFpssControl = TdxFpssControl {
+    kind: 0,
+    id: 0,
+    detail: ptr::null(),
+};
+const ZERO_RAW: TdxFpssRawData = TdxFpssRawData {
+    code: 0,
+    payload: ptr::null(),
+    payload_len: 0,
+};
 
 fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
     use thetadatadx::fpss::{FpssControl, FpssData, FpssEvent};
-    let json = match event {
+
+    match event {
         FpssEvent::Data(FpssData::Quote {
             contract_id,
             ms_of_day,
@@ -143,25 +349,42 @@ fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
             price_type,
             date,
             received_at_ns,
-        }) => serde_json::json!({
-            "kind": "quote",
-            "contract_id": contract_id,
-            "ms_of_day": ms_of_day,
-            "bid_size": bid_size,
-            "bid_exchange": bid_exchange,
-            "bid": ffi_price_to_f64(*bid, *price_type),
-            "bid_condition": bid_condition,
-            "ask_size": ask_size,
-            "ask_exchange": ask_exchange,
-            "ask": ffi_price_to_f64(*ask, *price_type),
-            "ask_condition": ask_condition,
-            "date": date,
-            "received_at_ns": received_at_ns,
-        }),
+        }) => FfiBufferedEvent {
+            event: TdxFpssEvent {
+                kind: TdxFpssEventKind::Quote,
+                quote: TdxFpssQuote {
+                    contract_id: *contract_id,
+                    ms_of_day: *ms_of_day,
+                    bid_size: *bid_size,
+                    bid_exchange: *bid_exchange,
+                    bid: *bid,
+                    bid_condition: *bid_condition,
+                    ask_size: *ask_size,
+                    ask_exchange: *ask_exchange,
+                    ask: *ask,
+                    ask_condition: *ask_condition,
+                    price_type: *price_type,
+                    date: *date,
+                    received_at_ns: *received_at_ns,
+                },
+                trade: ZERO_TRADE,
+                open_interest: ZERO_OI,
+                ohlcvc: ZERO_OHLCVC,
+                control: ZERO_CONTROL,
+                raw_data: ZERO_RAW,
+            },
+            _detail_string: None,
+            _raw_payload: None,
+        },
+
         FpssEvent::Data(FpssData::Trade {
             contract_id,
             ms_of_day,
             sequence,
+            ext_condition1,
+            ext_condition2,
+            ext_condition3,
+            ext_condition4,
             condition,
             size,
             exchange,
@@ -173,39 +396,65 @@ fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
             price_type,
             date,
             received_at_ns,
-            ..
-        }) => serde_json::json!({
-            "kind": "trade",
-            "contract_id": contract_id,
-            "ms_of_day": ms_of_day,
-            "sequence": sequence,
-            "condition": condition,
-            "size": size,
-            "exchange": exchange,
-            "price": ffi_price_to_f64(*price, *price_type),
-            "price_raw": price,
-            "price_type": price_type,
-            "condition_flags": condition_flags,
-            "price_flags": price_flags,
-            "volume_type": volume_type,
-            "records_back": records_back,
-            "date": date,
-            "received_at_ns": received_at_ns,
-        }),
+        }) => FfiBufferedEvent {
+            event: TdxFpssEvent {
+                kind: TdxFpssEventKind::Trade,
+                trade: TdxFpssTrade {
+                    contract_id: *contract_id,
+                    ms_of_day: *ms_of_day,
+                    sequence: *sequence,
+                    ext_condition1: *ext_condition1,
+                    ext_condition2: *ext_condition2,
+                    ext_condition3: *ext_condition3,
+                    ext_condition4: *ext_condition4,
+                    condition: *condition,
+                    size: *size,
+                    exchange: *exchange,
+                    price: *price,
+                    condition_flags: *condition_flags,
+                    price_flags: *price_flags,
+                    volume_type: *volume_type,
+                    records_back: *records_back,
+                    price_type: *price_type,
+                    date: *date,
+                    received_at_ns: *received_at_ns,
+                },
+                quote: ZERO_QUOTE,
+                open_interest: ZERO_OI,
+                ohlcvc: ZERO_OHLCVC,
+                control: ZERO_CONTROL,
+                raw_data: ZERO_RAW,
+            },
+            _detail_string: None,
+            _raw_payload: None,
+        },
+
         FpssEvent::Data(FpssData::OpenInterest {
             contract_id,
             ms_of_day,
             open_interest,
             date,
             received_at_ns,
-        }) => serde_json::json!({
-            "kind": "open_interest",
-            "contract_id": contract_id,
-            "ms_of_day": ms_of_day,
-            "open_interest": open_interest,
-            "date": date,
-            "received_at_ns": received_at_ns,
-        }),
+        }) => FfiBufferedEvent {
+            event: TdxFpssEvent {
+                kind: TdxFpssEventKind::OpenInterest,
+                open_interest: TdxFpssOpenInterest {
+                    contract_id: *contract_id,
+                    ms_of_day: *ms_of_day,
+                    open_interest: *open_interest,
+                    date: *date,
+                    received_at_ns: *received_at_ns,
+                },
+                quote: ZERO_QUOTE,
+                trade: ZERO_TRADE,
+                ohlcvc: ZERO_OHLCVC,
+                control: ZERO_CONTROL,
+                raw_data: ZERO_RAW,
+            },
+            _detail_string: None,
+            _raw_payload: None,
+        },
+
         FpssEvent::Data(FpssData::Ohlcvc {
             contract_id,
             ms_of_day,
@@ -218,69 +467,113 @@ fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
             price_type,
             date,
             received_at_ns,
-        }) => serde_json::json!({
-            "kind": "ohlcvc",
-            "contract_id": contract_id,
-            "ms_of_day": ms_of_day,
-            "open": ffi_price_to_f64(*open, *price_type),
-            "high": ffi_price_to_f64(*high, *price_type),
-            "low": ffi_price_to_f64(*low, *price_type),
-            "close": ffi_price_to_f64(*close, *price_type),
-            "volume": volume,
-            "count": count,
-            "date": date,
-            "received_at_ns": received_at_ns,
-        }),
-        FpssEvent::RawData { code, payload } => {
-            use std::fmt::Write;
-            let mut hex = String::with_capacity(payload.len() * 2);
-            for byte in payload {
-                let _ = write!(hex, "{byte:02x}");
-            }
-            serde_json::json!({
-                "kind": "raw_data",
-                "code": code,
-                "payload_hex": hex,
-            })
-        }
-        FpssEvent::Control(FpssControl::LoginSuccess { permissions }) => serde_json::json!({
-            "kind": "login_success",
-            "detail": permissions,
-        }),
-        FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => serde_json::json!({
-            "kind": "contract_assigned",
-            "id": id,
-            "detail": format!("{contract}"),
-        }),
-        FpssEvent::Control(FpssControl::ReqResponse { req_id, result }) => serde_json::json!({
-            "kind": "req_response",
-            "id": req_id,
-            "detail": format!("{result:?}"),
-        }),
-        FpssEvent::Control(FpssControl::MarketOpen) => serde_json::json!({ "kind": "market_open" }),
-        FpssEvent::Control(FpssControl::MarketClose) => {
-            serde_json::json!({ "kind": "market_close" })
-        }
-        FpssEvent::Control(FpssControl::ServerError { message }) => serde_json::json!({
-            "kind": "server_error",
-            "detail": message,
-        }),
-        FpssEvent::Control(FpssControl::Disconnected { reason }) => serde_json::json!({
-            "kind": "disconnected",
-            "detail": format!("{reason:?}"),
-        }),
-        FpssEvent::Control(FpssControl::Error { message }) => serde_json::json!({
-            "kind": "error",
-            "detail": message,
-        }),
-        _ => serde_json::json!({ "kind": "unknown" }),
-    };
-    FfiBufferedEvent { json }
-}
+        }) => FfiBufferedEvent {
+            event: TdxFpssEvent {
+                kind: TdxFpssEventKind::Ohlcvc,
+                ohlcvc: TdxFpssOhlcvc {
+                    contract_id: *contract_id,
+                    ms_of_day: *ms_of_day,
+                    open: *open,
+                    high: *high,
+                    low: *low,
+                    close: *close,
+                    volume: *volume,
+                    count: *count,
+                    price_type: *price_type,
+                    date: *date,
+                    received_at_ns: *received_at_ns,
+                },
+                quote: ZERO_QUOTE,
+                trade: ZERO_TRADE,
+                open_interest: ZERO_OI,
+                control: ZERO_CONTROL,
+                raw_data: ZERO_RAW,
+            },
+            _detail_string: None,
+            _raw_payload: None,
+        },
 
-/// Serialize a buffered event to a JSON C string.
-fn buffered_event_to_cstring(event: &FfiBufferedEvent) -> *mut c_char {
-    json_to_cstring(&event.json)
+        FpssEvent::RawData { code, payload } => {
+            let owned = payload.clone();
+            let ptr = owned.as_ptr();
+            let len = owned.len();
+            FfiBufferedEvent {
+                event: TdxFpssEvent {
+                    kind: TdxFpssEventKind::RawData,
+                    raw_data: TdxFpssRawData {
+                        code: *code,
+                        payload: ptr,
+                        payload_len: len,
+                    },
+                    quote: ZERO_QUOTE,
+                    trade: ZERO_TRADE,
+                    open_interest: ZERO_OI,
+                    ohlcvc: ZERO_OHLCVC,
+                    control: ZERO_CONTROL,
+                },
+                _detail_string: None,
+                _raw_payload: Some(owned),
+            }
+        }
+
+        FpssEvent::Control(ctrl) => {
+            let (kind, id, detail_str) = match ctrl {
+                FpssControl::LoginSuccess { permissions } => (0, 0, Some(permissions.clone())),
+                FpssControl::ContractAssigned { id, contract } => {
+                    (1, *id, Some(format!("{contract}")))
+                }
+                FpssControl::ReqResponse { req_id, result } => {
+                    (2, *req_id, Some(format!("{result:?}")))
+                }
+                FpssControl::MarketOpen => (3, 0, None),
+                FpssControl::MarketClose => (4, 0, None),
+                FpssControl::ServerError { message } => (5, 0, Some(message.clone())),
+                FpssControl::Disconnected { reason } => (6, 0, Some(format!("{reason:?}"))),
+                FpssControl::Error { message } => (7, 0, Some(message.clone())),
+                _ => (8, 0, None), // unknown control
+            };
+            let cstring = detail_str.and_then(|s| CString::new(s).ok());
+            let detail_ptr = cstring.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
+            FfiBufferedEvent {
+                event: TdxFpssEvent {
+                    kind: TdxFpssEventKind::Control,
+                    control: TdxFpssControl {
+                        kind,
+                        id,
+                        detail: detail_ptr,
+                    },
+                    quote: ZERO_QUOTE,
+                    trade: ZERO_TRADE,
+                    open_interest: ZERO_OI,
+                    ohlcvc: ZERO_OHLCVC,
+                    raw_data: ZERO_RAW,
+                },
+                _detail_string: cstring,
+                _raw_payload: None,
+            }
+        }
+
+        _ => {
+            // Empty / unknown — surface as a control event with kind=8 (unknown)
+            FfiBufferedEvent {
+                event: TdxFpssEvent {
+                    kind: TdxFpssEventKind::Control,
+                    control: TdxFpssControl {
+                        kind: 8,
+                        id: 0,
+                        detail: ptr::null(),
+                    },
+                    quote: ZERO_QUOTE,
+                    trade: ZERO_TRADE,
+                    open_interest: ZERO_OI,
+                    ohlcvc: ZERO_OHLCVC,
+                    raw_data: ZERO_RAW,
+                },
+                _detail_string: None,
+                _raw_payload: None,
+            }
+        }
+    }
 }
 
 // ── Helper: C string to &str ──
@@ -1918,12 +2211,14 @@ pub unsafe extern "C" fn tdx_unified_active_subscriptions(
 /// Blocks for up to `timeout_ms` milliseconds. Returns a JSON string.
 /// Returns null if no event arrived within the timeout (NOT an error),
 /// or if streaming has not been started yet (check `tdx_last_error()`).
-/// Caller must free the returned string with `tdx_string_free`.
+///
+/// Returns a heap-allocated `TdxFpssEvent` that MUST be freed with
+/// `tdx_fpss_event_free`. Returns null on timeout (not an error).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_unified_next_event(
     handle: *const TdxUnified,
     timeout_ms: u64,
-) -> *mut c_char {
+) -> *mut TdxFpssEvent {
     if handle.is_null() {
         set_error("unified handle is null");
         return ptr::null_mut();
@@ -1941,7 +2236,12 @@ pub unsafe extern "C" fn tdx_unified_next_event(
     let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());
     let timeout = std::time::Duration::from_millis(timeout_ms);
     match rx.recv_timeout(timeout) {
-        Ok(event) => buffered_event_to_cstring(&event),
+        Ok(buffered) => {
+            // Box the entire FfiBufferedEvent so _detail_string/_raw_payload
+            // stay alive. Cast to *mut TdxFpssEvent (first field) for FFI.
+            let ptr = Box::into_raw(Box::new(buffered));
+            ptr as *mut TdxFpssEvent
+        }
         Err(std::sync::mpsc::RecvTimeoutError::Timeout) => ptr::null_mut(),
         Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => ptr::null_mut(),
     }
@@ -2569,18 +2869,17 @@ pub unsafe extern "C" fn tdx_fpss_active_subscriptions(
     }
 }
 
-/// Poll for the next FPSS event.
+/// Poll for the next FPSS event as a typed `#[repr(C)]` struct.
 ///
-/// Blocks for up to `timeout_ms` milliseconds. Returns a JSON string with keys
-/// `kind`, `payload_hex` (hex-encoded binary), `detail`, and `id`.
+/// Blocks for up to `timeout_ms` milliseconds. Returns a heap-allocated
+/// `TdxFpssEvent` that MUST be freed with `tdx_fpss_event_free`.
 ///
 /// Returns null if no event arrived within the timeout (this is NOT an error).
-/// Caller must free the returned string with `tdx_string_free`.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_fpss_next_event(
     handle: *const TdxFpssHandle,
     timeout_ms: u64,
-) -> *mut c_char {
+) -> *mut TdxFpssEvent {
     if handle.is_null() {
         set_error("FPSS handle is null");
         return ptr::null_mut();
@@ -2589,9 +2888,32 @@ pub unsafe extern "C" fn tdx_fpss_next_event(
     let rx = handle.rx.lock().unwrap_or_else(|e| e.into_inner());
     let timeout = std::time::Duration::from_millis(timeout_ms);
     match rx.recv_timeout(timeout) {
-        Ok(event) => buffered_event_to_cstring(&event),
+        Ok(buffered) => {
+            // Box the entire FfiBufferedEvent so _detail_string/_raw_payload
+            // stay alive. Cast to *mut TdxFpssEvent (first field) for FFI.
+            let ptr = Box::into_raw(Box::new(buffered));
+            ptr as *mut TdxFpssEvent
+        }
         Err(std::sync::mpsc::RecvTimeoutError::Timeout) => ptr::null_mut(),
         Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => ptr::null_mut(),
+    }
+}
+
+/// Free a `TdxFpssEvent` returned by `tdx_fpss_next_event` or
+/// `tdx_unified_next_event`.
+///
+/// Note: the `control.detail` pointer inside the event is NOT separately
+/// heap-allocated — it was owned by the internal buffered event and is
+/// invalidated when the event struct is freed. Do NOT call
+/// `tdx_string_free` on `control.detail`.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_fpss_event_free(event: *mut TdxFpssEvent) {
+    if !event.is_null() {
+        // The pointer was created by boxing a FfiBufferedEvent and casting
+        // to *mut TdxFpssEvent (which is the first field). Cast back to
+        // free the entire FfiBufferedEvent including owned _detail_string
+        // and _raw_payload.
+        drop(unsafe { Box::from_raw(event as *mut FfiBufferedEvent) });
     }
 }
 

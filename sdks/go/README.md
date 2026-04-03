@@ -255,7 +255,7 @@ defer client.Close()
 
 ## FPSS Streaming
 
-Real-time market data via ThetaData's FPSS servers. Streaming uses a separate `FpssClient` struct (not the historical `Client`).
+Real-time market data via ThetaData's FPSS servers. Streaming uses a separate `FpssClient` struct (not the historical `Client`). Events are returned as typed Go structs -- no JSON parsing on the hot path.
 
 ```go
 package main
@@ -269,7 +269,6 @@ import (
 
 func main() {
     creds, err := thetadatadx.CredentialsFromFile("creds.txt")
-    // Or inline: creds, err := thetadatadx.NewCredentials("user@example.com", "your-password")
     if err != nil {
         log.Fatal(err)
     }
@@ -291,7 +290,7 @@ func main() {
     }
     fmt.Printf("Subscribed (req_id=%d)\n", reqID)
 
-    // Poll for events
+    // Poll for events (returns typed *FpssEvent)
     for {
         event, err := fpss.NextEvent(5000) // 5s timeout
         if err != nil {
@@ -301,12 +300,25 @@ func main() {
         if event == nil {
             continue // timeout, no event
         }
-        fmt.Printf("Event: %s\n", event)
+
+        switch event.Kind {
+        case thetadatadx.FpssQuoteEvent:
+            q := event.Quote
+            fmt.Printf("Quote: bid=%d ask=%d date=%d\n", q.Bid, q.Ask, q.Date)
+        case thetadatadx.FpssTradeEvent:
+            t := event.Trade
+            fmt.Printf("Trade: price=%d size=%d\n", t.Price, t.Size)
+        case thetadatadx.FpssControlEvent:
+            c := event.Control
+            fmt.Printf("Control: kind=%d detail=%s\n", c.Kind, c.Detail)
+        }
     }
 
     fpss.Shutdown()
 }
 ```
+
+Prices in streaming events are raw integers with a `PriceType` field. Decode using `Price.ToF64()` from the `tdbe` crate, or apply the ThetaData encoding: `value * 10^(price_type - 10)`.
 
 ### FpssClient API
 
@@ -326,11 +338,19 @@ func main() {
 | `IsAuthenticated()` | `bool` | Check if FPSS client is authenticated |
 | `ContractLookup(id)` | `(string, error)` | Look up contract by server-assigned ID |
 | `ActiveSubscriptions()` | `(json.RawMessage, error)` | List currently active subscriptions |
-| `NextEvent(timeoutMs)` | `(json.RawMessage, error)` | Poll next event (nil on timeout) |
+| `NextEvent(timeoutMs)` | `(*FpssEvent, error)` | Poll next event as typed struct (nil on timeout) |
 | `Shutdown()` | | Graceful shutdown of streaming |
 | `Close()` | | Free the FPSS handle (call after Shutdown) |
 
-Note: `NextEvent()` returns `json.RawMessage` because streaming events are polymorphic - different event types (trades, quotes, open interest, OHLC) arrive on the same channel. Inspect the `"kind"` field to determine the event type.
+### FPSS Event Types
+
+| Type | Fields | Used when |
+|------|--------|-----------|
+| `FpssQuote` | ContractID, MsOfDay, BidSize, BidExchange, Bid, BidCondition, AskSize, AskExchange, Ask, AskCondition, PriceType, Date, ReceivedAtNs | `Kind == FpssQuoteEvent` |
+| `FpssTrade` | ContractID, MsOfDay, Sequence, ExtCondition1-4, Condition, Size, Exchange, Price, ConditionFlags, PriceFlags, VolumeType, RecordsBack, PriceType, Date, ReceivedAtNs | `Kind == FpssTradeEvent` |
+| `FpssOpenInterestData` | ContractID, MsOfDay, OpenInterest, Date, ReceivedAtNs | `Kind == FpssOpenInterestEvent` |
+| `FpssOhlcvc` | ContractID, MsOfDay, Open, High, Low, Close, Volume (int64), Count (int64), PriceType, Date, ReceivedAtNs | `Kind == FpssOhlcvcEvent` |
+| `FpssControlData` | Kind (0-7), ID, Detail (string) | `Kind == FpssControlEvent` |
 
 ## Architecture
 

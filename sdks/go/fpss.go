@@ -10,6 +10,97 @@ typedef void TdxCredentials;
 typedef void TdxConfig;
 typedef void TdxFpssHandle;
 
+// FPSS event kind tag.
+typedef enum {
+    TDX_FPSS_QUOTE = 0,
+    TDX_FPSS_TRADE = 1,
+    TDX_FPSS_OPEN_INTEREST = 2,
+    TDX_FPSS_OHLCVC = 3,
+    TDX_FPSS_CONTROL = 4,
+    TDX_FPSS_RAW_DATA = 5,
+} TdxFpssEventKind;
+
+typedef struct {
+    int32_t contract_id;
+    int32_t ms_of_day;
+    int32_t bid_size;
+    int32_t bid_exchange;
+    int32_t bid;
+    int32_t bid_condition;
+    int32_t ask_size;
+    int32_t ask_exchange;
+    int32_t ask;
+    int32_t ask_condition;
+    int32_t price_type;
+    int32_t date;
+    uint64_t received_at_ns;
+} TdxFpssQuote;
+
+typedef struct {
+    int32_t contract_id;
+    int32_t ms_of_day;
+    int32_t sequence;
+    int32_t ext_condition1;
+    int32_t ext_condition2;
+    int32_t ext_condition3;
+    int32_t ext_condition4;
+    int32_t condition;
+    int32_t size;
+    int32_t exchange;
+    int32_t price;
+    int32_t condition_flags;
+    int32_t price_flags;
+    int32_t volume_type;
+    int32_t records_back;
+    int32_t price_type;
+    int32_t date;
+    uint64_t received_at_ns;
+} TdxFpssTrade;
+
+typedef struct {
+    int32_t contract_id;
+    int32_t ms_of_day;
+    int32_t open_interest;
+    int32_t date;
+    uint64_t received_at_ns;
+} TdxFpssOpenInterest;
+
+typedef struct {
+    int32_t contract_id;
+    int32_t ms_of_day;
+    int32_t open;
+    int32_t high;
+    int32_t low;
+    int32_t close;
+    int64_t volume;
+    int64_t count;
+    int32_t price_type;
+    int32_t date;
+    uint64_t received_at_ns;
+} TdxFpssOhlcvc;
+
+typedef struct {
+    int32_t kind;
+    int32_t id;
+    const char* detail;
+} TdxFpssControl;
+
+typedef struct {
+    uint8_t code;
+    const uint8_t* payload;
+    size_t payload_len;
+} TdxFpssRawData;
+
+typedef struct {
+    TdxFpssEventKind kind;
+    TdxFpssQuote quote;
+    TdxFpssTrade trade;
+    TdxFpssOpenInterest open_interest;
+    TdxFpssOhlcvc ohlcvc;
+    TdxFpssControl control;
+    TdxFpssRawData raw_data;
+} TdxFpssEvent;
+
 extern TdxFpssHandle* tdx_fpss_connect(const TdxCredentials* creds, const TdxConfig* config);
 extern int tdx_fpss_subscribe_quotes(const TdxFpssHandle* h, const char* symbol);
 extern int tdx_fpss_subscribe_trades(const TdxFpssHandle* h, const char* symbol);
@@ -24,7 +115,8 @@ extern int tdx_fpss_unsubscribe_full_open_interest(const TdxFpssHandle* h, const
 extern int tdx_fpss_is_authenticated(const TdxFpssHandle* h);
 extern char* tdx_fpss_contract_lookup(const TdxFpssHandle* h, int id);
 extern char* tdx_fpss_active_subscriptions(const TdxFpssHandle* h);
-extern char* tdx_fpss_next_event(const TdxFpssHandle* h, uint64_t timeout_ms);
+extern TdxFpssEvent* tdx_fpss_next_event(const TdxFpssHandle* h, uint64_t timeout_ms);
+extern void tdx_fpss_event_free(TdxFpssEvent* event);
 extern void tdx_fpss_shutdown(const TdxFpssHandle* h);
 extern void tdx_fpss_free(TdxFpssHandle* h);
 extern const char* tdx_last_error();
@@ -37,6 +129,109 @@ import (
 	"fmt"
 	"unsafe"
 )
+
+// FpssEventKind identifies the type of an FPSS streaming event.
+type FpssEventKind int
+
+const (
+	FpssQuoteEvent        FpssEventKind = 0
+	FpssTradeEvent        FpssEventKind = 1
+	FpssOpenInterestEvent FpssEventKind = 2
+	FpssOhlcvcEvent       FpssEventKind = 3
+	FpssControlEvent      FpssEventKind = 4
+	FpssRawDataEvent      FpssEventKind = 5
+)
+
+// FpssQuote is a real-time quote event from FPSS.
+// Prices are raw integers — use Price.ToF64(priceType) to decode.
+type FpssQuote struct {
+	ContractID   int32
+	MsOfDay      int32
+	BidSize      int32
+	BidExchange  int32
+	Bid          int32
+	BidCondition int32
+	AskSize      int32
+	AskExchange  int32
+	Ask          int32
+	AskCondition int32
+	PriceType    int32
+	Date         int32
+	ReceivedAtNs uint64
+}
+
+// FpssTrade is a real-time trade event from FPSS.
+type FpssTrade struct {
+	ContractID    int32
+	MsOfDay       int32
+	Sequence      int32
+	ExtCondition1 int32
+	ExtCondition2 int32
+	ExtCondition3 int32
+	ExtCondition4 int32
+	Condition     int32
+	Size          int32
+	Exchange      int32
+	Price         int32
+	ConditionFlags int32
+	PriceFlags    int32
+	VolumeType    int32
+	RecordsBack   int32
+	PriceType     int32
+	Date          int32
+	ReceivedAtNs  uint64
+}
+
+// FpssOpenInterestData is a real-time open interest event from FPSS.
+type FpssOpenInterestData struct {
+	ContractID   int32
+	MsOfDay      int32
+	OpenInterest int32
+	Date         int32
+	ReceivedAtNs uint64
+}
+
+// FpssOhlcvc is a real-time OHLCVC bar event from FPSS.
+type FpssOhlcvc struct {
+	ContractID   int32
+	MsOfDay      int32
+	Open         int32
+	High         int32
+	Low          int32
+	Close        int32
+	Volume       int64
+	Count        int64
+	PriceType    int32
+	Date         int32
+	ReceivedAtNs uint64
+}
+
+// FpssControlData is a control/lifecycle event from FPSS.
+//
+// Kind encodes the sub-type:
+//
+//	0=login_success, 1=contract_assigned, 2=req_response,
+//	3=market_open, 4=market_close, 5=server_error,
+//	6=disconnected, 7=error
+//
+// ID carries the contract_id or req_id where applicable (0 otherwise).
+// Detail is a human-readable string (may be empty).
+type FpssControlData struct {
+	Kind   int32
+	ID     int32
+	Detail string
+}
+
+// FpssEvent is a tagged streaming event from FPSS.
+// Check Kind to determine which field is valid.
+type FpssEvent struct {
+	Kind         FpssEventKind
+	Quote        *FpssQuote
+	Trade        *FpssTrade
+	OpenInterest *FpssOpenInterestData
+	Ohlcvc       *FpssOhlcvc
+	Control      *FpssControlData
+}
 
 // FpssClient wraps the FPSS real-time streaming handle.
 type FpssClient struct {
@@ -164,15 +359,95 @@ func (f *FpssClient) ActiveSubscriptions() (json.RawMessage, error) {
 
 // NextEvent polls for the next streaming event with the given timeout in milliseconds.
 // Returns nil if the timeout expires with no event.
-func (f *FpssClient) NextEvent(timeoutMs uint64) (json.RawMessage, error) {
-	cstr := C.tdx_fpss_next_event(f.handle, C.uint64_t(timeoutMs))
-	if cstr == nil {
-		// nil means timeout (no event), not an error
+func (f *FpssClient) NextEvent(timeoutMs uint64) (*FpssEvent, error) {
+	raw := C.tdx_fpss_next_event(f.handle, C.uint64_t(timeoutMs))
+	if raw == nil {
 		return nil, nil
 	}
-	goStr := C.GoString(cstr)
-	C.tdx_string_free(cstr)
-	return json.RawMessage(goStr), nil
+	defer C.tdx_fpss_event_free(raw)
+
+	event := &FpssEvent{
+		Kind: FpssEventKind(raw.kind),
+	}
+
+	switch event.Kind {
+	case FpssQuoteEvent:
+		q := raw.quote
+		event.Quote = &FpssQuote{
+			ContractID:   int32(q.contract_id),
+			MsOfDay:      int32(q.ms_of_day),
+			BidSize:      int32(q.bid_size),
+			BidExchange:  int32(q.bid_exchange),
+			Bid:          int32(q.bid),
+			BidCondition: int32(q.bid_condition),
+			AskSize:      int32(q.ask_size),
+			AskExchange:  int32(q.ask_exchange),
+			Ask:          int32(q.ask),
+			AskCondition: int32(q.ask_condition),
+			PriceType:    int32(q.price_type),
+			Date:         int32(q.date),
+			ReceivedAtNs: uint64(q.received_at_ns),
+		}
+	case FpssTradeEvent:
+		t := raw.trade
+		event.Trade = &FpssTrade{
+			ContractID:    int32(t.contract_id),
+			MsOfDay:       int32(t.ms_of_day),
+			Sequence:      int32(t.sequence),
+			ExtCondition1: int32(t.ext_condition1),
+			ExtCondition2: int32(t.ext_condition2),
+			ExtCondition3: int32(t.ext_condition3),
+			ExtCondition4: int32(t.ext_condition4),
+			Condition:     int32(t.condition),
+			Size:          int32(t.size),
+			Exchange:      int32(t.exchange),
+			Price:         int32(t.price),
+			ConditionFlags: int32(t.condition_flags),
+			PriceFlags:    int32(t.price_flags),
+			VolumeType:    int32(t.volume_type),
+			RecordsBack:   int32(t.records_back),
+			PriceType:     int32(t.price_type),
+			Date:          int32(t.date),
+			ReceivedAtNs:  uint64(t.received_at_ns),
+		}
+	case FpssOpenInterestEvent:
+		oi := raw.open_interest
+		event.OpenInterest = &FpssOpenInterestData{
+			ContractID:   int32(oi.contract_id),
+			MsOfDay:      int32(oi.ms_of_day),
+			OpenInterest: int32(oi.open_interest),
+			Date:         int32(oi.date),
+			ReceivedAtNs: uint64(oi.received_at_ns),
+		}
+	case FpssOhlcvcEvent:
+		o := raw.ohlcvc
+		event.Ohlcvc = &FpssOhlcvc{
+			ContractID:   int32(o.contract_id),
+			MsOfDay:      int32(o.ms_of_day),
+			Open:         int32(o.open),
+			High:         int32(o.high),
+			Low:          int32(o.low),
+			Close:        int32(o.close),
+			Volume:       int64(o.volume),
+			Count:        int64(o.count),
+			PriceType:    int32(o.price_type),
+			Date:         int32(o.date),
+			ReceivedAtNs: uint64(o.received_at_ns),
+		}
+	case FpssControlEvent:
+		ctrl := raw.control
+		detail := ""
+		if ctrl.detail != nil {
+			detail = C.GoString(ctrl.detail)
+		}
+		event.Control = &FpssControlData{
+			Kind:   int32(ctrl.kind),
+			ID:     int32(ctrl.id),
+			Detail: detail,
+		}
+	}
+
+	return event, nil
 }
 
 // Shutdown gracefully shuts down the FPSS streaming connection.
