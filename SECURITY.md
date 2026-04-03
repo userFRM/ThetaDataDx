@@ -20,11 +20,11 @@ for critical issues.
 | Version | Supported          | Notes |
 | ------- | ------------------ | ----- |
 | 4.5.x   | :white_check_mark: | Current release (`tdbe` + `#[repr(C)]` FFI) |
-| 4.0-4.4 | :x:                | Upgrade to 4.5.x (timezone bug in 4.0-4.3, FFI improvements in 4.5) |
+| 4.0-4.4 | :x:                | Upgrade to 4.5.x (timezone bug in 4.0-4.4, FFI improvements in 4.5) |
 | 3.x     | :x:                | Pre-`tdbe` extraction, stale API |
 | < 3.0   | :x:                | Contract wire format bug, missing endpoints |
 
-> **Important:** Versions prior to 4.4.0 contain a timezone bug that shifts ms_of_day by +1 hour
+> **Important:** Versions prior to 4.5.0 contain a timezone bug that shifts ms_of_day by +1 hour
 > for all historical data from November through March (EST period). All users should upgrade to 4.5.x.
 
 ## Security Design
@@ -105,9 +105,7 @@ unbounded memory allocation.
 
 ### Dependencies
 
-We use `cargo-deny` to audit dependencies for:
+We audit dependencies for:
 - Known vulnerabilities (RustSec advisory database)
 - License compliance
 - Duplicate crate versions
-
-See `deny.toml` for the full configuration.

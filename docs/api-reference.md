@@ -592,44 +592,64 @@ let table = tdx.raw_query(|mut stub| {
 
 ### Streaming `_stream` Endpoint Variants
 
-These variants process gRPC response chunks via callback without materializing the full response in memory. Ideal for endpoints returning millions of rows.
+These variants process gRPC response chunks via callback without materializing the full response in memory. Ideal for endpoints returning millions of rows. Each returns a builder that is finalized with `.stream()`.
 
 ```rust
-pub async fn stock_history_trade_stream<F>(
-    &self, symbol: &str, date: &str, handler: F,
-) -> Result<(), Error>
-where F: FnMut(Vec<TradeTick>) -> Result<(), Error>
+pub fn stock_history_trade_stream(&self, symbol: &str, date: &str) -> StreamBuilder<TradeTick>
 ```
 
 Process all trades for a stock on a given date, one chunk at a time. gRPC: `GetStockHistoryTrade`
 
 ```rust
-pub async fn stock_history_quote_stream<F>(
-    &self, symbol: &str, date: &str, interval: &str, handler: F,
-) -> Result<(), Error>
-where F: FnMut(Vec<QuoteTick>) -> Result<(), Error>
+let builder = tdx.stock_history_trade_stream("AAPL", "20260401");
+builder.stream(|chunk: &[TradeTick]| {
+    // process chunk
+})?;
+```
+
+```rust
+pub fn stock_history_quote_stream(&self, symbol: &str, date: &str) -> StreamBuilder<QuoteTick>
 ```
 
 Process quotes for a stock, one chunk at a time. gRPC: `GetStockHistoryQuote`
 
 ```rust
-pub async fn option_history_trade_stream<F>(
-    &self, symbol: &str, expiration: &str, strike: &str, right: &str, date: &str, handler: F,
-) -> Result<(), Error>
-where F: FnMut(Vec<TradeTick>) -> Result<(), Error>
+let builder = tdx.stock_history_quote_stream("AAPL", "20260401");
+builder.stream(|chunk: &[QuoteTick]| {
+    // process chunk
+})?;
+```
+
+```rust
+pub fn option_history_trade_stream(
+    &self, symbol: &str, expiration: &str, strike: &str, right: &str, date: &str,
+) -> StreamBuilder<TradeTick>
 ```
 
 Process all trades for an option contract, one chunk at a time. gRPC: `GetOptionHistoryTrade`
 
 ```rust
-pub async fn option_history_quote_stream<F>(
+let builder = tdx.option_history_trade_stream("SPY", "20261220", "500000", "C", "20260401");
+builder.stream(|chunk: &[TradeTick]| {
+    // process chunk
+})?;
+```
+
+```rust
+pub fn option_history_quote_stream(
     &self, symbol: &str, expiration: &str, strike: &str, right: &str,
-    date: &str, interval: &str, handler: F,
-) -> Result<(), Error>
-where F: FnMut(Vec<QuoteTick>) -> Result<(), Error>
+    date: &str, interval: &str,
+) -> StreamBuilder<QuoteTick>
 ```
 
 Process quotes for an option contract, one chunk at a time. gRPC: `GetOptionHistoryQuote`
+
+```rust
+let builder = tdx.option_history_quote_stream("SPY", "20261220", "500000", "C", "20260401", "1m");
+builder.stream(|chunk: &[QuoteTick]| {
+    // process chunk
+})?;
+```
 
 ### Auth Error Behavior
 
@@ -1502,9 +1522,9 @@ pub struct DirectConfig {
     pub reconnect_wait_ms: u64,
     pub reconnect_wait_rate_limited_ms: u64,
     // Concurrency
-    pub mdds_concurrent_requests: Option<usize>,  // max in-flight gRPC requests
-                                                   // None = auto from tier (2^tier)
-                                                   // Some(n) = manual override
+    pub mdds_concurrent_requests: usize,  // max in-flight gRPC requests
+                                         // 0 = auto from tier (2^tier)
+                                         // n = manual override
     // Threading
     pub tokio_worker_threads: Option<usize>,
 }

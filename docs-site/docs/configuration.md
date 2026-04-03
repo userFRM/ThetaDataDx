@@ -58,13 +58,13 @@ By default, the number of concurrent gRPC requests is auto-detected from your su
 ::: code-group
 ```rust [Rust]
 let config = DirectConfig {
-    mdds_concurrent_requests: Some(8),  // manual override
-    ..DirectConfig::production()        // None = auto from tier
+    mdds_concurrent_requests: 8,        // manual override
+    ..DirectConfig::production()        // 0 = auto from tier
 };
 ```
 ```python [Python]
 config = Config.production()
-config.mdds_concurrent_requests = 8  # manual override; None = auto from tier
+config.mdds_concurrent_requests = 8  # manual override; 0 = auto from tier
 ```
 :::
 
@@ -92,10 +92,10 @@ pub struct DirectConfig {
     pub reconnect_wait_rate_limited_ms: u64,// rate-limit delay (130000ms)
 
     // Concurrency
-    pub mdds_concurrent_requests: Option<usize>,  // None = auto (2^tier)
+    pub mdds_concurrent_requests: usize,           // 0 = auto (2^tier)
 
     // Threading
-    pub tokio_worker_threads: Option<usize>,// Tokio runtime thread count
+    pub tokio_worker_threads: usize,       // Tokio runtime thread count (0 = auto)
 }
 ```
 
@@ -118,7 +118,7 @@ The `mdds_concurrent_requests` field controls the maximum number of in-flight gR
 
 | Setting | Behavior |
 |---------|----------|
-| `None` / not set (default) | Auto-detected from subscription tier: `2^tier` |
+| `0` / not set (default) | Auto-detected from subscription tier: `2^tier` |
 | Explicit value | Fixed at `n` concurrent requests |
 
 ::: tip

@@ -20,7 +20,7 @@ Backlog of outstanding work, ordered by priority.
 - [x] ~~FPSS integration test: kill TCP mid-stream, verify re-subscribe~~ — `reconnect_streaming()` implemented on ThetaDataDx (v4.1.0). Saves active subscriptions, stops, restarts with new handler, re-subscribes all per-contract and full-type subscriptions. Manual reconnection by design (documented deviation from Java auto-reconnect).
 - [x] ~~FPSS integration test: trigger `TooManyRequests`, verify 130s backoff~~ — `reconnect_delay()` returns `Some(130_000)` for RemoveReason::TooManyRequests (code 12), `None` for permanent codes (0,1,2,6,9,17,18), `Some(2_000)` for all others. Logic matches Java terminal. Cannot trigger live without burning rate limits.
 - [x] ~~MDDS integration test: terminal version negotiation (`terminal_git_commit`)~~ — sends empty string (documented deviation); server accepts it
-- [x] ~~Optional RPS rate limiter in `DirectConfig`~~ — implemented as `request_semaphore` with `2^tier` concurrent requests from the auth response subscription tier. Matches Java's concurrency model. Bailey confirmed during call that server-side protection is their priority, not client-side.
+- [x] ~~Optional RPS rate limiter in `DirectConfig`~~ — implemented as `request_semaphore` with `2^tier` concurrent requests from the auth response subscription tier. Matches Java's concurrency model. ThetaData confirmed server-side protection is their priority.
 
 ## Low Priority
 

@@ -33,15 +33,50 @@ All 61 endpoints are available as `tdx_stock_*`, `tdx_option_*`, `tdx_index_*`, 
 
 `tdx_unified_historical()` returns a borrowed `*const TdxClient` from a unified handle - same session, no double auth.
 
-### Streaming (via TdxUnified or TdxFpssHandle)
+### Streaming (via TdxUnified)
 
 | Function | Description |
 |----------|-------------|
 | `tdx_unified_start_streaming` | Start FPSS on the unified handle |
+| `tdx_unified_start_streaming_no_ohlcvc` | Start FPSS without derived OHLCVC |
 | `tdx_unified_subscribe_quotes` | Subscribe to quote stream |
 | `tdx_unified_subscribe_trades` | Subscribe to trade stream |
+| `tdx_unified_subscribe_open_interest` | Subscribe to open interest stream |
+| `tdx_unified_subscribe_full_trades` | Subscribe to firehose trade stream |
+| `tdx_unified_subscribe_full_open_interest` | Subscribe to firehose open interest stream |
+| `tdx_unified_unsubscribe_quotes` | Unsubscribe from quote stream |
+| `tdx_unified_unsubscribe_trades` | Unsubscribe from trade stream |
+| `tdx_unified_unsubscribe_open_interest` | Unsubscribe from open interest stream |
+| `tdx_unified_unsubscribe_full_trades` | Unsubscribe from firehose trade stream |
+| `tdx_unified_unsubscribe_full_open_interest` | Unsubscribe from firehose open interest stream |
+| `tdx_unified_is_streaming` | Check if FPSS connection is live |
+| `tdx_unified_contract_lookup` | Look up contract by ID |
+| `tdx_unified_active_subscriptions` | List active subscriptions (JSON) |
 | `tdx_unified_next_event` | Poll for next event (JSON, blocks with timeout) |
 | `tdx_unified_stop_streaming` | Stop streaming, historical stays alive |
+| `tdx_unified_free` | Free the unified handle |
+
+### Streaming (via TdxFpssHandle, standalone)
+
+| Function | Description |
+|----------|-------------|
+| `tdx_fpss_connect` | Connect standalone FPSS client |
+| `tdx_fpss_subscribe_quotes` | Subscribe to quote stream |
+| `tdx_fpss_subscribe_trades` | Subscribe to trade stream |
+| `tdx_fpss_subscribe_open_interest` | Subscribe to open interest stream |
+| `tdx_fpss_subscribe_full_trades` | Subscribe to firehose trade stream |
+| `tdx_fpss_subscribe_full_open_interest` | Subscribe to firehose open interest stream |
+| `tdx_fpss_unsubscribe_quotes` | Unsubscribe from quote stream |
+| `tdx_fpss_unsubscribe_trades` | Unsubscribe from trade stream |
+| `tdx_fpss_unsubscribe_open_interest` | Unsubscribe from open interest stream |
+| `tdx_fpss_unsubscribe_full_trades` | Unsubscribe from firehose trade stream |
+| `tdx_fpss_unsubscribe_full_open_interest` | Unsubscribe from firehose open interest stream |
+| `tdx_fpss_is_authenticated` | Check if FPSS is authenticated |
+| `tdx_fpss_contract_lookup` | Look up contract by ID |
+| `tdx_fpss_active_subscriptions` | List active subscriptions (JSON) |
+| `tdx_fpss_next_event` | Poll for next event (JSON, blocks with timeout) |
+| `tdx_fpss_shutdown` | Shut down FPSS client |
+| `tdx_fpss_free` | Free the FPSS handle |
 
 ### Error handling
 

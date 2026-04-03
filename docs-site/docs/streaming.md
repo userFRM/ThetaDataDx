@@ -410,6 +410,12 @@ match thetadatadx::fpss::reconnect_delay(reason) {
 | `unsubscribe_quotes(contract)` | Unsubscribe from quotes |
 | `unsubscribe_trades(contract)` | Unsubscribe from trades |
 | `unsubscribe_open_interest(contract)` | Unsubscribe from OI |
+| `reconnect_streaming(handler)` | Reconnect with new handler, re-subscribe all |
+| `start_streaming_no_ohlcvc(handler)` | Start without OHLCVC derivation |
+| `is_streaming()` | Check if FPSS is active |
+| `contract_lookup(id)` | Look up contract by ID |
+| `active_subscriptions()` | Get active per-contract subs |
+| `active_full_subscriptions()` | Get active firehose subs |
 | `contract_map()` | Get current contract ID mapping |
 | `stop_streaming()` | Stop the streaming connection |
 
@@ -421,6 +427,13 @@ match thetadatadx::fpss::reconnect_delay(reason) {
 | `subscribe_quotes(symbol)` | Subscribe to quote data |
 | `subscribe_trades(symbol)` | Subscribe to trade data |
 | `subscribe_open_interest(symbol)` | Subscribe to open interest |
+| `subscribe_full_trades(sec_type)` | Subscribe to all trades for a security type |
+| `subscribe_full_open_interest(sec_type)` | Subscribe to all OI for a security type |
+| `unsubscribe_quotes(symbol)` | Unsubscribe from quotes |
+| `unsubscribe_trades(symbol)` | Unsubscribe from trades |
+| `unsubscribe_open_interest(symbol)` | Unsubscribe from OI |
+| `unsubscribe_full_trades(sec_type)` | Unsubscribe from all trades for a security type |
+| `unsubscribe_full_open_interest(sec_type)` | Unsubscribe from all OI for a security type |
 | `next_event(timeout_ms=5000)` | Poll next event (dict or `None`) |
 | `stop_streaming()` | Graceful shutdown of streaming |
 
@@ -432,9 +445,12 @@ match thetadatadx::fpss::reconnect_delay(reason) {
 | `SubscribeTrades` | `(symbol string) (int, error)` | Subscribe to trades |
 | `SubscribeOpenInterest` | `(symbol string) (int, error)` | Subscribe to OI |
 | `SubscribeFullTrades` | `(secType string) (int, error)` | Subscribe to all trades for a security type |
+| `SubscribeFullOpenInterest` | `(secType string) (int, error)` | Subscribe to all OI for a security type |
 | `UnsubscribeQuotes` | `(symbol string) (int, error)` | Unsubscribe from quotes |
 | `UnsubscribeTrades` | `(symbol string) (int, error)` | Unsubscribe from trades |
 | `UnsubscribeOpenInterest` | `(symbol string) (int, error)` | Unsubscribe from OI |
+| `UnsubscribeFullTrades` | `(secType string) (int, error)` | Unsubscribe from all trades for a security type |
+| `UnsubscribeFullOpenInterest` | `(secType string) (int, error)` | Unsubscribe from all OI for a security type |
 | `NextEvent` | `(timeoutMs uint64) (json.RawMessage, error)` | Poll next event |
 | `IsAuthenticated` | `() bool` | Check FPSS auth status |
 | `ContractLookup` | `(id int) (string, error)` | Look up contract by server-assigned ID |

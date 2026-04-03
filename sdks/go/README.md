@@ -319,6 +319,9 @@ func main() {
 | `UnsubscribeQuotes(symbol)` | `(int, error)` | Unsubscribe from quotes |
 | `UnsubscribeTrades(symbol)` | `(int, error)` | Unsubscribe from trades |
 | `UnsubscribeOpenInterest(symbol)` | `(int, error)` | Unsubscribe from open interest |
+| `SubscribeFullOpenInterest(secType)` | `(int, error)` | Subscribe to all OI for a security type |
+| `UnsubscribeFullTrades(secType)` | `(int, error)` | Unsubscribe from all trades for a security type |
+| `UnsubscribeFullOpenInterest(secType)` | `(int, error)` | Unsubscribe from all OI for a security type |
 | `IsAuthenticated()` | `bool` | Check if FPSS client is authenticated |
 | `ContractLookup(id)` | `(string, error)` | Look up contract by server-assigned ID |
 | `ActiveSubscriptions()` | `(json.RawMessage, error)` | List currently active subscriptions |
