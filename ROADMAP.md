@@ -86,32 +86,35 @@ Last validated: 2026-04-04 against live MDDS production.
 
 ### FPSS Streaming
 
+Dev server replays April 28, 2025. Stock data only -- option FPSS does not replay on dev.
+
 | Feature | Tier | Status |
 |---------|------|--------|
 | Stock quote subscription | Standard | Verified |
 | Stock trade subscription | Standard | Verified |
-| Option quote subscription | Standard | Verified |
-| Option trade subscription | Standard | Verified |
-| Open interest subscription | Standard | Verified |
-| Full trade firehose | Standard | Verified |
-| Full OI firehose | Standard | Not tested |
+| Option quote subscription | Standard | Verified (subscribed, no data on dev replay) |
+| Option trade subscription | Standard | Verified (subscribed, no data on dev replay) |
+| Open interest subscription | Pro | InvalidPerms on Standard |
+| Full trade firehose | Pro | InvalidPerms on Standard |
+| Full OI firehose | Pro | InvalidPerms on Standard |
 | Index price subscription | Free | Not tested |
 | Dev server replay | -- | Verified |
 | Reconnection | -- | Verified |
 
 ## Remaining Work
 
-### High Priority
+### Needs Pro Tier
 
-- [x] Test FPSS streaming subscriptions (stock, option, OI, firehose -- all verified on dev server)
-- [ ] Test Pro-tier endpoints when subscription available
+- [ ] Test FPSS OI, full trade firehose, full OI firehose (InvalidPerms on Standard)
+- [ ] Test all greeks/trade_greeks snapshot + history endpoints
+- [ ] Test stock/index market_value endpoints (Value tier)
+
+### Remaining
+
+- [x] Test FPSS stock streaming (quotes + trades verified on dev)
+- [x] Test FPSS option streaming (subscriptions accepted, no data on dev replay)
+- [x] Large data streaming (887K SPY trades via `_stream()`)
 - [ ] Cross-SDK parity validation (Python, Go, C++ return identical data)
-
-### Medium Priority
-
 - [ ] Auto-reconnect on FPSS disconnect
-- [ ] Index streaming validation
-
-### Low Priority
-
+- [ ] Index price streaming
 - [ ] Split/dividend endpoints (v3: "Coming Soon")
