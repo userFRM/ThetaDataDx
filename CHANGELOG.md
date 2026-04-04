@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.3.1] - 2026-04-04
+
+### Added
+
+- **FPSS auto-reconnect** with configurable policy: `Auto` (default, matches Java terminal), `Manual`, `Custom(fn)`. New control events: `Reconnecting`, `Reconnected`. (#119)
+- **Trade/quote condition descriptions** with special-case annotations (e.g., `*update last if only trade`).
+
+### Fixed
+
+- **Greeks returned all zeros** on intraday endpoints (`greeks_first_order`, `greeks_iv`, etc.). The v3 server sends Greeks as Price-encoded cells; `row_float()` now decodes them. (#118)
+- **`expiration=0` on wildcard EOD** -- contract ID extraction now handles ISO date text ("2024-01-31" -> 20240131). (#117)
+- **`implied_volatility` -> `implied_vol`** header alias added for v3 server column name.
+- **Raw strike encoding in docs** -- replaced "500000" with "500" (dollar amounts) across 37 files.
+- **`"EOD"` removed from docs** -- v3 uses `"TRADE"` / `"QUOTE"` only.
+- **Options examples** rewritten to use wildcard bulk queries instead of per-strike loops.
+
 ## [5.3.0] - 2026-04-04
 
 ### Breaking Changes
@@ -649,7 +665,8 @@ See [TODO.md](TODO.md) for the production readiness checklist and performance ro
 - FIT decoder uses i64 accumulator with i32 saturation (no silent overflow)
 - Price type range enforced with `assert!` in release builds
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v5.3.0...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v5.3.1...HEAD
+[5.3.1]: https://github.com/userFRM/ThetaDataDx/compare/v5.3.0...v5.3.1
 [5.3.0]: https://github.com/userFRM/ThetaDataDx/compare/v5.2.1...v5.3.0
 [5.2.1]: https://github.com/userFRM/ThetaDataDx/compare/v5.2.0...v5.2.1
 [5.2.0]: https://github.com/userFRM/ThetaDataDx/compare/v5.1.1...v5.2.0
