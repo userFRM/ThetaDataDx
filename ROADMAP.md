@@ -13,9 +13,9 @@ Data quality: 77/77 checks passed after OHLC + Greeks fixes.
 | 2 | `stock_list_dates("TRADE", sym)` | 2,331 dates | Verified | v3: use "TRADE" not "EOD" |
 | 3 | `stock_history_eod(sym, start, end)` | 63 ticks | Verified | OHLC valid, prices $500-700 |
 | 4 | `stock_history_ohlc(sym, date, interval)` | 391 bars | Verified | 391/391 OHLC valid after #108 fix |
-| 5 | `stock_history_trade(sym, date)` | Timeout | N/A | SPY full-day is millions of rows; use `for_each_chunk` |
+| 5 | `stock_history_trade(sym, date)` | 887,576 ticks | Verified | Use `_stream()` variant for large data. 0 bad prices. |
 | 6 | `stock_history_quote(sym, date)` | 391 quotes | Verified | bid>0, ask>0, bid<ask, spread<$1 |
-| 7 | `stock_history_trade_quote(sym, date)` | Timeout | N/A | Same as #5 |
+| 7 | `stock_history_trade_quote(sym, date)` | 519,448 ticks | Verified | AAPL via `_stream()`. 0 bad prices. |
 | 8 | `stock_snapshot_ohlc(sym)` | 1 tick | Verified | OHLC valid |
 | 9 | `stock_snapshot_trade(sym)` | 1 tick | Verified | price=$655.94, size=50 |
 | 10 | `stock_snapshot_quote(sym)` | 1 tick | Verified | bid=$655.61, ask=$656.41 |
@@ -36,7 +36,7 @@ Data quality: 77/77 checks passed after OHLC + Greeks fixes.
 | 20 | `option_history_ohlc(...)` | 391 bars | Verified | OHLC valid after #108 fix |
 | 21 | `option_history_trade(...)` | 1 tick | Verified | price=$93.54, size>0 |
 | 22 | `option_history_quote(...)` | 391 quotes | Verified | bid/ask non-negative |
-| 23 | `option_history_trade_quote(...)` | 0 rows | OK | Deep ITM, no combined data |
+| 23 | `option_history_trade_quote(...)` | 0 rows | Verified | Deep ITM 550C has no combined data (expected) |
 | 24 | `option_history_open_interest(...)` | 1 tick | Verified | OI>=0 |
 | 25 | `option_snapshot_ohlc(...)` | 1 tick | Verified | |
 | 26 | `option_snapshot_trade(...)` | 1 tick | Verified | |
@@ -124,7 +124,7 @@ Data quality: 77/77 checks passed after OHLC + Greeks fixes.
 
 ### Medium Priority
 
-- [ ] **Large data streaming** -- test stock_history_trade with `for_each_chunk` for SPY full-day
+- [x] **Large data streaming** -- SPY 887K trades, AAPL 519K trades via `_stream()` variant. 0 bad prices.
 - [ ] **Auto-reconnect** -- optional auto-reconnect on FPSS disconnect (terminal has this, we don't)
 - [ ] **Index streaming** -- verify subscribe_quotes for index contracts (SPX, VIX)
 
