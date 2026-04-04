@@ -255,16 +255,15 @@ func main() {
         switch event.Kind {
         case thetadatadx.FpssQuoteEvent:
             q := event.Quote
-            bid := thetadatadx.PriceToF64(q.Bid, q.PriceType)
-            ask := thetadatadx.PriceToF64(q.Ask, q.PriceType)
+            // Bid and Ask are pre-decoded to float64
             fmt.Printf("[QUOTE] contract=%d bid=%.4f ask=%.4f rx=%dns\n",
-                q.ContractID, bid, ask, q.ReceivedAtNs)
+                q.ContractID, q.Bid, q.Ask, q.ReceivedAtNs)
 
         case thetadatadx.FpssTradeEvent:
             t := event.Trade
-            price := thetadatadx.PriceToF64(t.Price, t.PriceType)
+            // Price is pre-decoded to float64
             fmt.Printf("[TRADE] contract=%d price=%.4f size=%d\n",
-                t.ContractID, price, t.Size)
+                t.ContractID, t.Price, t.Size)
 
         case thetadatadx.FpssControlEvent:
             ctrl := event.Control

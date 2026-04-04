@@ -78,7 +78,7 @@ func main() {
 ### Config
 - `ProductionConfig()` - ThetaData NJ production servers
 - `DevConfig()` - Dev FPSS servers (port 20200, infinite historical replay)
-- `Config.stage()` / `StageConfig()` / `Config::stage()` - Stage FPSS servers (port 20100, testing, unstable)
+- `StageConfig()` - Stage FPSS servers (port 20100, testing, unstable)
 
 ### Client (Historical Data)
 
@@ -247,7 +247,7 @@ defer client.Close()
 |------|--------|-------------|
 | `OpenInterestTick` | MsOfDay, OpenInterest, Date, **Expiration, Strike, Right (string), RightRaw (int32), StrikePriceType** | Open interest data point |
 | `MarketValueTick` | MsOfDay, MarketCap, SharesOut, EntValue, BookValue, FreeFloat, Date, **Expiration, Strike, Right (string), RightRaw (int32), StrikePriceType** | Market value data |
-| `GreeksTick` | MsOfDay, Value, Delta, Gamma, Theta, Vega, Rho, IV, IVError, Vanna, Charm, Vomma, Veta, Speed, Zomma, Color, Ultima, D1, D2, DualDelta, DualGamma, Epsilon, Lambda, Date, **Expiration, Strike, Right (string), RightRaw (int32), StrikePriceType** | Greeks time series |
+| `GreeksTick` | MsOfDay, Value, Delta, Gamma, Theta, Vega, Rho, IV, IVError, Vanna, Charm, Vomma, Veta, Speed, Zomma, Color, Ultima, D1, D2, DualDelta, DualGamma, Epsilon, Lambda, Vera, Date, **Expiration, Strike, Right (string), RightRaw (int32), StrikePriceType** | Greeks time series |
 | `IVTick` | MsOfDay, IV, IVError, Date, **Expiration, Strike, Right (string), RightRaw (int32), StrikePriceType** | Implied volatility data point |
 | `SnapshotTradeTick` | MsOfDay, Sequence, Size, Condition, Price (float64), PriceRaw, Date, **Expiration, Strike, Right (string), RightRaw (int32), StrikePriceType** | Snapshot trade |
 | `PriceTick` | MsOfDay, Price (float64), PriceRaw, Date | Price data point (indices) |

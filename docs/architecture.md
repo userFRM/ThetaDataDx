@@ -57,7 +57,7 @@ MDDS is a standard gRPC service over TLS, operating on port 443.
 
 - **Package**: `BetaEndpoints`
 - **Service**: `BetaThetaTerminal`
-- **Methods**: 60 RPCs, all server-streaming (returning `stream ResponseData`). thetadatadx wraps all 60 gRPC RPCs plus 1 convenience range-query variant = **61 methods** on `ThetaDataDx`, generated via a declarative `define_endpoint!` macro (internal implementation uses `DirectClient` via `Deref`).
+- **Methods**: 60 RPCs, all server-streaming (returning `stream ResponseData`). thetadatadx wraps all 60 gRPC RPCs plus 1 convenience range-query variant = **61 methods** on `ThetaDataDx`, generated via a declarative `parsed_endpoint!` macro (internal implementation uses `DirectClient` via `Deref`).
 - **Categories**: Stock, Option, Index, Interest Rate, Calendar - each with List, History, Snapshot, AtTime, and Greeks sub-categories
 
 ### Request Structure
@@ -513,7 +513,7 @@ graph TD
         end
 
         UNIFIED["unified.rs<br/><i>ThetaDataDx — unified entry point<br/>Deref to DirectClient</i>"]
-        DIRECT["direct.rs<br/><i>DirectClient (internal) — 61 endpoints<br/>via define_endpoint! macro</i>"]
+        DIRECT["direct.rs<br/><i>DirectClient (internal) — 61 endpoints<br/>via parsed_endpoint! macro</i>"]
         CONFIG["config.rs<br/><i>DirectConfig</i>"]
         DECODE["decode.rs<br/><i>zstd + DataTable parsing<br/>(includes generated parsers)</i>"]
         REGISTRY["registry.rs<br/><i>EndpointMeta, ENDPOINTS static</i>"]

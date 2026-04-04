@@ -11,7 +11,7 @@ Each SDK exposes FPSS differently:
 
 - **Rust** -- Fully synchronous callback model. Events dispatched through an LMAX Disruptor ring buffer. No Tokio on the streaming hot path.
 - **Python** -- Polling model with `next_event()`. Events returned as Python dicts with all fields.
-- **Go** -- Polling model with `NextEvent()`. Events returned as typed `*FpssEvent` structs. Use `PriceToF64()` for price decoding.
+- **Go** -- Polling model with `NextEvent()`. Events returned as typed `*FpssEvent` structs. Price fields are pre-decoded to `float64`; raw integers available as `*Raw` fields.
 - **C++** -- Polling model with `next_event()`. Events returned as `FpssEventPtr` (`unique_ptr<TdxFpssEvent>`, RAII). `#[repr(C)]` layout-compatible structs.
 
 ::: warning No JSON in FFI
@@ -237,16 +237,15 @@ for {
     switch event.Kind {
     case thetadatadx.FpssQuoteEvent:
         q := event.Quote
-        bid := thetadatadx.PriceToF64(q.Bid, q.PriceType)
-        ask := thetadatadx.PriceToF64(q.Ask, q.PriceType)
+        // Bid and Ask are pre-decoded to float64
         fmt.Printf("Quote: contract=%d bid=%.4f ask=%.4f rx=%dns\n",
-            q.ContractID, bid, ask, q.ReceivedAtNs)
+            q.ContractID, q.Bid, q.Ask, q.ReceivedAtNs)
 
     case thetadatadx.FpssTradeEvent:
         t := event.Trade
-        price := thetadatadx.PriceToF64(t.Price, t.PriceType)
+        // Price is pre-decoded to float64
         fmt.Printf("Trade: contract=%d price=%.4f size=%d\n",
-            t.ContractID, price, t.Size)
+            t.ContractID, t.Price, t.Size)
 
     case thetadatadx.FpssOpenInterestEvent:
         oi := event.OpenInterest
@@ -553,7 +552,7 @@ Undecoded fallback for corrupt or unrecognized frames. Fields: `code` (u8), `pay
 | `Shutdown` | `()` | Graceful shutdown |
 | `Close` | `()` | Free the FPSS handle |
 
-Helper: `PriceToF64(value int32, priceType int32) float64`
+Helper: `PriceToF64(value int32, priceType int32) float64` -- decode raw integer prices. Note: FPSS event price fields are pre-decoded to `float64` as of v5.2; this helper is for custom use cases or raw field decoding.
 
 ### C++ (`tdx::FpssClient`)
 

@@ -9,9 +9,11 @@ Real-time market data is delivered via ThetaData's FPSS (Feed Processing Streami
 
 ## Architecture
 
-```
-Exchange (NJ) --> ThetaData FPSS servers --> TLS/TCP --> Your application
-                  (4 production hosts)                   (Disruptor ring buffer)
+```mermaid
+graph LR
+    A["Exchange<br/>(NYSE/NASDAQ)"] --> B["ThetaData FPSS<br/>(4 NJ hosts)"]
+    B -->|"TLS/TCP"| C["SDK I/O Thread<br/>(FIT decode)"]
+    C -->|"Disruptor<br/>ring buffer"| D["Your Application<br/>(callback / poll)"]
 ```
 
 Events are decoded from the FIT wire format and delta-decompressed on an I/O thread, then dispatched through an LMAX Disruptor ring buffer to your callback (Rust) or polling queue (Python/Go/C++). Every data event carries a `received_at_ns` nanosecond timestamp captured at frame decode time.
@@ -22,7 +24,7 @@ Events are decoded from the FIT wire format and delta-decompressed on an I/O thr
 |-----|-------|------------|---------|
 | **Rust** | Synchronous callback | `&FpssEvent` enum | Disruptor ring buffer dispatch. No Tokio on the hot path. |
 | **Python** | Polling | `dict` | `next_event()` returns events as Python dicts with all fields. |
-| **Go** | Polling | `*FpssEvent` struct | `NextEvent()` returns typed Go structs. `PriceToF64()` for price decoding. |
+| **Go** | Polling | `*FpssEvent` struct | `NextEvent()` returns typed Go structs. Price fields pre-decoded to `float64`. |
 | **C++** | Polling | `FpssEventPtr` | `next_event()` returns `unique_ptr<TdxFpssEvent>` (RAII). `#[repr(C)]` layout. |
 
 ::: warning No JSON in FFI

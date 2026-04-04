@@ -11,16 +11,40 @@ Combined with the exchange's `ms_of_day` timestamp on each tick, this gives you 
 
 ## How it works
 
-```
-Exchange (NJ) ──── ThetaData FPSS server ──── TLS/TCP ──── Your application
-    |                                                              |
-    ms_of_day                                              received_at_ns
-    (exchange clock)                                       (your clock)
-    
-    latency = received_at_ns - exchange_timestamp_ns
+```mermaid
+sequenceDiagram
+    participant Exchange as Exchange (NYSE/NASDAQ)
+    participant FPSS as ThetaData FPSS (NJ)
+    participant SDK as ThetaDataDx SDK
+    participant App as User Application
+
+    Exchange->>FPSS: Market data feed
+    Note over FPSS: FIT encode + delta compress
+    FPSS->>SDK: TLS/TCP frame
+    Note over SDK: received_at_ns captured
+    SDK->>SDK: FIT decode + delta decompress
+    SDK->>App: Callback (FpssEvent)
+    Note over App: latency = received_at_ns - exchange_ns
 ```
 
 The exchange stamps each quote/trade with `ms_of_day` (milliseconds since midnight ET). Your application stamps `received_at_ns` (nanoseconds since UNIX epoch). The difference is your total latency: exchange -> ThetaData -> network -> TLS -> decode -> your callback.
+
+```mermaid
+graph LR
+    A["Exchange --> FPSS<br/>(~0ms)"] --> B["FPSS Processing<br/>(~0ms)"]
+    B --> C["Network Transit<br/>(physics: distance/c)"]
+    C --> D["SDK Decode<br/>(&lt; 1 us)"]
+    D --> E["User Callback"]
+
+    style C fill:#ff9999,color:#000
+    style D fill:#99ff99,color:#000
+```
+
+The network transit segment (red) dominates total latency. The SDK decode time (green) is sub-microsecond and negligible.
+
+::: danger Production only
+Latency can only be measured meaningfully on the **production** FPSS server (`DirectConfig::production()`, port 20000) **during live market hours** (9:30 AM - 4:00 PM ET). The dev server (port 20200) replays historical data from a past trading day at maximum speed -- the exchange timestamps are from the past, so `received_at_ns` minus the event's original timestamp produces values that are months or years, not real latency. The dev server is for functional testing only, not latency benchmarking.
+:::
 
 ## `tdbe::latency::latency_ns()`
 
@@ -134,6 +158,33 @@ For the absolute lowest latency:
 2. **Keep the callback fast** -- the Disruptor callback runs on the consumer thread. Push to your own queue for heavy processing.
 
 3. **Use the Rust SDK directly** -- Python, Go, and C++ add an mpsc channel hop between the Disruptor and `next_event()`.
+
+## Network Physics: Minimum Achievable Latency
+
+ThetaData's FPSS servers are located in New Jersey (NJ datacenter). The speed of light in fiber optic cable is approximately 200,000 km/s (about 2/3 of the vacuum speed of light, due to the refractive index of glass). This sets an absolute physical floor on latency that no software optimization can overcome.
+
+The formula: `minimum_round_trip = distance_km / (300,000 * 0.67) * 2 * 1000` (in milliseconds).
+
+| Your Location | Distance to NJ | Minimum Round-Trip | Typical Observed |
+|---------------|---------------|-------------------|-----------------|
+| AWS us-east-1 (Virginia) | ~350 km | ~3.5 ms | 2-5 ms |
+| NJ/NYC datacenter | <50 km | <0.5 ms | <1 ms |
+| Chicago | ~1,200 km | ~12 ms | 10-15 ms |
+| Los Angeles | ~3,900 km | ~39 ms | 35-50 ms |
+| London | ~5,600 km | ~56 ms | 55-70 ms |
+| Frankfurt | ~6,200 km | ~62 ms | 60-80 ms |
+| Tokyo | ~10,800 km | ~108 ms | 105-130 ms |
+| Sydney | ~16,000 km | ~160 ms | 155-180 ms |
+
+If you are seeing 60-80ms latency from Europe, that is not a bug -- it is the speed of light in fiber. No SDK, no protocol change, no configuration tweak can make photons travel faster.
+
+The SDK's own overhead (`received_at_ns` capture, FIT decode, Disruptor dispatch, callback invocation) is sub-microsecond and entirely negligible compared to network physics.
+
+For latency-sensitive applications:
+
+1. **Colocate near NJ** -- AWS us-east-1 (N. Virginia) or any NJ/NYC-area datacenter gets sub-5ms
+2. **`FpssFlushMode::Immediate`** reduces software batching latency by up to 100ms, but cannot beat physics
+3. **Use the Rust SDK directly** -- eliminates the FFI channel hop present in Python/Go/C++ (adds <1ms)
 
 ## Latency Histogram Example (Rust)
 

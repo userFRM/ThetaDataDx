@@ -33,6 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Go `PriceToF64` formula** was `value / 10^pt` instead of `value * 10^(pt-10)`. All FPSS streaming prices would have been wrong. (#95)
 
+## [5.1.1] - 2026-04-03
+
+### Fixed
+
+- `tdbe` dependency bumped to 0.2.0 for crates.io publish (0.1.x was yanked). No code changes.
+
 ## [5.1.0] - 2026-04-03
 
 ### Breaking Changes

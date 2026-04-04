@@ -19,13 +19,17 @@ for critical issues.
 
 | Version | Supported          | Notes |
 | ------- | ------------------ | ----- |
-| 4.5.x   | :white_check_mark: | Current release (`tdbe` + `#[repr(C)]` FFI) |
-| 4.0-4.4 | :x:                | Upgrade to 4.5.x (timezone bug in 4.0-4.4, FFI improvements in 4.5) |
+| 5.2.x   | :white_check_mark: | Current release (f64 prices, `#[repr(C)]` FPSS events, contract ID fields) |
+| 5.0-5.1 | :x:                | Upgrade to 5.2.x (Go price formula bug fixed in 5.2) |
+| 4.5.x   | :x:                | Pre-builder-pattern API, missing f64 convenience methods |
+| 4.0-4.4 | :x:                | Timezone bug (ms_of_day shifted +1 hour Nov-Mar) |
 | 3.x     | :x:                | Pre-`tdbe` extraction, stale API |
 | < 3.0   | :x:                | Contract wire format bug, missing endpoints |
 
 > **Important:** Versions prior to 4.5.0 contain a timezone bug that shifts ms_of_day by +1 hour
-> for all historical data from November through March (EST period). All users should upgrade to 4.5.x.
+> for all historical data from November through March (EST period). Versions prior to 5.2.0
+> contain a Go SDK price formula bug where `PriceToF64` used the wrong formula. All users
+> should upgrade to 5.2.x.
 
 ## Security Design
 

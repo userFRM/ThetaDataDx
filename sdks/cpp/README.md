@@ -76,7 +76,7 @@ int main() {
 
 - `Config::production()` - ThetaData NJ production servers
 - `Config::dev()` - Dev FPSS servers (port 20200, infinite historical replay)
-- `Config.stage()` / `StageConfig()` / `Config::stage()` - Stage FPSS servers (port 20100, testing, unstable)
+- `Config::stage()` - Stage FPSS servers (port 20100, testing, unstable)
 
 ### Client
 
@@ -245,7 +245,7 @@ All endpoints return fully typed C++ structs. No raw JSON.
 | `QuoteTick` | ms_of_day, bid_size, bid_exchange, bid, bid_condition, ask_size, ask_exchange, ask, ask_condition, date, **expiration, strike, right, strike_price_type** | Quote endpoints |
 | `TradeQuoteTick` | ms_of_day, sequence, ext_condition1-4, condition, size, exchange, price, condition_flags, price_flags, volume_type, records_back, quote_ms_of_day, bid_size, bid_exchange, bid, bid_condition, ask_size, ask_exchange, ask, ask_condition, date, **expiration, strike, right, strike_price_type** | Trade+quote endpoints |
 | `OpenInterestTick` | ms_of_day, open_interest, date, **expiration, strike, right, strike_price_type** | Open interest endpoints |
-| `GreeksTick` | ms_of_day, value, delta, gamma, theta, vega, rho, iv, iv_error, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda, date, **expiration, strike, right, strike_price_type** | Greeks snapshot/history |
+| `GreeksTick` | ms_of_day, value, delta, gamma, theta, vega, rho, iv, iv_error, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda, vera, date, **expiration, strike, right, strike_price_type** | Greeks snapshot/history |
 | `IvTick` | ms_of_day, iv, iv_error, date, **expiration, strike, right, strike_price_type** | IV-only endpoints |
 | `PriceTick` | ms_of_day, price, date | Index price endpoints |
 | `MarketValueTick` | ms_of_day, market_cap, shares_outstanding, enterprise_value, book_value, free_float, date, **expiration, strike, right, strike_price_type** | Market value endpoints |
@@ -253,7 +253,7 @@ All endpoints return fully typed C++ structs. No raw JSON.
 | `OptionContract` | root, expiration, strike, right | option_list_contracts |
 | `CalendarDay` | date, is_open, open_time, close_time, status | Calendar endpoints |
 | `InterestRateTick` | ms_of_day, rate, date | Interest rate endpoints |
-| `Greeks` | value, delta, gamma, theta, vega, rho, iv, iv_error, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda | Standalone all_greeks() |
+| `Greeks` | value, delta, gamma, theta, vega, rho, iv, iv_error, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda, vera | Standalone all_greeks() |
 
 **Contract identification fields** (bold above): `expiration`, `strike`, `right`, `strike_price_type` are populated by the server on wildcard queries (pass `"0"` for expiration/strike/right). On single-contract queries these fields are `0`.
 

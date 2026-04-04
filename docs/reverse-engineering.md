@@ -138,7 +138,7 @@ All constants extracted from the decompiled source:
 | gRPC port | `443` | `MddsConnectionManager` |
 | TLS | `true` (standard gRPC-over-TLS) | `ChannelProvider` |
 | gRPC service | `BetaEndpoints.BetaThetaTerminal` | `v3_endpoints.proto` |
-| RPC count | 60 methods (all server-streaming) — thetadatadx wraps all 60 as 61 `ThetaDataDx` methods via `define_endpoint!` macro | `v3_endpoints.proto` |
+| RPC count | 60 methods (all server-streaming) — thetadatadx wraps all 60 as 61 `ThetaDataDx` methods via `parsed_endpoint!` macro | `v3_endpoints.proto` |
 
 ### FPSS (Real-time TCP)
 
@@ -186,7 +186,7 @@ When ThetaData releases a new terminal version, here is the checklist:
 
 1. Re-extract protos using Steps 1-3 above
 2. Diff `v3_endpoints.proto` and `endpoints.proto` against the previous versions
-3. Look for new RPC methods - add a `define_endpoint!` invocation in `direct.rs`
+3. Look for new RPC methods - add a `parsed_endpoint!` invocation in `direct.rs`
 4. Look for changed request/response types - update `decode.rs` parsers
 5. Check `ChannelProvider.java` for host/port changes - update `config.rs`
 
