@@ -293,6 +293,15 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
         }
     }
 
+    // Collect the names of columns that serve as the price_type source.
+    // These columns use row_price_value (their type IS the canonical one).
+    // All other price columns use row_price_value_normalized to match.
+    let price_source_names: std::collections::HashSet<&str> = def
+        .columns
+        .iter()
+        .filter_map(|c| c.price_source.as_deref())
+        .collect();
+
     // Struct literal
     out.push_str(&format!("            {type_name} {{\n"));
 
@@ -381,24 +390,51 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
             }
             "price" => {
                 // Price column: uses row_price_value if price-typed, otherwise row_number.
+                // For non-source price columns (e.g., high/low/close when open is the
+                // source), normalize to the source's price_type so all values in the
+                // struct use a consistent encoding.
                 let typed_var = format!("{}_is_typed", col.name);
                 let field = &col.field;
-                if is_required {
-                    out.push_str(&format!("                {field}: if {typed_var} {{\n"));
-                    out.push_str(&format!(
-                        "                    row_price_value(row, {var})\n"
-                    ));
-                    out.push_str("                } else {\n");
-                    out.push_str(&format!("                    row_number(row, {var})\n"));
-                    out.push_str("                },\n");
+                let is_source = price_source_names.contains(col.name.as_str());
+
+                if is_source || !price_source_cols.iter().any(|_| true) {
+                    // This IS the reference column (or there's no price_source at all).
+                    if is_required {
+                        out.push_str(&format!("                {field}: if {typed_var} {{\n"));
+                        out.push_str(&format!(
+                            "                    row_price_value(row, {var})\n"
+                        ));
+                        out.push_str("                } else {\n");
+                        out.push_str(&format!("                    row_number(row, {var})\n"));
+                        out.push_str("                },\n");
+                    } else {
+                        out.push_str(&format!("                {field}: match {var} {{\n"));
+                        out.push_str(&format!(
+                            "                    Some(i) if {typed_var} => row_price_value(row, i),\n"
+                        ));
+                        out.push_str("                    Some(i) => row_number(row, i),\n");
+                        out.push_str("                    None => 0,\n");
+                        out.push_str("                },\n");
+                    }
                 } else {
-                    out.push_str(&format!("                {field}: match {var} {{\n"));
-                    out.push_str(&format!(
-                        "                    Some(i) if {typed_var} => row_price_value(row, i),\n"
-                    ));
-                    out.push_str("                    Some(i) => row_number(row, i),\n");
-                    out.push_str("                    None => 0,\n");
-                    out.push_str("                },\n");
+                    // Non-source price column: normalize to the source's price_type.
+                    if is_required {
+                        out.push_str(&format!("                {field}: if {typed_var} {{\n"));
+                        out.push_str(&format!(
+                            "                    row_price_value_normalized(row, {var}, _pt_price_type)\n"
+                        ));
+                        out.push_str("                } else {\n");
+                        out.push_str(&format!("                    row_number(row, {var})\n"));
+                        out.push_str("                },\n");
+                    } else {
+                        out.push_str(&format!("                {field}: match {var} {{\n"));
+                        out.push_str(&format!(
+                            "                    Some(i) if {typed_var} => row_price_value_normalized(row, i, _pt_price_type),\n"
+                        ));
+                        out.push_str("                    Some(i) => row_number(row, i),\n");
+                        out.push_str("                    None => 0,\n");
+                        out.push_str("                },\n");
+                    }
                 }
             }
             "price_value" => {

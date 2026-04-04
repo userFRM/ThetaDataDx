@@ -415,6 +415,72 @@ pub(crate) fn row_price_type(row: &proto::DataValueList, idx: usize) -> i32 {
         .unwrap_or(0)
 }
 
+/// Read a Price cell's value, normalized to `target_pt` (the row's canonical price_type).
+///
+/// If the cell's price_type differs from `target_pt`, the value is rescaled
+/// using `changePriceType` (matching Java's `PriceCalcUtils.changePriceType`).
+/// This handles OHLC bars where open/high/low/close can have different
+/// price_types per cell.
+pub(crate) fn row_price_value_normalized(
+    row: &proto::DataValueList,
+    idx: usize,
+    target_pt: i32,
+) -> i32 {
+    row.values
+        .get(idx)
+        .and_then(|dv| dv.data_type.as_ref())
+        .and_then(|dt| match dt {
+            proto::data_value::DataType::Price(p) => {
+                if p.r#type == target_pt || p.r#type == 0 || target_pt == 0 {
+                    Some(p.value)
+                } else {
+                    Some(change_price_type(p.value, p.r#type, target_pt))
+                }
+            }
+            proto::data_value::DataType::Number(n) => Some(*n as i32),
+            _ => None,
+        })
+        .unwrap_or(0)
+}
+
+/// Rescale a price value from one price_type to another.
+/// Matches Java's `PriceCalcUtils.changePriceType`.
+fn change_price_type(price: i32, from_type: i32, to_type: i32) -> i32 {
+    if price == 0 || from_type == to_type {
+        return price;
+    }
+    let exp = to_type - from_type;
+    const POW10: [i64; 10] = [
+        1,
+        10,
+        100,
+        1_000,
+        10_000,
+        100_000,
+        1_000_000,
+        10_000_000,
+        100_000_000,
+        1_000_000_000,
+    ];
+    if exp <= 0 {
+        // Going to lower price_type (more decimal places in raw value): multiply
+        let idx = (-exp) as usize;
+        if idx < POW10.len() {
+            (price as i64 * POW10[idx]) as i32
+        } else {
+            price
+        }
+    } else {
+        // Going to higher price_type (fewer decimal places): divide
+        let idx = exp as usize;
+        if idx < POW10.len() {
+            (price as i64 / POW10[idx]) as i32
+        } else {
+            0
+        }
+    }
+}
+
 /// Helper to get an f64 from a row at a given column index, defaulting to 0.0.
 ///
 /// Greeks and implied volatility columns use `Number` (f64) values in the DataTable,
