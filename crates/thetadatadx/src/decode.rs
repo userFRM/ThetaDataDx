@@ -13,8 +13,9 @@ const HEADER_ALIASES: &[(&str, &str)] = &[
     ("ms_of_day2", "last_trade"),
     ("date", "timestamp"),
     ("date", "created"),
-    // option_list_contracts returns "symbol" where the schema says "root"
+    // v3 renames: root -> symbol, implied_volatility -> implied_vol
     ("root", "symbol"),
+    ("implied_volatility", "implied_vol"),
 ];
 
 /// Helper: find a column index by name, with alias fallback.
@@ -425,6 +426,20 @@ pub(crate) fn row_float(row: &proto::DataValueList, idx: usize) -> f64 {
         .and_then(|dv| dv.data_type.as_ref())
         .and_then(|dt| match dt {
             proto::data_value::DataType::Number(n) => Some(*n as f64),
+            // v3 MDDS sends Greeks and other f64 fields as Price-encoded values.
+            // Decode using the same formula as Price::to_f64().
+            proto::data_value::DataType::Price(p) => {
+                if p.r#type == 0 {
+                    Some(0.0)
+                } else {
+                    let exp = p.r#type - 10;
+                    if exp >= 0 {
+                        Some(p.value as f64 * 10f64.powi(exp))
+                    } else {
+                        Some(p.value as f64 / 10f64.powi(-exp))
+                    }
+                }
+            }
             _ => None,
         })
         .unwrap_or(0.0)
