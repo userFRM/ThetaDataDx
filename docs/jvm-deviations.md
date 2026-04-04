@@ -283,6 +283,39 @@ As of v1.2.0:
 | **Source** | Decompiled `TradeRef.java`, `DataValue` protobuf cells | `tdbe` tick structs, `right_str()` in `contract.rs` | `sdks/go/client.go:RightStr()`, conversion functions |
 | **Rationale** | The Java terminal stores right as an integer internally (matching the wire format) but converts to `"C"`/`"P"` when serializing to WebSocket JSON for end-user consumption. ThetaDataDx follows the same principle at the SDK boundary: the Rust core and FFI layer preserve the raw `i32` for zero-overhead C interop, while higher-level SDKs (Go, Python) convert to human-readable strings in the conversion layer. The `RightRaw`/`right_raw` field preserves the original integer for users who need exact wire values. |
 
+## v2 to v3 Automatic Normalizations
+
+These conversions happen automatically in the Rust SDK, so callers can use either v2-style or v3-style parameter values.
+
+### Right Normalization
+
+| v2 Value | v3 Value | Where |
+|----------|----------|-------|
+| `"C"` / `"c"` | `"call"` | `normalize_right()` in `direct.rs` |
+| `"P"` / `"p"` | `"put"` | `normalize_right()` in `direct.rs` |
+| `"*"` | `"both"` | `normalize_right()` in `direct.rs` |
+
+Applied via the `contract_spec!` macro on every option endpoint that accepts a `right` parameter.
+
+### Interval Normalization
+
+| v2 Value (ms) | v3 Value | Where |
+|----------------|----------|-------|
+| `"60000"` | `"1m"` | `normalize_interval()` in `direct.rs` |
+| `"1000"` | `"1s"` | `normalize_interval()` in `direct.rs` |
+| `"300000"` | `"5m"` | `normalize_interval()` in `direct.rs` |
+| (already shorthand) | pass-through | `normalize_interval()` in `direct.rs` |
+
+Applied on all OHLC, quote, and price endpoints that accept an `interval` parameter.
+
+### Symbol Field (root to symbol)
+
+The v3 protobuf uses `symbol` in `ContractSpec` (not `root` as in v2). The Rust SDK has always used `symbol` in its public API and proto definitions -- no conversion needed.
+
+### start_time / end_time (replaces rth)
+
+The v2 `rth` (regular trading hours) boolean is replaced by explicit `start_time` / `end_time` string parameters. The Rust SDK defaults to `"09:30:00"` / `"16:00:00"` (regular trading hours) on all interval endpoints, matching the Java terminal. Callers can override via builder methods.
+
 ## What Is NOT Different
 
 These are identical to the Java terminal:

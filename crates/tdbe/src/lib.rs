@@ -14,10 +14,14 @@
 //! For network access, use the `thetadatadx` crate which depends on `tdbe`.
 
 pub mod codec;
+pub mod conditions;
 pub mod error;
+pub mod errors;
+pub mod exchange;
 pub mod flags;
 pub mod greeks;
 pub mod latency;
+pub mod sequences;
 pub mod types;
 
 // Convenience re-exports at crate root
