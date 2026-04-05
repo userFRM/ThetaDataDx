@@ -100,8 +100,8 @@ pub async fn generic(
     }
 
     let use_csv = params
-        .get("use_csv")
-        .is_some_and(|v| v.eq_ignore_ascii_case("true") || v == "1");
+        .get("format")
+        .is_some_and(|v| v.eq_ignore_ascii_case("csv"));
 
     let result = dispatch(state.client(), ep, &params).await;
 

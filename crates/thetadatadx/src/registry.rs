@@ -34,7 +34,7 @@ pub enum ParamType {
     Strike,
     /// Expiration date as string
     Expiration,
-    /// Request type string (e.g. "EOD", "TRADE")
+    /// Request type string (e.g. "TRADE", "QUOTE")
     RequestType,
     /// Free-form string
     Str,
