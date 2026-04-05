@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "thetadatadx"
-version = "5.3.1"
+version = "5.4.0"
 description = "No-JVM ThetaData Terminal — native Rust SDK for direct market data access (Python bindings)"
 readme = "README.md"
 requires-python = ">=3.9"

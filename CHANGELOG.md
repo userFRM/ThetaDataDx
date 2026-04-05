@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.4.0] - 2026-04-05
+
+### Breaking Changes
+
+- **`start_streaming_no_ohlcvc()` removed** -- use `DirectConfig::derive_ohlcvc(false)` instead. (#129)
+- **Go SDK**: `SnapshotTradeTick` type removed (was dead code after FFI cleanup).
+
+### Added
+
+- **`DirectConfig::derive_ohlcvc(bool)`** -- config-driven OHLCVC opt-out, replaces duplicate method. (#129)
+- **REST server drop-in replacement** -- `--email`/`--password`, `--config`, `--fpss-region` CLI args. `/v3/system/status` endpoint. Startup banner. (#128)
+- **Error suppression 5s after STOP** -- matches Java terminal behavior. (#124)
+- **Auth retry on transient errors** -- 3 attempts, 2s delay, network errors only. (#125)
+- **Config validation** -- clamps queue_depth (16-1M), window_size (64-1024) with warnings. (#126)
+- **Password character warning** -- on INVALID_CREDENTIALS disconnect. (#127)
+- **Clippy pedantic zero warnings** -- `#[must_use]`, inlined format args, numeric separators, `try_from` casts, error docs. No blanket suppression. (#131)
+
+### Fixed
+
+- Zero `#[allow(dead_code)]` in entire project.
+- Go SDK dangling extern for removed `TdxSnapshotTradeTickArray`.
+- Doc comment typo `100_0000` -> `1_000_000`.
+- Test warning on unused `#[must_use]` return.
+- All `#[allow]` annotations have reason comments.
+
 ## [5.3.1] - 2026-04-04
 
 ### Added
@@ -664,7 +689,8 @@ See [TODO.md](TODO.md) for the production readiness checklist and performance ro
 - FIT decoder uses i64 accumulator with i32 saturation (no silent overflow)
 - Price type range enforced with `assert!` in release builds
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v5.3.1...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v5.4.0...HEAD
+[5.4.0]: https://github.com/userFRM/ThetaDataDx/compare/v5.3.1...v5.4.0
 [5.3.1]: https://github.com/userFRM/ThetaDataDx/compare/v5.3.0...v5.3.1
 [5.3.0]: https://github.com/userFRM/ThetaDataDx/compare/v5.2.1...v5.3.0
 [5.2.1]: https://github.com/userFRM/ThetaDataDx/compare/v5.2.0...v5.2.1
