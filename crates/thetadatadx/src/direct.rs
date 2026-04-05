@@ -1,3 +1,38 @@
+// reason: Direct client exposes 61 typed endpoint methods (one per MDDS RPC).
+// Every method returns Result (errors are documented at the module level, not
+// individually since they all share the same failure modes: network, auth,
+// decode). Builder methods return Self by convention.
+// The dense method wrappers also use map/unwrap_or patterns and closures that
+// are idiomatic for this code-gen-like structure.
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::return_self_not_must_use,
+    clippy::must_use_candidate,
+    clippy::redundant_closure_for_method_calls,
+    clippy::map_unwrap_or,
+    clippy::too_many_lines,
+    clippy::similar_names,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap,
+    clippy::cast_lossless,
+    clippy::cast_precision_loss,
+    clippy::items_after_statements,
+    clippy::needless_pass_by_value,
+    clippy::implicit_clone,
+    clippy::redundant_closure,
+    clippy::single_match_else,
+    clippy::uninlined_format_args,
+    clippy::unreadable_literal,
+    clippy::bool_to_int_with_if,
+    clippy::manual_let_else,
+    clippy::doc_markdown,
+    clippy::wildcard_imports,
+    clippy::used_underscore_binding,
+    clippy::match_same_arms,
+    clippy::redundant_else
+)]
 //! Direct server client — MDDS gRPC without the Java terminal.
 //!
 //! `DirectClient` authenticates against the Nexus API, opens a gRPC channel
@@ -36,7 +71,7 @@ use crate::proto_v3;
 use crate::proto_v3::beta_theta_terminal_client::BetaThetaTerminalClient;
 use tdbe::types::tick::*;
 
-/// Crate version embedded in `QueryInfo.terminal_version` so ThetaData can
+/// Crate version embedded in `QueryInfo.terminal_version` so `ThetaData` can
 /// identify this client in server-side logs.
 const CLIENT_TYPE: &str = "rust-thetadatadx";
 
@@ -392,7 +427,7 @@ macro_rules! contract_spec {
     };
 }
 
-/// Direct client for ThetaData server access.
+/// Direct client for `ThetaData` server access.
 ///
 /// Connects to MDDS (gRPC, historical data) without requiring the Java
 /// terminal. Authenticates via the Nexus HTTP API, then issues gRPC
@@ -431,7 +466,7 @@ pub struct DirectClient {
 }
 
 impl DirectClient {
-    /// Connect to ThetaData servers directly (no JVM terminal needed).
+    /// Connect to `ThetaData` servers directly (no JVM terminal needed).
     ///
     /// 1. Authenticates against the Nexus HTTP API to obtain a session UUID.
     /// 2. Opens a gRPC channel (TLS) to the MDDS server.

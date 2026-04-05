@@ -1,3 +1,26 @@
+// reason: Wire protocol decoders convert between protobuf values (i32/i64/u64)
+// and tick types. Casts are bounded by protocol constraints (dates, prices,
+// timestamps). Doc backticks on domain terms (YYYYMMDD, ms_of_day) would
+// hurt readability in this context.
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap,
+    clippy::cast_lossless,
+    clippy::cast_precision_loss,
+    clippy::doc_markdown,
+    clippy::must_use_candidate,
+    clippy::missing_errors_doc,
+    clippy::map_unwrap_or,
+    clippy::redundant_closure,
+    clippy::redundant_closure_for_method_calls,
+    clippy::items_after_statements,
+    clippy::manual_let_else,
+    clippy::bool_to_int_with_if,
+    clippy::uninlined_format_args,
+    clippy::unreadable_literal,
+    clippy::wildcard_imports
+)]
 use std::cell::RefCell;
 
 use crate::error::Error;
@@ -538,7 +561,14 @@ pub(crate) fn row_number_i64(row: &proto::DataValueList, idx: usize) -> i64 {
 }
 
 // Parser functions are generated from endpoint_schema.toml by build.rs.
-include!(concat!(env!("OUT_DIR"), "/decode_generated.rs"));
+// reason: Generated code from build.rs codegen; fixing individual lints
+// in generated output is impractical and fragile.
+#[allow(clippy::pedantic)]
+mod decode_generated {
+    use super::*;
+    include!(concat!(env!("OUT_DIR"), "/decode_generated.rs"));
+}
+pub use decode_generated::*;
 
 #[cfg(test)]
 mod tests {

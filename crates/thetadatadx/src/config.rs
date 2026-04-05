@@ -1,8 +1,37 @@
-//! Server configuration for direct ThetaData access.
+// reason: Networking/protocol layer with wire-format conversions,
+// builder patterns, and many Result-returning async methods.
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::must_use_candidate,
+    clippy::return_self_not_must_use,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap,
+    clippy::cast_lossless,
+    clippy::cast_precision_loss,
+    clippy::doc_markdown,
+    clippy::map_unwrap_or,
+    clippy::redundant_closure,
+    clippy::redundant_closure_for_method_calls,
+    clippy::items_after_statements,
+    clippy::manual_let_else,
+    clippy::uninlined_format_args,
+    clippy::unreadable_literal,
+    clippy::similar_names,
+    clippy::single_match_else,
+    clippy::needless_pass_by_value,
+    clippy::implicit_clone,
+    clippy::wildcard_imports,
+    clippy::match_same_arms,
+    clippy::redundant_else,
+    clippy::used_underscore_binding
+)]
+//! Server configuration for direct `ThetaData` access.
 //!
 //! # Server topology (from decompiled Java + `config_0.properties`)
 //!
-//! ThetaData runs two server types in their NJ datacenter:
+//! `ThetaData` runs two server types in their NJ datacenter:
 //!
 //! ## MDDS — Market Data Distribution Server (gRPC, historical data)
 //!
@@ -91,7 +120,7 @@ pub enum FpssFlushMode {
     Immediate,
 }
 
-/// Configuration for connecting to ThetaData servers directly.
+/// Configuration for connecting to `ThetaData` servers directly.
 ///
 /// Use [`DirectConfig::production()`] for the standard NJ production servers.
 #[derive(Debug, Clone)]
@@ -244,7 +273,7 @@ pub struct DirectConfig {
 }
 
 impl DirectConfig {
-    /// Production configuration for ThetaData's NJ datacenter.
+    /// Production configuration for `ThetaData`'s NJ datacenter.
     ///
     /// All values extracted from the decompiled Java terminal:
     /// - MDDS: `mdds-01.thetadata.us:443` (gRPC over TLS)
@@ -302,7 +331,7 @@ impl DirectConfig {
 
     /// Dev FPSS configuration.
     ///
-    /// Connects to ThetaData's dev FPSS servers (port 20200) which replay
+    /// Connects to `ThetaData`'s dev FPSS servers (port 20200) which replay
     /// a random historical trading day in an infinite loop at maximum speed.
     /// Designed for development and testing when markets are closed.
     ///
@@ -327,7 +356,7 @@ impl DirectConfig {
 
     /// Stage FPSS configuration.
     ///
-    /// Connects to ThetaData's staging FPSS servers (port 20100).
+    /// Connects to `ThetaData`'s staging FPSS servers (port 20100).
     /// Frequent reboots, testing data. Not stable.
     ///
     /// MDDS (historical) still uses production servers.

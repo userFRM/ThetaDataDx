@@ -1,4 +1,4 @@
-//! Exchange code lookup tables for ThetaData market data.
+//! Exchange code lookup tables for `ThetaData` market data.
 //!
 //! Maps numeric exchange codes to human-readable names and MIC symbols.
 
@@ -408,6 +408,10 @@ pub const EXCHANGES: [Exchange; 78] = [
 ///
 /// Returns `"UNKNOWN"` for codes outside the known range.
 #[inline]
+#[must_use]
+// reason: Exchange codes are non-negative i32 wire values bounded by the
+// EXCHANGES array length (~78). Cast to usize is safe for valid codes.
+#[allow(clippy::cast_sign_loss)]
 pub fn exchange_name(code: i32) -> &'static str {
     if code >= 0 && (code as usize) < EXCHANGES.len() {
         EXCHANGES[code as usize].name
@@ -420,6 +424,10 @@ pub fn exchange_name(code: i32) -> &'static str {
 ///
 /// Returns `"UNKNOWN"` for codes outside the known range.
 #[inline]
+#[must_use]
+// reason: Exchange codes are non-negative i32 wire values bounded by the
+// EXCHANGES array length (~78). Cast to usize is safe for valid codes.
+#[allow(clippy::cast_sign_loss)]
 pub fn exchange_symbol(code: i32) -> &'static str {
     if code >= 0 && (code as usize) < EXCHANGES.len() {
         EXCHANGES[code as usize].symbol
@@ -465,8 +473,8 @@ mod tests {
         for (i, ex) in EXCHANGES.iter().enumerate() {
             assert_eq!(
                 ex.code as usize, i,
-                "Exchange at index {} has code {}",
-                i, ex.code
+                "Exchange at index {i} has code {}",
+                ex.code
             );
         }
     }

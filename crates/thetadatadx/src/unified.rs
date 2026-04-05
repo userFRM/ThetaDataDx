@@ -1,4 +1,34 @@
-//! Unified ThetaData client -- single entry point, one auth, lazy FPSS.
+// reason: Networking/protocol layer with wire-format conversions,
+// builder patterns, and many Result-returning async methods.
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::must_use_candidate,
+    clippy::return_self_not_must_use,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap,
+    clippy::cast_lossless,
+    clippy::cast_precision_loss,
+    clippy::doc_markdown,
+    clippy::map_unwrap_or,
+    clippy::redundant_closure,
+    clippy::redundant_closure_for_method_calls,
+    clippy::items_after_statements,
+    clippy::manual_let_else,
+    clippy::uninlined_format_args,
+    clippy::unreadable_literal,
+    clippy::similar_names,
+    clippy::single_match_else,
+    clippy::needless_pass_by_value,
+    clippy::implicit_clone,
+    clippy::wildcard_imports,
+    clippy::match_same_arms,
+    clippy::redundant_else,
+    clippy::used_underscore_binding,
+    clippy::too_many_lines
+)]
+//! Unified `ThetaData` client -- single entry point, one auth, lazy FPSS.
 //!
 //! Connect once. Use historical data immediately. Streaming connects
 //! on-demand when you first subscribe -- not at startup.
@@ -43,7 +73,7 @@ use crate::fpss::protocol::{Contract, SubscriptionKind};
 use crate::fpss::{FpssClient, FpssEvent};
 use tdbe::types::enums::SecType;
 
-/// Unified ThetaData client.
+/// Unified `ThetaData` client.
 ///
 /// Authenticates once at connect time. Historical data (MDDS gRPC) is
 /// available immediately. Streaming (FPSS TCP) connects lazily when
@@ -58,7 +88,7 @@ pub struct ThetaDataDx {
 }
 
 impl ThetaDataDx {
-    /// Connect to ThetaData. Authenticates once, opens gRPC channel.
+    /// Connect to `ThetaData`. Authenticates once, opens gRPC channel.
     ///
     /// FPSS streaming is NOT connected yet -- call [`start_streaming`]
     /// when you need real-time data.
@@ -73,7 +103,7 @@ impl ThetaDataDx {
 
     /// Start the FPSS streaming connection with a callback handler.
     ///
-    /// This opens a TLS/TCP connection to ThetaData's FPSS servers,
+    /// This opens a TLS/TCP connection to `ThetaData`'s FPSS servers,
     /// authenticates with the same credentials used at connect time,
     /// and starts the Disruptor ring buffer + I/O thread.
     ///

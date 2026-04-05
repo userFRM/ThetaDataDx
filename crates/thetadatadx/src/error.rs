@@ -1,3 +1,5 @@
+// reason: Error types with thiserror derive don't benefit from pedantic lints.
+#![allow(clippy::doc_markdown, clippy::uninlined_format_args)]
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -45,7 +47,7 @@ pub enum Error {
 impl From<tonic::Status> for Error {
     fn from(s: tonic::Status) -> Self {
         // Extract http_status_code from gRPC metadata and enrich the error
-        // message with the ThetaData error name when available.
+        // message with the `ThetaData` error name when available.
         let metadata_str = format!("{:?}", s.metadata());
         if let Some(td_err) = tdbe::errors::error_from_grpc_metadata(&metadata_str) {
             let enriched = tonic::Status::new(

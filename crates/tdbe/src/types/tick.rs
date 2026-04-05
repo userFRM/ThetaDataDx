@@ -279,6 +279,7 @@ macro_rules! impl_contract_id {
         impl $ty {
             /// Decode strike as `f64` using the accompanying `strike_price_type`.
             #[inline]
+            #[must_use]
             pub fn strike_price(&self) -> f64 {
                 if self.strike_price_type == 0 && self.strike == 0 {
                     return 0.0;
@@ -287,16 +288,19 @@ macro_rules! impl_contract_id {
             }
             /// `true` when `right` == 'C' (ASCII 67).
             #[inline]
+            #[must_use]
             pub fn is_call(&self) -> bool {
                 self.right == 67
             }
             /// `true` when `right` == 'P' (ASCII 80).
             #[inline]
+            #[must_use]
             pub fn is_put(&self) -> bool {
                 self.right == 80
             }
             /// `true` when the server populated contract identification fields.
             #[inline]
+            #[must_use]
             pub fn has_contract_id(&self) -> bool {
                 self.expiration != 0
             }
@@ -321,37 +325,45 @@ impl_contract_id!(IvTick);
 
 impl TradeTick {
     #[inline]
+    #[must_use]
     pub fn get_price(&self) -> Price {
         Price::new(self.price, self.price_type)
     }
 
     /// Decode trade price to `f64`.
     #[inline]
+    #[must_use]
     pub fn price_f64(&self) -> f64 {
         self.get_price().to_f64()
     }
 
+    #[must_use]
     pub fn is_cancelled(&self) -> bool {
         flags::trade::CANCELLED_RANGE.contains(&self.condition)
     }
 
+    #[must_use]
     pub fn trade_condition_no_last(&self) -> bool {
         self.condition_flags & flags::condition_flags::NO_LAST == flags::condition_flags::NO_LAST
     }
 
+    #[must_use]
     pub fn price_condition_set_last(&self) -> bool {
         self.price_flags & flags::price_flags::SET_LAST == flags::price_flags::SET_LAST
     }
 
+    #[must_use]
     pub fn is_incremental_volume(&self) -> bool {
         self.volume_type == flags::volume::INCREMENTAL
     }
 
     /// Regular trading hours: 9:30 AM - 4:00 PM ET.
+    #[must_use]
     pub fn regular_trading_hours(&self) -> bool {
         (flags::trade::RTH_START_MS..=flags::trade::RTH_END_MS).contains(&self.ms_of_day)
     }
 
+    #[must_use]
     pub fn is_seller(&self) -> bool {
         self.ext_condition1 == flags::trade::SELLER_CONDITION
     }
@@ -359,38 +371,45 @@ impl TradeTick {
 
 impl QuoteTick {
     #[inline]
+    #[must_use]
     pub fn bid_price(&self) -> Price {
         Price::new(self.bid, self.price_type)
     }
 
     #[inline]
+    #[must_use]
     pub fn ask_price(&self) -> Price {
         Price::new(self.ask, self.price_type)
     }
 
     /// Decode bid price to `f64`.
     #[inline]
+    #[must_use]
     pub fn bid_f64(&self) -> f64 {
         self.bid_price().to_f64()
     }
 
     /// Decode ask price to `f64`.
     #[inline]
+    #[must_use]
     pub fn ask_f64(&self) -> f64 {
         self.ask_price().to_f64()
     }
 
     /// Decode midpoint price to `f64`.
     #[inline]
+    #[must_use]
     pub fn midpoint_f64(&self) -> f64 {
         self.midpoint_price().to_f64()
     }
 
+    #[must_use]
     pub fn midpoint_value(&self) -> i32 {
         self.bid / 2 + self.ask / 2 + (self.bid % 2 + self.ask % 2) / 2
     }
 
     #[inline]
+    #[must_use]
     pub fn midpoint_price(&self) -> Price {
         Price::new(self.midpoint_value(), self.price_type)
     }
@@ -398,39 +417,47 @@ impl QuoteTick {
 
 impl OhlcTick {
     #[inline]
+    #[must_use]
     pub fn open_price(&self) -> Price {
         Price::new(self.open, self.price_type)
     }
     #[inline]
+    #[must_use]
     pub fn high_price(&self) -> Price {
         Price::new(self.high, self.price_type)
     }
     #[inline]
+    #[must_use]
     pub fn low_price(&self) -> Price {
         Price::new(self.low, self.price_type)
     }
     #[inline]
+    #[must_use]
     pub fn close_price(&self) -> Price {
         Price::new(self.close, self.price_type)
     }
 
     /// Decode open price to `f64`.
     #[inline]
+    #[must_use]
     pub fn open_f64(&self) -> f64 {
         self.open_price().to_f64()
     }
     /// Decode high price to `f64`.
     #[inline]
+    #[must_use]
     pub fn high_f64(&self) -> f64 {
         self.high_price().to_f64()
     }
     /// Decode low price to `f64`.
     #[inline]
+    #[must_use]
     pub fn low_f64(&self) -> f64 {
         self.low_price().to_f64()
     }
     /// Decode close price to `f64`.
     #[inline]
+    #[must_use]
     pub fn close_f64(&self) -> f64 {
         self.close_price().to_f64()
     }
@@ -438,61 +465,74 @@ impl OhlcTick {
 
 impl EodTick {
     #[inline]
+    #[must_use]
     pub fn open_price(&self) -> Price {
         Price::new(self.open, self.price_type)
     }
     #[inline]
+    #[must_use]
     pub fn high_price(&self) -> Price {
         Price::new(self.high, self.price_type)
     }
     #[inline]
+    #[must_use]
     pub fn low_price(&self) -> Price {
         Price::new(self.low, self.price_type)
     }
     #[inline]
+    #[must_use]
     pub fn close_price(&self) -> Price {
         Price::new(self.close, self.price_type)
     }
     #[inline]
+    #[must_use]
     pub fn bid_price(&self) -> Price {
         Price::new(self.bid, self.price_type)
     }
     #[inline]
+    #[must_use]
     pub fn ask_price(&self) -> Price {
         Price::new(self.ask, self.price_type)
     }
     #[inline]
+    #[must_use]
     pub fn midpoint_value(&self) -> i32 {
         self.bid / 2 + self.ask / 2 + (self.bid % 2 + self.ask % 2) / 2
     }
 
     /// Decode open price to `f64`.
     #[inline]
+    #[must_use]
     pub fn open_f64(&self) -> f64 {
         self.open_price().to_f64()
     }
     /// Decode high price to `f64`.
     #[inline]
+    #[must_use]
     pub fn high_f64(&self) -> f64 {
         self.high_price().to_f64()
     }
     /// Decode low price to `f64`.
     #[inline]
+    #[must_use]
     pub fn low_f64(&self) -> f64 {
         self.low_price().to_f64()
     }
     /// Decode close price to `f64`.
     #[inline]
+    #[must_use]
     pub fn close_f64(&self) -> f64 {
         self.close_price().to_f64()
     }
     /// Decode bid price to `f64`.
     #[inline]
+    #[must_use]
     pub fn bid_f64(&self) -> f64 {
         self.bid_price().to_f64()
     }
     /// Decode ask price to `f64`.
     #[inline]
+    #[must_use]
     pub fn ask_f64(&self) -> f64 {
         self.ask_price().to_f64()
     }
@@ -500,12 +540,14 @@ impl EodTick {
 
 impl SnapshotTradeTick {
     #[inline]
+    #[must_use]
     pub fn get_price(&self) -> Price {
         Price::new(self.price, self.price_type)
     }
 
     /// Decode trade price to `f64`.
     #[inline]
+    #[must_use]
     pub fn price_f64(&self) -> f64 {
         self.get_price().to_f64()
     }
@@ -513,30 +555,36 @@ impl SnapshotTradeTick {
 
 impl TradeQuoteTick {
     #[inline]
+    #[must_use]
     pub fn trade_price(&self) -> Price {
         Price::new(self.price, self.price_type)
     }
     #[inline]
+    #[must_use]
     pub fn bid_price(&self) -> Price {
         Price::new(self.bid, self.price_type)
     }
     #[inline]
+    #[must_use]
     pub fn ask_price(&self) -> Price {
         Price::new(self.ask, self.price_type)
     }
 
     /// Decode trade price to `f64`.
     #[inline]
+    #[must_use]
     pub fn trade_price_f64(&self) -> f64 {
         self.trade_price().to_f64()
     }
     /// Decode bid price to `f64`.
     #[inline]
+    #[must_use]
     pub fn bid_f64(&self) -> f64 {
         self.bid_price().to_f64()
     }
     /// Decode ask price to `f64`.
     #[inline]
+    #[must_use]
     pub fn ask_f64(&self) -> f64 {
         self.ask_price().to_f64()
     }
@@ -544,12 +592,14 @@ impl TradeQuoteTick {
 
 impl PriceTick {
     #[inline]
+    #[must_use]
     pub fn get_price(&self) -> Price {
         Price::new(self.price, self.price_type)
     }
 
     /// Decode price to `f64`.
     #[inline]
+    #[must_use]
     pub fn price_f64(&self) -> f64 {
         self.get_price().to_f64()
     }

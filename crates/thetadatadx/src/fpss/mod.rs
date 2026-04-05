@@ -1,3 +1,34 @@
+// reason: Networking/protocol layer with wire-format conversions,
+// builder patterns, and many Result-returning async methods.
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::must_use_candidate,
+    clippy::return_self_not_must_use,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap,
+    clippy::cast_lossless,
+    clippy::cast_precision_loss,
+    clippy::doc_markdown,
+    clippy::map_unwrap_or,
+    clippy::redundant_closure,
+    clippy::redundant_closure_for_method_calls,
+    clippy::items_after_statements,
+    clippy::manual_let_else,
+    clippy::uninlined_format_args,
+    clippy::unreadable_literal,
+    clippy::similar_names,
+    clippy::single_match_else,
+    clippy::needless_pass_by_value,
+    clippy::implicit_clone,
+    clippy::wildcard_imports,
+    clippy::match_same_arms,
+    clippy::redundant_else,
+    clippy::used_underscore_binding,
+    clippy::too_many_lines,
+    clippy::if_not_else
+)]
 //! FPSS (Feed Processing Streaming Server) real-time streaming client.
 //!
 //! # Architecture (from decompiled Java -- `FPSSClient.java`)
@@ -277,7 +308,7 @@ enum IoCommand {
 // FpssClient
 // ---------------------------------------------------------------------------
 
-/// Real-time streaming client for ThetaData's FPSS servers.
+/// Real-time streaming client for `ThetaData`'s FPSS servers.
 ///
 /// # Lifecycle (from `FPSSClient.java`)
 ///
@@ -320,7 +351,7 @@ pub struct FpssClient {
 unsafe impl Sync for FpssClient {}
 
 impl FpssClient {
-    /// Connect to a ThetaData FPSS server, authenticate, and start processing
+    /// Connect to a `ThetaData` FPSS server, authenticate, and start processing
     /// events via the provided callback.
     ///
     /// The callback runs on the Disruptor's consumer thread -- keep it fast.
@@ -524,7 +555,7 @@ impl FpssClient {
 
     /// Subscribe to all trades for a security type (full trade stream).
     ///
-    /// # Behavior (from ThetaData server)
+    /// # Behavior (from `ThetaData` server)
     ///
     /// The server sends a **bundle** per trade event (not just trades):
     /// 1. Pre-trade NBBO quote (last quote before the trade)
@@ -535,7 +566,7 @@ impl FpssClient {
     ///
     /// Your callback will receive [`FpssData::Quote`], [`FpssData::Trade`], and
     /// [`FpssData::Ohlcvc`] events interleaved. This is normal behavior from
-    /// the ThetaData FPSS server.
+    /// the `ThetaData` FPSS server.
     ///
     /// If OHLCVC derivation is enabled (default), you will also
     /// receive locally-derived [`FpssData::Ohlcvc`] after each trade. Pass

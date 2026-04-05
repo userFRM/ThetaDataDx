@@ -1,3 +1,33 @@
+// reason: Networking/protocol layer with wire-format conversions,
+// builder patterns, and many Result-returning async methods.
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::must_use_candidate,
+    clippy::return_self_not_must_use,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap,
+    clippy::cast_lossless,
+    clippy::cast_precision_loss,
+    clippy::doc_markdown,
+    clippy::map_unwrap_or,
+    clippy::redundant_closure,
+    clippy::redundant_closure_for_method_calls,
+    clippy::items_after_statements,
+    clippy::manual_let_else,
+    clippy::uninlined_format_args,
+    clippy::unreadable_literal,
+    clippy::similar_names,
+    clippy::single_match_else,
+    clippy::needless_pass_by_value,
+    clippy::implicit_clone,
+    clippy::wildcard_imports,
+    clippy::match_same_arms,
+    clippy::redundant_else,
+    clippy::used_underscore_binding,
+    clippy::too_many_lines
+)]
 //! FPSS message types, contract serialization, and subscription protocol.
 //!
 //! # Wire protocol (from decompiled Java)
@@ -92,7 +122,7 @@ pub struct Contract {
     /// True = call, false = put (options only).
     pub is_call: Option<bool>,
     /// Strike price in fixed-point (options only). The encoding matches
-    /// ThetaData's integer strike representation.
+    /// `ThetaData`'s integer strike representation.
     pub strike: Option<i32>,
 }
 
@@ -141,7 +171,7 @@ impl Contract {
     /// - `root`: Underlying ticker (e.g., "AAPL")
     /// - `exp_date`: Expiration as YYYYMMDD integer (e.g., 20260320)
     /// - `is_call`: true for call, false for put
-    /// - `strike`: Strike price in ThetaData's integer encoding
+    /// - `strike`: Strike price in `ThetaData`'s integer encoding
     pub fn option(root: impl Into<String>, exp_date: i32, is_call: bool, strike: i32) -> Self {
         Self {
             root: root.into(),
@@ -208,7 +238,7 @@ impl Contract {
             // exp_date: i32 big-endian
             buf.extend_from_slice(&self.exp_date.unwrap_or(0).to_be_bytes());
             // is_call: u8 (1 = call, 0 = put)
-            buf.push(if self.is_call.unwrap_or(false) { 1 } else { 0 });
+            buf.push(u8::from(self.is_call.unwrap_or(false)));
             // strike: i32 big-endian
             buf.extend_from_slice(&self.strike.unwrap_or(0).to_be_bytes());
         }

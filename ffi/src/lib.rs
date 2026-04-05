@@ -1,4 +1,8 @@
-//! C FFI layer for `thetadatadx` — exposes the Rust SDK as `extern "C"` functions.
+// reason: FFI layer uses raw pointers, extern "C" ABI, and manual memory
+// management throughout. Pedantic lints on casts, pointer constness, doc
+// formatting, and Result patterns don't apply to this calling convention.
+#![allow(clippy::pedantic)]
+//! C FFI layer for `thetadatadx` -- exposes the Rust SDK as `extern "C"` functions.
 //!
 //! This crate is compiled as both `cdylib` (shared library) and `staticlib` (archive).
 //! It is consumed by the Go (CGo) and C++ SDKs.

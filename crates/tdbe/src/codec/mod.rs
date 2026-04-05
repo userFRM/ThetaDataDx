@@ -1,4 +1,4 @@
-//! FIT/FIE codec for ThetaData's FPSS streaming protocol.
+//! FIT/FIE codec for `ThetaData`'s FPSS streaming protocol.
 //!
 //! Reverse-engineered from decompiled Java sources:
 //! - `FITReader.java` — nibble-oriented variable-length integer decoder (FIT)

@@ -1,4 +1,4 @@
-//! Trade sequence number handling for ThetaData FPSS streams.
+//! Trade sequence number handling for `ThetaData` FPSS streams.
 //!
 //! Provides wrapping-aware sequence tracking for i32 trade sequence numbers
 //! that overflow from `i32::MAX` to `i32::MIN` and map into a monotonic
@@ -21,8 +21,12 @@ pub struct TradeSequence {
 }
 
 impl TradeSequence {
-    /// Create from a raw sequence value (absolute = raw as u64).
+    /// Create from a raw sequence value (absolute = raw as `u64`).
     #[inline]
+    #[must_use]
+    // reason: Initial sequence values start at 0 and count up; negative raw
+    // values are only seen after overflow, at which point with_absolute is used.
+    #[allow(clippy::cast_sign_loss)]
     pub const fn new(raw: i64) -> Self {
         Self {
             raw,
@@ -32,36 +36,42 @@ impl TradeSequence {
 
     /// Create with an explicit absolute value.
     #[inline]
+    #[must_use]
     pub const fn with_absolute(raw: i64, absolute: u64) -> Self {
         Self { raw, absolute }
     }
 
     /// The raw (wire-format) sequence number.
     #[inline]
+    #[must_use]
     pub const fn raw(&self) -> i64 {
         self.raw
     }
 
     /// The monotonically-increasing absolute sequence number.
     #[inline]
+    #[must_use]
     pub const fn absolute(&self) -> u64 {
         self.absolute
     }
 
     /// True when the raw value is -1 (one step before overflow to 0).
     #[inline]
+    #[must_use]
     pub const fn is_at_overflow(&self) -> bool {
         self.raw == -1
     }
 
     /// True when this is 0 and the previous was -1 (second-cycle zero).
     #[inline]
+    #[must_use]
     pub const fn is_second_zero(&self, previous: &TradeSequence) -> bool {
         self.raw == 0 && previous.raw == -1
     }
 
     /// Compute the next sequence value, wrapping at `SEQUENCE_MAX`.
     #[inline]
+    #[must_use]
     pub const fn next(&self) -> Self {
         let next_raw = if self.raw == SEQUENCE_MAX {
             SEQUENCE_MIN
@@ -76,18 +86,21 @@ impl TradeSequence {
 
     /// Number of sequence steps from `self` to `other`.
     #[inline]
+    #[must_use]
     pub const fn gap_to(&self, other: &TradeSequence) -> u64 {
         other.absolute.saturating_sub(self.absolute)
     }
 
     /// True if there is a gap (> 1 step) between `self` and `previous`.
     #[inline]
+    #[must_use]
     pub const fn has_gap(&self, previous: &TradeSequence) -> bool {
         self.gap_to(previous) > 1 || previous.gap_to(self) > 1
     }
 
     /// Number of missing messages between `self` and `previous`.
     #[inline]
+    #[must_use]
     pub const fn missing_count(&self, previous: &TradeSequence) -> u64 {
         let gap = self.absolute.abs_diff(previous.absolute);
         gap.saturating_sub(1)
@@ -106,6 +119,7 @@ pub struct SequenceTracker {
 impl SequenceTracker {
     /// Create a fresh tracker with no history.
     #[inline]
+    #[must_use]
     pub const fn new() -> Self {
         Self {
             last: None,
@@ -116,6 +130,9 @@ impl SequenceTracker {
     }
 
     /// Process a raw sequence value, returning the update details.
+    // reason: Sequence numbers are i32 wire values mapped to u64 absolute counters.
+    // The i64->u64 casts are safe because we only cast non-negative computed offsets.
+    #[allow(clippy::cast_sign_loss)]
     pub fn process(&mut self, raw: i64) -> SequenceUpdate {
         let mut is_overflow = false;
         let mut is_gap = false;
@@ -175,6 +192,7 @@ impl SequenceTracker {
 
     /// The last processed sequence, if any.
     #[inline]
+    #[must_use]
     pub const fn last(&self) -> Option<&TradeSequence> {
         match &self.last {
             Some(seq) => Some(seq),
@@ -184,18 +202,21 @@ impl SequenceTracker {
 
     /// Total number of overflow events detected.
     #[inline]
+    #[must_use]
     pub const fn overflow_count(&self) -> u64 {
         self.overflow_count
     }
 
     /// Total number of gap events detected.
     #[inline]
+    #[must_use]
     pub const fn gap_count(&self) -> u64 {
         self.gap_count
     }
 
     /// Total number of missing messages across all gaps.
     #[inline]
+    #[must_use]
     pub const fn missing_messages(&self) -> u64 {
         self.missing_messages
     }
@@ -227,6 +248,10 @@ pub struct SequenceUpdate {
 
 /// Convert a signed raw sequence to an unsigned absolute value.
 #[inline]
+#[must_use]
+// reason: Mapping i32-range signed values to u64 absolute counter.
+// Result is always non-negative (SEQUENCE_RANGE + signed >= 0 when signed >= SEQUENCE_MIN).
+#[allow(clippy::cast_sign_loss)]
 pub const fn signed_to_unsigned(signed: i64) -> u64 {
     if signed >= 0 {
         signed as u64
@@ -237,6 +262,10 @@ pub const fn signed_to_unsigned(signed: i64) -> u64 {
 
 /// Convert an unsigned absolute value back to a signed raw sequence.
 #[inline]
+#[must_use]
+// reason: Converting between i32-range sequence values and u64 absolute counter.
+// Values are bounded by SEQUENCE_RANGE (~4 billion), well within i64 range.
+#[allow(clippy::cast_sign_loss, clippy::cast_possible_wrap)]
 pub const fn unsigned_to_signed(unsigned: u64) -> i64 {
     if unsigned <= SEQUENCE_MAX as u64 {
         unsigned as i64

@@ -1,3 +1,6 @@
+// reason: CLI tool with many short-lived functions, format strings, and
+// display logic. Pedantic lints add noise without safety benefit here.
+#![allow(clippy::pedantic)]
 use std::process;
 
 use clap::{Arg, ArgMatches, Command};

@@ -1,4 +1,4 @@
-//! Authentication for ThetaData direct server access.
+//! Authentication for `ThetaData` direct server access.
 //!
 //! Two sub-modules handle the two halves of the auth story:
 //!

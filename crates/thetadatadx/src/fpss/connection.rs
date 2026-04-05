@@ -1,3 +1,32 @@
+// reason: Networking/protocol layer with wire-format conversions,
+// builder patterns, and many Result-returning async methods.
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::must_use_candidate,
+    clippy::return_self_not_must_use,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap,
+    clippy::cast_lossless,
+    clippy::cast_precision_loss,
+    clippy::doc_markdown,
+    clippy::map_unwrap_or,
+    clippy::redundant_closure,
+    clippy::redundant_closure_for_method_calls,
+    clippy::items_after_statements,
+    clippy::manual_let_else,
+    clippy::uninlined_format_args,
+    clippy::unreadable_literal,
+    clippy::similar_names,
+    clippy::single_match_else,
+    clippy::needless_pass_by_value,
+    clippy::implicit_clone,
+    clippy::wildcard_imports,
+    clippy::match_same_arms,
+    clippy::redundant_else,
+    clippy::used_underscore_binding
+)]
 //! TLS TCP connection to FPSS servers.
 //!
 //! # Transport (from decompiled Java -- `FPSSClient.java`)
@@ -70,12 +99,12 @@ pub fn connect_to_servers(
 
 /// Build a shared rustls `ClientConfig` that skips certificate verification.
 ///
-/// ThetaData's FPSS servers use TLS certificates that have been expired since
+/// `ThetaData`'s FPSS servers use TLS certificates that have been expired since
 /// January 2024. The Java terminal uses `SSLSocketFactory.getDefault()` which
 /// in practice accepts expired certs. We match that behavior by disabling
 /// certificate verification for FPSS connections.
 ///
-/// This is safe because FPSS is a direct connection to ThetaData's known
+/// This is safe because FPSS is a direct connection to `ThetaData`'s known
 /// servers (not user-facing web traffic), and the TLS layer still provides
 /// encryption -- only the certificate chain validation is skipped.
 fn tls_client_config() -> Arc<ClientConfig> {
