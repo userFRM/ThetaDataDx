@@ -621,7 +621,7 @@ mod config_file {
         /// [fpss]
         /// hosts = ["nj-a.thetadata.us:20000", "nj-b.thetadata.us:20000"]
         /// reconnect_wait = 2000
-        /// queue_depth = 100_0000
+        /// queue_depth = 1_000_000
         /// flush_mode = "batched"  # or "immediate"
         ///
         /// [grpc]

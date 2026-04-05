@@ -406,22 +406,6 @@ type cTradeQuoteTick struct {
 	_pad            [128 - 30*4]byte
 }
 
-// cSnapshotTradeTick mirrors TdxSnapshotTradeTick #[repr(C, align(64))]
-type cSnapshotTradeTick struct {
-	MsOfDay         int32
-	Sequence        int32
-	Size            int32
-	Condition       int32
-	Price           int32
-	PriceType       int32
-	Date            int32
-	Expiration      int32
-	Strike          int32
-	Right           int32
-	StrikePriceType int32
-	_pad            [64 - 11*4]byte
-}
-
 // cOptionContract mirrors TdxOptionContract from FFI
 type cOptionContract struct {
 	Root           uintptr // *const c_char
@@ -660,22 +644,6 @@ type InterestRateTick struct {
 	MsOfDay int     `json:"ms_of_day"`
 	Rate    float64 `json:"rate"`
 	Date    int     `json:"date"`
-}
-
-type SnapshotTradeTick struct {
-	MsOfDay        int     `json:"ms_of_day"`
-	Sequence       int     `json:"sequence"`
-	Size           int     `json:"size"`
-	Condition      int     `json:"condition"`
-	Price          float64 `json:"price"`
-	PriceRaw       int     `json:"price_raw,omitempty"`
-	PriceType      int     `json:"price_type"`
-	Date           int     `json:"date"`
-	Expiration     int32   `json:"expiration,omitempty"`
-	Strike         int32   `json:"strike,omitempty"`
-	Right          string  `json:"right,omitempty"`
-	RightRaw       int32   `json:"right_raw,omitempty"`
-	StrikePriceType int32  `json:"strike_price_type,omitempty"`
 }
 
 type OptionContract struct {
@@ -937,22 +905,6 @@ func convertInterestRateTicks(arr C.TdxTickArray) []InterestRateTick {
 	src := unsafe.Slice((*cInterestRateTick)(arr.data), n)
 	result := make([]InterestRateTick, n)
 	for i, t := range src { result[i] = InterestRateTick{int(t.MsOfDay), t.Rate, int(t.Date)} }
-	return result
-}
-
-func convertSnapshotTradeTicks(arr C.TdxTickArray) []SnapshotTradeTick {
-	if arr.data == nil || arr.len == 0 { return nil }
-	n := int(arr.len)
-	src := unsafe.Slice((*cSnapshotTradeTick)(arr.data), n)
-	result := make([]SnapshotTradeTick, n)
-	for i, t := range src {
-		result[i] = SnapshotTradeTick{
-			MsOfDay: int(t.MsOfDay), Sequence: int(t.Sequence), Size: int(t.Size),
-			Condition: int(t.Condition), Price: priceToFloat(t.Price, t.PriceType),
-			PriceRaw: int(t.Price), PriceType: int(t.PriceType), Date: int(t.Date),
-			Expiration: t.Expiration, Strike: t.Strike, Right: RightStr(int32(t.Right)), RightRaw: t.Right, StrikePriceType: t.StrikePriceType,
-		}
-	}
 	return result
 }
 

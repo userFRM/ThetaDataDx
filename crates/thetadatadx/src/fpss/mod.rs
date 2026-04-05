@@ -381,7 +381,7 @@ impl FpssClient {
     ///
     /// `hosts` is the full FPSS server list, needed for auto-reconnect to try
     /// all servers. Pass an empty slice to disable reconnection to other servers.
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)] // Reason: FFI boundary requires all connection params in one call
     pub(crate) fn connect_with_stream<F>(
         creds: &Credentials,
         mut stream: connection::FpssStream,
@@ -1400,7 +1400,7 @@ impl OhlcvcAccumulator {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)] // Reason: OHLCVC bar has many fields from server init message
     fn init_from_server(
         &mut self,
         ms_of_day: i32,

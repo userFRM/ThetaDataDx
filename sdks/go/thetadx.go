@@ -57,7 +57,6 @@ extern void tdx_open_interest_tick_array_free(TdxTickArray arr);
 extern void tdx_market_value_tick_array_free(TdxTickArray arr);
 extern void tdx_calendar_day_array_free(TdxTickArray arr);
 extern void tdx_interest_rate_tick_array_free(TdxTickArray arr);
-extern void tdx_snapshot_trade_tick_array_free(TdxTickArray arr);
 extern void tdx_trade_quote_tick_array_free(TdxTickArray arr);
 extern void tdx_option_contract_array_free(TdxOptionContractArray arr);
 extern void tdx_string_array_free(TdxStringArray arr);

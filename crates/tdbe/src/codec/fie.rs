@@ -331,7 +331,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "not in FIE alphabet")]
     fn panicking_version_rejects_bad_char() {
-        string_to_fie_line("ABC");
+        let _ = string_to_fie_line("ABC");
     }
 
     #[test]

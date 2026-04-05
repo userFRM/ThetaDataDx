@@ -436,7 +436,7 @@ fn option_contract_to_dict(py: Python<'_>, c: &tick::OptionContract) -> Py<PyAny
 ///     vanna, charm, vomma, veta, speed, zomma, color, ultima,
 ///     d1, d2, dual_delta, dual_gamma, epsilon, lambda
 #[pyfunction]
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)] // Reason: mirrors Black-Scholes parameter set expected by Python callers
 fn all_greeks(
     py: Python<'_>,
     spot: f64,
@@ -479,7 +479,7 @@ fn all_greeks(
 /// Returns:
 ///     Tuple of (iv, error)
 #[pyfunction]
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)] // Reason: mirrors Black-Scholes parameter set expected by Python callers
 fn implied_volatility(
     spot: f64,
     strike: f64,
@@ -2091,7 +2091,7 @@ impl ThetaDataDx {
 
     // Option — At-Time (2)
 
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)] // Reason: ThetaData API requires all option identifiers + date range + time
     fn option_at_time_trade(
         &self,
         py: Python<'_>,
@@ -2118,7 +2118,7 @@ impl ThetaDataDx {
         })?;
         Ok(ticks.iter().map(|t| trade_tick_to_dict(py, t)).collect())
     }
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)] // Reason: ThetaData API requires all option identifiers + date range + time
     fn option_at_time_quote(
         &self,
         py: Python<'_>,

@@ -189,20 +189,6 @@ typedef struct __attribute__((aligned(64))) {
 typedef struct __attribute__((aligned(64))) {
     int32_t ms_of_day;
     int32_t sequence;
-    int32_t size;
-    int32_t condition;
-    int32_t price;
-    int32_t price_type;
-    int32_t date;
-    int32_t expiration;
-    int32_t strike;
-    int32_t right;
-    int32_t strike_price_type;
-} TdxSnapshotTradeTick;
-
-typedef struct __attribute__((aligned(64))) {
-    int32_t ms_of_day;
-    int32_t sequence;
     int32_t ext_condition1;
     int32_t ext_condition2;
     int32_t ext_condition3;
