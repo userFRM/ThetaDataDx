@@ -1,8 +1,8 @@
-//! Encoding-layer errors for ThetaData Binary Encoding.
+//! Encoding-layer errors for `ThetaData` Binary Encoding.
 
 use thiserror::Error;
 
-/// Encoding-layer errors for ThetaData Binary Encoding.
+/// Encoding-layer errors for `ThetaData` Binary Encoding.
 #[derive(Error, Debug)]
 pub enum Error {
     /// FIT nibble decoding failure (malformed input, unexpected terminator).

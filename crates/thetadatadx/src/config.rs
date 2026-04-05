@@ -1,8 +1,8 @@
-//! Server configuration for direct ThetaData access.
+//! Server configuration for direct `ThetaData` access.
 //!
 //! # Server topology (from decompiled Java + `config_0.properties`)
 //!
-//! ThetaData runs two server types in their NJ datacenter:
+//! `ThetaData` runs two server types in their NJ datacenter:
 //!
 //! ## MDDS — Market Data Distribution Server (gRPC, historical data)
 //!
@@ -91,7 +91,7 @@ pub enum FpssFlushMode {
     Immediate,
 }
 
-/// Configuration for connecting to ThetaData servers directly.
+/// Configuration for connecting to `ThetaData` servers directly.
 ///
 /// Use [`DirectConfig::production()`] for the standard NJ production servers.
 #[derive(Debug, Clone)]
@@ -210,7 +210,7 @@ pub struct DirectConfig {
     /// NOTE: Not automatically wired — caller should pass to `fpss::reconnect()`.
     pub reconnect_wait_ms: u64,
 
-    /// Delay before reconnecting after a TooManyRequests disconnect, in milliseconds.
+    /// Delay before reconnecting after a `TooManyRequests` disconnect, in milliseconds.
     ///
     /// Source: `FPSSClient.handleInvoluntaryDisconnect()` — 130 second wait.
     ///
@@ -244,12 +244,13 @@ pub struct DirectConfig {
 }
 
 impl DirectConfig {
-    /// Production configuration for ThetaData's NJ datacenter.
+    /// Production configuration for `ThetaData`'s NJ datacenter.
     ///
     /// All values extracted from the decompiled Java terminal:
     /// - MDDS: `mdds-01.thetadata.us:443` (gRPC over TLS)
     /// - FPSS: 4 hosts from `config_0.properties` `FPSS_NJ_HOSTS`
     /// - Timeouts: from `config_0.properties`
+    #[must_use]
     pub fn production() -> Self {
         Self {
             // Source: MddsConnectionManager (v3 gRPC path)
@@ -302,7 +303,7 @@ impl DirectConfig {
 
     /// Dev FPSS configuration.
     ///
-    /// Connects to ThetaData's dev FPSS servers (port 20200) which replay
+    /// Connects to `ThetaData`'s dev FPSS servers (port 20200) which replay
     /// a random historical trading day in an infinite loop at maximum speed.
     /// Designed for development and testing when markets are closed.
     ///
@@ -314,6 +315,7 @@ impl DirectConfig {
     /// Note: dev server replays data at max speed, so queue and ring sizes
     /// match production to avoid drops. Some contracts may not exist on
     /// the replayed day.
+    #[must_use]
     pub fn dev() -> Self {
         let mut config = Self::production();
         // Source: config.toml fpss_dev_hosts
@@ -327,12 +329,13 @@ impl DirectConfig {
 
     /// Stage FPSS configuration.
     ///
-    /// Connects to ThetaData's staging FPSS servers (port 20100).
+    /// Connects to `ThetaData`'s staging FPSS servers (port 20100).
     /// Frequent reboots, testing data. Not stable.
     ///
     /// MDDS (historical) still uses production servers.
     ///
     /// Source: `config.toml` `fpss_stage_hosts`
+    #[must_use]
     pub fn stage() -> Self {
         let mut config = Self::production();
         // Source: config.toml fpss_stage_hosts
@@ -347,6 +350,7 @@ impl DirectConfig {
     /// Build the MDDS gRPC endpoint URI.
     ///
     /// Returns a URI suitable for `tonic::transport::Channel::from_static()`.
+    #[must_use]
     pub fn mdds_uri(&self) -> String {
         let scheme = if self.mdds_tls { "https" } else { "http" };
         format!("{}://{}:{}", scheme, self.mdds_host, self.mdds_port)
@@ -356,6 +360,7 @@ impl DirectConfig {
     ///
     /// When `false`, only server-sent OHLCVC frames are emitted,
     /// reducing per-trade throughput overhead.
+    #[must_use]
     pub fn derive_ohlcvc(mut self, enabled: bool) -> Self {
         self.derive_ohlcvc = enabled;
         self
@@ -364,6 +369,9 @@ impl DirectConfig {
     /// Parse FPSS hosts from a comma-separated `host:port,host:port,...` string.
     ///
     /// This is the format used in `config_0.properties` for `FPSS_NJ_HOSTS`.
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
     pub fn parse_fpss_hosts(hosts_str: &str) -> Result<Vec<(String, u16)>, Error> {
         let mut result = Vec::new();
 
@@ -568,7 +576,7 @@ mod config_file {
         /// [fpss]
         /// hosts = ["nj-a.thetadata.us:20000", "nj-b.thetadata.us:20000"]
         /// reconnect_wait = 2000
-        /// queue_depth = 1000000
+        /// queue_depth = 100_0000
         /// flush_mode = "batched"  # or "immediate"
         ///
         /// [grpc]
@@ -576,6 +584,9 @@ mod config_file {
         /// connection_window_size_kb = 64
         /// concurrent_requests = 0  # 0 = auto from tier
         /// ```
+        /// # Errors
+        ///
+        /// Returns an error on network, authentication, or parsing failure.
         pub fn from_file(path: impl AsRef<std::path::Path>) -> Result<Self, Error> {
             let contents = std::fs::read_to_string(path.as_ref()).map_err(|e| {
                 Error::Config(format!(
@@ -589,6 +600,9 @@ mod config_file {
         /// Parse configuration from a TOML string.
         ///
         /// Same semantics as [`from_file`](Self::from_file) but takes a string directly.
+        /// # Errors
+        ///
+        /// Returns an error on network, authentication, or parsing failure.
         pub fn from_toml_str(toml_str: &str) -> Result<Self, Error> {
             let cf: ConfigFile = toml::from_str(toml_str)
                 .map_err(|e| Error::Config(format!("failed to parse TOML config: {e}")))?;

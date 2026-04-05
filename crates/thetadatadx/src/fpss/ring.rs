@@ -58,6 +58,7 @@ pub struct AdaptiveWaitStrategy {
 
 impl AdaptiveWaitStrategy {
     /// Create a new adaptive wait strategy with custom iteration counts.
+    #[must_use]
     pub fn new(spin_iters: u32, yield_iters: u32) -> Self {
         Self {
             spin_iters,
@@ -65,11 +66,12 @@ impl AdaptiveWaitStrategy {
         }
     }
 
-    /// Tuned for FPSS: 100 spins + 10 yields before falling back to spin_loop hint.
+    /// Tuned for FPSS: 100 spins + 10 yields before falling back to `spin_loop` hint.
     ///
     /// At ~3ns per spin iteration, 100 spins = ~300ns -- well within the typical
     /// FPSS tick interval. This matches the Java terminal's Disruptor configuration
     /// for real-time market data processing.
+    #[must_use]
     pub fn fpss_default() -> Self {
         Self::new(100, 10)
     }
@@ -100,7 +102,7 @@ impl disruptor::wait_strategies::WaitStrategy for AdaptiveWaitStrategy {
 /// Slots are pre-allocated by the ring buffer and reused. The `event` field
 /// holds `None` for unused slots and `Some(FpssEvent)` for published events.
 ///
-/// # Why not store FpssEvent directly?
+/// # Why not store `FpssEvent` directly?
 ///
 /// `FpssEvent` has variants with `Vec<u8>` payloads and `String` fields that
 /// cannot be meaningfully pre-allocated. Using `Option<FpssEvent>` lets us

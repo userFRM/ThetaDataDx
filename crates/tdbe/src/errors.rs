@@ -1,10 +1,10 @@
-//! ThetaData HTTP/gRPC error code mapping.
+//! `ThetaData` HTTP/gRPC error code mapping.
 //!
 //! The MDDS server returns numeric error codes in HTTP status and gRPC
 //! metadata. This module maps those codes to human-readable names and
 //! descriptions.
 
-/// A ThetaData error code with its HTTP status, short name, and description.
+/// A `ThetaData` error code with its HTTP status, short name, and description.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ThetaDataError {
     pub http_code: u16,
@@ -87,6 +87,7 @@ const ERRORS: &[ThetaDataError] = &[
 
 /// Look up a `ThetaDataError` by its HTTP status code.
 #[inline]
+#[must_use]
 pub fn error_from_http_code(code: u16) -> Option<&'static ThetaDataError> {
     ERRORS.iter().find(|e| e.http_code == code)
 }
@@ -96,11 +97,12 @@ pub fn error_from_http_code(code: u16) -> Option<&'static ThetaDataError> {
 /// The metadata string is expected to contain `http_status_code=NNN` or just
 /// the numeric code itself. Returns `None` if no valid code is found or the
 /// code is not in the known error table.
+#[must_use]
 pub fn error_from_grpc_metadata(metadata: &str) -> Option<&'static ThetaDataError> {
     // Try "http_status_code=NNN" first.
     if let Some(pos) = metadata.find("http_status_code=") {
         let after = &metadata[pos + "http_status_code=".len()..];
-        let num_str: String = after.chars().take_while(|c| c.is_ascii_digit()).collect();
+        let num_str: String = after.chars().take_while(char::is_ascii_digit).collect();
         if let Ok(code) = num_str.parse::<u16>() {
             return error_from_http_code(code);
         }
@@ -114,6 +116,7 @@ pub fn error_from_grpc_metadata(metadata: &str) -> Option<&'static ThetaDataErro
 
 /// Human-readable error name for an HTTP status code, or `"UNKNOWN"`.
 #[inline]
+#[must_use]
 pub fn error_name(code: u16) -> &'static str {
     error_from_http_code(code).map_or("UNKNOWN", |e| e.name)
 }

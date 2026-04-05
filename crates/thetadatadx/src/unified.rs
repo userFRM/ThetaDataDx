@@ -1,4 +1,4 @@
-//! Unified ThetaData client -- single entry point, one auth, lazy FPSS.
+//! Unified `ThetaData` client -- single entry point, one auth, lazy FPSS.
 //!
 //! Connect once. Use historical data immediately. Streaming connects
 //! on-demand when you first subscribe -- not at startup.
@@ -43,7 +43,7 @@ use crate::fpss::protocol::{Contract, SubscriptionKind};
 use crate::fpss::{FpssClient, FpssEvent};
 use tdbe::types::enums::SecType;
 
-/// Unified ThetaData client.
+/// Unified `ThetaData` client.
 ///
 /// Authenticates once at connect time. Historical data (MDDS gRPC) is
 /// available immediately. Streaming (FPSS TCP) connects lazily when
@@ -58,10 +58,13 @@ pub struct ThetaDataDx {
 }
 
 impl ThetaDataDx {
-    /// Connect to ThetaData. Authenticates once, opens gRPC channel.
+    /// Connect to `ThetaData`. Authenticates once, opens gRPC channel.
     ///
     /// FPSS streaming is NOT connected yet -- call [`start_streaming`]
     /// when you need real-time data.
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
     pub async fn connect(creds: &Credentials, config: DirectConfig) -> Result<Self, Error> {
         let historical = DirectClient::connect(creds, config).await?;
         Ok(Self {
@@ -73,16 +76,22 @@ impl ThetaDataDx {
 
     /// Start the FPSS streaming connection with a callback handler.
     ///
-    /// This opens a TLS/TCP connection to ThetaData's FPSS servers,
+    /// This opens a TLS/TCP connection to `ThetaData`'s FPSS servers,
     /// authenticates with the same credentials used at connect time,
     /// and starts the Disruptor ring buffer + I/O thread.
     ///
     /// The callback runs on the Disruptor consumer thread -- keep it fast.
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
     pub fn start_streaming<F>(&self, handler: F) -> Result<(), Error>
     where
         F: FnMut(&FpssEvent) + Send + 'static,
     {
-        let mut guard = self.streaming.lock().unwrap_or_else(|e| e.into_inner());
+        let mut guard = self
+            .streaming
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if guard.is_some() {
             return Err(Error::Fpss("streaming already started".into()));
         }
@@ -104,7 +113,7 @@ impl ThetaDataDx {
     pub fn is_streaming(&self) -> bool {
         self.streaming
             .lock()
-            .unwrap_or_else(|e| e.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .is_some()
     }
 
@@ -114,7 +123,10 @@ impl ThetaDataDx {
         &self,
         f: impl FnOnce(&FpssClient) -> Result<R, Error>,
     ) -> Result<R, Error> {
-        let guard = self.streaming.lock().unwrap_or_else(|e| e.into_inner());
+        let guard = self
+            .streaming
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let client = guard.as_ref().ok_or_else(|| {
             Error::Fpss("streaming not started -- call start_streaming() first".into())
         })?;
@@ -122,78 +134,123 @@ impl ThetaDataDx {
     }
 
     /// Subscribe to quote updates for a contract.
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
     pub fn subscribe_quotes(&self, contract: &Contract) -> Result<i32, Error> {
         self.with_streaming(|s| s.subscribe_quotes(contract))
     }
 
     /// Subscribe to trade updates for a contract.
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
     pub fn subscribe_trades(&self, contract: &Contract) -> Result<i32, Error> {
         self.with_streaming(|s| s.subscribe_trades(contract))
     }
 
     /// Subscribe to open interest updates for a contract.
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
     pub fn subscribe_open_interest(&self, contract: &Contract) -> Result<i32, Error> {
         self.with_streaming(|s| s.subscribe_open_interest(contract))
     }
 
     /// Subscribe to all trades for a security type (firehose).
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
     pub fn subscribe_full_trades(&self, sec_type: SecType) -> Result<i32, Error> {
         self.with_streaming(|s| s.subscribe_full_trades(sec_type))
     }
 
     /// Subscribe to all open interest for a security type (firehose).
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
     pub fn subscribe_full_open_interest(&self, sec_type: SecType) -> Result<i32, Error> {
         self.with_streaming(|s| s.subscribe_full_open_interest(sec_type))
     }
 
     /// Unsubscribe from quote updates for a contract.
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
     pub fn unsubscribe_quotes(&self, contract: &Contract) -> Result<i32, Error> {
         self.with_streaming(|s| s.unsubscribe_quotes(contract))
     }
 
     /// Unsubscribe from trade updates for a contract.
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
     pub fn unsubscribe_trades(&self, contract: &Contract) -> Result<i32, Error> {
         self.with_streaming(|s| s.unsubscribe_trades(contract))
     }
 
     /// Unsubscribe from open interest updates for a contract.
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
     pub fn unsubscribe_open_interest(&self, contract: &Contract) -> Result<i32, Error> {
         self.with_streaming(|s| s.unsubscribe_open_interest(contract))
     }
 
     /// Unsubscribe from all trades for a security type.
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
     pub fn unsubscribe_full_trades(&self, sec_type: SecType) -> Result<i32, Error> {
         self.with_streaming(|s| s.unsubscribe_full_trades(sec_type))
     }
 
     /// Unsubscribe from all open interest for a security type.
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
     pub fn unsubscribe_full_open_interest(&self, sec_type: SecType) -> Result<i32, Error> {
         self.with_streaming(|s| s.unsubscribe_full_open_interest(sec_type))
     }
 
     /// Get the current contract ID to Contract mapping.
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
     pub fn contract_map(&self) -> Result<HashMap<i32, Contract>, Error> {
         self.with_streaming(|s| Ok(s.contract_map()))
     }
 
     /// Look up a contract by its server-assigned ID.
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
     pub fn contract_lookup(&self, id: i32) -> Result<Option<Contract>, Error> {
         self.with_streaming(|s| Ok(s.contract_lookup(id)))
     }
 
     /// Get all active per-contract subscriptions.
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
     pub fn active_subscriptions(&self) -> Result<Vec<(SubscriptionKind, Contract)>, Error> {
         self.with_streaming(|s| Ok(s.active_subscriptions()))
     }
 
     /// Get all active full-type (firehose) subscriptions.
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
     pub fn active_full_subscriptions(&self) -> Result<Vec<(SubscriptionKind, SecType)>, Error> {
         self.with_streaming(|s| Ok(s.active_full_subscriptions()))
     }
 
     /// Shut down the streaming connection. Historical remains available.
     pub fn stop_streaming(&self) {
-        let mut guard = self.streaming.lock().unwrap_or_else(|e| e.into_inner());
+        let mut guard = self
+            .streaming
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(client) = guard.take() {
             client.shutdown();
         }
@@ -211,6 +268,9 @@ impl ThetaDataDx {
     /// 2. Stop the current streaming connection
     /// 3. Start a new streaming connection with the provided handler
     /// 4. Re-subscribe all saved subscriptions
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
     pub fn reconnect_streaming<F>(&self, handler: F) -> Result<(), Error>
     where
         F: FnMut(&FpssEvent) + Send + 'static,
@@ -218,7 +278,10 @@ impl ThetaDataDx {
         metrics::counter!("thetadatadx.fpss.reconnects").increment(1);
         // 1. Save active subscriptions before stopping
         let saved_subs = {
-            let guard = self.streaming.lock().unwrap_or_else(|e| e.into_inner());
+            let guard = self
+                .streaming
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             match guard.as_ref() {
                 Some(client) => (
                     client.active_subscriptions(),

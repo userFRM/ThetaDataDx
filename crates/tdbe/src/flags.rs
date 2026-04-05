@@ -1,6 +1,6 @@
 //! Bit flags and condition codes for market data records.
 //!
-//! ThetaData encodes trade conditions and price flags as integer bit fields.
+//! `ThetaData` encodes trade conditions and price flags as integer bit fields.
 //! This module provides named constants and helper functions for decoding them.
 
 /// Trade condition codes (from `ext_condition1` through `condition` fields).
@@ -12,7 +12,7 @@ pub mod trade {
     pub const RTH_START_MS: i32 = 34_200_000;
     pub const RTH_END_MS: i32 = 57_600_000;
 
-    /// Seller-initiated trade (ext_condition1 == 12).
+    /// Seller-initiated trade (`ext_condition1` == 12).
     pub const SELLER_CONDITION: i32 = 12;
 }
 

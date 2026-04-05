@@ -1,4 +1,4 @@
-//! Trade and quote condition lookup tables for ThetaData market data.
+//! Trade and quote condition lookup tables for `ThetaData` market data.
 //!
 //! Combines trade conditions (149 codes) and quote conditions (75 codes)
 //! into a single module with simple index-based lookups.
@@ -8,6 +8,8 @@
 // ───────────────────────────────────────────────────────────────────────
 
 /// A trade condition code with its properties.
+// Reason: 8 booleans match the exchange specification flags 1:1.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TradeCondition {
     pub code: i32,
@@ -1968,12 +1970,12 @@ pub const TRADE_CONDITIONS: [TradeCondition; 149] = [
 ///
 /// Returns `"UNKNOWN"` for codes outside the known range.
 #[inline]
+#[must_use]
 pub fn condition_name(code: i32) -> &'static str {
-    if code >= 0 && (code as usize) < TRADE_CONDITIONS.len() {
-        TRADE_CONDITIONS[code as usize].name
-    } else {
-        "UNKNOWN"
-    }
+    usize::try_from(code)
+        .ok()
+        .filter(|&idx| idx < TRADE_CONDITIONS.len())
+        .map_or("UNKNOWN", |idx| TRADE_CONDITIONS[idx].name)
 }
 
 /// Look up the description for a trade condition code.
@@ -1981,32 +1983,32 @@ pub fn condition_name(code: i32) -> &'static str {
 /// Returns `""` for codes outside the known range.
 /// O(1) array-index lookup.
 #[inline]
+#[must_use]
 pub fn condition_description(code: i32) -> &'static str {
-    if code >= 0 && (code as usize) < TRADE_CONDITIONS.len() {
-        TRADE_CONDITIONS[code as usize].description
-    } else {
-        ""
-    }
+    usize::try_from(code)
+        .ok()
+        .filter(|&idx| idx < TRADE_CONDITIONS.len())
+        .map_or("", |idx| TRADE_CONDITIONS[idx].description)
 }
 
 /// True if this trade condition code represents a cancellation.
 #[inline]
+#[must_use]
 pub fn is_cancel(code: i32) -> bool {
-    if code >= 0 && (code as usize) < TRADE_CONDITIONS.len() {
-        TRADE_CONDITIONS[code as usize].cancel
-    } else {
-        false
-    }
+    usize::try_from(code)
+        .ok()
+        .filter(|&idx| idx < TRADE_CONDITIONS.len())
+        .is_some_and(|idx| TRADE_CONDITIONS[idx].cancel)
 }
 
 /// True if this trade condition updates volume.
 #[inline]
+#[must_use]
 pub fn updates_volume(code: i32) -> bool {
-    if code >= 0 && (code as usize) < TRADE_CONDITIONS.len() {
-        TRADE_CONDITIONS[code as usize].volume
-    } else {
-        false
-    }
+    usize::try_from(code)
+        .ok()
+        .filter(|&idx| idx < TRADE_CONDITIONS.len())
+        .is_some_and(|idx| TRADE_CONDITIONS[idx].volume)
 }
 
 // ───────────────────────────────────────────────────────────────────────
@@ -2556,12 +2558,12 @@ pub const QUOTE_CONDITIONS: [QuoteCondition; 75] = [
 ///
 /// Returns `"UNKNOWN"` for codes outside the known range.
 #[inline]
+#[must_use]
 pub fn quote_condition_name(code: i32) -> &'static str {
-    if code >= 0 && (code as usize) < QUOTE_CONDITIONS.len() {
-        QUOTE_CONDITIONS[code as usize].name
-    } else {
-        "UNKNOWN"
-    }
+    usize::try_from(code)
+        .ok()
+        .filter(|&idx| idx < QUOTE_CONDITIONS.len())
+        .map_or("UNKNOWN", |idx| QUOTE_CONDITIONS[idx].name)
 }
 
 /// Look up the description for a quote condition code.
@@ -2569,32 +2571,32 @@ pub fn quote_condition_name(code: i32) -> &'static str {
 /// Returns `""` for codes outside the known range.
 /// O(1) array-index lookup.
 #[inline]
+#[must_use]
 pub fn quote_condition_description(code: i32) -> &'static str {
-    if code >= 0 && (code as usize) < QUOTE_CONDITIONS.len() {
-        QUOTE_CONDITIONS[code as usize].description
-    } else {
-        ""
-    }
+    usize::try_from(code)
+        .ok()
+        .filter(|&idx| idx < QUOTE_CONDITIONS.len())
+        .map_or("", |idx| QUOTE_CONDITIONS[idx].description)
 }
 
 /// True if this quote condition represents a firm quote.
 #[inline]
+#[must_use]
 pub fn is_firm(code: i32) -> bool {
-    if code >= 0 && (code as usize) < QUOTE_CONDITIONS.len() {
-        QUOTE_CONDITIONS[code as usize].firm
-    } else {
-        false
-    }
+    usize::try_from(code)
+        .ok()
+        .filter(|&idx| idx < QUOTE_CONDITIONS.len())
+        .is_some_and(|idx| QUOTE_CONDITIONS[idx].firm)
 }
 
 /// True if this quote condition indicates a trading halt.
 #[inline]
+#[must_use]
 pub fn is_halted(code: i32) -> bool {
-    if code >= 0 && (code as usize) < QUOTE_CONDITIONS.len() {
-        QUOTE_CONDITIONS[code as usize].halted
-    } else {
-        false
-    }
+    usize::try_from(code)
+        .ok()
+        .filter(|&idx| idx < QUOTE_CONDITIONS.len())
+        .is_some_and(|idx| QUOTE_CONDITIONS[idx].halted)
 }
 
 #[cfg(test)]

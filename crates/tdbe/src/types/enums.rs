@@ -9,6 +9,7 @@ pub enum SecType {
 }
 
 impl SecType {
+    #[must_use]
     pub fn from_code(code: i32) -> Option<Self> {
         match code {
             0 => Some(Self::Stock),
@@ -19,6 +20,7 @@ impl SecType {
         }
     }
 
+    #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Stock => "STOCK",
@@ -142,6 +144,7 @@ pub enum DataType {
 }
 
 impl DataType {
+    #[must_use]
     pub fn from_code(code: i32) -> Option<Self> {
         // Generated from the Java enum
         match code {
@@ -241,6 +244,7 @@ impl DataType {
     }
 
     /// Whether this data type represents a price value (needs Price decoding).
+    #[must_use]
     pub fn is_price(&self) -> bool {
         matches!(
             self,
@@ -344,6 +348,7 @@ pub enum ReqType {
 }
 
 impl ReqType {
+    #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Eod => "EOD",
@@ -391,6 +396,7 @@ pub enum StreamMsgType {
 
 impl StreamMsgType {
     #[inline]
+    #[must_use]
     pub fn from_code(code: u8) -> Option<Self> {
         match code {
             0 => Some(Self::Credentials),
@@ -461,6 +467,7 @@ pub enum Right {
 }
 
 impl Right {
+    #[must_use]
     pub fn from_char(c: char) -> Option<Self> {
         match c {
             'C' | 'c' => Some(Self::Call),
@@ -469,6 +476,7 @@ impl Right {
         }
     }
 
+    #[must_use]
     pub fn as_char(&self) -> char {
         match self {
             Self::Call => 'C',
@@ -485,6 +493,7 @@ pub enum Venue {
 }
 
 impl Venue {
+    #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Nqb => "NQB",
@@ -511,6 +520,7 @@ pub enum RateType {
 }
 
 impl RateType {
+    #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Sofr => "SOFR",

@@ -46,6 +46,9 @@ impl Credentials {
     ///
     /// Matches the Java terminal's `CredentialsManager.loadCredentials()` behavior:
     /// email is lowercased and trimmed, password is trimmed.
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
         let path = path.as_ref();
         let contents = std::fs::read_to_string(path).map_err(|e| {
@@ -63,6 +66,9 @@ impl Credentials {
     ///
     /// Useful for testing and for cases where credentials come from environment
     /// variables or other sources.
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
     pub fn parse(contents: &str) -> Result<Self, Error> {
         let lines: Vec<&str> = contents.lines().collect();
 
@@ -88,6 +94,7 @@ impl Credentials {
     }
 
     /// Get the password.
+    #[must_use]
     pub fn password(&self) -> &str {
         &self.password
     }

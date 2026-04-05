@@ -1,6 +1,6 @@
 //! FIE string-to-nibble encoder — used for building FPSS request lines.
 //!
-//! Reverse-engineered from decompiled `FIE.java` in ThetaData's terminal JAR.
+//! Reverse-engineered from decompiled `FIE.java` in `ThetaData`'s terminal JAR.
 //!
 //! # Character-to-Nibble Mapping
 //!
@@ -39,6 +39,7 @@ const NEWLINE_NIBBLE: u8 = 0xD;
 ///
 /// Returns `None` for characters not in the FIE alphabet.
 #[inline]
+#[must_use]
 pub const fn char_to_nibble(c: u8) -> Option<u8> {
     match c {
         b'0'..=b'9' => Some(c - b'0'),
@@ -56,6 +57,7 @@ pub const fn char_to_nibble(c: u8) -> Option<u8> {
 ///
 /// Returns `None` for values outside 0-15.
 #[inline]
+#[must_use]
 pub const fn nibble_to_char(n: u8) -> Option<u8> {
     match n {
         0..=9 => Some(b'0' + n),
@@ -78,6 +80,7 @@ pub const fn nibble_to_char(n: u8) -> Option<u8> {
 ///
 /// Panics if the input contains a character not in the FIE alphabet.
 /// Use [`try_string_to_fie_line`] for a non-panicking version.
+#[must_use]
 pub fn string_to_fie_line(input: &str) -> Vec<u8> {
     match try_string_to_fie_line(input) {
         Ok(v) => v,
@@ -90,6 +93,10 @@ pub fn string_to_fie_line(input: &str) -> Vec<u8> {
 
 /// Encode a string into a FIE byte line, returning `Err(byte)` if any
 /// character is outside the FIE alphabet.
+///
+/// # Errors
+///
+/// Returns `Err(byte)` if the input contains a byte not in the FIE alphabet.
 pub fn try_string_to_fie_line(input: &str) -> Result<Vec<u8>, u8> {
     let bytes = input.as_bytes();
     let len = bytes.len();
@@ -126,6 +133,7 @@ pub fn try_string_to_fie_line(input: &str) -> Result<Vec<u8>, u8> {
 ///
 /// Strips the trailing newline-nibble padding/terminator.
 /// Returns `None` if any nibble maps to an invalid character.
+#[must_use]
 pub fn fie_line_to_string(data: &[u8]) -> Option<String> {
     let mut chars = Vec::with_capacity(data.len() * 2);
 

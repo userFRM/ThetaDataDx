@@ -2,7 +2,11 @@ use std::cell::RefCell;
 
 use crate::error::Error;
 use crate::proto;
-use tdbe::types::tick::*;
+use tdbe::types::tick::{
+    CalendarDay, EodTick, GreeksTick, InterestRateTick, IvTick, MarketValueTick, OhlcTick,
+    OpenInterestTick, OptionContract, PriceTick, QuoteTick, SnapshotTradeTick, TradeQuoteTick,
+    TradeTick,
+};
 
 /// Header aliases: v3 MDDS uses different column names than the tick schema.
 /// This maps schema names to their v3 equivalents so parsers work with both.
@@ -43,7 +47,7 @@ fn find_header(headers: &[&str], name: &str) -> Option<usize> {
     None
 }
 
-/// Eastern Time UTC offset in milliseconds for a given epoch_ms.
+/// Eastern Time UTC offset in milliseconds for a given `epoch_ms`.
 ///
 /// US DST rules changed over time:
 ///
@@ -58,16 +62,22 @@ fn find_header(headers: &[&str], name: &str) -> Option<usize> {
 /// We compute the transition points in UTC and compare. This avoids
 /// external timezone crate dependencies while being correct for all
 /// dates with US Eastern Time DST rules.
+// Reason: the Euclidean date algorithm uses intentional signed/unsigned conversions for valid epoch timestamps.
+#[allow(
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_truncation
+)]
 fn eastern_offset_ms(epoch_ms: u64) -> i64 {
     // First, determine the UTC year/month/day to find DST boundaries.
-    let epoch_secs = epoch_ms as i64 / 1000;
-    let days_since_epoch = epoch_secs / 86400;
+    let epoch_secs = epoch_ms as i64 / 1_000;
+    let days_since_epoch = epoch_secs / 86_400;
 
     // Civil date from days since 1970-01-01 (Euclidean algorithm).
-    let z = days_since_epoch + 719468;
-    let era = if z >= 0 { z } else { z - 146096 } / 146097;
-    let doe = (z - era * 146097) as u32;
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let z = days_since_epoch + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = (z - era * 146_097) as u32;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
     let year = yoe as i32 + (era * 400) as i32;
     let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
     let mp = (5 * doy + 2) / 153;
@@ -87,9 +97,9 @@ fn eastern_offset_ms(epoch_ms: u64) -> i64 {
 
     let epoch_ms_i64 = epoch_ms as i64;
     if epoch_ms_i64 >= dst_start_utc && epoch_ms_i64 < dst_end_utc {
-        -4 * 3600 * 1000 // EDT
+        -4 * 3_600 * 1_000 // EDT
     } else {
-        -5 * 3600 * 1000 // EST
+        -5 * 3_600 * 1_000 // EST
     }
 }
 
@@ -101,7 +111,7 @@ fn march_second_sunday_utc(year: i32) -> i64 {
     let dow = ((mar1 + 3) % 7 + 7) % 7;
     let days_to_first_sunday = (6 - dow + 7) % 7; // days from Mar 1 to first Sunday
     let second_sunday = mar1 + days_to_first_sunday + 7; // second Sunday
-    second_sunday * 86_400_000 + 7 * 3600 * 1000 // 7:00 AM UTC = 2:00 AM EST
+    second_sunday * 86_400_000 + 7 * 3_600 * 1_000 // 7:00 AM UTC = 2:00 AM EST
 }
 
 /// Epoch ms of the first Sunday of November at 6:00 AM UTC (= 2:00 AM EDT).
@@ -110,7 +120,7 @@ fn november_first_sunday_utc(year: i32) -> i64 {
     let dow = ((nov1 + 3) % 7 + 7) % 7;
     let days_to_first_sunday = (6 - dow + 7) % 7;
     let first_sunday = nov1 + days_to_first_sunday;
-    first_sunday * 86_400_000 + 6 * 3600 * 1000 // 6:00 AM UTC = 2:00 AM EDT
+    first_sunday * 86_400_000 + 6 * 3_600 * 1_000 // 6:00 AM UTC = 2:00 AM EDT
 }
 
 /// Epoch ms of the first Sunday of April at 7:00 AM UTC (= 2:00 AM EST).
@@ -121,7 +131,7 @@ fn april_first_sunday_utc(year: i32) -> i64 {
     let dow = ((apr1 + 3) % 7 + 7) % 7;
     let days_to_first_sunday = (6 - dow + 7) % 7;
     let first_sunday = apr1 + days_to_first_sunday;
-    first_sunday * 86_400_000 + 7 * 3600 * 1000 // 7:00 AM UTC = 2:00 AM EST
+    first_sunday * 86_400_000 + 7 * 3_600 * 1_000 // 7:00 AM UTC = 2:00 AM EST
 }
 
 /// Epoch ms of the last Sunday of October at 6:00 AM UTC (= 2:00 AM EDT).
@@ -133,55 +143,67 @@ fn october_last_sunday_utc(year: i32) -> i64 {
     let dow = ((oct31 + 3) % 7 + 7) % 7; // 0=Mon..6=Sun
     let days_back = (dow + 1) % 7; // days back from Oct 31 to last Sunday
     let last_sunday = oct31 - days_back;
-    last_sunday * 86_400_000 + 6 * 3600 * 1000 // 6:00 AM UTC = 2:00 AM EDT
+    last_sunday * 86_400_000 + 6 * 3_600 * 1_000 // 6:00 AM UTC = 2:00 AM EDT
 }
 
 /// Convert civil date to days since 1970-01-01 (inverse of the Euclidean algorithm).
+// Reason: the Euclidean date algorithm uses intentional signed/unsigned conversions for valid calendar dates.
+#[allow(clippy::cast_sign_loss, clippy::cast_possible_wrap)]
 fn civil_to_epoch_days(year: i32, month: u32, day: u32) -> i64 {
     let y = if month <= 2 {
-        year as i64 - 1
+        i64::from(year) - 1
     } else {
-        year as i64
+        i64::from(year)
     };
     let m = if month <= 2 {
-        month as i64 + 9
+        i64::from(month) + 9
     } else {
-        month as i64 - 3
+        i64::from(month) - 3
     };
     let era = if y >= 0 { y } else { y - 399 } / 400;
     let yoe = (y - era * 400) as u64;
-    let doy = (153 * m as u64 + 2) / 5 + day as u64 - 1;
+    let doy = (153 * m as u64 + 2) / 5 + u64::from(day) - 1;
     let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    era * 146097 + doe as i64 - 719468
+    era * 146_097 + doe as i64 - 719_468
 }
 
-/// Convert epoch_ms to milliseconds-of-day in Eastern Time (DST-aware).
+/// Convert `epoch_ms` to milliseconds-of-day in Eastern Time (DST-aware).
+// Reason: ms_of_day fits in i32; epoch_ms is in valid market data range.
+#[allow(clippy::cast_possible_wrap, clippy::cast_possible_truncation)]
 fn timestamp_to_ms_of_day(epoch_ms: u64) -> i32 {
     let offset = eastern_offset_ms(epoch_ms);
     let local_ms = epoch_ms as i64 + offset;
     (local_ms.rem_euclid(86_400_000)) as i32
 }
 
-/// Convert epoch_ms to YYYYMMDD date integer in Eastern Time (DST-aware).
+/// Convert `epoch_ms` to YYYYMMDD date integer in Eastern Time (DST-aware).
+// Reason: date components fit in i32; epoch_ms is in valid market data range.
+#[allow(
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_truncation
+)]
 pub(crate) fn timestamp_to_date(epoch_ms: u64) -> i32 {
     let offset = eastern_offset_ms(epoch_ms);
-    let local_secs = (epoch_ms as i64 + offset) / 1000;
-    let days = local_secs / 86400 + 719468;
-    let era = if days >= 0 { days } else { days - 146096 } / 146097;
-    let doe = (days - era * 146097) as u32;
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-    let y = yoe as i64 + era * 400;
+    let local_secs = (epoch_ms as i64 + offset) / 1_000;
+    let days = local_secs / 86400 + 719_468;
+    let era = if days >= 0 { days } else { days - 146_096 } / 146_097;
+    let doe = (days - era * 146_097) as u32;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
+    let y = i64::from(yoe) + era * 400;
     let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
     let mp = (5 * doy + 2) / 153;
     let d = doy - (153 * mp + 2) / 5 + 1;
     let m = if mp < 10 { mp + 3 } else { mp - 9 };
     let y = if m <= 2 { y + 1 } else { y };
-    (y as i32) * 10000 + (m as i32) * 100 + (d as i32)
+    (y as i32) * 10_000 + (m as i32) * 100 + (d as i32)
 }
 
-/// Extract a date (YYYYMMDD) or ms_of_day from a Timestamp cell.
+/// Extract a date (YYYYMMDD) or `ms_of_day` from a Timestamp cell.
 ///
 /// Used by generated parsers when the `date` field maps to a `timestamp` column.
+// Reason: number values from protobuf fit in i32 for date/integer fields.
+#[allow(clippy::cast_possible_truncation)]
 pub(crate) fn row_date(row: &proto::DataValueList, idx: usize) -> i32 {
     row.values
         .get(idx)
@@ -215,7 +237,7 @@ thread_local! {
     ));
 }
 
-/// Decompress a ResponseData payload. Returns the raw protobuf bytes of the DataTable.
+/// Decompress a `ResponseData` payload. Returns the raw protobuf bytes of the `DataTable`.
 ///
 /// # Unknown compression algorithms
 ///
@@ -229,17 +251,22 @@ thread_local! {
 /// capacity across calls, so repeated decompressions of similar-sized payloads
 /// avoid hitting the allocator for the working buffer. The returned `Vec<u8>`
 /// is a clone (we must return ownership), but the internal slab persists.
+/// # Errors
+///
+/// Returns [`Error::Decompress`] if the compression algorithm is unknown or
+/// zstd decompression fails.
+// Reason: original_size is a protobuf u64 that fits in usize for valid payloads.
+#[allow(clippy::cast_possible_truncation)]
 pub fn decompress_response(response: &proto::ResponseData) -> Result<Vec<u8>, Error> {
     let algo_raw = response
         .compression_description
         .as_ref()
-        .map(|cd| cd.algo)
-        .unwrap_or(0);
+        .map_or(0, |cd| cd.algo);
 
     match proto::CompressionAlgo::try_from(algo_raw) {
         Ok(proto::CompressionAlgo::None) => Ok(response.compressed_data.clone()),
         Ok(proto::CompressionAlgo::Zstd) => {
-            let original_size = response.original_size as usize;
+            let original_size = usize::try_from(response.original_size).unwrap_or(0);
             ZSTD_STATE.with(|cell| {
                 let (ref mut dec, ref mut buf) = *cell.borrow_mut();
                 buf.clear();
@@ -252,13 +279,17 @@ pub fn decompress_response(response: &proto::ResponseData) -> Result<Vec<u8>, Er
             })
         }
         _ => Err(Error::Decompress(format!(
-            "unknown compression algorithm: {}",
-            algo_raw
+            "unknown compression algorithm: {algo_raw}"
         ))),
     }
 }
 
-/// Decode a ResponseData into a DataTable.
+/// Decode a `ResponseData` into a `DataTable`.
+///
+/// # Errors
+///
+/// Returns [`Error::Decompress`] if decompression fails or [`Error::Decode`]
+/// if protobuf deserialization fails.
 pub fn decode_data_table(response: &proto::ResponseData) -> Result<proto::DataTable, Error> {
     let bytes = decompress_response(response)?;
     let table: proto::DataTable =
@@ -266,11 +297,11 @@ pub fn decode_data_table(response: &proto::ResponseData) -> Result<proto::DataTa
     Ok(table)
 }
 
-/// Extract a column of i64 values from a DataTable by header name.
+/// Extract a column of i64 values from a `DataTable` by header name.
+#[must_use]
 pub fn extract_number_column(table: &proto::DataTable, header: &str) -> Vec<Option<i64>> {
-    let col_idx = match table.headers.iter().position(|h| h == header) {
-        Some(i) => i,
-        None => return vec![],
+    let Some(col_idx) = table.headers.iter().position(|h| h == header) else {
+        return vec![];
     };
 
     table
@@ -288,11 +319,11 @@ pub fn extract_number_column(table: &proto::DataTable, header: &str) -> Vec<Opti
         .collect()
 }
 
-/// Extract a column of string values from a DataTable by header name.
+/// Extract a column of string values from a `DataTable` by header name.
+#[must_use]
 pub fn extract_text_column(table: &proto::DataTable, header: &str) -> Vec<Option<String>> {
-    let col_idx = match table.headers.iter().position(|h| h == header) {
-        Some(i) => i,
-        None => return vec![],
+    let Some(col_idx) = table.headers.iter().position(|h| h == header) else {
+        return vec![];
     };
 
     table
@@ -314,11 +345,11 @@ pub fn extract_text_column(table: &proto::DataTable, header: &str) -> Vec<Option
         .collect()
 }
 
-/// Extract a column of Price values from a DataTable by header name.
+/// Extract a column of Price values from a `DataTable` by header name.
+#[must_use]
 pub fn extract_price_column(table: &proto::DataTable, header: &str) -> Vec<Option<tdbe::Price>> {
-    let col_idx = match table.headers.iter().position(|h| h == header) {
-        Some(i) => i,
-        None => return vec![],
+    let Some(col_idx) = table.headers.iter().position(|h| h == header) else {
+        return vec![];
     };
 
     table
@@ -341,10 +372,12 @@ pub fn extract_price_column(table: &proto::DataTable, header: &str) -> Vec<Optio
 /// Helper to get a number from a row at a given column index, defaulting to 0.
 ///
 /// Returns 0 for missing cells, `NullValue` cells, or non-Number types.
-/// Tick schemas don't have nullable fields in practice — NullValue only appears
+/// Tick schemas don't have nullable fields in practice — `NullValue` only appears
 /// in column-oriented endpoints like Greeks/calendar which use `extract_number_column`
 /// (which returns `Option`). For tick parsing, defaulting to 0 is correct and
 /// matches the Java terminal's behavior.
+// Reason: protocol-defined integer widths from Java FPSS specification.
+#[allow(clippy::cast_possible_truncation)]
 pub(crate) fn row_number(row: &proto::DataValueList, idx: usize) -> i32 {
     row.values
         .get(idx)
@@ -369,6 +402,8 @@ pub(crate) fn row_number(row: &proto::DataValueList, idx: usize) -> i32 {
 /// Helper to get a price value from a row at a given column index.
 ///
 /// See [`row_number`] for null/missing cell handling rationale.
+// Reason: protocol-defined integer widths from Java FPSS specification.
+#[allow(clippy::cast_possible_truncation)]
 pub(crate) fn row_price_value(row: &proto::DataValueList, idx: usize) -> i32 {
     row.values
         .get(idx)
@@ -399,6 +434,8 @@ pub(crate) fn row_price_value(row: &proto::DataValueList, idx: usize) -> i32 {
 /// an inherent limitation of the flat tick struct design.
 ///
 /// See [`row_number`] for null/missing cell handling rationale.
+// Reason: protocol-defined integer widths from Java FPSS specification.
+#[allow(clippy::cast_possible_truncation)]
 pub(crate) fn row_price_type(row: &proto::DataValueList, idx: usize) -> i32 {
     row.values
         .get(idx)
@@ -417,12 +454,14 @@ pub(crate) fn row_price_type(row: &proto::DataValueList, idx: usize) -> i32 {
         .unwrap_or(0)
 }
 
-/// Read a Price cell's value, normalized to `target_pt` (the row's canonical price_type).
+/// Read a Price cell's value, normalized to `target_pt` (the row's canonical `price_type`).
 ///
-/// If the cell's price_type differs from `target_pt`, the value is rescaled
+/// If the cell's `price_type` differs from `target_pt`, the value is rescaled
 /// using `changePriceType` (matching Java's `PriceCalcUtils.changePriceType`).
 /// This handles OHLC bars where open/high/low/close can have different
-/// price_types per cell.
+/// `price_types` per cell.
+// Reason: protocol-defined integer widths from Java FPSS specification.
+#[allow(clippy::cast_possible_truncation)]
 pub(crate) fn row_price_value_normalized(
     row: &proto::DataValueList,
     idx: usize,
@@ -445,13 +484,9 @@ pub(crate) fn row_price_value_normalized(
         .unwrap_or(0)
 }
 
-/// Rescale a price value from one price_type to another.
+/// Rescale a price value from one `price_type` to another.
 /// Matches Java's `PriceCalcUtils.changePriceType`.
 fn change_price_type(price: i32, from_type: i32, to_type: i32) -> i32 {
-    if price == 0 || from_type == to_type {
-        return price;
-    }
-    let exp = to_type - from_type;
     const POW10: [i64; 10] = [
         1,
         10,
@@ -464,19 +499,23 @@ fn change_price_type(price: i32, from_type: i32, to_type: i32) -> i32 {
         100_000_000,
         1_000_000_000,
     ];
+    if price == 0 || from_type == to_type {
+        return price;
+    }
+    let exp = to_type - from_type;
     if exp <= 0 {
         // Going to lower price_type (more decimal places in raw value): multiply
-        let idx = (-exp) as usize;
+        let idx = usize::try_from(-exp).unwrap_or(0);
         if idx < POW10.len() {
-            (price as i64 * POW10[idx]) as i32
+            i32::try_from(i64::from(price) * POW10[idx]).unwrap_or(price)
         } else {
             price
         }
     } else {
         // Going to higher price_type (fewer decimal places): divide
-        let idx = exp as usize;
+        let idx = usize::try_from(exp).unwrap_or(0);
         if idx < POW10.len() {
-            (price as i64 / POW10[idx]) as i32
+            i32::try_from(i64::from(price) / POW10[idx]).unwrap_or(0)
         } else {
             0
         }
@@ -485,9 +524,11 @@ fn change_price_type(price: i32, from_type: i32, to_type: i32) -> i32 {
 
 /// Helper to get an f64 from a row at a given column index, defaulting to 0.0.
 ///
-/// Handles both `Number` cells (raw f64) and `Price` cells (value + price_type
+/// Handles both `Number` cells (raw f64) and `Price` cells (value + `price_type`
 /// encoding). The v3 MDDS server sends Greeks, IV, and other f64 fields as
 /// Price-encoded values.
+// Reason: market-data i64 values are within f64 mantissa range; items defined near usage.
+#[allow(clippy::items_after_statements, clippy::cast_precision_loss)]
 pub(crate) fn row_float(row: &proto::DataValueList, idx: usize) -> f64 {
     row.values
         .get(idx)
@@ -500,9 +541,9 @@ pub(crate) fn row_float(row: &proto::DataValueList, idx: usize) -> f64 {
                 } else {
                     let exp = p.r#type - 10;
                     if exp >= 0 {
-                        Some(p.value as f64 * 10f64.powi(exp))
+                        Some(f64::from(p.value) * 10f64.powi(exp))
                     } else {
-                        Some(p.value as f64 / 10f64.powi(-exp))
+                        Some(f64::from(p.value) / 10f64.powi(-exp))
                     }
                 }
             }
@@ -512,6 +553,8 @@ pub(crate) fn row_float(row: &proto::DataValueList, idx: usize) -> f64 {
 }
 
 /// Helper to get a String from a row at a given column index, defaulting to empty.
+// Reason: inline helper defined near its usage in generated code.
+#[allow(clippy::items_after_statements)]
 pub(crate) fn row_text(row: &proto::DataValueList, idx: usize) -> String {
     row.values
         .get(idx)
@@ -525,7 +568,9 @@ pub(crate) fn row_text(row: &proto::DataValueList, idx: usize) -> String {
 
 /// Helper to get an i64 from a row at a given column index, defaulting to 0.
 ///
-/// Market value fields (market_cap, shares_outstanding, etc.) can exceed i32 range.
+/// Market value fields (`market_cap`, `shares_outstanding`, etc.) can exceed i32 range.
+// Reason: protocol-defined integer widths from Java FPSS specification.
+#[allow(clippy::items_after_statements)]
 pub(crate) fn row_number_i64(row: &proto::DataValueList, idx: usize) -> i64 {
     row.values
         .get(idx)
@@ -537,8 +582,13 @@ pub(crate) fn row_number_i64(row: &proto::DataValueList, idx: usize) -> i64 {
         .unwrap_or(0)
 }
 
-// Parser functions are generated from endpoint_schema.toml by build.rs.
-include!(concat!(env!("OUT_DIR"), "/decode_generated.rs"));
+// Generated code -- parser functions from endpoint_schema.toml by build.rs.
+#[allow(clippy::pedantic)]
+mod decode_generated {
+    use super::*;
+    include!(concat!(env!("OUT_DIR"), "/decode_generated.rs"));
+}
+pub use decode_generated::*;
 
 #[cfg(test)]
 mod tests {
@@ -694,6 +744,8 @@ mod tests {
     }
 
     #[test]
+    // Reason: ms_of_day fits in i32; epoch_ms is in valid market data range.
+    #[allow(clippy::cast_possible_wrap, clippy::cast_possible_truncation)]
     fn timestamp_to_ms_of_day_edt() {
         // 2026-04-01 09:30:00 ET (EDT, UTC-4) = 2026-04-01 13:30:00 UTC
         // epoch_ms for 2026-04-01 13:30:00 UTC
@@ -703,6 +755,8 @@ mod tests {
     }
 
     #[test]
+    // Reason: ms_of_day fits in i32; epoch_ms is in valid market data range.
+    #[allow(clippy::cast_possible_wrap, clippy::cast_possible_truncation)]
     fn timestamp_to_ms_of_day_est() {
         // 2026-01-15 09:30:00 ET (EST, UTC-5) = 2026-01-15 14:30:00 UTC
         let epoch_ms: u64 = 1_768_487_400_000;
@@ -729,9 +783,9 @@ mod tests {
         // 2026 DST starts March 8 (second Sunday of March)
         // Before: EST (UTC-5) at 06:59 UTC. After: EDT (UTC-4) at 07:01 UTC.
         let before: u64 = 1_772_953_140_000; // Mar 8 2026, 06:59 UTC
-        assert_eq!(super::eastern_offset_ms(before), -5 * 3600 * 1000);
+        assert_eq!(super::eastern_offset_ms(before), -5 * 3_600 * 1_000);
         let after: u64 = 1_772_953_260_000; // Mar 8 2026, 07:01 UTC
-        assert_eq!(super::eastern_offset_ms(after), -4 * 3600 * 1000);
+        assert_eq!(super::eastern_offset_ms(after), -4 * 3_600 * 1_000);
     }
 
     #[test]
@@ -742,7 +796,7 @@ mod tests {
         let epoch_ms: u64 = 1_153_065_600_000; // Jul 15 2006, 18:00 UTC
         assert_eq!(
             super::eastern_offset_ms(epoch_ms),
-            -4 * 3600 * 1000,
+            -4 * 3_600 * 1_000,
             "mid-July 2006 should be EDT under old DST rules"
         );
     }
@@ -755,7 +809,7 @@ mod tests {
         let epoch_ms: u64 = 1_140_015_600_000; // Feb 15 2006, 15:00 UTC
         assert_eq!(
             super::eastern_offset_ms(epoch_ms),
-            -5 * 3600 * 1000,
+            -5 * 3_600 * 1_000,
             "mid-February 2006 should be EST under old DST rules"
         );
     }
@@ -865,14 +919,18 @@ mod tests {
     }
 }
 
-/// Hand-written parser for OptionContract that handles the v3 server's
+/// Hand-written parser for `OptionContract` that handles the v3 server's
 /// text-formatted fields (expiration as ISO date, right as "PUT"/"CALL").
+#[must_use]
 pub fn parse_option_contracts_v3(table: &crate::proto::DataTable) -> Vec<OptionContract> {
-    let h: Vec<&str> = table.headers.iter().map(|s| s.as_str()).collect();
+    let h: Vec<&str> = table
+        .headers
+        .iter()
+        .map(std::string::String::as_str)
+        .collect();
 
-    let root_idx = match find_header(&h, "root") {
-        Some(i) => i,
-        None => return vec![],
+    let Some(root_idx) = find_header(&h, "root") else {
+        return vec![];
     };
     let exp_idx = find_header(&h, "expiration");
     let strike_idx = find_header(&h, "strike");
@@ -885,45 +943,39 @@ pub fn parse_option_contracts_v3(table: &crate::proto::DataTable) -> Vec<OptionC
             let root = row_text(row, root_idx);
 
             // Expiration: may be YYYYMMDD int or ISO date string "2026-04-13"
-            let expiration = exp_idx
-                .map(|i| {
-                    let n = row_number(row, i);
-                    if n != 0 {
-                        return n;
-                    }
-                    // Try text: "2026-04-13" -> 20260413
-                    let s = row_text(row, i);
-                    parse_iso_date(&s)
-                })
-                .unwrap_or(0);
+            let expiration = exp_idx.map_or(0, |i| {
+                let n = row_number(row, i);
+                if n != 0 {
+                    return n;
+                }
+                // Try text: "2026-04-13" -> 20260413
+                let s = row_text(row, i);
+                parse_iso_date(&s)
+            });
 
             // Strike: may be Price or Number
-            let (strike, strike_price_type) = strike_idx
-                .map(|i| {
-                    let pv = row_price_value(row, i);
-                    if pv != 0 {
-                        (pv, row_price_type(row, i))
-                    } else {
-                        (row_number(row, i), 0)
-                    }
-                })
-                .unwrap_or((0, 0));
+            let (strike, strike_price_type) = strike_idx.map_or((0, 0), |i| {
+                let pv = row_price_value(row, i);
+                if pv != 0 {
+                    (pv, row_price_type(row, i))
+                } else {
+                    (row_number(row, i), 0)
+                }
+            });
 
             // Right: may be int or text "PUT"/"CALL"/"C"/"P"
-            let right = right_idx
-                .map(|i| {
-                    let n = row_number(row, i);
-                    if n != 0 {
-                        return n;
-                    }
-                    let s = row_text(row, i);
-                    match s.as_str() {
-                        "CALL" | "C" => 67, // ASCII 'C'
-                        "PUT" | "P" => 80,  // ASCII 'P'
-                        _ => 0,
-                    }
-                })
-                .unwrap_or(0);
+            let right = right_idx.map_or(0, |i| {
+                let n = row_number(row, i);
+                if n != 0 {
+                    return n;
+                }
+                let s = row_text(row, i);
+                match s.as_str() {
+                    "CALL" | "C" => 67, // ASCII 'C'
+                    "PUT" | "P" => 80,  // ASCII 'P'
+                    _ => 0,
+                }
+            });
 
             OptionContract {
                 root,
@@ -937,6 +989,8 @@ pub fn parse_option_contracts_v3(table: &crate::proto::DataTable) -> Vec<OptionC
 }
 
 /// Parse an ISO date string "2026-04-13" to YYYYMMDD integer 20260413.
+// Reason: date parsing with known-safe integer ranges.
+#[allow(clippy::cast_possible_truncation, clippy::missing_panics_doc)]
 pub(crate) fn parse_iso_date(s: &str) -> i32 {
     // Fast path: already numeric (YYYYMMDD)
     if let Ok(n) = s.parse::<i32>() {
@@ -950,7 +1004,7 @@ pub(crate) fn parse_iso_date(s: &str) -> i32 {
             parts[1].parse::<i32>(),
             parts[2].parse::<i32>(),
         ) {
-            return y * 10000 + m * 100 + d;
+            return y * 10_000 + m * 100 + d;
         }
     }
     0
@@ -965,7 +1019,7 @@ fn parse_time_text(s: &str) -> i32 {
             parts[1].parse::<i32>(),
             parts[2].parse::<i32>(),
         ) {
-            return (h * 3600 + m * 60 + sec) * 1000;
+            return (h * 3_600 + m * 60 + sec) * 1_000;
         }
     }
     0
@@ -1000,7 +1054,7 @@ fn calendar_type_text(s: &str) -> (i32, i32) {
     }
 }
 
-/// Hand-written parser for CalendarDay that handles the v3 server's
+/// Hand-written parser for `CalendarDay` that handles the v3 server's
 /// text-formatted fields.
 ///
 /// The v3 MDDS server sends calendar data with different column names and types
@@ -1009,14 +1063,19 @@ fn calendar_type_text(s: &str) -> (i32, i32) {
 /// | Schema field | Server header | Server type | Mapping                               |
 /// |--------------|---------------|-------------|---------------------------------------|
 /// | `date`       | `date`        | Text        | "2025-01-01" -> 20250101              |
-/// | `is_open`    | `type`        | Text        | "open"/"early_close" -> 1, else -> 0  |
+/// | `is_open`    | `type`        | Text        | "`open"/"early_close`" -> 1, else -> 0  |
 /// | `open_time`  | `open`        | Text / Null | "09:30:00" -> 34200000 ms             |
 /// | `close_time` | `close`       | Text / Null | "16:00:00" -> 57600000 ms             |
 /// | `status`     | `type`        | Text        | See [`CALENDAR_STATUS_OPEN`] etc.     |
 ///
 /// Note: `calendar_on_date` and `calendar_open_today` omit the `date` column.
+#[must_use]
 pub fn parse_calendar_days_v3(table: &crate::proto::DataTable) -> Vec<CalendarDay> {
-    let h: Vec<&str> = table.headers.iter().map(|s| s.as_str()).collect();
+    let h: Vec<&str> = table
+        .headers
+        .iter()
+        .map(std::string::String::as_str)
+        .collect();
 
     let date_idx = h.iter().position(|&s| s == "date");
     let type_idx = h.iter().position(|&s| s == "type");
@@ -1028,64 +1087,56 @@ pub fn parse_calendar_days_v3(table: &crate::proto::DataTable) -> Vec<CalendarDa
         .iter()
         .map(|row| {
             // date: Text "2025-01-01" -> YYYYMMDD, or Number, or Timestamp
-            let date = date_idx
-                .map(|i| {
-                    // Try Number/Timestamp first (generated parser path)
-                    let n = row_number(row, i);
-                    if n != 0 {
-                        return n;
-                    }
-                    // v3: Text "2025-01-01"
-                    let s = row_text(row, i);
-                    if !s.is_empty() {
-                        return parse_iso_date(&s);
-                    }
-                    0
-                })
-                .unwrap_or(0);
+            let date = date_idx.map_or(0, |i| {
+                // Try Number/Timestamp first (generated parser path)
+                let n = row_number(row, i);
+                if n != 0 {
+                    return n;
+                }
+                // v3: Text "2025-01-01"
+                let s = row_text(row, i);
+                if !s.is_empty() {
+                    return parse_iso_date(&s);
+                }
+                0
+            });
 
             // type: Text "open"/"full_close"/"early_close"/"weekend"
-            let (is_open, status) = type_idx
-                .map(|i| {
-                    let s = row_text(row, i);
-                    if !s.is_empty() {
-                        return calendar_type_text(&s);
-                    }
-                    // Fallback: try as Number (future-proofing)
-                    let n = row_number(row, i);
-                    (if n != 0 { 1 } else { 0 }, n)
-                })
-                .unwrap_or((0, 0));
+            let (is_open, status) = type_idx.map_or((0, 0), |i| {
+                let s = row_text(row, i);
+                if !s.is_empty() {
+                    return calendar_type_text(&s);
+                }
+                // Fallback: try as Number (future-proofing)
+                let n = row_number(row, i);
+                (i32::from(n != 0), n)
+            });
 
             // open: Text "09:30:00" -> ms_of_day, or Null/Number
-            let open_time = open_idx
-                .map(|i| {
-                    let n = row_number(row, i);
-                    if n != 0 {
-                        return n;
-                    }
-                    let s = row_text(row, i);
-                    if !s.is_empty() {
-                        return parse_time_text(&s);
-                    }
-                    0
-                })
-                .unwrap_or(0);
+            let open_time = open_idx.map_or(0, |i| {
+                let n = row_number(row, i);
+                if n != 0 {
+                    return n;
+                }
+                let s = row_text(row, i);
+                if !s.is_empty() {
+                    return parse_time_text(&s);
+                }
+                0
+            });
 
             // close: Text "16:00:00" -> ms_of_day, or Null/Number
-            let close_time = close_idx
-                .map(|i| {
-                    let n = row_number(row, i);
-                    if n != 0 {
-                        return n;
-                    }
-                    let s = row_text(row, i);
-                    if !s.is_empty() {
-                        return parse_time_text(&s);
-                    }
-                    0
-                })
-                .unwrap_or(0);
+            let close_time = close_idx.map_or(0, |i| {
+                let n = row_number(row, i);
+                if n != 0 {
+                    return n;
+                }
+                let s = row_text(row, i);
+                if !s.is_empty() {
+                    return parse_time_text(&s);
+                }
+                0
+            });
 
             CalendarDay {
                 date,

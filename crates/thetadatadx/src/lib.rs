@@ -1,8 +1,8 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-//! # thetadatadx — No-JVM ThetaData Terminal
+//! # thetadatadx — No-JVM `ThetaData` Terminal
 //!
-//! Native Rust SDK that connects directly to ThetaData's upstream servers,
+//! Native Rust SDK that connects directly to `ThetaData`'s upstream servers,
 //! eliminating the Java terminal entirely. No JVM, no subprocess, no local proxy —
 //! just your application speaking the same wire protocol the terminal uses.
 //!
@@ -15,7 +15,7 @@
 //!
 //! ## Architecture
 //!
-//! ThetaData exposes two upstream services:
+//! `ThetaData` exposes two upstream services:
 //!
 //! - **MDDS** (Market Data Distribution Server) — historical data via gRPC at `mdds-01.thetadata.us:443`
 //! - **FPSS** (Feed Processing Streaming Server) — real-time streaming via custom TCP at `nj-a.thetadata.us:20000`
@@ -76,11 +76,11 @@
 //!
 //! ## Reverse-Engineering Notes
 //!
-//! This crate was built by decompiling ThetaData's Java terminal (v202603181, 58.5MB):
+//! This crate was built by decompiling `ThetaData`'s Java terminal (v202603181, 58.5MB):
 //!
 //! - **Proto definitions**: Extracted via protobuf `FileDescriptor` reflection at runtime
-//!   - `endpoints.proto` — shared types (ResponseData, DataTable, Price, etc.)
-//!   - `v3_endpoints.proto` — v3 service (BetaThetaTerminal, 60 RPCs with QueryInfo wrapper)
+//!   - `endpoints.proto` — shared types (`ResponseData`, `DataTable`, Price, etc.)
+//!   - `v3_endpoints.proto` — v3 service (`BetaThetaTerminal`, 60 RPCs with `QueryInfo` wrapper)
 //!
 //! - **Auth flow**: POST to `https://nexus-api.thetadata.us/identity/terminal/auth_user`
 //!   with header `TD-TERMINAL-KEY` and JSON `{email, password}` → `SessionInfoV3` with UUID
@@ -115,6 +115,8 @@ pub mod unified;
 ///
 /// Also re-exported as `endpoints` at crate root so that the v3 generated code
 /// can resolve cross-proto references via `super::endpoints::*`.
+// Generated code -- not under our control.
+#[allow(clippy::pedantic)]
 pub mod proto {
     tonic::include_proto!("endpoints");
 }
@@ -128,6 +130,8 @@ pub use proto as endpoints;
 ///
 /// Contains `BetaThetaTerminalClient` gRPC stub and all v3 request/response types
 /// (`QueryInfo`, `StockHistoryEodRequest`, etc.).
+// Generated code -- not under our control.
+#[allow(clippy::pedantic)]
 pub mod proto_v3 {
     tonic::include_proto!("beta_endpoints");
 }

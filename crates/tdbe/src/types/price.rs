@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::fmt;
 
-/// Precomputed powers of 10 as i64 for fast integer scaling in Price::compare.
+/// Precomputed powers of 10 as i64 for fast integer scaling in `Price::compare`.
 static POW10_I64: [i64; 20] = [
     1,
     10,
@@ -26,7 +26,7 @@ static POW10_I64: [i64; 20] = [
     i64::MAX,
 ];
 
-/// Precomputed powers of 10 as f64 for fast float conversion in Price::to_f64.
+/// Precomputed powers of 10 as f64 for fast float conversion in `Price::to_f64`.
 static POW10_F64: [f64; 20] = [
     1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15, 1e16,
     1e17, 1e18, 1e19,
@@ -34,7 +34,7 @@ static POW10_F64: [f64; 20] = [
 
 /// Fixed-point price with variable decimal precision.
 ///
-/// ThetaData encodes prices as `(value, type)` where `type` indicates the
+/// `ThetaData` encodes prices as `(value, type)` where `type` indicates the
 /// decimal power. The real price is `value * 10^(type - 10)`:
 /// - type=0: zero price
 /// - type=8: value * 0.01 (2 decimal places — cents)
@@ -54,6 +54,7 @@ impl Price {
     };
 
     #[inline]
+    #[must_use]
     pub fn new(value: i32, price_type: i32) -> Self {
         debug_assert!(
             (0..20).contains(&price_type),
@@ -65,25 +66,32 @@ impl Price {
         }
     }
 
+    #[must_use]
     pub fn is_zero(&self) -> bool {
         self.value == 0 || self.price_type == 0
     }
 
     /// Convert to f64. This is lossy but useful for display/calculations.
+    // Reason: price_type is clamped to 0..19 in the constructor, so the cast is safe.
+    #[allow(clippy::cast_sign_loss)]
     #[inline]
+    #[must_use]
     pub fn to_f64(&self) -> f64 {
         if self.price_type == 0 {
             return 0.0;
         }
         let exp = self.price_type - 10;
         if exp >= 0 {
-            self.value as f64 * POW10_F64[exp as usize]
+            f64::from(self.value) * POW10_F64[exp as usize]
         } else {
-            self.value as f64 / POW10_F64[(-exp) as usize]
+            f64::from(self.value) / POW10_F64[(-exp) as usize]
         }
     }
 
     /// Normalize both prices to the same type for comparison.
+    // Reason: price_type is clamped to 0..19, so differences are in 0..19 range (safe cast).
+    // Reason: &self required by PartialOrd/Ord trait implementations.
+    #[allow(clippy::cast_sign_loss, clippy::trivially_copy_pass_by_ref)]
     #[inline]
     fn compare(&self, other: &Self) -> Ordering {
         if self.price_type == other.price_type {
@@ -97,9 +105,9 @@ impl Price {
                 // Fall back to f64 comparison for very large exponent differences.
                 return self.to_f64().total_cmp(&other.to_f64());
             }
-            let scaled = (self.value as i64).checked_mul(POW10_I64[exp]);
+            let scaled = i64::from(self.value).checked_mul(POW10_I64[exp]);
             match scaled {
-                Some(s) => s.cmp(&(other.value as i64)),
+                Some(s) => s.cmp(&i64::from(other.value)),
                 // Overflow: fall back to f64 for correct sign handling.
                 None => self.to_f64().total_cmp(&other.to_f64()),
             }
@@ -108,9 +116,9 @@ impl Price {
             if exp > 18 {
                 return self.to_f64().total_cmp(&other.to_f64());
             }
-            let scaled = (other.value as i64).checked_mul(POW10_I64[exp]);
+            let scaled = i64::from(other.value).checked_mul(POW10_I64[exp]);
             match scaled {
-                Some(s) => (self.value as i64).cmp(&s),
+                Some(s) => i64::from(self.value).cmp(&s),
                 None => self.to_f64().total_cmp(&other.to_f64()),
             }
         }
@@ -139,11 +147,13 @@ impl Ord for Price {
 
 impl fmt::Debug for Price {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Price({})", self)
+        write!(f, "Price({self})")
     }
 }
 
 impl fmt::Display for Price {
+    // Reason: price_type is clamped to 0..19 in the constructor, so the casts are safe.
+    #[allow(clippy::cast_sign_loss)]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.price_type == 0 {
             return write!(f, "0.0");
@@ -158,7 +168,7 @@ impl fmt::Display for Price {
 
         let is_neg = self.value < 0;
         let abs_str = if is_neg {
-            format!("{}", -self.value as i64)
+            format!("{}", i64::from(-self.value))
         } else {
             format!("{}", self.value)
         };
@@ -166,7 +176,7 @@ impl fmt::Display for Price {
         let frac_digits = (10 - self.price_type) as usize;
         let padded = if abs_str.len() <= frac_digits {
             let pad = "0".repeat(frac_digits - abs_str.len() + 1);
-            format!("{}{}", pad, abs_str)
+            format!("{pad}{abs_str}")
         } else {
             abs_str
         };
@@ -174,9 +184,9 @@ impl fmt::Display for Price {
         let split = padded.len() - frac_digits;
         let result = format!("{}.{}", &padded[..split], &padded[split..]);
         if is_neg {
-            write!(f, "-{}", result)
+            write!(f, "-{result}")
         } else {
-            write!(f, "{}", result)
+            write!(f, "{result}")
         }
     }
 }

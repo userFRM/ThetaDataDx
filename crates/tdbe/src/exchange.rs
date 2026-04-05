@@ -1,4 +1,4 @@
-//! Exchange code lookup tables for ThetaData market data.
+//! Exchange code lookup tables for `ThetaData` market data.
 //!
 //! Maps numeric exchange codes to human-readable names and MIC symbols.
 
@@ -408,24 +408,24 @@ pub const EXCHANGES: [Exchange; 78] = [
 ///
 /// Returns `"UNKNOWN"` for codes outside the known range.
 #[inline]
+#[must_use]
 pub fn exchange_name(code: i32) -> &'static str {
-    if code >= 0 && (code as usize) < EXCHANGES.len() {
-        EXCHANGES[code as usize].name
-    } else {
-        "UNKNOWN"
-    }
+    usize::try_from(code)
+        .ok()
+        .filter(|&idx| idx < EXCHANGES.len())
+        .map_or("UNKNOWN", |idx| EXCHANGES[idx].name)
 }
 
 /// Look up the symbol (MIC-like identifier) for an exchange code.
 ///
 /// Returns `"UNKNOWN"` for codes outside the known range.
 #[inline]
+#[must_use]
 pub fn exchange_symbol(code: i32) -> &'static str {
-    if code >= 0 && (code as usize) < EXCHANGES.len() {
-        EXCHANGES[code as usize].symbol
-    } else {
-        "UNKNOWN"
-    }
+    usize::try_from(code)
+        .ok()
+        .filter(|&idx| idx < EXCHANGES.len())
+        .map_or("UNKNOWN", |idx| EXCHANGES[idx].symbol)
 }
 
 #[cfg(test)]

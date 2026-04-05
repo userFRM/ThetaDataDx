@@ -51,6 +51,7 @@ impl Frame {
     /// # Panics
     ///
     /// Panics if `payload.len() > 255` (FPSS protocol limit).
+    #[must_use]
     pub fn new(code: StreamMsgType, payload: Vec<u8>) -> Self {
         assert!(
             payload.len() <= MAX_PAYLOAD_LEN,
@@ -116,6 +117,9 @@ pub(crate) fn is_binary_payload(payload: &[u8]) -> bool {
 /// Frames with unrecognized codes are silently skipped (payload consumed
 /// to keep the stream aligned). After [`MAX_CONSECUTIVE_UNKNOWN_CODES`]
 /// consecutive unknown codes, returns an error to trigger reconnection.
+/// # Errors
+///
+/// Returns an error on network, authentication, or parsing failure.
 pub fn read_frame_into<R: Read>(
     reader: &mut R,
     buf: &mut Vec<u8>,
@@ -125,9 +129,8 @@ pub fn read_frame_into<R: Read>(
     loop {
         buf.clear();
 
-        let header = match read_header(reader)? {
-            Some(h) => h,
-            None => return Ok(None),
+        let Some(header) = read_header(reader)? else {
+            return Ok(None);
         };
 
         let payload_len = header[0] as usize;
@@ -139,25 +142,22 @@ pub fn read_frame_into<R: Read>(
             reader.read_exact(buf)?;
         }
 
-        match StreamMsgType::from_code(code_byte) {
-            Some(code) => return Ok(Some((code, payload_len))),
-            None => {
-                consecutive_unknown += 1;
-                if consecutive_unknown >= MAX_CONSECUTIVE_UNKNOWN_CODES {
-                    return Err(crate::error::Error::Fpss(format!(
-                        "framing corruption: {consecutive_unknown} consecutive \
-                         unknown message codes (last code: {code_byte})"
-                    )));
-                }
-                tracing::debug!(
-                    code = code_byte,
-                    payload_len,
-                    consecutive_unknown,
-                    "skipping unknown FPSS message code"
-                );
-                continue;
-            }
+        if let Some(code) = StreamMsgType::from_code(code_byte) {
+            return Ok(Some((code, payload_len)));
         }
+        consecutive_unknown += 1;
+        if consecutive_unknown >= MAX_CONSECUTIVE_UNKNOWN_CODES {
+            return Err(crate::error::Error::Fpss(format!(
+                "framing corruption: {consecutive_unknown} consecutive \
+                 unknown message codes (last code: {code_byte})"
+            )));
+        }
+        tracing::debug!(
+            code = code_byte,
+            payload_len,
+            consecutive_unknown,
+            "skipping unknown FPSS message code"
+        );
     }
 }
 
@@ -168,6 +168,9 @@ pub fn read_frame_into<R: Read>(
 ///
 /// Returns `None` on clean EOF (reader closed). Returns `Err` on partial reads
 /// or unknown message codes.
+/// # Errors
+///
+/// Returns an error on network, authentication, or parsing failure.
 pub fn read_frame<R: Read>(reader: &mut R) -> Result<Option<Frame>, crate::error::Error> {
     let mut buf = Vec::new();
     match read_frame_into(reader, &mut buf)? {
@@ -183,6 +186,9 @@ pub fn read_frame<R: Read>(reader: &mut R) -> Result<Option<Frame>, crate::error
 /// Writes `[LEN: u8] [CODE: u8] [PAYLOAD: LEN bytes]` and flushes.
 ///
 /// Returns `Err` if the payload exceeds 255 bytes.
+/// # Errors
+///
+/// Returns an error on network, authentication, or parsing failure.
 pub fn write_frame<W: Write>(writer: &mut W, frame: &Frame) -> Result<(), crate::error::Error> {
     if frame.payload.len() > MAX_PAYLOAD_LEN {
         return Err(crate::error::Error::FpssProtocol(format!(
@@ -192,7 +198,14 @@ pub fn write_frame<W: Write>(writer: &mut W, frame: &Frame) -> Result<(), crate:
         )));
     }
 
-    let header = [frame.payload.len() as u8, frame.code as u8];
+    // Length already validated <= MAX_PAYLOAD_LEN (255); code is a StreamMsgType u8 repr.
+    let len_byte = u8::try_from(frame.payload.len()).map_err(|_| {
+        crate::error::Error::Fpss(format!(
+            "frame payload length overflow: {}",
+            frame.payload.len()
+        ))
+    })?;
+    let header = [len_byte, frame.code as u8];
     writer.write_all(&header)?;
     if !frame.payload.is_empty() {
         writer.write_all(&frame.payload)?;
@@ -206,6 +219,9 @@ pub fn write_frame<W: Write>(writer: &mut W, frame: &Frame) -> Result<(), crate:
 ///
 /// Convenience function for hot paths (e.g., ping heartbeat) where we want
 /// to avoid allocation. Always flushes after writing.
+/// # Errors
+///
+/// Returns an error on network, authentication, or parsing failure.
 pub fn write_raw_frame<W: Write>(
     writer: &mut W,
     code: StreamMsgType,
@@ -221,8 +237,11 @@ pub fn write_raw_frame<W: Write>(
 /// Use this when batching multiple writes. Caller is responsible for
 /// flushing at the appropriate time (e.g., after PING frames only).
 ///
-/// Source: Java terminal only flushes on ping frames, letting BufWriter
+/// Source: Java terminal only flushes on ping frames, letting `BufWriter`
 /// batch other writes for better throughput.
+/// # Errors
+///
+/// Returns an error on network, authentication, or parsing failure.
 pub fn write_raw_frame_no_flush<W: Write>(
     writer: &mut W,
     code: StreamMsgType,
@@ -236,7 +255,11 @@ pub fn write_raw_frame_no_flush<W: Write>(
         )));
     }
 
-    let header = [payload.len() as u8, code as u8];
+    // Length already validated <= MAX_PAYLOAD_LEN (255).
+    let len_byte = u8::try_from(payload.len()).map_err(|_| {
+        crate::error::Error::Fpss(format!("frame payload length overflow: {}", payload.len()))
+    })?;
+    let header = [len_byte, code as u8];
     writer.write_all(&header)?;
     if !payload.is_empty() {
         writer.write_all(payload)?;

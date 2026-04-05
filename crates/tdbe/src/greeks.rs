@@ -1,4 +1,4 @@
-//! Black-Scholes Greeks calculator, ported from ThetaData's Java implementation.
+//! Black-Scholes Greeks calculator, ported from `ThetaData`'s Java implementation.
 //!
 //! Parameters:
 //! - `s`: Spot price (underlying)
@@ -16,7 +16,7 @@
 //! NaN/Inf contamination when Black-Scholes degenerates.
 
 // 1 / sqrt(2 * pi)
-const ONE_ROOT2PI: f64 = 0.3989422804014327;
+const ONE_ROOT2PI: f64 = 0.398_942_280_401_432_7;
 
 const MAX_TRIES: usize = 128;
 
@@ -46,18 +46,18 @@ fn is_degenerate(v: f64, t: f64) -> bool {
 /// of 5 separate multiplies + 5 additions + 4 intermediate power variables.
 /// Same Abramowitz & Stegun coefficients, same max error (~1.5e-7), fewer ops.
 ///
-/// For IV solver loops (128 bisection iterations, each calling norm_cdf ~4x),
+/// For IV solver loops (128 bisection iterations, each calling `norm_cdf` ~4x),
 /// this is the dominant cost — Horner form shaves ~20% off the polynomial eval.
 fn norm_cdf(x: f64) -> f64 {
     // Coefficients from Abramowitz & Stegun, formula 26.2.17.
     const A: [f64; 5] = [
-        0.319381530,
-        -0.356563782,
-        1.781477937,
-        -1.821255978,
-        1.330274429,
+        0.319_381_530,
+        -0.356_563_782,
+        1.781_477_937,
+        -1.821_255_978,
+        1.330_274_429,
     ];
-    const P: f64 = 0.2316419;
+    const P: f64 = 0.231_641_9;
 
     if x >= 0.0 {
         let t = 1.0 / (1.0 + P * x);
@@ -73,6 +73,9 @@ fn norm_cdf(x: f64) -> f64 {
     }
 }
 
+// Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
+#[allow(clippy::many_single_char_names)]
+#[must_use]
 pub fn d1(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
@@ -80,6 +83,9 @@ pub fn d1(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     ((s / x).ln() + t * (r - q + v * v / 2.0)) / (v * t.sqrt())
 }
 
+// Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
+#[allow(clippy::many_single_char_names)]
+#[must_use]
 pub fn d2(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
@@ -92,6 +98,9 @@ fn e1_from_d1(d1_val: f64) -> f64 {
 }
 
 /// Black-Scholes theoretical option value.
+// Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
+#[allow(clippy::many_single_char_names)]
+#[must_use]
 pub fn value(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64 {
     if is_degenerate(v, t) {
         // At expiry / zero vol, value is intrinsic value.
@@ -111,6 +120,9 @@ pub fn value(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f
     }
 }
 
+// Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[must_use]
 pub fn delta(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
@@ -123,6 +135,9 @@ pub fn delta(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f
     }
 }
 
+// Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[must_use]
 pub fn theta(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
@@ -141,6 +156,9 @@ pub fn theta(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f
     }
 }
 
+// Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[must_use]
 pub fn vega(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
@@ -149,6 +167,9 @@ pub fn vega(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     s * (-q * t).exp() * t.sqrt() * ONE_ROOT2PI * e1_from_d1(d1_val)
 }
 
+// Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[must_use]
 pub fn rho(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
@@ -161,6 +182,9 @@ pub fn rho(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64
     }
 }
 
+// Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[must_use]
 pub fn epsilon(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
@@ -173,6 +197,9 @@ pub fn epsilon(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) ->
     }
 }
 
+// Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[must_use]
 pub fn lambda(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
@@ -180,6 +207,9 @@ pub fn lambda(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> 
     realize(delta(s, x, v, r, q, t, is_call) * s / value(s, x, v, r, q, t, is_call))
 }
 
+// Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[must_use]
 pub fn gamma(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
@@ -188,6 +218,9 @@ pub fn gamma(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     (-q * t).exp() / (s * v * t.sqrt()) * ONE_ROOT2PI * e1_from_d1(d1_val)
 }
 
+// Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[must_use]
 pub fn vanna(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
@@ -197,6 +230,9 @@ pub fn vanna(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     -(-q * t).exp() * f1(d1_val) * d2_val / v
 }
 
+// Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[must_use]
 pub fn charm(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
@@ -211,6 +247,9 @@ pub fn charm(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f
     }
 }
 
+// Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[must_use]
 pub fn vomma(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
@@ -220,6 +259,9 @@ pub fn vomma(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     vega(s, x, v, r, q, t) * (d1_val * d2_val / v)
 }
 
+// Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[must_use]
 pub fn veta(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
@@ -232,6 +274,9 @@ pub fn veta(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
         * (q + (r - q) * d1_val / (v * t.sqrt()) - (1.0 + d1_val * d2_val) / (2.0 * t))
 }
 
+// Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[must_use]
 pub fn speed(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
@@ -240,6 +285,9 @@ pub fn speed(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     -(-q * t).exp() * f1(d1_val) / (s * s * v * t.sqrt()) * (d1_val / (v * t.sqrt()) + 1.0)
 }
 
+// Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[must_use]
 pub fn zomma(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
@@ -249,6 +297,9 @@ pub fn zomma(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     (-q * t).exp() * f1(d1_val) * (d1_val * d2_val - 1.0) / (s * v * v * t.sqrt())
 }
 
+// Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[must_use]
 pub fn color(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
@@ -261,6 +312,9 @@ pub fn color(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
             + (2.0 * (r - q) * t - d2_val * v * t.sqrt()) / (v * t.sqrt()) * d1_val)
 }
 
+// Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[must_use]
 pub fn ultima(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
@@ -272,6 +326,9 @@ pub fn ultima(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     out.clamp(-100.0, 100.0)
 }
 
+// Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[must_use]
 pub fn dual_delta(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
@@ -284,6 +341,9 @@ pub fn dual_delta(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool)
     }
 }
 
+// Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[must_use]
 pub fn dual_gamma(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
@@ -293,6 +353,9 @@ pub fn dual_gamma(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
 }
 
 /// Implied volatility solver using bisection. Returns `(iv, error)`.
+// Reason: s, x, r, q, t are standard Black-Scholes parameter names.
+#[allow(clippy::many_single_char_names)]
+#[must_use]
 pub fn implied_volatility(
     s: f64,
     x: f64,
@@ -310,7 +373,12 @@ pub fn implied_volatility(
     (out[0], out[1])
 }
 
-#[allow(clippy::too_many_arguments)]
+// Reason: s, x, r, q, t, o are standard Black-Scholes/IV solver parameter names.
+#[allow(
+    clippy::too_many_arguments,
+    clippy::many_single_char_names,
+    clippy::similar_names
+)]
 fn iv_bisection(s: f64, x: f64, r: f64, q: f64, t: f64, o: f64, is_call: bool, out: &mut [f64; 2]) {
     // Check intrinsic value boundary
     if value(s, x, 0.0, r, q, t, is_call) > o {
@@ -401,11 +469,19 @@ pub struct GreeksResult {
 /// **Tier 3 — Third-order Greeks** (speed, zomma, color, ultima):
 ///   Depend on Tier 1/2 intermediates.
 ///
-/// **Auxiliary** (lambda, dual_delta, dual_gamma):
+/// **Auxiliary** (lambda, `dual_delta`, `dual_gamma)`:
 ///   Depend on Tier 1 values.
 ///
 /// This avoids ~20 redundant `d1`/`d2` recalculations and ~40 redundant
 /// `exp()`/`norm_cdf()` calls compared to calling each Greek individually.
+// Reason: s, x, r, q, t are standard Black-Scholes parameter names.
+// Reason: 22-Greek computation cannot be meaningfully split without duplicating intermediates.
+#[allow(
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    clippy::too_many_lines
+)]
+#[must_use]
 pub fn all_greeks(
     s: f64,
     x: f64,
