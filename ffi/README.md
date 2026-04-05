@@ -38,7 +38,6 @@ All 61 endpoints are available as `tdx_stock_*`, `tdx_option_*`, `tdx_index_*`, 
 | Function | Description |
 |----------|-------------|
 | `tdx_unified_start_streaming` | Start FPSS on the unified handle |
-| `tdx_unified_start_streaming_no_ohlcvc` | Start FPSS without derived OHLCVC |
 | `tdx_unified_subscribe_quotes` | Subscribe to quote stream |
 | `tdx_unified_subscribe_trades` | Subscribe to trade stream |
 | `tdx_unified_subscribe_open_interest` | Subscribe to open interest stream |

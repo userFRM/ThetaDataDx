@@ -28,6 +28,7 @@ extern TdxConfig* tdx_config_stage();
 extern void tdx_config_free(TdxConfig* config);
 extern void tdx_config_set_reconnect_policy(TdxConfig* config, int policy);
 extern void tdx_config_set_flush_mode(TdxConfig* config, int mode);
+extern void tdx_config_set_derive_ohlcvc(TdxConfig* config, int enabled);
 
 // ── Client ──
 extern TdxClient* tdx_client_connect(const TdxCredentials* creds, const TdxConfig* config);
@@ -317,6 +318,17 @@ func (c *Config) SetReconnectPolicy(policy int) {
 //   - 1 = Immediate: flush after every frame write.
 func (c *Config) SetFlushMode(mode int) {
 	C.tdx_config_set_flush_mode(c.handle, C.int(mode))
+}
+
+// SetDeriveOhlcvc sets whether to derive OHLCVC bars locally from trade events.
+//   - true (default): derive OHLCVC bars from trades.
+//   - false: only emit server-sent OHLCVC frames (lower overhead).
+func (c *Config) SetDeriveOhlcvc(enabled bool) {
+	v := 0
+	if enabled {
+		v = 1
+	}
+	C.tdx_config_set_derive_ohlcvc(c.handle, C.int(v))
 }
 
 // Close frees the config handle.

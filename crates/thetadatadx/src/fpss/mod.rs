@@ -29,7 +29,7 @@
 //! # fn example() -> Result<(), thetadatadx::error::Error> {
 //! let creds = Credentials::new("user@example.com", "pw");
 //! let hosts = thetadatadx::config::DirectConfig::production().fpss_hosts;
-//! let client = FpssClient::connect(&creds, &hosts, 4096, Default::default(), Default::default(), |event: &FpssEvent| {
+//! let client = FpssClient::connect(&creds, &hosts, 4096, Default::default(), Default::default(), true, |event: &FpssEvent| {
 //!     // Runs on the Disruptor consumer thread -- keep it fast.
 //!     // Push to your own queue for heavy processing.
 //!     match event {
@@ -335,18 +335,24 @@ impl FpssClient {
     /// 5. Start I/O thread (blocking TLS read -> Disruptor ring -> callback)
     ///
     /// Source: `FPSSClient.connect()` and `FPSSClient.sendCredentials()`.
-    /// Connect with default settings (OHLCVC derivation enabled).
+    /// Connect to FPSS streaming servers.
     ///
     /// `hosts` is the FPSS server list from [`DirectConfig::fpss_hosts`].
     /// Servers are tried in order until one connects.
     ///
     /// `policy` controls auto-reconnect behavior after involuntary disconnect.
+    ///
+    /// When `derive_ohlcvc` is `false`, the client will NOT emit derived
+    /// `FpssData::Ohlcvc` events after each trade. You still receive
+    /// server-sent OHLCVC frames (wire code 24). This reduces throughput
+    /// overhead by eliminating one extra event per trade.
     pub fn connect<F>(
         creds: &Credentials,
         hosts: &[(String, u16)],
         ring_size: usize,
         flush_mode: FpssFlushMode,
         policy: ReconnectPolicy,
+        derive_ohlcvc: bool,
         handler: F,
     ) -> Result<Self, Error>
     where
@@ -360,43 +366,7 @@ impl FpssClient {
             server_addr,
             hosts.to_vec(),
             ring_size,
-            true,
-            flush_mode,
-            policy,
-            handler,
-        )
-    }
-
-    /// Connect with OHLCVC derivation disabled.
-    ///
-    /// When `derive_ohlcvc` is false, the client will NOT emit derived
-    /// `FpssData::Ohlcvc` events after each trade. You still receive
-    /// server-sent OHLCVC frames. This reduces throughput overhead by
-    /// eliminating one extra event per trade.
-    ///
-    /// `hosts` is the FPSS server list from [`DirectConfig::fpss_hosts`].
-    ///
-    /// `policy` controls auto-reconnect behavior after involuntary disconnect.
-    pub fn connect_no_ohlcvc<F>(
-        creds: &Credentials,
-        hosts: &[(String, u16)],
-        ring_size: usize,
-        flush_mode: FpssFlushMode,
-        policy: ReconnectPolicy,
-        handler: F,
-    ) -> Result<Self, Error>
-    where
-        F: FnMut(&FpssEvent) + Send + 'static,
-    {
-        let borrowed: Vec<(&str, u16)> = hosts.iter().map(|(h, p)| (h.as_str(), *p)).collect();
-        let (stream, server_addr) = connection::connect_to_servers(&borrowed)?;
-        Self::connect_with_stream(
-            creds,
-            stream,
-            server_addr,
-            hosts.to_vec(),
-            ring_size,
-            false,
+            derive_ohlcvc,
             flush_mode,
             policy,
             handler,
@@ -567,9 +537,9 @@ impl FpssClient {
     /// [`FpssData::Ohlcvc`] events interleaved. This is normal behavior from
     /// the ThetaData FPSS server.
     ///
-    /// If OHLCVC derivation is enabled (default via [`connect`]), you will also
-    /// receive locally-derived [`FpssData::Ohlcvc`] after each trade. Use
-    /// [`connect_no_ohlcvc`] to disable this and reduce throughput overhead.
+    /// If OHLCVC derivation is enabled (default), you will also
+    /// receive locally-derived [`FpssData::Ohlcvc`] after each trade. Pass
+    /// `derive_ohlcvc: false` to [`connect`] to disable this and reduce throughput overhead.
     ///
     /// # Wire protocol (from `PacketStream.java`)
     ///
@@ -2042,6 +2012,7 @@ pub fn reconnect<F>(
     ring_size: usize,
     flush_mode: FpssFlushMode,
     policy: ReconnectPolicy,
+    derive_ohlcvc: bool,
     handler: F,
 ) -> Result<FpssClient, Error>
 where
@@ -2050,7 +2021,15 @@ where
     tracing::info!(delay_ms, "waiting before FPSS reconnection");
     thread::sleep(Duration::from_millis(delay_ms));
 
-    let client = FpssClient::connect(creds, hosts, ring_size, flush_mode, policy, handler)?;
+    let client = FpssClient::connect(
+        creds,
+        hosts,
+        ring_size,
+        flush_mode,
+        policy,
+        derive_ohlcvc,
+        handler,
+    )?;
 
     // Re-subscribe all previous per-contract subscriptions with req_id = -1
     // Source: FPSSClient.java -- reconnect logic uses req_id = -1 for re-subscriptions

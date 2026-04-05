@@ -93,28 +93,7 @@ impl ThetaDataDx {
             config.fpss_ring_size,
             config.fpss_flush_mode,
             config.reconnect_policy.clone(),
-            handler,
-        )?;
-        *guard = Some(client);
-        Ok(())
-    }
-
-    /// Start streaming with OHLCVC derivation disabled.
-    pub fn start_streaming_no_ohlcvc<F>(&self, handler: F) -> Result<(), Error>
-    where
-        F: FnMut(&FpssEvent) + Send + 'static,
-    {
-        let mut guard = self.streaming.lock().unwrap_or_else(|e| e.into_inner());
-        if guard.is_some() {
-            return Err(Error::Fpss("streaming already started".into()));
-        }
-        let config = self.historical.config();
-        let client = FpssClient::connect_no_ohlcvc(
-            &self.creds,
-            &config.fpss_hosts,
-            config.fpss_ring_size,
-            config.fpss_flush_mode,
-            config.reconnect_policy.clone(),
+            config.derive_ohlcvc,
             handler,
         )?;
         *guard = Some(client);

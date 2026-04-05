@@ -15,7 +15,7 @@ Intentional differences between this Rust implementation and the decompiled Java
 As of v1.2.0:
 - **Contract wire format** — now matches Java exactly (fixed in PR #12; previous versions had a protocol-level bug in option contract serialization).
 - **Greeks formulas** — operator precedence now matches Java exactly (fixed in PR #12). Note: `vera` (DataType code 166) is returned by the server in Greeks responses, not computed locally by the SDK.
-- **OHLCVC-from-trade derivation** — matches Java behavior when enabled (default). Unlike Java, this is **opt-in/out**: use `ThetaDataDx::start_streaming_no_ohlcvc()` to disable derived OHLCVC events and reduce per-trade throughput overhead. The Java terminal always derives OHLCVC with no way to disable it.
+- **OHLCVC-from-trade derivation** — matches Java behavior when enabled (default). Unlike Java, this is **opt-in/out**: set `DirectConfig::derive_ohlcvc` to `false` to disable derived OHLCVC events and reduce per-trade throughput overhead. The Java terminal always derives OHLCVC with no way to disable it.
 
 ## Client-Side Behavior
 

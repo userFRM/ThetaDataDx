@@ -344,8 +344,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 ### Added
 
 - `ThetaDataDx::connect(creds, config)` — one auth, gRPC channel ready, no FPSS yet
-- `tdx.start_streaming(handler)` — lazy FPSS connection on demand
-- `tdx.start_streaming_no_ohlcvc(handler)` — same, without derived OHLCVC
+- `tdx.start_streaming(handler)` — lazy FPSS connection on demand (reads `derive_ohlcvc` from config)
 - `tdx.stop_streaming()` — clean shutdown of streaming, historical stays alive
 - `tdx.is_streaming()` — check if FPSS is active
 - All 61 historical methods via `Deref<Target = DirectClient>`
@@ -377,7 +376,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 - **FpssEvent split** — `FpssEvent::Quote { .. }` is now `FpssEvent::Data(FpssData::Quote { .. })`.
   Control events are `FpssEvent::Control(FpssControl::*)`. Migration: wrap your match arms.
 - **OHLCVC derivation opt-in/out** — `connect()` still derives OHLCVC (default).
-  New `connect_no_ohlcvc()` disables it for lower overhead on full trade streams.
+  Set `DirectConfig::derive_ohlcvc` to `false` to disable for lower overhead on full trade streams.
 - **FpssClient is fully sync** — no tokio in the streaming path. LMAX Disruptor
   ring buffer. Callback API: `FnMut(&FpssEvent)`.
 
