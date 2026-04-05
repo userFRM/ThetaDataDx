@@ -91,7 +91,7 @@ use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::mpsc as std_mpsc;
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use disruptor::{build_single_producer, Producer, Sequence};
 
@@ -417,6 +417,17 @@ impl FpssClient {
                 permissions
             }
             LoginResult::Disconnected(reason) => {
+                if matches!(
+                    reason,
+                    RemoveReason::InvalidCredentials
+                        | RemoveReason::InvalidLoginValues
+                        | RemoveReason::InvalidCredentialsNullUser
+                ) {
+                    tracing::warn!(
+                        "FPSS login failed. If your password contains special characters, \
+                         try URL-encoding them."
+                    );
+                }
                 return Err(Error::FpssDisconnected(format!(
                     "server rejected login: {reason:?}"
                 )));
@@ -1244,6 +1255,17 @@ fn io_loop<F>(
                 p
             }
             LoginResult::Disconnected(reason) => {
+                if matches!(
+                    reason,
+                    RemoveReason::InvalidCredentials
+                        | RemoveReason::InvalidLoginValues
+                        | RemoveReason::InvalidCredentialsNullUser
+                ) {
+                    tracing::warn!(
+                        "FPSS login failed. If your password contains special characters, \
+                         try URL-encoding them."
+                    );
+                }
                 tracing::warn!(reason = ?reason, "server rejected login on reconnect");
                 continue 'session;
             }
@@ -1488,7 +1510,15 @@ struct DeltaState {
     /// `(msg_type, contract_id)`. The dev server sends 8-field trades (simple
     /// format) while production sends 16-field trades (extended format).
     field_counts: HashMap<(u8, i32), usize>,
+    /// Timestamp of last STOP (market close) signal. Used to suppress
+    /// "unknown `contract_id`" warnings for 5 seconds after STOP, matching
+    /// Java terminal behavior where stale ticks are expected during teardown.
+    last_stop: Option<Instant>,
 }
+
+/// Duration after a STOP signal during which "unknown `contract_id`" warnings
+/// are suppressed. The Java terminal silences these for 5 seconds.
+const STOP_SUPPRESS_DURATION: Duration = Duration::from_secs(5);
 
 impl DeltaState {
     fn new() -> Self {
@@ -1499,6 +1529,7 @@ impl DeltaState {
             alloc_buf: vec![0i32; TRADE_FIELDS + 1],
             last_was_date: false,
             field_counts: HashMap::new(),
+            last_stop: None,
         }
     }
 
@@ -1507,11 +1538,21 @@ impl DeltaState {
     /// Called on START/STOP (market open/close) signals to reset delta
     /// decompression, matching Java's behavior where `Tick.readID()` starts
     /// fresh after a session boundary.
+    ///
+    /// Note: `last_stop` is intentionally NOT cleared here because STOP
+    /// itself calls `clear()`, and the timestamp must survive to suppress
+    /// stale-tick warnings for 5 seconds after the STOP signal.
     fn clear(&mut self) {
         self.prev.clear();
         self.ohlcvc.clear();
         self.last_was_date = false;
         self.field_counts.clear();
+    }
+
+    /// Whether we are within the post-STOP suppression window.
+    fn is_in_stop_suppression_window(&self) -> bool {
+        self.last_stop
+            .is_some_and(|t| t.elapsed() < STOP_SUPPRESS_DURATION)
     }
 
     /// Decode FIT payload and apply delta decompression.
@@ -1627,6 +1668,19 @@ fn decode_frame(
         .unwrap_or_default()
         .as_nanos() as u64;
 
+    // Log a warning when ticks arrive for contract IDs not in the map,
+    // but suppress for 5 seconds after STOP (market close) since stale
+    // ticks are expected during teardown. Matches Java terminal behavior.
+    let warn_unknown_contract = |contract_id: i32, kind: &str, delta_state: &DeltaState| {
+        let known = contract_map
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .contains_key(&contract_id);
+        if !known && !delta_state.is_in_stop_suppression_window() {
+            tracing::warn!(contract_id, kind, "no contract for ID");
+        }
+    };
+
     match code {
         StreamMsgType::Metadata => {
             // Can arrive again after reconnection
@@ -1671,6 +1725,7 @@ fn decode_frame(
             let msg_code = code as u8;
             match delta_state.decode_tick(msg_code, payload, QUOTE_FIELDS) {
                 Some((contract_id, f, _n)) => {
+                    warn_unknown_contract(contract_id, "quote", delta_state);
                     metrics::counter!("thetadatadx.fpss.events", "kind" => "quote").increment(1);
                     let pt = f[9];
                     (
@@ -1711,6 +1766,7 @@ fn decode_frame(
             let msg_code = code as u8;
             match delta_state.decode_tick(msg_code, payload, TRADE_FIELDS) {
                 Some((contract_id, f, n_data)) => {
+                    warn_unknown_contract(contract_id, "trade", delta_state);
                     metrics::counter!("thetadatadx.fpss.events", "kind" => "trade").increment(1);
 
                     if n_data != 8 && n_data != TRADE_FIELDS {
@@ -1830,6 +1886,7 @@ fn decode_frame(
             let msg_code = code as u8;
             match delta_state.decode_tick(msg_code, payload, OI_FIELDS) {
                 Some((contract_id, f, _n)) => {
+                    warn_unknown_contract(contract_id, "open_interest", delta_state);
                     metrics::counter!("thetadatadx.fpss.events", "kind" => "open_interest")
                         .increment(1);
                     (
@@ -1858,6 +1915,7 @@ fn decode_frame(
             let msg_code = code as u8;
             match delta_state.decode_tick(msg_code, payload, OHLCVC_FIELDS) {
                 Some((contract_id, f, _n)) => {
+                    warn_unknown_contract(contract_id, "ohlcvc", delta_state);
                     metrics::counter!("thetadatadx.fpss.events", "kind" => "ohlcvc").increment(1);
                     let acc = delta_state
                         .ohlcvc
@@ -1931,6 +1989,7 @@ fn decode_frame(
 
         StreamMsgType::Stop => {
             tracing::info!("market close signal received");
+            delta_state.last_stop = Some(Instant::now());
             delta_state.clear();
             contract_map
                 .lock()

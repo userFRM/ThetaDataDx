@@ -39,6 +39,29 @@ use tdbe::types::enums::RemoveReason;
 
 use crate::error::Error;
 
+/// Clamp a `usize` value to `[min, max]`, logging a warning if it was out of range.
+fn clamp_with_warning(value: usize, min: usize, max: usize, name: &str) -> usize {
+    if value < min {
+        tracing::warn!(
+            field = name,
+            value,
+            min,
+            "config value below minimum, clamped"
+        );
+        min
+    } else if value > max {
+        tracing::warn!(
+            field = name,
+            value,
+            max,
+            "config value above maximum, clamped"
+        );
+        max
+    } else {
+        value
+    }
+}
+
 /// Controls FPSS reconnection behavior after a disconnect.
 ///
 /// # Default
@@ -299,6 +322,7 @@ impl DirectConfig {
             // Default: use all CPU cores
             tokio_worker_threads: None,
         }
+        .validate()
     }
 
     /// Dev FPSS configuration.
@@ -324,7 +348,7 @@ impl DirectConfig {
             ("test-server.thetadata.us".to_string(), 20200),
             ("test-server.thetadata.us".to_string(), 20201),
         ];
-        config
+        config.validate()
     }
 
     /// Stage FPSS configuration.
@@ -344,7 +368,28 @@ impl DirectConfig {
             ("test-server.thetadata.us".to_string(), 20100),
             ("test-server.thetadata.us".to_string(), 20101),
         ];
-        config
+        config.validate()
+    }
+
+    /// Validate configuration values and clamp out-of-range fields, logging
+    /// a warning for each clamped value.
+    ///
+    /// Called automatically by [`production()`](Self::production),
+    /// [`dev()`](Self::dev), and [`stage()`](Self::stage). Also useful after
+    /// loading from a TOML file or modifying fields programmatically.
+    #[must_use]
+    pub fn validate(mut self) -> Self {
+        self.fpss_queue_depth =
+            clamp_with_warning(self.fpss_queue_depth, 16, 1_000_000, "fpss_queue_depth");
+        self.mdds_window_size_kb =
+            clamp_with_warning(self.mdds_window_size_kb, 64, 1_024, "mdds_window_size_kb");
+        self.mdds_connection_window_size_kb = clamp_with_warning(
+            self.mdds_connection_window_size_kb,
+            64,
+            1_024,
+            "mdds_connection_window_size_kb",
+        );
+        self
     }
 
     /// Build the MDDS gRPC endpoint URI.
@@ -654,7 +699,8 @@ mod config_file {
                 derive_ohlcvc: true,
 
                 tokio_worker_threads: None,
-            })
+            }
+            .validate())
         }
     }
 }
@@ -903,6 +949,58 @@ mod tests {
             assert!(result.is_err());
             assert!(result.unwrap_err().to_string().contains("TOML"));
         }
+    }
+
+    // -- Validation tests --
+
+    #[test]
+    fn validate_clamps_fpss_queue_depth_below_min() {
+        let mut config = DirectConfig::production();
+        config.fpss_queue_depth = 5;
+        let config = config.validate();
+        assert_eq!(config.fpss_queue_depth, 16);
+    }
+
+    #[test]
+    fn validate_clamps_fpss_queue_depth_above_max() {
+        let mut config = DirectConfig::production();
+        config.fpss_queue_depth = 2_000_000;
+        let config = config.validate();
+        assert_eq!(config.fpss_queue_depth, 1_000_000);
+    }
+
+    #[test]
+    fn validate_clamps_window_size_below_min() {
+        let mut config = DirectConfig::production();
+        config.mdds_window_size_kb = 10;
+        let config = config.validate();
+        assert_eq!(config.mdds_window_size_kb, 64);
+    }
+
+    #[test]
+    fn validate_clamps_window_size_above_max() {
+        let mut config = DirectConfig::production();
+        config.mdds_window_size_kb = 2_048;
+        let config = config.validate();
+        assert_eq!(config.mdds_window_size_kb, 1_024);
+    }
+
+    #[test]
+    fn validate_clamps_connection_window_size() {
+        let mut config = DirectConfig::production();
+        config.mdds_connection_window_size_kb = 2_048;
+        let config = config.validate();
+        assert_eq!(config.mdds_connection_window_size_kb, 1_024);
+    }
+
+    #[test]
+    fn validate_preserves_in_range_values() {
+        let config = DirectConfig::production();
+        let validated = config.validate();
+        // Production defaults are all within range.
+        assert_eq!(validated.fpss_queue_depth, 1_000_000);
+        assert_eq!(validated.mdds_window_size_kb, 64);
+        assert_eq!(validated.mdds_connection_window_size_kb, 64);
     }
 
     // -- Metrics tests --
