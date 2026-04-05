@@ -22,7 +22,7 @@ use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
 use sonic_rs::prelude::*;
-use tokio::sync::broadcast;
+use tokio::sync::mpsc;
 
 use tdbe::types::enums::SecType;
 use tdbe::types::price::Price;
@@ -59,10 +59,10 @@ async fn ws_upgrade(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl
 ///
 /// Multiplexes three event sources in `tokio::select!`:
 /// 1. Heartbeat tick (1s) -> send STATUS
-/// 2. FPSS broadcast events -> forward to client
+/// 2. Per-client mpsc events -> forward to client (zero-copy `Arc<str>`)
 /// 3. Client messages -> process subscription commands
 async fn handle_socket(mut socket: WebSocket, state: AppState) {
-    let mut ws_rx = state.subscribe_ws();
+    let mut ws_rx: mpsc::Receiver<Arc<str>> = state.register_ws_client().await;
     let mut heartbeat = tokio::time::interval(std::time::Duration::from_secs(1));
 
     tracing::debug!("WebSocket client connected");
@@ -83,17 +83,15 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                 }
             }
 
-            result = ws_rx.recv() => {
-                match result {
-                    Ok(event_json) => {
-                        if socket.send(Message::Text(event_json.into())).await.is_err() {
+            event = ws_rx.recv() => {
+                match event {
+                    Some(event_json) => {
+                        if socket.send(Message::Text(event_json.to_string().into())).await.is_err() {
                             break;
                         }
                     }
-                    Err(broadcast::error::RecvError::Lagged(n)) => {
-                        tracing::warn!(lagged = n, "WebSocket client lagged, dropped events");
-                    }
-                    Err(broadcast::error::RecvError::Closed) => {
+                    None => {
+                        // Sender side dropped -- server shutting down.
                         break;
                     }
                 }
@@ -119,6 +117,10 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
         }
     }
 
+    // Close the receiver so the sender side sees is_closed() = true.
+    ws_rx.close();
+    // Clean up our entry from the client list.
+    state.cleanup_ws_clients().await;
     state.release_ws();
     tracing::debug!("WebSocket connection closed");
 }
@@ -497,10 +499,11 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
             _ => {}
         }
 
-        // Convert to WS JSON and broadcast.
+        // Serialize once, fan out as Arc<str> (zero-copy per client).
         let map = map_clone.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(ws_json) = fpss_event_to_ws_json(event, &map) {
-            state_clone.broadcast_ws(ws_json);
+            let msg: Arc<str> = Arc::from(ws_json);
+            state_clone.broadcast_ws(msg);
         }
     })?;
 

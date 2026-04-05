@@ -1983,7 +1983,7 @@ dependencies = [
 
 [[package]]
 name = "tdbe"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "thiserror 2.0.18",
 ]
@@ -2003,7 +2003,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "5.3.1"
+version = "5.4.0"
 dependencies = [
  "disruptor",
  "metrics",
@@ -2032,7 +2032,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-server"
-version = "5.3.1"
+version = "5.4.0"
 dependencies = [
  "axum",
  "clap",

@@ -1,7 +1,7 @@
 //! Shared application state for the REST + WebSocket server.
 //!
-//! Holds the unified `ThetaDataDx` client, connection flags, WebSocket
-//! broadcast channel, and shutdown plumbing. All fields are `Send + Sync`
+//! Holds the unified `ThetaDataDx` client, connection flags, per-client
+//! WebSocket channels, and shutdown plumbing. All fields are `Send + Sync`
 //! behind `Arc` so axum can cheaply clone state into each handler.
 
 use std::collections::HashMap;
@@ -11,21 +11,19 @@ use std::sync::{Arc, Mutex};
 use thetadatadx::direct::DirectClient;
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::ThetaDataDx;
-use tokio::sync::broadcast;
+use tokio::sync::{mpsc, RwLock};
 
-/// Capacity of the broadcast channel used to fan out FPSS events to WebSocket
-/// clients.  4096 is chosen because:
+/// Per-client channel capacity. Matches the old `broadcast::channel(4096)`.
 ///
-/// - FPSS can burst ~10k events/sec during market open (quotes + trades +
-///   OHLCVC for all subscribed contracts).  A buffer of 4096 gives ~400ms of
-///   headroom before a slow WebSocket consumer starts losing messages (at
-///   which point `broadcast::Receiver` returns `Lagged` and the consumer
-///   catches up to the tail).
-/// - Each message is a small JSON string (~200-500 bytes), so 4096 slots cost
-///   roughly 1-2 MB of memory -- negligible on a server.
-/// - Powers of two are preferred because tokio's broadcast channel internally
-///   masks indices, making power-of-two sizes slightly more efficient.
-const WS_BROADCAST_CAPACITY: usize = 4096;
+/// At ~10k events/sec peak (market open), 4096 gives ~400ms of headroom
+/// before a slow WebSocket consumer starts dropping events.  Each slot is
+/// an `Arc<str>` (~16 bytes), so 4096 slots cost ~64KB per client.
+const WS_CLIENT_CAPACITY: usize = 4096;
+
+/// Connected WS clients. Each gets its own bounded mpsc sender so the FPSS
+/// callback can fan out a single `Arc<str>` (serialized once) without cloning
+/// the JSON payload per client.
+pub type WsClients = Arc<RwLock<Vec<mpsc::Sender<Arc<str>>>>>;
 
 /// Shared server state, cloned into every axum handler.
 #[derive(Clone)]
@@ -40,8 +38,8 @@ struct Inner {
     mdds_connected: AtomicBool,
     /// Whether FPSS is connected (set by the FPSS bridge callback).
     fpss_connected: AtomicBool,
-    /// Broadcast channel: FPSS events -> WebSocket clients.
-    ws_tx: broadcast::Sender<String>,
+    /// Per-client channels: FPSS events -> WebSocket clients (zero-copy fan-out).
+    ws_clients: WsClients,
     /// Shutdown signal.
     shutdown: tokio::sync::Notify,
     /// WebSocket single-connection enforcement.
@@ -55,13 +53,12 @@ struct Inner {
 impl AppState {
     /// Create new app state wrapping a connected `ThetaDataDx`.
     pub fn new(tdx: ThetaDataDx, shutdown_token: String) -> Self {
-        let (ws_tx, _) = broadcast::channel(WS_BROADCAST_CAPACITY);
         Self {
             inner: Arc::new(Inner {
                 tdx,
                 mdds_connected: AtomicBool::new(true),
                 fpss_connected: AtomicBool::new(false),
-                ws_tx,
+                ws_clients: Arc::new(RwLock::new(Vec::new())),
                 shutdown: tokio::sync::Notify::new(),
                 ws_connected: AtomicBool::new(false),
                 contract_map: Arc::new(Mutex::new(HashMap::new())),
@@ -105,15 +102,43 @@ impl AppState {
             .store(connected, Ordering::Release);
     }
 
-    /// Get a new broadcast receiver for WebSocket events.
-    pub fn subscribe_ws(&self) -> broadcast::Receiver<String> {
-        self.inner.ws_tx.subscribe()
+    /// Register a new WS client, returning the receiver half of its channel.
+    pub async fn register_ws_client(&self) -> mpsc::Receiver<Arc<str>> {
+        let (tx, rx) = mpsc::channel(WS_CLIENT_CAPACITY);
+        self.inner.ws_clients.write().await.push(tx);
+        rx
     }
 
-    /// Send a JSON event string to all connected WebSocket clients.
-    pub fn broadcast_ws(&self, event: String) {
-        // Ignore send errors (no receivers = nobody connected).
-        let _ = self.inner.ws_tx.send(event);
+    /// Fan out a JSON event to all connected WebSocket clients (zero-copy).
+    ///
+    /// Each client receives an `Arc::clone` of the same backing string --
+    /// the JSON payload is serialized exactly once regardless of client count.
+    ///
+    /// Called from the FPSS Disruptor consumer thread (a plain `std::thread`,
+    /// not a tokio task), so `blocking_read()` is safe and cannot panic.
+    /// This ensures events are never silently dropped for all clients just
+    /// because one client is connecting/disconnecting.
+    ///
+    /// If a per-client channel is full, that single slow client's event is
+    /// dropped and a warning is logged -- the same backpressure semantics as
+    /// the old `broadcast::channel`'s `Lagged` behavior.
+    pub fn broadcast_ws(&self, event: Arc<str>) {
+        let clients = self.inner.ws_clients.blocking_read();
+        for tx in clients.iter() {
+            if let Err(mpsc::error::TrySendError::Full(_)) = tx.try_send(Arc::clone(&event)) {
+                tracing::warn!("WebSocket client lagged, dropped event");
+            }
+            // TrySendError::Closed is fine -- cleanup_ws_clients will prune it.
+        }
+    }
+
+    /// Remove senders whose receivers have been dropped (client disconnected).
+    pub async fn cleanup_ws_clients(&self) {
+        self.inner
+            .ws_clients
+            .write()
+            .await
+            .retain(|tx| !tx.is_closed());
     }
 
     /// Shared contract map for FPSS -> WS bridge JSON serialization.
