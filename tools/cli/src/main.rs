@@ -15,7 +15,9 @@ use thetadatadx::registry::{self, EndpointMeta};
 ///
 /// Categories (stock, option, index, rate, calendar) are auto-populated.
 /// The `auth`, `greeks`, and `iv` commands remain hand-written since they
-/// don't map to DirectClient endpoints.
+/// don't map to `DirectClient` endpoints.
+// Reason: CLI builder registers all subcommands in a single function; splitting would lose cohesion.
+#[allow(clippy::too_many_lines)]
 fn build_cli() -> Command {
     let mut app = Command::new("tdx")
         .version(env!("CARGO_PKG_VERSION"))
@@ -121,7 +123,7 @@ fn build_cli() -> Command {
             // Subcmd name: strip the category prefix (e.g. "stock_history_eod" -> "history_eod")
             let sub_name = ep
                 .name
-                .strip_prefix(&format!("{}_", cat))
+                .strip_prefix(&format!("{cat}_"))
                 // For "interest_rate_history_eod" under "rate" category
                 .or_else(|| ep.name.strip_prefix("interest_rate_"))
                 .unwrap_or(ep.name);
@@ -147,15 +149,16 @@ fn build_cli() -> Command {
 
 /// Extract a string arg from clap matches, or panic with a clear message.
 fn get_arg<'a>(m: &'a ArgMatches, name: &str) -> &'a str {
-    m.get_one::<String>(name)
-        .map(|s| s.as_str())
-        .unwrap_or_else(|| panic!("missing required argument: {name}"))
+    m.get_one::<String>(name).map_or_else(
+        || panic!("missing required argument: {name}"),
+        std::string::String::as_str,
+    )
 }
 
 /// Parse comma-separated symbols into a `Vec<&str>`, filtering out empty entries.
 fn parse_symbols(s: &str) -> Vec<&str> {
     s.split(',')
-        .map(|sym| sym.trim())
+        .map(str::trim)
         .filter(|sym| !sym.is_empty())
         .collect()
 }
@@ -176,6 +179,8 @@ fn normalize_right(s: &str) -> Result<&'static str, thetadatadx::Error> {
 /// This is the core of the dynamic dispatch system: given an `EndpointMeta`
 /// and parsed `ArgMatches`, it calls the right `ThetaDataDx` method (via
 /// Deref to `DirectClient`) and renders the result in the requested format.
+// Reason: endpoint dispatcher matches over 61 endpoints; cannot be meaningfully split.
+#[allow(clippy::too_many_lines)]
 async fn dispatch_endpoint(
     ep: &EndpointMeta,
     m: &ArgMatches,
@@ -691,12 +696,12 @@ impl OutputFormat {
 //  Formatting helpers
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Format ms_of_day as HH:MM:SS.mmm
+/// Format `ms_of_day` as HH:MM:SS.mmm
 fn format_ms(ms: i32) -> String {
     if ms < 0 {
         return "N/A".into();
     }
-    let total_ms = ms as u64;
+    let total_ms = u64::try_from(ms).unwrap_or(0);
     let h = total_ms / 3_600_000;
     let m = (total_ms % 3_600_000) / 60_000;
     let s = (total_ms % 60_000) / 1_000;
@@ -704,7 +709,7 @@ fn format_ms(ms: i32) -> String {
     format!("{h:02}:{m:02}:{s:02}.{ms_frac:03}")
 }
 
-/// Format price from raw integer + price_type to a float string.
+/// Format price from raw integer + `price_type` to a float string.
 fn format_price(value: i32, price_type: i32) -> String {
     if price_type == 0 {
         return "0.00".into();
@@ -737,7 +742,10 @@ struct TabularData {
 impl TabularData {
     fn new(headers: Vec<&str>) -> Self {
         Self {
-            headers: headers.into_iter().map(|s| s.to_string()).collect(),
+            headers: headers
+                .into_iter()
+                .map(std::string::ToString::to_string)
+                .collect(),
             rows: Vec::new(),
         }
     }
@@ -838,7 +846,7 @@ impl TabularData {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Sentinel value used internally to distinguish null values from empty strings
-/// in DataTable cells. For table display, nulls render as empty; for JSON/CSV,
+/// in `DataTable` cells. For table display, nulls render as empty; for JSON/CSV,
 /// they render as proper `null`.
 const NULL_SENTINEL: &str = "\x00NULL\x00";
 
@@ -1173,21 +1181,20 @@ async fn main() {
     }
 }
 
+// Reason: top-level CLI dispatch across auth, greeks, IV, streaming, and endpoint commands.
+#[allow(clippy::too_many_lines)]
 async fn run(matches: ArgMatches) -> Result<(), thetadatadx::Error> {
     let fmt = OutputFormat::from_str(
         matches
             .get_one::<String>("format")
-            .map(|s| s.as_str())
-            .unwrap_or("table"),
+            .map_or("table", std::string::String::as_str),
     );
     let creds_path = matches
         .get_one::<String>("creds")
-        .map(|s| s.as_str())
-        .unwrap_or("creds.txt");
+        .map_or("creds.txt", std::string::String::as_str);
     let config_preset = matches
         .get_one::<String>("config")
-        .map(|s| s.as_str())
-        .unwrap_or("production");
+        .map_or("production", std::string::String::as_str);
 
     match matches.subcommand() {
         // ── Auth (hand-written) ─────────────────────────────────────
@@ -1340,7 +1347,7 @@ async fn run(matches: ArgMatches) -> Result<(), thetadatadx::Error> {
             } else {
                 // No sub-command: print help for this category
                 let mut cmd = build_cli();
-                let _ = cmd.find_subcommand_mut(cat).map(|c| c.print_help());
+                let _ = cmd.find_subcommand_mut(cat).map(clap::Command::print_help);
             }
         }
 

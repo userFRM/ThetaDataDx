@@ -1,6 +1,6 @@
 //! FIT nibble decoder — the core compression codec for FPSS tick data.
 //!
-//! Reverse-engineered from decompiled `FITReader.java` in ThetaData's terminal JAR.
+//! Reverse-engineered from decompiled `FITReader.java` in `ThetaData`'s terminal JAR.
 //!
 //! # Wire Format
 //!
@@ -9,8 +9,8 @@
 //! | Nibble | Meaning                                                           |
 //! |--------|-------------------------------------------------------------------|
 //! | 0-9    | Decimal digit — accumulated left-to-right into current integer    |
-//! | 0xB    | FIELD_SEPARATOR — flush integer to output, advance slot index     |
-//! | 0xC    | ROW_SEPARATOR — flush, zero-fill slots to index 4, jump to 5      |
+//! | 0xB    | `FIELD_SEPARATOR` — flush integer to output, advance slot index     |
+//! | 0xC    | `ROW_SEPARATOR` — flush, zero-fill slots to index 4, jump to 5      |
 //! | 0xD    | END — flush current integer, terminate, return field count        |
 //! | 0xE    | NEGATIVE — next flushed integer is negated                        |
 //!
@@ -28,12 +28,12 @@ const ROW_SEP: u8 = 0xC;
 const END: u8 = 0xD;
 const NEGATIVE: u8 = 0xE;
 
-/// The "spacing" constant from FITReader.java: after a ROW_SEPARATOR, the
+/// The "spacing" constant from FITReader.java: after a `ROW_SEPARATOR`, the
 /// field index jumps to this value (zero-filling slots 0..4, skipping to 5).
 const SPACING: usize = 5;
 
 /// Maximum number of decimal digits that can accumulate before a flush.
-/// 10 digits covers the full range of i32 (2_147_483_647 = 10 digits).
+/// 10 digits covers the full range of i32 (`2_147_483_647` = 10 digits).
 const MAX_DIGITS: usize = 10;
 
 /// DATE marker byte (0xCE as unsigned). In Java's signed byte world this is -50.
@@ -45,6 +45,7 @@ const DATE_MARKER: u8 = 0xCE;
 /// applies delta decompression, returning absolute values per row.
 ///
 /// Each inner `Vec<i32>` has exactly `fields_per_row` elements (zero-padded).
+#[must_use]
 pub fn decode_fit_buffer_bulk(buf: &[u8], fields_per_row: usize) -> Vec<Vec<i32>> {
     let mut reader = FitReader::new(buf);
     let mut rows = Vec::new();
@@ -53,7 +54,7 @@ pub fn decode_fit_buffer_bulk(buf: &[u8], fields_per_row: usize) -> Vec<Vec<i32>
     let mut first = true;
 
     while !reader.is_exhausted() {
-        alloc.iter_mut().for_each(|v| *v = 0);
+        alloc.fill(0);
         let n = reader.read_changes(&mut alloc);
         if n == 0 {
             continue;
@@ -85,6 +86,7 @@ pub struct FitReader<'a> {
 impl<'a> FitReader<'a> {
     /// Create a new reader over `buf`, starting at byte offset 0.
     #[inline]
+    #[must_use]
     pub fn new(buf: &'a [u8]) -> Self {
         Self {
             buf,
@@ -95,6 +97,7 @@ impl<'a> FitReader<'a> {
 
     /// Create a new reader starting at an explicit byte offset.
     #[inline]
+    #[must_use]
     pub fn with_offset(buf: &'a [u8], offset: usize) -> Self {
         Self {
             buf,
@@ -105,12 +108,14 @@ impl<'a> FitReader<'a> {
 
     /// Current byte position in the buffer.
     #[inline]
+    #[must_use]
     pub fn position(&self) -> usize {
         self.pos
     }
 
     /// Returns `true` when the cursor has reached or passed the end of the buffer.
     #[inline]
+    #[must_use]
     pub fn is_exhausted(&self) -> bool {
         self.pos >= self.buf.len()
     }
@@ -156,7 +161,7 @@ impl<'a> FitReader<'a> {
 
             // Process high nibble, then low nibble.
             // Each returns true if the row has ended (END nibble encountered).
-            if self.process_nibble(
+            if Self::process_nibble(
                 high,
                 alloc,
                 &mut idx,
@@ -166,7 +171,7 @@ impl<'a> FitReader<'a> {
             ) {
                 return idx;
             }
-            if self.process_nibble(low, alloc, &mut idx, &mut digits, &mut count, &mut negative) {
+            if Self::process_nibble(low, alloc, &mut idx, &mut digits, &mut count, &mut negative) {
                 return idx;
             }
         }
@@ -187,7 +192,6 @@ impl<'a> FitReader<'a> {
     /// Returns `true` if this nibble was an END marker (row complete).
     #[inline]
     fn process_nibble(
-        &self,
         nibble: u8,
         alloc: &mut [i32],
         idx: &mut usize,
@@ -277,7 +281,7 @@ impl<'a> FitReader<'a> {
 /// If `negative`, the result is negated.
 ///
 /// Uses an i64 accumulator internally to avoid overflow for 10-digit values
-/// near i32::MAX. Values that exceed i32 range are saturated.
+/// near `i32::MAX`. Values that exceed i32 range are saturated.
 ///
 /// An empty digit buffer (count == 0) flushes as 0 (matching Java behavior where
 /// a separator immediately after another separator emits 0).
@@ -285,7 +289,7 @@ impl<'a> FitReader<'a> {
 fn flush_digits(digits: &[u8; MAX_DIGITS], count: usize, negative: bool) -> i32 {
     let mut val: i64 = 0;
     for &digit in digits.iter().take(count) {
-        val = val * 10 + digit as i64;
+        val = val * 10 + i64::from(digit);
     }
     if negative {
         val = -val;

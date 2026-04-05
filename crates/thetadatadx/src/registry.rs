@@ -1,7 +1,7 @@
-//! Endpoint registry -- single source of truth for all DirectClient endpoints.
+//! Endpoint registry -- single source of truth for all `DirectClient` endpoints.
 //!
 //! Used by the CLI and MCP server to auto-generate commands and tool definitions.
-//! When ThetaData adds a new proto RPC, the build script parses
+//! When `ThetaData` adds a new proto RPC, the build script parses
 //! `v3_endpoints.proto` and regenerates the registry automatically.
 //!
 //! # Design
@@ -40,9 +40,9 @@ pub enum ParamType {
     Str,
     /// Year string (e.g. "2024")
     Year,
-    /// Floating-point number (e.g. annual_dividend)
+    /// Floating-point number (e.g. `annual_dividend`)
     Float,
-    /// Integer (e.g. max_dte, strike_range)
+    /// Integer (e.g. `max_dte`, `strike_range`)
     Int,
     /// Boolean flag
     Bool,
@@ -106,16 +106,19 @@ include!(concat!(env!("OUT_DIR"), "/registry_generated.rs"));
 pub const CATEGORIES: &[&str] = &["stock", "option", "index", "rate", "calendar"];
 
 /// Find an endpoint by its method name.
+#[must_use]
 pub fn find(name: &str) -> Option<&'static EndpointMeta> {
     ENDPOINTS.iter().find(|e| e.name == name)
 }
 
 /// All endpoints in a category.
+#[must_use]
 pub fn by_category(cat: &str) -> Vec<&'static EndpointMeta> {
     ENDPOINTS.iter().filter(|e| e.category == cat).collect()
 }
 
 /// Map a `ParamType` to a JSON Schema type string.
+#[must_use]
 pub fn param_type_to_json_type(pt: ParamType) -> &'static str {
     match pt {
         ParamType::Symbol

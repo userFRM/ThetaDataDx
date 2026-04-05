@@ -1,8 +1,8 @@
-//! HTTP authentication against the ThetaData Nexus API.
+//! HTTP authentication against the `ThetaData` Nexus API.
 //!
 //! # Protocol (from decompiled Java — `AuthenticationManager.authenticateViaCloud()`)
 //!
-//! The Java terminal authenticates by POSTing to the Nexus API:
+//! The Java terminal authenticates by `POSTing` to the Nexus API:
 //!
 //! ```text
 //! POST https://nexus-api.thetadata.us/identity/terminal/auth_user
@@ -119,6 +119,7 @@ impl AuthUser {
     /// - PROFESSIONAL/PRO = 3 -> 8 concurrent requests
     ///
     /// Source: Java terminal `MddsConnectionManager` — `2^subscription_tier`.
+    #[must_use]
     pub fn max_concurrent_requests(&self) -> usize {
         let tier = [
             self.stock_subscription,
@@ -129,7 +130,8 @@ impl AuthUser {
         .iter()
         .filter_map(|s| *s)
         .max()
-        .unwrap_or(0) as usize;
+        .unwrap_or(0);
+        let tier = usize::try_from(tier).unwrap_or(0);
         1usize << tier // 2^tier: 1, 2, 4, 8
     }
 }
@@ -143,9 +145,12 @@ impl AuthUser {
 ///
 /// The returned `AuthResponse.session_id` is a UUID string that must be
 /// embedded in every MDDS gRPC request as `QueryInfo.auth_token.session_uuid`.
+/// # Errors
+///
+/// Returns an error on network, authentication, or parsing failure.
 pub async fn authenticate(creds: &Credentials) -> Result<AuthResponse, Error> {
     metrics::counter!("thetadatadx.auth.requests").increment(1);
-    let _auth_start = std::time::Instant::now();
+    let auth_start = std::time::Instant::now();
 
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
@@ -210,7 +215,7 @@ pub async fn authenticate(creds: &Credentials) -> Result<AuthResponse, Error> {
     );
 
     metrics::histogram!("thetadatadx.auth.latency_ms")
-        .record(_auth_start.elapsed().as_millis() as f64);
+        .record(auth_start.elapsed().as_secs_f64() * 1_000.0);
 
     Ok(auth)
 }
@@ -226,6 +231,9 @@ pub struct SessionToken {
 
 impl SessionToken {
     /// Extract and validate the session token from an auth response.
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
     pub fn from_response(resp: &AuthResponse) -> Result<Self, Error> {
         let _uuid = Uuid::parse_str(&resp.session_id)
             .map_err(|e| Error::Auth(format!("invalid session UUID '{}': {e}", resp.session_id)))?;

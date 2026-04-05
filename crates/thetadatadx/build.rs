@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::Write as _;
 use std::path::Path;
 
 use serde::Deserialize;
@@ -85,18 +86,22 @@ fn generate_tick_types() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::write(&parsers_dest, &parsers)?;
 
     // Rerun if schema changes
-    println!("cargo:rerun-if-changed={}", schema_path);
+    println!("cargo:rerun-if-changed={schema_path}");
 
     Ok(())
 }
 
 /// Generate a single parser function.
+// Reason: code generator — the match dispatch over column types cannot be meaningfully split.
+#[allow(clippy::too_many_lines)]
 fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
     let fn_name = &def.parser;
 
-    out.push_str(&format!(
-        "pub fn {fn_name}(table: &crate::proto::DataTable) -> Vec<{type_name}> {{\n"
-    ));
+    writeln!(
+        out,
+        "pub fn {fn_name}(table: &crate::proto::DataTable) -> Vec<{type_name}> {{"
+    )
+    .unwrap();
 
     // If eod_style, emit the local eod_num helper inline.
     if def.eod_style {
@@ -180,9 +185,9 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
     if !def.eod_style {
         for req in &def.required {
             let var = idx_var_name(req);
-            out.push_str(&format!(
-                "    let Some({var}) = find_header(&h, \"{req}\") else {{\n        return vec![];\n    }};\n"
-            ));
+            writeln!(out,
+                "    let Some({var}) = find_header(&h, \"{req}\") else {{\n        return vec![];\n    }};"
+            ).unwrap();
         }
         if !def.required.is_empty() {
             out.push('\n');
@@ -198,14 +203,11 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
         }
         let var = idx_var_name(&col.name);
         if def.eod_style {
-            out.push_str(&format!("    let {var} = find(\"{}\");\n", col.name));
+            writeln!(out, "    let {var} = find(\"{}\");", col.name).unwrap();
         } else if def.required.contains(&col.name) {
             // Already declared above as required.
         } else {
-            out.push_str(&format!(
-                "    let {var} = find_header(&h, \"{}\");\n",
-                col.name
-            ));
+            writeln!(out, "    let {var} = find_header(&h, \"{}\");", col.name).unwrap();
         }
     }
 
@@ -225,11 +227,13 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
             let typed_var = format!("{ptc}_is_typed");
             // For required columns, the idx is usize directly. For optional, it's Option<usize>.
             if def.required.contains(ptc) {
-                out.push_str(&format!("    let {typed_var} = h.contains(&\"{ptc}\");\n"));
+                writeln!(out, "    let {typed_var} = h.contains(&\"{ptc}\");").unwrap();
             } else {
-                out.push_str(&format!(
-                    "    let {typed_var} = {var}.is_some() && h.contains(&\"{ptc}\");\n"
-                ));
+                writeln!(
+                    out,
+                    "    let {typed_var} = {var}.is_some() && h.contains(&\"{ptc}\");"
+                )
+                .unwrap();
             }
         }
     }
@@ -255,42 +259,40 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
         let pt_var = format!("_pt_{}", psc.field);
 
         if def.eod_style {
-            out.push_str(&format!(
-                "            let {pt_var} = {source_var}.map(|i| row_price_type(row, i)).unwrap_or(0);\n"
-            ));
+            writeln!(out,
+                "            let {pt_var} = {source_var}.map(|i| row_price_type(row, i)).unwrap_or(0);"
+            ).unwrap();
         } else if def.price_typed_columns.contains(source) {
             let typed_var = format!("{source}_is_typed");
             if def.required.contains(source) {
                 // source_var is usize
                 let pt_field_var = idx_var_name(&psc.name);
-                out.push_str(&format!("            let {pt_var} = if {typed_var} {{\n"));
-                out.push_str(&format!(
-                    "                row_price_type(row, {source_var})\n"
-                ));
+                writeln!(out, "            let {pt_var} = if {typed_var} {{").unwrap();
+                writeln!(out, "                row_price_type(row, {source_var})").unwrap();
                 out.push_str("            } else {\n");
-                out.push_str(&format!(
-                    "                opt_number(row, {pt_field_var})\n"
-                ));
+                writeln!(out, "                opt_number(row, {pt_field_var})").unwrap();
                 out.push_str("            };\n");
             } else {
                 // source_var is Option<usize>
                 let pt_field_var = idx_var_name(&psc.name);
-                out.push_str(&format!("            let {pt_var} = if {typed_var} {{\n"));
-                out.push_str(&format!(
-                    "                {source_var}.map(|i| row_price_type(row, i)).unwrap_or(0)\n"
-                ));
+                writeln!(out, "            let {pt_var} = if {typed_var} {{").unwrap();
+                writeln!(
+                    out,
+                    "                {source_var}.map(|i| row_price_type(row, i)).unwrap_or(0)"
+                )
+                .unwrap();
                 out.push_str("            } else {\n");
-                out.push_str(&format!(
-                    "                opt_number(row, {pt_field_var})\n"
-                ));
+                writeln!(out, "                opt_number(row, {pt_field_var})").unwrap();
                 out.push_str("            };\n");
             }
         } else {
             // Not price-typed: just use opt_number
             let pt_field_var = idx_var_name(&psc.name);
-            out.push_str(&format!(
-                "            let {pt_var} = opt_number(row, {pt_field_var});\n"
-            ));
+            writeln!(
+                out,
+                "            let {pt_var} = opt_number(row, {pt_field_var});"
+            )
+            .unwrap();
         }
     }
 
@@ -304,7 +306,7 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
         .collect();
 
     // Struct literal
-    out.push_str(&format!("            {type_name} {{\n"));
+    writeln!(out, "            {type_name} {{").unwrap();
 
     for col in &def.columns {
         let var = idx_var_name(&col.name);
@@ -313,7 +315,7 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
         // If this column has a price_source, use the precomputed _pt_ variable.
         if col.price_source.is_some() {
             let pt_var = format!("_pt_{}", col.field);
-            out.push_str(&format!("                {}: {pt_var},\n", col.field));
+            writeln!(out, "                {}: {pt_var},", col.field).unwrap();
             continue;
         }
 
@@ -321,10 +323,12 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
             "i32" => {
                 if def.eod_style {
                     // eod_style: all are Option<usize>, no required
-                    out.push_str(&format!(
-                        "                {}: {var}.map(|i| eod_num(row, i)).unwrap_or(0),\n",
+                    writeln!(
+                        out,
+                        "                {}: {var}.map(|i| eod_num(row, i)).unwrap_or(0),",
                         col.field
-                    ));
+                    )
+                    .unwrap();
                 } else if is_required {
                     // Use row_date for `date` fields -- handles Timestamp -> YYYYMMDD.
                     let accessor = if col.field == "date" {
@@ -332,61 +336,57 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
                     } else {
                         "row_number"
                     };
-                    out.push_str(&format!(
-                        "                {}: {accessor}(row, {var}),\n",
+                    writeln!(
+                        out,
+                        "                {}: {accessor}(row, {var}),",
                         col.field
-                    ));
+                    )
+                    .unwrap();
+                } else if col.field == "date" {
+                    writeln!(
+                        out,
+                        "                {}: {var}.map(|i| row_date(row, i)).unwrap_or(0),",
+                        col.field
+                    )
+                    .unwrap();
                 } else {
-                    if col.field == "date" {
-                        out.push_str(&format!(
-                            "                {}: {var}.map(|i| row_date(row, i)).unwrap_or(0),\n",
-                            col.field
-                        ));
-                    } else {
-                        out.push_str(&format!(
-                            "                {}: opt_number(row, {var}),\n",
-                            col.field
-                        ));
-                    }
+                    writeln!(
+                        out,
+                        "                {}: opt_number(row, {var}),",
+                        col.field
+                    )
+                    .unwrap();
                 }
             }
             "i64" => {
                 if is_required {
-                    out.push_str(&format!(
-                        "                {}: row_number_i64(row, {var}),\n",
+                    writeln!(
+                        out,
+                        "                {}: row_number_i64(row, {var}),",
                         col.field
-                    ));
+                    )
+                    .unwrap();
                 } else {
-                    out.push_str(&format!(
-                        "                {}: opt_i64(row, {var}),\n",
-                        col.field
-                    ));
+                    writeln!(out, "                {}: opt_i64(row, {var}),", col.field).unwrap();
                 }
             }
             "f64" => {
                 if is_required {
-                    out.push_str(&format!(
-                        "                {}: row_float(row, {var}),\n",
-                        col.field
-                    ));
+                    writeln!(out, "                {}: row_float(row, {var}),", col.field).unwrap();
                 } else {
-                    out.push_str(&format!(
-                        "                {}: opt_float(row, {var}),\n",
-                        col.field
-                    ));
+                    writeln!(out, "                {}: opt_float(row, {var}),", col.field).unwrap();
                 }
             }
             "String" => {
                 if is_required {
-                    out.push_str(&format!(
-                        "                {}: row_text(row, {var}),\n",
-                        col.field
-                    ));
+                    writeln!(out, "                {}: row_text(row, {var}),", col.field).unwrap();
                 } else {
-                    out.push_str(&format!(
-                        "                {}: {var}.map(|i| row_text(row, i)).unwrap_or_default(),\n",
+                    writeln!(
+                        out,
+                        "                {}: {var}.map(|i| row_text(row, i)).unwrap_or_default(),",
                         col.field
-                    ));
+                    )
+                    .unwrap();
                 }
             }
             "price" => {
@@ -401,18 +401,17 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
                 if is_source || !price_source_cols.iter().any(|_| true) {
                     // This IS the reference column (or there's no price_source at all).
                     if is_required {
-                        out.push_str(&format!("                {field}: if {typed_var} {{\n"));
-                        out.push_str(&format!(
-                            "                    row_price_value(row, {var})\n"
-                        ));
+                        writeln!(out, "                {field}: if {typed_var} {{").unwrap();
+                        writeln!(out, "                    row_price_value(row, {var})").unwrap();
                         out.push_str("                } else {\n");
-                        out.push_str(&format!("                    row_number(row, {var})\n"));
+                        writeln!(out, "                    row_number(row, {var})").unwrap();
                         out.push_str("                },\n");
                     } else {
-                        out.push_str(&format!("                {field}: match {var} {{\n"));
-                        out.push_str(&format!(
-                            "                    Some(i) if {typed_var} => row_price_value(row, i),\n"
-                        ));
+                        writeln!(out, "                {field}: match {var} {{").unwrap();
+                        writeln!(out,
+                            "                    Some(i) if {typed_var} => row_price_value(row, i),"
+                        )
+                        .unwrap();
                         out.push_str("                    Some(i) => row_number(row, i),\n");
                         out.push_str("                    None => 0,\n");
                         out.push_str("                },\n");
@@ -420,18 +419,18 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
                 } else {
                     // Non-source price column: normalize to the source's price_type.
                     if is_required {
-                        out.push_str(&format!("                {field}: if {typed_var} {{\n"));
-                        out.push_str(&format!(
-                            "                    row_price_value_normalized(row, {var}, _pt_price_type)\n"
-                        ));
+                        writeln!(out, "                {field}: if {typed_var} {{").unwrap();
+                        writeln!(out,
+                            "                    row_price_value_normalized(row, {var}, _pt_price_type)"
+                        ).unwrap();
                         out.push_str("                } else {\n");
-                        out.push_str(&format!("                    row_number(row, {var})\n"));
+                        writeln!(out, "                    row_number(row, {var})").unwrap();
                         out.push_str("                },\n");
                     } else {
-                        out.push_str(&format!("                {field}: match {var} {{\n"));
-                        out.push_str(&format!(
-                            "                    Some(i) if {typed_var} => row_price_value_normalized(row, i, _pt_price_type),\n"
-                        ));
+                        writeln!(out, "                {field}: match {var} {{").unwrap();
+                        writeln!(out,
+                            "                    Some(i) if {typed_var} => row_price_value_normalized(row, i, _pt_price_type),"
+                        ).unwrap();
                         out.push_str("                    Some(i) => row_number(row, i),\n");
                         out.push_str("                    None => 0,\n");
                         out.push_str("                },\n");
@@ -442,33 +441,37 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
                 // Always row_price_value, regardless of typed check (used for bid/ask in TradeQuoteTick).
                 let field = &col.field;
                 if is_required {
-                    out.push_str(&format!(
-                        "                {field}: row_price_value(row, {var}),\n"
-                    ));
+                    writeln!(out, "                {field}: row_price_value(row, {var}),").unwrap();
                 } else {
-                    out.push_str(&format!("                {field}: match {var} {{\n"));
+                    writeln!(out, "                {field}: match {var} {{").unwrap();
                     out.push_str("                    Some(i) => row_price_value(row, i),\n");
                     out.push_str("                    None => 0,\n");
                     out.push_str("                },\n");
                 }
             }
             "eod_num" => {
-                out.push_str(&format!(
-                    "                {}: {var}.map(|i| eod_num(row, i)).unwrap_or(0),\n",
+                writeln!(
+                    out,
+                    "                {}: {var}.map(|i| eod_num(row, i)).unwrap_or(0),",
                     col.field
-                ));
+                )
+                .unwrap();
             }
             "bool" => {
                 if is_required {
-                    out.push_str(&format!(
-                        "                {}: row_number(row, {var}),\n",
+                    writeln!(
+                        out,
+                        "                {}: row_number(row, {var}),",
                         col.field
-                    ));
+                    )
+                    .unwrap();
                 } else {
-                    out.push_str(&format!(
-                        "                {}: opt_number(row, {var}),\n",
+                    writeln!(
+                        out,
+                        "                {}: opt_number(row, {var}),",
                         col.field
-                    ));
+                    )
+                    .unwrap();
                 }
             }
             other => panic!("unknown column type '{other}' in parser for {type_name}"),
@@ -532,6 +535,8 @@ struct Rpc {
     request_type: String, // e.g. "StockHistoryEodRequest"
 }
 
+// Reason: code generator — proto parsing + code emission is one cohesive unit.
+#[allow(clippy::too_many_lines)]
 fn generate_endpoint_registry() -> Result<(), Box<dyn std::error::Error>> {
     let proto = std::fs::read_to_string("proto/v3_endpoints.proto")?;
 
@@ -580,15 +585,14 @@ fn generate_endpoint_registry() -> Result<(), Box<dyn std::error::Error>> {
 
         // Find the query message: StockHistoryEodRequest → StockHistoryEodRequestQuery
         let query_msg_name = format!("{}Query", rpc.request_type);
-        let fields = match query_messages.get(&query_msg_name) {
-            Some(f) => f.clone(),
-            None => {
-                eprintln!(
-                    "warning: no query message '{}' found, skipping {}",
-                    query_msg_name, rpc.rpc_name
-                );
-                continue;
-            }
+        let fields = if let Some(f) = query_messages.get(&query_msg_name) {
+            f.clone()
+        } else {
+            eprintln!(
+                "warning: no query message '{}' found, skipping {}",
+                query_msg_name, rpc.rpc_name
+            );
+            continue;
         };
 
         // Expand fields (contract_spec → symbol, expiration, strike, right)
@@ -600,10 +604,10 @@ fn generate_endpoint_registry() -> Result<(), Box<dyn std::error::Error>> {
         let description = derive_description(&method);
 
         code.push_str("    EndpointMeta {\n");
-        code.push_str(&format!("        name: \"{}\",\n", method));
-        code.push_str(&format!("        description: \"{}\",\n", description));
-        code.push_str(&format!("        category: \"{}\",\n", category));
-        code.push_str(&format!("        subcategory: \"{}\",\n", subcategory));
+        writeln!(code, "        name: \"{method}\",").unwrap();
+        writeln!(code, "        description: \"{description}\",").unwrap();
+        writeln!(code, "        category: \"{category}\",").unwrap();
+        writeln!(code, "        subcategory: \"{subcategory}\",").unwrap();
 
         if params.is_empty() {
             code.push_str("        params: &[],\n");
@@ -611,19 +615,16 @@ fn generate_endpoint_registry() -> Result<(), Box<dyn std::error::Error>> {
             code.push_str("        params: &[\n");
             for p in &params {
                 code.push_str("            ParamMeta {\n");
-                code.push_str(&format!("                name: \"{}\",\n", p.0));
-                code.push_str(&format!("                description: \"{}\",\n", p.1));
-                code.push_str(&format!(
-                    "                param_type: ParamType::{},\n",
-                    p.2
-                ));
-                code.push_str(&format!("                required: {},\n", p.3));
+                writeln!(code, "                name: \"{}\",", p.0).unwrap();
+                writeln!(code, "                description: \"{}\",", p.1).unwrap();
+                writeln!(code, "                param_type: ParamType::{},", p.2).unwrap();
+                writeln!(code, "                required: {},", p.3).unwrap();
                 code.push_str("            },\n");
             }
             code.push_str("        ],\n");
         }
 
-        code.push_str(&format!("        returns: ReturnType::{},\n", return_type));
+        writeln!(code, "        returns: ReturnType::{return_type},").unwrap();
         code.push_str("    },\n");
     }
 
@@ -738,7 +739,7 @@ fn expand_fields(fields: &[ProtoField]) -> Vec<(String, String, String, bool)> {
     params
 }
 
-/// Map a proto field (name + type + repeated) to (ParamType variant name, description).
+/// Map a proto field (name + type + repeated) to (`ParamType` variant name, description).
 fn map_field(name: &str, proto_type: &str, is_repeated: bool) -> (String, String) {
     // Repeated string symbol → Symbols
     if is_repeated && name == "symbol" {
@@ -775,15 +776,15 @@ fn map_field(name: &str, proto_type: &str, is_repeated: bool) -> (String, String
         ("string", "end_time") => ("Str".into(), "End time filter".into()),
         ("string", "rate_type") => ("Str".into(), "Rate type".into()),
         ("string", "version") => ("Str".into(), "Greeks model version".into()),
-        ("double", _) => ("Float".into(), humanize_name(name).to_string()),
+        ("double", _) => ("Float".into(), humanize_name(name).clone()),
         ("int32", "max_dte") => ("Int".into(), "Maximum days to expiration".into()),
         ("int32", "strike_range") => ("Int".into(), "Strike range filter".into()),
-        ("int32", _) => ("Int".into(), humanize_name(name).to_string()),
+        ("int32", _) => ("Int".into(), humanize_name(name).clone()),
         ("bool", "exclusive") => ("Bool".into(), "Exclusive time boundary".into()),
         ("bool", "use_market_value") => ("Bool".into(), "Use market value for Greeks".into()),
         ("bool", "underlyer_use_nbbo") => ("Bool".into(), "Use NBBO for underlyer price".into()),
-        ("bool", _) => ("Bool".into(), humanize_name(name).to_string()),
-        _ => ("Str".into(), humanize_name(name).to_string()),
+        ("bool", _) => ("Bool".into(), humanize_name(name).clone()),
+        _ => ("Str".into(), humanize_name(name).clone()),
     }
 }
 
@@ -906,6 +907,8 @@ fn derive_return_type(method: &str) -> String {
     "DataTable".into()
 }
 
+// Reason: one match dispatch per endpoint — cannot be meaningfully split.
+#[allow(clippy::too_many_lines)]
 fn derive_description(method: &str) -> String {
     // Hand-crafted descriptions for known patterns
     match method {

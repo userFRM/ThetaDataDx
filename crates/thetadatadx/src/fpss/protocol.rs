@@ -33,7 +33,7 @@
 //! Unsubscribe payload: same format as subscribe, using REMOVE_* codes.
 //!
 //! Response (code 40): `[req_id: i32 BE] [resp_code: i32 BE]`
-//!   - 0 = OK, 1 = ERROR, 2 = MAX_STREAMS, 3 = INVALID_PERMS
+//!   - 0 = OK, 1 = ERROR, 2 = `MAX_STREAMS`, 3 = `INVALID_PERMS`
 //!
 //! Source: `PacketStream.addQuote()`, `PacketStream.removeQuote()`,
 //!         `FPSSClient.onReqResponse()` in decompiled terminal.
@@ -50,12 +50,12 @@ pub const MAX_PAYLOAD: usize = 255;
 /// Source: `FPSSClient.java` — heartbeat thread sends PING every 100ms after login.
 pub const PING_INTERVAL_MS: u64 = 100;
 
-/// Reconnect delay in milliseconds after IOException.
+/// Reconnect delay in milliseconds after `IOException`.
 ///
 /// Source: `FPSSClient.java` — `RECONNECT_DELAY_MS = 2000`.
 pub const RECONNECT_DELAY_MS: u64 = 2_000;
 
-/// Delay before reconnecting after TOO_MANY_REQUESTS disconnect (milliseconds).
+/// Delay before reconnecting after `TOO_MANY_REQUESTS` disconnect (milliseconds).
 ///
 /// Source: `FPSSClient.java` — waits 130 seconds on `RemoveReason.TOO_MANY_REQUESTS`.
 pub const TOO_MANY_REQUESTS_DELAY_MS: u64 = 130_000;
@@ -92,7 +92,7 @@ pub struct Contract {
     /// True = call, false = put (options only).
     pub is_call: Option<bool>,
     /// Strike price in fixed-point (options only). The encoding matches
-    /// ThetaData's integer strike representation.
+    /// `ThetaData`'s integer strike representation.
     pub strike: Option<i32>,
 }
 
@@ -141,7 +141,7 @@ impl Contract {
     /// - `root`: Underlying ticker (e.g., "AAPL")
     /// - `exp_date`: Expiration as YYYYMMDD integer (e.g., 20260320)
     /// - `is_call`: true for call, false for put
-    /// - `strike`: Strike price in ThetaData's integer encoding
+    /// - `strike`: Strike price in `ThetaData`'s integer encoding
     pub fn option(root: impl Into<String>, exp_date: i32, is_call: bool, strike: i32) -> Self {
         Self {
             root: root.into(),
@@ -169,11 +169,16 @@ impl Contract {
     ///
     /// `total_size` counts the entire buffer including itself, matching Java's
     /// `Contract.toBytes()` exactly:
-    ///   - Stock: `3 + root.length()` = size(1) + root_len(1) + root(N) + sec_type(1)
-    ///   - Option: `12 + root.length()` = size(1) + root_len(1) + root(N) + sec_type(1) + exp(4) + is_call(1) + strike(4)
+    ///   - Stock: `3 + root.length()` = size(1) + `root_len(1)` + root(N) + `sec_type(1)`
+    ///   - Option: `12 + root.length()` = size(1) + `root_len(1)` + root(N) + `sec_type(1)` + exp(4) + `is_call(1)` + strike(4)
     ///
     /// Java's `fromBytes()` validates `len == size`, confirming the size byte
     /// counts itself.
+    /// # Panics
+    ///
+    /// Panics if the contract root symbol exceeds 16 bytes (the maximum
+    /// length accepted by Java's `Contract.toBytes()`).
+    #[must_use]
     pub fn to_bytes(&self) -> Vec<u8> {
         let root_bytes = self.root.as_bytes();
         assert!(
@@ -181,7 +186,7 @@ impl Contract {
             "contract root too long: {} bytes (max 16 to match Java Contract.toBytes())",
             root_bytes.len()
         );
-        let root_len = root_bytes.len() as u8;
+        let root_len = u8::try_from(root_bytes.len()).expect("root length validated <= 16");
 
         let is_option = self.sec_type == SecType::Option;
 
@@ -196,7 +201,8 @@ impl Contract {
         let mut buf = Vec::with_capacity(total_size);
 
         // total_size byte (includes itself — matches Java's Contract.toBytes())
-        buf.push(total_size as u8);
+        // Max total_size = 12 + 16 = 28, safely fits u8.
+        buf.push(u8::try_from(total_size).expect("total_size <= 28"));
         // root_len
         buf.push(root_len);
         // root ASCII
@@ -208,7 +214,7 @@ impl Contract {
             // exp_date: i32 big-endian
             buf.extend_from_slice(&self.exp_date.unwrap_or(0).to_be_bytes());
             // is_call: u8 (1 = call, 0 = put)
-            buf.push(if self.is_call.unwrap_or(false) { 1 } else { 0 });
+            buf.push(u8::from(self.is_call.unwrap_or(false)));
             // strike: i32 big-endian
             buf.extend_from_slice(&self.strike.unwrap_or(0).to_be_bytes());
         }
@@ -221,6 +227,9 @@ impl Contract {
     /// Input starts at the `total_size` byte (the first byte of `Contract.toBytes()` output).
     ///
     /// Source: `Contract.fromBytes()` in `Contract.java`.
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
     pub fn from_bytes(data: &[u8]) -> Result<(Self, usize), ContractParseError> {
         if data.is_empty() {
             return Err(ContractParseError::TooShort);
@@ -251,7 +260,7 @@ impl Contract {
             .to_string();
 
         let sec_type_byte = data[root_end];
-        let sec_type = SecType::from_code(sec_type_byte as i32)
+        let sec_type = SecType::from_code(i32::from(sec_type_byte))
             .ok_or(ContractParseError::UnknownSecType(sec_type_byte))?;
 
         if sec_type == SecType::Option {
@@ -362,6 +371,7 @@ impl std::error::Error for ContractParseError {}
 /// `username_len` is the byte-length of the username (email), as a big-endian u16.
 /// Password bytes follow immediately with no length prefix — the server infers
 /// password length from `payload_len - 3 - username_len`.
+#[must_use]
 pub fn build_credentials_payload(username: &str, password: &str) -> Vec<u8> {
     let user_bytes = username.as_bytes();
     let pass_bytes = password.as_bytes();
@@ -371,7 +381,9 @@ pub fn build_credentials_payload(username: &str, password: &str) -> Vec<u8> {
     // this is identical to a plain u16 cast. For lengths 128-255 the sign
     // extension sets the high byte to 0xFF. In practice usernames are always
     // <128 bytes, but we match the exact wire encoding for correctness.
-    let user_len = user_bytes.len() as i8 as i16;
+    // Truncation to i8 is intentional: matches Java putShort((byte)len) wire encoding.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+    let user_len = i16::from(user_bytes.len() as i8);
 
     // 1 (version) + 2 (user_len) + user + pass
     let mut buf = Vec::with_capacity(3 + user_bytes.len() + pass_bytes.len());
@@ -394,8 +406,9 @@ pub fn build_credentials_payload(username: &str, password: &str) -> Vec<u8> {
 /// [req_id: i32 BE] [contract bytes]
 /// ```
 ///
-/// The message code (21=QUOTE, 22=TRADE, 23=OPEN_INTEREST) is set by the caller
+/// The message code (21=QUOTE, 22=TRADE, `23=OPEN_INTEREST`) is set by the caller
 /// in the frame header; this function only builds the payload.
+#[must_use]
 pub fn build_subscribe_payload(req_id: i32, contract: &Contract) -> Vec<u8> {
     let contract_bytes = contract.to_bytes();
     let mut buf = Vec::with_capacity(4 + contract_bytes.len());
@@ -414,6 +427,7 @@ pub fn build_subscribe_payload(req_id: i32, contract: &Contract) -> Vec<u8> {
 ///
 /// Total 5 bytes. The server uses the 5-byte length to distinguish this from
 /// a per-contract subscription (which is always longer).
+#[must_use]
 pub fn build_full_type_subscribe_payload(req_id: i32, sec_type: SecType) -> Vec<u8> {
     let mut buf = Vec::with_capacity(5);
     buf.extend_from_slice(&req_id.to_be_bytes());
@@ -424,6 +438,7 @@ pub fn build_full_type_subscribe_payload(req_id: i32, sec_type: SecType) -> Vec<
 /// Build the PING (code 10) payload.
 ///
 /// Source: `FPSSClient.java` — heartbeat sends 1-byte zero payload every 100ms.
+#[must_use]
 pub fn build_ping_payload() -> Vec<u8> {
     vec![0x00]
 }
@@ -431,6 +446,7 @@ pub fn build_ping_payload() -> Vec<u8> {
 /// Build the STOP (code 32) payload sent by the client on shutdown.
 ///
 /// Source: `FPSSClient.java` — `sendStop()` sends empty-ish STOP message.
+#[must_use]
 pub fn build_stop_payload() -> Vec<u8> {
     vec![0x00]
 }
@@ -439,7 +455,7 @@ pub fn build_stop_payload() -> Vec<u8> {
 // Response parsing
 // ---------------------------------------------------------------------------
 
-/// Parse a REQ_RESPONSE (code 40) payload.
+/// Parse a `REQ_RESPONSE` (code 40) payload.
 ///
 /// # Wire format (from `FPSSClient.onReqResponse()`)
 ///
@@ -448,6 +464,9 @@ pub fn build_stop_payload() -> Vec<u8> {
 /// ```
 ///
 /// Returns `(req_id, response_type)`.
+/// # Errors
+///
+/// Returns an error on network, authentication, or parsing failure.
 pub fn parse_req_response(
     payload: &[u8],
 ) -> Result<(i32, StreamResponseType), crate::error::Error> {
@@ -485,6 +504,7 @@ pub fn parse_req_response(
 /// ```
 ///
 /// 2-byte big-endian `RemoveReason` code.
+#[must_use]
 pub fn parse_disconnect_reason(payload: &[u8]) -> RemoveReason {
     if payload.len() < 2 {
         return RemoveReason::Unspecified;
@@ -525,6 +545,9 @@ pub fn parse_disconnect_reason(payload: &[u8]) -> RemoveReason {
 /// same serialization as `Contract::to_bytes()`.
 ///
 /// Returns `(server_assigned_id, contract)`.
+/// # Errors
+///
+/// Returns an error on network, authentication, or parsing failure.
 pub fn parse_contract_message(payload: &[u8]) -> Result<(i32, Contract), crate::error::Error> {
     if payload.len() < 5 {
         return Err(crate::error::Error::FpssProtocol(format!(
@@ -557,6 +580,7 @@ pub enum SubscriptionKind {
 
 impl SubscriptionKind {
     /// Message code for subscribing (Client->Server).
+    #[must_use]
     pub fn subscribe_code(self) -> StreamMsgType {
         match self {
             Self::Quote => StreamMsgType::Quote,
@@ -566,6 +590,7 @@ impl SubscriptionKind {
     }
 
     /// Message code for unsubscribing (Client->Server).
+    #[must_use]
     pub fn unsubscribe_code(self) -> StreamMsgType {
         match self {
             Self::Quote => StreamMsgType::RemoveQuote,

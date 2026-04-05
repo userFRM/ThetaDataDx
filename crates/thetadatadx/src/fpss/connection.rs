@@ -42,6 +42,9 @@ pub type FpssStream = StreamOwned<ClientConnection, TcpStream>;
 /// 4. TLS handshake via system trust store
 ///
 /// Source: `FPSSClient.connect()` in decompiled terminal.
+/// # Errors
+///
+/// Returns an error on network, authentication, or parsing failure.
 pub fn connect_to_servers(
     servers: &[(&str, u16)],
 ) -> Result<(FpssStream, String), crate::error::Error> {
@@ -70,12 +73,12 @@ pub fn connect_to_servers(
 
 /// Build a shared rustls `ClientConfig` that skips certificate verification.
 ///
-/// ThetaData's FPSS servers use TLS certificates that have been expired since
+/// `ThetaData`'s FPSS servers use TLS certificates that have been expired since
 /// January 2024. The Java terminal uses `SSLSocketFactory.getDefault()` which
 /// in practice accepts expired certs. We match that behavior by disabling
 /// certificate verification for FPSS connections.
 ///
-/// This is safe because FPSS is a direct connection to ThetaData's known
+/// This is safe because FPSS is a direct connection to `ThetaData`'s known
 /// servers (not user-facing web traffic), and the TLS layer still provides
 /// encryption -- only the certificate chain validation is skipped.
 fn tls_client_config() -> Arc<ClientConfig> {
@@ -182,6 +185,9 @@ fn try_connect(
 /// already knows which server to use).
 ///
 /// This bypasses the server rotation logic.
+/// # Errors
+///
+/// Returns an error on network, authentication, or parsing failure.
 pub fn connect_to(host: &str, port: u16) -> Result<FpssStream, crate::error::Error> {
     let connect_timeout = Duration::from_millis(CONNECT_TIMEOUT_MS);
     let read_timeout = Duration::from_millis(READ_TIMEOUT_MS);

@@ -34,9 +34,12 @@ use crate::error::Error;
 use crate::proto;
 use crate::proto_v3;
 use crate::proto_v3::beta_theta_terminal_client::BetaThetaTerminalClient;
-use tdbe::types::tick::*;
+use tdbe::types::tick::{
+    CalendarDay, EodTick, GreeksTick, InterestRateTick, IvTick, MarketValueTick, OhlcTick,
+    OpenInterestTick, OptionContract, PriceTick, QuoteTick, TradeQuoteTick, TradeTick,
+};
 
-/// Crate version embedded in `QueryInfo.terminal_version` so ThetaData can
+/// Crate version embedded in `QueryInfo.terminal_version` so `ThetaData` can
 /// identify this client in server-side logs.
 const CLIENT_TYPE: &str = "rust-thetadatadx";
 
@@ -61,6 +64,9 @@ macro_rules! list_endpoint {
     ) => {
         #[allow(clippy::too_many_arguments)]
         $(#[$meta])*
+        /// # Errors
+        ///
+        /// Returns an error on network, authentication, or parsing failure.
         pub async fn $name(&self, $($arg : $arg_ty),*) -> Result<Vec<String>, Error> {
             tracing::debug!(endpoint = stringify!($name), "gRPC request");
             metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
@@ -86,7 +92,7 @@ macro_rules! list_endpoint {
                 }
             };
             metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
-                .record(_metrics_start.elapsed().as_millis() as f64);
+                .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
             Ok(decode::extract_text_column(&table, $col)
                 .into_iter()
                 .flatten()
@@ -177,7 +183,7 @@ macro_rules! parsed_endpoint {
                         }
                     };
                     metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
-                        .record(_metrics_start.elapsed().as_millis() as f64);
+                        .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
                     Ok($parser(&table))
                 })
             }
@@ -234,30 +240,35 @@ macro_rules! opt_field_type {
 /// Generate a chainable setter method based on the tag token.
 macro_rules! opt_setter {
     ($opt_name:ident, opt_str) => {
+        #[must_use]
         pub fn $opt_name(mut self, v: &str) -> Self {
             self.$opt_name = Some(v.to_string());
             self
         }
     };
     ($opt_name:ident, opt_i32) => {
+        #[must_use]
         pub fn $opt_name(mut self, v: i32) -> Self {
             self.$opt_name = Some(v);
             self
         }
     };
     ($opt_name:ident, opt_f64) => {
+        #[must_use]
         pub fn $opt_name(mut self, v: f64) -> Self {
             self.$opt_name = Some(v);
             self
         }
     };
     ($opt_name:ident, opt_bool) => {
+        #[must_use]
         pub fn $opt_name(mut self, v: bool) -> Self {
             self.$opt_name = Some(v);
             self
         }
     };
     ($opt_name:ident, string) => {
+        #[must_use]
         pub fn $opt_name(mut self, v: &str) -> Self {
             self.$opt_name = v.to_string();
             self
@@ -306,6 +317,10 @@ macro_rules! streaming_endpoint {
             )*
 
             /// Execute the streaming request, calling `handler` for each chunk.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`Error`] if the gRPC call fails or response parsing fails.
             pub async fn stream<F>(self, mut handler: F) -> Result<(), Error>
             where
                 F: FnMut(&[$tick_ty]),
@@ -344,7 +359,7 @@ macro_rules! streaming_endpoint {
                 match &result {
                     Ok(()) => {
                         metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
-                            .record(_metrics_start.elapsed().as_millis() as f64);
+                            .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
                     }
                     Err(_) => {
                         metrics::counter!("thetadatadx.grpc.errors", "endpoint" => stringify!($name)).increment(1);
@@ -392,7 +407,7 @@ macro_rules! contract_spec {
     };
 }
 
-/// Direct client for ThetaData server access.
+/// Direct client for `ThetaData` server access.
 ///
 /// Connects to MDDS (gRPC, historical data) without requiring the Java
 /// terminal. Authenticates via the Nexus HTTP API, then issues gRPC
@@ -419,7 +434,7 @@ pub struct DirectClient {
     channel: tonic::transport::Channel,
     /// Configuration snapshot (retained for diagnostics/reconnect).
     config: DirectConfig,
-    /// Pre-built QueryInfo template — cloned per-request instead of allocating
+    /// Pre-built `QueryInfo` template — cloned per-request instead of allocating
     /// new Strings each time.
     query_info_template: proto_v3::QueryInfo,
     /// Semaphore limiting concurrent in-flight gRPC requests.
@@ -431,13 +446,16 @@ pub struct DirectClient {
 }
 
 impl DirectClient {
-    /// Connect to ThetaData servers directly (no JVM terminal needed).
+    /// Connect to `ThetaData` servers directly (no JVM terminal needed).
     ///
     /// 1. Authenticates against the Nexus HTTP API to obtain a session UUID.
     /// 2. Opens a gRPC channel (TLS) to the MDDS server.
     ///
     /// The FPSS (real-time streaming) connection is not established here;
     /// it will be added in a future release.
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
     pub async fn connect(creds: &Credentials, config: DirectConfig) -> Result<Self, Error> {
         // Step 1: Authenticate against Nexus API.
         tracing::info!(mdds = %config.mdds_uri(), "authenticating with Nexus API");
@@ -458,8 +476,12 @@ impl DirectClient {
             .map_err(|e| Error::Config(format!("invalid MDDS URI '{mdds_uri}': {e}")))?
             .keep_alive_timeout(Duration::from_secs(config.mdds_keepalive_timeout_secs))
             .http2_keep_alive_interval(Duration::from_secs(config.mdds_keepalive_secs))
-            .initial_stream_window_size((config.mdds_window_size_kb * 1024) as u32)
-            .initial_connection_window_size((config.mdds_connection_window_size_kb * 1024) as u32)
+            .initial_stream_window_size(
+                u32::try_from(config.mdds_window_size_kb * 1024).unwrap_or(u32::MAX),
+            )
+            .initial_connection_window_size(
+                u32::try_from(config.mdds_connection_window_size_kb * 1024).unwrap_or(u32::MAX),
+            )
             .connect_timeout(Duration::from_secs(10));
 
         let endpoint = if config.mdds_tls {
@@ -496,8 +518,7 @@ impl DirectClient {
             auth_resp
                 .user
                 .as_ref()
-                .map(|u| u.max_concurrent_requests())
-                .unwrap_or(2)
+                .map_or(2, super::auth::nexus::AuthUser::max_concurrent_requests)
         } else {
             config.mdds_concurrent_requests
         };
@@ -567,7 +588,7 @@ impl DirectClient {
             // Each DataValueList row is ~64 bytes on average (header-dependent),
             // so original_size / 64 gives a reasonable row-count estimate.
             if all_rows.is_empty() && response.original_size > 0 {
-                all_rows.reserve(response.original_size as usize / 64);
+                all_rows.reserve(usize::try_from(response.original_size).unwrap_or(0) / 64);
             }
 
             let table = decode::decode_data_table(&response)?;
@@ -605,6 +626,9 @@ impl DirectClient {
     /// }).await?;
     /// println!("processed {count} rows without buffering them all");
     /// ```
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
     pub async fn for_each_chunk<F>(
         &self,
         mut stream: tonic::Streaming<proto::ResponseData>,
@@ -632,11 +656,13 @@ impl DirectClient {
     }
 
     /// Return a reference to the underlying config for diagnostics.
+    #[must_use]
     pub fn config(&self) -> &DirectConfig {
         &self.config
     }
 
     /// Return the session UUID string.
+    #[must_use]
     pub fn session_uuid(&self) -> &str {
         &self.session.session_uuid
     }
@@ -766,6 +792,9 @@ impl DirectClient {
     // ═══════════════════════════════════════════════════════════════════
 
     /// Execute a raw gRPC query and return the merged `DataTable`.
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
     pub async fn raw_query<F, Fut>(&self, call: F) -> Result<proto::DataTable, Error>
     where
         F: FnOnce(BetaThetaTerminalClient<tonic::transport::Channel>) -> Fut,
@@ -776,11 +805,13 @@ impl DirectClient {
     }
 
     /// Get a `QueryInfo` for use with [`raw_query`](Self::raw_query).
+    #[must_use]
     pub fn raw_query_info(&self) -> proto_v3::QueryInfo {
         self.query_info()
     }
 
     /// Get direct access to the underlying gRPC channel.
+    #[must_use]
     pub fn channel(&self) -> &tonic::transport::Channel {
         &self.channel
     }
@@ -800,7 +831,7 @@ parsed_endpoint! {
     grpc: get_stock_snapshot_ohlc;
     request: StockSnapshotOhlcRequest;
     query: StockSnapshotOhlcRequestQuery {
-        symbol: symbols.iter().map(|s| s.to_string()).collect(),
+        symbol: symbols.clone(),
         venue: venue.clone().or_else(|| Some("nqb".to_string())),
         min_time: min_time.clone(),
     };
@@ -816,7 +847,7 @@ parsed_endpoint! {
     grpc: get_stock_snapshot_trade;
     request: StockSnapshotTradeRequest;
     query: StockSnapshotTradeRequestQuery {
-        symbol: symbols.iter().map(|s| s.to_string()).collect(),
+        symbol: symbols.clone(),
         venue: venue.clone().or_else(|| Some("nqb".to_string())),
         min_time: min_time.clone(),
     };
@@ -832,7 +863,7 @@ parsed_endpoint! {
     grpc: get_stock_snapshot_quote;
     request: StockSnapshotQuoteRequest;
     query: StockSnapshotQuoteRequestQuery {
-        symbol: symbols.iter().map(|s| s.to_string()).collect(),
+        symbol: symbols.clone(),
         venue: venue.clone().or_else(|| Some("nqb".to_string())),
         min_time: min_time.clone(),
     };
@@ -848,7 +879,7 @@ parsed_endpoint! {
     grpc: get_stock_snapshot_market_value;
     request: StockSnapshotMarketValueRequest;
     query: StockSnapshotMarketValueRequestQuery {
-        symbol: symbols.iter().map(|s| s.to_string()).collect(),
+        symbol: symbols.clone(),
         venue: venue.clone().or_else(|| Some("nqb".to_string())),
         min_time: min_time.clone(),
     };
@@ -866,9 +897,9 @@ parsed_endpoint! {
     grpc: get_stock_history_eod;
     request: StockHistoryEodRequest;
     query: StockHistoryEodRequestQuery {
-        symbol: symbol.to_string(),
-        start_date: start.to_string(),
-        end_date: end.to_string(),
+        symbol: symbol.clone(),
+        start_date: start.clone(),
+        end_date: end.clone(),
     };
     parse: decode::parse_eod_ticks;
     dates: start, end;
@@ -885,8 +916,8 @@ parsed_endpoint! {
     grpc: get_stock_history_ohlc;
     request: StockHistoryOhlcRequest;
     query: StockHistoryOhlcRequestQuery {
-        symbol: symbol.to_string(),
-        date: Some(date.to_string()),
+        symbol: symbol.clone(),
+        date: Some(date.clone()),
         interval: normalize_interval(&interval),
         start_time: Some(start_time.clone()),
         end_time: Some(end_time.clone()),
@@ -913,14 +944,14 @@ parsed_endpoint! {
     grpc: get_stock_history_ohlc;
     request: StockHistoryOhlcRequest;
     query: StockHistoryOhlcRequestQuery {
-        symbol: symbol.to_string(),
+        symbol: symbol.clone(),
         date: None,
         interval: normalize_interval(&interval),
         start_time: Some(start_time.clone()),
         end_time: Some(end_time.clone()),
         venue: venue.clone().or_else(|| Some("nqb".to_string())),
-        start_date: Some(start_date.to_string()),
-        end_date: Some(end_date.to_string()),
+        start_date: Some(start_date.clone()),
+        end_date: Some(end_date.clone()),
     };
     parse: decode::parse_ohlc_ticks;
     dates: start_date, end_date;
@@ -939,8 +970,8 @@ parsed_endpoint! {
     grpc: get_stock_history_trade;
     request: StockHistoryTradeRequest;
     query: StockHistoryTradeRequestQuery {
-        symbol: symbol.to_string(),
-        date: Some(date.to_string()),
+        symbol: symbol.clone(),
+        date: Some(date.clone()),
         start_time: Some(start_time.clone()),
         end_time: Some(end_time.clone()),
         venue: venue.clone().or_else(|| Some("nqb".to_string())),
@@ -966,8 +997,8 @@ parsed_endpoint! {
     grpc: get_stock_history_quote;
     request: StockHistoryQuoteRequest;
     query: StockHistoryQuoteRequestQuery {
-        symbol: symbol.to_string(),
-        date: Some(date.to_string()),
+        symbol: symbol.clone(),
+        date: Some(date.clone()),
         interval: normalize_interval(&interval),
         start_time: Some(start_time.clone()),
         end_time: Some(end_time.clone()),
@@ -996,8 +1027,8 @@ streaming_endpoint! {
     grpc: get_stock_history_trade;
     request: StockHistoryTradeRequest;
     query: StockHistoryTradeRequestQuery {
-        symbol: symbol.to_string(),
-        date: Some(date.to_string()),
+        symbol: symbol.clone(),
+        date: Some(date.clone()),
         start_time: Some(start_time.clone()),
         end_time: Some(end_time.clone()),
         venue: venue.clone().or_else(|| Some("nqb".to_string())),
@@ -1023,8 +1054,8 @@ streaming_endpoint! {
     grpc: get_stock_history_quote;
     request: StockHistoryQuoteRequest;
     query: StockHistoryQuoteRequestQuery {
-        symbol: symbol.to_string(),
-        date: Some(date.to_string()),
+        symbol: symbol.clone(),
+        date: Some(date.clone()),
         interval: normalize_interval(&interval),
         start_time: Some(start_time.clone()),
         end_time: Some(end_time.clone()),
@@ -1051,8 +1082,8 @@ parsed_endpoint! {
     grpc: get_stock_history_trade_quote;
     request: StockHistoryTradeQuoteRequest;
     query: StockHistoryTradeQuoteRequestQuery {
-        symbol: symbol.to_string(),
-        date: Some(date.to_string()),
+        symbol: symbol.clone(),
+        date: Some(date.clone()),
         start_time: Some(start_time.clone()),
         end_time: Some(end_time.clone()),
         exclusive: exclusive,
@@ -1082,10 +1113,10 @@ parsed_endpoint! {
     grpc: get_stock_at_time_trade;
     request: StockAtTimeTradeRequest;
     query: StockAtTimeTradeRequestQuery {
-        symbol: symbol.to_string(),
-        start_date: start_date.to_string(),
-        end_date: end_date.to_string(),
-        time_of_day: time_of_day.to_string(),
+        symbol: symbol.clone(),
+        start_date: start_date.clone(),
+        end_date: end_date.clone(),
+        time_of_day: time_of_day.clone(),
         venue: venue.clone().or_else(|| Some("nqb".to_string())),
     };
     parse: decode::parse_trade_ticks;
@@ -1101,10 +1132,10 @@ parsed_endpoint! {
     grpc: get_stock_at_time_quote;
     request: StockAtTimeQuoteRequest;
     query: StockAtTimeQuoteRequestQuery {
-        symbol: symbol.to_string(),
-        start_date: start_date.to_string(),
-        end_date: end_date.to_string(),
-        time_of_day: time_of_day.to_string(),
+        symbol: symbol.clone(),
+        start_date: start_date.clone(),
+        end_date: end_date.clone(),
+        time_of_day: time_of_day.clone(),
         venue: venue.clone().or_else(|| Some("nqb".to_string())),
     };
     parse: decode::parse_quote_ticks;
@@ -1122,9 +1153,9 @@ parsed_endpoint! {
     grpc: get_option_list_contracts;
     request: OptionListContractsRequest;
     query: OptionListContractsRequestQuery {
-        request_type: request_type.to_string(),
-        symbol: vec![symbol.to_string()],
-        date: date.to_string(),
+        request_type: request_type.clone(),
+        symbol: vec![symbol.clone()],
+        date: date.clone(),
         max_dte: max_dte,
     };
     parse: decode::parse_option_contracts_v3;
@@ -1143,7 +1174,7 @@ parsed_endpoint! {
     request: OptionSnapshotOhlcRequest;
     query: OptionSnapshotOhlcRequestQuery {
         contract_spec: contract_spec!(symbol, expiration, strike, right),
-        expiration: expiration.to_string(),
+        expiration: expiration.clone(),
         max_dte: max_dte,
         strike_range: strike_range,
         min_time: min_time.clone(),
@@ -1161,7 +1192,7 @@ parsed_endpoint! {
     request: OptionSnapshotTradeRequest;
     query: OptionSnapshotTradeRequestQuery {
         contract_spec: contract_spec!(symbol, expiration, strike, right),
-        expiration: expiration.to_string(),
+        expiration: expiration.clone(),
         strike_range: strike_range,
         min_time: min_time.clone(),
     };
@@ -1178,7 +1209,7 @@ parsed_endpoint! {
     request: OptionSnapshotQuoteRequest;
     query: OptionSnapshotQuoteRequestQuery {
         contract_spec: contract_spec!(symbol, expiration, strike, right),
-        expiration: expiration.to_string(),
+        expiration: expiration.clone(),
         max_dte: max_dte,
         strike_range: strike_range,
         min_time: min_time.clone(),
@@ -1196,7 +1227,7 @@ parsed_endpoint! {
     request: OptionSnapshotOpenInterestRequest;
     query: OptionSnapshotOpenInterestRequestQuery {
         contract_spec: contract_spec!(symbol, expiration, strike, right),
-        expiration: expiration.to_string(),
+        expiration: expiration.clone(),
         max_dte: max_dte,
         strike_range: strike_range,
         min_time: min_time.clone(),
@@ -1214,7 +1245,7 @@ parsed_endpoint! {
     request: OptionSnapshotMarketValueRequest;
     query: OptionSnapshotMarketValueRequestQuery {
         contract_spec: contract_spec!(symbol, expiration, strike, right),
-        expiration: expiration.to_string(),
+        expiration: expiration.clone(),
         max_dte: max_dte,
         strike_range: strike_range,
         min_time: min_time.clone(),
@@ -1327,9 +1358,9 @@ parsed_endpoint! {
     request: OptionHistoryEodRequest;
     query: OptionHistoryEodRequestQuery {
         contract_spec: contract_spec!(symbol, expiration, strike, right),
-        start_date: start.to_string(),
-        end_date: end.to_string(),
-        expiration: expiration.to_string(),
+        start_date: start.clone(),
+        end_date: end.clone(),
+        expiration: expiration.clone(),
         max_dte: max_dte,
         strike_range: strike_range,
     };
@@ -1347,8 +1378,8 @@ parsed_endpoint! {
     request: OptionHistoryOhlcRequest;
     query: OptionHistoryOhlcRequestQuery {
         contract_spec: contract_spec!(symbol, expiration, strike, right),
-        date: Some(date.to_string()),
-        expiration: expiration.to_string(),
+        date: Some(date.clone()),
+        expiration: expiration.clone(),
         interval: normalize_interval(&interval),
         start_time: Some(start_time.clone()),
         end_time: Some(end_time.clone()),
@@ -1376,8 +1407,8 @@ parsed_endpoint! {
     request: OptionHistoryTradeRequest;
     query: OptionHistoryTradeRequestQuery {
         contract_spec: contract_spec!(symbol, expiration, strike, right),
-        date: Some(date.to_string()),
-        expiration: expiration.to_string(),
+        date: Some(date.clone()),
+        expiration: expiration.clone(),
         start_time: Some(start_time.clone()),
         end_time: Some(end_time.clone()),
         max_dte: max_dte,
@@ -1406,8 +1437,8 @@ parsed_endpoint! {
     request: OptionHistoryQuoteRequest;
     query: OptionHistoryQuoteRequestQuery {
         contract_spec: contract_spec!(symbol, expiration, strike, right),
-        date: Some(date.to_string()),
-        expiration: expiration.to_string(),
+        date: Some(date.clone()),
+        expiration: expiration.clone(),
         start_time: Some(start_time.clone()),
         end_time: Some(end_time.clone()),
         interval: normalize_interval(&interval),
@@ -1439,8 +1470,8 @@ streaming_endpoint! {
     request: OptionHistoryTradeRequest;
     query: OptionHistoryTradeRequestQuery {
         contract_spec: contract_spec!(symbol, expiration, strike, right),
-        date: Some(date.to_string()),
-        expiration: expiration.to_string(),
+        date: Some(date.clone()),
+        expiration: expiration.clone(),
         start_time: Some(start_time.clone()),
         end_time: Some(end_time.clone()),
         max_dte: max_dte,
@@ -1469,8 +1500,8 @@ streaming_endpoint! {
     request: OptionHistoryQuoteRequest;
     query: OptionHistoryQuoteRequestQuery {
         contract_spec: contract_spec!(symbol, expiration, strike, right),
-        date: Some(date.to_string()),
-        expiration: expiration.to_string(),
+        date: Some(date.clone()),
+        expiration: expiration.clone(),
         start_time: Some(start_time.clone()),
         end_time: Some(end_time.clone()),
         interval: normalize_interval(&interval),
@@ -1500,8 +1531,8 @@ parsed_endpoint! {
     request: OptionHistoryTradeQuoteRequest;
     query: OptionHistoryTradeQuoteRequestQuery {
         contract_spec: contract_spec!(symbol, expiration, strike, right),
-        date: Some(date.to_string()),
-        expiration: expiration.to_string(),
+        date: Some(date.clone()),
+        expiration: expiration.clone(),
         start_time: Some(start_time.clone()),
         end_time: Some(end_time.clone()),
         exclusive: exclusive,
@@ -1532,8 +1563,8 @@ parsed_endpoint! {
     request: OptionHistoryOpenInterestRequest;
     query: OptionHistoryOpenInterestRequestQuery {
         contract_spec: contract_spec!(symbol, expiration, strike, right),
-        date: Some(date.to_string()),
-        expiration: expiration.to_string(),
+        date: Some(date.clone()),
+        expiration: expiration.clone(),
         max_dte: max_dte,
         strike_range: strike_range,
         start_date: start_date.clone(),
@@ -1560,9 +1591,9 @@ parsed_endpoint! {
     request: OptionHistoryGreeksEodRequest;
     query: OptionHistoryGreeksEodRequestQuery {
         contract_spec: contract_spec!(symbol, expiration, strike, right),
-        expiration: expiration.to_string(),
-        start_date: start_date.to_string(),
-        end_date: end_date.to_string(),
+        expiration: expiration.clone(),
+        start_date: start_date.clone(),
+        end_date: end_date.clone(),
         annual_dividend: annual_dividend,
         rate_type: rate_type.clone(),
         rate_value: rate_value,
@@ -1798,10 +1829,10 @@ parsed_endpoint! {
     request: OptionAtTimeTradeRequest;
     query: OptionAtTimeTradeRequestQuery {
         contract_spec: contract_spec!(symbol, expiration, strike, right),
-        start_date: start_date.to_string(),
-        end_date: end_date.to_string(),
-        time_of_day: time_of_day.to_string(),
-        expiration: expiration.to_string(),
+        start_date: start_date.clone(),
+        end_date: end_date.clone(),
+        time_of_day: time_of_day.clone(),
+        expiration: expiration.clone(),
         max_dte: max_dte,
         strike_range: strike_range,
     };
@@ -1819,10 +1850,10 @@ parsed_endpoint! {
     request: OptionAtTimeQuoteRequest;
     query: OptionAtTimeQuoteRequestQuery {
         contract_spec: contract_spec!(symbol, expiration, strike, right),
-        start_date: start_date.to_string(),
-        end_date: end_date.to_string(),
-        time_of_day: time_of_day.to_string(),
-        expiration: expiration.to_string(),
+        start_date: start_date.clone(),
+        end_date: end_date.clone(),
+        time_of_day: time_of_day.clone(),
+        expiration: expiration.clone(),
         max_dte: max_dte,
         strike_range: strike_range,
     };
@@ -1841,7 +1872,7 @@ parsed_endpoint! {
     grpc: get_index_snapshot_ohlc;
     request: IndexSnapshotOhlcRequest;
     query: IndexSnapshotOhlcRequestQuery {
-        symbol: symbols.iter().map(|s| s.to_string()).collect(),
+        symbol: symbols.clone(),
         min_time: min_time.clone(),
     };
     parse: decode::parse_ohlc_ticks;
@@ -1856,7 +1887,7 @@ parsed_endpoint! {
     grpc: get_index_snapshot_price;
     request: IndexSnapshotPriceRequest;
     query: IndexSnapshotPriceRequestQuery {
-        symbol: symbols.iter().map(|s| s.to_string()).collect(),
+        symbol: symbols.clone(),
         min_time: min_time.clone(),
     };
     parse: decode::parse_price_ticks;
@@ -1871,7 +1902,7 @@ parsed_endpoint! {
     grpc: get_index_snapshot_market_value;
     request: IndexSnapshotMarketValueRequest;
     query: IndexSnapshotMarketValueRequestQuery {
-        symbol: symbols.iter().map(|s| s.to_string()).collect(),
+        symbol: symbols.clone(),
         min_time: min_time.clone(),
     };
     parse: decode::parse_market_value_ticks;
@@ -1888,9 +1919,9 @@ parsed_endpoint! {
     grpc: get_index_history_eod;
     request: IndexHistoryEodRequest;
     query: IndexHistoryEodRequestQuery {
-        symbol: symbol.to_string(),
-        start_date: start.to_string(),
-        end_date: end.to_string(),
+        symbol: symbol.clone(),
+        start_date: start.clone(),
+        end_date: end.clone(),
     };
     parse: decode::parse_eod_ticks;
     dates: start, end;
@@ -1905,9 +1936,9 @@ parsed_endpoint! {
     grpc: get_index_history_ohlc;
     request: IndexHistoryOhlcRequest;
     query: IndexHistoryOhlcRequestQuery {
-        symbol: symbol.to_string(),
-        start_date: start_date.to_string(),
-        end_date: end_date.to_string(),
+        symbol: symbol.clone(),
+        start_date: start_date.clone(),
+        end_date: end_date.clone(),
         interval: normalize_interval(&interval),
         start_time: Some(start_time.clone()),
         end_time: Some(end_time.clone()),
@@ -1928,8 +1959,8 @@ parsed_endpoint! {
     grpc: get_index_history_price;
     request: IndexHistoryPriceRequest;
     query: IndexHistoryPriceRequestQuery {
-        date: Some(date.to_string()),
-        symbol: symbol.to_string(),
+        date: Some(date.clone()),
+        symbol: symbol.clone(),
         start_time: Some(start_time.clone()),
         end_time: Some(end_time.clone()),
         interval: normalize_interval(&interval),
@@ -1956,10 +1987,10 @@ parsed_endpoint! {
     grpc: get_index_at_time_price;
     request: IndexAtTimePriceRequest;
     query: IndexAtTimePriceRequestQuery {
-        symbol: symbol.to_string(),
-        start_date: start_date.to_string(),
-        end_date: end_date.to_string(),
-        time_of_day: time_of_day.to_string(),
+        symbol: symbol.clone(),
+        start_date: start_date.clone(),
+        end_date: end_date.clone(),
+        time_of_day: time_of_day.clone(),
     };
     parse: decode::parse_price_ticks;
     dates: start_date, end_date;
@@ -1988,7 +2019,7 @@ parsed_endpoint! {
     grpc: get_calendar_on_date;
     request: CalendarOnDateRequest;
     query: CalendarOnDateRequestQuery {
-        date: date.to_string(),
+        date: date.clone(),
     };
     parse: decode::parse_calendar_days_v3;
     dates: date;
@@ -2003,7 +2034,7 @@ parsed_endpoint! {
     grpc: get_calendar_year;
     request: CalendarYearRequest;
     query: CalendarYearRequestQuery {
-        year: year.to_string(),
+        year: year.clone(),
     };
     parse: decode::parse_calendar_days_v3;
     optional {}
@@ -2019,9 +2050,9 @@ parsed_endpoint! {
     grpc: get_interest_rate_history_eod;
     request: InterestRateHistoryEodRequest;
     query: InterestRateHistoryEodRequestQuery {
-        symbol: symbol.to_string(),
-        start_date: start_date.to_string(),
-        end_date: end_date.to_string(),
+        symbol: symbol.clone(),
+        start_date: start_date.clone(),
+        end_date: end_date.clone(),
     };
     parse: decode::parse_interest_rate_ticks;
     dates: start_date, end_date;
@@ -2054,19 +2085,18 @@ fn normalize_interval(interval: &str) -> String {
     // Valid presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h
     match interval.parse::<u64>() {
         Ok(ms) => match ms {
-            0 => "100ms".to_string(),
-            1..=100 => "100ms".to_string(),
+            0..=100 => "100ms".to_string(),
             101..=500 => "500ms".to_string(),
             501..=1000 => "1s".to_string(),
-            1001..=5000 => "5s".to_string(),
-            5001..=10000 => "10s".to_string(),
-            10001..=15000 => "15s".to_string(),
-            15001..=30000 => "30s".to_string(),
-            30001..=60000 => "1m".to_string(),
-            60001..=300000 => "5m".to_string(),
-            300001..=600000 => "10m".to_string(),
-            600001..=900000 => "15m".to_string(),
-            900001..=1800000 => "30m".to_string(),
+            1_001..=5_000 => "5s".to_string(),
+            5_001..=10_000 => "10s".to_string(),
+            10_001..=15_000 => "15s".to_string(),
+            15_001..=30_000 => "30s".to_string(),
+            30_001..=60_000 => "1m".to_string(),
+            60_001..=300_000 => "5m".to_string(),
+            300_001..=600_000 => "10m".to_string(),
+            600_001..=900_000 => "15m".to_string(),
+            900_001..=1_800_000 => "30m".to_string(),
             _ => "1h".to_string(),
         },
         // Not a number -- pass through and let the server decide.
@@ -2075,11 +2105,12 @@ fn normalize_interval(interval: &str) -> String {
 }
 
 /// Validate that a date string is in YYYYMMDD format (exactly 8 ASCII digits).
+// Reason: internal validation helper with known-safe unwrap.
+#[allow(clippy::missing_panics_doc, clippy::needless_pass_by_value)]
 fn validate_date(date: &str) -> Result<(), Error> {
     if date.len() != 8 || !date.bytes().all(|b| b.is_ascii_digit()) {
         return Err(Error::Config(format!(
-            "invalid date '{}': expected YYYYMMDD format (8 digits)",
-            date
+            "invalid date '{date}': expected YYYYMMDD format (8 digits)"
         )));
     }
     Ok(())
