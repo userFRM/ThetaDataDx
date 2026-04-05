@@ -12,12 +12,14 @@ license = "GPL-3.0-or-later"
 keywords = ["thetadata", "terminal", "market-data", "rest-api", "websocket"]
 categories = ["finance", "network-programming", "web-programming::http-server"]
 
+[workspace]
+
 [[bin]]
 name = "thetadatadx-server"
 path = "src/main.rs"
 
 [dependencies]
-thetadatadx = { path = "../../crates/thetadatadx" }
+thetadatadx = { path = "../../crates/thetadatadx", features = ["config-file"] }
 tdbe = { version = "0.5.0", path = "../../crates/tdbe" }
 axum = { version = "0.8", features = ["ws"] }
 tokio = { version = "1", features = ["full"] }

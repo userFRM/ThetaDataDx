@@ -13,7 +13,6 @@
 use sonic_rs::prelude::*;
 use tdbe::types::price::Price;
 use tdbe::types::tick::*;
-use thetadatadx::proto;
 
 // ---------------------------------------------------------------------------
 //  JSON envelope

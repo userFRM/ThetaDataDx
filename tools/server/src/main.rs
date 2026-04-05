@@ -48,6 +48,22 @@ struct Args {
     #[arg(long, default_value = "creds.txt")]
     creds: String,
 
+    /// Email for ThetaData authentication (alternative to --creds file).
+    #[arg(long)]
+    email: Option<String>,
+
+    /// Password for ThetaData authentication (alternative to --creds file).
+    #[arg(long)]
+    password: Option<String>,
+
+    /// Path to TOML config file (same format as Java terminal's config.toml).
+    #[arg(long)]
+    config: Option<String>,
+
+    /// FPSS region: "production" (default), "dev", "stage".
+    #[arg(long, default_value = "production")]
+    fpss_region: String,
+
     /// HTTP REST API port (default matches Java terminal: 25503).
     #[arg(long, default_value_t = 25503)]
     http_port: u16,
@@ -86,8 +102,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Generate a random shutdown token and print it.
     let shutdown_token = uuid::Uuid::new_v4().to_string();
 
+    // Startup banner matching the Java terminal style.
+    let version = env!("CARGO_PKG_VERSION");
+    eprintln!();
+    eprintln!("ThetaDataDx Server v{version}");
+    eprintln!("Configuration: {}", args.fpss_region);
+    eprintln!("REST API: http://{}:{}/", args.bind, args.http_port);
+    eprintln!("WebSocket: ws://{}:{}/v1/events", args.bind, args.ws_port);
+    eprintln!();
+    eprintln!("Shutdown token: {shutdown_token}");
+    eprintln!(
+        "  curl http://{}:{}/v3/system/shutdown -H 'X-Shutdown-Token: {}'",
+        args.bind, args.http_port, shutdown_token
+    );
+
     tracing::info!(
-        version = env!("CARGO_PKG_VERSION"),
+        version,
         http_port = args.http_port,
         ws_port = args.ws_port,
         bind = %args.bind,
@@ -95,25 +125,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "starting thetadatadx-server"
     );
 
-    eprintln!("Shutdown token: {shutdown_token}");
-    eprintln!(
-        "  curl http://{}:{}/v3/system/shutdown -H 'X-Shutdown-Token: {}'",
-        args.bind, args.http_port, shutdown_token
-    );
+    // Step 1: Load credentials -- prefer --email/--password over --creds file.
+    let creds = if let (Some(email), Some(password)) = (&args.email, &args.password) {
+        tracing::info!("loaded credentials from --email/--password flags");
+        Credentials::new(email, password)
+    } else {
+        let c = Credentials::from_file(&args.creds)?;
+        tracing::info!(creds_file = %args.creds, "loaded credentials from file");
+        c
+    };
 
-    // Step 1: Load credentials and authenticate.
-    let creds = Credentials::from_file(&args.creds)?;
-    tracing::info!(creds_file = %args.creds, "loaded credentials");
+    // Step 2: Load config -- prefer --config file, then --fpss-region.
+    let config = if let Some(config_path) = &args.config {
+        tracing::info!(config_file = %config_path, "loaded config from file");
+        DirectConfig::from_file(config_path)?
+    } else {
+        match args.fpss_region.as_str() {
+            "dev" => DirectConfig::dev(),
+            "stage" => DirectConfig::stage(),
+            _ => DirectConfig::production(),
+        }
+    };
 
-    // Step 2: Connect unified client (gRPC historical).
-    let config = DirectConfig::production();
+    // Step 3: Connect unified client (gRPC historical).
     let tdx = ThetaDataDx::connect(&creds, config).await?;
     tracing::info!("MDDS connected");
 
-    // Step 3: Build shared state.
+    // Step 4: Build shared state.
     let state = AppState::new(tdx, shutdown_token);
 
-    // Step 4: Start FPSS streaming bridge.
+    // Step 5: Start FPSS streaming bridge.
     if !args.no_fpss {
         match ws::start_fpss_bridge(state.clone()) {
             Ok(()) => {
@@ -127,7 +168,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tracing::info!("FPSS bridge skipped (--no-fpss)");
     }
 
-    // Step 5: Build HTTP REST server with CORS.
+    // Step 6: Build HTTP REST server with CORS.
     let allowed_origin = format!("http://{}:{}", args.bind, args.http_port);
     let cors = CorsLayer::new()
         .allow_origin(
@@ -141,11 +182,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let http_app = router::build(state.clone()).layer(cors);
     let http_addr: SocketAddr = format!("{}:{}", args.bind, args.http_port).parse()?;
 
-    // Step 6: Build WebSocket server.
+    // Step 7: Build WebSocket server.
     let ws_app = ws::router(state.clone());
     let ws_addr: SocketAddr = format!("{}:{}", args.bind, args.ws_port).parse()?;
 
-    // Step 7: Start both servers concurrently.
+    // Step 8: Start both servers concurrently.
     tracing::info!(%http_addr, "HTTP REST server starting");
     tracing::info!(%ws_addr, "WebSocket server starting");
 

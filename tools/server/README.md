@@ -7,12 +7,19 @@ Existing clients (Python SDK, Excel add-ins, curl scripts, browsers) work withou
 ## Quick start
 
 ```bash
-# Create credentials file (same format as the Java terminal)
+# With email/password directly (no creds file needed)
+thetadatadx-server --email you@example.com --password YOUR_PASSWORD
+
+# With credentials file (same format as the Java terminal)
 echo "your@email.com" > creds.txt
 echo "your_password" >> creds.txt
-
-# Run the server
 thetadatadx-server --creds creds.txt
+
+# With a TOML config file (same format as Java terminal's config.toml)
+thetadatadx-server --email you@example.com --password YOUR_PASSWORD --config config.toml
+
+# With a specific FPSS region
+thetadatadx-server --email you@example.com --password YOUR_PASSWORD --fpss-region dev
 ```
 
 The server starts:
@@ -23,15 +30,20 @@ The server starts:
 
 | Flag | Default | Description |
 |------|---------|-------------|
+| `--email` | | ThetaData email (alternative to `--creds`) |
+| `--password` | | ThetaData password (alternative to `--creds`) |
 | `--creds` | `creds.txt` | Path to credentials file |
+| `--config` | | Path to TOML config file (same format as Java terminal) |
+| `--fpss-region` | `production` | FPSS region: `production`, `dev`, `stage` |
 | `--http-port` | `25503` | HTTP REST API port |
 | `--ws-port` | `25520` | WebSocket server port |
 | `--bind` | `127.0.0.1` | Bind address |
 | `--log-level` | `info` | Log level (`debug`, `trace`, `thetadatadx=trace`) |
+| `--no-fpss` | | Skip FPSS streaming connection at startup |
 
 ## REST API
 
-All 61 registry endpoints are auto-generated into REST routes at startup from `ENDPOINTS`. Plus 3 system routes = 64 total HTTP routes.
+All 61 registry endpoints are auto-generated into REST routes at startup from `ENDPOINTS`. Plus 4 system routes = 65 total HTTP routes.
 
 Routes follow the Java terminal's URL patterns:
 
@@ -132,11 +144,12 @@ GET /v3/calendar/year?year=...
 GET /v3/hist/rate/eod?root=...&start_date=...&end_date=...
 ```
 
-### System Routes (3)
+### System Routes (4)
 
 ```
+GET /v3/system/status          # {"status":"CONNECTED","version":"5.3.1"}
 GET /v3/system/mdds/status
-GET /v3/system/fpss/status
+GET /v3/system/fpss/status     # {"status":"CONNECTED","version":"5.3.1"}
 GET /v3/system/shutdown
 ```
 

@@ -125,6 +125,7 @@ pub fn build(state: AppState) -> Router {
 
     // System routes
     app = app
+        .route("/v3/system/status", get(handler::system_status))
         .route("/v3/system/mdds/status", get(handler::system_mdds_status))
         .route("/v3/system/fpss/status", get(handler::system_fpss_status))
         .route("/v3/system/shutdown", get(handler::system_shutdown));
