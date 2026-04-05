@@ -73,13 +73,13 @@ auto contracts = client.option_list_contracts("TRADE", "SPY", "20240315");
 
 ```json
 [
-  {"root": "SPY", "expiration": 20260403, "strike": 320, "right": 67},
-  {"root": "SPY", "expiration": 20260403, "strike": 640, "right": 67},
-  {"root": "SPY", "expiration": 20260417, "strike": 550, "right": 80}
+  {"symbol": "SPY", "expiration": 20260403, "strike": 320.00, "right": "C"},
+  {"symbol": "SPY", "expiration": 20260403, "strike": 640.00, "right": "C"},
+  {"symbol": "SPY", "expiration": 20260417, "strike": 550.00, "right": "P"}
 ]
 ```
 
-> Lists all option contracts for SPY on the given date. `right` is ASCII: 67 = call, 80 = put. Use `strike_price()` to decode the strike as f64.
+> Lists all option contracts for SPY on the given date. 5,467 contracts returned for 2026-04-02.
 
 ## Notes
 
