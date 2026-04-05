@@ -91,6 +91,10 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("failed to install rustls crypto provider");
+
     let args = Args::parse();
 
     tracing_subscriber::fmt()
