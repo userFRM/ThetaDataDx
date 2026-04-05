@@ -135,6 +135,21 @@ impl Config {
         }
     }
 
+    /// Set whether to derive OHLCVC bars locally from trade events.
+    ///
+    /// When ``False``, only server-sent OHLCVC frames are emitted,
+    /// reducing per-trade throughput overhead.
+    #[setter]
+    fn set_derive_ohlcvc(&mut self, enabled: bool) {
+        self.inner.derive_ohlcvc = enabled;
+    }
+
+    /// Get the current OHLCVC derivation setting.
+    #[getter]
+    fn get_derive_ohlcvc(&self) -> bool {
+        self.inner.derive_ohlcvc
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "Config(mdds={}:{}, fpss_hosts={})",
@@ -973,23 +988,6 @@ impl ThetaDataDx {
 
         self.tdx
             .start_streaming(move |event: &fpss::FpssEvent| {
-                let buffered = fpss_event_to_buffered(event);
-                let _ = tx.send(buffered);
-            })
-            .map_err(to_py_err)?;
-
-        if let Ok(mut guard) = self.rx.lock() {
-            *guard = Some(Arc::new(Mutex::new(rx)));
-        }
-        Ok(())
-    }
-
-    /// Start FPSS streaming with OHLCVC derivation disabled.
-    fn start_streaming_no_ohlcvc(&self) -> PyResult<()> {
-        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();
-
-        self.tdx
-            .start_streaming_no_ohlcvc(move |event: &fpss::FpssEvent| {
                 let buffered = fpss_event_to_buffered(event);
                 let _ = tx.send(buffered);
             })

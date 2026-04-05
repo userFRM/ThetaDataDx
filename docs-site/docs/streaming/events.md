@@ -292,7 +292,7 @@ The dev server (port 20200) sends a simplified 8-field trade format: `ms_of_day`
 | `received_at_ns` | `u64` | Wall-clock nanoseconds since UNIX epoch |
 
 ::: tip
-OHLCVC bars can come from two sources: wire code 24 (server-sent bars) or trade-derived (computed locally from trade events when OHLCVC derivation is enabled). Use `start_streaming_no_ohlcvc()` to disable local derivation.
+OHLCVC bars can come from two sources: wire code 24 (server-sent bars) or trade-derived (computed locally from trade events when OHLCVC derivation is enabled). Set `config.derive_ohlcvc = false` (Rust: `DirectConfig::production().derive_ohlcvc(false)`) to disable local derivation.
 :::
 
 ## Control Event Reference
@@ -392,8 +392,7 @@ Price fields (`Bid`, `Ask`, `Price`, `Open`, `High`, `Low`, `Close`) are pre-dec
 
 | Method | Description |
 |--------|-------------|
-| `start_streaming(callback)` | Begin streaming with an event callback |
-| `start_streaming_no_ohlcvc(callback)` | Start without local OHLCVC derivation |
+| `start_streaming(callback)` | Begin streaming with an event callback (reads `derive_ohlcvc` from config) |
 | `subscribe_quotes(contract)` | Subscribe to quote data |
 | `subscribe_trades(contract)` | Subscribe to trade data |
 | `subscribe_open_interest(contract)` | Subscribe to open interest |
@@ -416,8 +415,7 @@ Price fields (`Bid`, `Ask`, `Price`, `Open`, `High`, `Low`, `Close`) are pre-dec
 
 | Method | Description |
 |--------|-------------|
-| `start_streaming()` | Connect to FPSS streaming servers |
-| `start_streaming_no_ohlcvc()` | Connect without OHLCVC derivation |
+| `start_streaming()` | Connect to FPSS streaming servers (reads `derive_ohlcvc` from config) |
 | `subscribe_quotes(symbol)` | Subscribe to quote data |
 | `subscribe_trades(symbol)` | Subscribe to trade data |
 | `subscribe_open_interest(symbol)` | Subscribe to open interest |

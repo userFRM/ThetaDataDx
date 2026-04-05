@@ -223,6 +223,16 @@ pub struct DirectConfig {
     /// Default: [`ReconnectPolicy::Auto`] — matches Java terminal behavior.
     pub reconnect_policy: ReconnectPolicy,
 
+    // -- OHLCVC derivation --
+    /// Whether to derive OHLCVC bars locally from trade events.
+    ///
+    /// When `true` (default), the FPSS client emits derived `FpssData::Ohlcvc`
+    /// events after each trade. When `false`, only server-sent OHLCVC frames
+    /// (wire code 24) are emitted, reducing per-trade throughput overhead.
+    ///
+    /// The Java terminal always derives OHLCVC with no way to disable it.
+    pub derive_ohlcvc: bool,
+
     // -- Threading --
     /// Number of tokio worker threads. `None` = tokio default (number of CPU cores).
     ///
@@ -282,6 +292,9 @@ impl DirectConfig {
             // Auto-reconnect matches Java terminal behavior by default
             reconnect_policy: ReconnectPolicy::Auto,
 
+            // Derive OHLCVC from trades by default (matches Java terminal)
+            derive_ohlcvc: true,
+
             // Default: use all CPU cores
             tokio_worker_threads: None,
         }
@@ -337,6 +350,15 @@ impl DirectConfig {
     pub fn mdds_uri(&self) -> String {
         let scheme = if self.mdds_tls { "https" } else { "http" };
         format!("{}://{}:{}", scheme, self.mdds_host, self.mdds_port)
+    }
+
+    /// Set whether to derive OHLCVC bars locally from trade events.
+    ///
+    /// When `false`, only server-sent OHLCVC frames are emitted,
+    /// reducing per-trade throughput overhead.
+    pub fn derive_ohlcvc(mut self, enabled: bool) -> Self {
+        self.derive_ohlcvc = enabled;
+        self
     }
 
     /// Parse FPSS hosts from a comma-separated `host:port,host:port,...` string.
@@ -612,6 +634,10 @@ mod config_file {
                 // TOML config cannot express custom closures; default to Auto.
                 // Use the builder API to set Manual or Custom programmatically.
                 reconnect_policy: super::ReconnectPolicy::Auto,
+
+                // Default: derive OHLCVC from trades (matches production default).
+                // Use the builder API to disable programmatically.
+                derive_ohlcvc: true,
 
                 tokio_worker_threads: None,
             })

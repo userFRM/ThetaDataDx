@@ -400,6 +400,13 @@ void tdx_config_set_reconnect_policy(TdxConfig* config, int policy);
  */
 void tdx_config_set_flush_mode(TdxConfig* config, int mode);
 
+/**
+ * Set FPSS OHLCVC derivation on a config handle.
+ *   enabled=1 (default): derive OHLCVC bars locally from trade events.
+ *   enabled=0: only emit server-sent OHLCVC frames (lower overhead).
+ */
+void tdx_config_set_derive_ohlcvc(TdxConfig* config, int enabled);
+
 /* ── Client ── */
 
 /** Connect to ThetaData servers. Returns NULL on connection/auth failure. */

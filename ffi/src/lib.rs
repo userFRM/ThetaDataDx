@@ -753,6 +753,19 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_policy(config: *mut TdxConfig,
     };
 }
 
+/// Set FPSS OHLCVC derivation on a config handle.
+///
+/// - `enabled = 1` (default): derive OHLCVC bars locally from trade events
+/// - `enabled = 0`: only emit server-sent OHLCVC frames (lower overhead)
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_set_derive_ohlcvc(config: *mut TdxConfig, enabled: i32) {
+    if config.is_null() {
+        return;
+    }
+    let config = unsafe { &mut *config };
+    config.inner.derive_ohlcvc = enabled != 0;
+}
+
 // ── Client ──
 
 /// Connect to ThetaData servers (authenticates via Nexus API).
@@ -1987,38 +2000,6 @@ pub unsafe extern "C" fn tdx_unified_start_streaming(handle: *const TdxUnified) 
     }
 }
 
-/// Start FPSS streaming with OHLCVC derivation disabled.
-///
-/// Returns 0 on success, -1 on error (check `tdx_last_error()`).
-#[no_mangle]
-pub unsafe extern "C" fn tdx_unified_start_streaming_no_ohlcvc(handle: *const TdxUnified) -> i32 {
-    if handle.is_null() {
-        set_error("unified handle is null");
-        return -1;
-    }
-    let handle = unsafe { &*handle };
-
-    let (tx, rx) = std::sync::mpsc::channel::<FfiBufferedEvent>();
-
-    match handle
-        .inner
-        .start_streaming_no_ohlcvc(move |event: &thetadatadx::fpss::FpssEvent| {
-            let buffered = fpss_event_to_ffi(event);
-            let _ = tx.send(buffered);
-        }) {
-        Ok(()) => {
-            if let Ok(mut guard) = handle.rx.lock() {
-                *guard = Some(Arc::new(Mutex::new(rx)));
-            }
-            0
-        }
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
-        }
-    }
-}
-
 /// Subscribe to quote data for a stock symbol via the unified client.
 ///
 /// Returns the request ID on success, or -1 on error (check `tdx_last_error()`).
@@ -2526,6 +2507,7 @@ pub unsafe extern "C" fn tdx_fpss_connect(
         config.inner.fpss_ring_size,
         config.inner.fpss_flush_mode,
         config.inner.reconnect_policy.clone(),
+        config.inner.derive_ohlcvc,
         move |event: &thetadatadx::fpss::FpssEvent| {
             let buffered = fpss_event_to_ffi(event);
             let _ = tx.send(buffered);
