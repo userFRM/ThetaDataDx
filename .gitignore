@@ -18,3 +18,4 @@ build/
 .env
 .claude/worktrees/
 JAVA_TERMINAL_FINDINGS.md
+JAVA_TERMINAL_MAPPING.md
