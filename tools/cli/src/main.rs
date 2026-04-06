@@ -709,23 +709,11 @@ fn format_ms(ms: i32) -> String {
 }
 
 /// Format a decoded f64 price for display.
-///
-/// Preserves meaningful precision (up to 6 decimals) while trimming
-/// trailing zeros. Always shows at least 2 decimal places.
 fn format_price_f64(value: f64) -> String {
     if value == 0.0 {
         return "0.00".into();
     }
-    let s = format!("{value:.6}");
-    // Trim trailing zeros but keep at least 2 decimal places.
-    let dot = s.find('.').unwrap();
-    let min_len = dot + 3; // e.g. "1.50"
-    let trimmed = s.trim_end_matches('0');
-    if trimmed.len() < min_len {
-        s[..min_len].to_string()
-    } else {
-        trimmed.to_string()
-    }
+    format!("{value:.2}")
 }
 
 /// Format a YYYYMMDD integer date to a readable string.
