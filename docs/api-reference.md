@@ -865,20 +865,20 @@ pub enum FpssEvent {
 
 pub enum FpssData {
     Quote { contract_id: i32, ms_of_day: i32, bid_size: i32, bid_exchange: i32,
-            bid: i32, bid_f64: f64, bid_condition: i32, ask_size: i32,
-            ask_exchange: i32, ask: i32, ask_f64: f64, ask_condition: i32,
+            bid: f64, bid_condition: i32, ask_size: i32,
+            ask_exchange: i32, ask: f64, ask_condition: i32,
             date: i32, received_at_ns: u64 },
     Trade { contract_id: i32, ms_of_day: i32, sequence: i32,
             ext_condition1: i32, ext_condition2: i32, ext_condition3: i32,
             ext_condition4: i32, condition: i32, size: i32, exchange: i32,
-            price: i32, price_f64: f64, condition_flags: i32, price_flags: i32,
+            price: f64, condition_flags: i32, price_flags: i32,
             volume_type: i32, records_back: i32, date: i32,
             received_at_ns: u64 },
     OpenInterest { contract_id: i32, ms_of_day: i32, open_interest: i32,
                    date: i32, received_at_ns: u64 },
     Ohlcvc { contract_id: i32, ms_of_day: i32,
-             open: i32, open_f64: f64, high: i32, high_f64: f64,
-             low: i32, low_f64: f64, close: i32, close_f64: f64,
+             open: f64, high: f64,
+             low: f64, close: f64,
              volume: i64, count: i64, date: i32,
              received_at_ns: u64 },
 }
@@ -927,7 +927,7 @@ Constructors:
 Contract::stock("AAPL")
 Contract::index("SPX")
 Contract::rate("SOFR")
-Contract::option("SPY", "20261218", 60.0, "C")  // call, strike 60000
+Contract::option("SPY", "20261218", "60", "C")
 ```
 
 Serialization:
@@ -941,7 +941,7 @@ let (contract, consumed) = Contract::from_bytes(&bytes)?;  // deserialize
 
 ## Tick Types
 
-All 14 tick types are `Clone + Debug` structs generated from `endpoint_schema.toml`. Most are also `Copy` (except `OptionContract`, which contains a `String` field). Fields are typically `i32`, with `i64` for large values (e.g., `MarketValueTick.market_cap`), `f64` for Greeks/IV, and `String` for identifiers. Prices are stored in fixed-point encoding. Use the `*_price()` methods to get `Price` values with proper decimal handling.
+All 14 tick types are `Clone + Debug` structs generated from `endpoint_schema.toml`. Most are also `Copy` (except `OptionContract`, which contains a `String` field). Fields are typically `i32`, with `i64` for large values (e.g., `MarketValueTick.market_cap`), `f64` for Greeks/IV, and `String` for identifiers. All price fields are `f64` -- decoded during parsing. No `price_type` in the public API.
 
 ### Contract Identification Fields
 
@@ -952,10 +952,8 @@ All 14 tick types are `Clone + Debug` structs generated from `endpoint_schema.to
 | Field | Type (Rust/FFI) | Type (Go) | Description |
 |-------|-----------------|-----------|-------------|
 | `expiration` | `i32` | `int32` | Contract expiration date (YYYYMMDD). 0 on single-contract queries. |
-| `strike` | `i32` | `int32` | Strike price (fixed-point encoded). Use `strike_price()` for `f64`. |
+| `strike` | `i32` | `int32` | Strike price (f64, decoded at parse time). |
 | `right` | `i32` | `string` | Contract right. Rust/FFI: `67` = Call, `80` = Put, `0` = absent. Go: `"C"`, `"P"`, `""`. |
-| `right_raw` | — | `int32` | Go only: raw integer value (67/80/0) for power users. |
-| // removed -- strike is now f64 directly |
 
 Helper methods on all 10 tick types:
 
@@ -1000,14 +998,14 @@ pub struct TradeTick {
     pub condition: i32,         // Trade condition code
     pub size: i32,              // Trade size (shares)
     pub exchange: i32,          // Exchange code
-    pub price: f64,             // Price (fixed-point, use get_price())
+    pub price: f64,             // Trade price (f64, decoded)
     pub condition_flags: i32,   // Condition flags bitmap
     pub price_flags: i32,       // Price flags bitmap
     pub volume_type: i32,       // 0 = incremental, 1 = cumulative
     pub records_back: i32,      // Records back count
     pub date: i32,              // Date as YYYYMMDD integer
     pub expiration: i32,        // Contract expiration (YYYYMMDD, 0 if absent)
-    pub strike: f64,            // Contract strike (fixed-point)
+    pub strike: f64,            // Contract strike (f64, decoded)
     pub right: i32,             // C=67, P=80 (ASCII)
 }
 ```

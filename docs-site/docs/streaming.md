@@ -136,7 +136,7 @@ let req_id = tdx.subscribe_quotes(&Contract::stock("AAPL"))?;
 tdx.subscribe_trades(&Contract::stock("MSFT"))?;
 
 // Option quotes
-let opt = Contract::option("SPY", "20261218", 60.0, "C");
+let opt = Contract::option("SPY", "20261218", "60", "C");
 tdx.subscribe_quotes(&opt)?;
 
 // Open interest

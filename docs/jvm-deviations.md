@@ -169,6 +169,22 @@ As of v1.2.0:
 | **Source** | `FPSSClient` internal event handling | `fpss/mod.rs: FpssEvent, FpssData, FpssControl` | |
 | **Rationale** | Java handles all events through a single dispatch path. The Rust split enables exhaustive `match` on data-only events (Quote, Trade, OpenInterest, Ohlcvc) without touching lifecycle events, and vice versa. This is an intentional API improvement — the wire format is unchanged. |
 
+### FPSS Streaming Prices: f64 at Parse Time (Intentional Improvement)
+
+| | Java | Rust | Impact |
+|---|---|---|---|
+| **Behavior** | FPSS events expose raw integer prices + `price_type`; user must call `PriceCalcUtils` to decode | `FpssData` events expose `f64` prices directly (`bid`, `ask`, `price`, `open`, `high`, `low`, `close`). No `price_type` in public API. | Zero boilerplate for streaming consumers |
+| **Source** | `FPSSClient` event dispatch, `PriceCalcUtils.java` | `fpss/mod.rs`: prices decoded via `Price::new(raw, pt).to_f64()` at frame decode time |
+| **Rationale** | The Java terminal requires users to manually decode prices from every streaming event. ThetaDataDx decodes at the point where `price_type` is available (frame parsing), so the user never sees raw encoding. Same precision, same wire format, zero user-side boilerplate. |
+
+### Contract::option: Clean API (Intentional Improvement)
+
+| | Java | Rust | Impact |
+|---|---|---|---|
+| **Behavior** | `Contract(root, expDate, isCall, strike)` takes `(String, int, boolean, int)` -- expiration as raw YYYYMMDD integer, call/put as boolean, strike as wire-encoded integer (dollars * 1000) | `Contract::option(root, exp, strike, right)` takes `(&str, &str, &str, &str)` -- all strings matching the MDDS historical API | Consistent API across historical and streaming |
+| **Source** | `Contract.java` constructors | `fpss/protocol.rs: Contract::option()` |
+| **Rationale** | The Java terminal's `Contract` constructor exposes wire-format details (integer dates, boolean call/put, strike * 1000). ThetaDataDx's `Contract::option("SPY", "20260417", "550", "C")` matches the historical endpoint experience exactly. The wire encoding (`550 * 1000 = 550000`, `"C" -> is_call=true`) happens internally. `Contract::option_raw()` is available for the drop-in server which must match Java terminal wire format. |
+
 ### Unified Connection Model: Embedded Library vs Standalone Daemon
 
 | | Java | Rust | Impact |

@@ -119,8 +119,8 @@ auto client = tdx::Client::connect(creds, tdx::Config::production());
 
 auto quotes = client.stock_history_quote("AAPL", "20250115", "60000");
 for (auto& q : quotes) {
-    std::cout << q.date << ": bid=" << tdx::bid_f64(q)
-              << " ask=" << tdx::ask_f64(q) << std::endl;
+    std::cout << q.date << ": bid=" << q.bid
+              << " ask=" << q.ask << std::endl;
 }
 ```
 

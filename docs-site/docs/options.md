@@ -161,7 +161,7 @@ for t in trades:
 The 4 contract ID fields and helper methods (`strike_price()`, `is_call()`, `is_put()`, `has_contract_id()`) are available on all 10 option tick types.
 
 ::: tip Right Field
-In Go and Python, the `right` field is a human-readable string: `"C"` (call), `"P"` (put), or `""` (not set). The raw integer value (67/80/0) is available as `right_raw` (Python) or `RightRaw` (Go) for power users. In Rust and C FFI, `right` remains an `i32` matching the wire format; use `is_call()`/`is_put()` helpers.
+In Go and Python, the `right` field is a human-readable string: `"C"` (call), `"P"` (put), or `""` (not set). In Rust and C FFI, `right` is an `i32` (67=Call, 80=Put); use `is_call()`/`is_put()` helpers.
 :::
 
 ---

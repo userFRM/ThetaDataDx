@@ -188,11 +188,11 @@ Real-time streaming is accessed through the same `ThetaDataDx` instance.
 
 | Method | Description |
 |--------|-------------|
-| `subscribe_option_quotes(symbol, exp_date, is_call, strike)` | Subscribe to option quote data |
-| `subscribe_option_trades(symbol, exp_date, is_call, strike)` | Subscribe to option trade data |
-| `subscribe_option_open_interest(symbol, exp_date, is_call, strike)` | Subscribe to option OI data |
-| `unsubscribe_option_quotes(symbol, exp_date, is_call, strike)` | Unsubscribe from option quotes |
-| `unsubscribe_option_trades(symbol, exp_date, is_call, strike)` | Unsubscribe from option trades |
+| `subscribe_option_quotes(symbol, exp_date, right, strike)` | Subscribe to option quote data. `right`: `"C"` or `"P"`. `strike`: dollar string e.g. `"550"`. |
+| `subscribe_option_trades(symbol, exp_date, right, strike)` | Subscribe to option trade data |
+| `subscribe_option_open_interest(symbol, exp_date, right, strike)` | Subscribe to option OI data |
+| `unsubscribe_option_quotes(symbol, exp_date, right, strike)` | Unsubscribe from option quotes |
+| `unsubscribe_option_trades(symbol, exp_date, right, strike)` | Unsubscribe from option trades |
 
 #### Full-type subscriptions
 

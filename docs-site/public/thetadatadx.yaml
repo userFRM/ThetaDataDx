@@ -9,7 +9,7 @@ info:
 
     All dates use YYYYMMDD format. Times use milliseconds since midnight ET.
     Intervals accept milliseconds ("60000") or shorthand ("1m"). Valid presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.
-    Prices are fixed-point integers decoded via price_type.
+    All prices are f64 (double) -- decoded during parsing.
   version: 1.0.0
   contact:
     name: ThetaDataDx
@@ -296,25 +296,22 @@ x-anchors:
         description: Milliseconds since midnight ET
       open:
         type: integer
-        description: Opening price (fixed-point, decode with price_type)
+        description: Opening price (f64, decoded)
       high:
         type: integer
-        description: Highest price (fixed-point)
+        description: Highest price (f64, decoded)
       low:
         type: integer
-        description: Lowest price (fixed-point)
+        description: Lowest price (f64, decoded)
       close:
         type: integer
-        description: Closing price (fixed-point)
+        description: Closing price (f64, decoded)
       volume:
         type: integer
         description: Number of shares/contracts traded
       count:
         type: integer
         description: Number of trades
-      price_type:
-        type: integer
-        description: Decimal type for price decoding (real_price = value * 10^(price_type - 10))
       date:
         type: integer
         description: Date as YYYYMMDD integer
@@ -332,17 +329,15 @@ x-anchors:
         type: integer
         description: Trade size in shares
       price:
-        type: integer
-        description: Trade price (fixed-point, decode with price_type)
+        type: number
+              format: double
+        description: Trade price (f64, decoded)
       exchange:
         type: integer
         description: Exchange code
       condition:
         type: integer
         description: Trade condition code
-      price_type:
-        type: integer
-        description: Decimal type for price decoding
       date:
         type: integer
         description: Date as YYYYMMDD integer
@@ -354,10 +349,12 @@ x-anchors:
         type: integer
         description: Milliseconds since midnight ET
       bid:
-        type: integer
+        type: number
+              format: double
         description: Bid price (fixed-point)
       ask:
-        type: integer
+        type: number
+              format: double
         description: Ask price (fixed-point)
       bid_size:
         type: integer
@@ -365,9 +362,6 @@ x-anchors:
       ask_size:
         type: integer
         description: Ask size
-      price_type:
-        type: integer
-        description: Decimal type for price decoding
       date:
         type: integer
         description: Date as YYYYMMDD integer
@@ -390,14 +384,15 @@ x-anchors:
       count:
         type: integer
       bid:
-        type: integer
+        type: number
+              format: double
       ask:
-        type: integer
+        type: number
+              format: double
       bid_size:
         type: integer
       ask_size:
         type: integer
-      price_type:
         type: integer
       date:
         type: integer
@@ -424,20 +419,22 @@ x-anchors:
       size:
         type: integer
       price:
-        type: integer
+        type: number
+              format: double
       exchange:
         type: integer
       condition:
         type: integer
       bid:
-        type: integer
+        type: number
+              format: double
       ask:
-        type: integer
+        type: number
+              format: double
       bid_size:
         type: integer
       ask_size:
         type: integer
-      price_type:
         type: integer
       date:
         type: integer
@@ -3237,15 +3234,9 @@ components:
           description: Scaled integer strike price (options only)
 
     Price:
-      type: object
-      description: |
-        Fixed-point price with variable decimal precision.
-        Formula: real_price = value * 10^(price_type - 10)
-      properties:
-        value:
-          type: integer
-        price_type:
-          type: integer
+      type: number
+      format: double
+      description: All prices are decoded to f64 (double) during parsing.
 
     FpssEvent:
       type: object
@@ -3261,9 +3252,11 @@ components:
             ms_of_day:
               type: integer
             bid:
-              type: integer
+              type: number
+              format: double
             ask:
-              type: integer
+              type: number
+              format: double
             bid_size:
               type: integer
             ask_size:
@@ -3286,7 +3279,8 @@ components:
             sequence:
               type: integer
             price:
-              type: integer
+              type: number
+              format: double
             size:
               type: integer
             exchange:

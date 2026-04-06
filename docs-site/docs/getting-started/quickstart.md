@@ -137,8 +137,8 @@ int main() {
     auto eod = client.stock_history_eod("AAPL", "20240101", "20240301");
     for (auto& tick : eod) {
         std::cout << tick.date << ": O=" << std::fixed << std::setprecision(2)
-                  << tdx::open_f64(tick) << " H=" << tdx::high_f64(tick)
-                  << " L=" << tdx::low_f64(tick) << " C=" << tdx::close_f64(tick) << std::endl;
+                  << tick.open << " H=" << tick.high
+                  << " L=" << tick.low << " C=" << tick.close << std::endl;
     }
 
     // Compute Greeks (no server connection needed)

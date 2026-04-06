@@ -2533,7 +2533,7 @@ Identifies a security for streaming subscriptions.
 Contract::stock("AAPL")
 Contract::index("SPX")
 Contract::rate("SOFR")
-Contract::option("SPY", "20261218", 60.0, "C")  // call, strike 60000
+Contract::option("SPY", "20261218", "60", "C")
 ```
 ```python [Python]
 # Passed as string symbol to subscribe methods
