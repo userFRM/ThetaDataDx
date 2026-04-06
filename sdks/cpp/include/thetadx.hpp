@@ -46,65 +46,9 @@ using TradeQuoteTick = TdxTradeQuoteTick;
 struct OptionContract {
     std::string root;
     int32_t expiration;
-    int32_t strike;
+    double strike;
     int32_t right;
-    int32_t strike_price_type;
 };
-
-// ── Price decoding utility ──
-
-/** Decode a raw integer price + price_type to f64.
- *  ThetaData encoding: value * 10^(price_type - 10). */
-inline double price_to_f64(int32_t value, int32_t price_type) {
-    if (price_type == 0) return 0.0;
-    double v = static_cast<double>(value);
-    int exp = price_type - 10;
-    double factor = 1.0;
-    if (exp > 0) {
-        for (int i = 0; i < exp; ++i) factor *= 10.0;
-    } else if (exp < 0) {
-        for (int i = 0; i < -exp; ++i) factor *= 10.0;
-        factor = 1.0 / factor;
-    }
-    return v * factor;
-}
-
-// ── Convenience f64 price accessors ──
-// The tick types are C struct aliases, so we use free functions.
-
-/** Decode trade price to f64. Works with TradeTick and SnapshotTradeTick. */
-inline double trade_price_f64(const TradeTick& t) { return price_to_f64(t.price, t.price_type); }
-inline double trade_price_f64(const SnapshotTradeTick& t) { return price_to_f64(t.price, t.price_type); }
-
-/** Decode bid/ask/midpoint to f64 for QuoteTick. */
-inline double bid_f64(const QuoteTick& q) { return price_to_f64(q.bid, q.price_type); }
-inline double ask_f64(const QuoteTick& q) { return price_to_f64(q.ask, q.price_type); }
-inline double midpoint_f64(const QuoteTick& q) {
-    int32_t mid = q.bid / 2 + q.ask / 2 + (q.bid % 2 + q.ask % 2) / 2;
-    return price_to_f64(mid, q.price_type);
-}
-
-/** Decode OHLC prices to f64 for OhlcTick. */
-inline double open_f64(const OhlcTick& t) { return price_to_f64(t.open, t.price_type); }
-inline double high_f64(const OhlcTick& t) { return price_to_f64(t.high, t.price_type); }
-inline double low_f64(const OhlcTick& t) { return price_to_f64(t.low, t.price_type); }
-inline double close_f64(const OhlcTick& t) { return price_to_f64(t.close, t.price_type); }
-
-/** Decode OHLC + bid/ask prices to f64 for EodTick. */
-inline double open_f64(const EodTick& t) { return price_to_f64(t.open, t.price_type); }
-inline double high_f64(const EodTick& t) { return price_to_f64(t.high, t.price_type); }
-inline double low_f64(const EodTick& t) { return price_to_f64(t.low, t.price_type); }
-inline double close_f64(const EodTick& t) { return price_to_f64(t.close, t.price_type); }
-inline double bid_f64(const EodTick& t) { return price_to_f64(t.bid, t.price_type); }
-inline double ask_f64(const EodTick& t) { return price_to_f64(t.ask, t.price_type); }
-
-/** Decode trade/bid/ask prices to f64 for TradeQuoteTick. */
-inline double trade_price_f64(const TradeQuoteTick& t) { return price_to_f64(t.price, t.price_type); }
-inline double bid_f64(const TradeQuoteTick& t) { return price_to_f64(t.bid, t.price_type); }
-inline double ask_f64(const TradeQuoteTick& t) { return price_to_f64(t.ask, t.price_type); }
-
-/** Decode price to f64 for PriceTick. */
-inline double price_f64(const PriceTick& t) { return price_to_f64(t.price, t.price_type); }
 
 // ── Greeks result (from standalone tdx_all_greeks) ──
 

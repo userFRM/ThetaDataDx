@@ -919,9 +919,8 @@ pub struct TdxOptionContract {
     /// Heap-allocated NUL-terminated C string. Freed with the array.
     pub root: *const c_char,
     pub expiration: i32,
-    pub strike: i32,
+    pub strike: f64,
     pub right: i32,
-    pub strike_price_type: i32,
 }
 
 /// Array of FFI-safe option contracts.
@@ -949,7 +948,6 @@ impl TdxOptionContractArray {
                     expiration: c.expiration,
                     strike: c.strike,
                     right: c.right,
-                    strike_price_type: c.strike_price_type,
                 }
             })
             .collect();

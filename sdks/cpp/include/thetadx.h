@@ -34,7 +34,8 @@ typedef struct TdxFpssHandle TdxFpssHandle;
 /*  #[repr(C)] tick types — layout-compatible with Rust tdbe structs      */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/* All tick structs are 64-byte aligned to match Rust's #[repr(C, align(64))]. */
+/* All tick structs are 64-byte aligned to match Rust's #[repr(C, align(64))].
+ * Price fields are f64 (double) -- decoded during parsing. No price_type. */
 
 typedef struct __attribute__((aligned(64))) {
     int32_t date;
@@ -47,26 +48,26 @@ typedef struct __attribute__((aligned(64))) {
 typedef struct __attribute__((aligned(64))) {
     int32_t ms_of_day;
     int32_t ms_of_day2;
-    int32_t open;
-    int32_t high;
-    int32_t low;
-    int32_t close;
+    double open;
+    double high;
+    double low;
+    double close;
     int32_t volume;
     int32_t count;
     int32_t bid_size;
     int32_t bid_exchange;
-    int32_t bid;
+    double bid;
     int32_t bid_condition;
+    /* 4 bytes padding */
     int32_t ask_size;
     int32_t ask_exchange;
-    int32_t ask;
+    double ask;
     int32_t ask_condition;
-    int32_t price_type;
     int32_t date;
     int32_t expiration;
-    int32_t strike;
+    /* 4 bytes padding */
+    double strike;
     int32_t right;
-    int32_t strike_price_type;
 } TdxEodTick;
 
 typedef struct __attribute__((aligned(64))) {
@@ -96,9 +97,8 @@ typedef struct __attribute__((aligned(64))) {
     double vera;
     int32_t date;
     int32_t expiration;
-    int32_t strike;
+    double strike;
     int32_t right;
-    int32_t strike_price_type;
 } TdxGreeksTick;
 
 typedef struct __attribute__((aligned(64))) {
@@ -115,9 +115,8 @@ typedef struct __attribute__((aligned(64))) {
     double iv_error;
     int32_t date;
     int32_t expiration;
-    int32_t strike;
+    double strike;
     int32_t right;
-    int32_t strike_price_type;
 } TdxIvTick;
 
 typedef struct __attribute__((aligned(64))) {
@@ -130,25 +129,23 @@ typedef struct __attribute__((aligned(64))) {
     int64_t free_float;
     int32_t date;
     int32_t expiration;
-    int32_t strike;
+    double strike;
     int32_t right;
-    int32_t strike_price_type;
 } TdxMarketValueTick;
 
 typedef struct __attribute__((aligned(64))) {
     int32_t ms_of_day;
-    int32_t open;
-    int32_t high;
-    int32_t low;
-    int32_t close;
+    /* 4 bytes padding before f64 */
+    double open;
+    double high;
+    double low;
+    double close;
     int32_t volume;
     int32_t count;
-    int32_t price_type;
     int32_t date;
     int32_t expiration;
-    int32_t strike;
+    double strike;
     int32_t right;
-    int32_t strike_price_type;
 } TdxOhlcTick;
 
 typedef struct __attribute__((aligned(64))) {
@@ -156,15 +153,14 @@ typedef struct __attribute__((aligned(64))) {
     int32_t open_interest;
     int32_t date;
     int32_t expiration;
-    int32_t strike;
+    double strike;
     int32_t right;
-    int32_t strike_price_type;
 } TdxOpenInterestTick;
 
 typedef struct __attribute__((aligned(64))) {
     int32_t ms_of_day;
-    int32_t price;
-    int32_t price_type;
+    /* 4 bytes padding before f64 */
+    double price;
     int32_t date;
 } TdxPriceTick;
 
@@ -172,19 +168,34 @@ typedef struct __attribute__((aligned(64))) {
     int32_t ms_of_day;
     int32_t bid_size;
     int32_t bid_exchange;
-    int32_t bid;
+    /* 4 bytes padding before f64 */
+    double bid;
     int32_t bid_condition;
     int32_t ask_size;
     int32_t ask_exchange;
-    int32_t ask;
+    /* 4 bytes padding before f64 */
+    double ask;
     int32_t ask_condition;
-    int32_t price_type;
     int32_t date;
     int32_t expiration;
-    int32_t strike;
+    /* 4 bytes padding before f64 */
+    double strike;
     int32_t right;
-    int32_t strike_price_type;
+    /* 4 bytes padding before f64 */
+    double midpoint;
 } TdxQuoteTick;
+
+typedef struct __attribute__((aligned(64))) {
+    int32_t ms_of_day;
+    int32_t sequence;
+    int32_t size;
+    int32_t condition;
+    double price;
+    int32_t date;
+    int32_t expiration;
+    double strike;
+    int32_t right;
+} TdxSnapshotTradeTick;
 
 typedef struct __attribute__((aligned(64))) {
     int32_t ms_of_day;
@@ -196,7 +207,8 @@ typedef struct __attribute__((aligned(64))) {
     int32_t condition;
     int32_t size;
     int32_t exchange;
-    int32_t price;
+    /* 4 bytes padding before f64 */
+    double price;
     int32_t condition_flags;
     int32_t price_flags;
     int32_t volume_type;
@@ -204,19 +216,19 @@ typedef struct __attribute__((aligned(64))) {
     int32_t quote_ms_of_day;
     int32_t bid_size;
     int32_t bid_exchange;
-    int32_t bid;
+    /* 4 bytes padding before f64 */
+    double bid;
     int32_t bid_condition;
     int32_t ask_size;
     int32_t ask_exchange;
-    int32_t ask;
+    /* 4 bytes padding before f64 */
+    double ask;
     int32_t ask_condition;
-    int32_t quote_price_type;
-    int32_t price_type;
     int32_t date;
     int32_t expiration;
-    int32_t strike;
+    /* 4 bytes padding before f64 */
+    double strike;
     int32_t right;
-    int32_t strike_price_type;
 } TdxTradeQuoteTick;
 
 typedef struct __attribute__((aligned(64))) {
@@ -229,17 +241,16 @@ typedef struct __attribute__((aligned(64))) {
     int32_t condition;
     int32_t size;
     int32_t exchange;
-    int32_t price;
+    /* 4 bytes padding before f64 */
+    double price;
     int32_t condition_flags;
     int32_t price_flags;
     int32_t volume_type;
     int32_t records_back;
-    int32_t price_type;
     int32_t date;
     int32_t expiration;
-    int32_t strike;
+    double strike;
     int32_t right;
-    int32_t strike_price_type;
 } TdxTradeTick;
 
 /* ═══════════════════════════════════════════════════════════════════════ */
@@ -264,9 +275,9 @@ typedef struct { const TdxTradeQuoteTick* data; size_t len; } TdxTradeQuoteTickA
 typedef struct {
     const char* root;       /* heap-allocated, freed with tdx_option_contract_array_free */
     int32_t expiration;
-    int32_t strike;
+    /* 4 bytes padding before f64 */
+    double strike;
     int32_t right;
-    int32_t strike_price_type;
 } TdxOptionContract;
 
 typedef struct { const TdxOptionContract* data; size_t len; } TdxOptionContractArray;

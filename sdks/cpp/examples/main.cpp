@@ -9,16 +9,16 @@ int main() {
         auto config = tdx::Config::production();
         auto client = tdx::Client::connect(creds, config);
 
-        // Fetch end-of-day data (raw #[repr(C)] structs — prices are raw integers)
+        // Fetch end-of-day data -- prices are already decoded to f64
         auto eod = client.stock_history_eod("AAPL", "20240101", "20240301");
         std::cout << "Got " << eod.size() << " EOD ticks for AAPL" << std::endl;
         for (auto& tick : eod) {
             std::cout << "  " << tick.date
                       << ": O=" << std::fixed << std::setprecision(2)
-                      << tdx::price_to_f64(tick.open, tick.price_type)
-                      << " H=" << tdx::price_to_f64(tick.high, tick.price_type)
-                      << " L=" << tdx::price_to_f64(tick.low, tick.price_type)
-                      << " C=" << tdx::price_to_f64(tick.close, tick.price_type)
+                      << tick.open
+                      << " H=" << tick.high
+                      << " L=" << tick.low
+                      << " C=" << tick.close
                       << " V=" << tick.volume
                       << std::endl;
         }
