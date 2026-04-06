@@ -2,7 +2,6 @@ use std::process;
 
 use clap::{Arg, ArgMatches, Command};
 use comfy_table::{presets::UTF8_FULL_CONDENSED, Cell, ContentArrangement, Table};
-use tdbe::types::price::Price;
 use thetadatadx::registry::{self, EndpointMeta};
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -709,13 +708,12 @@ fn format_ms(ms: i32) -> String {
     format!("{h:02}:{m:02}:{s:02}.{ms_frac:03}")
 }
 
-/// Format price from raw integer + `price_type` to a float string.
-fn format_price(value: i32, price_type: i32) -> String {
-    if price_type == 0 {
+/// Format a decoded f64 price for display.
+fn format_price_f64(value: f64) -> String {
+    if value == 0.0 {
         return "0.00".into();
     }
-    let p = Price::new(value, price_type);
-    format!("{p}")
+    format!("{value:.2}")
 }
 
 /// Format a YYYYMMDD integer date to a readable string.
@@ -889,28 +887,26 @@ fn render_eod(ticks: &[tdbe::types::tick::EodTick], fmt: &OutputFormat) {
         "ask_exchange",
         "ask",
         "ask_condition",
-        "price_type",
     ]);
     for t in ticks {
         td.push(vec![
             format_date(t.date),
             format_ms(t.ms_of_day),
             format_ms(t.ms_of_day2),
-            format_price(t.open, t.price_type),
-            format_price(t.high, t.price_type),
-            format_price(t.low, t.price_type),
-            format_price(t.close, t.price_type),
+            format_price_f64(t.open),
+            format_price_f64(t.high),
+            format_price_f64(t.low),
+            format_price_f64(t.close),
             format!("{}", t.volume),
             format!("{}", t.count),
             format!("{}", t.bid_size),
             format!("{}", t.bid_exchange),
-            format_price(t.bid, t.price_type),
+            format_price_f64(t.bid),
             format!("{}", t.bid_condition),
             format!("{}", t.ask_size),
             format!("{}", t.ask_exchange),
-            format_price(t.ask, t.price_type),
+            format_price_f64(t.ask),
             format!("{}", t.ask_condition),
-            format!("{}", t.price_type),
         ]);
     }
     td.render(fmt);
@@ -924,10 +920,10 @@ fn render_ohlc(ticks: &[tdbe::types::tick::OhlcTick], fmt: &OutputFormat) {
         td.push(vec![
             format_date(t.date),
             format_ms(t.ms_of_day),
-            format_price(t.open, t.price_type),
-            format_price(t.high, t.price_type),
-            format_price(t.low, t.price_type),
-            format_price(t.close, t.price_type),
+            format_price_f64(t.open),
+            format_price_f64(t.high),
+            format_price_f64(t.low),
+            format_price_f64(t.close),
             format!("{}", t.volume),
             format!("{}", t.count),
         ]);
@@ -949,7 +945,7 @@ fn render_trades(ticks: &[tdbe::types::tick::TradeTick], fmt: &OutputFormat) {
         td.push(vec![
             format_date(t.date),
             format_ms(t.ms_of_day),
-            format_price(t.price, t.price_type),
+            format_price_f64(t.price),
             format!("{}", t.size),
             format!("{}", t.exchange),
             format!("{}", t.condition),
@@ -971,7 +967,6 @@ fn render_quotes(ticks: &[tdbe::types::tick::QuoteTick], fmt: &OutputFormat) {
         "ask_exchange",
         "ask",
         "ask_condition",
-        "price_type",
     ]);
     for t in ticks {
         td.push(vec![
@@ -979,13 +974,12 @@ fn render_quotes(ticks: &[tdbe::types::tick::QuoteTick], fmt: &OutputFormat) {
             format_ms(t.ms_of_day),
             format!("{}", t.bid_size),
             format!("{}", t.bid_exchange),
-            format_price(t.bid, t.price_type),
+            format_price_f64(t.bid),
             format!("{}", t.bid_condition),
             format!("{}", t.ask_size),
             format!("{}", t.ask_exchange),
-            format_price(t.ask, t.price_type),
+            format_price_f64(t.ask),
             format!("{}", t.ask_condition),
-            format!("{}", t.price_type),
         ]);
     }
     td.render(fmt);
@@ -1018,15 +1012,15 @@ fn render_trade_quotes(ticks: &[tdbe::types::tick::TradeQuoteTick], fmt: &Output
         td.push(vec![
             format_date(t.date),
             format_ms(t.ms_of_day),
-            format_price(t.price, t.price_type),
+            format_price_f64(t.price),
             format!("{}", t.size),
             format!("{}", t.exchange),
             format!("{}", t.condition),
             format!("{}", t.sequence),
             format_ms(t.quote_ms_of_day),
-            format_price(t.bid, t.price_type),
+            format_price_f64(t.bid),
             format!("{}", t.bid_size),
-            format_price(t.ask, t.price_type),
+            format_price_f64(t.ask),
             format!("{}", t.ask_size),
         ]);
     }
@@ -1109,13 +1103,12 @@ fn render_iv(ticks: &[tdbe::types::tick::IvTick], fmt: &OutputFormat) {
 }
 
 fn render_price(ticks: &[tdbe::types::tick::PriceTick], fmt: &OutputFormat) {
-    let mut td = TabularData::new(vec!["date", "ms_of_day", "price", "price_type"]);
+    let mut td = TabularData::new(vec!["date", "ms_of_day", "price"]);
     for t in ticks {
         td.push(vec![
             format_date(t.date),
             format_ms(t.ms_of_day),
-            format_price(t.price, t.price_type),
-            format!("{}", t.price_type),
+            format_price_f64(t.price),
         ]);
     }
     td.render(fmt);
@@ -1148,20 +1141,13 @@ fn render_interest_rates(ticks: &[tdbe::types::tick::InterestRateTick], fmt: &Ou
 }
 
 fn render_option_contracts(contracts: &[tdbe::types::tick::OptionContract], fmt: &OutputFormat) {
-    let mut td = TabularData::new(vec![
-        "root",
-        "expiration",
-        "strike",
-        "right",
-        "strike_price_type",
-    ]);
+    let mut td = TabularData::new(vec!["root", "expiration", "strike", "right"]);
     for c in contracts {
         td.push(vec![
             c.root.clone(),
             format!("{}", c.expiration),
-            format!("{}", c.strike),
+            format_price_f64(c.strike),
             format!("{}", c.right),
-            format!("{}", c.strike_price_type),
         ]);
     }
     td.render(fmt);

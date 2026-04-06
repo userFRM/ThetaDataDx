@@ -2181,8 +2181,8 @@ mod tests {
         let ticks = decode::parse_eod_ticks(&table);
         assert_eq!(ticks.len(), 1);
         assert_eq!(ticks[0].ms_of_day, 34200000);
-        assert_eq!(ticks[0].open, 15000);
-        assert_eq!(ticks[0].close, 15100);
+        assert!((ticks[0].open - 15000.0).abs() < 1e-10);
+        assert!((ticks[0].close - 15100.0).abs() < 1e-10);
         assert_eq!(ticks[0].date, 20240301);
     }
 }
