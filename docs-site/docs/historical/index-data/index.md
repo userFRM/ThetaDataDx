@@ -20,8 +20,8 @@ Market index data for major indices like SPX, NDX, DJI, VIX, and more. All endpo
 
 ::: code-group
 ```rust [Rust]
-let symbols: Vec<String> = tdx.index_list_symbols().await?;
-let eod: Vec<EodTick> = tdx.index_history_eod("SPX", "20240101", "20240301").await?;
+let symbols = tdx.index_list_symbols().await?;
+let eod = tdx.index_history_eod("SPX", "20240101", "20240301").await?;
 ```
 ```python [Python]
 symbols = tdx.index_list_symbols()

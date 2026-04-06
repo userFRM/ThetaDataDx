@@ -50,7 +50,7 @@ List all available stock ticker symbols.
 
 ::: code-group
 ```rust [Rust]
-let symbols: Vec<String> = tdx.stock_list_symbols().await?;
+let symbols = tdx.stock_list_symbols().await?;
 ```
 ```python [Python]
 symbols = tdx.stock_list_symbols()
