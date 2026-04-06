@@ -1,7 +1,6 @@
 # Tick Type Schema — single source of truth for all DataTable column schemas.
 #
 # build.rs reads this file and generates:
-#   - Rust tick structs  -> $OUT_DIR/tick_generated.rs
 #   - DataTable parsers  -> $OUT_DIR/decode_generated.rs
 #
 # Column types:
@@ -9,20 +8,19 @@
 #   i64     -> row_number_i64(row, i)                     default: 0
 #   f64     -> row_float(row, i)                          default: 0.0
 #   String  -> row_text(row, i)                           default: ""
-#   price   -> row_price_value(row, i) for .value,
-#              row_price_type(row, i) for price_type      default: 0
+#   price   -> decode to f64 via Price::new(raw, pt).to_f64()
 #   eod_num -> eod_num(row, i) handles both Price and Number cells  default: 0
+#   eod_price -> EOD price fields: decode to f64 at parse time
 #
 # Parser options:
 #   required = ["col1", "col2"]  -- headers that must exist or parser returns empty vec
-#   price_typed_columns = ["price", ...]  -- columns that may be Price-typed cells
 #   eod_style = true  -- use eod_num helper (handles both Price and Number cells)
 #
 # Struct options:
 #   copy = true/false   -- whether to derive Copy (false when String fields exist)
 #   align = 64          -- repr(C, align(N)); omit for no repr attribute
 #   doc = "..."         -- doc comment on the struct
-#   contract_id = true  -- inject expiration/strike/right/strike_price_type fields
+#   contract_id = true  -- inject expiration/strike/right fields
 #                          (populated by server on wildcard queries, 0 otherwise)
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -30,13 +28,12 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 [types.TradeTick]
-doc = "Trade tick -- 16 fields. Core unit of trade data."
+doc = "Trade tick -- 15 fields. Core unit of trade data."
 copy = true
 align = 64
 contract_id = true
 parser = "parse_trade_ticks"
 required = ["ms_of_day", "price"]
-price_typed_columns = ["price"]
 columns = [
     { name = "ms_of_day",       field = "ms_of_day",       type = "i32" },
     { name = "sequence",        field = "sequence",        type = "i32" },
@@ -52,18 +49,16 @@ columns = [
     { name = "price_flags",     field = "price_flags",     type = "i32" },
     { name = "volume_type",     field = "volume_type",     type = "i32" },
     { name = "records_back",    field = "records_back",    type = "i32" },
-    { name = "price_type",      field = "price_type",      type = "i32", price_source = "price" },
     { name = "date",            field = "date",            type = "i32" },
 ]
 
 [types.QuoteTick]
-doc = "Quote tick -- 11 fields. NBBO quote data."
+doc = "Quote tick -- 10 fields + midpoint. NBBO quote data."
 copy = true
 align = 64
 contract_id = true
 parser = "parse_quote_ticks"
 required = ["ms_of_day", "bid", "ask"]
-price_typed_columns = ["bid", "ask"]
 columns = [
     { name = "ms_of_day",     field = "ms_of_day",     type = "i32" },
     { name = "bid_size",      field = "bid_size",      type = "i32" },
@@ -74,18 +69,16 @@ columns = [
     { name = "ask_exchange",  field = "ask_exchange",  type = "i32" },
     { name = "ask",           field = "ask",           type = "price" },
     { name = "ask_condition", field = "ask_condition", type = "i32" },
-    { name = "price_type",    field = "price_type",    type = "i32", price_source = "bid" },
     { name = "date",          field = "date",          type = "i32" },
 ]
 
 [types.OhlcTick]
-doc = "OHLC tick -- 9 fields. Aggregated bar data."
+doc = "OHLC tick -- 8 fields. Aggregated bar data."
 copy = true
 align = 64
 contract_id = true
 parser = "parse_ohlc_ticks"
 required = ["ms_of_day", "open"]
-price_typed_columns = ["open", "high", "low", "close"]
 columns = [
     { name = "ms_of_day",  field = "ms_of_day",  type = "i32" },
     { name = "open",       field = "open",        type = "price" },
@@ -94,12 +87,11 @@ columns = [
     { name = "close",      field = "close",       type = "price" },
     { name = "volume",     field = "volume",      type = "i32" },
     { name = "count",      field = "count",       type = "i32" },
-    { name = "price_type", field = "price_type",  type = "i32", price_source = "open" },
     { name = "date",       field = "date",        type = "i32" },
 ]
 
 [types.EodTick]
-doc = "End-of-day tick -- 18 fields. Full EOD snapshot with OHLC + quote."
+doc = "End-of-day tick -- 17 fields. Full EOD snapshot with OHLC + quote."
 copy = true
 align = 64
 contract_id = true
@@ -109,21 +101,20 @@ required = []
 columns = [
     { name = "ms_of_day",     field = "ms_of_day",     type = "eod_num" },
     { name = "ms_of_day2",    field = "ms_of_day2",    type = "eod_num" },
-    { name = "open",          field = "open",          type = "eod_num" },
-    { name = "high",          field = "high",          type = "eod_num" },
-    { name = "low",           field = "low",           type = "eod_num" },
-    { name = "close",         field = "close",         type = "eod_num" },
+    { name = "open",          field = "open",          type = "eod_price" },
+    { name = "high",          field = "high",          type = "eod_price" },
+    { name = "low",           field = "low",           type = "eod_price" },
+    { name = "close",         field = "close",         type = "eod_price" },
     { name = "volume",        field = "volume",        type = "eod_num" },
     { name = "count",         field = "count",         type = "eod_num" },
     { name = "bid_size",      field = "bid_size",      type = "eod_num" },
     { name = "bid_exchange",  field = "bid_exchange",  type = "eod_num" },
-    { name = "bid",           field = "bid",           type = "eod_num" },
+    { name = "bid",           field = "bid",           type = "eod_price" },
     { name = "bid_condition", field = "bid_condition", type = "eod_num" },
     { name = "ask_size",      field = "ask_size",      type = "eod_num" },
     { name = "ask_exchange",  field = "ask_exchange",  type = "eod_num" },
-    { name = "ask",           field = "ask",           type = "eod_num" },
+    { name = "ask",           field = "ask",           type = "eod_price" },
     { name = "ask_condition", field = "ask_condition", type = "eod_num" },
-    { name = "price_type",    field = "price_type",    type = "i32", price_source = "open" },
     { name = "date",          field = "date",          type = "eod_num" },
 ]
 
@@ -144,30 +135,26 @@ columns = [
 ]
 
 [types.SnapshotTradeTick]
-doc = "Snapshot trade tick -- 7 fields. Abbreviated trade for snapshots."
+doc = "Snapshot trade tick -- 5 fields. Abbreviated trade for snapshots."
 copy = true
 contract_id = true
 parser = "parse_snapshot_trade_ticks"
 required = ["ms_of_day", "price"]
-price_typed_columns = ["price"]
 columns = [
     { name = "ms_of_day",  field = "ms_of_day",  type = "i32" },
     { name = "sequence",   field = "sequence",   type = "i32" },
     { name = "size",       field = "size",       type = "i32" },
     { name = "condition",  field = "condition",  type = "i32" },
     { name = "price",      field = "price",      type = "price" },
-    { name = "price_type", field = "price_type", type = "i32", price_source = "price" },
     { name = "date",       field = "date",       type = "i32" },
 ]
 
 [types.TradeQuoteTick]
-doc = "Combined trade + quote tick -- 26 fields."
+doc = "Combined trade + quote tick -- 24 fields."
 copy = true
 contract_id = true
 parser = "parse_trade_quote_ticks"
 required = ["ms_of_day", "price"]
-price_typed_columns = ["price"]
-# bid/ask always use row_price_value (not conditional on price_typed)
 columns = [
     { name = "ms_of_day",        field = "ms_of_day",        type = "i32" },
     { name = "sequence",         field = "sequence",         type = "i32" },
@@ -186,14 +173,12 @@ columns = [
     { name = "quote_ms_of_day",  field = "quote_ms_of_day",  type = "i32" },
     { name = "bid_size",         field = "bid_size",         type = "i32" },
     { name = "bid_exchange",     field = "bid_exchange",     type = "i32" },
-    { name = "bid",              field = "bid",              type = "price_value" },
+    { name = "bid",              field = "bid",              type = "price" },
     { name = "bid_condition",    field = "bid_condition",    type = "i32" },
     { name = "ask_size",         field = "ask_size",         type = "i32" },
     { name = "ask_exchange",     field = "ask_exchange",     type = "i32" },
-    { name = "ask",              field = "ask",              type = "price_value" },
+    { name = "ask",              field = "ask",              type = "price" },
     { name = "ask_condition",    field = "ask_condition",    type = "i32" },
-    { name = "quote_price_type", field = "quote_price_type", type = "i32" },
-    { name = "price_type",       field = "price_type",       type = "i32", price_source = "price" },
     { name = "date",             field = "date",             type = "i32" },
 ]
 
@@ -263,16 +248,14 @@ columns = [
 ]
 
 [types.PriceTick]
-doc = "Price tick -- 4 fields. Generic price data point."
+doc = "Price tick -- 3 fields. Generic price data point."
 copy = true
 align = 64
 parser = "parse_price_ticks"
 required = ["ms_of_day", "price"]
-price_typed_columns = ["price"]
 columns = [
     { name = "ms_of_day",  field = "ms_of_day",  type = "i32" },
     { name = "price",      field = "price",      type = "price" },
-    { name = "price_type", field = "price_type", type = "i32", price_source = "price" },
     { name = "date",       field = "date",       type = "i32" },
 ]
 
@@ -303,14 +286,13 @@ columns = [
 ]
 
 [types.OptionContract]
-doc = "Option contract -- 5 fields. Contract specification.\n\nCannot be `Copy` because of the `String` root field."
+doc = "Option contract -- 4 fields. Contract specification.\n\nCannot be `Copy` because of the `String` root field."
 copy = false
 parser = "parse_option_contracts"
 required = ["root"]
 columns = [
     { name = "root",              field = "root",              type = "String" },
     { name = "expiration",        field = "expiration",        type = "i32" },
-    { name = "strike",            field = "strike",            type = "i32" },
+    { name = "strike",            field = "strike",            type = "price" },
     { name = "right",             field = "right",             type = "i32" },
-    { name = "strike_price_type", field = "strike_price_type", type = "i32" },
 ]

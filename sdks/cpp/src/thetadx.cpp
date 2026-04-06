@@ -193,7 +193,6 @@ std::vector<OptionContract> Client::option_list_contracts(const std::string& req
         c.expiration = arr.data[i].expiration;
         c.strike = arr.data[i].strike;
         c.right = arr.data[i].right;
-        c.strike_price_type = arr.data[i].strike_price_type;
         result.push_back(std::move(c));
     }
     tdx_option_contract_array_free(arr);

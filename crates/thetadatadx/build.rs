@@ -38,8 +38,6 @@ struct TickTypeDef {
     #[serde(default)]
     required: Vec<String>,
     #[serde(default)]
-    price_typed_columns: Vec<String>,
-    #[serde(default)]
     eod_style: bool,
     #[serde(default)]
     contract_id: bool,
@@ -51,9 +49,6 @@ struct ColumnDef {
     name: String,
     field: String,
     r#type: String,
-    /// For `price_type` fields: which price column to extract the type from.
-    #[serde(default)]
-    price_source: Option<String>,
 }
 
 fn generate_tick_types() -> Result<(), Box<dyn std::error::Error>> {
@@ -92,7 +87,10 @@ fn generate_tick_types() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Generate a single parser function.
-// Reason: code generator — the match dispatch over column types cannot be meaningfully split.
+///
+/// Price columns are decoded to `f64` during extraction using the wire
+/// `price_type` (internally fetched, never exposed on the public struct).
+// Reason: code generator -- the match dispatch over column types cannot be meaningfully split.
 #[allow(clippy::too_many_lines)]
 fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
     let fn_name = &def.parser;
@@ -103,7 +101,7 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
     )
     .unwrap();
 
-    // If eod_style, emit the local eod_num helper inline.
+    // If eod_style, emit the local eod_num and eod_price helpers inline.
     if def.eod_style {
         out.push_str("    // EOD rows may have Price-typed cells or plain Number cells.\n");
         out.push_str("    fn eod_num(row: &crate::proto::DataValueList, idx: usize) -> i32 {\n");
@@ -124,24 +122,39 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
         out.push_str("            })\n");
         out.push_str("            .unwrap_or(0)\n");
         out.push_str("    }\n\n");
+
+        out.push_str("    // EOD price field: decode to f64 from Price or Number cell.\n");
+        out.push_str("    fn eod_price(row: &crate::proto::DataValueList, idx: usize) -> f64 {\n");
+        out.push_str("        row.values\n");
+        out.push_str("            .get(idx)\n");
+        out.push_str("            .and_then(|dv| dv.data_type.as_ref())\n");
+        out.push_str("            .map(|dt| match dt {\n");
+        out.push_str("                crate::proto::data_value::DataType::Price(p) => {\n");
+        out.push_str(
+            "                    tdbe::types::price::Price::new(p.value, p.r#type).to_f64()\n",
+        );
+        out.push_str("                }\n");
+        out.push_str(
+            "                crate::proto::data_value::DataType::Number(n) => *n as f64,\n",
+        );
+        out.push_str("                _ => 0.0,\n");
+        out.push_str("            })\n");
+        out.push_str("            .unwrap_or(0.0)\n");
+        out.push_str("    }\n\n");
     }
 
     out.push_str("    let h: Vec<&str> = table.headers.iter().map(|s| s.as_str()).collect();\n");
 
-    // For eod_style, use the shared find_header() from decode.rs (avoids a
-    // duplicate alias table that can diverge -- see Codex audit item 3).
+    // For eod_style, use the shared find_header() from decode.rs.
     if def.eod_style {
         out.push_str("    let find = |name: &str| find_header(&h, name);\n\n");
     }
 
-    // Determine which columns need the opt_number helper
-    let needs_opt_number = def.columns.iter().any(|c| {
-        (c.r#type == "i32"
-            && !def.required.contains(&c.name)
-            && c.price_source.is_none()
-            && c.field != "date")
-            || c.price_source.is_some() // price_source fallback uses opt_number
-    });
+    // Determine which columns need helpers.
+    let needs_opt_number = def
+        .columns
+        .iter()
+        .any(|c| c.r#type == "i32" && !def.required.contains(&c.name) && c.field != "date");
     let needs_opt_float = def
         .columns
         .iter()
@@ -151,7 +164,7 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
         .iter()
         .any(|c| c.r#type == "i64" && !def.required.contains(&c.name));
 
-    // Emit opt_number / opt_float / opt_i64 helpers (non-eod only)
+    // Emit opt_number / opt_float / opt_i64 helpers (non-eod only).
     if !def.eod_style {
         if needs_opt_number {
             out.push_str("    fn opt_number(row: &crate::proto::DataValueList, idx: Option<usize>) -> i32 {\n");
@@ -181,7 +194,7 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
         }
     }
 
-    // Required header guards (non-eod only)
+    // Required header guards (non-eod only).
     if !def.eod_style {
         for req in &def.required {
             let var = idx_var_name(req);
@@ -196,11 +209,6 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
 
     // Declare index variables for all columns.
     for col in &def.columns {
-        // Skip declaring index for columns that have price_source in eod_style,
-        // since they use the source column's index instead.
-        if def.eod_style && col.price_source.is_some() {
-            continue;
-        }
         let var = idx_var_name(&col.name);
         if def.eod_style {
             writeln!(out, "    let {var} = find(\"{}\");", col.name).unwrap();
@@ -219,24 +227,8 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
         out.push_str("    let _cid_strike_is_typed = _cid_strike_idx.is_some() && h.contains(&\"strike\");\n");
     }
 
-    // Precompute price_is_typed flags for price_typed_columns.
-    if !def.price_typed_columns.is_empty() && !def.eod_style {
-        out.push('\n');
-        for ptc in &def.price_typed_columns {
-            let var = idx_var_name(ptc);
-            let typed_var = format!("{ptc}_is_typed");
-            // For required columns, the idx is usize directly. For optional, it's Option<usize>.
-            if def.required.contains(ptc) {
-                writeln!(out, "    let {typed_var} = h.contains(&\"{ptc}\");").unwrap();
-            } else {
-                writeln!(
-                    out,
-                    "    let {typed_var} = {var}.is_some() && h.contains(&\"{ptc}\");"
-                )
-                .unwrap();
-            }
-        }
-    }
+    // Check if this is QuoteTick (needs midpoint computation).
+    let is_quote_tick = type_name == "QuoteTick";
 
     out.push('\n');
 
@@ -246,83 +238,20 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
     out.push_str("        .iter()\n");
     out.push_str("        .map(|row| {\n");
 
-    // For price-typed parsers, compute the price_type first (before the struct literal)
-    // if any column has a price_source.
-    let price_source_cols: Vec<&ColumnDef> = def
-        .columns
-        .iter()
-        .filter(|c| c.price_source.is_some())
-        .collect();
-    for psc in &price_source_cols {
-        let source = psc.price_source.as_ref().unwrap();
-        let source_var = idx_var_name(source);
-        let pt_var = format!("_pt_{}", psc.field);
-
-        if def.eod_style {
-            writeln!(out,
-                "            let {pt_var} = {source_var}.map(|i| row_price_type(row, i)).unwrap_or(0);"
-            ).unwrap();
-        } else if def.price_typed_columns.contains(source) {
-            let typed_var = format!("{source}_is_typed");
-            if def.required.contains(source) {
-                // source_var is usize
-                let pt_field_var = idx_var_name(&psc.name);
-                writeln!(out, "            let {pt_var} = if {typed_var} {{").unwrap();
-                writeln!(out, "                row_price_type(row, {source_var})").unwrap();
-                out.push_str("            } else {\n");
-                writeln!(out, "                opt_number(row, {pt_field_var})").unwrap();
-                out.push_str("            };\n");
-            } else {
-                // source_var is Option<usize>
-                let pt_field_var = idx_var_name(&psc.name);
-                writeln!(out, "            let {pt_var} = if {typed_var} {{").unwrap();
-                writeln!(
-                    out,
-                    "                {source_var}.map(|i| row_price_type(row, i)).unwrap_or(0)"
-                )
-                .unwrap();
-                out.push_str("            } else {\n");
-                writeln!(out, "                opt_number(row, {pt_field_var})").unwrap();
-                out.push_str("            };\n");
-            }
-        } else {
-            // Not price-typed: just use opt_number
-            let pt_field_var = idx_var_name(&psc.name);
-            writeln!(
-                out,
-                "            let {pt_var} = opt_number(row, {pt_field_var});"
-            )
-            .unwrap();
-        }
+    // Struct literal.
+    if is_quote_tick {
+        writeln!(out, "            let _tick = {type_name} {{").unwrap();
+    } else {
+        writeln!(out, "            {type_name} {{").unwrap();
     }
-
-    // Collect the names of columns that serve as the price_type source.
-    // These columns use row_price_value (their type IS the canonical one).
-    // All other price columns use row_price_value_normalized to match.
-    let price_source_names: std::collections::HashSet<&str> = def
-        .columns
-        .iter()
-        .filter_map(|c| c.price_source.as_deref())
-        .collect();
-
-    // Struct literal
-    writeln!(out, "            {type_name} {{").unwrap();
 
     for col in &def.columns {
         let var = idx_var_name(&col.name);
         let is_required = def.required.contains(&col.name);
 
-        // If this column has a price_source, use the precomputed _pt_ variable.
-        if col.price_source.is_some() {
-            let pt_var = format!("_pt_{}", col.field);
-            writeln!(out, "                {}: {pt_var},", col.field).unwrap();
-            continue;
-        }
-
         match col.r#type.as_str() {
             "i32" => {
                 if def.eod_style {
-                    // eod_style: all are Option<usize>, no required
                     writeln!(
                         out,
                         "                {}: {var}.map(|i| eod_num(row, i)).unwrap_or(0),",
@@ -330,7 +259,6 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
                     )
                     .unwrap();
                 } else if is_required {
-                    // Use row_date for `date` fields -- handles Timestamp -> YYYYMMDD.
                     let accessor = if col.field == "date" {
                         "row_date"
                     } else {
@@ -390,62 +318,14 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
                 }
             }
             "price" => {
-                // Price column: uses row_price_value if price-typed, otherwise row_number.
-                // For non-source price columns (e.g., high/low/close when open is the
-                // source), normalize to the source's price_type so all values in the
-                // struct use a consistent encoding.
-                let typed_var = format!("{}_is_typed", col.name);
-                let field = &col.field;
-                let is_source = price_source_names.contains(col.name.as_str());
-
-                if is_source || !price_source_cols.iter().any(|_| true) {
-                    // This IS the reference column (or there's no price_source at all).
-                    if is_required {
-                        writeln!(out, "                {field}: if {typed_var} {{").unwrap();
-                        writeln!(out, "                    row_price_value(row, {var})").unwrap();
-                        out.push_str("                } else {\n");
-                        writeln!(out, "                    row_number(row, {var})").unwrap();
-                        out.push_str("                },\n");
-                    } else {
-                        writeln!(out, "                {field}: match {var} {{").unwrap();
-                        writeln!(out,
-                            "                    Some(i) if {typed_var} => row_price_value(row, i),"
-                        )
-                        .unwrap();
-                        out.push_str("                    Some(i) => row_number(row, i),\n");
-                        out.push_str("                    None => 0,\n");
-                        out.push_str("                },\n");
-                    }
-                } else {
-                    // Non-source price column: normalize to the source's price_type.
-                    if is_required {
-                        writeln!(out, "                {field}: if {typed_var} {{").unwrap();
-                        writeln!(out,
-                            "                    row_price_value_normalized(row, {var}, _pt_price_type)"
-                        ).unwrap();
-                        out.push_str("                } else {\n");
-                        writeln!(out, "                    row_number(row, {var})").unwrap();
-                        out.push_str("                },\n");
-                    } else {
-                        writeln!(out, "                {field}: match {var} {{").unwrap();
-                        writeln!(out,
-                            "                    Some(i) if {typed_var} => row_price_value_normalized(row, i, _pt_price_type),"
-                        ).unwrap();
-                        out.push_str("                    Some(i) => row_number(row, i),\n");
-                        out.push_str("                    None => 0,\n");
-                        out.push_str("                },\n");
-                    }
-                }
-            }
-            "price_value" => {
-                // Always row_price_value, regardless of typed check (used for bid/ask in TradeQuoteTick).
+                // Decode price to f64 at parse time.
                 let field = &col.field;
                 if is_required {
-                    writeln!(out, "                {field}: row_price_value(row, {var}),").unwrap();
+                    writeln!(out, "                {field}: row_price_f64(row, {var}),").unwrap();
                 } else {
                     writeln!(out, "                {field}: match {var} {{").unwrap();
-                    out.push_str("                    Some(i) => row_price_value(row, i),\n");
-                    out.push_str("                    None => 0,\n");
+                    out.push_str("                    Some(i) => row_price_f64(row, i),\n");
+                    out.push_str("                    None => 0.0,\n");
                     out.push_str("                },\n");
                 }
             }
@@ -457,22 +337,14 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
                 )
                 .unwrap();
             }
-            "bool" => {
-                if is_required {
-                    writeln!(
-                        out,
-                        "                {}: row_number(row, {var}),",
-                        col.field
-                    )
-                    .unwrap();
-                } else {
-                    writeln!(
-                        out,
-                        "                {}: opt_number(row, {var}),",
-                        col.field
-                    )
-                    .unwrap();
-                }
+            "eod_price" => {
+                // EOD price field: decode to f64 from Price or Number cell.
+                writeln!(
+                    out,
+                    "                {}: {var}.map(|i| eod_price(row, i)).unwrap_or(0.0),",
+                    col.field
+                )
+                .unwrap();
             }
             other => panic!("unknown column type '{other}' in parser for {type_name}"),
         }
@@ -483,12 +355,13 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
         out.push_str(
             "                expiration: _cid_exp_idx.map(|i| { let n = row_number(row, i); if n != 0 { n } else { let s = row_text(row, i); parse_iso_date(&s) } }).unwrap_or(0),\n",
         );
+        // strike: decode to f64
         out.push_str("                strike: match _cid_strike_idx {\n");
         out.push_str(
-            "                    Some(i) if _cid_strike_is_typed => row_price_value(row, i),\n",
+            "                    Some(i) if _cid_strike_is_typed => row_price_f64(row, i),\n",
         );
-        out.push_str("                    Some(i) => row_number(row, i),\n");
-        out.push_str("                    None => 0,\n");
+        out.push_str("                    Some(i) => row_number(row, i) as f64,\n");
+        out.push_str("                    None => 0.0,\n");
         out.push_str("                },\n");
         out.push_str("                right: _cid_right_idx.map(|i| {\n");
         out.push_str("                    let s = row_text(row, i);\n");
@@ -496,15 +369,19 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
             "                    if s.is_empty() { 0i32 } else { s.as_bytes()[0] as i32 }\n",
         );
         out.push_str("                }).unwrap_or(0),\n");
-        out.push_str("                strike_price_type: match _cid_strike_idx {\n");
-        out.push_str(
-            "                    Some(i) if _cid_strike_is_typed => row_price_type(row, i),\n",
-        );
-        out.push_str("                    _ => 0,\n");
-        out.push_str("                },\n");
     }
 
-    out.push_str("            }\n");
+    if is_quote_tick {
+        // QuoteTick gets midpoint computed from bid + ask.
+        out.push_str("                midpoint: 0.0, // placeholder, set below\n");
+        out.push_str("            };\n");
+        out.push_str("            let mut _tick = _tick;\n");
+        out.push_str("            _tick.midpoint = (_tick.bid + _tick.ask) / 2.0;\n");
+        out.push_str("            _tick\n");
+    } else {
+        out.push_str("            }\n");
+    }
+
     out.push_str("        })\n");
     out.push_str("        .collect()\n");
     out.push_str("}\n\n");

@@ -162,114 +162,130 @@ import "C"
 
 import (
 	"fmt"
-	"math"
 	"unsafe"
 )
 
 // ── C-compatible struct mirrors (matching Rust #[repr(C, align(64))]) ──
 // These are Go equivalents with matching field layout for unsafe.Slice conversion.
 // The align(64) means each struct occupies a multiple of 64 bytes.
+// Price fields are f64 (decoded during parsing). No price_type in public API.
 
 // cEodTick mirrors tdbe::EodTick #[repr(C, align(64))]
+// Layout: i32(4)+i32(4)+f64(8)*6+i32(4)*6+f64(8)*2+i32(4)+i32(4)+f64(8)+i32(4)
+// = 8 + 48 + 24 + 16 + 4 + 4 + 8 + 4 = 116, pad(4) to align f64, total needs care
+// Actually repr(C): ms_of_day(4), ms_of_day2(4), open(8), high(8), low(8), close(8),
+// volume(4), count(4), bid_size(4), bid_exchange(4), bid(8), bid_condition(4), pad(4),
+// ask_size(4), ask_exchange(4), ask(8), ask_condition(4), date(4), exp(4), pad(4),
+// strike(8), right(4), pad(4) -> 128 total, fits in 128 (2*64)
 type cEodTick struct {
-	MsOfDay         int32
-	MsOfDay2        int32
-	Open            int32
-	High            int32
-	Low             int32
-	Close           int32
-	Volume          int32
-	Count           int32
-	BidSize         int32
-	BidExchange     int32
-	Bid             int32
-	BidCondition    int32
-	AskSize         int32
-	AskExchange     int32
-	Ask             int32
-	AskCondition    int32
-	PriceType       int32
-	Date            int32
-	Expiration      int32
-	Strike          int32
-	Right           int32
-	StrikePriceType int32
-	_pad            [128 - 22*4]byte
+	MsOfDay      int32
+	MsOfDay2     int32
+	Open         float64
+	High         float64
+	Low          float64
+	Close        float64
+	Volume       int32
+	Count        int32
+	BidSize      int32
+	BidExchange  int32
+	Bid          float64
+	BidCondition int32
+	_pad1        int32
+	AskSize      int32
+	AskExchange  int32
+	Ask          float64
+	AskCondition int32
+	Date         int32
+	Expiration   int32
+	_pad2        int32
+	Strike       float64
+	Right        int32
+	_pad3        [128 - 124]byte
 }
 
 // cOhlcTick mirrors tdbe::OhlcTick #[repr(C, align(64))]
+// Layout: ms_of_day(4), pad(4), open(8), high(8), low(8), close(8),
+// volume(4), count(4), date(4), exp(4), strike(8), right(4), pad(4) = 72
+// rounded to 128
 type cOhlcTick struct {
-	MsOfDay         int32
-	Open            int32
-	High            int32
-	Low             int32
-	Close           int32
-	Volume          int32
-	Count           int32
-	PriceType       int32
-	Date            int32
-	Expiration      int32
-	Strike          int32
-	Right           int32
-	StrikePriceType int32
-	_pad            [64 - 13*4]byte
+	MsOfDay    int32
+	_pad1      int32
+	Open       float64
+	High       float64
+	Low        float64
+	Close      float64
+	Volume     int32
+	Count      int32
+	Date       int32
+	Expiration int32
+	Strike     float64
+	Right      int32
+	_pad2      [128 - 76]byte
 }
 
 // cTradeTick mirrors tdbe::TradeTick #[repr(C, align(64))]
+// Layout: 9*i32(36), pad(4), price(8), 4*i32(16), date(4), exp(4),
+// strike(8), right(4), pad(4) = 88, rounded to 128
 type cTradeTick struct {
-	MsOfDay         int32
-	Sequence        int32
-	ExtCondition1   int32
-	ExtCondition2   int32
-	ExtCondition3   int32
-	ExtCondition4   int32
-	Condition       int32
-	Size            int32
-	Exchange        int32
-	Price           int32
-	ConditionFlags  int32
-	PriceFlags      int32
-	VolumeType      int32
-	RecordsBack     int32
-	PriceType       int32
-	Date            int32
-	Expiration      int32
-	Strike          int32
-	Right           int32
-	StrikePriceType int32
-	_pad            [128 - 20*4]byte
+	MsOfDay        int32
+	Sequence       int32
+	ExtCondition1  int32
+	ExtCondition2  int32
+	ExtCondition3  int32
+	ExtCondition4  int32
+	Condition      int32
+	Size           int32
+	Exchange       int32
+	_pad1          int32
+	Price          float64
+	ConditionFlags int32
+	PriceFlags     int32
+	VolumeType     int32
+	RecordsBack    int32
+	Date           int32
+	Expiration     int32
+	Strike         float64
+	Right          int32
+	_pad2          [128 - 92]byte
 }
 
 // cQuoteTick mirrors tdbe::QuoteTick #[repr(C, align(64))]
+// Layout: ms_of_day(4), bid_size(4), bid_exchange(4), pad(4), bid(8),
+// bid_condition(4), ask_size(4), ask_exchange(4), pad(4), ask(8),
+// ask_condition(4), date(4), exp(4), pad(4), strike(8), right(4), pad(4),
+// midpoint(8) = 96, rounded to 128
 type cQuoteTick struct {
-	MsOfDay         int32
-	BidSize         int32
-	BidExchange     int32
-	Bid             int32
-	BidCondition    int32
-	AskSize         int32
-	AskExchange     int32
-	Ask             int32
-	AskCondition    int32
-	PriceType       int32
-	Date            int32
-	Expiration      int32
-	Strike          int32
-	Right           int32
-	StrikePriceType int32
-	_pad            [64 - 15*4]byte
+	MsOfDay      int32
+	BidSize      int32
+	BidExchange  int32
+	_pad1        int32
+	Bid          float64
+	BidCondition int32
+	AskSize      int32
+	AskExchange  int32
+	_pad2        int32
+	Ask          float64
+	AskCondition int32
+	Date         int32
+	Expiration   int32
+	_pad3        int32
+	Strike       float64
+	Right        int32
+	_pad4        int32
+	Midpoint     float64
+	_pad5        [128 - 96]byte
 }
 
 // cOpenInterestTick mirrors tdbe::OpenInterestTick #[repr(C, align(64))]
+// Layout: ms_of_day(4), oi(4), date(4), exp(4), strike(8), right(4), pad(4) = 32
 type cOpenInterestTick struct {
-	MsOfDay         int32
-	OpenInterest    int32
-	Date            int32
-	Expiration      int32
-	Strike          int32
-	Right           int32
-	StrikePriceType int32
-	_pad            [64 - 7*4]byte
+	MsOfDay      int32
+	OpenInterest int32
+	Date         int32
+	Expiration   int32
+	Strike       float64
+	Right        int32
+	_pad         [64 - 28]byte
 }
 
 // cCalendarDay mirrors tdbe::CalendarDay #[repr(C, align(64))]
@@ -283,7 +299,6 @@ type cCalendarDay struct {
 }
 
 // cInterestRateTick mirrors tdbe::InterestRateTick #[repr(C, align(64))]
-// Layout: i32, pad(4), f64, i32, pad to 64
 type cInterestRateTick struct {
 	MsOfDay int32
 	_pad1   int32
@@ -293,31 +308,31 @@ type cInterestRateTick struct {
 }
 
 // cIvTick mirrors tdbe::IvTick #[repr(C, align(64))]
-// Layout: i32, pad(4), f64, f64, i32, pad to 64
+// Layout: ms_of_day(4), pad(4), iv(8), iv_error(8), date(4), exp(4), strike(8), right(4), pad(4) = 48
 type cIvTick struct {
-	MsOfDay            int32
-	_pad1              int32
-	ImpliedVolatility  float64
-	IvError            float64
-	Date               int32
-	Expiration         int32
-	Strike             int32
-	Right              int32
-	StrikePriceType    int32
-	_pad2              [64 - 4 - 4 - 8 - 8 - 4*5]byte
+	MsOfDay           int32
+	_pad1             int32
+	ImpliedVolatility float64
+	IvError           float64
+	Date              int32
+	Expiration        int32
+	Strike            float64
+	Right             int32
+	_pad2             [64 - 48]byte
 }
 
 // cPriceTick mirrors tdbe::PriceTick #[repr(C, align(64))]
+// Layout: ms_of_day(4), pad(4), price(8), date(4), pad to 64
 type cPriceTick struct {
-	MsOfDay   int32
-	Price     int32
-	PriceType int32
-	Date      int32
-	_pad      [64 - 4*4]byte
+	MsOfDay int32
+	_pad1   int32
+	Price   float64
+	Date    int32
+	_pad2   [64 - 4 - 4 - 8 - 4]byte
 }
 
 // cMarketValueTick mirrors tdbe::MarketValueTick #[repr(C, align(64))]
-// Layout: i32, pad(4), i64, i64, i64, i64, i64, i32, pad to 64
+// Layout: ms_of_day(4), pad(4), 5*i64(40), date(4), exp(4), strike(8), right(4), pad(4) = 72
 type cMarketValueTick struct {
 	MsOfDay           int32
 	_pad1             int32
@@ -328,147 +343,135 @@ type cMarketValueTick struct {
 	FreeFloat         int64
 	Date              int32
 	Expiration        int32
-	Strike            int32
+	Strike            float64
 	Right             int32
-	StrikePriceType   int32
-	_pad2             [128 - 4 - 4 - 5*8 - 4*5]byte
+	_pad2             [128 - 76]byte
 }
 
 // cGreeksTick mirrors tdbe::GreeksTick #[repr(C, align(64))]
-// This struct is > 64 bytes. align(64) means size is rounded up to multiple of 64.
-// Layout: i32(4) + pad(4) + 22*f64(176) + 5*i32(20) = 204, rounded to 256
+// Layout: ms_of_day(4), pad(4), 22*f64(176), date(4), exp(4), strike(8), right(4), pad(4) = 208
+// rounded to 256
 type cGreeksTick struct {
-	MsOfDay            int32
-	_pad1              int32
-	ImpliedVolatility  float64
-	Delta              float64
-	Gamma              float64
-	Theta              float64
-	Vega               float64
-	Rho                float64
-	IvError            float64
-	Vanna              float64
-	Charm              float64
-	Vomma              float64
-	Veta               float64
-	Speed              float64
-	Zomma              float64
-	Color              float64
-	Ultima             float64
-	D1                 float64
-	D2                 float64
-	DualDelta          float64
-	DualGamma          float64
-	Epsilon            float64
-	Lambda             float64
-	Vera               float64
-	Date               int32
-	Expiration         int32
-	Strike             int32
-	Right              int32
-	StrikePriceType    int32
-	_pad2              [256 - 4 - 4 - 22*8 - 4*5]byte
+	MsOfDay           int32
+	_pad1             int32
+	ImpliedVolatility float64
+	Delta             float64
+	Gamma             float64
+	Theta             float64
+	Vega              float64
+	Rho               float64
+	IvError           float64
+	Vanna             float64
+	Charm             float64
+	Vomma             float64
+	Veta              float64
+	Speed             float64
+	Zomma             float64
+	Color             float64
+	Ultima            float64
+	D1                float64
+	D2                float64
+	DualDelta         float64
+	DualGamma         float64
+	Epsilon           float64
+	Lambda            float64
+	Vera              float64
+	Date              int32
+	Expiration        int32
+	Strike            float64
+	Right             int32
+	_pad2             [256 - 212]byte
 }
 
 // cTradeQuoteTick mirrors tdbe::TradeQuoteTick #[repr(C, align(64))]
-// 26 i32 fields = 104 bytes, rounded to 128 (next multiple of 64)
+// Layout: 9*i32(36), pad(4), price(8), 4*i32(16), quote_ms(4), bid_size(4),
+// bid_exchange(4), pad(4), bid(8), bid_condition(4), ask_size(4),
+// ask_exchange(4), pad(4), ask(8), ask_condition(4), date(4), exp(4), pad(4),
+// strike(8), right(4), pad(4) = 168, rounded to 192
 type cTradeQuoteTick struct {
-	MsOfDay         int32
-	Sequence        int32
-	ExtCondition1   int32
-	ExtCondition2   int32
-	ExtCondition3   int32
-	ExtCondition4   int32
-	Condition       int32
-	Size            int32
-	Exchange        int32
-	Price           int32
-	ConditionFlags  int32
-	PriceFlags      int32
-	VolumeType      int32
-	RecordsBack     int32
-	QuoteMsOfDay    int32
-	BidSize         int32
-	BidExchange     int32
-	Bid             int32
-	BidCondition    int32
-	AskSize         int32
-	AskExchange     int32
-	Ask             int32
-	AskCondition    int32
-	QuotePriceType  int32
-	PriceType       int32
-	Date            int32
-	Expiration      int32
-	Strike          int32
-	Right           int32
-	StrikePriceType int32
-	_pad            [128 - 30*4]byte
+	MsOfDay        int32
+	Sequence       int32
+	ExtCondition1  int32
+	ExtCondition2  int32
+	ExtCondition3  int32
+	ExtCondition4  int32
+	Condition      int32
+	Size           int32
+	Exchange       int32
+	_pad1          int32
+	Price          float64
+	ConditionFlags int32
+	PriceFlags     int32
+	VolumeType     int32
+	RecordsBack    int32
+	QuoteMsOfDay   int32
+	BidSize        int32
+	BidExchange    int32
+	_pad2          int32
+	Bid            float64
+	BidCondition   int32
+	AskSize        int32
+	AskExchange    int32
+	_pad3          int32
+	Ask            float64
+	AskCondition   int32
+	Date           int32
+	Expiration     int32
+	_pad4          int32
+	Strike         float64
+	Right          int32
+	_pad5          [192 - 164]byte
 }
 
 // cOptionContract mirrors TdxOptionContract from FFI
+// Layout: root(8 ptr), exp(4), pad(4), strike(8), right(4), pad(4) = 32
 type cOptionContract struct {
-	Root           uintptr // *const c_char
-	Expiration     int32
-	Strike         int32
-	Right          int32
-	StrikePriceType int32
+	Root       uintptr // *const c_char
+	Expiration int32
+	_pad1      int32
+	Strike     float64
+	Right      int32
+	_pad2      int32
 }
 
 // ── Go tick types (public API) ──
 // These are pure Go structs with decoded float prices for user convenience.
 
 type EodTick struct {
-	MsOfDay        int     `json:"ms_of_day"`
-	MsOfDay2       int     `json:"ms_of_day2"`
-	Open           float64 `json:"open"`
-	OpenRaw        int     `json:"open_raw,omitempty"`
-	High           float64 `json:"high"`
-	HighRaw        int     `json:"high_raw,omitempty"`
-	Low            float64 `json:"low"`
-	LowRaw         int     `json:"low_raw,omitempty"`
-	Close          float64 `json:"close"`
-	CloseRaw       int     `json:"close_raw,omitempty"`
-	Volume         int     `json:"volume"`
-	Count          int     `json:"count"`
-	BidSize        int     `json:"bid_size"`
-	BidExchange    int     `json:"bid_exchange"`
-	Bid            float64 `json:"bid"`
-	BidRaw         int     `json:"bid_raw,omitempty"`
-	BidCondition   int     `json:"bid_condition"`
-	AskSize        int     `json:"ask_size"`
-	AskExchange    int     `json:"ask_exchange"`
-	Ask            float64 `json:"ask"`
-	AskRaw         int     `json:"ask_raw,omitempty"`
-	AskCondition   int     `json:"ask_condition"`
-	PriceType      int     `json:"price_type"`
-	Date           int     `json:"date"`
-	Expiration     int32   `json:"expiration,omitempty"`
-	Strike         int32   `json:"strike,omitempty"`
-	Right          string  `json:"right,omitempty"`
-	RightRaw       int32   `json:"right_raw,omitempty"`
-	StrikePriceType int32  `json:"strike_price_type,omitempty"`
+	MsOfDay      int     `json:"ms_of_day"`
+	MsOfDay2     int     `json:"ms_of_day2"`
+	Open         float64 `json:"open"`
+	High         float64 `json:"high"`
+	Low          float64 `json:"low"`
+	Close        float64 `json:"close"`
+	Volume       int     `json:"volume"`
+	Count        int     `json:"count"`
+	BidSize      int     `json:"bid_size"`
+	BidExchange  int     `json:"bid_exchange"`
+	Bid          float64 `json:"bid"`
+	BidCondition int     `json:"bid_condition"`
+	AskSize      int     `json:"ask_size"`
+	AskExchange  int     `json:"ask_exchange"`
+	Ask          float64 `json:"ask"`
+	AskCondition int     `json:"ask_condition"`
+	Date         int     `json:"date"`
+	Expiration   int32   `json:"expiration,omitempty"`
+	Strike       float64 `json:"strike,omitempty"`
+	Right        string  `json:"right,omitempty"`
 }
 
 type OhlcTick struct {
-	MsOfDay        int     `json:"ms_of_day"`
-	Open           float64 `json:"open"`
-	OpenRaw        int     `json:"open_raw,omitempty"`
-	High           float64 `json:"high"`
-	HighRaw        int     `json:"high_raw,omitempty"`
-	Low            float64 `json:"low"`
-	LowRaw         int     `json:"low_raw,omitempty"`
-	Close          float64 `json:"close"`
-	CloseRaw       int     `json:"close_raw,omitempty"`
-	Volume         int     `json:"volume"`
-	Count          int     `json:"count"`
-	PriceType      int     `json:"price_type"`
-	Date           int     `json:"date"`
-	Expiration     int32   `json:"expiration,omitempty"`
-	Strike         int32   `json:"strike,omitempty"`
-	Right          string  `json:"right,omitempty"`
-	RightRaw       int32   `json:"right_raw,omitempty"`
-	StrikePriceType int32  `json:"strike_price_type,omitempty"`
+	MsOfDay    int     `json:"ms_of_day"`
+	Open       float64 `json:"open"`
+	High       float64 `json:"high"`
+	Low        float64 `json:"low"`
+	Close      float64 `json:"close"`
+	Volume     int     `json:"volume"`
+	Count      int     `json:"count"`
+	Date       int     `json:"date"`
+	Expiration int32   `json:"expiration,omitempty"`
+	Strike     float64 `json:"strike,omitempty"`
+	Right      string  `json:"right,omitempty"`
 }
 
 type TradeTick struct {
@@ -482,39 +485,31 @@ type TradeTick struct {
 	Size           int     `json:"size"`
 	Exchange       int     `json:"exchange"`
 	Price          float64 `json:"price"`
-	PriceRaw       int     `json:"price_raw,omitempty"`
-	PriceType      int     `json:"price_type"`
 	ConditionFlags int     `json:"condition_flags"`
 	PriceFlags     int     `json:"price_flags"`
 	VolumeType     int     `json:"volume_type"`
 	RecordsBack    int     `json:"records_back"`
 	Date           int     `json:"date"`
 	Expiration     int32   `json:"expiration,omitempty"`
-	Strike         int32   `json:"strike,omitempty"`
+	Strike         float64 `json:"strike,omitempty"`
 	Right          string  `json:"right,omitempty"`
-	RightRaw       int32   `json:"right_raw,omitempty"`
-	StrikePriceType int32  `json:"strike_price_type,omitempty"`
 }
 
 type QuoteTick struct {
-	MsOfDay        int     `json:"ms_of_day"`
-	BidSize        int     `json:"bid_size"`
-	BidExchange    int     `json:"bid_exchange"`
-	Bid            float64 `json:"bid"`
-	BidRaw         int     `json:"bid_raw,omitempty"`
-	BidCondition   int     `json:"bid_condition"`
-	AskSize        int     `json:"ask_size"`
-	AskExchange    int     `json:"ask_exchange"`
-	Ask            float64 `json:"ask"`
-	AskRaw         int     `json:"ask_raw,omitempty"`
-	AskCondition   int     `json:"ask_condition"`
-	PriceType      int     `json:"price_type"`
-	Date           int     `json:"date"`
-	Expiration     int32   `json:"expiration,omitempty"`
-	Strike         int32   `json:"strike,omitempty"`
-	Right          string  `json:"right,omitempty"`
-	RightRaw       int32   `json:"right_raw,omitempty"`
-	StrikePriceType int32  `json:"strike_price_type,omitempty"`
+	MsOfDay      int     `json:"ms_of_day"`
+	BidSize      int     `json:"bid_size"`
+	BidExchange  int     `json:"bid_exchange"`
+	Bid          float64 `json:"bid"`
+	BidCondition int     `json:"bid_condition"`
+	AskSize      int     `json:"ask_size"`
+	AskExchange  int     `json:"ask_exchange"`
+	Ask          float64 `json:"ask"`
+	AskCondition int     `json:"ask_condition"`
+	Midpoint     float64 `json:"midpoint"`
+	Date         int     `json:"date"`
+	Expiration   int32   `json:"expiration,omitempty"`
+	Strike       float64 `json:"strike,omitempty"`
+	Right        string  `json:"right,omitempty"`
 }
 
 type TradeQuoteTick struct {
@@ -528,7 +523,6 @@ type TradeQuoteTick struct {
 	Size           int     `json:"size"`
 	Exchange       int     `json:"exchange"`
 	Price          float64 `json:"price"`
-	PriceRaw       int     `json:"price_raw,omitempty"`
 	ConditionFlags int     `json:"condition_flags"`
 	PriceFlags     int     `json:"price_flags"`
 	VolumeType     int     `json:"volume_type"`
@@ -537,47 +531,37 @@ type TradeQuoteTick struct {
 	BidSize        int     `json:"bid_size"`
 	BidExchange    int     `json:"bid_exchange"`
 	Bid            float64 `json:"bid"`
-	BidRaw         int     `json:"bid_raw,omitempty"`
 	BidCondition   int     `json:"bid_condition"`
 	AskSize        int     `json:"ask_size"`
 	AskExchange    int     `json:"ask_exchange"`
 	Ask            float64 `json:"ask"`
-	AskRaw         int     `json:"ask_raw,omitempty"`
 	AskCondition   int     `json:"ask_condition"`
-	QuotePriceType int     `json:"quote_price_type"`
-	PriceType      int     `json:"price_type"`
 	Date           int     `json:"date"`
 	Expiration     int32   `json:"expiration,omitempty"`
-	Strike         int32   `json:"strike,omitempty"`
+	Strike         float64 `json:"strike,omitempty"`
 	Right          string  `json:"right,omitempty"`
-	RightRaw       int32   `json:"right_raw,omitempty"`
-	StrikePriceType int32  `json:"strike_price_type,omitempty"`
 }
 
 type OpenInterestTick struct {
-	MsOfDay        int   `json:"ms_of_day"`
-	OpenInterest   int   `json:"open_interest"`
-	Date           int   `json:"date"`
-	Expiration     int32  `json:"expiration,omitempty"`
-	Strike         int32  `json:"strike,omitempty"`
-	Right          string `json:"right,omitempty"`
-	RightRaw       int32  `json:"right_raw,omitempty"`
-	StrikePriceType int32 `json:"strike_price_type,omitempty"`
+	MsOfDay      int     `json:"ms_of_day"`
+	OpenInterest int     `json:"open_interest"`
+	Date         int     `json:"date"`
+	Expiration   int32   `json:"expiration,omitempty"`
+	Strike       float64 `json:"strike,omitempty"`
+	Right        string  `json:"right,omitempty"`
 }
 
 type MarketValueTick struct {
-	MsOfDay        int     `json:"ms_of_day"`
-	MarketCap      int64   `json:"market_cap"`
-	SharesOut      int64   `json:"shares_outstanding"`
-	EntValue       int64   `json:"enterprise_value"`
-	BookValue      int64   `json:"book_value"`
-	FreeFloat      int64   `json:"free_float"`
-	Date           int     `json:"date"`
-	Expiration     int32   `json:"expiration,omitempty"`
-	Strike         int32   `json:"strike,omitempty"`
-	Right          string  `json:"right,omitempty"`
-	RightRaw       int32   `json:"right_raw,omitempty"`
-	StrikePriceType int32  `json:"strike_price_type,omitempty"`
+	MsOfDay   int     `json:"ms_of_day"`
+	MarketCap int64   `json:"market_cap"`
+	SharesOut int64   `json:"shares_outstanding"`
+	EntValue  int64   `json:"enterprise_value"`
+	BookValue int64   `json:"book_value"`
+	FreeFloat int64   `json:"free_float"`
+	Date      int     `json:"date"`
+	Expiration int32  `json:"expiration,omitempty"`
+	Strike    float64 `json:"strike,omitempty"`
+	Right     string  `json:"right,omitempty"`
 }
 
 type GreeksTick struct {
@@ -603,33 +587,27 @@ type GreeksTick struct {
 	DualGamma      float64 `json:"dual_gamma"`
 	Epsilon        float64 `json:"epsilon"`
 	Lambda         float64 `json:"lambda"`
-	Vera           float64 `json:"vera"`
-	Date           int     `json:"date"`
-	Expiration     int32   `json:"expiration,omitempty"`
-	Strike         int32   `json:"strike,omitempty"`
-	Right          string  `json:"right,omitempty"`
-	RightRaw       int32   `json:"right_raw,omitempty"`
-	StrikePriceType int32  `json:"strike_price_type,omitempty"`
+	Vera       float64 `json:"vera"`
+	Date       int     `json:"date"`
+	Expiration int32   `json:"expiration,omitempty"`
+	Strike     float64 `json:"strike,omitempty"`
+	Right      string  `json:"right,omitempty"`
 }
 
 type IVTick struct {
-	MsOfDay        int     `json:"ms_of_day"`
-	IV             float64 `json:"implied_volatility"`
-	IVError        float64 `json:"iv_error"`
-	Date           int     `json:"date"`
-	Expiration     int32   `json:"expiration,omitempty"`
-	Strike         int32   `json:"strike,omitempty"`
-	Right          string  `json:"right,omitempty"`
-	RightRaw       int32   `json:"right_raw,omitempty"`
-	StrikePriceType int32  `json:"strike_price_type,omitempty"`
+	MsOfDay    int     `json:"ms_of_day"`
+	IV         float64 `json:"implied_volatility"`
+	IVError    float64 `json:"iv_error"`
+	Date       int     `json:"date"`
+	Expiration int32   `json:"expiration,omitempty"`
+	Strike     float64 `json:"strike,omitempty"`
+	Right      string  `json:"right,omitempty"`
 }
 
 type PriceTick struct {
-	MsOfDay   int     `json:"ms_of_day"`
-	Price     float64 `json:"price"`
-	PriceRaw  int     `json:"price_raw,omitempty"`
-	PriceType int     `json:"price_type"`
-	Date      int     `json:"date"`
+	MsOfDay int     `json:"ms_of_day"`
+	Price   float64 `json:"price"`
+	Date    int     `json:"date"`
 }
 
 type CalendarDay struct {
@@ -647,12 +625,10 @@ type InterestRateTick struct {
 }
 
 type OptionContract struct {
-	Root           string `json:"root"`
-	Expiration     int    `json:"expiration"`
-	Strike         int    `json:"strike"`
-	Right          string `json:"right"`
-	RightRaw       int    `json:"right_raw,omitempty"`
-	StrikePriceType int   `json:"strike_price_type"`
+	Root       string  `json:"root"`
+	Expiration int     `json:"expiration"`
+	Strike     float64 `json:"strike"`
+	Right      string  `json:"right"`
 }
 
 type Greeks struct {
@@ -695,15 +671,6 @@ func RightStr(code int32) string {
 	}
 }
 
-// ── Price decoding ──
-
-func priceToFloat(value int32, priceType int32) float64 {
-	if priceType == 0 {
-		return 0.0
-	}
-	return float64(value) * math.Pow(10, float64(priceType-10))
-}
-
 // ── Generic array conversion helpers ──
 
 func convertEodTicks(arr C.TdxTickArray) []EodTick {
@@ -715,18 +682,12 @@ func convertEodTicks(arr C.TdxTickArray) []EodTick {
 		result[i] = EodTick{
 			MsOfDay: int(t.MsOfDay), MsOfDay2: int(t.MsOfDay2), Date: int(t.Date),
 			Volume: int(t.Volume), Count: int(t.Count),
-			Open: priceToFloat(t.Open, t.PriceType), OpenRaw: int(t.Open),
-			High: priceToFloat(t.High, t.PriceType), HighRaw: int(t.High),
-			Low: priceToFloat(t.Low, t.PriceType), LowRaw: int(t.Low),
-			Close: priceToFloat(t.Close, t.PriceType), CloseRaw: int(t.Close),
+			Open: t.Open, High: t.High, Low: t.Low, Close: t.Close,
 			BidSize: int(t.BidSize), BidExchange: int(t.BidExchange),
-			Bid: priceToFloat(t.Bid, t.PriceType), BidRaw: int(t.Bid),
-			BidCondition: int(t.BidCondition),
+			Bid: t.Bid, BidCondition: int(t.BidCondition),
 			AskSize: int(t.AskSize), AskExchange: int(t.AskExchange),
-			Ask: priceToFloat(t.Ask, t.PriceType), AskRaw: int(t.Ask),
-			AskCondition: int(t.AskCondition),
-			PriceType: int(t.PriceType),
-			Expiration: t.Expiration, Strike: t.Strike, Right: RightStr(int32(t.Right)), RightRaw: t.Right, StrikePriceType: t.StrikePriceType,
+			Ask: t.Ask, AskCondition: int(t.AskCondition),
+			Expiration: t.Expiration, Strike: t.Strike, Right: RightStr(t.Right),
 		}
 	}
 	return result
@@ -740,12 +701,8 @@ func convertOhlcTicks(arr C.TdxTickArray) []OhlcTick {
 	for i, t := range src {
 		result[i] = OhlcTick{
 			MsOfDay: int(t.MsOfDay), Volume: int(t.Volume), Count: int(t.Count), Date: int(t.Date),
-			Open: priceToFloat(t.Open, t.PriceType), OpenRaw: int(t.Open),
-			High: priceToFloat(t.High, t.PriceType), HighRaw: int(t.High),
-			Low: priceToFloat(t.Low, t.PriceType), LowRaw: int(t.Low),
-			Close: priceToFloat(t.Close, t.PriceType), CloseRaw: int(t.Close),
-			PriceType: int(t.PriceType),
-			Expiration: t.Expiration, Strike: t.Strike, Right: RightStr(int32(t.Right)), RightRaw: t.Right, StrikePriceType: t.StrikePriceType,
+			Open: t.Open, High: t.High, Low: t.Low, Close: t.Close,
+			Expiration: t.Expiration, Strike: t.Strike, Right: RightStr(t.Right),
 		}
 	}
 	return result
@@ -762,11 +719,11 @@ func convertTradeTicks(arr C.TdxTickArray) []TradeTick {
 			ExtCondition1: int(t.ExtCondition1), ExtCondition2: int(t.ExtCondition2),
 			ExtCondition3: int(t.ExtCondition3), ExtCondition4: int(t.ExtCondition4),
 			Condition: int(t.Condition),
-			Size: int(t.Size), Exchange: int(t.Exchange), Price: priceToFloat(t.Price, t.PriceType),
-			PriceRaw: int(t.Price), PriceType: int(t.PriceType), ConditionFlags: int(t.ConditionFlags),
+			Size: int(t.Size), Exchange: int(t.Exchange), Price: t.Price,
+			ConditionFlags: int(t.ConditionFlags),
 			PriceFlags: int(t.PriceFlags), VolumeType: int(t.VolumeType), RecordsBack: int(t.RecordsBack),
 			Date: int(t.Date),
-			Expiration: t.Expiration, Strike: t.Strike, Right: RightStr(int32(t.Right)), RightRaw: t.Right, StrikePriceType: t.StrikePriceType,
+			Expiration: t.Expiration, Strike: t.Strike, Right: RightStr(t.Right),
 		}
 	}
 	return result
@@ -780,11 +737,11 @@ func convertQuoteTicks(arr C.TdxTickArray) []QuoteTick {
 	for i, t := range src {
 		result[i] = QuoteTick{
 			MsOfDay: int(t.MsOfDay), BidSize: int(t.BidSize), BidExchange: int(t.BidExchange),
-			Bid: priceToFloat(t.Bid, t.PriceType), BidRaw: int(t.Bid), BidCondition: int(t.BidCondition),
+			Bid: t.Bid, BidCondition: int(t.BidCondition),
 			AskSize: int(t.AskSize), AskExchange: int(t.AskExchange),
-			Ask: priceToFloat(t.Ask, t.PriceType), AskRaw: int(t.Ask), AskCondition: int(t.AskCondition),
-			PriceType: int(t.PriceType), Date: int(t.Date),
-			Expiration: t.Expiration, Strike: t.Strike, Right: RightStr(int32(t.Right)), RightRaw: t.Right, StrikePriceType: t.StrikePriceType,
+			Ask: t.Ask, AskCondition: int(t.AskCondition),
+			Midpoint: t.Midpoint, Date: int(t.Date),
+			Expiration: t.Expiration, Strike: t.Strike, Right: RightStr(t.Right),
 		}
 	}
 	return result
@@ -801,17 +758,15 @@ func convertTradeQuoteTicks(arr C.TdxTickArray) []TradeQuoteTick {
 			ExtCondition1: int(t.ExtCondition1), ExtCondition2: int(t.ExtCondition2),
 			ExtCondition3: int(t.ExtCondition3), ExtCondition4: int(t.ExtCondition4),
 			Condition: int(t.Condition),
-			Size: int(t.Size), Exchange: int(t.Exchange), Price: priceToFloat(t.Price, t.PriceType),
-			PriceRaw: int(t.Price),
+			Size: int(t.Size), Exchange: int(t.Exchange), Price: t.Price,
 			ConditionFlags: int(t.ConditionFlags), PriceFlags: int(t.PriceFlags),
 			VolumeType: int(t.VolumeType), RecordsBack: int(t.RecordsBack),
 			QuoteMsOfDay: int(t.QuoteMsOfDay), BidSize: int(t.BidSize), BidExchange: int(t.BidExchange),
-			Bid: priceToFloat(t.Bid, t.QuotePriceType), BidRaw: int(t.Bid), BidCondition: int(t.BidCondition),
+			Bid: t.Bid, BidCondition: int(t.BidCondition),
 			AskSize: int(t.AskSize), AskExchange: int(t.AskExchange),
-			Ask: priceToFloat(t.Ask, t.QuotePriceType), AskRaw: int(t.Ask), AskCondition: int(t.AskCondition),
-			QuotePriceType: int(t.QuotePriceType), PriceType: int(t.PriceType),
+			Ask: t.Ask, AskCondition: int(t.AskCondition),
 			Date: int(t.Date),
-			Expiration: t.Expiration, Strike: t.Strike, Right: RightStr(int32(t.Right)), RightRaw: t.Right, StrikePriceType: t.StrikePriceType,
+			Expiration: t.Expiration, Strike: t.Strike, Right: RightStr(t.Right),
 		}
 	}
 	return result
@@ -825,7 +780,7 @@ func convertOpenInterestTicks(arr C.TdxTickArray) []OpenInterestTick {
 	for i, t := range src {
 		result[i] = OpenInterestTick{
 			MsOfDay: int(t.MsOfDay), OpenInterest: int(t.OpenInterest), Date: int(t.Date),
-			Expiration: t.Expiration, Strike: t.Strike, Right: RightStr(int32(t.Right)), RightRaw: t.Right, StrikePriceType: t.StrikePriceType,
+			Expiration: t.Expiration, Strike: t.Strike, Right: RightStr(t.Right),
 		}
 	}
 	return result
@@ -840,7 +795,7 @@ func convertMarketValueTicks(arr C.TdxTickArray) []MarketValueTick {
 		result[i] = MarketValueTick{
 			MsOfDay: int(t.MsOfDay), MarketCap: t.MarketCap, SharesOut: t.SharesOutstanding,
 			EntValue: t.EnterpriseValue, BookValue: t.BookValue, FreeFloat: t.FreeFloat, Date: int(t.Date),
-			Expiration: t.Expiration, Strike: t.Strike, Right: RightStr(int32(t.Right)), RightRaw: t.Right, StrikePriceType: t.StrikePriceType,
+			Expiration: t.Expiration, Strike: t.Strike, Right: RightStr(t.Right),
 		}
 	}
 	return result
@@ -859,7 +814,7 @@ func convertGreeksTicks(arr C.TdxTickArray) []GreeksTick {
 			Speed: t.Speed, Zomma: t.Zomma, Color: t.Color, Ultima: t.Ultima,
 			D1: t.D1, D2: t.D2, DualDelta: t.DualDelta, DualGamma: t.DualGamma,
 			Epsilon: t.Epsilon, Lambda: t.Lambda, Vera: t.Vera, Date: int(t.Date),
-			Expiration: t.Expiration, Strike: t.Strike, Right: RightStr(int32(t.Right)), RightRaw: t.Right, StrikePriceType: t.StrikePriceType,
+			Expiration: t.Expiration, Strike: t.Strike, Right: RightStr(t.Right),
 		}
 	}
 	return result
@@ -873,7 +828,7 @@ func convertIvTicks(arr C.TdxTickArray) []IVTick {
 	for i, t := range src {
 		result[i] = IVTick{
 			MsOfDay: int(t.MsOfDay), IV: t.ImpliedVolatility, IVError: t.IvError, Date: int(t.Date),
-			Expiration: t.Expiration, Strike: t.Strike, Right: RightStr(int32(t.Right)), RightRaw: t.Right, StrikePriceType: t.StrikePriceType,
+			Expiration: t.Expiration, Strike: t.Strike, Right: RightStr(t.Right),
 		}
 	}
 	return result
@@ -885,7 +840,7 @@ func convertPriceTicks(arr C.TdxTickArray) []PriceTick {
 	src := unsafe.Slice((*cPriceTick)(arr.data), n)
 	result := make([]PriceTick, n)
 	for i, t := range src {
-		result[i] = PriceTick{MsOfDay: int(t.MsOfDay), Price: priceToFloat(t.Price, t.PriceType), PriceRaw: int(t.Price), PriceType: int(t.PriceType), Date: int(t.Date)}
+		result[i] = PriceTick{MsOfDay: int(t.MsOfDay), Price: t.Price, Date: int(t.Date)}
 	}
 	return result
 }
@@ -918,7 +873,7 @@ func convertOptionContracts(arr C.TdxOptionContractArray) []OptionContract {
 		if t.Root != 0 {
 			root = C.GoString((*C.char)(unsafe.Pointer(t.Root)))
 		}
-		result[i] = OptionContract{root, int(t.Expiration), int(t.Strike), RightStr(t.Right), int(t.Right), int(t.StrikePriceType)}
+		result[i] = OptionContract{Root: root, Expiration: int(t.Expiration), Strike: t.Strike, Right: RightStr(t.Right)}
 	}
 	return result
 }

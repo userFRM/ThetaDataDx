@@ -399,127 +399,52 @@ pub(crate) fn row_number(row: &proto::DataValueList, idx: usize) -> i32 {
         .unwrap_or(0)
 }
 
-/// Helper to get a price value from a row at a given column index.
-///
-/// See [`row_number`] for null/missing cell handling rationale.
-// Reason: protocol-defined integer widths from Java FPSS specification.
+/// Extract raw price value from a Price cell (test-only helper).
+#[cfg(test)]
 #[allow(clippy::cast_possible_truncation)]
-pub(crate) fn row_price_value(row: &proto::DataValueList, idx: usize) -> i32 {
+fn row_price_value(row: &proto::DataValueList, idx: usize) -> i32 {
     row.values
         .get(idx)
         .and_then(|dv| dv.data_type.as_ref())
         .and_then(|dt| match dt {
             proto::data_value::DataType::Price(p) => Some(p.value),
-            other => {
-                tracing::trace!(
-                    column = idx,
-                    data_type = ?other,
-                    "unexpected cell type in tick row (expected Price), defaulting to 0"
-                );
-                None
-            }
-        })
-        .unwrap_or(0)
-}
-
-/// Helper to get price type from a row at a given column index.
-///
-/// # Known limitation: per-row price type variation
-///
-/// A single row may contain multiple Price-typed columns (e.g., bid, ask, last)
-/// with *different* `price_type` values. However, tick structs store only one
-/// `price_type` field, extracted from a designated "source" column (typically the
-/// primary price column, e.g., `price` for trades). If the other Price columns
-/// in the same row use a different price type, that information is lost. This is
-/// an inherent limitation of the flat tick struct design.
-///
-/// See [`row_number`] for null/missing cell handling rationale.
-// Reason: protocol-defined integer widths from Java FPSS specification.
-#[allow(clippy::cast_possible_truncation)]
-pub(crate) fn row_price_type(row: &proto::DataValueList, idx: usize) -> i32 {
-    row.values
-        .get(idx)
-        .and_then(|dv| dv.data_type.as_ref())
-        .and_then(|dt| match dt {
-            proto::data_value::DataType::Price(p) => Some(p.r#type),
-            other => {
-                tracing::trace!(
-                    column = idx,
-                    data_type = ?other,
-                    "unexpected cell type in tick row (expected Price type), defaulting to 0"
-                );
-                None
-            }
-        })
-        .unwrap_or(0)
-}
-
-/// Read a Price cell's value, normalized to `target_pt` (the row's canonical `price_type`).
-///
-/// If the cell's `price_type` differs from `target_pt`, the value is rescaled
-/// using `changePriceType` (matching Java's `PriceCalcUtils.changePriceType`).
-/// This handles OHLC bars where open/high/low/close can have different
-/// `price_types` per cell.
-// Reason: protocol-defined integer widths from Java FPSS specification.
-#[allow(clippy::cast_possible_truncation)]
-pub(crate) fn row_price_value_normalized(
-    row: &proto::DataValueList,
-    idx: usize,
-    target_pt: i32,
-) -> i32 {
-    row.values
-        .get(idx)
-        .and_then(|dv| dv.data_type.as_ref())
-        .and_then(|dt| match dt {
-            proto::data_value::DataType::Price(p) => {
-                if p.r#type == target_pt || p.r#type == 0 || target_pt == 0 {
-                    Some(p.value)
-                } else {
-                    Some(change_price_type(p.value, p.r#type, target_pt))
-                }
-            }
-            proto::data_value::DataType::Number(n) => Some(*n as i32),
             _ => None,
         })
         .unwrap_or(0)
 }
 
-/// Rescale a price value from one `price_type` to another.
-/// Matches Java's `PriceCalcUtils.changePriceType`.
-fn change_price_type(price: i32, from_type: i32, to_type: i32) -> i32 {
-    const POW10: [i64; 10] = [
-        1,
-        10,
-        100,
-        1_000,
-        10_000,
-        100_000,
-        1_000_000,
-        10_000_000,
-        100_000_000,
-        1_000_000_000,
-    ];
-    if price == 0 || from_type == to_type {
-        return price;
-    }
-    let exp = to_type - from_type;
-    if exp <= 0 {
-        // Going to lower price_type (more decimal places in raw value): multiply
-        let idx = usize::try_from(-exp).unwrap_or(0);
-        if idx < POW10.len() {
-            i32::try_from(i64::from(price) * POW10[idx]).unwrap_or(price)
-        } else {
-            price
-        }
-    } else {
-        // Going to higher price_type (fewer decimal places): divide
-        let idx = usize::try_from(exp).unwrap_or(0);
-        if idx < POW10.len() {
-            i32::try_from(i64::from(price) / POW10[idx]).unwrap_or(0)
-        } else {
-            0
-        }
-    }
+/// Extract raw price type from a Price cell (test-only helper).
+#[cfg(test)]
+#[allow(clippy::cast_possible_truncation)]
+fn row_price_type(row: &proto::DataValueList, idx: usize) -> i32 {
+    row.values
+        .get(idx)
+        .and_then(|dv| dv.data_type.as_ref())
+        .and_then(|dt| match dt {
+            proto::data_value::DataType::Price(p) => Some(p.r#type),
+            _ => None,
+        })
+        .unwrap_or(0)
+}
+
+/// Decode a Price cell directly to `f64` using the cell's own `price_type`.
+///
+/// For Number cells, returns the number cast to `f64`.
+/// This is the primary accessor for the f64-native price API.
+// Reason: protocol-defined integer widths from Java FPSS specification.
+#[allow(clippy::cast_possible_truncation)]
+pub(crate) fn row_price_f64(row: &proto::DataValueList, idx: usize) -> f64 {
+    row.values
+        .get(idx)
+        .and_then(|dv| dv.data_type.as_ref())
+        .map(|dt| match dt {
+            proto::data_value::DataType::Price(p) => {
+                tdbe::types::price::Price::new(p.value, p.r#type).to_f64()
+            }
+            proto::data_value::DataType::Number(n) => *n as f64,
+            _ => 0.0,
+        })
+        .unwrap_or(0.0)
 }
 
 /// Helper to get an f64 from a row at a given column index, defaulting to 0.0.
@@ -723,8 +648,7 @@ mod tests {
         // NullValue should default to 0, not corrupt subsequent fields.
         assert_eq!(tick.ext_condition1, 0);
         assert_eq!(tick.size, 100);
-        assert_eq!(tick.price, 15000);
-        assert_eq!(tick.price_type, 10);
+        assert!((tick.price - 15000.0).abs() < 1e-10);
         assert_eq!(tick.date, 20240301);
     }
 
@@ -953,15 +877,8 @@ pub fn parse_option_contracts_v3(table: &crate::proto::DataTable) -> Vec<OptionC
                 parse_iso_date(&s)
             });
 
-            // Strike: may be Price or Number
-            let (strike, strike_price_type) = strike_idx.map_or((0, 0), |i| {
-                let pv = row_price_value(row, i);
-                if pv != 0 {
-                    (pv, row_price_type(row, i))
-                } else {
-                    (row_number(row, i), 0)
-                }
-            });
+            // Strike: decode to f64 from Price or Number cell.
+            let strike = strike_idx.map_or(0.0, |i| row_price_f64(row, i));
 
             // Right: may be int or text "PUT"/"CALL"/"C"/"P"
             let right = right_idx.map_or(0, |i| {
@@ -982,7 +899,6 @@ pub fn parse_option_contracts_v3(table: &crate::proto::DataTable) -> Vec<OptionC
                 expiration,
                 strike,
                 right,
-                strike_price_type,
             }
         })
         .collect()
