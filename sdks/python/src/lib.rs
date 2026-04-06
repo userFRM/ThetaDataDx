@@ -540,11 +540,6 @@ enum BufferedEvent {
     },
 }
 
-/// Convert raw integer price to f64 using ThetaData's price_type encoding.
-fn price_to_f64(value: i32, price_type: i32) -> f64 {
-    tdbe::types::price::Price::new(value, price_type).to_f64()
-}
-
 fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
     match event {
         fpss::FpssEvent::Data(data) => match data {
@@ -559,7 +554,6 @@ fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                 ask_exchange,
                 ask,
                 ask_condition,
-                price_type,
                 date,
                 received_at_ns,
                 ..
@@ -568,11 +562,11 @@ fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                 ms_of_day: *ms_of_day,
                 bid_size: *bid_size,
                 bid_exchange: *bid_exchange,
-                bid: price_to_f64(*bid, *price_type),
+                bid: *bid,
                 bid_condition: *bid_condition,
                 ask_size: *ask_size,
                 ask_exchange: *ask_exchange,
-                ask: price_to_f64(*ask, *price_type),
+                ask: *ask,
                 ask_condition: *ask_condition,
                 date: *date,
                 received_at_ns: *received_at_ns,
@@ -593,7 +587,6 @@ fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                 price_flags,
                 volume_type,
                 records_back,
-                price_type,
                 date,
                 received_at_ns,
                 ..
@@ -608,7 +601,7 @@ fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                 condition: *condition,
                 size: *size,
                 exchange: *exchange,
-                price: price_to_f64(*price, *price_type),
+                price: *price,
                 condition_flags: *condition_flags,
                 price_flags: *price_flags,
                 volume_type: *volume_type,
@@ -638,17 +631,16 @@ fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                 close,
                 volume,
                 count,
-                price_type,
                 date,
                 received_at_ns,
                 ..
             } => BufferedEvent::Ohlcvc {
                 contract_id: *contract_id,
                 ms_of_day: *ms_of_day,
-                open: price_to_f64(*open, *price_type),
-                high: price_to_f64(*high, *price_type),
-                low: price_to_f64(*low, *price_type),
-                close: price_to_f64(*close, *price_type),
+                open: *open,
+                high: *high,
+                low: *low,
+                close: *close,
                 volume: *volume,
                 count: *count,
                 date: *date,

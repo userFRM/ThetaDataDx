@@ -83,19 +83,14 @@ pub async fn generic(
     // Validate required params.
     for p in ep.params {
         if p.required && !params.contains_key(p.name) {
-            let alt = match p.name {
-                _ => "",
-            };
-            if alt.is_empty() || !params.contains_key(alt) {
-                return error_response(
-                    StatusCode::BAD_REQUEST,
-                    "bad_request",
-                    &format!(
-                        "missing required parameter: '{}' ({})",
-                        p.name, p.description
-                    ),
-                );
-            }
+            return error_response(
+                StatusCode::BAD_REQUEST,
+                "bad_request",
+                &format!(
+                    "missing required parameter: '{}' ({})",
+                    p.name, p.description
+                ),
+            );
         }
     }
 
