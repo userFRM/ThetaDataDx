@@ -18,7 +18,7 @@ The `time_of_day` parameter is milliseconds from midnight ET (e.g., `34200000` =
 let data = tdx.stock_at_time_trade("SPY", "20260101", "20260301", "34200000").await?;
 for t in &data {
     println!("date={} ms_of_day={} price={:.2} size={}",
-        t.date, t.ms_of_day, t.price_f64(), t.size);
+        t.date, t.ms_of_day, t.price, t.size);
 }
 ```
 ```python [Python]
@@ -113,8 +113,6 @@ for (const auto& t : data) {
 <div class="param-desc">Records back count</div>
 </div>
 <div class="param">
-<div class="param-header"><code>price_type</code><span class="param-type">i32</span></div>
-<div class="param-desc">Decimal type for price decoding</div>
 </div>
 <div class="param">
 <div class="param-header"><code>date</code><span class="param-type">i32</span></div>

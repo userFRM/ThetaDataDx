@@ -71,18 +71,18 @@ use tdbe::latency::latency_ns;
 tdx.start_streaming(|event: &FpssEvent| {
     match event {
         FpssEvent::Data(FpssData::Quote {
-            ms_of_day, date, received_at_ns, bid_f64, ask_f64, ..
+            ms_of_day, date, received_at_ns, bid, ask, ..
         }) => {
             let lat_ns = latency_ns(*ms_of_day, *date, *received_at_ns);
             let lat_ms = lat_ns as f64 / 1_000_000.0;
-            println!("SPY {bid_f64:.2}/{ask_f64:.2}  latency: {lat_ms:.1}ms");
+            println!("SPY {bid:.2}/{ask:.2}  latency: {lat_ms:.1}ms");
         }
         FpssEvent::Data(FpssData::Trade {
-            ms_of_day, date, received_at_ns, price_f64, size, ..
+            ms_of_day, date, received_at_ns, price, size, ..
         }) => {
             let lat_ns = latency_ns(*ms_of_day, *date, *received_at_ns);
             let lat_us = lat_ns as f64 / 1_000.0;
-            println!("TRADE {price_f64:.2} x{size}  latency: {lat_us:.0}us");
+            println!("TRADE {price:.2} x{size}  latency: {lat_us:.0}us");
         }
         _ => {}
     }
@@ -141,13 +141,9 @@ while (true) {
 
     if (event->kind == TDX_FPSS_QUOTE) {
         auto& q = event->quote;
+        // bid and ask are already decoded to double (f64).
         // received_at_ns is captured at frame decode time on the Rust side.
-        // For precise wire latency, subtract the exchange epoch ns from
-        // received_at_ns. The ms_of_day + date -> epoch conversion is best
-        // done on the Rust side via tdbe::latency::latency_ns().
-        double bid = tdx::price_to_f64(q.bid, q.price_type);
-        double ask = tdx::price_to_f64(q.ask, q.price_type);
-        std::cout << "Quote: bid=" << bid << " ask=" << ask
+        std::cout << "Quote: bid=" << q.bid << " ask=" << q.ask
                   << " rx=" << q.received_at_ns << "ns" << std::endl;
     }
 }
@@ -246,7 +242,8 @@ while time.time() < deadline:
         # Approximate: time.time_ns() - received_at_ns measures
         # Rust-to-Python overhead, not true wire latency.
         now_ns = time.time_ns()
-        lat_ms = (now_ns - event["received_at_ns"]) // 1_000_000
+        lat_ns = max(0, now_ns - event["received_at_ns"])
+        lat_ms = lat_ns // 1_000_000
         bucket = min(lat_ms // 10, 19)
         buckets[bucket] += 1
 
@@ -264,7 +261,7 @@ import (
     "log"
     "time"
 
-    thetadatadx "github.com/userFRM/ThetaDataDx/sdks/go"
+    thetadatadx "github.com/userFRM/thetadatadx/sdks/go"
 )
 
 func main() {
@@ -294,7 +291,9 @@ func main() {
         if event.Kind == thetadatadx.FpssQuoteEvent {
             // ReceivedAtNs is Rust-side; approximate histogram only
             q := event.Quote
-            latMs := (uint64(time.Now().UnixNano()) - q.ReceivedAtNs) / 1_000_000
+            delta := int64(time.Now().UnixNano()) - int64(q.ReceivedAtNs)
+            if delta < 0 { delta = 0 }
+            latMs := uint64(delta) / 1_000_000
             bucket := latMs / 10
             if bucket > 19 {
                 bucket = 19
@@ -338,7 +337,8 @@ int main() {
             // received_at_ns is Rust-side; approximate histogram only
             auto now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
                 std::chrono::system_clock::now().time_since_epoch()).count();
-            int64_t lat_ms = (now_ns - q.received_at_ns) / 1'000'000;
+            int64_t lat_ms = (now_ns - static_cast<int64_t>(q.received_at_ns)) / 1'000'000;
+            if (lat_ms < 0) lat_ms = 0;
             size_t bucket = std::min(static_cast<size_t>(lat_ms / 10), size_t{19});
             buckets[bucket]++;
         }

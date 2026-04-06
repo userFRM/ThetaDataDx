@@ -16,7 +16,7 @@ Retrieve every trade execution for a stock on a given date. Returns tick-level d
 let data = tdx.stock_history_trade("SPY", "20260315").await?;
 for t in &data {
     println!("date={} ms_of_day={} price={:.2} size={} exchange={} condition={} sequence={}",
-        t.date, t.ms_of_day, t.price_f64(), t.size, t.exchange, t.condition, t.sequence);
+        t.date, t.ms_of_day, t.price, t.size, t.exchange, t.condition, t.sequence);
 }
 ```
 ```python [Python]
@@ -114,8 +114,6 @@ for (const auto& t : data) {
 <div class="param-desc">Records back count</div>
 </div>
 <div class="param">
-<div class="param-header"><code>price_type</code><span class="param-type">i32</span></div>
-<div class="param-desc">Decimal type for price decoding</div>
 </div>
 <div class="param">
 <div class="param-header"><code>date</code><span class="param-type">i32</span></div>

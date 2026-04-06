@@ -16,7 +16,7 @@ Retrieve all individual trades for an option contract on a given date.
 let data = tdx.option_history_trade("SPY", "20260417", "550", "C", "20260315").await?;
 for t in &data {
     println!("date={} ms_of_day={} price={:.2} size={} condition={} exchange={}",
-        t.date, t.ms_of_day, t.price_f64(), t.size, t.condition, t.exchange);
+        t.date, t.ms_of_day, t.price, t.size, t.condition, t.exchange);
 }
 ```
 ```python [Python]

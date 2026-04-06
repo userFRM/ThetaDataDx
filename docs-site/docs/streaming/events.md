@@ -13,15 +13,15 @@ tdx.start_streaming(|event: &FpssEvent| {
     match event {
         // --- Data events ---
         FpssEvent::Data(FpssData::Quote {
-            contract_id, ms_of_day, bid_f64, ask_f64, bid_size, ask_size,
+            contract_id, ms_of_day, bid, ask, bid_size, ask_size,
             received_at_ns, ..
         }) => {
-            println!("Quote: id={contract_id} bid={bid_f64:.2} ask={ask_f64:.2} rx={received_at_ns}ns");
+            println!("Quote: id={contract_id} bid={bid:.2} ask={ask:.2} rx={received_at_ns}ns");
         }
         FpssEvent::Data(FpssData::Trade {
-            contract_id, price_f64, size, sequence, received_at_ns, ..
+            contract_id, price, size, sequence, received_at_ns, ..
         }) => {
-            println!("Trade: id={contract_id} price={price_f64:.2} size={size} seq={sequence}");
+            println!("Trade: id={contract_id} price={price:.2} size={size} seq={sequence}");
         }
         FpssEvent::Data(FpssData::OpenInterest {
             contract_id, open_interest, received_at_ns, ..
@@ -29,11 +29,11 @@ tdx.start_streaming(|event: &FpssEvent| {
             println!("OI: id={contract_id} oi={open_interest} rx={received_at_ns}ns");
         }
         FpssEvent::Data(FpssData::Ohlcvc {
-            contract_id, open_f64, high_f64, low_f64, close_f64,
+            contract_id, open, high, low, close,
             volume, count, received_at_ns, ..
         }) => {
             // volume and count are i64 to avoid overflow on high-volume symbols
-            println!("OHLCVC: id={contract_id} O={open_f64:.2} H={high_f64:.2} L={low_f64:.2} C={close_f64:.2} vol={volume} n={count}");
+            println!("OHLCVC: id={contract_id} O={open:.2} H={high:.2} L={low:.2} C={close:.2} vol={volume} n={count}");
         }
 
         // --- Control events ---
@@ -167,17 +167,17 @@ while (true) {
     switch (event->kind) {
     case TDX_FPSS_QUOTE: {
         auto& q = event->quote;
-        // Use tdx::price_to_f64() to decode streaming prices
+        // All price fields are f64 (double) -- direct access, no decoding needed
         std::cout << "Quote: contract=" << q.contract_id
-                  << " bid=" << tdx::price_to_f64(q.bid, q.price_type)
-                  << " ask=" << tdx::price_to_f64(q.ask, q.price_type)
+                  << " bid=" << q.bid
+                  << " ask=" << q.ask
                   << " rx=" << q.received_at_ns << "ns" << std::endl;
         break;
     }
     case TDX_FPSS_TRADE: {
         auto& t = event->trade;
         std::cout << "Trade: contract=" << t.contract_id
-                  << " price=" << tdx::price_to_f64(t.price, t.price_type)
+                  << " price=" << t.price
                   << " size=" << t.size
                   << " seq=" << t.sequence << std::endl;
         break;
@@ -191,10 +191,10 @@ while (true) {
     case TDX_FPSS_OHLCVC: {
         auto& o = event->ohlcvc;
         std::cout << "OHLCVC: contract=" << o.contract_id
-                  << " O=" << tdx::price_to_f64(o.open, o.price_type)
-                  << " H=" << tdx::price_to_f64(o.high, o.price_type)
-                  << " L=" << tdx::price_to_f64(o.low, o.price_type)
-                  << " C=" << tdx::price_to_f64(o.close, o.price_type)
+                  << " O=" << o.open
+                  << " H=" << o.high
+                  << " L=" << o.low
+                  << " C=" << o.close
                   << " vol=" << o.volume << " count=" << o.count << std::endl;
         break;
     }
@@ -228,15 +228,12 @@ Every data event carries `received_at_ns` (wall-clock nanoseconds since UNIX epo
 | `ms_of_day` | `i32` | Milliseconds since midnight ET (exchange timestamp) |
 | `bid_size` | `i32` | Bid size in lots |
 | `bid_exchange` | `i32` | Bid exchange code |
-| `bid` | `i32` | Bid price (raw integer, decode with `price_type`) |
-| `bid_f64` | `f64` | Pre-decoded bid price (use this in most cases) |
+| `bid` | `f64` | Bid price |
 | `bid_condition` | `i32` | Bid condition code |
 | `ask_size` | `i32` | Ask size in lots |
 | `ask_exchange` | `i32` | Ask exchange code |
-| `ask` | `i32` | Ask price (raw integer, decode with `price_type`) |
-| `ask_f64` | `f64` | Pre-decoded ask price (use this in most cases) |
+| `ask` | `f64` | Ask price |
 | `ask_condition` | `i32` | Ask condition code |
-| `price_type` | `i32` | Price encoding exponent |
 | `date` | `i32` | Date as YYYYMMDD integer |
 | `received_at_ns` | `u64` | Wall-clock nanoseconds since UNIX epoch |
 
@@ -254,13 +251,11 @@ Every data event carries `received_at_ns` (wall-clock nanoseconds since UNIX epo
 | `condition` | `i32` | Primary trade condition |
 | `size` | `i32` | Trade size in shares/contracts |
 | `exchange` | `i32` | Exchange code |
-| `price` | `i32` | Trade price (raw integer, decode with `price_type`) |
-| `price_f64` | `f64` | Pre-decoded trade price (use this in most cases) |
+| `price` | `f64` | Trade price |
 | `condition_flags` | `i32` | Condition flag bits |
 | `price_flags` | `i32` | Price flag bits |
 | `volume_type` | `i32` | Volume type indicator |
 | `records_back` | `i32` | Records back (correction indicator) |
-| `price_type` | `i32` | Price encoding exponent |
 | `date` | `i32` | Date as YYYYMMDD integer |
 | `received_at_ns` | `u64` | Wall-clock nanoseconds since UNIX epoch |
 
@@ -284,17 +279,12 @@ The dev server (port 20200) sends a simplified 8-field trade format: `ms_of_day`
 |-------|------|-------------|
 | `contract_id` | `i32` | Server-assigned contract identifier |
 | `ms_of_day` | `i32` | Milliseconds since midnight ET |
-| `open` | `i32` | Open price (raw integer) |
-| `open_f64` | `f64` | Pre-decoded open price |
-| `high` | `i32` | High price (raw integer) |
-| `high_f64` | `f64` | Pre-decoded high price |
-| `low` | `i32` | Low price (raw integer) |
-| `low_f64` | `f64` | Pre-decoded low price |
-| `close` | `i32` | Close price (raw integer) |
-| `close_f64` | `f64` | Pre-decoded close price |
+| `open` | `f64` | Open price |
+| `high` | `f64` | High price |
+| `low` | `f64` | Low price |
+| `close` | `f64` | Close price |
 | `volume` | **`i64`** | Cumulative volume (i64 to avoid overflow on high-volume symbols) |
 | `count` | **`i64`** | Trade count (i64 to avoid overflow) |
-| `price_type` | `i32` | Price encoding exponent |
 | `date` | `i32` | Date as YYYYMMDD integer |
 | `received_at_ns` | `u64` | Wall-clock nanoseconds since UNIX epoch |
 
@@ -382,7 +372,7 @@ Price fields (`Bid`, `Ask`, `Price`, `Open`, `High`, `Low`, `Close`) are pre-dec
 
 - `event->kind` -- `TdxFpssEventKind` enum
 - `event->quote` / `event->trade` / etc. -- direct struct member access
-- Use `tdx::price_to_f64(value, price_type)` for price decoding
+- All price fields are `double` (f64) -- access them directly
 
 ### Python
 
@@ -390,7 +380,6 @@ Price fields (`Bid`, `Ask`, `Price`, `Open`, `High`, `Low`, `Close`) are pre-dec
 
 - `event["kind"]` -- string: `"quote"`, `"trade"`, `"open_interest"`, `"ohlcvc"`, `"login_success"`, `"contract_assigned"`, `"req_response"`, `"market_open"`, `"market_close"`, `"server_error"`, `"disconnected"`, `"error"`
 - Price fields in quotes and trades are pre-decoded to `float` (bid, ask, price, open, high, low, close)
-- Trade events also include `price_raw` (original integer) and `price_type`
 - All data events include `received_at_ns` as an integer
 
 ## Streaming Methods Reference
@@ -457,7 +446,7 @@ Price fields (`Bid`, `Ask`, `Price`, `Open`, `High`, `Low`, `Close`) are pre-dec
 | `Shutdown` | `()` | Graceful shutdown |
 | `Close` | `()` | Free the FPSS handle (call after Shutdown) |
 
-Helper: `PriceToF64(value int32, priceType int32) float64` -- decode raw integer prices. Note: FPSS event price fields are pre-decoded to `float64` as of v5.2; this helper is for custom use cases.
+All price fields are `float64` -- access them directly.
 
 ### C++ (`tdx::FpssClient`)
 
@@ -479,4 +468,4 @@ Helper: `PriceToF64(value int32, priceType int32) float64` -- decode raw integer
 | `active_subscriptions` | `() -> std::string` | Get active subscriptions |
 | `shutdown` | `() -> void` | Graceful shutdown |
 
-Helper: `tdx::price_to_f64(int32_t value, int32_t price_type) -> double` -- decode raw integer prices. For historical tick types, convenience functions are also available: `tdx::trade_price_f64(tick)`, `tdx::bid_f64(q)`, `tdx::open_f64(bar)`, etc.
+All price fields are `double` (f64) -- access them directly.

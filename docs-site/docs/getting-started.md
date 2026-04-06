@@ -94,8 +94,8 @@ async fn main() -> Result<(), thetadatadx::Error> {
     let eod = client.stock_history_eod("AAPL", "20240101", "20240301").await?;
     for tick in &eod {
         println!("{}: O={} H={} L={} C={} V={}",
-            tick.date, tick.open_f64(), tick.high_f64(),
-            tick.low_f64(), tick.close_f64(), tick.volume);
+            tick.date, tick.open, tick.high,
+            tick.low, tick.close, tick.volume);
     }
 
     // List option expirations

@@ -56,7 +56,7 @@ for q in &chain {
     if q.has_contract_id() {
         println!("{} {} {:.2}: bid={:.2} ask={:.2}",
             q.expiration, if q.is_call() { "C" } else { "P" },
-            q.strike_price(), q.bid_f64(), q.ask_f64());
+            q.strike, q.bid, q.ask);
     }
 }
 ```
@@ -144,8 +144,8 @@ for t in &trades {
         println!("{} {} strike={:.2} price={:.4}",
             t.expiration,
             if t.is_call() { "C" } else { "P" },
-            t.strike_price(),
-            t.price_f64());
+            t.strike,
+            t.price);
     }
 }
 ```

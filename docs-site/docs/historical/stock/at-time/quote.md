@@ -18,7 +18,7 @@ The `time_of_day` parameter is milliseconds from midnight ET (e.g., `34200000` =
 let data = tdx.stock_at_time_quote("SPY", "20260101", "20260301", "34200000").await?;
 for t in &data {
     println!("date={} ms_of_day={} bid={:.2} ask={:.2} midpoint={:.2}",
-        t.date, t.ms_of_day, t.bid_f64(), t.ask_f64(), t.midpoint_f64());
+        t.date, t.ms_of_day, t.bid, t.ask, t.midpoint);
 }
 ```
 ```python [Python]
@@ -92,8 +92,6 @@ for (const auto& t : data) {
 <div class="param-desc">Condition codes</div>
 </div>
 <div class="param">
-<div class="param-header"><code>price_type</code><span class="param-type">i32</span></div>
-<div class="param-desc">Decimal type for price decoding</div>
 </div>
 <div class="param">
 <div class="param-header"><code>date</code><span class="param-type">i32</span></div>

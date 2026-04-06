@@ -713,7 +713,16 @@ fn format_price_f64(value: f64) -> String {
     if value == 0.0 {
         return "0.00".into();
     }
-    format!("{value:.2}")
+    let s = format!("{value:.6}");
+    // Trim trailing zeros but keep at least 2 decimal places.
+    let dot = s.find('.').unwrap();
+    let min_len = dot + 3;
+    let trimmed = s.trim_end_matches('0');
+    if trimmed.len() < min_len {
+        s[..min_len].to_string()
+    } else {
+        trimmed.to_string()
+    }
 }
 
 /// Format a YYYYMMDD integer date to a readable string.

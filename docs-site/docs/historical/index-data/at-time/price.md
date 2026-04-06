@@ -15,7 +15,7 @@ Retrieve the index price at a specific time of day for every trading day in a da
 ```rust [Rust]
 let data = tdx.index_at_time_price("SPX", "20260101", "20260301", "34200000").await?;
 for t in &data {
-    println!("date={} ms_of_day={} price={:.2}", t.date, t.ms_of_day, t.price_f64());
+    println!("date={} ms_of_day={} price={:.2}", t.date, t.ms_of_day, t.price);
 }
 ```
 ```python [Python]

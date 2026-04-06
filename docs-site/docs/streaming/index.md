@@ -67,16 +67,19 @@ use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
 use thetadatadx::fpss::{FpssData, FpssControl, FpssEvent};
 use thetadatadx::fpss::protocol::Contract;
 
+
+#[tokio::main]
+async fn main() -> Result<(), thetadatadx::Error> {
 let creds = Credentials::from_file("creds.txt")?;
 let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 
 tdx.start_streaming(|event: &FpssEvent| {
     match event {
-        FpssEvent::Data(FpssData::Quote { contract_id, bid_f64, ask_f64, .. }) => {
-            println!("Quote: contract={contract_id} bid={bid_f64:.2} ask={ask_f64:.2}");
+        FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, .. }) => {
+            println!("Quote: contract={contract_id} bid={bid:.2} ask={ask:.2}");
         }
-        FpssEvent::Data(FpssData::Trade { contract_id, price_f64, size, .. }) => {
-            println!("Trade: contract={contract_id} price={price_f64:.2} size={size}");
+        FpssEvent::Data(FpssData::Trade { contract_id, price, size, .. }) => {
+            println!("Trade: contract={contract_id} price={price:.2} size={size}");
         }
         _ => {}
     }
@@ -87,6 +90,8 @@ tdx.subscribe_trades(&Contract::stock("MSFT"))?;
 
 std::thread::park(); // block until interrupted
 tdx.stop_streaming();
+    Ok(())
+}
 ```
 ```python [Python]
 from thetadatadx import Credentials, Config, ThetaDataDx
@@ -120,7 +125,7 @@ import (
     "fmt"
     "log"
 
-    thetadatadx "github.com/userFRM/ThetaDataDx/sdks/go"
+    thetadatadx "github.com/userFRM/thetadatadx/sdks/go"
 )
 
 func main() {
@@ -179,17 +184,17 @@ int main() {
         switch (event->kind) {
         case TDX_FPSS_QUOTE: {
             auto& q = event->quote;
-            double bid = tdx::price_to_f64(q.bid, q.price_type);
-            double ask = tdx::price_to_f64(q.ask, q.price_type);
+            
+            
             std::cout << "Quote: contract=" << q.contract_id
-                      << " bid=" << bid << " ask=" << ask << std::endl;
+                      << " bid=" << q.bid << " ask=" << q.ask << std::endl;
             break;
         }
         case TDX_FPSS_TRADE: {
             auto& t = event->trade;
-            double price = tdx::price_to_f64(t.price, t.price_type);
+            
             std::cout << "Trade: contract=" << t.contract_id
-                      << " price=" << price << " size=" << t.size << std::endl;
+                      << " price=" << t.price << " size=" << t.size << std::endl;
             break;
         }
         default: break;

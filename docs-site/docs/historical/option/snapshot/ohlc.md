@@ -16,7 +16,7 @@ Get the latest OHLC (open, high, low, close) snapshot for an option contract.
 let data = tdx.option_snapshot_ohlc("SPY", "20260417", "550", "C").await?;
 for t in &data {
     println!("date={} ms_of_day={} open={:.2} high={:.2} low={:.2} close={:.2} volume={} expiration={} strike={:.2}",
-        t.date, t.ms_of_day, t.open_f64(), t.high_f64(), t.low_f64(), t.close_f64(), t.volume, t.expiration, t.strike);
+        t.date, t.ms_of_day, t.open, t.high, t.low, t.close, t.volume, t.expiration, t.strike);
 }
 ```
 ```python [Python]

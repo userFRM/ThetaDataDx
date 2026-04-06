@@ -136,29 +136,26 @@ pub enum TdxFpssEventKind {
 
 /// `#[repr(C)]` FPSS quote event.
 ///
-/// `bid_f64` / `ask_f64` are pre-decoded from the raw integer + `price_type`.
+/// `bid` / `ask` are pre-decoded to `f64` at parse time.
 #[repr(C)]
 pub struct TdxFpssQuote {
     pub contract_id: i32,
     pub ms_of_day: i32,
     pub bid_size: i32,
     pub bid_exchange: i32,
-    pub bid: i32,
-    pub bid_f64: f64,
+    pub bid: f64,
     pub bid_condition: i32,
     pub ask_size: i32,
     pub ask_exchange: i32,
-    pub ask: i32,
-    pub ask_f64: f64,
+    pub ask: f64,
     pub ask_condition: i32,
-    pub price_type: i32,
     pub date: i32,
     pub received_at_ns: u64,
 }
 
 /// `#[repr(C)]` FPSS trade event.
 ///
-/// `price_f64` is pre-decoded from the raw integer + `price_type`.
+/// `price` is pre-decoded to `f64` at parse time.
 #[repr(C)]
 pub struct TdxFpssTrade {
     pub contract_id: i32,
@@ -171,13 +168,11 @@ pub struct TdxFpssTrade {
     pub condition: i32,
     pub size: i32,
     pub exchange: i32,
-    pub price: i32,
-    pub price_f64: f64,
+    pub price: f64,
     pub condition_flags: i32,
     pub price_flags: i32,
     pub volume_type: i32,
     pub records_back: i32,
-    pub price_type: i32,
     pub date: i32,
     pub received_at_ns: u64,
 }
@@ -197,23 +192,17 @@ pub struct TdxFpssOpenInterest {
 /// `volume` and `count` are `i64` to match the core crate and prevent
 /// overflow on high-volume symbols.
 ///
-/// `open_f64` / `high_f64` / `low_f64` / `close_f64` are pre-decoded
-/// from the raw integers + `price_type`.
+/// All OHLCVC prices are pre-decoded to `f64` at parse time.
 #[repr(C)]
 pub struct TdxFpssOhlcvc {
     pub contract_id: i32,
     pub ms_of_day: i32,
-    pub open: i32,
-    pub open_f64: f64,
-    pub high: i32,
-    pub high_f64: f64,
-    pub low: i32,
-    pub low_f64: f64,
-    pub close: i32,
-    pub close_f64: f64,
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub close: f64,
     pub volume: i64,
     pub count: i64,
-    pub price_type: i32,
     pub date: i32,
     pub received_at_ns: u64,
 }
@@ -290,15 +279,12 @@ const ZERO_QUOTE: TdxFpssQuote = TdxFpssQuote {
     ms_of_day: 0,
     bid_size: 0,
     bid_exchange: 0,
-    bid: 0,
-    bid_f64: 0.0,
+    bid: 0.0,
     bid_condition: 0,
     ask_size: 0,
     ask_exchange: 0,
-    ask: 0,
-    ask_f64: 0.0,
+    ask: 0.0,
     ask_condition: 0,
-    price_type: 0,
     date: 0,
     received_at_ns: 0,
 };
@@ -313,13 +299,11 @@ const ZERO_TRADE: TdxFpssTrade = TdxFpssTrade {
     condition: 0,
     size: 0,
     exchange: 0,
-    price: 0,
-    price_f64: 0.0,
+    price: 0.0,
     condition_flags: 0,
     price_flags: 0,
     volume_type: 0,
     records_back: 0,
-    price_type: 0,
     date: 0,
     received_at_ns: 0,
 };
@@ -333,17 +317,12 @@ const ZERO_OI: TdxFpssOpenInterest = TdxFpssOpenInterest {
 const ZERO_OHLCVC: TdxFpssOhlcvc = TdxFpssOhlcvc {
     contract_id: 0,
     ms_of_day: 0,
-    open: 0,
-    open_f64: 0.0,
-    high: 0,
-    high_f64: 0.0,
-    low: 0,
-    low_f64: 0.0,
-    close: 0,
-    close_f64: 0.0,
+    open: 0.0,
+    high: 0.0,
+    low: 0.0,
+    close: 0.0,
     volume: 0,
     count: 0,
-    price_type: 0,
     date: 0,
     received_at_ns: 0,
 };
@@ -361,10 +340,6 @@ const ZERO_RAW: TdxFpssRawData = TdxFpssRawData {
 fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
     use thetadatadx::fpss::{FpssControl, FpssData, FpssEvent};
 
-    fn price_f64(value: i32, price_type: i32) -> f64 {
-        tdbe::types::price::Price::new(value, price_type).to_f64()
-    }
-
     match event {
         FpssEvent::Data(FpssData::Quote {
             contract_id,
@@ -377,7 +352,6 @@ fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
             ask_exchange,
             ask,
             ask_condition,
-            price_type,
             date,
             received_at_ns,
             ..
@@ -390,14 +364,11 @@ fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
                     bid_size: *bid_size,
                     bid_exchange: *bid_exchange,
                     bid: *bid,
-                    bid_f64: price_f64(*bid, *price_type),
                     bid_condition: *bid_condition,
                     ask_size: *ask_size,
                     ask_exchange: *ask_exchange,
                     ask: *ask,
-                    ask_f64: price_f64(*ask, *price_type),
                     ask_condition: *ask_condition,
-                    price_type: *price_type,
                     date: *date,
                     received_at_ns: *received_at_ns,
                 },
@@ -427,7 +398,6 @@ fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
             price_flags,
             volume_type,
             records_back,
-            price_type,
             date,
             received_at_ns,
             ..
@@ -446,12 +416,10 @@ fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
                     size: *size,
                     exchange: *exchange,
                     price: *price,
-                    price_f64: price_f64(*price, *price_type),
                     condition_flags: *condition_flags,
                     price_flags: *price_flags,
                     volume_type: *volume_type,
                     records_back: *records_back,
-                    price_type: *price_type,
                     date: *date,
                     received_at_ns: *received_at_ns,
                 },
@@ -500,7 +468,6 @@ fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
             close,
             volume,
             count,
-            price_type,
             date,
             received_at_ns,
             ..
@@ -511,16 +478,11 @@ fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
                     contract_id: *contract_id,
                     ms_of_day: *ms_of_day,
                     open: *open,
-                    open_f64: price_f64(*open, *price_type),
                     high: *high,
-                    high_f64: price_f64(*high, *price_type),
                     low: *low,
-                    low_f64: price_f64(*low, *price_type),
                     close: *close,
-                    close_f64: price_f64(*close, *price_type),
                     volume: *volume,
                     count: *count,
-                    price_type: *price_type,
                     date: *date,
                     received_at_ns: *received_at_ns,
                 },

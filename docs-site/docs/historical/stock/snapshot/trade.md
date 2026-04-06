@@ -16,7 +16,7 @@ Latest trade snapshot for one or more stocks. Returns the most recent trade exec
 let data = tdx.stock_snapshot_trade(&["SPY"]).await?;
 for t in &data {
     println!("date={} ms_of_day={} price={:.2} size={} exchange={} condition={}",
-        t.date, t.ms_of_day, t.price_f64(), t.size, t.exchange, t.condition);
+        t.date, t.ms_of_day, t.price, t.size, t.exchange, t.condition);
 }
 ```
 ```python [Python]
@@ -106,8 +106,6 @@ for (const auto& t : data) {
 <div class="param-desc">Records back count</div>
 </div>
 <div class="param">
-<div class="param-header"><code>price_type</code><span class="param-type">i32</span></div>
-<div class="param-desc">Decimal type for price decoding</div>
 </div>
 <div class="param">
 <div class="param-header"><code>date</code><span class="param-type">i32</span></div>

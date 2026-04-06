@@ -16,7 +16,7 @@ Latest NBBO (National Best Bid and Offer) quote snapshot for one or more stocks.
 let data = tdx.stock_snapshot_quote(&["SPY", "MSFT", "GOOGL"]).await?;
 for t in &data {
     println!("date={} ms_of_day={} bid={:.2} bid_size={} ask={:.2} ask_size={} midpoint={:.2}",
-        t.date, t.ms_of_day, t.bid_f64(), t.bid_size, t.ask_f64(), t.ask_size, t.midpoint_f64());
+        t.date, t.ms_of_day, t.bid, t.bid_size, t.ask, t.ask_size, t.midpoint);
 }
 ```
 ```python [Python]
@@ -82,8 +82,6 @@ for (const auto& t : data) {
 <div class="param-desc">Condition codes</div>
 </div>
 <div class="param">
-<div class="param-header"><code>price_type</code><span class="param-type">i32</span></div>
-<div class="param-desc">Decimal type for price decoding</div>
 </div>
 <div class="param">
 <div class="param-header"><code>date</code><span class="param-type">i32</span></div>

@@ -435,14 +435,14 @@ fn serialize_eod_ticks(ticks: &[tdbe::types::tick::EodTick]) -> Value {
             json!({
                 "date": t.date,
                 "ms_of_day": t.ms_of_day,
-                "open": t.open_price().to_f64(),
-                "high": t.high_price().to_f64(),
-                "low": t.low_price().to_f64(),
-                "close": t.close_price().to_f64(),
+                "open": t.open,
+                "high": t.high,
+                "low": t.low,
+                "close": t.close,
                 "volume": t.volume,
                 "count": t.count,
-                "bid": t.bid_price().to_f64(),
-                "ask": t.ask_price().to_f64(),
+                "bid": t.bid,
+                "ask": t.ask,
                 "bid_size": t.bid_size,
                 "ask_size": t.ask_size,
             })
@@ -458,10 +458,10 @@ fn serialize_ohlc_ticks(ticks: &[tdbe::types::tick::OhlcTick]) -> Value {
             json!({
                 "date": t.date,
                 "ms_of_day": t.ms_of_day,
-                "open": t.open_price().to_f64(),
-                "high": t.high_price().to_f64(),
-                "low": t.low_price().to_f64(),
-                "close": t.close_price().to_f64(),
+                "open": t.open,
+                "high": t.high,
+                "low": t.low,
+                "close": t.close,
                 "volume": t.volume,
                 "count": t.count,
             })
@@ -477,7 +477,7 @@ fn serialize_trade_ticks(ticks: &[tdbe::types::tick::TradeTick]) -> Value {
             json!({
                 "date": t.date,
                 "ms_of_day": t.ms_of_day,
-                "price": t.get_price().to_f64(),
+                "price": t.price,
                 "size": t.size,
                 "exchange": t.exchange,
                 "condition": t.condition,
@@ -495,10 +495,10 @@ fn serialize_quote_ticks(ticks: &[tdbe::types::tick::QuoteTick]) -> Value {
             json!({
                 "date": t.date,
                 "ms_of_day": t.ms_of_day,
-                "bid": t.bid_price().to_f64(),
+                "bid": t.bid,
                 "bid_size": t.bid_size,
                 "bid_exchange": t.bid_exchange,
-                "ask": t.ask_price().to_f64(),
+                "ask": t.ask,
                 "ask_size": t.ask_size,
                 "ask_exchange": t.ask_exchange,
             })
@@ -514,14 +514,14 @@ fn serialize_trade_quote_ticks(ticks: &[tdbe::types::tick::TradeQuoteTick]) -> V
             json!({
                 "date": t.date,
                 "ms_of_day": t.ms_of_day,
-                "price": t.trade_price().to_f64(),
+                "price": t.price,
                 "size": t.size,
                 "exchange": t.exchange,
                 "condition": t.condition,
                 "sequence": t.sequence,
-                "bid": t.bid_price().to_f64(),
+                "bid": t.bid,
                 "bid_size": t.bid_size,
-                "ask": t.ask_price().to_f64(),
+                "ask": t.ask,
                 "ask_size": t.ask_size,
             })
         })
@@ -588,7 +588,7 @@ fn serialize_price_ticks(ticks: &[tdbe::types::tick::PriceTick]) -> Value {
         .map(|t| {
             json!({
                 "date": t.date, "ms_of_day": t.ms_of_day,
-                "price": t.get_price().to_f64(),
+                "price": t.price,
             })
         })
         .collect();

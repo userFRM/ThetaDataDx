@@ -33,8 +33,8 @@
 //!     // Runs on the Disruptor consumer thread -- keep it fast.
 //!     // Push to your own queue for heavy processing.
 //!     match event {
-//!         FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, .. }) => { /* decoded fields */ }
-//!         FpssEvent::Data(FpssData::Trade { contract_id, price, size, .. }) => { /* decoded fields */ }
+//!         FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, .. }) => { /* f64 prices */ }
+//!         FpssEvent::Data(FpssData::Trade { contract_id, price, size, .. }) => { /* f64 price */ }
 //!         FpssEvent::Control(_) => { /* lifecycle */ }
 //!         _ => {}
 //!     }
@@ -116,36 +116,27 @@ use self::protocol::{
 /// Tick data events from the FPSS stream.
 ///
 /// These are the hot-path events decoded from FIT wire format and
-/// delta-decompressed. Raw integer price fields are preserved alongside
-/// pre-decoded `f64` convenience fields (e.g. `bid_f64`, `price_f64`).
-///
-/// The `f64` fields are computed via `Price::new(value, price_type).to_f64()`
-/// at decode time so callers don't have to repeat that conversion.
+/// delta-decompressed. All price fields are decoded to `f64` at parse time.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum FpssData {
-    /// Decoded quote tick (code 21). 11 FIT fields + `contract_id`.
+    /// Decoded quote tick (code 21).
     Quote {
         contract_id: i32,
         ms_of_day: i32,
         bid_size: i32,
         bid_exchange: i32,
-        bid: i32,
-        /// Pre-decoded bid price as `f64`.
-        bid_f64: f64,
+        bid: f64,
         bid_condition: i32,
         ask_size: i32,
         ask_exchange: i32,
-        ask: i32,
-        /// Pre-decoded ask price as `f64`.
-        ask_f64: f64,
+        ask: f64,
         ask_condition: i32,
-        price_type: i32,
         date: i32,
         /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
         received_at_ns: u64,
     },
-    /// Decoded trade tick (code 22). 16 FIT fields + `contract_id`.
+    /// Decoded trade tick (code 22).
     Trade {
         contract_id: i32,
         ms_of_day: i32,
@@ -157,19 +148,16 @@ pub enum FpssData {
         condition: i32,
         size: i32,
         exchange: i32,
-        price: i32,
-        /// Pre-decoded trade price as `f64`.
-        price_f64: f64,
+        price: f64,
         condition_flags: i32,
         price_flags: i32,
         volume_type: i32,
         records_back: i32,
-        price_type: i32,
         date: i32,
         /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
         received_at_ns: u64,
     },
-    /// Decoded open interest tick (code 23). 3 FIT fields + `contract_id`.
+    /// Decoded open interest tick (code 23).
     OpenInterest {
         contract_id: i32,
         ms_of_day: i32,
@@ -184,21 +172,12 @@ pub enum FpssData {
     Ohlcvc {
         contract_id: i32,
         ms_of_day: i32,
-        open: i32,
-        /// Pre-decoded open price as `f64`.
-        open_f64: f64,
-        high: i32,
-        /// Pre-decoded high price as `f64`.
-        high_f64: f64,
-        low: i32,
-        /// Pre-decoded low price as `f64`.
-        low_f64: f64,
-        close: i32,
-        /// Pre-decoded close price as `f64`.
-        close_f64: f64,
+        open: f64,
+        high: f64,
+        low: f64,
+        close: f64,
         volume: i64,
         count: i64,
-        price_type: i32,
         date: i32,
         /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
         received_at_ns: u64,
@@ -1734,15 +1713,12 @@ fn decode_frame(
                             ms_of_day: f[0],
                             bid_size: f[1],
                             bid_exchange: f[2],
-                            bid: f[3],
-                            bid_f64: Price::new(f[3], pt).to_f64(),
+                            bid: Price::new(f[3], pt).to_f64(),
                             bid_condition: f[4],
                             ask_size: f[5],
                             ask_exchange: f[6],
-                            ask: f[7],
-                            ask_f64: Price::new(f[7], pt).to_f64(),
+                            ask: Price::new(f[7], pt).to_f64(),
                             ask_condition: f[8],
-                            price_type: pt,
                             date: f[10],
                             received_at_ns,
                         })),
@@ -1792,13 +1768,11 @@ fn decode_frame(
                             condition: f[3],
                             size: f[2],
                             exchange: f[5],
-                            price: f[4],
-                            price_f64: Price::new(f[4], pt).to_f64(),
+                            price: Price::new(f[4], pt).to_f64(),
                             condition_flags: 0,
                             price_flags: 0,
                             volume_type: 0,
                             records_back: 0,
-                            price_type: pt,
                             date: f[7],
                             received_at_ns,
                         })
@@ -1815,13 +1789,11 @@ fn decode_frame(
                             condition: f[6],
                             size: f[7],
                             exchange: f[8],
-                            price: f[9],
-                            price_f64: Price::new(f[9], pt).to_f64(),
+                            price: Price::new(f[9], pt).to_f64(),
                             condition_flags: f[10],
                             price_flags: f[11],
                             volume_type: f[12],
                             records_back: f[13],
-                            price_type: pt,
                             date: f[15],
                             received_at_ns,
                         })
@@ -1845,17 +1817,12 @@ fn decode_frame(
                                 Some(FpssEvent::Data(FpssData::Ohlcvc {
                                     contract_id,
                                     ms_of_day: acc.ms_of_day,
-                                    open: acc.open,
-                                    open_f64: Price::new(acc.open, apt).to_f64(),
-                                    high: acc.high,
-                                    high_f64: Price::new(acc.high, apt).to_f64(),
-                                    low: acc.low,
-                                    low_f64: Price::new(acc.low, apt).to_f64(),
-                                    close: acc.close,
-                                    close_f64: Price::new(acc.close, apt).to_f64(),
+                                    open: Price::new(acc.open, apt).to_f64(),
+                                    high: Price::new(acc.high, apt).to_f64(),
+                                    low: Price::new(acc.low, apt).to_f64(),
+                                    close: Price::new(acc.close, apt).to_f64(),
                                     volume: acc.volume,
                                     count: acc.count,
-                                    price_type: apt,
                                     date: acc.date,
                                     received_at_ns,
                                 }))
@@ -1927,17 +1894,12 @@ fn decode_frame(
                         Some(FpssEvent::Data(FpssData::Ohlcvc {
                             contract_id,
                             ms_of_day: f[0],
-                            open: f[1],
-                            open_f64: Price::new(f[1], pt).to_f64(),
-                            high: f[2],
-                            high_f64: Price::new(f[2], pt).to_f64(),
-                            low: f[3],
-                            low_f64: Price::new(f[3], pt).to_f64(),
-                            close: f[4],
-                            close_f64: Price::new(f[4], pt).to_f64(),
+                            open: Price::new(f[1], pt).to_f64(),
+                            high: Price::new(f[2], pt).to_f64(),
+                            low: Price::new(f[3], pt).to_f64(),
+                            close: Price::new(f[4], pt).to_f64(),
                             volume: i64::from(f[5]),
                             count: i64::from(f[6]),
-                            price_type: pt,
                             date: f[8],
                             received_at_ns,
                         })),
@@ -2408,13 +2370,11 @@ mod tests {
             condition: 0,
             size: 100,
             exchange: 0,
-            price: 15025,
-            price_f64: Price::new(15025, 8).to_f64(),
+            price: Price::new(15025, 8).to_f64(),
             condition_flags: 0,
             price_flags: 0,
             volume_type: 0,
             records_back: 0,
-            price_type: 8,
             date: 20240315,
             received_at_ns: 0,
         });
@@ -2423,7 +2383,7 @@ mod tests {
                 contract_id, price, ..
             }) => {
                 assert_eq!(*contract_id, 42);
-                assert_eq!(*price, 15025);
+                assert!((*price - 150.25).abs() < f64::EPSILON);
             }
             other => panic!("expected Data(Trade), got {other:?}"),
         }
@@ -2546,13 +2506,11 @@ mod tests {
             condition: f[3],
             size: f[2],
             exchange: f[5],
-            price: f[4],
-            price_f64: Price::new(f[4], f[6]).to_f64(),
+            price: Price::new(f[4], f[6]).to_f64(),
             condition_flags: 0,
             price_flags: 0,
             volume_type: 0,
             records_back: 0,
-            price_type: f[6],
             date: f[7],
             received_at_ns: 0,
         };
@@ -2566,7 +2524,6 @@ mod tests {
                 condition,
                 price,
                 exchange,
-                price_type,
                 date,
                 ext_condition1,
                 ext_condition2,
@@ -2583,9 +2540,8 @@ mod tests {
                 assert_eq!(sequence, 12345);
                 assert_eq!(size, 50);
                 assert_eq!(condition, 6);
-                assert_eq!(price, 5500000);
+                assert_eq!(price, Price::new(5500000, 6).to_f64());
                 assert_eq!(exchange, 57);
-                assert_eq!(price_type, 6);
                 assert_eq!(date, 20250428);
                 // 8-field trades zero out extended fields.
                 assert_eq!(ext_condition1, 0);
@@ -2676,13 +2632,11 @@ mod tests {
             condition: f[6],
             size: f[7],
             exchange: f[8],
-            price: f[9],
-            price_f64: Price::new(f[9], f[14]).to_f64(),
+            price: Price::new(f[9], f[14]).to_f64(),
             condition_flags: f[10],
             price_flags: f[11],
             volume_type: f[12],
             records_back: f[13],
-            price_type: f[14],
             date: f[15],
             received_at_ns: 0,
         };
@@ -2704,7 +2658,6 @@ mod tests {
                 price_flags,
                 volume_type,
                 records_back,
-                price_type,
                 date,
                 ..
             } => {
@@ -2718,12 +2671,11 @@ mod tests {
                 assert_eq!(condition, 15);
                 assert_eq!(size, 500);
                 assert_eq!(exchange, 57);
-                assert_eq!(price, 18750000);
+                assert_eq!(price, Price::new(18750000, 8).to_f64());
                 assert_eq!(condition_flags, 7);
                 assert_eq!(price_flags, 3);
                 assert_eq!(volume_type, 1);
                 assert_eq!(records_back, 0);
-                assert_eq!(price_type, 8);
                 assert_eq!(date, 20250428);
             }
             other => panic!("expected Trade, got {other:?}"),
