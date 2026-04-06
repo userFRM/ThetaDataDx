@@ -142,8 +142,8 @@ pub struct OpenInterestTick {
     pub right: i32,
 }
 
-#[derive(Debug, Clone)]
 /// Option contract specification.
+#[derive(Debug, Clone)]
 pub struct OptionContract {
     pub root: String,
     pub expiration: i32,

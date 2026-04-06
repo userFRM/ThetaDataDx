@@ -190,7 +190,6 @@ type cEodTick struct {
 	BidExchange  int32
 	Bid          float64
 	BidCondition int32
-	_pad1        int32
 	AskSize      int32
 	AskExchange  int32
 	_pad1        int32
