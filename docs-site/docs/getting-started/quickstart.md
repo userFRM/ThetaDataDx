@@ -159,7 +159,7 @@ int main() {
 ]
 ```
 
-> SPY end-of-day data. Prices shown as f64 (decoded from fixed-point). All endpoints return structured data with the same JSON-like shape across SDKs.
+> SPY end-of-day data. All prices are `f64`. All endpoints return structured data with the same JSON-like shape across SDKs.
 
 ## With pandas DataFrames (Python)
 

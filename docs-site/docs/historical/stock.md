@@ -51,7 +51,7 @@ let ticks: Vec<TradeTick> = tdx.stock_snapshot_trade(&["AAPL"]).await?;
 // Latest NBBO quote snapshot
 let ticks: Vec<QuoteTick> = tdx.stock_snapshot_quote(&["AAPL", "MSFT", "GOOGL"]).await?;
 for q in &ticks {
-    println!("bid={} ask={}", q.bid_price(), q.ask_price());
+    println!("bid={} ask={}", q.bid, q.ask);
 }
 
 // Latest market value snapshot
@@ -106,8 +106,8 @@ Snapshot endpoints accept multiple symbols in a single call. Batch your requests
 let eod: Vec<EodTick> = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
 for t in &eod {
     println!("{}: O={} H={} L={} C={} V={}",
-        t.date, t.open_price(), t.high_price(),
-        t.low_price(), t.close_price(), t.volume);
+        t.date, t.open, t.high,
+        t.low, t.close, t.volume);
 }
 
 // Intraday OHLC bars (single date)

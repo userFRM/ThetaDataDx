@@ -56,7 +56,7 @@ for (const auto& t : data) {
 
 ## Response
 
-Returns a `Vec<InterestRateTick>` with rate data per trading day:
+Returns an array of InterestRateTick records with rate data per trading day:
 
 <div class="param-list">
 <div class="param">

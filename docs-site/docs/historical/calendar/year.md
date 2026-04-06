@@ -52,7 +52,7 @@ for (const auto& t : data) {
 
 ## Response
 
-Returns a `Vec<CalendarDay>` with calendar info for non-standard days in the year (holidays, early closes):
+Returns an array of CalendarDay records with calendar info for non-standard days in the year (holidays, early closes):
 
 <div class="param-list">
 <div class="param">

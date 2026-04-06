@@ -209,7 +209,7 @@ auto mv = client.stock_snapshot_market_value({"AAPL"});
 | `venue` | string | No | Data venue filter |
 | `min_time` | string | No | Minimum time of day (ms from midnight) |
 
-**Returns:** `Vec<MarketValueTick>` with market cap, shares outstanding, enterprise value, book value, free float.
+**Returns:** Array of MarketValueTick records with market cap, shares outstanding, enterprise value, book value, free float.
 
 ---
 
@@ -399,7 +399,7 @@ auto tq = client.stock_history_trade_quote("AAPL", "20240315");
 | `exclusive` | bool | No | Exclusive time bounds |
 | `venue` | string | No | Data venue filter |
 
-**Returns:** `Vec<TradeQuoteTick>` with combined trade + quote fields.
+**Returns:** Array of TradeQuoteTick records with combined trade + quote fields.
 
 **Tier:** Pro
 
@@ -613,7 +613,7 @@ auto contracts = client.option_list_contracts("TRADE", "SPY", "20240315");
 | `date` | string | Yes | Date (`YYYYMMDD`) |
 | `max_dte` | int | No | Maximum days to expiration filter |
 
-**Returns:** `Vec<OptionContract>` with root, expiration, strike, right.
+**Returns:** Array of OptionContract records with root, expiration, strike, right.
 
 ---
 
@@ -744,7 +744,7 @@ auto oi = client.option_snapshot_open_interest("SPY", "20241220", "500", "C");
 | `strike_range` | int | No | Strike range filter |
 | `min_time` | string | No | Minimum time of day (ms from midnight) |
 
-**Returns:** `Vec<OpenInterestTick>` with ms_of_day, open_interest, date.
+**Returns:** Array of OpenInterestTick records with ms_of_day, open_interest, date.
 
 ---
 
@@ -777,7 +777,7 @@ auto mv = client.option_snapshot_market_value("SPY", "20241220", "500", "C");
 | `strike_range` | int | No | Strike range filter |
 | `min_time` | string | No | Minimum time of day (ms from midnight) |
 
-**Returns:** `Vec<MarketValueTick>` with market cap, shares outstanding, enterprise value, book value, free float.
+**Returns:** Array of MarketValueTick records with market cap, shares outstanding, enterprise value, book value, free float.
 
 ---
 
@@ -816,7 +816,7 @@ auto iv = client.option_snapshot_greeks_implied_volatility("SPY", "20241220", "5
 | `min_time` | string | No | Minimum time of day (ms from midnight) |
 | `use_market_value` | bool | No | Use market value instead of last trade |
 
-**Returns:** `Vec<IvTick>` with implied_volatility, iv_error.
+**Returns:** Array of IvTick records with implied_volatility, iv_error.
 
 **Tier:** Pro
 
@@ -857,7 +857,7 @@ auto greeks = client.option_snapshot_greeks_all("SPY", "20241220", "500", "C");
 | `min_time` | string | No | Minimum time of day |
 | `use_market_value` | bool | No | Use market value instead of last trade |
 
-**Returns:** `Vec<GreeksTick>` with all 22 Greeks.
+**Returns:** Array of GreeksTick records with all 22 Greeks.
 
 **Tier:** Pro
 
@@ -884,7 +884,7 @@ auto g = client.option_snapshot_greeks_first_order("SPY", "20241220", "500", "C"
 
 Parameters are identical to [option_snapshot_greeks_all](#option_snapshot_greeks_all).
 
-**Returns:** `Vec<GreeksTick>` with first-order Greeks (delta, theta, vega, rho).
+**Returns:** Array of GreeksTick records with first-order Greeks (delta, theta, vega, rho).
 
 **Tier:** Pro
 
@@ -911,7 +911,7 @@ auto g = client.option_snapshot_greeks_second_order("SPY", "20241220", "500", "C
 
 Parameters are identical to [option_snapshot_greeks_all](#option_snapshot_greeks_all).
 
-**Returns:** `Vec<GreeksTick>` with second-order Greeks (gamma, vanna, charm, vomma).
+**Returns:** Array of GreeksTick records with second-order Greeks (gamma, vanna, charm, vomma).
 
 **Tier:** Pro
 
@@ -938,7 +938,7 @@ auto g = client.option_snapshot_greeks_third_order("SPY", "20241220", "500", "C"
 
 Parameters are identical to [option_snapshot_greeks_all](#option_snapshot_greeks_all).
 
-**Returns:** `Vec<GreeksTick>` with third-order Greeks (speed, zomma, color, ultima).
+**Returns:** Array of GreeksTick records with third-order Greeks (speed, zomma, color, ultima).
 
 **Tier:** Pro
 
@@ -1159,7 +1159,7 @@ auto oi = client.option_history_open_interest("SPY", "20241220", "500", "C", "20
 | `max_dte` | int | No | Maximum days to expiration |
 | `strike_range` | int | No | Strike range filter |
 
-**Returns:** `Vec<OpenInterestTick>` with ms_of_day, open_interest, date.
+**Returns:** Array of OpenInterestTick records with ms_of_day, open_interest, date.
 
 ---
 
@@ -1200,7 +1200,7 @@ auto g = client.option_history_greeks_eod("SPY", "20241220", "500", "C", "202401
 | `max_dte` | int | No | Maximum days to expiration |
 | `strike_range` | int | No | Strike range filter |
 
-**Returns:** `Vec<GreeksTick>` with EOD Greeks per date.
+**Returns:** Array of GreeksTick records with EOD Greeks per date.
 
 **Tier:** Pro
 
@@ -1241,7 +1241,7 @@ auto g = client.option_history_greeks_all("SPY", "20241220", "500", "C", "202403
 | `version` | string | No | Greeks calculation version |
 | `strike_range` | int | No | Strike range filter |
 
-**Returns:** `Vec<GreeksTick>` with all 22 Greeks at each sampled point.
+**Returns:** Array of GreeksTick records with all 22 Greeks at each sampled point.
 
 **Tier:** Pro
 
@@ -1282,7 +1282,7 @@ auto g = client.option_history_trade_greeks_all("SPY", "20241220", "500", "C", "
 | `max_dte` | int | No | Maximum days to expiration |
 | `strike_range` | int | No | Strike range filter |
 
-**Returns:** `Vec<GreeksTick>` with all 22 Greeks per trade.
+**Returns:** Array of GreeksTick records with all 22 Greeks per trade.
 
 **Tier:** Pro
 
@@ -1311,7 +1311,7 @@ auto g = client.option_history_greeks_first_order("SPY", "20241220", "500", "C",
 
 Parameters are identical to [option_history_greeks_all](#option_history_greeks_all).
 
-**Returns:** `Vec<GreeksTick>` with first-order Greeks at each sampled point.
+**Returns:** Array of GreeksTick records with first-order Greeks at each sampled point.
 
 **Tier:** Pro
 
@@ -1340,7 +1340,7 @@ auto g = client.option_history_trade_greeks_first_order("SPY", "20241220", "500"
 
 Parameters are identical to [option_history_trade_greeks_all](#option_history_trade_greeks_all).
 
-**Returns:** `Vec<GreeksTick>` with first-order Greeks per trade.
+**Returns:** Array of GreeksTick records with first-order Greeks per trade.
 
 **Tier:** Pro
 
@@ -1369,7 +1369,7 @@ auto g = client.option_history_greeks_second_order("SPY", "20241220", "500", "C"
 
 Parameters are identical to [option_history_greeks_all](#option_history_greeks_all).
 
-**Returns:** `Vec<GreeksTick>` with second-order Greeks at each sampled point.
+**Returns:** Array of GreeksTick records with second-order Greeks at each sampled point.
 
 **Tier:** Pro
 
@@ -1398,7 +1398,7 @@ auto g = client.option_history_trade_greeks_second_order("SPY", "20241220", "500
 
 Parameters are identical to [option_history_trade_greeks_all](#option_history_trade_greeks_all).
 
-**Returns:** `Vec<GreeksTick>` with second-order Greeks per trade.
+**Returns:** Array of GreeksTick records with second-order Greeks per trade.
 
 **Tier:** Pro
 
@@ -1427,7 +1427,7 @@ auto g = client.option_history_greeks_third_order("SPY", "20241220", "500", "C",
 
 Parameters are identical to [option_history_greeks_all](#option_history_greeks_all).
 
-**Returns:** `Vec<GreeksTick>` with third-order Greeks at each sampled point.
+**Returns:** Array of GreeksTick records with third-order Greeks at each sampled point.
 
 **Tier:** Pro
 
@@ -1456,7 +1456,7 @@ auto g = client.option_history_trade_greeks_third_order("SPY", "20241220", "500"
 
 Parameters are identical to [option_history_trade_greeks_all](#option_history_trade_greeks_all).
 
-**Returns:** `Vec<GreeksTick>` with third-order Greeks per trade.
+**Returns:** Array of GreeksTick records with third-order Greeks per trade.
 
 **Tier:** Pro
 
@@ -1485,7 +1485,7 @@ auto iv = client.option_history_greeks_implied_volatility("SPY", "20241220", "50
 
 Parameters are identical to [option_history_greeks_all](#option_history_greeks_all).
 
-**Returns:** `Vec<IvTick>` with implied volatility at each sampled point.
+**Returns:** Array of IvTick records with implied volatility at each sampled point.
 
 **Tier:** Pro
 
@@ -1514,7 +1514,7 @@ auto iv = client.option_history_trade_greeks_implied_volatility("SPY", "20241220
 
 Parameters are identical to [option_history_trade_greeks_all](#option_history_trade_greeks_all).
 
-**Returns:** `Vec<IvTick>` with IV per trade.
+**Returns:** Array of IvTick records with IV per trade.
 
 **Tier:** Pro
 
@@ -1700,7 +1700,7 @@ auto prices = client.index_snapshot_price({"SPX"});
 | `symbols` | string[] | Yes | One or more index symbols |
 | `min_time` | string | No | Minimum time of day (ms from midnight) |
 
-**Returns:** `Vec<PriceTick>` with ms_of_day, price, date.
+**Returns:** Array of PriceTick records with ms_of_day, price, date.
 
 ---
 
@@ -1728,7 +1728,7 @@ auto mv = client.index_snapshot_market_value({"SPX"});
 | `symbols` | string[] | Yes | One or more index symbols |
 | `min_time` | string | No | Minimum time of day (ms from midnight) |
 
-**Returns:** `Vec<MarketValueTick>` with market cap, shares outstanding, enterprise value, book value, free float.
+**Returns:** Array of MarketValueTick records with market cap, shares outstanding, enterprise value, book value, free float.
 
 ---
 
@@ -1820,7 +1820,7 @@ auto prices = client.index_history_price("SPX", "20240315", "60000");
 | `start_time` | string | No | Start time (ms from midnight) |
 | `end_time` | string | No | End time (ms from midnight) |
 
-**Returns:** `Vec<PriceTick>` with price at each sampled point.
+**Returns:** Array of PriceTick records with price at each sampled point.
 
 ---
 
@@ -1850,7 +1850,7 @@ auto prices = client.index_at_time_price("SPX", "20240101", "20240301", "3420000
 | `end_date` | string | Yes | End date (`YYYYMMDD`) |
 | `time_of_day` | string | Yes | Ms from midnight ET |
 
-**Returns:** `Vec<PriceTick>` with one price per date.
+**Returns:** Array of PriceTick records with one price per date.
 
 ---
 
@@ -1877,7 +1877,7 @@ auto info = client.calendar_open_today();
 
 **Parameters:** None
 
-**Returns:** `Vec<CalendarDay>` with is_open, open_time, close_time.
+**Returns:** Array of CalendarDay records with is_open, open_time, close_time.
 
 ---
 
@@ -1904,7 +1904,7 @@ auto info = client.calendar_on_date("20240315");
 |-----------|------|----------|-------------|
 | `date` | string | Yes | Date (`YYYYMMDD`) |
 
-**Returns:** `Vec<CalendarDay>` with calendar info for the date.
+**Returns:** Array of CalendarDay records with calendar info for the date.
 
 ---
 
@@ -1931,7 +1931,7 @@ auto cal = client.calendar_year("2024");
 |-----------|------|----------|-------------|
 | `year` | string | Yes | 4-digit year (e.g. `"2024"`) |
 
-**Returns:** `Vec<CalendarDay>` with calendar info for every trading day.
+**Returns:** Array of CalendarDay records with calendar info for every trading day.
 
 ---
 
@@ -1962,7 +1962,7 @@ auto rates = client.interest_rate_history_eod("SOFR", "20240101", "20240301");
 | `start_date` | string | Yes | Start date (`YYYYMMDD`) |
 | `end_date` | string | Yes | End date (`YYYYMMDD`) |
 
-**Returns:** `Vec<InterestRateTick>` with rate per date.
+**Returns:** Array of InterestRateTick records with rate per date.
 
 ---
 
@@ -2289,7 +2289,7 @@ For historical endpoints that can return millions of rows, `_stream` variants pr
 tdx.stock_history_trade_stream("AAPL", "20240315")
     .stream(|trades: &[TradeTick]| {
         for t in trades {
-            println!("{}: {}", t.date, t.get_price());
+            println!("{}: {}", t.date, t.price);
         }
     }).await?;
 ```
@@ -2461,7 +2461,7 @@ Result of `all_greeks()`. All fields are `f64`.
 
 ### Price
 
-Fixed-point price with variable decimal precision.
+Internal fixed-point price type used for wire-level decoding. All public tick fields are `f64`.
 
 ```
 real_price = value * 10^(price_type - 10)
@@ -2496,7 +2496,7 @@ Option right: `Call`, `Put`
 - `from_char('C')` / `from_char('P')` - parse from character
 - `as_char()` - convert to `'C'` or `'P'`
 
-**Go SDK:** The `Right` field on all public tick structs is a `string` (`"C"`, `"P"`, or `""`) instead of `i32`. The raw integer value is available as `RightRaw`. Use `RightStr(code int32)` for manual conversion.
+**Go SDK:** The `Right` field on all public tick structs is a `string` (`"C"`, `"P"`, or `""`) instead of `i32`. Use `RightStr(code int32)` for manual conversion.
 
 ### StreamResponseType
 

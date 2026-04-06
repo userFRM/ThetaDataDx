@@ -11,7 +11,7 @@ Each SDK exposes FPSS differently:
 
 - **Rust** -- Fully synchronous callback model. Events dispatched through an LMAX Disruptor ring buffer. No Tokio on the streaming hot path.
 - **Python** -- Polling model with `next_event()`. Events returned as Python dicts with all fields.
-- **Go** -- Polling model with `NextEvent()`. Events returned as typed `*FpssEvent` structs. Price fields are pre-decoded to `float64`; raw integers available as `*Raw` fields.
+- **Go** -- Polling model with `NextEvent()`. Events returned as typed `*FpssEvent` structs. All price fields are `float64` -- decoded during parsing.
 - **C++** -- Polling model with `next_event()`. Events returned as `FpssEventPtr` (`unique_ptr<TdxFpssEvent>`, RAII). `#[repr(C)]` layout-compatible structs.
 
 ::: warning No JSON in FFI

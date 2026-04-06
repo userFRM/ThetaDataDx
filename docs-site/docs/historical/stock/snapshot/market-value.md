@@ -76,4 +76,4 @@ for (const auto& t : data) {
 ## Notes
 
 - Accepts multiple symbols in a single call.
-- Returns `Vec<MarketValueTick>` in Rust.
+- Returns an array of MarketValueTick records (typed per SDK).

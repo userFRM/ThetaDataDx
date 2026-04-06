@@ -7,7 +7,7 @@ description: Intraday price history for an index.
 
 <TierBadge tier="standard" />
 
-Retrieve intraday price history for an index on a single date at a specified interval. Returns price data as `Vec<PriceTick>`.
+Retrieve intraday price history for an index on a single date at a specified interval.
 
 ## Code Example
 
@@ -64,7 +64,7 @@ for (const auto& t : data) {
 
 ## Response
 
-Returns a `Vec<PriceTick>` with price and time fields:
+Returns an array of PriceTick records with price and time fields:
 
 <div class="param-list">
 <div class="param">
@@ -96,6 +96,6 @@ Returns a `Vec<PriceTick>` with price and time fields:
 
 ## Notes
 
-- Returns `Vec<PriceTick>` in Rust.
+- Returns an array of PriceTick records (typed per SDK).
 - For OHLC-structured data across a date range, use [index_history_ohlc](./ohlc) instead.
 - Operates on a single date only. For multi-day queries, use [index_history_eod](./eod) or [index_history_ohlc](./ohlc).

@@ -87,7 +87,7 @@ for (const auto& t : data) {
 </div>
 <div class="param">
 <div class="param-header"><code>price</code><span class="param-type">i32</span></div>
-<div class="param-desc">Fixed-point price. Use <code>get_price()</code> for decoded <code>f64</code>.</div>
+<div class="param-desc">Trade price (<code>f64</code>, decoded at parse time).</div>
 </div>
 <div class="param">
 <div class="param-header"><code>condition_flags</code><span class="param-type">i32</span></div>
@@ -113,7 +113,7 @@ for (const auto& t : data) {
 </div>
 </div>
 
-Helper methods: `get_price()`, `is_cancelled()`, `regular_trading_hours()`, `is_seller()`, `is_incremental_volume()`
+Helper methods: `is_cancelled()`, `regular_trading_hours()`, `is_seller()`, `is_incremental_volume()`
 
 
 ### Sample Response
@@ -128,4 +128,4 @@ Helper methods: `get_price()`, `is_cancelled()`, `regular_trading_hours()`, `is_
 ## Notes
 
 - Accepts multiple symbols in a single call.
-- Prices are stored as fixed-point integers. Use the `get_price()` helper to get the decoded float value.
+- All price fields are `f64` -- decoded during parsing.
