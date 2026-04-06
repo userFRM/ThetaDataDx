@@ -235,29 +235,29 @@ defer client.Close()
 
 | Type | Fields | Description |
 |------|--------|-------------|
-| `EodTick` | MsOfDay, Open, High, Low, Close, Volume, Count, Bid, Ask, Date, **Expiration, Strike, Right (string), RightRaw (int32), StrikePriceType** | End-of-day bar |
-| `OhlcTick` | MsOfDay, Open, High, Low, Close, Volume, Count, Date, **Expiration, Strike, Right (string), RightRaw (int32), StrikePriceType** | OHLC bar |
-| `TradeTick` | MsOfDay, Sequence, Condition, Size, Exchange, Price (float64), PriceRaw, ConditionFlags, PriceFlags, VolumeType, RecordsBack, Date, **Expiration, Strike, Right (string), RightRaw (int32), StrikePriceType** | Individual trade |
-| `QuoteTick` | MsOfDay, BidSize, BidExchange, Bid, BidCondition, AskSize, AskExchange, Ask, AskCondition, Date, **Expiration, Strike, Right (string), RightRaw (int32), StrikePriceType** | NBBO quote |
-| `TradeQuoteTick` | All TradeTick fields + QuoteMsOfDay, BidSize, BidExchange, Bid, BidCondition, AskSize, AskExchange, Ask, AskCondition, Date, **Expiration, Strike, Right (string), RightRaw (int32), StrikePriceType** | Combined trade+quote |
+| `EodTick` | MsOfDay, Open, High, Low, Close, Volume, Count, Bid, Ask, Date, **Expiration, Strike (float64), Right (string)** | End-of-day bar |
+| `OhlcTick` | MsOfDay, Open, High, Low, Close, Volume, Count, Date, **Expiration, Strike (float64), Right (string)** | OHLC bar |
+| `TradeTick` | MsOfDay, Sequence, Condition, Size, Exchange, Price (float64), ConditionFlags, PriceFlags, VolumeType, RecordsBack, Date, **Expiration, Strike (float64), Right (string)** | Individual trade |
+| `QuoteTick` | MsOfDay, BidSize, BidExchange, Bid, BidCondition, AskSize, AskExchange, Ask, AskCondition, Midpoint, Date, **Expiration, Strike (float64), Right (string)** | NBBO quote |
+| `TradeQuoteTick` | All TradeTick fields + QuoteMsOfDay, BidSize, BidExchange, Bid, BidCondition, AskSize, AskExchange, Ask, AskCondition, Date, **Expiration, Strike (float64), Right (string)** | Combined trade+quote |
 
 #### Derived Types
 
 | Type | Fields | Description |
 |------|--------|-------------|
-| `OpenInterestTick` | MsOfDay, OpenInterest, Date, **Expiration, Strike, Right (string), RightRaw (int32), StrikePriceType** | Open interest data point |
-| `MarketValueTick` | MsOfDay, MarketCap, SharesOut, EntValue, BookValue, FreeFloat, Date, **Expiration, Strike, Right (string), RightRaw (int32), StrikePriceType** | Market value data |
-| `GreeksTick` | MsOfDay, Value, Delta, Gamma, Theta, Vega, Rho, IV, IVError, Vanna, Charm, Vomma, Veta, Speed, Zomma, Color, Ultima, D1, D2, DualDelta, DualGamma, Epsilon, Lambda, Vera, Date, **Expiration, Strike, Right (string), RightRaw (int32), StrikePriceType** | Greeks time series |
-| `IVTick` | MsOfDay, IV, IVError, Date, **Expiration, Strike, Right (string), RightRaw (int32), StrikePriceType** | Implied volatility data point |
-| `SnapshotTradeTick` | MsOfDay, Sequence, Size, Condition, Price (float64), PriceRaw, Date, **Expiration, Strike, Right (string), RightRaw (int32), StrikePriceType** | Snapshot trade |
-| `PriceTick` | MsOfDay, Price (float64), PriceRaw, Date | Price data point (indices) |
+| `OpenInterestTick` | MsOfDay, OpenInterest, Date, **Expiration, Strike (float64), Right (string)** | Open interest data point |
+| `MarketValueTick` | MsOfDay, MarketCap, SharesOut, EntValue, BookValue, FreeFloat, Date, **Expiration, Strike (float64), Right (string)** | Market value data |
+| `GreeksTick` | MsOfDay, ImpliedVolatility, Delta, Gamma, Theta, Vega, Rho, IVError, Vanna, Charm, Vomma, Veta, Speed, Zomma, Color, Ultima, D1, D2, DualDelta, DualGamma, Epsilon, Lambda, Vera, Date, **Expiration, Strike (float64), Right (string)** | Greeks time series |
+| `IVTick` | MsOfDay, ImpliedVolatility, IVError, Date, **Expiration, Strike (float64), Right (string)** | Implied volatility data point |
+| `SnapshotTradeTick` | MsOfDay, Sequence, Size, Condition, Price (float64), Date, **Expiration, Strike (float64), Right (string)** | Snapshot trade |
+| `PriceTick` | MsOfDay, Price (float64), Date | Price data point (indices) |
 | `CalendarDay` | Date, IsOpen, OpenTime, CloseTime, Status | Market calendar day |
 | `InterestRate` | Date, Rate | Interest rate data point |
-| `Contract` | Symbol, Expiration, Strike, Right (string), RightRaw | Option contract identifier |
+| `Contract` | Symbol, Expiration, Strike (float64), Right (string) | Option contract identifier |
 
-**Contract identification fields** (bold above): `Expiration`, `Strike`, `Right`, `StrikePriceType` are populated by the server on wildcard queries (pass `"0"` for expiration/strike). On single-contract queries these fields are zero/empty.
+**Contract identification fields** (bold above): `Expiration`, `Strike` (float64), `Right` (string) are populated by the server on wildcard queries (pass `"0"` for expiration/strike). On single-contract queries these fields are zero/empty.
 
-**Right field**: In the Go SDK, `Right` is a human-readable `string` (`"C"` for call, `"P"` for put, `""` if not set). The raw integer value (67/80/0) is available as `RightRaw` for power users who need it. The `RightStr()` helper function performs this conversion and is exported for use with custom data.
+**Right field**: In the Go SDK, `Right` is a human-readable `string` (`"C"` for call, `"P"` for put, `""` if not set).
 
 ## FPSS Streaming
 
@@ -324,7 +324,7 @@ func main() {
 }
 ```
 
-Prices in streaming events are pre-decoded to `float64`. Raw integer values are available as `BidRaw`/`AskRaw`/`PriceRaw`/`OpenRaw`/etc. for cases where exact integer arithmetic is needed. The `PriceToF64(value, priceType)` helper remains exported for custom decoding.
+All prices in streaming events are `float64` -- decoded during parsing. No `PriceType` in the public API.
 
 ### FpssClient API
 
@@ -352,10 +352,10 @@ Prices in streaming events are pre-decoded to `float64`. Raw integer values are 
 
 | Type | Fields | Used when |
 |------|--------|-----------|
-| `FpssQuote` | ContractID, MsOfDay, BidSize, BidExchange, Bid (float64), BidRaw, BidCondition, AskSize, AskExchange, Ask (float64), AskRaw, AskCondition, Date, ReceivedAtNs | `Kind == FpssQuoteEvent` |
-| `FpssTrade` | ContractID, MsOfDay, Sequence, ExtCondition1-4, Condition, Size, Exchange, Price (float64), PriceRaw, ConditionFlags, PriceFlags, VolumeType, RecordsBack, Date, ReceivedAtNs | `Kind == FpssTradeEvent` |
+| `FpssQuote` | ContractID, MsOfDay, BidSize, BidExchange, Bid (float64), BidCondition, AskSize, AskExchange, Ask (float64), AskCondition, Date, ReceivedAtNs | `Kind == FpssQuoteEvent` |
+| `FpssTrade` | ContractID, MsOfDay, Sequence, ExtCondition1-4, Condition, Size, Exchange, Price (float64), ConditionFlags, PriceFlags, VolumeType, RecordsBack, Date, ReceivedAtNs | `Kind == FpssTradeEvent` |
 | `FpssOpenInterestData` | ContractID, MsOfDay, OpenInterest, Date, ReceivedAtNs | `Kind == FpssOpenInterestEvent` |
-| `FpssOhlcvc` | ContractID, MsOfDay, Open/High/Low/Close (float64), OpenRaw/HighRaw/LowRaw/CloseRaw, Volume (int64), Count (int64), Date, ReceivedAtNs | `Kind == FpssOhlcvcEvent` |
+| `FpssOhlcvc` | ContractID, MsOfDay, Open/High/Low/Close (float64), Volume (int64), Count (int64), Date, ReceivedAtNs | `Kind == FpssOhlcvcEvent` |
 | `FpssControlData` | Kind (0-8), ID, Detail (string) | `Kind == FpssControlEvent` |
 | Raw data | RawCode (uint8), RawPayload ([]byte) | `Kind == FpssRawDataEvent` |
 
