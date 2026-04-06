@@ -162,6 +162,23 @@ fn parse_symbols(s: &str) -> Vec<&str> {
         .collect()
 }
 
+/// Normalize time_of_day: if all digits (ms since midnight), convert to hh:mm:ss.SSS.
+/// The v3 server expects hh:mm:ss.SSS format, but users may pass milliseconds.
+fn normalize_time(s: &str) -> String {
+    if s.contains(':') {
+        return s.to_string();
+    }
+    if let Ok(ms) = s.parse::<u64>() {
+        let h = ms / 3_600_000;
+        let m = (ms % 3_600_000) / 60_000;
+        let sec = (ms % 60_000) / 1_000;
+        let frac = ms % 1_000;
+        format!("{h:02}:{m:02}:{sec:02}.{frac:03}")
+    } else {
+        s.to_string()
+    }
+}
+
 /// Normalize option right to the uppercase single-letter format the API expects.
 fn normalize_right(s: &str) -> Result<&'static str, thetadatadx::Error> {
     match s.to_ascii_uppercase().as_str() {
@@ -203,22 +220,22 @@ async fn dispatch_endpoint(
 
         // ── Stock Snapshot ──────────────────────────────────────────
         "stock_snapshot_ohlc" => {
-            let syms = parse_symbols(get_arg(m, "symbols"));
+            let syms = parse_symbols(get_arg(m, "symbol"));
             let ticks = client.stock_snapshot_ohlc(&syms).await?;
             render_ohlc(&ticks, fmt);
         }
         "stock_snapshot_trade" => {
-            let syms = parse_symbols(get_arg(m, "symbols"));
+            let syms = parse_symbols(get_arg(m, "symbol"));
             let ticks = client.stock_snapshot_trade(&syms).await?;
             render_trades(&ticks, fmt);
         }
         "stock_snapshot_quote" => {
-            let syms = parse_symbols(get_arg(m, "symbols"));
+            let syms = parse_symbols(get_arg(m, "symbol"));
             let ticks = client.stock_snapshot_quote(&syms).await?;
             render_quotes(&ticks, fmt);
         }
         "stock_snapshot_market_value" => {
-            let syms = parse_symbols(get_arg(m, "symbols"));
+            let syms = parse_symbols(get_arg(m, "symbol"));
             let ticks = client.stock_snapshot_market_value(&syms).await?;
             render_market_value(&ticks, fmt);
         }
@@ -273,16 +290,16 @@ async fn dispatch_endpoint(
             let sym = get_arg(m, "symbol");
             let start = get_arg(m, "start_date");
             let end = get_arg(m, "end_date");
-            let tod = get_arg(m, "time_of_day");
-            let ticks = client.stock_at_time_trade(sym, start, end, tod).await?;
+            let tod = normalize_time(get_arg(m, "time_of_day"));
+            let ticks = client.stock_at_time_trade(sym, start, end, &tod).await?;
             render_trades(&ticks, fmt);
         }
         "stock_at_time_quote" => {
             let sym = get_arg(m, "symbol");
             let start = get_arg(m, "start_date");
             let end = get_arg(m, "end_date");
-            let tod = get_arg(m, "time_of_day");
-            let ticks = client.stock_at_time_quote(sym, start, end, tod).await?;
+            let tod = normalize_time(get_arg(m, "time_of_day"));
+            let ticks = client.stock_at_time_quote(sym, start, end, &tod).await?;
             render_quotes(&ticks, fmt);
         }
 
@@ -545,9 +562,9 @@ async fn dispatch_endpoint(
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let start = get_arg(m, "start_date");
             let end = get_arg(m, "end_date");
-            let tod = get_arg(m, "time_of_day");
+            let tod = normalize_time(get_arg(m, "time_of_day"));
             let ticks = client
-                .option_at_time_trade(sym, exp, strike, right, start, end, tod)
+                .option_at_time_trade(sym, exp, strike, right, start, end, &tod)
                 .await?;
             render_trades(&ticks, fmt);
         }
@@ -555,9 +572,9 @@ async fn dispatch_endpoint(
             let (sym, exp, strike, right) = option_contract_args(m)?;
             let start = get_arg(m, "start_date");
             let end = get_arg(m, "end_date");
-            let tod = get_arg(m, "time_of_day");
+            let tod = normalize_time(get_arg(m, "time_of_day"));
             let ticks = client
-                .option_at_time_quote(sym, exp, strike, right, start, end, tod)
+                .option_at_time_quote(sym, exp, strike, right, start, end, &tod)
                 .await?;
             render_quotes(&ticks, fmt);
         }
@@ -575,17 +592,17 @@ async fn dispatch_endpoint(
 
         // ── Index Snapshot ──────────────────────────────────────────
         "index_snapshot_ohlc" => {
-            let syms = parse_symbols(get_arg(m, "symbols"));
+            let syms = parse_symbols(get_arg(m, "symbol"));
             let ticks = client.index_snapshot_ohlc(&syms).await?;
             render_ohlc(&ticks, fmt);
         }
         "index_snapshot_price" => {
-            let syms = parse_symbols(get_arg(m, "symbols"));
+            let syms = parse_symbols(get_arg(m, "symbol"));
             let ticks = client.index_snapshot_price(&syms).await?;
             render_price(&ticks, fmt);
         }
         "index_snapshot_market_value" => {
-            let syms = parse_symbols(get_arg(m, "symbols"));
+            let syms = parse_symbols(get_arg(m, "symbol"));
             let ticks = client.index_snapshot_market_value(&syms).await?;
             render_market_value(&ticks, fmt);
         }
@@ -619,8 +636,8 @@ async fn dispatch_endpoint(
             let sym = get_arg(m, "symbol");
             let start = get_arg(m, "start_date");
             let end = get_arg(m, "end_date");
-            let tod = get_arg(m, "time_of_day");
-            let ticks = client.index_at_time_price(sym, start, end, tod).await?;
+            let tod = normalize_time(get_arg(m, "time_of_day"));
+            let ticks = client.index_at_time_price(sym, start, end, &tod).await?;
             render_price(&ticks, fmt);
         }
 
