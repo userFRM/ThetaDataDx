@@ -46,34 +46,38 @@ run() {
     TOTAL=$((TOTAL + 1))
     printf "  %-45s" "$name"
 
+    local start_ms=$(($(date +%s%N) / 1000000))
     result=$("$TDX" --creds "$CREDS" "$@" 2>&1 | head -15)
+    local end_ms=$(($(date +%s%N) / 1000000))
+    local elapsed_ms=$((end_ms - start_ms))
 
     echo "## $TOTAL. $name" >> "$OUT"
     echo '```' >> "$OUT"
     echo "\$ tdx $*" >> "$OUT"
     echo "$result" >> "$OUT"
     echo '```' >> "$OUT"
+    echo "**Latency: ${elapsed_ms}ms**" >> "$OUT"
 
     if echo "$result" | grep -q 'panicked'; then
-        echo "PANIC"
+        echo "PANIC (${elapsed_ms}ms)"
         echo "**PANIC** -- CLI crash" >> "$OUT"
         FAIL=$((FAIL + 1))
     elif echo "$result" | grep -qi 'does not have permission'; then
         tier=$(echo "$result" | grep -oP 'requiring a \K\w+')
-        echo "SKIP ($tier tier)"
+        echo "SKIP ($tier tier) (${elapsed_ms}ms)"
         echo "**SKIP** -- requires $tier subscription" >> "$OUT"
         DENIED=$((DENIED + 1))
     elif echo "$result" | grep -q 'No data found'; then
-        echo "OK (no data)"
+        echo "OK (no data) (${elapsed_ms}ms)"
         echo "**OK** -- no data for query (valid response)" >> "$OUT"
         NODATA=$((NODATA + 1))
     elif echo "$result" | grep -q '^error:'; then
-        echo "FAIL"
+        echo "FAIL (${elapsed_ms}ms)"
         echo "**FAIL**" >> "$OUT"
         FAIL=$((FAIL + 1))
     else
         rows=$(echo "$result" | grep -c '│' || true)
-        echo "PASS ($rows rows)"
+        echo "PASS ($rows rows) (${elapsed_ms}ms)"
         echo "**PASS** ($rows rows)" >> "$OUT"
         PASS=$((PASS + 1))
     fi
