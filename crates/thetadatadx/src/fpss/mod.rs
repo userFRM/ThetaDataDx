@@ -116,33 +116,27 @@ use self::protocol::{
 /// Tick data events from the FPSS stream.
 ///
 /// These are the hot-path events decoded from FIT wire format and
-/// delta-decompressed. All price fields are decoded to `f64` at parse
-/// All price fields are decoded to `f64` at parse time.
-///
-/// The `f64` fields are computed via `Price::new(value, price_type).to_f64()`
-/// at decode time so callers don't have to repeat that conversion.
+/// delta-decompressed. All price fields are decoded to `f64` at parse time.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum FpssData {
-    /// Decoded quote tick (code 21). 11 FIT fields + `contract_id`.
+    /// Decoded quote tick (code 21).
     Quote {
         contract_id: i32,
         ms_of_day: i32,
         bid_size: i32,
         bid_exchange: i32,
         bid: f64,
-        /// Pre-decoded bid price as `f64`.
         bid_condition: i32,
         ask_size: i32,
         ask_exchange: i32,
         ask: f64,
-        /// Pre-decoded ask price as `f64`.
         ask_condition: i32,
         date: i32,
         /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
         received_at_ns: u64,
     },
-    /// Decoded trade tick (code 22). 16 FIT fields + `contract_id`.
+    /// Decoded trade tick (code 22).
     Trade {
         contract_id: i32,
         ms_of_day: i32,
@@ -155,7 +149,6 @@ pub enum FpssData {
         size: i32,
         exchange: i32,
         price: f64,
-        /// Pre-decoded trade price as `f64`.
         condition_flags: i32,
         price_flags: i32,
         volume_type: i32,
@@ -164,7 +157,7 @@ pub enum FpssData {
         /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
         received_at_ns: u64,
     },
-    /// Decoded open interest tick (code 23). 3 FIT fields + `contract_id`.
+    /// Decoded open interest tick (code 23).
     OpenInterest {
         contract_id: i32,
         ms_of_day: i32,
@@ -180,13 +173,9 @@ pub enum FpssData {
         contract_id: i32,
         ms_of_day: i32,
         open: f64,
-        /// Pre-decoded open price as `f64`.
         high: f64,
-        /// Pre-decoded high price as `f64`.
         low: f64,
-        /// Pre-decoded low price as `f64`.
         close: f64,
-        /// Pre-decoded close price as `f64`.
         volume: i64,
         count: i64,
         date: i32,

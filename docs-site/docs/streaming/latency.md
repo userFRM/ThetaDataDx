@@ -141,13 +141,9 @@ while (true) {
 
     if (event->kind == TDX_FPSS_QUOTE) {
         auto& q = event->quote;
+        // bid and ask are already decoded to double (f64).
         // received_at_ns is captured at frame decode time on the Rust side.
-        // For precise wire latency, subtract the exchange epoch ns from
-        // received_at_ns. The ms_of_day + date -> epoch conversion is best
-        // done on the Rust side via tdbe::latency::latency_ns().
-        
-        
-        std::cout << "Quote: bid=" << bid << " ask=" << ask
+        std::cout << "Quote: bid=" << q.bid << " ask=" << q.ask
                   << " rx=" << q.received_at_ns << "ns" << std::endl;
     }
 }
