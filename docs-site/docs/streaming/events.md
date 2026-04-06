@@ -364,7 +364,7 @@ Check `kind` first, then access the corresponding field. Only the field matching
 - `event.Ohlcvc` -- `*FpssOhlcvc` (non-nil when Kind is `FpssOhlcvcEvent`)
 - `event.Control` -- `*FpssControlData` (non-nil when Kind is `FpssControlEvent`)
 
-Price fields (`Bid`, `Ask`, `Price`, `Open`, `High`, `Low`, `Close`) are pre-decoded to `float64`. Raw integer values are available as `BidRaw`, `AskRaw`, `PriceRaw`, `OpenRaw`, etc. The `PriceToF64(value, priceType)` helper remains exported for custom decoding.
+Price fields (`Bid`, `Ask`, `Price`, `Open`, `High`, `Low`, `Close`) are `float64`, decoded at parse time.
 
 ### C++
 
