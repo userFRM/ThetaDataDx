@@ -56,7 +56,7 @@ for (const auto& t : data) {
 
 ## Response
 
-Returns a `Vec<MarketValueTick>` with market value fields:
+Returns an array of MarketValueTick records with market value fields:
 
 <div class="param-list">
 <div class="param">
@@ -86,5 +86,5 @@ Returns a `Vec<MarketValueTick>` with market value fields:
 
 ## Notes
 
-- Returns `Vec<MarketValueTick>` in Rust.
+- Returns an array of MarketValueTick records (typed per SDK).
 - Market value represents the total capitalization of the index constituents.

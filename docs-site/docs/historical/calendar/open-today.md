@@ -47,7 +47,7 @@ None.
 
 ## Response
 
-Returns a `Vec<CalendarDay>` with market status fields:
+Returns an array of CalendarDay records with market status fields:
 
 <div class="param-list">
 <div class="param">

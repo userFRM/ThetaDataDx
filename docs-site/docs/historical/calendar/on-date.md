@@ -52,7 +52,7 @@ for (const auto& t : data) {
 
 ## Response
 
-Returns a `Vec<CalendarDay>` with calendar information:
+Returns an array of CalendarDay records with calendar information:
 
 <div class="param-list">
 <div class="param">

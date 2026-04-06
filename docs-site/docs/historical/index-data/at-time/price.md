@@ -60,7 +60,7 @@ for (const auto& t : data) {
 
 ## Response
 
-Returns a `Vec<PriceTick>` with one entry per trading day:
+Returns an array of PriceTick records with one entry per trading day:
 
 <div class="param-list">
 <div class="param">

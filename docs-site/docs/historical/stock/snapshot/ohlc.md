@@ -67,7 +67,7 @@ for (const auto& t : data) {
 </div>
 <div class="param">
 <div class="param-header"><code>open</code> / <code>high</code> / <code>low</code> / <code>close</code><span class="param-type">i32</span></div>
-<div class="param-desc">Fixed-point OHLC prices. Use <code>open_price()</code>, <code>high_price()</code>, <code>low_price()</code>, <code>close_price()</code> for decoded values.</div>
+<div class="param-desc">OHLC prices (<code>f64</code>, decoded at parse time).</div>
 </div>
 <div class="param">
 <div class="param-header"><code>volume</code><span class="param-type">i32</span></div>
@@ -99,4 +99,4 @@ for (const auto& t : data) {
 ## Notes
 
 - Accepts multiple symbols in a single call. Batch requests to reduce round-trips.
-- Prices are stored as fixed-point integers. Use the helper methods to get decoded float values.
+- All price fields are `f64` -- decoded during parsing.

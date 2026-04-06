@@ -7,7 +7,7 @@ description: Latest price snapshot for one or more indices.
 
 <TierBadge tier="value" />
 
-Get the latest price snapshot for one or more index symbols. Returns the most recent price data as `Vec<PriceTick>`.
+Get the latest price snapshot for one or more index symbols.
 
 ## Code Example
 
@@ -52,7 +52,7 @@ for (const auto& t : data) {
 
 ## Response
 
-Returns a `Vec<PriceTick>` with price fields:
+Returns an array of PriceTick records with price fields:
 
 <div class="param-list">
 <div class="param">
@@ -84,5 +84,5 @@ Returns a `Vec<PriceTick>` with price fields:
 
 ## Notes
 
-- Returns `Vec<PriceTick>` in Rust.
+- Returns an array of PriceTick records (typed per SDK).
 - For OHLC-structured data, use [index_snapshot_ohlc](./ohlc) instead.
