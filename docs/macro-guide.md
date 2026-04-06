@@ -119,7 +119,7 @@ Add a `[types.YourTick]` block in `crates/thetadatadx/endpoint_schema.toml`.
 `build.rs` generates the struct and `parse_your_ticks()` function automatically.
 See `docs/endpoint-schema.md` for the TOML format. The tick structs themselves
 live in `crates/tdbe/`. Set `contract_id = true` if the tick type should carry
-contract identification fields (`expiration`/`strike`/`right`/`strike_price_type`).
+contract identification fields (`expiration`/`strike`/`right`).
 
 ### 2. Add the protobuf types (if new message)
 

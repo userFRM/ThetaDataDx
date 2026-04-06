@@ -759,7 +759,7 @@ typedef struct { TdxFpssEventKind kind; TdxFpssQuote quote; TdxFpssTrade trade;
                  TdxFpssControl control; TdxFpssRawData raw_data; } TdxFpssEvent;
 ```
 
-Check `event->kind` then read the corresponding field. Only the field matching `kind` is valid. Prices are raw integers with `price_type` -- decode with `value / pow(10, priceType)`.
+Check `event->kind` then read the corresponding field. Only the field matching `kind` is valid. All prices are `f64` (double) -- decoded during parsing. No `price_type` in the public API.
 
 ### Go SDK: Streaming
 
@@ -867,19 +867,19 @@ pub enum FpssData {
     Quote { contract_id: i32, ms_of_day: i32, bid_size: i32, bid_exchange: i32,
             bid: i32, bid_f64: f64, bid_condition: i32, ask_size: i32,
             ask_exchange: i32, ask: i32, ask_f64: f64, ask_condition: i32,
-            price_type: i32, date: i32, received_at_ns: u64 },
+            date: i32, received_at_ns: u64 },
     Trade { contract_id: i32, ms_of_day: i32, sequence: i32,
             ext_condition1: i32, ext_condition2: i32, ext_condition3: i32,
             ext_condition4: i32, condition: i32, size: i32, exchange: i32,
             price: i32, price_f64: f64, condition_flags: i32, price_flags: i32,
-            volume_type: i32, records_back: i32, price_type: i32, date: i32,
+            volume_type: i32, records_back: i32, date: i32,
             received_at_ns: u64 },
     OpenInterest { contract_id: i32, ms_of_day: i32, open_interest: i32,
                    date: i32, received_at_ns: u64 },
     Ohlcvc { contract_id: i32, ms_of_day: i32,
              open: i32, open_f64: f64, high: i32, high_f64: f64,
              low: i32, low_f64: f64, close: i32, close_f64: f64,
-             volume: i64, count: i64, price_type: i32, date: i32,
+             volume: i64, count: i64, date: i32,
              received_at_ns: u64 },
 }
 
@@ -955,7 +955,7 @@ All 14 tick types are `Clone + Debug` structs generated from `endpoint_schema.to
 | `strike` | `i32` | `int32` | Strike price (fixed-point encoded). Use `strike_price()` for `f64`. |
 | `right` | `i32` | `string` | Contract right. Rust/FFI: `67` = Call, `80` = Put, `0` = absent. Go: `"C"`, `"P"`, `""`. |
 | `right_raw` | — | `int32` | Go only: raw integer value (67/80/0) for power users. |
-| `strike_price_type` | `i32` | `int32` | Price type for decoding `strike`. |
+| // removed -- strike is now f64 directly |
 
 Helper methods on all 10 tick types:
 
@@ -968,7 +968,7 @@ Helper methods on all 10 tick types:
 
 Tick types with contract ID: `TradeTick`, `QuoteTick`, `OhlcTick`, `EodTick`, `OpenInterestTick`, `SnapshotTradeTick`, `TradeQuoteTick`, `MarketValueTick`, `GreeksTick`, `IvTick`.
 
-**Not** on: `CalendarDay`, `InterestRateTick`, `PriceTick`, `OptionContract`. (Note: `OptionContract` contains `expiration`/`strike`/`right`/`strike_price_type` as inherent fields describing the contract itself, but does not have the `strike_price()`/`is_call()`/`is_put()`/`has_contract_id()` helper methods.)
+**Not** on: `CalendarDay`, `InterestRateTick`, `PriceTick`, `OptionContract`. (Note: `OptionContract` contains `expiration`/`strike`/`right` as inherent fields describing the contract itself, but does not have the `strike_price()`/`is_call()`/`is_put()`/`has_contract_id()` helper methods.)
 
 ```rust
 // Wildcard query — ticks include contract identification
@@ -1000,17 +1000,15 @@ pub struct TradeTick {
     pub condition: i32,         // Trade condition code
     pub size: i32,              // Trade size (shares)
     pub exchange: i32,          // Exchange code
-    pub price: i32,             // Price (fixed-point, use get_price())
+    pub price: f64,             // Price (fixed-point, use get_price())
     pub condition_flags: i32,   // Condition flags bitmap
     pub price_flags: i32,       // Price flags bitmap
     pub volume_type: i32,       // 0 = incremental, 1 = cumulative
     pub records_back: i32,      // Records back count
-    pub price_type: i32,        // Decimal type for price decoding
     pub date: i32,              // Date as YYYYMMDD integer
     pub expiration: i32,        // Contract expiration (YYYYMMDD, 0 if absent)
-    pub strike: i32,            // Contract strike (fixed-point)
+    pub strike: f64,            // Contract strike (fixed-point)
     pub right: i32,             // C=67, P=80 (ASCII)
-    pub strike_price_type: i32, // Price type for strike decoding
 }
 ```
 
@@ -1038,18 +1036,16 @@ pub struct QuoteTick {
     pub ms_of_day: i32,
     pub bid_size: i32,
     pub bid_exchange: i32,
-    pub bid: i32,
+    pub bid: f64,
     pub bid_condition: i32,
     pub ask_size: i32,
     pub ask_exchange: i32,
-    pub ask: i32,
+    pub ask: f64,
     pub ask_condition: i32,
-    pub price_type: i32,
     pub date: i32,
     pub expiration: i32,
-    pub strike: i32,
+    pub strike: f64,
     pub right: i32,
-    pub strike_price_type: i32,
 }
 ```
 
@@ -1060,18 +1056,16 @@ Methods: `is_call()`, `is_put()`, `has_contract_id()`, plus contract ID helpers.
 ```rust
 pub struct OhlcTick {
     pub ms_of_day: i32,
-    pub open: i32,
-    pub high: i32,
-    pub low: i32,
-    pub close: i32,
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub close: f64,
     pub volume: i32,
     pub count: i32,
-    pub price_type: i32,
     pub date: i32,
     pub expiration: i32,
-    pub strike: i32,
+    pub strike: f64,
     pub right: i32,
-    pub strike_price_type: i32,
 }
 ```
 
@@ -1085,26 +1079,24 @@ Methods: `is_call()`, `is_put()`, `has_contract_id()`, plus contract ID helpers.
 pub struct EodTick {
     pub ms_of_day: i32,
     pub ms_of_day2: i32,
-    pub open: i32,
-    pub high: i32,
-    pub low: i32,
-    pub close: i32,
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub close: f64,
     pub volume: i32,
     pub count: i32,
     pub bid_size: i32,
     pub bid_exchange: i32,
-    pub bid: i32,
+    pub bid: f64,
     pub bid_condition: i32,
     pub ask_size: i32,
     pub ask_exchange: i32,
-    pub ask: i32,
+    pub ask: f64,
     pub ask_condition: i32,
-    pub price_type: i32,
     pub date: i32,
     pub expiration: i32,
-    pub strike: i32,
+    pub strike: f64,
     pub right: i32,
-    pub strike_price_type: i32,
 }
 ```
 
@@ -1118,9 +1110,8 @@ pub struct OpenInterestTick {
     pub open_interest: i32,
     pub date: i32,
     pub expiration: i32,
-    pub strike: i32,
+    pub strike: f64,
     pub right: i32,
-    pub strike_price_type: i32,
 }
 ```
 
@@ -1132,13 +1123,11 @@ pub struct SnapshotTradeTick {
     pub sequence: i32,
     pub size: i32,
     pub condition: i32,
-    pub price: i32,
-    pub price_type: i32,
+    pub price: f64,
     pub date: i32,
     pub expiration: i32,
-    pub strike: i32,
+    pub strike: f64,
     pub right: i32,
-    pub strike_price_type: i32,
 }
 ```
 
@@ -1160,7 +1149,7 @@ pub struct TradeQuoteTick {
     pub condition: i32,
     pub size: i32,
     pub exchange: i32,
-    pub price: i32,
+    pub price: f64,
     pub condition_flags: i32,
     pub price_flags: i32,
     pub volume_type: i32,
@@ -1169,20 +1158,17 @@ pub struct TradeQuoteTick {
     pub quote_ms_of_day: i32,
     pub bid_size: i32,
     pub bid_exchange: i32,
-    pub bid: i32,
+    pub bid: f64,
     pub bid_condition: i32,
     pub ask_size: i32,
     pub ask_exchange: i32,
-    pub ask: i32,
+    pub ask: f64,
     pub ask_condition: i32,
-    pub quote_price_type: i32,
     // Shared
-    pub price_type: i32,
     pub date: i32,
     pub expiration: i32,
-    pub strike: i32,
+    pub strike: f64,
     pub right: i32,
-    pub strike_price_type: i32,
 }
 ```
 
@@ -1200,9 +1186,8 @@ pub struct MarketValueTick {
     pub free_float: i64,
     pub date: i32,
     pub expiration: i32,
-    pub strike: i32,
+    pub strike: f64,
     pub right: i32,
-    pub strike_price_type: i32,
 }
 ```
 
@@ -1235,9 +1220,8 @@ pub struct GreeksTick {
     pub vera: f64,
     pub date: i32,
     pub expiration: i32,
-    pub strike: i32,
+    pub strike: f64,
     pub right: i32,
-    pub strike_price_type: i32,
 }
 ```
 
@@ -1250,9 +1234,8 @@ pub struct IvTick {
     pub iv_error: f64,
     pub date: i32,
     pub expiration: i32,
-    pub strike: i32,
+    pub strike: f64,
     pub right: i32,
-    pub strike_price_type: i32,
 }
 ```
 
@@ -1263,8 +1246,7 @@ pub struct IvTick {
 ```rust
 pub struct PriceTick {
     pub ms_of_day: i32,
-    pub price: i32,
-    pub price_type: i32,
+    pub price: f64,
     pub date: i32,
 }
 ```
@@ -1305,9 +1287,8 @@ pub struct InterestRateTick {
 pub struct OptionContract {
     pub root: String,
     pub expiration: i32,
-    pub strike: i32,
+    pub strike: f64,
     pub right: i32,
-    pub strike_price_type: i32,
 }
 ```
 
@@ -1320,7 +1301,6 @@ Fixed-point price with variable decimal precision.
 ```rust
 pub struct Price {
     pub value: i32,
-    pub price_type: i32,
 }
 ```
 

@@ -45,19 +45,19 @@ int main() {
     // Or inline: auto creds = tdx::Credentials("user@example.com", "your-password");
     auto client = tdx::Client::connect(creds, tdx::Config::production());
 
-    // Fetch EOD stock data
+    // Fetch EOD stock data -- all prices are f64, no decoding needed
     auto eod = client.stock_history_eod("AAPL", "20240101", "20240301");
     for (auto& tick : eod) {
-        std::cout << tick.date << ": O=" << tdx::open_f64(tick)
-                  << " H=" << tdx::high_f64(tick) << " L=" << tdx::low_f64(tick)
-                  << " C=" << tdx::close_f64(tick) << std::endl;
+        std::cout << tick.date << ": O=" << tick.open
+                  << " H=" << tick.high << " L=" << tick.low
+                  << " C=" << tick.close << std::endl;
     }
 
     // Snapshot: latest quote for multiple symbols
     auto quotes = client.stock_snapshot_quote({"AAPL", "MSFT", "GOOG"});
     for (auto& q : quotes) {
-        std::cout << "bid=" << tdx::bid_f64(q)
-                  << " ask=" << tdx::ask_f64(q) << std::endl;
+        std::cout << "bid=" << q.bid
+                  << " ask=" << q.ask << std::endl;
     }
 
     // Greeks (no server connection needed)
@@ -240,23 +240,25 @@ All endpoints return fully typed C++ structs. No raw JSON.
 
 | Struct | Fields | Used by |
 |--------|--------|---------|
-| `EodTick` | ms_of_day, open, high, low, close, volume, count, bid, ask, date, **expiration, strike, right, strike_price_type** | EOD endpoints |
-| `OhlcTick` | ms_of_day, open, high, low, close, volume, count, date, **expiration, strike, right, strike_price_type** | OHLC endpoints |
-| `TradeTick` | ms_of_day, sequence, condition, size, exchange, price, price_raw, price_type, condition_flags, price_flags, volume_type, records_back, date, **expiration, strike, right, strike_price_type** | Trade endpoints |
-| `QuoteTick` | ms_of_day, bid_size, bid_exchange, bid, bid_condition, ask_size, ask_exchange, ask, ask_condition, date, **expiration, strike, right, strike_price_type** | Quote endpoints |
-| `TradeQuoteTick` | ms_of_day, sequence, ext_condition1-4, condition, size, exchange, price, condition_flags, price_flags, volume_type, records_back, quote_ms_of_day, bid_size, bid_exchange, bid, bid_condition, ask_size, ask_exchange, ask, ask_condition, date, **expiration, strike, right, strike_price_type** | Trade+quote endpoints |
-| `OpenInterestTick` | ms_of_day, open_interest, date, **expiration, strike, right, strike_price_type** | Open interest endpoints |
-| `GreeksTick` | ms_of_day, value, delta, gamma, theta, vega, rho, iv, iv_error, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda, vera, date, **expiration, strike, right, strike_price_type** | Greeks snapshot/history |
-| `IvTick` | ms_of_day, iv, iv_error, date, **expiration, strike, right, strike_price_type** | IV-only endpoints |
+| `EodTick` | ms_of_day, open, high, low, close, volume, count, bid, ask, date, **expiration, strike, right** | EOD endpoints |
+| `OhlcTick` | ms_of_day, open, high, low, close, volume, count, date, **expiration, strike, right** | OHLC endpoints |
+| `TradeTick` | ms_of_day, sequence, condition, size, exchange, price, condition_flags, price_flags, volume_type, records_back, date, **expiration, strike, right** | Trade endpoints |
+| `QuoteTick` | ms_of_day, bid_size, bid_exchange, bid, bid_condition, ask_size, ask_exchange, ask, ask_condition, midpoint, date, **expiration, strike, right** | Quote endpoints |
+| `TradeQuoteTick` | ms_of_day, sequence, ext_condition1-4, condition, size, exchange, price, condition_flags, price_flags, volume_type, records_back, quote_ms_of_day, bid_size, bid_exchange, bid, bid_condition, ask_size, ask_exchange, ask, ask_condition, date, **expiration, strike, right** | Trade+quote endpoints |
+| `OpenInterestTick` | ms_of_day, open_interest, date, **expiration, strike, right** | Open interest endpoints |
+| `GreeksTick` | ms_of_day, implied_volatility, delta, gamma, theta, vega, rho, iv_error, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda, vera, date, **expiration, strike, right** | Greeks snapshot/history |
+| `IvTick` | ms_of_day, implied_volatility, iv_error, date, **expiration, strike, right** | IV-only endpoints |
 | `PriceTick` | ms_of_day, price, date | Index price endpoints |
-| `MarketValueTick` | ms_of_day, market_cap, shares_outstanding, enterprise_value, book_value, free_float, date, **expiration, strike, right, strike_price_type** | Market value endpoints |
-| `SnapshotTradeTick` | ms_of_day, sequence, size, condition, price, price_type, date, **expiration, strike, right, strike_price_type** | Snapshot trade endpoints |
+| `MarketValueTick` | ms_of_day, market_cap, shares_outstanding, enterprise_value, book_value, free_float, date, **expiration, strike, right** | Market value endpoints |
+| `SnapshotTradeTick` | ms_of_day, sequence, size, condition, price, date, **expiration, strike, right** | Snapshot trade endpoints |
 | `OptionContract` | root, expiration, strike, right | option_list_contracts |
 | `CalendarDay` | date, is_open, open_time, close_time, status | Calendar endpoints |
 | `InterestRateTick` | ms_of_day, rate, date | Interest rate endpoints |
-| `Greeks` | value, delta, gamma, theta, vega, rho, iv, iv_error, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda, vera | Standalone all_greeks() |
+| `Greeks` | implied_volatility, delta, gamma, theta, vega, rho, iv_error, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda, vera | Standalone all_greeks() |
 
-**Contract identification fields** (bold above): `expiration`, `strike`, `right`, `strike_price_type` are populated by the server on wildcard queries (pass `"0"` for expiration/strike). On single-contract queries these fields are `0`. The `right` parameter accepts `"C"` (call), `"P"` (put), or `"both"` -- not `"0"`.
+All price fields (`open`, `high`, `low`, `close`, `bid`, `ask`, `price`, `strike`) are `double` (f64) -- decoded during parsing. No `price_type` in the public API.
+
+**Contract identification fields** (bold above): `expiration`, `strike`, `right` are populated by the server on wildcard queries (pass `"0"` for expiration/strike). On single-contract queries these fields are `0`. The `right` parameter accepts `"C"` (call), `"P"` (put), or `"both"` -- not `"0"`.
 
 ## FPSS Streaming
 
@@ -304,7 +306,7 @@ int main() {
 }
 ```
 
-Prices in streaming events are raw integers with a `price_type` field. Decode with `tdx::price_to_f64(value, price_type)`. For historical tick types, convenience functions are also available: `tdx::trade_price_f64(tick)`, `tdx::bid_f64(q)`, `tdx::ask_f64(q)`, `tdx::open_f64(bar)`, etc.
+All prices in streaming events are `double` (f64) -- decoded during parsing. Access them directly: `event->quote.bid`, `event->trade.price`, etc. No `price_type` decoding needed.
 
 ### FpssClient API
 
@@ -331,10 +333,10 @@ Prices in streaming events are raw integers with a `price_type` field. Decode wi
 
 | Type | Fields | Used when |
 |------|--------|-----------|
-| `TdxFpssQuote` | contract_id, ms_of_day, bid_size, bid_exchange, bid, bid_condition, ask_size, ask_exchange, ask, ask_condition, price_type, date, received_at_ns | `kind == TDX_FPSS_QUOTE` |
-| `TdxFpssTrade` | contract_id, ms_of_day, sequence, ext_condition1-4, condition, size, exchange, price, condition_flags, price_flags, volume_type, records_back, price_type, date, received_at_ns | `kind == TDX_FPSS_TRADE` |
+| `TdxFpssQuote` | contract_id, ms_of_day, bid_size, bid_exchange, bid, bid_condition, ask_size, ask_exchange, ask, ask_condition, date, received_at_ns | `kind == TDX_FPSS_QUOTE` |
+| `TdxFpssTrade` | contract_id, ms_of_day, sequence, ext_condition1-4, condition, size, exchange, price, condition_flags, price_flags, volume_type, records_back, date, received_at_ns | `kind == TDX_FPSS_TRADE` |
 | `TdxFpssOpenInterest` | contract_id, ms_of_day, open_interest, date, received_at_ns | `kind == TDX_FPSS_OPEN_INTEREST` |
-| `TdxFpssOhlcvc` | contract_id, ms_of_day, open, high, low, close, volume (i64), count (i64), price_type, date, received_at_ns | `kind == TDX_FPSS_OHLCVC` |
+| `TdxFpssOhlcvc` | contract_id, ms_of_day, open, high, low, close, volume (i64), count (i64), date, received_at_ns | `kind == TDX_FPSS_OHLCVC` |
 | `TdxFpssControl` | kind (0-7), id, detail (nullable string) | `kind == TDX_FPSS_CONTROL` |
 
 `FpssClient` is non-copyable but movable. The destructor calls `shutdown()` automatically.

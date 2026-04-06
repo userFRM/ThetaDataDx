@@ -2332,12 +2332,10 @@ tdx.option_history_quote_stream("SPY", "20241220", "500", "C", "20240315", "0")
 | Field | Type (Rust/FFI) | Type (Go) | Description |
 |-------|-----------------|-----------|-------------|
 | `expiration` | i32 | int32 | Contract expiration (YYYYMMDD). 0 if absent. |
-| `strike` | i32 | int32 | Strike price (fixed-point). Use `strike_price()` for decoded float. |
+| `strike` | f64 | float64 | Strike price (decoded to f64). |
 | `right` | i32 | string | Contract right. Rust/FFI: 67=Call, 80=Put. Go: `"C"`, `"P"`, `""`. |
-| `right_raw` | — | int32 | Go only: raw integer value (67/80/0) for power users. |
-| `strike_price_type` | i32 | int32 | Price type for decoding `strike`. |
 
-Helper methods (all 10 types): `strike_price()`, `is_call()`, `is_put()`, `has_contract_id()`.
+Helper methods (all 10 types): `is_call()`, `is_put()`, `has_contract_id()`.
 Go helper: `RightStr(code int32) string` converts raw right codes to `"C"`/`"P"`/`""`.
 
 Types with contract ID: TradeTick, QuoteTick, OhlcTick, EodTick, OpenInterestTick, SnapshotTradeTick, TradeQuoteTick, MarketValueTick, GreeksTick, IvTick.
@@ -2354,17 +2352,15 @@ A single trade execution.
 | `condition` | i32 | Trade condition code |
 | `size` | i32 | Trade size (shares/contracts) |
 | `exchange` | i32 | Exchange code |
-| `price` | i32 | Fixed-point price (use `get_price()`) |
+| `price` | f64 | Trade price (decoded) |
 | `condition_flags` | i32 | Condition flags bitmap |
 | `price_flags` | i32 | Price flags bitmap |
 | `volume_type` | i32 | 0 = incremental, 1 = cumulative |
 | `records_back` | i32 | Records back count |
-| `price_type` | i32 | Decimal type for price decoding |
 | `date` | i32 | Date as YYYYMMDD integer |
 | `expiration` | i32 | Contract expiration (wildcard queries) |
-| `strike` | i32 | Contract strike (wildcard queries) |
+| `strike` | f64 | Contract strike (wildcard queries) |
 | `right` | i32 (Rust/FFI), string (Go) | Contract right. Rust: C=67/P=80. Go: `"C"`/`"P"`. |
-| `strike_price_type` | i32 | Strike price type (wildcard queries) |
 
 Helper methods: `is_cancelled()`, `trade_condition_no_last()`, `price_condition_set_last()`, `regular_trading_hours()`, `is_seller()`, `is_incremental_volume()`, `is_call()`, `is_put()`, `has_contract_id()`
 
@@ -2377,11 +2373,11 @@ An NBBO quote.
 | `ms_of_day` | i32 | Milliseconds since midnight ET |
 | `bid_size` / `ask_size` | i32 | Quote sizes |
 | `bid_exchange` / `ask_exchange` | i32 | Exchange codes |
-| `bid` / `ask` | i32 | Fixed-point prices |
+| `bid` / `ask` | f64 | Bid and ask prices (decoded) |
 | `bid_condition` / `ask_condition` | i32 | Condition codes |
-| `price_type` | i32 | Decimal type for price decoding |
+| `midpoint` | f64 | Pre-computed `(bid + ask) / 2.0` |
 | `date` | i32 | Date as YYYYMMDD integer |
-| `expiration` / `strike` / `right` / `strike_price_type` | i32 (Go: `right` is string) | Contract ID (wildcard queries) |
+| `expiration` / `strike` / `right` | i32/f64/i32 (Go: `right` is string) | Contract ID (wildcard queries) |
 
 Helper methods: `is_call()`, `is_put()`, `has_contract_id()`, plus contract ID helpers
 
@@ -2392,12 +2388,11 @@ An aggregated OHLC bar.
 | Field | Type | Description |
 |-------|------|-------------|
 | `ms_of_day` | i32 | Bar start time (ms from midnight ET) |
-| `open` / `high` / `low` / `close` | i32 | Fixed-point OHLC prices |
+| `open` / `high` / `low` / `close` | f64 | OHLC prices (decoded) |
 | `volume` | i32 | Total volume in bar |
 | `count` | i32 | Number of trades in bar |
-| `price_type` | i32 | Decimal type for price decoding |
 | `date` | i32 | Date as YYYYMMDD integer |
-| `expiration` / `strike` / `right` / `strike_price_type` | i32 (Go: `right` is string) | Contract ID (wildcard queries) |
+| `expiration` / `strike` / `right` | i32/f64/i32 (Go: `right` is string) | Contract ID (wildcard queries) |
 
 Helper methods: `is_call()`, `is_put()`, `has_contract_id()`, plus contract ID helpers
 
@@ -2408,16 +2403,15 @@ Full end-of-day snapshot with OHLC + closing quote data.
 | Field | Type | Description |
 |-------|------|-------------|
 | `ms_of_day` / `ms_of_day2` | i32 | Timestamps |
-| `open` / `high` / `low` / `close` | i32 | Fixed-point OHLC prices |
+| `open` / `high` / `low` / `close` | f64 | OHLC prices (decoded) |
 | `volume` | i32 | Total daily volume |
 | `count` | i32 | Total trade count |
 | `bid_size` / `ask_size` | i32 | Closing quote sizes |
 | `bid_exchange` / `ask_exchange` | i32 | Closing quote exchanges |
-| `bid` / `ask` | i32 | Closing bid/ask (fixed-point) |
+| `bid` / `ask` | f64 | Closing bid/ask (decoded) |
 | `bid_condition` / `ask_condition` | i32 | Closing quote conditions |
-| `price_type` | i32 | Decimal type |
 | `date` | i32 | Date as YYYYMMDD |
-| `expiration` / `strike` / `right` / `strike_price_type` | i32 (Go: `right` is string) | Contract ID (wildcard queries) |
+| `expiration` / `strike` / `right` | i32/f64/i32 (Go: `right` is string) | Contract ID (wildcard queries) |
 
 Helper methods: `is_call()`, `is_put()`, `has_contract_id()`, plus contract ID helpers
 
@@ -2434,7 +2428,7 @@ Helper methods: `is_call()`, `is_put()`, `has_contract_id()`, plus contract ID h
 | `ms_of_day` | i32 | Milliseconds since midnight ET |
 | `open_interest` | i32 | Open interest count |
 | `date` | i32 | Date as YYYYMMDD |
-| `expiration` / `strike` / `right` / `strike_price_type` | i32 (Go: `right` is string) | Contract ID (wildcard queries) |
+| `expiration` / `strike` / `right` | i32/f64/i32 (Go: `right` is string) | Contract ID (wildcard queries) |
 
 ### GreeksResult
 

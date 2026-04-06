@@ -172,7 +172,7 @@ flowchart LR
     PARSERS --> DECODE
 ```
 
-The 14 generated tick types are: `TradeTick`, `QuoteTick`, `OhlcTick`, `EodTick`, `OpenInterestTick`, `SnapshotTradeTick`, `TradeQuoteTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`. 10 of these (all except `CalendarDay`, `InterestRateTick`, `PriceTick`, `OptionContract`) carry contract identification fields (`expiration`, `strike`, `right`, `strike_price_type`) populated by the server on wildcard queries.
+The 14 generated tick types are: `TradeTick`, `QuoteTick`, `OhlcTick`, `EodTick`, `OpenInterestTick`, `SnapshotTradeTick`, `TradeQuoteTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`. 10 of these (all except `CalendarDay`, `InterestRateTick`, `PriceTick`, `OptionContract`) carry contract identification fields (`expiration`, `strike`, `right`) populated by the server on wildcard queries.
 
 Adding a new tick type requires only adding a TOML table to `endpoint_schema.toml` - no hand-written struct or parser code needed. See `docs/endpoint-schema.md` for the full schema reference.
 

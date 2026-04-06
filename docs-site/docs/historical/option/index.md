@@ -18,7 +18,7 @@ Option contracts are identified by four parameters:
 | `strike` | Strike price in tenths of a cent | `"500"` ($500.00) |
 | `right` | Call or put | `"C"` or `"P"` |
 
-**Wildcard queries:** Pass `"0"` for expiration, strike, and/or right to fetch data across multiple contracts. Each returned tick carries contract identification fields (`expiration`, `strike`, `right`, `strike_price_type`) so you can determine which contract it belongs to. See [Options & Greeks](/options#wildcard-queries-with-contract-identification) for usage examples.
+**Wildcard queries:** Pass `"0"` for expiration, strike, and/or right to fetch data across multiple contracts. Each returned tick carries contract identification fields (`expiration`, `strike`, `right`) so you can determine which contract it belongs to. See [Options & Greeks](/options#wildcard-queries-with-contract-identification) for usage examples.
 
 ## Endpoint Categories
 

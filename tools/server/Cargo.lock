@@ -2036,6 +2036,7 @@ version = "5.4.0"
 dependencies = [
  "axum",
  "clap",
+ "rustls",
  "serde",
  "sonic-rs",
  "tdbe",

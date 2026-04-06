@@ -260,7 +260,7 @@ Every data event carries `received_at_ns` (wall-clock nanoseconds since UNIX epo
 | `received_at_ns` | `u64` | Wall-clock nanoseconds since UNIX epoch |
 
 ::: info Dev server 8-field trades
-The dev server (port 20200) sends a simplified 8-field trade format: `ms_of_day`, `condition`, `size`, `exchange`, `price`, `records_back`, `price_type`, `date`. The SDK handles this transparently -- missing fields (`sequence`, `ext_condition*`, `condition_flags`, `price_flags`, `volume_type`) are set to 0.
+The dev server (port 20200) sends a simplified 8-field trade format: `ms_of_day`, `condition`, `size`, `exchange`, `price`, `records_back`, `date`. The SDK handles this transparently -- missing fields (`sequence`, `ext_condition*`, `condition_flags`, `price_flags`, `volume_type`) are set to 0.
 :::
 
 ### OpenInterest (3 fields + received_at_ns)

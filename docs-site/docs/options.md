@@ -129,7 +129,7 @@ for row in chain[:5]:
 
 ## Wildcard Queries with Contract Identification
 
-When you pass `"0"` for `expiration` or `strike`, the server returns data across all matching contracts. Each tick includes contract identification fields (`expiration`, `strike`, `right`, `strike_price_type`) so you can distinguish which contract each tick belongs to.
+When you pass `"0"` for `expiration` or `strike`, the server returns data across all matching contracts. Each tick includes contract identification fields (`expiration`, `strike`, `right`) so you can distinguish which contract each tick belongs to.
 
 ::: warning
 The `right` parameter does **not** accept `"0"` as a wildcard. Use `"C"` (call), `"P"` (put), or `"both"` (calls and puts). Only `expiration` and `strike` accept `"0"` as a wildcard.
