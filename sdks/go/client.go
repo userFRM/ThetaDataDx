@@ -193,6 +193,7 @@ type cEodTick struct {
 	_pad1        int32
 	AskSize      int32
 	AskExchange  int32
+	_pad1        int32
 	Ask          float64
 	AskCondition int32
 	Date         int32
@@ -200,7 +201,7 @@ type cEodTick struct {
 	_pad2        int32
 	Strike       float64
 	Right        int32
-	_pad3        [128 - 124]byte
+	_pad3        [128 - 116]byte
 }
 
 // cOhlcTick mirrors tdbe::OhlcTick #[repr(C, align(64))]
@@ -220,7 +221,7 @@ type cOhlcTick struct {
 	Expiration int32
 	Strike     float64
 	Right      int32
-	_pad2      [128 - 76]byte
+	_pad2      [128 - 68]byte
 }
 
 // cTradeTick mirrors tdbe::TradeTick #[repr(C, align(64))]
@@ -246,7 +247,7 @@ type cTradeTick struct {
 	Expiration     int32
 	Strike         float64
 	Right          int32
-	_pad2          [128 - 92]byte
+	_pad2          [128 - 84]byte
 }
 
 // cQuoteTick mirrors tdbe::QuoteTick #[repr(C, align(64))]
@@ -273,7 +274,7 @@ type cQuoteTick struct {
 	Right        int32
 	_pad4        int32
 	Midpoint     float64
-	_pad5        [128 - 96]byte
+	_pad5        [128 - 88]byte
 }
 
 // cOpenInterestTick mirrors tdbe::OpenInterestTick #[repr(C, align(64))]
@@ -318,7 +319,7 @@ type cIvTick struct {
 	Expiration        int32
 	Strike            float64
 	Right             int32
-	_pad2             [64 - 48]byte
+	_pad2             [64 - 44]byte
 }
 
 // cPriceTick mirrors tdbe::PriceTick #[repr(C, align(64))]
@@ -345,7 +346,7 @@ type cMarketValueTick struct {
 	Expiration        int32
 	Strike            float64
 	Right             int32
-	_pad2             [128 - 76]byte
+	_pad2             [128 - 68]byte
 }
 
 // cGreeksTick mirrors tdbe::GreeksTick #[repr(C, align(64))]
@@ -380,7 +381,7 @@ type cGreeksTick struct {
 	Expiration        int32
 	Strike            float64
 	Right             int32
-	_pad2             [256 - 212]byte
+	_pad2             [256 - 204]byte
 }
 
 // cTradeQuoteTick mirrors tdbe::TradeQuoteTick #[repr(C, align(64))]
@@ -420,7 +421,7 @@ type cTradeQuoteTick struct {
 	_pad4          int32
 	Strike         float64
 	Right          int32
-	_pad5          [192 - 164]byte
+	_pad5          [192 - 140]byte
 }
 
 // cOptionContract mirrors TdxOptionContract from FFI
