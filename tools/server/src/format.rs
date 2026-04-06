@@ -11,7 +11,6 @@
 //! ```
 
 use sonic_rs::prelude::*;
-use tdbe::types::price::Price;
 use tdbe::types::tick::*;
 
 // ---------------------------------------------------------------------------
@@ -52,15 +51,6 @@ pub fn list_envelope(items: &[String]) -> sonic_rs::Value {
 }
 
 // ---------------------------------------------------------------------------
-//  Price formatting -- matches Java PriceCalcUtils exactly
-// ---------------------------------------------------------------------------
-
-/// Format a price value to f64.
-fn fmt_price(value: i32, price_type: i32) -> f64 {
-    Price::new(value, price_type).to_f64()
-}
-
-// ---------------------------------------------------------------------------
 //  Tick -> sonic_rs::Value conversions
 // ---------------------------------------------------------------------------
 
@@ -72,19 +62,19 @@ pub fn eod_ticks_to_json(ticks: &[EodTick]) -> Vec<sonic_rs::Value> {
             sonic_rs::json!({
                 "ms_of_day": t.ms_of_day,
                 "ms_of_day2": t.ms_of_day2,
-                "open": fmt_price(t.open, t.price_type),
-                "high": fmt_price(t.high, t.price_type),
-                "low": fmt_price(t.low, t.price_type),
-                "close": fmt_price(t.close, t.price_type),
+                "open": t.open,
+                "high": t.high,
+                "low": t.low,
+                "close": t.close,
                 "volume": t.volume,
                 "count": t.count,
                 "bid_size": t.bid_size,
                 "bid_exchange": t.bid_exchange,
-                "bid": fmt_price(t.bid, t.price_type),
+                "bid": t.bid,
                 "bid_condition": t.bid_condition,
                 "ask_size": t.ask_size,
                 "ask_exchange": t.ask_exchange,
-                "ask": fmt_price(t.ask, t.price_type),
+                "ask": t.ask,
                 "ask_condition": t.ask_condition,
                 "date": t.date
             })
@@ -99,10 +89,10 @@ pub fn ohlc_ticks_to_json(ticks: &[OhlcTick]) -> Vec<sonic_rs::Value> {
         .map(|t| {
             sonic_rs::json!({
                 "ms_of_day": t.ms_of_day,
-                "open": fmt_price(t.open, t.price_type),
-                "high": fmt_price(t.high, t.price_type),
-                "low": fmt_price(t.low, t.price_type),
-                "close": fmt_price(t.close, t.price_type),
+                "open": t.open,
+                "high": t.high,
+                "low": t.low,
+                "close": t.close,
                 "volume": t.volume,
                 "count": t.count,
                 "date": t.date
@@ -121,7 +111,7 @@ pub fn trade_ticks_to_json(ticks: &[TradeTick]) -> Vec<sonic_rs::Value> {
                 "sequence": t.sequence,
                 "size": t.size,
                 "condition": t.condition,
-                "price": fmt_price(t.price, t.price_type),
+                "price": t.price,
                 "exchange": t.exchange,
                 "date": t.date
             })
@@ -138,11 +128,11 @@ pub fn quote_ticks_to_json(ticks: &[QuoteTick]) -> Vec<sonic_rs::Value> {
                 "ms_of_day": t.ms_of_day,
                 "bid_size": t.bid_size,
                 "bid_exchange": t.bid_exchange,
-                "bid": fmt_price(t.bid, t.price_type),
+                "bid": t.bid,
                 "bid_condition": t.bid_condition,
                 "ask_size": t.ask_size,
                 "ask_exchange": t.ask_exchange,
-                "ask": fmt_price(t.ask, t.price_type),
+                "ask": t.ask,
                 "ask_condition": t.ask_condition,
                 "date": t.date
             })
@@ -160,16 +150,16 @@ pub fn trade_quote_ticks_to_json(ticks: &[TradeQuoteTick]) -> Vec<sonic_rs::Valu
                 "sequence": t.sequence,
                 "size": t.size,
                 "condition": t.condition,
-                "price": fmt_price(t.price, t.price_type),
+                "price": t.price,
                 "exchange": t.exchange,
                 "quote_ms_of_day": t.quote_ms_of_day,
                 "bid_size": t.bid_size,
                 "bid_exchange": t.bid_exchange,
-                "bid": fmt_price(t.bid, t.price_type),
+                "bid": t.bid,
                 "bid_condition": t.bid_condition,
                 "ask_size": t.ask_size,
                 "ask_exchange": t.ask_exchange,
-                "ask": fmt_price(t.ask, t.price_type),
+                "ask": t.ask,
                 "ask_condition": t.ask_condition,
                 "date": t.date
             })
@@ -266,7 +256,7 @@ pub fn price_ticks_to_json(ticks: &[PriceTick]) -> Vec<sonic_rs::Value> {
         .map(|t| {
             sonic_rs::json!({
                 "ms_of_day": t.ms_of_day,
-                "price": fmt_price(t.price, t.price_type),
+                "price": t.price,
                 "date": t.date
             })
         })
@@ -311,8 +301,7 @@ pub fn option_contracts_to_json(contracts: &[OptionContract]) -> Vec<sonic_rs::V
                 "root": c.root,
                 "expiration": c.expiration,
                 "strike": c.strike,
-                "right": c.right,
-                "strike_price_type": c.strike_price_type
+                "right": c.right
             })
         })
         .collect()
