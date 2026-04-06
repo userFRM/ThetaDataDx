@@ -604,20 +604,20 @@ Process all trades for a stock on a given date, one chunk at a time. gRPC: `GetS
 let builder = tdx.stock_history_trade_stream("AAPL", "20260401");
 builder.stream(|chunk: &[TradeTick]| {
     // process chunk
-})?;
+}).await?;
 ```
 
 ```rust
-pub fn stock_history_quote_stream(&self, symbol: &str, date: &str) -> StreamBuilder<QuoteTick>
+pub fn stock_history_quote_stream(&self, symbol: &str, date: &str, interval: &str) -> StreamBuilder<QuoteTick>
 ```
 
 Process quotes for a stock, one chunk at a time. gRPC: `GetStockHistoryQuote`
 
 ```rust
-let builder = tdx.stock_history_quote_stream("AAPL", "20260401");
+let builder = tdx.stock_history_quote_stream("AAPL", "20260401", "0");
 builder.stream(|chunk: &[QuoteTick]| {
     // process chunk
-})?;
+}).await?;
 ```
 
 ```rust
@@ -632,7 +632,7 @@ Process all trades for an option contract, one chunk at a time. gRPC: `GetOption
 let builder = tdx.option_history_trade_stream("SPY", "20261220", "500", "C", "20260401");
 builder.stream(|chunk: &[TradeTick]| {
     // process chunk
-})?;
+}).await?;
 ```
 
 ```rust
@@ -648,12 +648,36 @@ Process quotes for an option contract, one chunk at a time. gRPC: `GetOptionHist
 let builder = tdx.option_history_quote_stream("SPY", "20261220", "500", "C", "20260401", "1m");
 builder.stream(|chunk: &[QuoteTick]| {
     // process chunk
-})?;
+}).await?;
 ```
 
 ### Auth Error Behavior
 
 Nexus HTTP responses with status 401 (Unauthorized) or 404 (Not Found) are treated as `Error::Auth("invalid credentials (server returned 401/404)")`, matching the Java terminal's special-casing of these status codes. Other HTTP errors surface as `Error::Http`.
+
+### v3 Compliance: Automatic Normalizations
+
+The SDK automatically normalizes v2-style parameter values to the v3 format accepted by the MDDS server:
+
+**`normalize_right(right)`** — applied on all option endpoints via the `contract_spec!` macro:
+
+| Input | Output |
+|-------|--------|
+| `"C"` / `"c"` | `"call"` |
+| `"P"` / `"p"` | `"put"` |
+| `"*"` | `"both"` |
+| other | lowercase pass-through |
+
+**`normalize_interval(interval)`** — applied on all OHLC, quote, and price endpoints that accept an interval:
+
+| Input (ms) | Output |
+|------------|--------|
+| `"60000"` | `"1m"` |
+| `"1000"` | `"1s"` |
+| `"300000"` | `"5m"` |
+| already shorthand | pass-through |
+
+Callers can use either v2-style millisecond strings or v3 shorthand presets interchangeably.
 
 ### Endpoint Count
 
@@ -841,16 +865,22 @@ pub enum FpssEvent {
 
 pub enum FpssData {
     Quote { contract_id: i32, ms_of_day: i32, bid_size: i32, bid_exchange: i32,
-            bid: i32, bid_condition: i32, ask_size: i32, ask_exchange: i32,
-            ask: i32, ask_condition: i32, price_type: i32, date: i32 },
+            bid: i32, bid_f64: f64, bid_condition: i32, ask_size: i32,
+            ask_exchange: i32, ask: i32, ask_f64: f64, ask_condition: i32,
+            price_type: i32, date: i32, received_at_ns: u64 },
     Trade { contract_id: i32, ms_of_day: i32, sequence: i32,
             ext_condition1: i32, ext_condition2: i32, ext_condition3: i32,
             ext_condition4: i32, condition: i32, size: i32, exchange: i32,
-            price: i32, condition_flags: i32, price_flags: i32,
-            volume_type: i32, records_back: i32, price_type: i32, date: i32 },
-    OpenInterest { contract_id: i32, ms_of_day: i32, open_interest: i32, date: i32 },
-    Ohlcvc { contract_id: i32, ms_of_day: i32, open: i32, high: i32, low: i32,
-             close: i32, volume: i32, count: i32, price_type: i32, date: i32 },
+            price: i32, price_f64: f64, condition_flags: i32, price_flags: i32,
+            volume_type: i32, records_back: i32, price_type: i32, date: i32,
+            received_at_ns: u64 },
+    OpenInterest { contract_id: i32, ms_of_day: i32, open_interest: i32,
+                   date: i32, received_at_ns: u64 },
+    Ohlcvc { contract_id: i32, ms_of_day: i32,
+             open: i32, open_f64: f64, high: i32, high_f64: f64,
+             low: i32, low_f64: f64, close: i32, close_f64: f64,
+             volume: i64, count: i64, price_type: i32, date: i32,
+             received_at_ns: u64 },
 }
 
 pub enum FpssControl {
@@ -938,7 +968,7 @@ Helper methods on all 10 tick types:
 
 Tick types with contract ID: `TradeTick`, `QuoteTick`, `OhlcTick`, `EodTick`, `OpenInterestTick`, `SnapshotTradeTick`, `TradeQuoteTick`, `MarketValueTick`, `GreeksTick`, `IvTick`.
 
-**Not** on: `CalendarDay`, `InterestRateTick`, `PriceTick`.
+**Not** on: `CalendarDay`, `InterestRateTick`, `PriceTick`, `OptionContract`. (Note: `OptionContract` contains `expiration`/`strike`/`right`/`strike_price_type` as inherent fields describing the contract itself, but does not have the `strike_price()`/`is_call()`/`is_put()`/`has_contract_id()` helper methods.)
 
 ```rust
 // Wildcard query — ticks include contract identification
@@ -957,7 +987,7 @@ for t in &ticks {
 
 ### TradeTick
 
-16 fields representing a single trade.
+20 fields representing a single trade (16 base + 4 contract identification).
 
 ```rust
 pub struct TradeTick {
@@ -1002,7 +1032,7 @@ Methods:
 
 ### QuoteTick
 
-11 fields representing an NBBO quote.
+15 fields representing an NBBO quote (11 base + 4 contract identification).
 
 ```rust
 pub struct QuoteTick {
@@ -1050,7 +1080,7 @@ Methods: `open_price()`, `high_price()`, `low_price()`, `close_price()`, `open_f
 
 ### EodTick
 
-18 fields - full end-of-day snapshot with OHLC + quote data.
+22 fields - full end-of-day snapshot with OHLC + quote data (18 base + 4 contract identification).
 
 ```rust
 pub struct EodTick {
@@ -1117,7 +1147,7 @@ Methods: `get_price()`, `price_f64()`, plus contract ID helpers.
 
 ### TradeQuoteTick
 
-26-field combined trade + quote tick.
+30-field combined trade + quote tick (26 base + 4 contract identification).
 
 ```rust
 pub struct TradeQuoteTick {
@@ -1610,15 +1640,22 @@ pub struct DirectConfig {
     pub mdds_max_message_size: usize,
     pub mdds_keepalive_secs: u64,
     pub mdds_keepalive_timeout_secs: u64,
+    pub mdds_window_size_kb: usize,             // gRPC initial stream window (default 64 KB)
+    pub mdds_connection_window_size_kb: usize,  // gRPC initial connection window (default 64 KB)
     // FPSS (TCP)
     pub fpss_hosts: Vec<(String, u16)>,
     pub fpss_timeout_ms: u64,
     pub fpss_queue_depth: usize,
+    pub fpss_ring_size: usize,                  // disruptor ring buffer slots (power of 2)
     pub fpss_ping_interval_ms: u64,
     pub fpss_connect_timeout_ms: u64,
+    pub fpss_flush_mode: FpssFlushMode,         // Batched (default) or Immediate
     // Reconnection
     pub reconnect_wait_ms: u64,
     pub reconnect_wait_rate_limited_ms: u64,
+    pub reconnect_policy: ReconnectPolicy,      // Auto (default), Manual, or Custom
+    // OHLCVC derivation
+    pub derive_ohlcvc: bool,                    // derive OHLCVC bars from trades (default true)
     // Concurrency
     pub mdds_concurrent_requests: usize,  // max in-flight gRPC requests
                                          // 0 = auto from tier (2^tier)
@@ -1627,6 +1664,33 @@ pub struct DirectConfig {
     pub tokio_worker_threads: Option<usize>,
 }
 ```
+
+### ReconnectPolicy
+
+Controls FPSS reconnection behavior after a disconnect.
+
+```rust
+pub enum ReconnectPolicy {
+    /// Auto-reconnect matching Java terminal behavior (default).
+    /// Permanent errors: no reconnect. TooManyRequests: 130s wait. All others: 2s wait.
+    /// Up to 5 consecutive reconnect attempts before giving up.
+    Auto,
+    /// No auto-reconnect. Caller monitors Disconnected events and calls reconnect_streaming().
+    Manual,
+    /// User-provided function: (reason, attempt_number) -> Option<Duration>.
+    /// Return Some(delay) to reconnect after delay, None to stop.
+    Custom(Arc<dyn Fn(RemoveReason, u32) -> Option<Duration> + Send + Sync>),
+}
+```
+
+### FpssFlushMode
+
+Controls when the FPSS write buffer is flushed.
+
+| Variant | Description |
+|---------|-------------|
+| `Batched` (default) | Flush only on PING frames (every 100ms). Matches Java terminal. Lower syscall overhead. |
+| `Immediate` | Flush after every frame write. Lowest latency, higher syscall overhead. |
 
 ### Presets
 
@@ -1665,6 +1729,38 @@ pub enum Error {
 ```
 
 All variants implement `Display` and `std::error::Error`. Automatic conversions via `From` are provided for `tonic::transport::Error`, `tonic::Status`, `reqwest::Error`, `std::io::Error`, and `rustls::Error`.
+
+### ThetaData Server Error Codes
+
+The `tdbe::errors` module defines 14 server error codes (`ThetaDataError`) extracted from gRPC response metadata (`http_status_code`). When a gRPC `Status` carries a known code, the `Error::Status` variant is enriched with the ThetaData error name and description.
+
+| Code | Name | Description |
+|------|------|-------------|
+| 200 | OK | Request completed successfully |
+| 404 | NO_IMPL | Endpoint or feature is not implemented |
+| 429 | OS_LIMIT | Rate limit exceeded for the current subscription tier |
+| 470 | GENERAL | General server-side error |
+| 471 | PERMISSION | Insufficient permissions for the requested data |
+| 472 | NO_DATA | No data available for the requested parameters |
+| 473 | INVALID_PARAMS | One or more request parameters are invalid |
+| 474 | DISCONNECTED | Client is disconnected from the server |
+| 475 | TERMINAL_PARSE | Server failed to parse the terminal request |
+| 476 | WRONG_IP | Request originated from an unauthorized IP address |
+| 477 | NO_PAGE_FOUND | The requested page was not found |
+| 478 | INVALID_SESSION_ID | The session ID is invalid or expired |
+| 571 | SERVER_STARTING | Server is still starting up; retry shortly |
+| 572 | UNCAUGHT_ERROR | An uncaught server-side error occurred |
+
+### Reference Code Counts
+
+The `tdbe` crate provides lookup tables for the following enumerated code sets:
+
+| Code Type | Count | Module | Lookup Function |
+|-----------|-------|--------|-----------------|
+| Exchange codes | 78 (0..77) | `tdbe::exchange` | `exchange_name(code)`, `exchange_symbol(code)` |
+| Trade conditions | 149 | `tdbe::conditions` | `trade_condition_name(code)` |
+| Quote conditions | 75 | `tdbe::conditions` | `quote_condition_name(code)` |
+| ThetaData server errors | 14 | `tdbe::errors` | `error_from_http_code(code)` |
 
 ---
 
