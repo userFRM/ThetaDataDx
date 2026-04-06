@@ -83,4 +83,4 @@ for (const auto& item : data) {
 ## Notes
 
 - Different request types may have different date availability.
-- Strike prices are expressed in tenths of a cent: `"500"` = $500.00.
+- Strike prices are expressed in dollars as a string: `"500"` = $500.00.

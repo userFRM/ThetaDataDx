@@ -50,7 +50,7 @@ List all available stock ticker symbols.
 
 ::: code-group
 ```rust [Rust]
-let symbols: Vec<String> = tdx.stock_list_symbols().await?;
+let symbols = tdx.stock_list_symbols().await?;
 ```
 ```python [Python]
 symbols = tdx.stock_list_symbols()
@@ -2461,24 +2461,7 @@ Result of `all_greeks()`. All fields are `f64`.
 
 ### Price
 
-Internal fixed-point price type used for wire-level decoding. All public tick fields are `f64`.
-
-```
-real_price = value * 10^(price_type - 10)
-```
-
-| price_type | Multiplier | Example |
-|------------|------------|---------|
-| 0 | Zero | `(0, 0)` = `0.0` |
-| 6 | 0.0001 | `(1502500, 6)` = `150.2500` |
-| 7 | 0.001 | `(5, 7)` = `0.005` |
-| 8 | 0.01 | `(15025, 8)` = `150.25` |
-| 10 | 1.0 | `(100, 10)` = `100.0` |
-| 12 | 100.0 | `(5, 12)` = `500.0` |
-
-Methods: `to_f64()`, `is_zero()`, `Display` (formats with correct decimals)
-
-Prices with different `price_type` values can be compared directly - they are normalized internally.
+All public tick fields are `f64`, decoded at parse time. No price_type conversion is needed in user code.
 
 ### SecType
 
@@ -2555,7 +2538,7 @@ fpss.subscribe_quotes("AAPL");
 | `sec_type` | SecType | Security type |
 | `exp_date` | int (optional) | Expiration date as YYYYMMDD (options only) |
 | `is_call` | bool (optional) | true = call, false = put (options only) |
-| `strike` | int (optional) | Strike price as scaled integer (options only) |
+| `strike` | string (optional) | Strike price in dollars (options only) |
 
 ### Credentials
 

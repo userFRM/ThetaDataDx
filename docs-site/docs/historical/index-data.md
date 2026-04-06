@@ -9,8 +9,8 @@ description: 9 index data endpoints - list symbols, snapshots, history, and at-t
 
 ::: code-group
 ```rust [Rust]
-let symbols: Vec<String> = tdx.index_list_symbols().await?;
-let dates: Vec<String> = tdx.index_list_dates("SPX").await?;
+let symbols = tdx.index_list_symbols().await?;
+let dates = tdx.index_list_dates("SPX").await?;
 ```
 ```python [Python]
 symbols = tdx.index_list_symbols()
@@ -30,9 +30,9 @@ auto dates = client.index_list_dates("SPX");
 
 ::: code-group
 ```rust [Rust]
-let ohlc: Vec<OhlcTick> = tdx.index_snapshot_ohlc(&["SPX", "NDX"]).await?;
-let ticks: Vec<PriceTick> = tdx.index_snapshot_price(&["SPX", "NDX"]).await?;
-let ticks: Vec<MarketValueTick> = tdx.index_snapshot_market_value(&["SPX"]).await?;
+let ohlc = tdx.index_snapshot_ohlc(&["SPX", "NDX"]).await?;
+let ticks = tdx.index_snapshot_price(&["SPX", "NDX"]).await?;
+let ticks = tdx.index_snapshot_market_value(&["SPX"]).await?;
 ```
 ```python [Python]
 ohlc = tdx.index_snapshot_ohlc(["SPX", "NDX"])
@@ -55,13 +55,13 @@ auto mv = client.index_snapshot_market_value({"SPX"});
 
 ::: code-group
 ```rust [Rust]
-let eod: Vec<EodTick> = tdx.index_history_eod("SPX", "20240101", "20240301").await?;
+let eod = tdx.index_history_eod("SPX", "20240101", "20240301").await?;
 
-let bars: Vec<OhlcTick> = tdx.index_history_ohlc(
+let bars = tdx.index_history_ohlc(
     "SPX", "20240101", "20240301", "60000"
 ).await?;
 
-let ticks: Vec<PriceTick> = tdx.index_history_price("SPX", "20240315", "60000").await?;
+let ticks = tdx.index_history_price("SPX", "20240315", "60000").await?;
 ```
 ```python [Python]
 eod = tdx.index_history_eod("SPX", "20240101", "20240301")
@@ -85,7 +85,7 @@ auto price_hist = client.index_history_price("SPX", "20240315", "60000");
 
 ::: code-group
 ```rust [Rust]
-let ticks: Vec<PriceTick> = tdx.index_at_time_price(
+let ticks = tdx.index_at_time_price(
     "SPX", "20240101", "20240301", "34200000"
 ).await?;
 ```
