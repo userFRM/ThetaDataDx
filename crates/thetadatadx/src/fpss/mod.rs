@@ -1004,7 +1004,8 @@ fn io_loop<F>(
         }));
     });
 
-    // Split the stream into buffered read + buffered write.
+    // Split the stream into buffered read.
+    //
     let mut reader = BufReader::new(stream);
 
     // Per-contract delta state for FIT decompression.

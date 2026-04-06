@@ -62,8 +62,6 @@ impl Frame {
     }
 }
 
-const MAX_CONSECUTIVE_UNKNOWN_CODES: usize = 5;
-
 /// Read the 2-byte FPSS header, handling partial reads and clean EOF.
 fn read_header<R: Read>(reader: &mut R) -> Result<Option<[u8; 2]>, crate::error::Error> {
     let mut header = [0u8; 2];
@@ -124,41 +122,40 @@ pub fn read_frame_into<R: Read>(
     reader: &mut R,
     buf: &mut Vec<u8>,
 ) -> Result<Option<(StreamMsgType, usize)>, crate::error::Error> {
-    let mut consecutive_unknown = 0usize;
+    buf.clear();
 
-    loop {
-        buf.clear();
+    let Some(header) = read_header(reader)? else {
+        return Ok(None);
+    };
 
-        let Some(header) = read_header(reader)? else {
-            return Ok(None);
-        };
+    let payload_len = header[0] as usize;
+    let code_byte = header[1];
 
-        let payload_len = header[0] as usize;
-        let code_byte = header[1];
-
-        // Always consume the payload to keep the stream aligned.
-        buf.resize(payload_len, 0);
-        if payload_len > 0 {
-            reader.read_exact(buf)?;
-        }
-
-        if let Some(code) = StreamMsgType::from_code(code_byte) {
-            return Ok(Some((code, payload_len)));
-        }
-        consecutive_unknown += 1;
-        if consecutive_unknown >= MAX_CONSECUTIVE_UNKNOWN_CODES {
-            return Err(crate::error::Error::Fpss(format!(
-                "framing corruption: {consecutive_unknown} consecutive \
-                 unknown message codes (last code: {code_byte})"
-            )));
-        }
-        tracing::debug!(
-            code = code_byte,
-            payload_len,
-            consecutive_unknown,
-            "skipping unknown FPSS message code"
-        );
+    // Always consume the payload to keep the stream aligned.
+    buf.resize(payload_len, 0);
+    if payload_len > 0 {
+        reader.read_exact(buf)?;
     }
+
+    if let Some(code) = StreamMsgType::from_code(code_byte) {
+        return Ok(Some((code, payload_len)));
+    }
+
+    // The Java terminal crashes (NullPointerException in switch(null)) on
+    // any unknown code and reconnects. We match that behavior: treat any
+    // unknown code as corruption and signal the caller to reconnect.
+    // Trying to skip and resync is unreliable because the "payload" we
+    // consumed is based on what we *think* is the length byte, which is
+    // actually data from the middle of a valid frame.
+    tracing::warn!(
+        code = code_byte,
+        payload_len,
+        "unknown FPSS message code -- triggering reconnect"
+    );
+    Err(crate::error::Error::Fpss(format!(
+        "framing corruption: unknown message code {code_byte} \
+         (0x{code_byte:02X}) -- triggering reconnect"
+    )))
 }
 
 /// Read a single FPSS frame from a blocking reader.
@@ -313,13 +310,14 @@ mod tests {
     }
 
     #[test]
-    fn read_frame_unknown_code_skipped() {
-        // Unknown codes are silently skipped (dev server sends them).
-        // After skipping, the reader hits EOF and returns None.
+    fn read_frame_unknown_code_triggers_error() {
+        // Unknown codes trigger a reconnect error (matches Java terminal behavior).
+        // The Java terminal crashes with NullPointerException on unknown codes
+        // and reconnects. We return an error so the I/O loop can reconnect.
         let data = encode_manual(0xFF, &[]);
         let mut cursor = Cursor::new(data);
-        let result = read_frame(&mut cursor).unwrap();
-        assert!(result.is_none());
+        let err = read_frame(&mut cursor).unwrap_err();
+        assert!(err.to_string().contains("framing corruption"));
     }
 
     #[test]
