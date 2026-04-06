@@ -60,8 +60,8 @@ async fn main() -> Result<(), thetadatadx::Error> {
     let eod = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
     for tick in &eod {
         println!("{}: O={} H={} L={} C={} V={}",
-            tick.date, tick.open_price(), tick.high_price(),
-            tick.low_price(), tick.close_price(), tick.volume);
+            tick.date, tick.open_f64(), tick.high_f64(),
+            tick.low_f64(), tick.close_f64(), tick.volume);
     }
     Ok(())
 }

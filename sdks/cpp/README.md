@@ -45,11 +45,12 @@ int main() {
     // Or inline: auto creds = tdx::Credentials("user@example.com", "your-password");
     auto client = tdx::Client::connect(creds, tdx::Config::production());
 
-    // Fetch EOD stock data -- use convenience f64 functions
+    // Fetch EOD stock data
     auto eod = client.stock_history_eod("AAPL", "20240101", "20240301");
     for (auto& tick : eod) {
         std::cout << tick.date << ": O=" << tdx::open_f64(tick)
-                  << " H=" << tdx::high_f64(tick) << std::endl;
+                  << " H=" << tdx::high_f64(tick) << " L=" << tdx::low_f64(tick)
+                  << " C=" << tdx::close_f64(tick) << std::endl;
     }
 
     // Snapshot: latest quote for multiple symbols
@@ -255,7 +256,7 @@ All endpoints return fully typed C++ structs. No raw JSON.
 | `InterestRateTick` | ms_of_day, rate, date | Interest rate endpoints |
 | `Greeks` | value, delta, gamma, theta, vega, rho, iv, iv_error, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda, vera | Standalone all_greeks() |
 
-**Contract identification fields** (bold above): `expiration`, `strike`, `right`, `strike_price_type` are populated by the server on wildcard queries (pass `"0"` for expiration/strike/right). On single-contract queries these fields are `0`.
+**Contract identification fields** (bold above): `expiration`, `strike`, `right`, `strike_price_type` are populated by the server on wildcard queries (pass `"0"` for expiration/strike). On single-contract queries these fields are `0`. The `right` parameter accepts `"C"` (call), `"P"` (put), or `"both"` -- not `"0"`.
 
 ## FPSS Streaming
 

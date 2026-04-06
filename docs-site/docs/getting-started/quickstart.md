@@ -25,8 +25,8 @@ async fn main() -> Result<(), thetadatadx::Error> {
     let eod = client.stock_history_eod("AAPL", "20240101", "20240301").await?;
     for tick in &eod {
         println!("{}: O={} H={} L={} C={} V={}",
-            tick.date, tick.open_price(), tick.high_price(),
-            tick.low_price(), tick.close_price(), tick.volume);
+            tick.date, tick.open_f64(), tick.high_f64(),
+            tick.low_f64(), tick.close_f64(), tick.volume);
     }
 
     // List option expirations
@@ -82,7 +82,7 @@ import (
     "fmt"
     "log"
 
-    thetadatadx "github.com/userFRM/ThetaDataDx/sdks/go"
+    thetadatadx "github.com/userFRM/thetadatadx/sdks/go"
 )
 
 func main() {
@@ -137,8 +137,8 @@ int main() {
     auto eod = client.stock_history_eod("AAPL", "20240101", "20240301");
     for (auto& tick : eod) {
         std::cout << tick.date << ": O=" << std::fixed << std::setprecision(2)
-                  << tick.open << " H=" << tick.high
-                  << " L=" << tick.low << " C=" << tick.close << std::endl;
+                  << tdx::open_f64(tick) << " H=" << tdx::high_f64(tick)
+                  << " L=" << tdx::low_f64(tick) << " C=" << tdx::close_f64(tick) << std::endl;
     }
 
     // Compute Greeks (no server connection needed)

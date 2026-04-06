@@ -55,8 +55,8 @@ let chain = client.option_snapshot_quote(
 for q in &chain {
     if q.has_contract_id() {
         println!("{} {} {:.2}: bid={:.2} ask={:.2}",
-            q.expiration, q.right_str(), q.strike_price(),
-            q.bid_f64(), q.ask_f64());
+            q.expiration, if q.is_call() { "C" } else { "P" },
+            q.strike_price(), q.bid_f64(), q.ask_f64());
     }
 }
 ```
@@ -145,7 +145,7 @@ for t in &trades {
             t.expiration,
             if t.is_call() { "C" } else { "P" },
             t.strike_price(),
-            t.get_price().to_f64());
+            t.price_f64());
     }
 }
 ```
@@ -161,7 +161,7 @@ for t in trades:
 The 4 contract ID fields and helper methods (`strike_price()`, `is_call()`, `is_put()`, `has_contract_id()`) are available on all 10 option tick types.
 
 ::: tip Right Field
-In Go and Python, the `right` field is a human-readable string: `"C"` (call), `"P"` (put), or `""` (not set). The raw integer value (67/80/0) is available as `right_raw` (Python) or `RightRaw` (Go) for power users. In Rust and C FFI, `right` remains an `i32` matching the wire format; use `right_str()` or `is_call()`/`is_put()` helpers.
+In Go and Python, the `right` field is a human-readable string: `"C"` (call), `"P"` (put), or `""` (not set). The raw integer value (67/80/0) is available as `right_raw` (Python) or `RightRaw` (Go) for power users. In Rust and C FFI, `right` remains an `i32` matching the wire format; use `is_call()`/`is_put()` helpers.
 :::
 
 ---
@@ -207,7 +207,7 @@ from thetadatadx import all_greeks
 
 g = all_greeks(
     spot=450.0, strike=455.0, rate=0.05,
-    div_yield=0.015, tte=30/365, price=8.50, is_call=True
+    div_yield=0.015, tte=30/365, option_price=8.50, is_call=True
 )
 
 print(f"IV:    {g['iv']:.4f}")

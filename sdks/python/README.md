@@ -78,7 +78,7 @@ iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30/365, 8.50, True)
 ### `Config`
 - `Config.production()` - ThetaData NJ production servers
 - `Config.dev()` - Dev FPSS servers (port 20200, infinite historical replay)
-- `Config.stage()` / `StageConfig()` / `Config::stage()` - Stage FPSS servers (port 20100, testing, unstable)
+- `Config.stage()` - Stage FPSS servers (port 20100, testing, unstable)
 
 ### `ThetaDataDx(creds, config)`
 
@@ -260,10 +260,10 @@ Convert a list of tick dicts to a pandas DataFrame. Requires `pip install thetad
 All 61 `ThetaDataDx` data methods have `_df` variants that return DataFrames directly:
 `stock_history_eod_df()`, `stock_history_ohlc_df()`, `option_list_expirations_df()`, `index_history_eod_df()`, etc.
 
-### `all_greeks(spot, strike, rate, div_yield, tte, price, is_call)`
+### `all_greeks(spot, strike, rate, div_yield, tte, option_price, is_call)`
 Returns dict with 22 Greeks: delta, gamma, theta, vega, rho, iv, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda.
 
-### `implied_volatility(spot, strike, rate, div_yield, tte, price, is_call)`
+### `implied_volatility(spot, strike, rate, div_yield, tte, option_price, is_call)`
 Returns `(iv, error)` tuple.
 
 ## Architecture

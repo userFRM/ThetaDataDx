@@ -78,7 +78,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
 
     let quotes = tdx.stock_history_quote("AAPL", "20250115", "60000").await?;
     for q in &quotes {
-        println!("{}: bid={} ask={}", q.date, q.bid_price(), q.ask_price());
+        println!("{}: bid={} ask={}", q.date, q.bid_f64(), q.ask_f64());
     }
     Ok(())
 }
@@ -119,8 +119,8 @@ auto client = tdx::Client::connect(creds, tdx::Config::production());
 
 auto quotes = client.stock_history_quote("AAPL", "20250115", "60000");
 for (auto& q : quotes) {
-    std::cout << q.date << ": bid=" << q.bid
-              << " ask=" << q.ask << std::endl;
+    std::cout << q.date << ": bid=" << tdx::bid_f64(q)
+              << " ask=" << tdx::ask_f64(q) << std::endl;
 }
 ```
 

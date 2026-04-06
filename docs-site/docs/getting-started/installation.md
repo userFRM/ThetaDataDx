@@ -35,7 +35,7 @@ cargo build --release -p thetadatadx-ffi
 # or libthetadatadx_ffi.dylib (macOS)
 
 # Then add the Go module:
-go get github.com/userFRM/ThetaDataDx/sdks/go
+go get github.com/userFRM/thetadatadx/sdks/go
 ```
 ```bash [C++]
 # Prerequisites: C++17 compiler, CMake 3.16+, Rust toolchain

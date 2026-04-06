@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress'
+import { withMermaid } from 'vitepress-plugin-mermaid'
 
-export default defineConfig({
+export default withMermaid(defineConfig({
   title: 'ThetaDataDx',
   description: 'Direct-wire SDK for ThetaData market data',
   base: '/ThetaDataDx/',
@@ -288,4 +289,4 @@ export default defineConfig({
       text: 'Edit this page on GitHub',
     },
   },
-})
+}))

@@ -77,10 +77,10 @@ Requires `pip install thetadatadx[pandas]`.
 ::: code-group
 ```rust [Rust]
 // All available stock symbols
-let symbols: Vec<String> = client.stock_list_symbols().await?;
+let symbols = client.stock_list_symbols().await?;
 
 // Available dates for a stock by request type
-let dates: Vec<String> = client.stock_list_dates("TRADE", "AAPL").await?;
+let dates = client.stock_list_dates("TRADE", "AAPL").await?;
 ```
 ```python [Python]
 # All available stock symbols
@@ -110,19 +110,19 @@ auto dates = client.stock_list_dates("TRADE", "AAPL");
 ::: code-group
 ```rust [Rust]
 // Latest OHLC snapshot (one or more symbols)
-let ticks: Vec<OhlcTick> = client.stock_snapshot_ohlc(&["AAPL", "MSFT"]).await?;
+let ticks = client.stock_snapshot_ohlc(&["AAPL", "MSFT"]).await?;
 
 // Latest trade snapshot
-let ticks: Vec<TradeTick> = client.stock_snapshot_trade(&["AAPL"]).await?;
+let ticks = client.stock_snapshot_trade(&["AAPL"]).await?;
 
 // Latest NBBO quote snapshot
-let ticks: Vec<QuoteTick> = client.stock_snapshot_quote(&["AAPL", "MSFT", "GOOGL"]).await?;
+let ticks = client.stock_snapshot_quote(&["AAPL", "MSFT", "GOOGL"]).await?;
 for q in &ticks {
-    println!("bid={} ask={}", q.bid_price(), q.ask_price());
+    println!("bid={} ask={}", q.bid_f64(), q.ask_f64());
 }
 
 // Latest market value snapshot
-let ticks: Vec<MarketValueTick> = tdx.stock_snapshot_market_value(&["AAPL"]).await?;
+let ticks = tdx.stock_snapshot_market_value(&["AAPL"]).await?;
 ```
 ```python [Python]
 # Latest OHLC snapshot (one or more symbols)
@@ -152,7 +152,7 @@ mv, _ := client.StockSnapshotMarketValue([]string{"AAPL"})
 // Latest quote snapshot (multiple symbols)
 auto quotes = client.stock_snapshot_quote({"AAPL", "MSFT", "GOOGL"});
 for (auto& q : quotes) {
-    std::cout << "bid=" << q.bid << " ask=" << q.ask << std::endl;
+    std::cout << "bid=" << tdx::bid_f64(q) << " ask=" << tdx::ask_f64(q) << std::endl;
 }
 
 auto ohlc = client.stock_snapshot_ohlc({"AAPL", "MSFT"});
@@ -166,29 +166,29 @@ auto mv = client.stock_snapshot_market_value({"AAPL"});
 ::: code-group
 ```rust [Rust]
 // End-of-day data for a date range
-let eod: Vec<EodTick> = client.stock_history_eod("AAPL", "20240101", "20240301").await?;
+let eod = client.stock_history_eod("AAPL", "20240101", "20240301").await?;
 for t in &eod {
     println!("{}: O={} H={} L={} C={} V={}",
-        t.date, t.open_price(), t.high_price(),
-        t.low_price(), t.close_price(), t.volume);
+        t.date, t.open_f64(), t.high_f64(),
+        t.low_f64(), t.close_f64(), t.volume);
 }
 
 // Intraday OHLC bars (single date)
-let bars: Vec<OhlcTick> = client.stock_history_ohlc("AAPL", "20240315", "60000").await?;
+let bars = client.stock_history_ohlc("AAPL", "20240315", "60000").await?;
 
 // Intraday OHLC bars (date range)
-let bars: Vec<OhlcTick> = client.stock_history_ohlc_range(
+let bars = client.stock_history_ohlc_range(
     "AAPL", "20240101", "20240301", "300000"  // 5-min bars
 ).await?;
 
 // All trades for a date
-let trades: Vec<TradeTick> = client.stock_history_trade("AAPL", "20240315").await?;
+let trades = client.stock_history_trade("AAPL", "20240315").await?;
 
 // NBBO quotes at a given interval (use "0" for every quote change)
-let quotes: Vec<QuoteTick> = client.stock_history_quote("AAPL", "20240315", "60000").await?;
+let quotes = client.stock_history_quote("AAPL", "20240315", "60000").await?;
 
 // Combined trade + quote ticks
-let ticks: Vec<TradeQuoteTick> = tdx.stock_history_trade_quote("AAPL", "20240315").await?;
+let ticks = tdx.stock_history_trade_quote("AAPL", "20240315").await?;
 ```
 ```python [Python]
 # End-of-day data for a date range
@@ -245,9 +245,9 @@ result, _ := client.StockHistoryTradeQuote("AAPL", "20240315")
 // End-of-day data
 auto eod = client.stock_history_eod("AAPL", "20240101", "20240301");
 for (auto& tick : eod) {
-    std::cout << tick.date << ": O=" << tick.open
-              << " H=" << tick.high << " L=" << tick.low
-              << " C=" << tick.close << " V=" << tick.volume << std::endl;
+    std::cout << tick.date << ": O=" << tdx::open_f64(tick)
+              << " H=" << tdx::high_f64(tick) << " L=" << tdx::low_f64(tick)
+              << " C=" << tdx::close_f64(tick) << " V=" << tick.volume << std::endl;
 }
 
 // Intraday OHLC bars
@@ -274,12 +274,12 @@ Retrieve the trade or quote at a specific time of day across a date range. The `
 ::: code-group
 ```rust [Rust]
 // Trade at a specific time of day across a date range
-let trades: Vec<TradeTick> = client.stock_at_time_trade(
+let trades = client.stock_at_time_trade(
     "AAPL", "20240101", "20240301", "34200000"
 ).await?;
 
 // Quote at a specific time of day across a date range
-let quotes: Vec<QuoteTick> = client.stock_at_time_quote(
+let quotes = client.stock_at_time_quote(
     "AAPL", "20240101", "20240301", "34200000"
 ).await?;
 ```
@@ -331,21 +331,21 @@ client.stock_history_quote_stream("AAPL", "20240315", "0", |chunk| {
 ::: code-group
 ```rust [Rust]
 // All option underlying symbols
-let symbols: Vec<String> = client.option_list_symbols().await?;
+let symbols = client.option_list_symbols().await?;
 
 // Available dates for a specific contract
-let dates: Vec<String> = client.option_list_dates(
+let dates = client.option_list_dates(
     "TRADE", "SPY", "20240419", "500", "C"
 ).await?;
 
 // Expiration dates for an underlying
-let exps: Vec<String> = client.option_list_expirations("SPY").await?;
+let exps = client.option_list_expirations("SPY").await?;
 
 // Strike prices for a given expiration
-let strikes: Vec<String> = client.option_list_strikes("SPY", "20240419").await?;
+let strikes = client.option_list_strikes("SPY", "20240419").await?;
 
 // All contracts for a symbol on a date
-let contracts: Vec<OptionContract> = tdx.option_list_contracts("TRADE", "SPY", "20240315").await?;
+let contracts = tdx.option_list_contracts("TRADE", "SPY", "20240315").await?;
 ```
 ```python [Python]
 # All option underlying symbols
@@ -462,22 +462,22 @@ auto iv = client.option_snapshot_greeks_implied_volatility("SPY", "20240419", "5
 ::: code-group
 ```rust [Rust]
 // End-of-day option data
-let eod: Vec<EodTick> = client.option_history_eod(
+let eod = client.option_history_eod(
     "SPY", "20240419", "500", "C", "20240101", "20240301"
 ).await?;
 
 // Intraday OHLC bars
-let bars: Vec<OhlcTick> = client.option_history_ohlc(
+let bars = client.option_history_ohlc(
     "SPY", "20240419", "500", "C", "20240315", "60000"
 ).await?;
 
 // All trades for a date
-let trades: Vec<TradeTick> = client.option_history_trade(
+let trades = client.option_history_trade(
     "SPY", "20240419", "500", "C", "20240315"
 ).await?;
 
 // NBBO quotes at a given interval
-let quotes: Vec<QuoteTick> = client.option_history_quote(
+let quotes = client.option_history_quote(
     "SPY", "20240419", "500", "C", "20240315", "60000"
 ).await?;
 
@@ -637,12 +637,12 @@ auto tg_iv = client.option_history_trade_greeks_implied_volatility("SPY", "20240
 
 ::: code-group
 ```rust [Rust]
-let trades: Vec<TradeTick> = client.option_at_time_trade(
+let trades = client.option_at_time_trade(
     "SPY", "20240419", "500", "C",
     "20240101", "20240301", "34200000"  // 9:30 AM ET
 ).await?;
 
-let quotes: Vec<QuoteTick> = client.option_at_time_quote(
+let quotes = client.option_at_time_quote(
     "SPY", "20240419", "500", "C",
     "20240101", "20240301", "34200000"
 ).await?;
@@ -689,8 +689,8 @@ client.option_history_quote_stream(
 
 ::: code-group
 ```rust [Rust]
-let symbols: Vec<String> = client.index_list_symbols().await?;
-let dates: Vec<String> = client.index_list_dates("SPX").await?;
+let symbols = client.index_list_symbols().await?;
+let dates = client.index_list_dates("SPX").await?;
 ```
 ```python [Python]
 symbols = client.index_list_symbols()
@@ -710,9 +710,9 @@ auto dates = client.index_list_dates("SPX");
 
 ::: code-group
 ```rust [Rust]
-let ohlc: Vec<OhlcTick> = client.index_snapshot_ohlc(&["SPX", "NDX"]).await?;
-let ticks: Vec<PriceTick> = tdx.index_snapshot_price(&["SPX", "NDX"]).await?;
-let ticks: Vec<MarketValueTick> = tdx.index_snapshot_market_value(&["SPX"]).await?;
+let ohlc = client.index_snapshot_ohlc(&["SPX", "NDX"]).await?;
+let ticks = tdx.index_snapshot_price(&["SPX", "NDX"]).await?;
+let ticks = tdx.index_snapshot_market_value(&["SPX"]).await?;
 ```
 ```python [Python]
 ohlc = client.index_snapshot_ohlc(["SPX", "NDX"])
@@ -735,13 +735,13 @@ auto mv = client.index_snapshot_market_value({"SPX"});
 
 ::: code-group
 ```rust [Rust]
-let eod: Vec<EodTick> = client.index_history_eod("SPX", "20240101", "20240301").await?;
+let eod = client.index_history_eod("SPX", "20240101", "20240301").await?;
 
-let bars: Vec<OhlcTick> = client.index_history_ohlc(
+let bars = client.index_history_ohlc(
     "SPX", "20240101", "20240301", "60000"
 ).await?;
 
-let ticks: Vec<PriceTick> = tdx.index_history_price("SPX", "20240315", "60000").await?;
+let ticks = tdx.index_history_price("SPX", "20240315", "60000").await?;
 ```
 ```python [Python]
 eod = client.index_history_eod("SPX", "20240101", "20240301")
@@ -765,7 +765,7 @@ auto price_hist = client.index_history_price("SPX", "20240315", "60000");
 
 ::: code-group
 ```rust [Rust]
-let ticks: Vec<PriceTick> = tdx.index_at_time_price(
+let ticks = tdx.index_at_time_price(
     "SPX", "20240101", "20240301", "34200000"
 ).await?;
 ```
@@ -786,7 +786,7 @@ auto at_time = client.index_at_time_price("SPX", "20240101", "20240301", "342000
 
 ::: code-group
 ```rust [Rust]
-let rates: Vec<InterestRateTick> = tdx.interest_rate_history_eod(
+let rates = tdx.interest_rate_history_eod(
     "SOFR", "20240101", "20240301"
 ).await?;
 ```
@@ -809,9 +809,9 @@ Available rate symbols: `SOFR`, `TREASURY_M1`, `TREASURY_M3`, `TREASURY_M6`, `TR
 
 ::: code-group
 ```rust [Rust]
-let days: Vec<CalendarDay> = tdx.calendar_open_today().await?;
-let days: Vec<CalendarDay> = tdx.calendar_on_date("20240315").await?;
-let days: Vec<CalendarDay> = tdx.calendar_year("2024").await?;
+let days = tdx.calendar_open_today().await?;
+let days = tdx.calendar_on_date("20240315").await?;
+let days = tdx.calendar_year("2024").await?;
 ```
 ```python [Python]
 result = client.calendar_open_today()
