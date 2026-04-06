@@ -1711,7 +1711,7 @@ dependencies = [
 
 [[package]]
 name = "tdbe"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "thiserror 2.0.18",
 ]
@@ -1731,7 +1731,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "5.4.0"
+version = "6.0.0"
 dependencies = [
  "disruptor",
  "metrics",
@@ -1760,7 +1760,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-mcp"
-version = "5.4.0"
+version = "6.0.0"
 dependencies = [
  "serde",
  "sonic-rs",
