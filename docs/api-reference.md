@@ -927,7 +927,7 @@ Constructors:
 Contract::stock("AAPL")
 Contract::index("SPX")
 Contract::rate("SOFR")
-Contract::option("SPY", 20261218, true, 60000)  // call, strike 60000
+Contract::option("SPY", "20261218", 60.0, "C")  // call, strike 60000
 ```
 
 Serialization:
@@ -1301,6 +1301,7 @@ Fixed-point price with variable decimal precision.
 ```rust
 pub struct Price {
     pub value: i32,
+    pub price_type: i32,
 }
 ```
 

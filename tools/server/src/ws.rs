@@ -198,7 +198,7 @@ async fn handle_client_message(state: &AppState, text: &str, socket: &mut WebSoc
         let is_call = right_val
             .as_str()
             .is_some_and(|r| r.eq_ignore_ascii_case("C") || r.eq_ignore_ascii_case("CALL"));
-        Contract::option(root, exp, is_call, strike)
+        Contract::option_raw(root, exp, is_call, strike)
     } else {
         Contract::stock(root)
     };
