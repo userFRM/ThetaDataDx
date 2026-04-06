@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.0.0] - 2026-04-06
+
+### Breaking Changes
+
+- **All tick price fields changed from `i32` to `f64`** -- prices are decoded during parsing. Users access `tick.bid`, `tick.price`, `tick.open` directly as `f64`. No more `price_type` or `_f64()` helpers.
+- **`price_type` removed from all public APIs** -- historical ticks, FPSS streaming events, FFI, Python, Go, C++.
+- **`strike_price_type` removed** -- `strike` is now `f64` on all tick structs.
+- **All `_f64()` and `_price()` helper methods removed** -- `bid_f64()`, `get_price()`, `open_price()`, `trade_price()`, `midpoint_price()`, `midpoint_value()`, `strike_price()` no longer exist.
+- **FPSS streaming events: prices are `f64`** -- `FpssData::Quote`, `Trade`, `Ohlcvc` expose `f64` fields directly. No `price_type`. No `_f64` dual fields.
+- **`Contract::option()` takes 4 strings** -- `Contract::option("SPY", "20260417", "550", "C")` instead of `(root, i32, bool, i32)`. Matches the MDDS historical API experience.
+- **Python SDK**: `subscribe_option_*` takes `(symbol, exp_date, right, strike)` as strings. Removed `price_raw`, `bid_raw`, `price_type` from dicts.
+- **Go SDK**: removed `RightRaw`, `StrikePriceType`, `PriceRaw`, `BidRaw`/`AskRaw`/`OpenRaw`/etc., `PriceToF64()`.
+- **C++ SDK**: all price fields are `double`. Removed `tdx::price_to_f64()`, `tdx::bid_f64()`, `tdx::open_f64()`, etc.
+- **CLI**: `price_type` column removed from all table output.
+
+### Added
+
+- **`QuoteTick.midpoint`** -- pre-computed `(bid + ask) / 2.0` at parse time.
+- **`Contract::option_raw()`** -- raw wire-format constructor for the drop-in REST/WS server.
+- **Go FFI layout tests** -- compile-time `unsafe.Sizeof` assertions for all 12 C-mirror structs.
+- **WebSocket zero-copy fan-out** -- per-client `mpsc<Arc<str>>`, JSON serialized once.
+- **Server `--no-ohlcvc` flag** -- disable OHLCVC bar derivation from trades.
+- **CLI price formatting** -- preserves up to 6 meaningful decimals, trims trailing zeros.
+
+### Fixed
+
+- **`tools/server` and `tools/mcp` compilation** -- updated for f64 migration (were excluded from workspace, broke silently).
+- **Go FFI struct padding** -- 8 structs had incorrect tail padding causing memory corruption on multi-element arrays.
+- **`OptionContract` missing `Debug + Clone` derives** -- accidentally removed during refactor.
+- **Server dead match arm** -- removed v2 parameter fallback code.
+
+### Documentation
+
+- All 60+ endpoint pages updated: f64 fields, no `price_type`, no `_f64()` helpers.
+- All SDK READMEs updated (Rust, Python, Go, C++).
+- Streaming docs rewritten for f64 events.
+- OpenAPI spec purged of `price_type`.
+- JVM deviations doc: new sections for FPSS f64 streaming and `Contract::option` clean API.
+- Internal docs (architecture, api-reference, endpoint-schema) updated.
+
 ## [5.4.0] - 2026-04-05
 
 ### Breaking Changes
