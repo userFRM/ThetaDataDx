@@ -134,15 +134,33 @@ impl Contract {
 
     /// Create an option contract.
     ///
-    /// Source: `Contract(String root, int expDate, boolean isCall, int strike)`
-    /// constructor in `Contract.java`.
-    ///
     /// # Arguments
-    /// - `root`: Underlying ticker (e.g., "AAPL")
-    /// - `exp_date`: Expiration as YYYYMMDD integer (e.g., 20260320)
-    /// - `is_call`: true for call, false for put
-    /// - `strike`: Strike price in `ThetaData`'s integer encoding
-    pub fn option(root: impl Into<String>, exp_date: i32, is_call: bool, strike: i32) -> Self {
+    /// - `root`: Underlying ticker (e.g., `"AAPL"`)
+    /// - `exp_date`: Expiration as `"YYYYMMDD"` (e.g., `"20260320"`)
+    /// - `strike`: Strike price in dollars as string (e.g., `"550"`)
+    /// - `right`: `"C"` for call, `"P"` for put
+    pub fn option(root: impl Into<String>, exp_date: &str, strike: &str, right: &str) -> Self {
+        let exp: i32 = exp_date
+            .replace('-', "")
+            .parse()
+            .expect("invalid expiration date");
+        let is_call = right.eq_ignore_ascii_case("C") || right.eq_ignore_ascii_case("call");
+        let strike_dollars: f64 = strike.parse().expect("invalid strike price");
+        let strike_raw = (strike_dollars * 1000.0).round() as i32;
+        Self {
+            root: root.into(),
+            sec_type: SecType::Option,
+            exp_date: Some(exp),
+            is_call: Some(is_call),
+            strike: Some(strike_raw),
+        }
+    }
+
+    /// Construct from raw wire-format values (integer expiration, bool call/put, raw strike).
+    ///
+    /// Prefer [`Contract::option`] for user-facing code. This constructor is for the
+    /// drop-in REST/WS server which must match the Java terminal's contract format.
+    pub fn option_raw(root: impl Into<String>, exp_date: i32, is_call: bool, strike: i32) -> Self {
         Self {
             root: root.into(),
             sec_type: SecType::Option,
@@ -623,7 +641,7 @@ mod tests {
 
     #[test]
     fn option_contract_roundtrip() {
-        let c = Contract::option("SPY", 20261218, true, 60000);
+        let c = Contract::option("SPY", "20261218", "60", "C");
         let bytes = c.to_bytes();
         // Java: 12 + root.length() = 12 + 3 = 15 total bytes, size byte = 15
         assert_eq!(bytes.len(), 15);
@@ -758,7 +776,7 @@ mod tests {
 
     #[test]
     fn contract_display_option() {
-        let c = Contract::option("SPY", 20261218, false, 45000);
+        let c = Contract::option("SPY", "20261218", "45", "P");
         assert_eq!(c.to_string(), "SPY OPTION 20261218 P 45000");
     }
 
@@ -818,7 +836,7 @@ mod tests {
         // Java: root="SPY" (3 bytes), sec=OPTION, exp=20261218, isCall=true, strike=60000
         // Java allocates: 12 + 3 = 15 bytes
         // Wire: [15, 3, 'S','P','Y', sec_type, exp(4), is_call(1), strike(4)]
-        let c = Contract::option("SPY", 20261218, true, 60000);
+        let c = Contract::option("SPY", "20261218", "60", "C");
         let bytes = c.to_bytes();
         assert_eq!(bytes[0], 15); // size byte = 12 + root.length()
         assert_eq!(bytes[1], 3); // root_len

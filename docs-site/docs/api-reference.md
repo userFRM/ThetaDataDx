@@ -2254,10 +2254,10 @@ fpss.shutdown();
 Events are delivered as one of three categories:
 
 **FpssData** - Market data events (all variants include `received_at_ns: u64` wall-clock timestamp):
-- `Quote` - NBBO quote update (bid, ask, sizes, exchanges, conditions, plus pre-decoded `bid_f64`/`ask_f64`)
-- `Trade` - Trade execution (price, size, exchange, conditions, plus pre-decoded `price_f64`)
+- `Quote` - NBBO quote update (bid, ask, sizes, exchanges, conditions)
+- `Trade` - Trade execution (price, size, exchange, conditions)
 - `OpenInterest` - Open interest update
-- `Ohlcvc` - Aggregated OHLCVC bar (derived from trades via internal accumulator, plus pre-decoded `open_f64`/`high_f64`/`low_f64`/`close_f64`; `volume`/`count` are `i64` to avoid overflow on high-volume symbols)
+- `Ohlcvc` - Aggregated OHLCVC bar (derived from trades via internal accumulator; `volume`/`count` are `i64` to avoid overflow on high-volume symbols)
 
 **FpssControl** - Lifecycle events:
 - `LoginSuccess` - Authentication successful (includes permissions string)
@@ -2533,7 +2533,7 @@ Identifies a security for streaming subscriptions.
 Contract::stock("AAPL")
 Contract::index("SPX")
 Contract::rate("SOFR")
-Contract::option("SPY", 20261218, true, 60000)  // call, strike 60000
+Contract::option("SPY", "20261218", 60.0, "C")  // call, strike 60000
 ```
 ```python [Python]
 # Passed as string symbol to subscribe methods

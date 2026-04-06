@@ -220,7 +220,7 @@ println!("Subscribed (req_id={req_id})");
 tdx.subscribe_trades(&Contract::stock("MSFT"))?;
 
 // Option quotes
-let opt = Contract::option("SPY", 20261218, true, 60000); // call, strike $600
+let opt = Contract::option("SPY", "20261218", 600.0, "C");
 tdx.subscribe_quotes(&opt)?;
 
 // Open interest

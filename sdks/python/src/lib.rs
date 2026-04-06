@@ -411,12 +411,12 @@ fn option_contract_to_dict(py: Python<'_>, c: &tick::OptionContract) -> Py<PyAny
 fn all_greeks(
     py: Python<'_>,
     spot: f64,
-    strike: f64,
+    strike: &str,
     rate: f64,
     div_yield: f64,
     tte: f64,
     option_price: f64,
-    is_call: bool,
+    right: &str,
 ) -> Py<PyAny> {
     let g = tdbe::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, is_call);
     let dict = PyDict::new(py);
@@ -453,12 +453,12 @@ fn all_greeks(
 #[allow(clippy::too_many_arguments)] // Reason: mirrors Black-Scholes parameter set expected by Python callers
 fn implied_volatility(
     spot: f64,
-    strike: f64,
+    strike: &str,
     rate: f64,
     div_yield: f64,
     tte: f64,
     option_price: f64,
-    is_call: bool,
+    right: &str,
 ) -> (f64, f64) {
     tdbe::greeks::implied_volatility(spot, strike, rate, div_yield, tte, option_price, is_call)
 }
@@ -937,11 +937,11 @@ impl ThetaDataDx {
     fn subscribe_option_quotes(
         &self,
         symbol: &str,
-        exp_date: i32,
-        is_call: bool,
-        strike: i32,
+        exp_date: &str,
+        right: &str,
+        strike: &str,
     ) -> PyResult<i32> {
-        let contract = fpss::protocol::Contract::option(symbol, exp_date, is_call, strike);
+        let contract = fpss::protocol::Contract::option(symbol, exp_date, strike, right);
         self.tdx.subscribe_quotes(&contract).map_err(to_py_err)
     }
 
@@ -949,11 +949,11 @@ impl ThetaDataDx {
     fn subscribe_option_trades(
         &self,
         symbol: &str,
-        exp_date: i32,
-        is_call: bool,
-        strike: i32,
+        exp_date: &str,
+        right: &str,
+        strike: &str,
     ) -> PyResult<i32> {
-        let contract = fpss::protocol::Contract::option(symbol, exp_date, is_call, strike);
+        let contract = fpss::protocol::Contract::option(symbol, exp_date, strike, right);
         self.tdx.subscribe_trades(&contract).map_err(to_py_err)
     }
 
@@ -961,11 +961,11 @@ impl ThetaDataDx {
     fn subscribe_option_open_interest(
         &self,
         symbol: &str,
-        exp_date: i32,
-        is_call: bool,
-        strike: i32,
+        exp_date: &str,
+        right: &str,
+        strike: &str,
     ) -> PyResult<i32> {
-        let contract = fpss::protocol::Contract::option(symbol, exp_date, is_call, strike);
+        let contract = fpss::protocol::Contract::option(symbol, exp_date, strike, right);
         self.tdx
             .subscribe_open_interest(&contract)
             .map_err(to_py_err)
@@ -1019,11 +1019,11 @@ impl ThetaDataDx {
     fn unsubscribe_option_quotes(
         &self,
         symbol: &str,
-        exp_date: i32,
-        is_call: bool,
-        strike: i32,
+        exp_date: &str,
+        right: &str,
+        strike: &str,
     ) -> PyResult<i32> {
-        let contract = fpss::protocol::Contract::option(symbol, exp_date, is_call, strike);
+        let contract = fpss::protocol::Contract::option(symbol, exp_date, strike, right);
         self.tdx.unsubscribe_quotes(&contract).map_err(to_py_err)
     }
 
@@ -1031,11 +1031,11 @@ impl ThetaDataDx {
     fn unsubscribe_option_trades(
         &self,
         symbol: &str,
-        exp_date: i32,
-        is_call: bool,
-        strike: i32,
+        exp_date: &str,
+        right: &str,
+        strike: &str,
     ) -> PyResult<i32> {
-        let contract = fpss::protocol::Contract::option(symbol, exp_date, is_call, strike);
+        let contract = fpss::protocol::Contract::option(symbol, exp_date, strike, right);
         self.tdx.unsubscribe_trades(&contract).map_err(to_py_err)
     }
 
@@ -1043,11 +1043,11 @@ impl ThetaDataDx {
     fn unsubscribe_option_open_interest(
         &self,
         symbol: &str,
-        exp_date: i32,
-        is_call: bool,
-        strike: i32,
+        exp_date: &str,
+        right: &str,
+        strike: &str,
     ) -> PyResult<i32> {
-        let contract = fpss::protocol::Contract::option(symbol, exp_date, is_call, strike);
+        let contract = fpss::protocol::Contract::option(symbol, exp_date, strike, right);
         self.tdx
             .unsubscribe_open_interest(&contract)
             .map_err(to_py_err)

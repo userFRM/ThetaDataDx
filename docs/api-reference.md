@@ -927,7 +927,7 @@ Constructors:
 Contract::stock("AAPL")
 Contract::index("SPX")
 Contract::rate("SOFR")
-Contract::option("SPY", 20261218, true, 60000)  // call, strike 60000
+Contract::option("SPY", "20261218", 60.0, "C")  // call, strike 60000
 ```
 
 Serialization:

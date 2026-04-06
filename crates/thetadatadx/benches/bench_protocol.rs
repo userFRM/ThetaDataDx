@@ -16,7 +16,7 @@ fn bench_contract_stock_to_bytes(c: &mut Criterion) {
 }
 
 fn bench_contract_option_to_bytes(c: &mut Criterion) {
-    let contract = Contract::option("SPY", 20261218, true, 60000);
+    let contract = Contract::option("SPY", "20261218", "60", "C");
     c.bench_function("contract_option_to_bytes", |b| {
         b.iter(|| {
             black_box(black_box(&contract).to_bytes());
@@ -25,7 +25,7 @@ fn bench_contract_option_to_bytes(c: &mut Criterion) {
 }
 
 fn bench_contract_from_bytes(c: &mut Criterion) {
-    let contract = Contract::option("SPY", 20261218, true, 60000);
+    let contract = Contract::option("SPY", "20261218", "60", "C");
     let bytes = contract.to_bytes();
     c.bench_function("contract_from_bytes", |b| {
         b.iter(|| {
@@ -35,7 +35,7 @@ fn bench_contract_from_bytes(c: &mut Criterion) {
 }
 
 fn bench_contract_roundtrip(c: &mut Criterion) {
-    let contract = Contract::option("AAPL", 20261220, false, 17500);
+    let contract = Contract::option("AAPL", "20261220", "17.5", "P");
     c.bench_function("contract_roundtrip", |b| {
         b.iter(|| {
             let bytes = black_box(&contract).to_bytes();
@@ -57,7 +57,7 @@ fn bench_build_credentials_payload(c: &mut Criterion) {
 }
 
 fn bench_build_subscribe_payload(c: &mut Criterion) {
-    let contract = Contract::option("SPY", 20261218, true, 60000);
+    let contract = Contract::option("SPY", "20261218", "60", "C");
     c.bench_function("build_subscribe_payload", |b| {
         b.iter(|| {
             black_box(build_subscribe_payload(black_box(42), black_box(&contract)));
