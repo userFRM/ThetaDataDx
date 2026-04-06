@@ -13,21 +13,31 @@ Retrieve implied volatility computed on each individual trade for an option cont
 
 ::: code-group
 ```rust [Rust]
-let iv: Vec<IvTick> = tdx.option_history_trade_greeks_implied_volatility(
-    "SPY", "20241220", "500", "C", "20240315"
-).await?;
+let data = tdx.option_history_trade_greeks_implied_volatility("SPY", "20260417", "550", "C", "20260315").await?;
+for t in &data {
+    println!("date={} ms_of_day={} implied_volatility={:.4} iv_error={:.4}",
+        t.date, t.ms_of_day, t.implied_volatility, t.iv_error);
+}
 ```
 ```python [Python]
-iv = tdx.option_history_trade_greeks_implied_volatility(
-    "SPY", "20241220", "500", "C", "20240315")
+data = tdx.option_history_trade_greeks_implied_volatility("SPY", "20260417", "550", "C", "20260315")
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} "
+          f"implied_volatility={t['implied_volatility']:.4f} iv_error={t['iv_error']:.4f}")
 ```
 ```go [Go]
-iv, err := client.OptionHistoryTradeGreeksImpliedVolatility(
-    "SPY", "20241220", "500", "C", "20240315")
+data, _ := client.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20260417", "550", "C", "20260315")
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d implied_volatility=%.4f iv_error=%.4f\n",
+        t.Date, t.MsOfDay, t.ImpliedVolatility, t.IVError)
+}
 ```
 ```cpp [C++]
-auto iv = client.option_history_trade_greeks_implied_volatility(
-    "SPY", "20241220", "500", "C", "20240315");
+auto data = client.option_history_trade_greeks_implied_volatility("SPY", "20260417", "550", "C", "20260315");
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d implied_volatility=%.4f iv_error=%.4f\n",
+        t.date, t.ms_of_day, t.implied_volatility, t.iv_error);
+}
 ```
 :::
 

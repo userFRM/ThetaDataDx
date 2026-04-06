@@ -13,21 +13,31 @@ Retrieve second-order Greeks (gamma, vanna, charm, vomma, veta) sampled at a giv
 
 ::: code-group
 ```rust [Rust]
-let g: Vec<GreeksTick> = tdx.option_history_greeks_second_order(
-    "SPY", "20241220", "500", "C", "20240315", "60000"
-).await?;
+let data = tdx.option_history_greeks_second_order("SPY", "20260417", "550", "C", "20260315", "60000").await?;
+for t in &data {
+    println!("date={} ms_of_day={} gamma={:.4} vanna={:.4} charm={:.4} vomma={:.4} veta={:.4}",
+        t.date, t.ms_of_day, t.gamma, t.vanna, t.charm, t.vomma, t.veta);
+}
 ```
 ```python [Python]
-g = tdx.option_history_greeks_second_order("SPY", "20241220", "500", "C",
-                                               "20240315", "60000")
+data = tdx.option_history_greeks_second_order("SPY", "20260417", "550", "C", "20260315", "60000")
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} gamma={t['gamma']:.4f} "
+          f"vanna={t['vanna']:.4f} charm={t['charm']:.4f} vomma={t['vomma']:.4f} veta={t['veta']:.4f}")
 ```
 ```go [Go]
-g, err := client.OptionHistoryGreeksSecondOrder("SPY", "20241220", "500", "C",
-    "20240315", "60000")
+data, _ := client.OptionHistoryGreeksSecondOrder("SPY", "20260417", "550", "C", "20260315", "60000")
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d gamma=%.4f vanna=%.4f charm=%.4f vomma=%.4f veta=%.4f\n",
+        t.Date, t.MsOfDay, t.Gamma, t.Vanna, t.Charm, t.Vomma, t.Veta)
+}
 ```
 ```cpp [C++]
-auto g = client.option_history_greeks_second_order("SPY", "20241220", "500", "C",
-                                                     "20240315", "60000");
+auto data = client.option_history_greeks_second_order("SPY", "20260417", "550", "C", "20260315", "60000");
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d gamma=%.4f vanna=%.4f charm=%.4f vomma=%.4f veta=%.4f\n",
+        t.date, t.ms_of_day, t.gamma, t.vanna, t.charm, t.vomma, t.veta);
+}
 ```
 :::
 

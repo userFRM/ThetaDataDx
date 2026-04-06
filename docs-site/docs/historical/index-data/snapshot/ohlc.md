@@ -13,30 +13,30 @@ Get the latest OHLC (open, high, low, close) snapshot for one or more index symb
 
 ::: code-group
 ```rust [Rust]
-let bars: Vec<OhlcTick> = tdx.index_snapshot_ohlc(&["SPX", "VIX"]).await?;
-for bar in &bars {
-    println!("O={} H={} L={} C={}", bar.open_price(), bar.high_price(), bar.low_price(), bar.close_price());
+let data = tdx.index_snapshot_ohlc(&["SPX", "VIX"]).await?;
+for t in &data {
+    println!("date={} ms_of_day={} open={:.2} high={:.2} low={:.2} close={:.2} volume={}",
+        t.date, t.ms_of_day, t.open_f64(), t.high_f64(), t.low_f64(), t.close_f64(), t.volume);
 }
 ```
 ```python [Python]
-bars = tdx.index_snapshot_ohlc(["SPX", "VIX"])
-for bar in bars:
-    print(f"O={bar['open']:.2f} H={bar['high']:.2f} L={bar['low']:.2f} C={bar['close']:.2f}")
+data = tdx.index_snapshot_ohlc(["SPX", "VIX"])
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} open={t['open']:.2f} "
+          f"high={t['high']:.2f} low={t['low']:.2f} close={t['close']:.2f} volume={t['volume']}")
 ```
 ```go [Go]
-bars, err := client.IndexSnapshotOHLC([]string{"SPX", "VIX"})
-if err != nil {
-    log.Fatal(err)
-}
-for _, bar := range bars {
-    fmt.Printf("O=%.2f H=%.2f L=%.2f C=%.2f\n", bar.Open, bar.High, bar.Low, bar.Close)
+data, _ := client.IndexSnapshotOHLC([]string{"SPX", "VIX"})
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d open=%.2f high=%.2f low=%.2f close=%.2f volume=%d\n",
+        t.Date, t.MsOfDay, t.Open, t.High, t.Low, t.Close, t.Volume)
 }
 ```
 ```cpp [C++]
-auto bars = client.index_snapshot_ohlc({"SPX", "VIX"});
-for (auto& bar : bars) {
-    std::cout << "O=" << bar.open << " H=" << bar.high
-              << " L=" << bar.low << " C=" << bar.close << std::endl;
+auto data = client.index_snapshot_ohlc({"SPX", "VIX"});
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d open=%.2f high=%.2f low=%.2f close=%.2f volume=%d\n",
+        t.date, t.ms_of_day, t.open, t.high, t.low, t.close, t.volume);
 }
 ```
 :::

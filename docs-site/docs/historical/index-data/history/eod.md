@@ -13,36 +13,30 @@ Retrieve end-of-day data for an index across a date range. Returns one row per t
 
 ::: code-group
 ```rust [Rust]
-let eod: Vec<EodTick> = tdx.index_history_eod("SPX", "20240101", "20240301").await?;
-for t in &eod {
-    println!("{}: O={} H={} L={} C={}",
-        t.date, t.open_price(), t.high_price(), t.low_price(), t.close_price());
+let data = tdx.index_history_eod("SPX", "20260101", "20260301").await?;
+for t in &data {
+    println!("date={} open={:.2} high={:.2} low={:.2} close={:.2} volume={}",
+        t.date, t.open_f64(), t.high_f64(), t.low_f64(), t.close_f64(), t.volume);
 }
 ```
 ```python [Python]
-eod = tdx.index_history_eod("SPX", "20240101", "20240301")
-for tick in eod:
-    print(f"{tick['date']}: O={tick['open']:.2f} C={tick['close']:.2f}")
-
-# DataFrame variant
-df = tdx.index_history_eod_df("SPX", "20240101", "20240301")
-print(df.describe())
+data = tdx.index_history_eod("SPX", "20260101", "20260301")
+for t in data:
+    print(f"date={t['date']} open={t['open']:.2f} high={t['high']:.2f} "
+          f"low={t['low']:.2f} close={t['close']:.2f} volume={t['volume']}")
 ```
 ```go [Go]
-eod, err := client.IndexHistoryEOD("SPX", "20240101", "20240301")
-if err != nil {
-    log.Fatal(err)
-}
-for _, tick := range eod {
-    fmt.Printf("%d: O=%.2f H=%.2f L=%.2f C=%.2f\n",
-        tick.Date, tick.Open, tick.High, tick.Low, tick.Close)
+data, _ := client.IndexHistoryEOD("SPX", "20260101", "20260301")
+for _, t := range data {
+    fmt.Printf("date=%d open=%.2f high=%.2f low=%.2f close=%.2f volume=%d\n",
+        t.Date, t.Open, t.High, t.Low, t.Close, t.Volume)
 }
 ```
 ```cpp [C++]
-auto eod = client.index_history_eod("SPX", "20240101", "20240301");
-for (auto& tick : eod) {
-    std::cout << tick.date << ": O=" << tick.open << " H=" << tick.high
-              << " L=" << tick.low << " C=" << tick.close << std::endl;
+auto data = client.index_history_eod("SPX", "20260101", "20260301");
+for (const auto& t : data) {
+    printf("date=%d open=%.2f high=%.2f low=%.2f close=%.2f volume=%d\n",
+        t.date, t.open, t.high, t.low, t.close, t.volume);
 }
 ```
 :::

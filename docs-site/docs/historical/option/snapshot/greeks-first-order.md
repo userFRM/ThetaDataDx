@@ -13,18 +13,31 @@ Get a snapshot of first-order Greeks for an option contract: delta, theta, vega,
 
 ::: code-group
 ```rust [Rust]
-let g: Vec<GreeksTick> = tdx.option_snapshot_greeks_first_order(
-    "SPY", "20241220", "500", "C"
-).await?;
+let data = tdx.option_snapshot_greeks_first_order("SPY", "20260417", "550", "C").await?;
+for t in &data {
+    println!("date={} ms_of_day={} implied_volatility={:.4} delta={:.4} theta={:.4} vega={:.4} rho={:.4} epsilon={:.4} lambda={:.4} expiration={} strike={:.2}",
+        t.date, t.ms_of_day, t.implied_volatility, t.delta, t.theta, t.vega, t.rho, t.epsilon, t.lambda, t.expiration, t.strike);
+}
 ```
 ```python [Python]
-g = tdx.option_snapshot_greeks_first_order("SPY", "20241220", "500", "C")
+data = tdx.option_snapshot_greeks_first_order("SPY", "20260417", "550", "C")
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} implied_volatility={t['implied_volatility']:.4f} delta={t['delta']:.4f} theta={t['theta']:.4f} "
+          f"vega={t['vega']:.4f} rho={t['rho']:.4f} epsilon={t['epsilon']:.4f} lambda={t['lambda']:.4f} expiration={t['expiration']} strike={t['strike']:.2f}")
 ```
 ```go [Go]
-g, err := client.OptionSnapshotGreeksFirstOrder("SPY", "20241220", "500", "C")
+data, _ := client.OptionSnapshotGreeksFirstOrder("SPY", "20260417", "550", "C")
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d implied_volatility=%.4f delta=%.4f theta=%.4f vega=%.4f rho=%.4f epsilon=%.4f lambda=%.4f expiration=%d strike=%.2f\n",
+        t.Date, t.MsOfDay, t.ImpliedVolatility, t.Delta, t.Theta, t.Vega, t.Rho, t.Epsilon, t.Lambda, t.Expiration, t.Strike)
+}
 ```
 ```cpp [C++]
-auto g = client.option_snapshot_greeks_first_order("SPY", "20241220", "500", "C");
+auto data = client.option_snapshot_greeks_first_order("SPY", "20260417", "550", "C");
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d implied_volatility=%.4f delta=%.4f theta=%.4f vega=%.4f rho=%.4f epsilon=%.4f lambda=%.4f expiration=%d strike=%.2f\n",
+        t.date, t.ms_of_day, t.implied_volatility, t.delta, t.theta, t.vega, t.rho, t.epsilon, t.lambda, t.expiration, t.strike);
+}
 ```
 :::
 

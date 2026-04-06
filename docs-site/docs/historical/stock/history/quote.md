@@ -13,35 +13,31 @@ NBBO quotes for a stock on a given date, sampled at a configurable interval. Use
 
 ::: code-group
 ```rust [Rust]
-// 1-minute sampled quotes
-let quotes: Vec<QuoteTick> = tdx.stock_history_quote("AAPL", "20240315", "60000").await?;
-
-// Every quote change (stream variant for large responses)
-tdx.stock_history_quote_stream("AAPL", "20240315", "0", |chunk| {
-    println!("Got {} quotes in this chunk", chunk.len());
-    Ok(())
-}).await?;
+let data = tdx.stock_history_quote("SPY", "20260315", "60000").await?;
+for t in &data {
+    println!("date={} ms_of_day={} bid={:.2} bid_size={} ask={:.2} ask_size={} midpoint={:.2}",
+        t.date, t.ms_of_day, t.bid_f64(), t.bid_size, t.ask_f64(), t.ask_size, t.midpoint_f64());
+}
 ```
 ```python [Python]
-# 1-minute sampled quotes
-quotes = tdx.stock_history_quote("AAPL", "20240315", "60000")
-
-# Every quote change as DataFrame
-df = tdx.stock_history_quote_df("AAPL", "20240315", "0")
-print(f"{len(df)} quote changes")
+data = tdx.stock_history_quote("SPY", "20260315", "60000")
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} bid={t['bid']:.2f} "
+          f"bid_size={t['bid_size']} ask={t['ask']:.2f} ask_size={t['ask_size']} midpoint={t['midpoint']:.2f}")
 ```
 ```go [Go]
-// 1-minute sampled quotes
-quotes, err := client.StockHistoryQuote("AAPL", "20240315", "60000")
-if err != nil {
-    log.Fatal(err)
+data, _ := client.StockHistoryQuote("SPY", "20260315", "60000")
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d bid=%.2f bid_size=%d ask=%.2f ask_size=%d midpoint=%.2f\n",
+        t.Date, t.MsOfDay, t.Bid, t.BidSize, t.Ask, t.AskSize, t.Midpoint)
 }
-fmt.Printf("%d quotes\n", len(quotes))
 ```
 ```cpp [C++]
-// 1-minute sampled quotes
-auto quotes = client.stock_history_quote("AAPL", "20240315", "60000");
-std::cout << quotes.size() << " quotes" << std::endl;
+auto data = client.stock_history_quote("SPY", "20260315", "60000");
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d bid=%.2f bid_size=%d ask=%.2f ask_size=%d midpoint=%.2f\n",
+        t.date, t.ms_of_day, t.bid, t.bid_size, t.ask, t.ask_size, t.midpoint);
+}
 ```
 :::
 

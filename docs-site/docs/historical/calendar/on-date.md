@@ -13,19 +13,31 @@ Retrieve the trading schedule for a specific date, including whether it is a reg
 
 ::: code-group
 ```rust [Rust]
-let days: Vec<CalendarDay> = tdx.calendar_on_date("20240315").await?;
+let data = tdx.calendar_on_date("20260315").await?;
+for t in &data {
+    println!("date={} is_open={} open_time={} close_time={}",
+        t.date, t.is_open, t.open_time, t.close_time);
+}
 ```
 ```python [Python]
-result = tdx.calendar_on_date("20240315")
+data = tdx.calendar_on_date("20260315")
+for t in data:
+    print(f"date={t['date']} is_open={t['is_open']} "
+          f"open_time={t['open_time']} close_time={t['close_time']}")
 ```
 ```go [Go]
-result, err := client.CalendarOnDate("20240315")
-if err != nil {
-    log.Fatal(err)
+data, _ := client.CalendarOnDate("20260315")
+for _, t := range data {
+    fmt.Printf("date=%d is_open=%d open_time=%d close_time=%d\n",
+        t.Date, t.IsOpen, t.OpenTime, t.CloseTime)
 }
 ```
 ```cpp [C++]
-auto date_info = client.calendar_on_date("20240315");
+auto data = client.calendar_on_date("20260315");
+for (const auto& t : data) {
+    printf("date=%d is_open=%d open_time=%d close_time=%d\n",
+        t.date, t.is_open, t.open_time, t.close_time);
+}
 ```
 :::
 

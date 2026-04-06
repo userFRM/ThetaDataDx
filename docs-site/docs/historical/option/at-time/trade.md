@@ -13,22 +13,28 @@ Retrieve the trade at a specific time of day across a date range for an option c
 
 ::: code-group
 ```rust [Rust]
-let trades: Vec<TradeTick> = tdx.option_at_time_trade(
-    "SPY", "20241220", "500", "C",
-    "20240101", "20240301", "34200000"  // 9:30 AM ET
-).await?;
+let data = tdx.option_at_time_trade("SPY", "20260417", "550", "C", "20260101", "20260301", "34200000").await?;
+for t in &data {
+    println!("date={} ms_of_day={} price={:.2} size={}",
+        t.date, t.ms_of_day, t.price_f64(), t.size);
+}
 ```
 ```python [Python]
-trades = tdx.option_at_time_trade("SPY", "20241220", "500", "C",
-                                     "20240101", "20240301", "34200000")
+data = tdx.option_at_time_trade("SPY", "20260417", "550", "C", "20260101", "20260301", "34200000")
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} price={t['price']:.2f} size={t['size']}")
 ```
 ```go [Go]
-trades, err := client.OptionAtTimeTrade("SPY", "20241220", "500", "C",
-    "20240101", "20240301", "34200000")
+data, _ := client.OptionAtTimeTrade("SPY", "20260417", "550", "C", "20260101", "20260301", "34200000")
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d price=%.2f size=%d\n", t.Date, t.MsOfDay, t.Price, t.Size)
+}
 ```
 ```cpp [C++]
-auto trades = client.option_at_time_trade("SPY", "20241220", "500", "C",
-                                           "20240101", "20240301", "34200000");
+auto data = client.option_at_time_trade("SPY", "20260417", "550", "C", "20260101", "20260301", "34200000");
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d price=%.2f size=%d\n", t.date, t.ms_of_day, t.price, t.size);
+}
 ```
 :::
 

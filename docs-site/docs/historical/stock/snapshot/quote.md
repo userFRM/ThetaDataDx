@@ -13,31 +13,30 @@ Latest NBBO (National Best Bid and Offer) quote snapshot for one or more stocks.
 
 ::: code-group
 ```rust [Rust]
-let quotes: Vec<QuoteTick> = tdx.stock_snapshot_quote(&["AAPL", "MSFT", "GOOGL"]).await?;
-for q in &quotes {
-    println!("bid={} ask={} spread={:.4}",
-        q.bid_price(), q.ask_price(),
-        q.ask_price() - q.bid_price());
+let data = tdx.stock_snapshot_quote(&["SPY", "MSFT", "GOOGL"]).await?;
+for t in &data {
+    println!("date={} ms_of_day={} bid={:.2} bid_size={} ask={:.2} ask_size={} midpoint={:.2}",
+        t.date, t.ms_of_day, t.bid_f64(), t.bid_size, t.ask_f64(), t.ask_size, t.midpoint_f64());
 }
 ```
 ```python [Python]
-quotes = tdx.stock_snapshot_quote(["AAPL", "MSFT", "GOOGL"])
-for q in quotes:
-    print(f"bid={q['bid']:.2f} ask={q['ask']:.2f}")
+data = tdx.stock_snapshot_quote(["SPY", "MSFT", "GOOGL"])
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} bid={t['bid']:.2f} "
+          f"bid_size={t['bid_size']} ask={t['ask']:.2f} ask_size={t['ask_size']} midpoint={t['midpoint']:.2f}")
 ```
 ```go [Go]
-quotes, err := client.StockSnapshotQuote([]string{"AAPL", "MSFT", "GOOGL"})
-if err != nil {
-    log.Fatal(err)
-}
-for _, q := range quotes {
-    fmt.Printf("bid=%.2f ask=%.2f\n", q.Bid, q.Ask)
+data, _ := client.StockSnapshotQuote([]string{"SPY", "MSFT", "GOOGL"})
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d bid=%.2f bid_size=%d ask=%.2f ask_size=%d midpoint=%.2f\n",
+        t.Date, t.MsOfDay, t.Bid, t.BidSize, t.Ask, t.AskSize, t.Midpoint)
 }
 ```
 ```cpp [C++]
-auto quotes = client.stock_snapshot_quote({"AAPL", "MSFT", "GOOGL"});
-for (auto& q : quotes) {
-    std::cout << "bid=" << q.bid << " ask=" << q.ask << std::endl;
+auto data = client.stock_snapshot_quote({"SPY", "MSFT", "GOOGL"});
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d bid=%.2f bid_size=%d ask=%.2f ask_size=%d midpoint=%.2f\n",
+        t.date, t.ms_of_day, t.bid, t.bid_size, t.ask, t.ask_size, t.midpoint);
 }
 ```
 :::

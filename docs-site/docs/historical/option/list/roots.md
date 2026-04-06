@@ -13,22 +13,27 @@ List all available option underlying symbols (roots). Use this to discover which
 
 ::: code-group
 ```rust [Rust]
-let symbols: Vec<String> = tdx.option_list_symbols().await?;
-println!("{} option roots available", symbols.len());
+let data = tdx.option_list_symbols().await?;
+for item in &data {
+    println!("{}", item);
+}
 ```
 ```python [Python]
-symbols = tdx.option_list_symbols()
-print(f"{len(symbols)} option roots available")
+data = tdx.option_list_symbols()
+for item in data:
+    print(item)
 ```
 ```go [Go]
-symbols, err := client.OptionListSymbols()
-if err != nil {
-    log.Fatal(err)
+data, _ := client.OptionListSymbols()
+for _, item := range data {
+    fmt.Println(item)
 }
-fmt.Printf("%d option roots available\n", len(symbols))
 ```
 ```cpp [C++]
-auto symbols = client.option_list_symbols();
+auto data = client.option_list_symbols();
+for (const auto& item : data) {
+    printf("%s\n", item.c_str());
+}
 ```
 :::
 

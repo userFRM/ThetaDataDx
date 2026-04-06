@@ -13,18 +13,31 @@ Retrieve all individual trades for an option contract on a given date.
 
 ::: code-group
 ```rust [Rust]
-let trades: Vec<TradeTick> = tdx.option_history_trade(
-    "SPY", "20241220", "500", "C", "20240315"
-).await?;
+let data = tdx.option_history_trade("SPY", "20260417", "550", "C", "20260315").await?;
+for t in &data {
+    println!("date={} ms_of_day={} price={:.2} size={} condition={} exchange={}",
+        t.date, t.ms_of_day, t.price_f64(), t.size, t.condition, t.exchange);
+}
 ```
 ```python [Python]
-trades = tdx.option_history_trade("SPY", "20241220", "500", "C", "20240315")
+data = tdx.option_history_trade("SPY", "20260417", "550", "C", "20260315")
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} price={t['price']:.2f} "
+          f"size={t['size']} condition={t['condition']} exchange={t['exchange']}")
 ```
 ```go [Go]
-trades, err := client.OptionHistoryTrade("SPY", "20241220", "500", "C", "20240315")
+data, _ := client.OptionHistoryTrade("SPY", "20260417", "550", "C", "20260315")
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d price=%.2f size=%d condition=%d exchange=%d\n",
+        t.Date, t.MsOfDay, t.Price, t.Size, t.Condition, t.Exchange)
+}
 ```
 ```cpp [C++]
-auto trades = client.option_history_trade("SPY", "20241220", "500", "C", "20240315");
+auto data = client.option_history_trade("SPY", "20260417", "550", "C", "20260315");
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d price=%.2f size=%d condition=%d exchange=%d\n",
+        t.date, t.ms_of_day, t.price, t.size, t.condition, t.exchange);
+}
 ```
 :::
 

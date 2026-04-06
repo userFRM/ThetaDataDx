@@ -13,19 +13,27 @@ Retrieve intraday price history for an index on a single date at a specified int
 
 ::: code-group
 ```rust [Rust]
-let ticks: Vec<PriceTick> = tdx.index_history_price("SPX", "20240315", "60000").await?;
+let data = tdx.index_history_price("SPX", "20260315", "60000").await?;
+for t in &data {
+    println!("date={} ms_of_day={} price={:.2}", t.date, t.ms_of_day, t.price_f64());
+}
 ```
 ```python [Python]
-price = tdx.index_history_price("SPX", "20240315", "60000")
+data = tdx.index_history_price("SPX", "20260315", "60000")
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} price={t['price']:.2f}")
 ```
 ```go [Go]
-priceHist, err := client.IndexHistoryPrice("SPX", "20240315", "60000")
-if err != nil {
-    log.Fatal(err)
+data, _ := client.IndexHistoryPrice("SPX", "20260315", "60000")
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d price=%.2f\n", t.Date, t.MsOfDay, t.Price)
 }
 ```
 ```cpp [C++]
-auto price_hist = client.index_history_price("SPX", "20240315", "60000");
+auto data = client.index_history_price("SPX", "20260315", "60000");
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d price=%.2f\n", t.date, t.ms_of_day, t.price);
+}
 ```
 :::
 

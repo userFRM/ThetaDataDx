@@ -13,19 +13,31 @@ Retrieve third-order Greeks computed on each individual trade for an option cont
 
 ::: code-group
 ```rust [Rust]
-let g: Vec<GreeksTick> = tdx.option_history_trade_greeks_third_order(
-    "SPY", "20241220", "500", "C", "20240315"
-).await?;
+let data = tdx.option_history_trade_greeks_third_order("SPY", "20260417", "550", "C", "20260315").await?;
+for t in &data {
+    println!("date={} ms_of_day={} speed={:.4} zomma={:.4} color={:.4} ultima={:.4}",
+        t.date, t.ms_of_day, t.speed, t.zomma, t.color, t.ultima);
+}
 ```
 ```python [Python]
-g = tdx.option_history_trade_greeks_third_order("SPY", "20241220", "500", "C", "20240315")
+data = tdx.option_history_trade_greeks_third_order("SPY", "20260417", "550", "C", "20260315")
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} speed={t['speed']:.4f} "
+          f"zomma={t['zomma']:.4f} color={t['color']:.4f} ultima={t['ultima']:.4f}")
 ```
 ```go [Go]
-g, err := client.OptionHistoryTradeGreeksThirdOrder("SPY", "20241220", "500", "C", "20240315")
+data, _ := client.OptionHistoryTradeGreeksThirdOrder("SPY", "20260417", "550", "C", "20260315")
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d speed=%.4f zomma=%.4f color=%.4f ultima=%.4f\n",
+        t.Date, t.MsOfDay, t.Speed, t.Zomma, t.Color, t.Ultima)
+}
 ```
 ```cpp [C++]
-auto g = client.option_history_trade_greeks_third_order("SPY", "20241220", "500", "C",
-                                                          "20240315");
+auto data = client.option_history_trade_greeks_third_order("SPY", "20260417", "550", "C", "20260315");
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d speed=%.4f zomma=%.4f color=%.4f ultima=%.4f\n",
+        t.date, t.ms_of_day, t.speed, t.zomma, t.color, t.ultima);
+}
 ```
 :::
 

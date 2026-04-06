@@ -13,16 +13,31 @@ Get a snapshot of all Greeks (first, second, and third order) for an option cont
 
 ::: code-group
 ```rust [Rust]
-let greeks: Vec<GreeksTick> = tdx.option_snapshot_greeks_all("SPY", "20241220", "500", "C").await?;
+let data = tdx.option_snapshot_greeks_all("SPY", "20260417", "550", "C").await?;
+for t in &data {
+    println!("date={} ms_of_day={} implied_volatility={:.4} delta={:.4} gamma={:.4} theta={:.4} vega={:.4} rho={:.4} vanna={:.4} charm={:.4} vomma={:.4} veta={:.4} speed={:.4} zomma={:.4} color={:.4} ultima={:.4} epsilon={:.4} lambda={:.4} expiration={} strike={:.2}",
+        t.date, t.ms_of_day, t.implied_volatility, t.delta, t.gamma, t.theta, t.vega, t.rho, t.vanna, t.charm, t.vomma, t.veta, t.speed, t.zomma, t.color, t.ultima, t.epsilon, t.lambda, t.expiration, t.strike);
+}
 ```
 ```python [Python]
-greeks = tdx.option_snapshot_greeks_all("SPY", "20241220", "500", "C")
+data = tdx.option_snapshot_greeks_all("SPY", "20260417", "550", "C")
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} implied_volatility={t['implied_volatility']:.4f} delta={t['delta']:.4f} gamma={t['gamma']:.4f} theta={t['theta']:.4f} vega={t['vega']:.4f} rho={t['rho']:.4f} vanna={t['vanna']:.4f} charm={t['charm']:.4f} "
+          f"vomma={t['vomma']:.4f} veta={t['veta']:.4f} speed={t['speed']:.4f} zomma={t['zomma']:.4f} color={t['color']:.4f} ultima={t['ultima']:.4f} epsilon={t['epsilon']:.4f} lambda={t['lambda']:.4f} expiration={t['expiration']} strike={t['strike']:.2f}")
 ```
 ```go [Go]
-greeks, err := client.OptionSnapshotGreeksAll("SPY", "20241220", "500", "C")
+data, _ := client.OptionSnapshotGreeksAll("SPY", "20260417", "550", "C")
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d implied_volatility=%.4f delta=%.4f gamma=%.4f theta=%.4f vega=%.4f rho=%.4f vanna=%.4f charm=%.4f vomma=%.4f veta=%.4f speed=%.4f zomma=%.4f color=%.4f ultima=%.4f epsilon=%.4f lambda=%.4f expiration=%d strike=%.2f\n",
+        t.Date, t.MsOfDay, t.ImpliedVolatility, t.Delta, t.Gamma, t.Theta, t.Vega, t.Rho, t.Vanna, t.Charm, t.Vomma, t.Veta, t.Speed, t.Zomma, t.Color, t.Ultima, t.Epsilon, t.Lambda, t.Expiration, t.Strike)
+}
 ```
 ```cpp [C++]
-auto greeks = client.option_snapshot_greeks_all("SPY", "20241220", "500", "C");
+auto data = client.option_snapshot_greeks_all("SPY", "20260417", "550", "C");
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d implied_volatility=%.4f delta=%.4f gamma=%.4f theta=%.4f vega=%.4f rho=%.4f vanna=%.4f charm=%.4f vomma=%.4f veta=%.4f speed=%.4f zomma=%.4f color=%.4f ultima=%.4f epsilon=%.4f lambda=%.4f expiration=%d strike=%.2f\n",
+        t.date, t.ms_of_day, t.implied_volatility, t.delta, t.gamma, t.theta, t.vega, t.rho, t.vanna, t.charm, t.vomma, t.veta, t.speed, t.zomma, t.color, t.ultima, t.epsilon, t.lambda, t.expiration, t.strike);
+}
 ```
 :::
 

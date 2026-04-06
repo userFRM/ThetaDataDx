@@ -13,21 +13,31 @@ Retrieve NBBO quotes for an option contract, sampled at a specified interval.
 
 ::: code-group
 ```rust [Rust]
-let quotes: Vec<QuoteTick> = tdx.option_history_quote(
-    "SPY", "20241220", "500", "C", "20240315", "60000"
-).await?;
+let data = tdx.option_history_quote("SPY", "20260417", "550", "C", "20260315", "60000").await?;
+for t in &data {
+    println!("date={} ms_of_day={} bid={:.2} ask={:.2} bid_size={} ask_size={}",
+        t.date, t.ms_of_day, t.bid_f64(), t.ask_f64(), t.bid_size, t.ask_size);
+}
 ```
 ```python [Python]
-quotes = tdx.option_history_quote("SPY", "20241220", "500", "C",
-                                     "20240315", "60000")
+data = tdx.option_history_quote("SPY", "20260417", "550", "C", "20260315", "60000")
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} bid={t['bid']:.2f} "
+          f"ask={t['ask']:.2f} bid_size={t['bid_size']} ask_size={t['ask_size']}")
 ```
 ```go [Go]
-quotes, err := client.OptionHistoryQuote("SPY", "20241220", "500", "C",
-    "20240315", "60000")
+data, _ := client.OptionHistoryQuote("SPY", "20260417", "550", "C", "20260315", "60000")
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d bid=%.2f ask=%.2f bid_size=%d ask_size=%d\n",
+        t.Date, t.MsOfDay, t.Bid, t.Ask, t.BidSize, t.AskSize)
+}
 ```
 ```cpp [C++]
-auto quotes = client.option_history_quote("SPY", "20241220", "500", "C",
-                                           "20240315", "60000");
+auto data = client.option_history_quote("SPY", "20260417", "550", "C", "20260315", "60000");
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d bid=%.2f ask=%.2f bid_size=%d ask_size=%d\n",
+        t.date, t.ms_of_day, t.bid, t.ask, t.bid_size, t.ask_size);
+}
 ```
 :::
 

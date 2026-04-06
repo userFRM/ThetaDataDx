@@ -179,18 +179,18 @@ let oi: Vec<OpenInterestTick> = tdx.option_history_open_interest(
 ```python [Python]
 # End-of-day option data
 eod = tdx.option_history_eod("SPY", "20240419", "500", "C",
-                                "20240101", "20240301")
+ "20240101", "20240301")
 
 # Intraday OHLC bars
 bars = tdx.option_history_ohlc("SPY", "20240419", "500", "C",
-                                  "20240315", "60000")
+ "20240315", "60000")
 
 # All trades
 trades = tdx.option_history_trade("SPY", "20240419", "500", "C", "20240315")
 
 # NBBO quotes
 quotes = tdx.option_history_quote("SPY", "20240419", "500", "C",
-                                     "20240315", "60000")
+ "20240315", "60000")
 
 # Combined trade + quote ticks
 result = tdx.option_history_trade_quote("SPY", "20240419", "500", "C", "20240315")
@@ -245,19 +245,19 @@ let iv: Vec<IvTick> = tdx.option_history_greeks_implied_volatility(
 ```python [Python]
 # EOD Greeks over a date range
 greeks_eod = tdx.option_history_greeks_eod("SPY", "20240419", "500", "C",
-                                               "20240101", "20240301")
+ "20240101", "20240301")
 
 # Intraday Greeks sampled by interval
 all_g = tdx.option_history_greeks_all("SPY", "20240419", "500", "C",
-                                          "20240315", "60000")
+ "20240315", "60000")
 first = tdx.option_history_greeks_first_order("SPY", "20240419", "500", "C",
-                                                  "20240315", "60000")
+ "20240315", "60000")
 second = tdx.option_history_greeks_second_order("SPY", "20240419", "500", "C",
-                                                    "20240315", "60000")
+ "20240315", "60000")
 third = tdx.option_history_greeks_third_order("SPY", "20240419", "500", "C",
-                                                  "20240315", "60000")
+ "20240315", "60000")
 iv_hist = tdx.option_history_greeks_implied_volatility("SPY", "20240419", "500", "C",
-                                                           "20240315", "60000")
+ "20240315", "60000")
 ```
 ```go [Go]
 greeksEOD, _ := client.OptionHistoryGreeksEOD("SPY", "20240419", "500", "C", "20240101", "20240301")
@@ -267,11 +267,11 @@ greeksIV, _ := client.OptionHistoryGreeksIV("SPY", "20240419", "500", "C", "2024
 ```
 ```cpp [C++]
 auto greeks_eod = client.option_history_greeks_eod("SPY", "20240419", "500", "C",
-                                                    "20240101", "20240301");
+ "20240101", "20240301");
 auto greeks_all = client.option_history_greeks_all("SPY", "20240419", "500", "C",
-                                                    "20240315", "60000");
+ "20240315", "60000");
 auto greeks_iv = client.option_history_greeks_implied_volatility("SPY", "20240419", "500", "C",
-                                                                  "20240315", "60000");
+ "20240315", "60000");
 ```
 :::
 
@@ -312,9 +312,9 @@ tgIV, _ := client.OptionHistoryTradeGreeksIV("SPY", "20240419", "500", "C", "202
 ```cpp [C++]
 auto tg_all = client.option_history_trade_greeks_all("SPY", "20240419", "500", "C", "20240315");
 auto tg_first = client.option_history_trade_greeks_first_order("SPY", "20240419", "500", "C",
-                                                                "20240315");
+ "20240315");
 auto tg_iv = client.option_history_trade_greeks_implied_volatility("SPY", "20240419", "500", "C",
-                                                                    "20240315");
+ "20240315");
 ```
 :::
 
@@ -334,9 +334,9 @@ let quotes: Vec<QuoteTick> = tdx.option_at_time_quote(
 ```
 ```python [Python]
 trades = tdx.option_at_time_trade("SPY", "20240419", "500", "C",
-                                     "20240101", "20240301", "34200000")
+ "20240101", "20240301", "34200000")
 quotes = tdx.option_at_time_quote("SPY", "20240419", "500", "C",
-                                     "20240101", "20240301", "34200000")
+ "20240101", "20240301", "34200000")
 ```
 ```go [Go]
 trades, _ := client.OptionAtTimeTrade("SPY", "20240419", "500", "C",
@@ -346,9 +346,9 @@ quotes, _ := client.OptionAtTimeQuote("SPY", "20240419", "500", "C",
 ```
 ```cpp [C++]
 auto trades = client.option_at_time_trade("SPY", "20240419", "500", "C",
-                                           "20240101", "20240301", "34200000");
+ "20240101", "20240301", "34200000");
 auto quotes = client.option_at_time_quote("SPY", "20240419", "500", "C",
-                                           "20240101", "20240301", "34200000");
+ "20240101", "20240301", "34200000");
 ```
 :::
 

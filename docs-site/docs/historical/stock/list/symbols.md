@@ -13,23 +13,27 @@ List all available stock ticker symbols.
 
 ::: code-group
 ```rust [Rust]
-let symbols: Vec<String> = tdx.stock_list_symbols().await?;
-println!("{} symbols available", symbols.len());
+let data = tdx.stock_list_symbols().await?;
+for item in &data {
+    println!("{}", item);
+}
 ```
 ```python [Python]
-symbols = tdx.stock_list_symbols()
-print(f"{len(symbols)} symbols available")
+data = tdx.stock_list_symbols()
+for item in data:
+    print(item)
 ```
 ```go [Go]
-symbols, err := client.StockListSymbols()
-if err != nil {
-    log.Fatal(err)
+data, _ := client.StockListSymbols()
+for _, item := range data {
+    fmt.Println(item)
 }
-fmt.Printf("%d symbols available\n", len(symbols))
 ```
 ```cpp [C++]
-auto symbols = client.stock_list_symbols();
-std::cout << symbols.size() << " symbols available" << std::endl;
+auto data = client.stock_list_symbols();
+for (const auto& item : data) {
+    printf("%s\n", item.c_str());
+}
 ```
 :::
 

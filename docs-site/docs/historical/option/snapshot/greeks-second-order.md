@@ -13,18 +13,31 @@ Get a snapshot of second-order Greeks for an option contract: gamma, vanna, char
 
 ::: code-group
 ```rust [Rust]
-let g: Vec<GreeksTick> = tdx.option_snapshot_greeks_second_order(
-    "SPY", "20241220", "500", "C"
-).await?;
+let data = tdx.option_snapshot_greeks_second_order("SPY", "20260417", "550", "C").await?;
+for t in &data {
+    println!("date={} ms_of_day={} gamma={:.4} vanna={:.4} charm={:.4} vomma={:.4} veta={:.4} expiration={} strike={:.2}",
+        t.date, t.ms_of_day, t.gamma, t.vanna, t.charm, t.vomma, t.veta, t.expiration, t.strike);
+}
 ```
 ```python [Python]
-g = tdx.option_snapshot_greeks_second_order("SPY", "20241220", "500", "C")
+data = tdx.option_snapshot_greeks_second_order("SPY", "20260417", "550", "C")
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} gamma={t['gamma']:.4f} vanna={t['vanna']:.4f} "
+          f"charm={t['charm']:.4f} vomma={t['vomma']:.4f} veta={t['veta']:.4f} expiration={t['expiration']} strike={t['strike']:.2f}")
 ```
 ```go [Go]
-g, err := client.OptionSnapshotGreeksSecondOrder("SPY", "20241220", "500", "C")
+data, _ := client.OptionSnapshotGreeksSecondOrder("SPY", "20260417", "550", "C")
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d gamma=%.4f vanna=%.4f charm=%.4f vomma=%.4f veta=%.4f expiration=%d strike=%.2f\n",
+        t.Date, t.MsOfDay, t.Gamma, t.Vanna, t.Charm, t.Vomma, t.Veta, t.Expiration, t.Strike)
+}
 ```
 ```cpp [C++]
-auto g = client.option_snapshot_greeks_second_order("SPY", "20241220", "500", "C");
+auto data = client.option_snapshot_greeks_second_order("SPY", "20260417", "550", "C");
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d gamma=%.4f vanna=%.4f charm=%.4f vomma=%.4f veta=%.4f expiration=%d strike=%.2f\n",
+        t.date, t.ms_of_day, t.gamma, t.vanna, t.charm, t.vomma, t.veta, t.expiration, t.strike);
+}
 ```
 :::
 

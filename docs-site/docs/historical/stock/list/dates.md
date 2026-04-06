@@ -13,24 +13,27 @@ List available dates for a stock filtered by request type. Use this to discover 
 
 ::: code-group
 ```rust [Rust]
-let dates: Vec<String> = tdx.stock_list_dates("TRADE", "AAPL").await?;
-println!("First: {} Last: {}", dates.first().unwrap(), dates.last().unwrap());
+let data = tdx.stock_list_dates("TRADE", "SPY").await?;
+for item in &data {
+    println!("{}", item);
+}
 ```
 ```python [Python]
-dates = tdx.stock_list_dates("TRADE", "AAPL")
-print(f"First: {dates[0]} Last: {dates[-1]}")
+data = tdx.stock_list_dates("TRADE", "SPY")
+for item in data:
+    print(item)
 ```
 ```go [Go]
-dates, err := client.StockListDates("TRADE", "AAPL")
-if err != nil {
-    log.Fatal(err)
+data, _ := client.StockListDates("TRADE", "SPY")
+for _, item := range data {
+    fmt.Println(item)
 }
-fmt.Printf("First: %s Last: %s\n", dates[0], dates[len(dates)-1])
 ```
 ```cpp [C++]
-auto dates = client.stock_list_dates("TRADE", "AAPL");
-std::cout << "First: " << dates.front()
-          << " Last: " << dates.back() << std::endl;
+auto data = client.stock_list_dates("TRADE", "SPY");
+for (const auto& item : data) {
+    printf("%s\n", item.c_str());
+}
 ```
 :::
 

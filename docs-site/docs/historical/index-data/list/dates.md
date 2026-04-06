@@ -13,23 +13,27 @@ List all dates for which data is available for a given index symbol.
 
 ::: code-group
 ```rust [Rust]
-let dates: Vec<String> = tdx.index_list_dates("SPX").await?;
-println!("First date: {}, Last date: {}", dates.first().unwrap(), dates.last().unwrap());
+let data = tdx.index_list_dates("SPX").await?;
+for item in &data {
+    println!("{}", item);
+}
 ```
 ```python [Python]
-dates = tdx.index_list_dates("SPX")
-print(f"Available from {dates[0]} to {dates[-1]}")
+data = tdx.index_list_dates("SPX")
+for item in data:
+    print(item)
 ```
 ```go [Go]
-dates, err := client.IndexListDates("SPX")
-if err != nil {
-    log.Fatal(err)
+data, _ := client.IndexListDates("SPX")
+for _, item := range data {
+    fmt.Println(item)
 }
-fmt.Printf("Available from %s to %s\n", dates[0], dates[len(dates)-1])
 ```
 ```cpp [C++]
-auto dates = client.index_list_dates("SPX");
-std::cout << "Available from " << dates.front() << " to " << dates.back() << std::endl;
+auto data = client.index_list_dates("SPX");
+for (const auto& item : data) {
+    printf("%s\n", item.c_str());
+}
 ```
 :::
 

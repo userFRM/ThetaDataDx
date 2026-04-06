@@ -13,16 +13,31 @@ Get the latest NBBO (National Best Bid and Offer) quote snapshot for an option c
 
 ::: code-group
 ```rust [Rust]
-let quotes: Vec<QuoteTick> = tdx.option_snapshot_quote("SPY", "20241220", "500", "C").await?;
+let data = tdx.option_snapshot_quote("SPY", "20260417", "550", "C").await?;
+for t in &data {
+    println!("date={} ms_of_day={} bid={:.2} ask={:.2} bid_size={} ask_size={} expiration={} strike={:.2}",
+        t.date, t.ms_of_day, t.bid_f64(), t.ask_f64(), t.bid_size, t.ask_size, t.expiration, t.strike);
+}
 ```
 ```python [Python]
-quotes = tdx.option_snapshot_quote("SPY", "20241220", "500", "C")
+data = tdx.option_snapshot_quote("SPY", "20260417", "550", "C")
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} bid={t['bid']:.2f} ask={t['ask']:.2f} "
+          f"bid_size={t['bid_size']} ask_size={t['ask_size']} expiration={t['expiration']} strike={t['strike']:.2f}")
 ```
 ```go [Go]
-quotes, err := client.OptionSnapshotQuote("SPY", "20241220", "500", "C")
+data, _ := client.OptionSnapshotQuote("SPY", "20260417", "550", "C")
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d bid=%.2f ask=%.2f bid_size=%d ask_size=%d expiration=%d strike=%.2f\n",
+        t.Date, t.MsOfDay, t.Bid, t.Ask, t.BidSize, t.AskSize, t.Expiration, t.Strike)
+}
 ```
 ```cpp [C++]
-auto quotes = client.option_snapshot_quote("SPY", "20241220", "500", "C");
+auto data = client.option_snapshot_quote("SPY", "20260417", "550", "C");
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d bid=%.2f ask=%.2f bid_size=%d ask_size=%d expiration=%d strike=%.2f\n",
+        t.date, t.ms_of_day, t.bid, t.ask, t.bid_size, t.ask_size, t.expiration, t.strike);
+}
 ```
 :::
 

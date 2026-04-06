@@ -13,16 +13,31 @@ Get the latest open interest snapshot for an option contract.
 
 ::: code-group
 ```rust [Rust]
-let oi: Vec<OpenInterestTick> = tdx.option_snapshot_open_interest("SPY", "20241220", "500", "C").await?;
+let data = tdx.option_snapshot_open_interest("SPY", "20260417", "550", "C").await?;
+for t in &data {
+    println!("date={} open_interest={} expiration={} strike={:.2}",
+        t.date, t.open_interest, t.expiration, t.strike);
+}
 ```
 ```python [Python]
-oi = tdx.option_snapshot_open_interest("SPY", "20241220", "500", "C")
+data = tdx.option_snapshot_open_interest("SPY", "20260417", "550", "C")
+for t in data:
+    print(f"date={t['date']} open_interest={t['open_interest']} "
+          f"expiration={t['expiration']} strike={t['strike']:.2f}")
 ```
 ```go [Go]
-oi, err := client.OptionSnapshotOpenInterest("SPY", "20241220", "500", "C")
+data, _ := client.OptionSnapshotOpenInterest("SPY", "20260417", "550", "C")
+for _, t := range data {
+    fmt.Printf("date=%d open_interest=%d expiration=%d strike=%.2f\n",
+        t.Date, t.OpenInterest, t.Expiration, t.Strike)
+}
 ```
 ```cpp [C++]
-auto oi = client.option_snapshot_open_interest("SPY", "20241220", "500", "C");
+auto data = client.option_snapshot_open_interest("SPY", "20260417", "550", "C");
+for (const auto& t : data) {
+    printf("date=%d open_interest=%d expiration=%d strike=%.2f\n",
+        t.date, t.open_interest, t.expiration, t.strike);
+}
 ```
 :::
 

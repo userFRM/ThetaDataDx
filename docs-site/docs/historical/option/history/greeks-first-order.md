@@ -13,21 +13,31 @@ Retrieve first-order Greeks (delta, theta, vega, rho, epsilon, lambda) sampled a
 
 ::: code-group
 ```rust [Rust]
-let g: Vec<GreeksTick> = tdx.option_history_greeks_first_order(
-    "SPY", "20241220", "500", "C", "20240315", "60000"
-).await?;
+let data = tdx.option_history_greeks_first_order("SPY", "20260417", "550", "C", "20260315", "60000").await?;
+for t in &data {
+    println!("date={} ms_of_day={} implied_volatility={:.4} delta={:.4} theta={:.4} vega={:.4} rho={:.4} epsilon={:.4} lambda={:.4}",
+        t.date, t.ms_of_day, t.implied_volatility, t.delta, t.theta, t.vega, t.rho, t.epsilon, t.lambda);
+}
 ```
 ```python [Python]
-g = tdx.option_history_greeks_first_order("SPY", "20241220", "500", "C",
-                                              "20240315", "60000")
+data = tdx.option_history_greeks_first_order("SPY", "20260417", "550", "C", "20260315", "60000")
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} implied_volatility={t['implied_volatility']:.4f} delta={t['delta']:.4f} "
+          f"theta={t['theta']:.4f} vega={t['vega']:.4f} rho={t['rho']:.4f} epsilon={t['epsilon']:.4f} lambda={t['lambda']:.4f}")
 ```
 ```go [Go]
-g, err := client.OptionHistoryGreeksFirstOrder("SPY", "20241220", "500", "C",
-    "20240315", "60000")
+data, _ := client.OptionHistoryGreeksFirstOrder("SPY", "20260417", "550", "C", "20260315", "60000")
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d implied_volatility=%.4f delta=%.4f theta=%.4f vega=%.4f rho=%.4f epsilon=%.4f lambda=%.4f\n",
+        t.Date, t.MsOfDay, t.ImpliedVolatility, t.Delta, t.Theta, t.Vega, t.Rho, t.Epsilon, t.Lambda)
+}
 ```
 ```cpp [C++]
-auto g = client.option_history_greeks_first_order("SPY", "20241220", "500", "C",
-                                                    "20240315", "60000");
+auto data = client.option_history_greeks_first_order("SPY", "20260417", "550", "C", "20260315", "60000");
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d implied_volatility=%.4f delta=%.4f theta=%.4f vega=%.4f rho=%.4f epsilon=%.4f lambda=%.4f\n",
+        t.date, t.ms_of_day, t.implied_volatility, t.delta, t.theta, t.vega, t.rho, t.epsilon, t.lambda);
+}
 ```
 :::
 

@@ -13,18 +13,31 @@ Get the latest implied volatility (IV) snapshot for an option contract.
 
 ::: code-group
 ```rust [Rust]
-let iv: Vec<IvTick> = tdx.option_snapshot_greeks_implied_volatility(
-    "SPY", "20241220", "500", "C"
-).await?;
+let data = tdx.option_snapshot_greeks_implied_volatility("SPY", "20260417", "550", "C").await?;
+for t in &data {
+    println!("date={} ms_of_day={} implied_volatility={:.4} iv_error={:.4} expiration={} strike={:.2}",
+        t.date, t.ms_of_day, t.implied_volatility, t.iv_error, t.expiration, t.strike);
+}
 ```
 ```python [Python]
-iv = tdx.option_snapshot_greeks_implied_volatility("SPY", "20241220", "500", "C")
+data = tdx.option_snapshot_greeks_implied_volatility("SPY", "20260417", "550", "C")
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} implied_volatility={t['implied_volatility']:.4f} "
+          f"iv_error={t['iv_error']:.4f} expiration={t['expiration']} strike={t['strike']:.2f}")
 ```
 ```go [Go]
-iv, err := client.OptionSnapshotGreeksIV("SPY", "20241220", "500", "C")
+data, _ := client.OptionSnapshotGreeksIV("SPY", "20260417", "550", "C")
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d implied_volatility=%.4f iv_error=%.4f expiration=%d strike=%.2f\n",
+        t.Date, t.MsOfDay, t.ImpliedVolatility, t.IVError, t.Expiration, t.Strike)
+}
 ```
 ```cpp [C++]
-auto iv = client.option_snapshot_greeks_implied_volatility("SPY", "20241220", "500", "C");
+auto data = client.option_snapshot_greeks_implied_volatility("SPY", "20260417", "550", "C");
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d implied_volatility=%.4f iv_error=%.4f expiration=%d strike=%.2f\n",
+        t.date, t.ms_of_day, t.implied_volatility, t.iv_error, t.expiration, t.strike);
+}
 ```
 :::
 

@@ -13,21 +13,27 @@ Retrieve the index price at a specific time of day for every trading day in a da
 
 ::: code-group
 ```rust [Rust]
-let ticks: Vec<PriceTick> = tdx.index_at_time_price(
-    "SPX", "20240101", "20240301", "34200000"  // 9:30 AM ET
-).await?;
+let data = tdx.index_at_time_price("SPX", "20260101", "20260301", "34200000").await?;
+for t in &data {
+    println!("date={} ms_of_day={} price={:.2}", t.date, t.ms_of_day, t.price_f64());
+}
 ```
 ```python [Python]
-result = tdx.index_at_time_price("SPX", "20240101", "20240301", "34200000")
+data = tdx.index_at_time_price("SPX", "20260101", "20260301", "34200000")
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} price={t['price']:.2f}")
 ```
 ```go [Go]
-atTime, err := client.IndexAtTimePrice("SPX", "20240101", "20240301", "34200000")
-if err != nil {
-    log.Fatal(err)
+data, _ := client.IndexAtTimePrice("SPX", "20260101", "20260301", "34200000")
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d price=%.2f\n", t.Date, t.MsOfDay, t.Price)
 }
 ```
 ```cpp [C++]
-auto at_time = client.index_at_time_price("SPX", "20240101", "20240301", "34200000");
+auto data = client.index_at_time_price("SPX", "20260101", "20260301", "34200000");
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d price=%.2f\n", t.date, t.ms_of_day, t.price);
+}
 ```
 :::
 

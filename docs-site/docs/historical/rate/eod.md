@@ -13,35 +13,27 @@ Retrieve end-of-day interest rate data across a date range. Supports SOFR and al
 
 ::: code-group
 ```rust [Rust]
-let rates: Vec<InterestRateTick> = tdx.interest_rate_history_eod(
-    "SOFR", "20240101", "20240301"
-).await?;
-
-// Treasury 10-year yield
-let rates: Vec<InterestRateTick> = tdx.interest_rate_history_eod(
-    "TREASURY_Y10", "20240101", "20240301"
-).await?;
+let data = tdx.interest_rate_history_eod("SOFR", "20260101", "20260301").await?;
+for t in &data {
+    println!("date={} rate={:.4}", t.date, t.rate);
+}
 ```
 ```python [Python]
-result = tdx.interest_rate_history_eod("SOFR", "20240101", "20240301")
-
-# Treasury 10-year yield
-t10 = tdx.interest_rate_history_eod("TREASURY_Y10", "20240101", "20240301")
+data = tdx.interest_rate_history_eod("SOFR", "20260101", "20260301")
+for t in data:
+    print(f"date={t['date']} rate={t['rate']:.4f}")
 ```
 ```go [Go]
-result, err := client.InterestRateHistoryEOD("SOFR", "20240101", "20240301")
-if err != nil {
-    log.Fatal(err)
+data, _ := client.InterestRateHistoryEOD("SOFR", "20260101", "20260301")
+for _, t := range data {
+    fmt.Printf("date=%d rate=%.4f\n", t.Date, t.Rate)
 }
-
-// Treasury 10-year yield
-t10, err := client.InterestRateHistoryEOD("TREASURY_Y10", "20240101", "20240301")
 ```
 ```cpp [C++]
-auto result = client.interest_rate_history_eod("SOFR", "20240101", "20240301");
-
-// Treasury 10-year yield
-auto t10 = client.interest_rate_history_eod("TREASURY_Y10", "20240101", "20240301");
+auto data = client.interest_rate_history_eod("SOFR", "20260101", "20260301");
+for (const auto& t : data) {
+    printf("date=%d rate=%.4f\n", t.date, t.rate);
+}
 ```
 :::
 
