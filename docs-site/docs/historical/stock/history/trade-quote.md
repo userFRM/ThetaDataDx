@@ -13,19 +13,31 @@ Combined trade + quote ticks for a stock on a given date. Each row contains the 
 
 ::: code-group
 ```rust [Rust]
-let ticks: Vec<TradeQuoteTick> = tdx.stock_history_trade_quote("AAPL", "20240315").await?;
+let data = tdx.stock_history_trade_quote("SPY", "20260315").await?;
+for t in &data {
+    println!("date={} ms_of_day={} trade_price={:.2} size={} bid={:.2} ask={:.2} exchange={}",
+        t.date, t.ms_of_day, t.trade_price_f64(), t.size, t.bid_f64(), t.ask_f64(), t.exchange);
+}
 ```
 ```python [Python]
-result = tdx.stock_history_trade_quote("AAPL", "20240315")
+data = tdx.stock_history_trade_quote("SPY", "20260315")
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} trade_price={t['trade_price']:.2f} "
+          f"size={t['size']} bid={t['bid']:.2f} ask={t['ask']:.2f} exchange={t['exchange']}")
 ```
 ```go [Go]
-result, err := client.StockHistoryTradeQuote("AAPL", "20240315")
-if err != nil {
-    log.Fatal(err)
+data, _ := client.StockHistoryTradeQuote("SPY", "20260315")
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d trade_price=%.2f size=%d bid=%.2f ask=%.2f exchange=%d\n",
+        t.Date, t.MsOfDay, t.TradePrice, t.Size, t.Bid, t.Ask, t.Exchange)
 }
 ```
 ```cpp [C++]
-auto tq = client.stock_history_trade_quote("AAPL", "20240315");
+auto data = client.stock_history_trade_quote("SPY", "20260315");
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d trade_price=%.2f size=%d bid=%.2f ask=%.2f exchange=%d\n",
+        t.date, t.ms_of_day, t.trade_price, t.size, t.bid, t.ask, t.exchange);
+}
 ```
 :::
 

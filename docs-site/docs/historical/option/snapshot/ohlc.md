@@ -13,16 +13,31 @@ Get the latest OHLC (open, high, low, close) snapshot for an option contract.
 
 ::: code-group
 ```rust [Rust]
-let bars: Vec<OhlcTick> = tdx.option_snapshot_ohlc("SPY", "20241220", "500", "C").await?;
+let data = tdx.option_snapshot_ohlc("SPY", "20260417", "550", "C").await?;
+for t in &data {
+    println!("date={} ms_of_day={} open={:.2} high={:.2} low={:.2} close={:.2} volume={} expiration={} strike={:.2}",
+        t.date, t.ms_of_day, t.open_f64(), t.high_f64(), t.low_f64(), t.close_f64(), t.volume, t.expiration, t.strike);
+}
 ```
 ```python [Python]
-bars = tdx.option_snapshot_ohlc("SPY", "20241220", "500", "C")
+data = tdx.option_snapshot_ohlc("SPY", "20260417", "550", "C")
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} open={t['open']:.2f} high={t['high']:.2f} "
+          f"low={t['low']:.2f} close={t['close']:.2f} volume={t['volume']} expiration={t['expiration']} strike={t['strike']:.2f}")
 ```
 ```go [Go]
-bars, err := client.OptionSnapshotOHLC("SPY", "20241220", "500", "C")
+data, _ := client.OptionSnapshotOHLC("SPY", "20260417", "550", "C")
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d open=%.2f high=%.2f low=%.2f close=%.2f volume=%d expiration=%d strike=%.2f\n",
+        t.Date, t.MsOfDay, t.Open, t.High, t.Low, t.Close, t.Volume, t.Expiration, t.Strike)
+}
 ```
 ```cpp [C++]
-auto bars = client.option_snapshot_ohlc("SPY", "20241220", "500", "C");
+auto data = client.option_snapshot_ohlc("SPY", "20260417", "550", "C");
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d open=%.2f high=%.2f low=%.2f close=%.2f volume=%d expiration=%d strike=%.2f\n",
+        t.date, t.ms_of_day, t.open, t.high, t.low, t.close, t.volume, t.expiration, t.strike);
+}
 ```
 :::
 

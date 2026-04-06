@@ -15,36 +15,30 @@ The `time_of_day` parameter is milliseconds from midnight ET (e.g., `34200000` =
 
 ::: code-group
 ```rust [Rust]
-// Quote at 9:30 AM across Q1 2024
-let quotes: Vec<QuoteTick> = tdx.stock_at_time_quote(
-    "AAPL", "20240101", "20240301", "34200000"
-).await?;
-for q in &quotes {
-    println!("{}: bid={} ask={}", q.date, q.bid_price(), q.ask_price());
+let data = tdx.stock_at_time_quote("SPY", "20260101", "20260301", "34200000").await?;
+for t in &data {
+    println!("date={} ms_of_day={} bid={:.2} ask={:.2} midpoint={:.2}",
+        t.date, t.ms_of_day, t.bid_f64(), t.ask_f64(), t.midpoint_f64());
 }
 ```
 ```python [Python]
-# Quote at 9:30 AM across Q1 2024
-quotes = tdx.stock_at_time_quote("AAPL", "20240101", "20240301", "34200000")
-for q in quotes:
-    print(f"{q['date']}: bid={q['bid']:.2f} ask={q['ask']:.2f}")
+data = tdx.stock_at_time_quote("SPY", "20260101", "20260301", "34200000")
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} "
+          f"bid={t['bid']:.2f} ask={t['ask']:.2f} midpoint={t['midpoint']:.2f}")
 ```
 ```go [Go]
-// Quote at 9:30 AM across Q1 2024
-quotes, err := client.StockAtTimeQuote("AAPL", "20240101", "20240301", "34200000")
-if err != nil {
-    log.Fatal(err)
-}
-for _, q := range quotes {
-    fmt.Printf("%d: bid=%.2f ask=%.2f\n", q.Date, q.Bid, q.Ask)
+data, _ := client.StockAtTimeQuote("SPY", "20260101", "20260301", "34200000")
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d bid=%.2f ask=%.2f midpoint=%.2f\n",
+        t.Date, t.MsOfDay, t.Bid, t.Ask, t.Midpoint)
 }
 ```
 ```cpp [C++]
-// Quote at 9:30 AM across Q1 2024
-auto quotes = client.stock_at_time_quote("AAPL", "20240101", "20240301", "34200000");
-for (auto& q : quotes) {
-    std::cout << q.date << ": bid=" << q.bid
-              << " ask=" << q.ask << std::endl;
+auto data = client.stock_at_time_quote("SPY", "20260101", "20260301", "34200000");
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d bid=%.2f ask=%.2f midpoint=%.2f\n",
+        t.date, t.ms_of_day, t.bid, t.ask, t.midpoint);
 }
 ```
 :::

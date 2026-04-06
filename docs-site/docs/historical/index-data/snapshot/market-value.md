@@ -13,19 +13,31 @@ Get the latest market value snapshot for one or more index symbols.
 
 ::: code-group
 ```rust [Rust]
-let ticks: Vec<MarketValueTick> = tdx.index_snapshot_market_value(&["SPX"]).await?;
+let data = tdx.index_snapshot_market_value(&["SPX"]).await?;
+for t in &data {
+    println!("date={} market_cap={:.4} shares_outstanding={}",
+        t.date, t.market_cap, t.shares_outstanding);
+}
 ```
 ```python [Python]
-mv = tdx.index_snapshot_market_value(["SPX"])
+data = tdx.index_snapshot_market_value(["SPX"])
+for t in data:
+    print(f"date={t['date']} "
+          f"market_cap={t['market_cap']:.4f} shares_outstanding={t['shares_outstanding']}")
 ```
 ```go [Go]
-mv, err := client.IndexSnapshotMarketValue([]string{"SPX"})
-if err != nil {
-    log.Fatal(err)
+data, _ := client.IndexSnapshotMarketValue([]string{"SPX"})
+for _, t := range data {
+    fmt.Printf("date=%d market_cap=%.4f shares_outstanding=%d\n",
+        t.Date, t.MarketCap, t.SharesOutstanding)
 }
 ```
 ```cpp [C++]
-auto mv = client.index_snapshot_market_value({"SPX"});
+auto data = client.index_snapshot_market_value({"SPX"});
+for (const auto& t : data) {
+    printf("date=%d market_cap=%.4f shares_outstanding=%d\n",
+        t.date, t.market_cap, t.shares_outstanding);
+}
 ```
 :::
 

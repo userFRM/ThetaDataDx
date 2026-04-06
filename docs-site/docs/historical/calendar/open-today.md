@@ -13,19 +13,31 @@ Check whether the market is open today and retrieve the current day's trading sc
 
 ::: code-group
 ```rust [Rust]
-let days: Vec<CalendarDay> = tdx.calendar_open_today().await?;
+let data = tdx.calendar_open_today().await?;
+for t in &data {
+    println!("date={} is_open={} open_time={} close_time={}",
+        t.date, t.is_open, t.open_time, t.close_time);
+}
 ```
 ```python [Python]
-result = tdx.calendar_open_today()
+data = tdx.calendar_open_today()
+for t in data:
+    print(f"date={t['date']} is_open={t['is_open']} "
+          f"open_time={t['open_time']} close_time={t['close_time']}")
 ```
 ```go [Go]
-result, err := client.CalendarOpenToday()
-if err != nil {
-    log.Fatal(err)
+data, _ := client.CalendarOpenToday()
+for _, t := range data {
+    fmt.Printf("date=%d is_open=%d open_time=%d close_time=%d\n",
+        t.Date, t.IsOpen, t.OpenTime, t.CloseTime)
 }
 ```
 ```cpp [C++]
-auto today = client.calendar_open_today();
+auto data = client.calendar_open_today();
+for (const auto& t : data) {
+    printf("date=%d is_open=%d open_time=%d close_time=%d\n",
+        t.date, t.is_open, t.open_time, t.close_time);
+}
 ```
 :::
 

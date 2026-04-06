@@ -16,27 +16,31 @@ Intraday OHLC bars at a configurable interval. Two variants are available:
 
 ::: code-group
 ```rust [Rust]
-// 1-minute bars for a single date
-let bars: Vec<OhlcTick> = tdx.stock_history_ohlc("AAPL", "20240315", "60000").await?;
-println!("{} bars", bars.len());
+let data = tdx.stock_history_ohlc("SPY", "20260315", "60000").await?;
+for t in &data {
+    println!("date={} ms_of_day={} open={:.2} high={:.2} low={:.2} close={:.2} volume={} count={}",
+        t.date, t.ms_of_day, t.open_f64(), t.high_f64(), t.low_f64(), t.close_f64(), t.volume, t.count);
+}
 ```
 ```python [Python]
-# 1-minute bars for a single date
-bars = tdx.stock_history_ohlc("AAPL", "20240315", "60000")
-print(f"{len(bars)} bars")
+data = tdx.stock_history_ohlc("SPY", "20260315", "60000")
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} open={t['open']:.2f} high={t['high']:.2f} "
+          f"low={t['low']:.2f} close={t['close']:.2f} volume={t['volume']} count={t['count']}")
 ```
 ```go [Go]
-// 1-minute bars for a single date
-bars, err := client.StockHistoryOHLC("AAPL", "20240315", "60000")
-if err != nil {
-    log.Fatal(err)
+data, _ := client.StockHistoryOHLC("SPY", "20260315", "60000")
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d open=%.2f high=%.2f low=%.2f close=%.2f volume=%d count=%d\n",
+        t.Date, t.MsOfDay, t.Open, t.High, t.Low, t.Close, t.Volume, t.Count)
 }
-fmt.Printf("%d bars\n", len(bars))
 ```
 ```cpp [C++]
-// 1-minute bars for a single date
-auto bars = client.stock_history_ohlc("AAPL", "20240315", "60000");
-std::cout << bars.size() << " bars" << std::endl;
+auto data = client.stock_history_ohlc("SPY", "20260315", "60000");
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d open=%.2f high=%.2f low=%.2f close=%.2f volume=%d count=%d\n",
+        t.date, t.ms_of_day, t.open, t.high, t.low, t.close, t.volume, t.count);
+}
 ```
 :::
 
@@ -44,22 +48,31 @@ std::cout << bars.size() << " bars" << std::endl;
 
 ::: code-group
 ```rust [Rust]
-// 5-minute bars across a date range
-let bars: Vec<OhlcTick> = tdx.stock_history_ohlc_range(
-    "AAPL", "20240101", "20240301", "300000"
-).await?;
+let data = tdx.stock_history_ohlc_range("SPY", "20260101", "20260301", "300000").await?;
+for t in &data {
+    println!("date={} ms_of_day={} open={:.2} high={:.2} low={:.2} close={:.2} volume={} count={}",
+        t.date, t.ms_of_day, t.open_f64(), t.high_f64(), t.low_f64(), t.close_f64(), t.volume, t.count);
+}
 ```
 ```python [Python]
-# 5-minute bars across a date range
-bars = tdx.stock_history_ohlc_range("AAPL", "20240101", "20240301", "300000")
+data = tdx.stock_history_ohlc_range("SPY", "20260101", "20260301", "300000")
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} open={t['open']:.2f} high={t['high']:.2f} "
+          f"low={t['low']:.2f} close={t['close']:.2f} volume={t['volume']} count={t['count']}")
 ```
 ```go [Go]
-// 5-minute bars across a date range
-bars, err := client.StockHistoryOHLCRange("AAPL", "20240101", "20240301", "300000")
+data, _ := client.StockHistoryOHLCRange("SPY", "20260101", "20260301", "300000")
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d open=%.2f high=%.2f low=%.2f close=%.2f volume=%d count=%d\n",
+        t.Date, t.MsOfDay, t.Open, t.High, t.Low, t.Close, t.Volume, t.Count)
+}
 ```
 ```cpp [C++]
-// 5-minute bars across a date range
-auto bars = client.stock_history_ohlc_range("AAPL", "20240101", "20240301", "300000");
+auto data = client.stock_history_ohlc_range("SPY", "20260101", "20260301", "300000");
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d open=%.2f high=%.2f low=%.2f close=%.2f volume=%d count=%d\n",
+        t.date, t.ms_of_day, t.open, t.high, t.low, t.close, t.volume, t.count);
+}
 ```
 :::
 

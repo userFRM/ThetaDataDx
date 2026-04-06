@@ -13,18 +13,31 @@ Get a snapshot of third-order Greeks for an option contract: speed, zomma, color
 
 ::: code-group
 ```rust [Rust]
-let g: Vec<GreeksTick> = tdx.option_snapshot_greeks_third_order(
-    "SPY", "20241220", "500", "C"
-).await?;
+let data = tdx.option_snapshot_greeks_third_order("SPY", "20260417", "550", "C").await?;
+for t in &data {
+    println!("date={} ms_of_day={} speed={:.4} zomma={:.4} color={:.4} ultima={:.4} expiration={} strike={:.2}",
+        t.date, t.ms_of_day, t.speed, t.zomma, t.color, t.ultima, t.expiration, t.strike);
+}
 ```
 ```python [Python]
-g = tdx.option_snapshot_greeks_third_order("SPY", "20241220", "500", "C")
+data = tdx.option_snapshot_greeks_third_order("SPY", "20260417", "550", "C")
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} speed={t['speed']:.4f} zomma={t['zomma']:.4f} "
+          f"color={t['color']:.4f} ultima={t['ultima']:.4f} expiration={t['expiration']} strike={t['strike']:.2f}")
 ```
 ```go [Go]
-g, err := client.OptionSnapshotGreeksThirdOrder("SPY", "20241220", "500", "C")
+data, _ := client.OptionSnapshotGreeksThirdOrder("SPY", "20260417", "550", "C")
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d speed=%.4f zomma=%.4f color=%.4f ultima=%.4f expiration=%d strike=%.2f\n",
+        t.Date, t.MsOfDay, t.Speed, t.Zomma, t.Color, t.Ultima, t.Expiration, t.Strike)
+}
 ```
 ```cpp [C++]
-auto g = client.option_snapshot_greeks_third_order("SPY", "20241220", "500", "C");
+auto data = client.option_snapshot_greeks_third_order("SPY", "20260417", "550", "C");
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d speed=%.4f zomma=%.4f color=%.4f ultima=%.4f expiration=%d strike=%.2f\n",
+        t.date, t.ms_of_day, t.speed, t.zomma, t.color, t.ultima, t.expiration, t.strike);
+}
 ```
 :::
 

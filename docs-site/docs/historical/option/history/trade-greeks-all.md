@@ -13,18 +13,31 @@ Retrieve all Greeks (first, second, and third order) computed on each individual
 
 ::: code-group
 ```rust [Rust]
-let g: Vec<GreeksTick> = tdx.option_history_trade_greeks_all(
-    "SPY", "20241220", "500", "C", "20240315"
-).await?;
+let data = tdx.option_history_trade_greeks_all("SPY", "20260417", "550", "C", "20260315").await?;
+for t in &data {
+    println!("date={} ms_of_day={} implied_volatility={:.4} delta={:.4} gamma={:.4} theta={:.4} vega={:.4} rho={:.4} vanna={:.4} charm={:.4} speed={:.4} zomma={:.4}",
+        t.date, t.ms_of_day, t.implied_volatility, t.delta, t.gamma, t.theta, t.vega, t.rho, t.vanna, t.charm, t.speed, t.zomma);
+}
 ```
 ```python [Python]
-g = tdx.option_history_trade_greeks_all("SPY", "20241220", "500", "C", "20240315")
+data = tdx.option_history_trade_greeks_all("SPY", "20260417", "550", "C", "20260315")
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} implied_volatility={t['implied_volatility']:.4f} delta={t['delta']:.4f} gamma={t['gamma']:.4f} theta={t['theta']:.4f} "
+          f"vega={t['vega']:.4f} rho={t['rho']:.4f} vanna={t['vanna']:.4f} charm={t['charm']:.4f} speed={t['speed']:.4f} zomma={t['zomma']:.4f}")
 ```
 ```go [Go]
-g, err := client.OptionHistoryTradeGreeksAll("SPY", "20241220", "500", "C", "20240315")
+data, _ := client.OptionHistoryTradeGreeksAll("SPY", "20260417", "550", "C", "20260315")
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d implied_volatility=%.4f delta=%.4f gamma=%.4f theta=%.4f vega=%.4f rho=%.4f vanna=%.4f charm=%.4f speed=%.4f zomma=%.4f\n",
+        t.Date, t.MsOfDay, t.ImpliedVolatility, t.Delta, t.Gamma, t.Theta, t.Vega, t.Rho, t.Vanna, t.Charm, t.Speed, t.Zomma)
+}
 ```
 ```cpp [C++]
-auto g = client.option_history_trade_greeks_all("SPY", "20241220", "500", "C", "20240315");
+auto data = client.option_history_trade_greeks_all("SPY", "20260417", "550", "C", "20260315");
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d implied_volatility=%.4f delta=%.4f gamma=%.4f theta=%.4f vega=%.4f rho=%.4f vanna=%.4f charm=%.4f speed=%.4f zomma=%.4f\n",
+        t.date, t.ms_of_day, t.implied_volatility, t.delta, t.gamma, t.theta, t.vega, t.rho, t.vanna, t.charm, t.speed, t.zomma);
+}
 ```
 :::
 

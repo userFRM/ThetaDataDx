@@ -13,19 +13,31 @@ Latest market value snapshot for one or more stocks.
 
 ::: code-group
 ```rust [Rust]
-let ticks: Vec<MarketValueTick> = tdx.stock_snapshot_market_value(&["AAPL"]).await?;
+let data = tdx.stock_snapshot_market_value(&["SPY"]).await?;
+for t in &data {
+    println!("date={} market_cap={:.4} shares_outstanding={} enterprise_value={:.4}",
+        t.date, t.market_cap, t.shares_outstanding, t.enterprise_value);
+}
 ```
 ```python [Python]
-mv = tdx.stock_snapshot_market_value(["AAPL"])
+data = tdx.stock_snapshot_market_value(["SPY"])
+for t in data:
+    print(f"date={t['date']} market_cap={t['market_cap']:.4f} "
+          f"shares_outstanding={t['shares_outstanding']} enterprise_value={t['enterprise_value']:.4f}")
 ```
 ```go [Go]
-mv, err := client.StockSnapshotMarketValue([]string{"AAPL"})
-if err != nil {
-    log.Fatal(err)
+data, _ := client.StockSnapshotMarketValue([]string{"SPY"})
+for _, t := range data {
+    fmt.Printf("date=%d market_cap=%.4f shares_outstanding=%d enterprise_value=%.4f\n",
+        t.Date, t.MarketCap, t.SharesOutstanding, t.EnterpriseValue)
 }
 ```
 ```cpp [C++]
-auto mv = client.stock_snapshot_market_value({"AAPL"});
+auto data = client.stock_snapshot_market_value({"SPY"});
+for (const auto& t : data) {
+    printf("date=%d market_cap=%.4f shares_outstanding=%d enterprise_value=%.4f\n",
+        t.date, t.market_cap, t.shares_outstanding, t.enterprise_value);
+}
 ```
 :::
 

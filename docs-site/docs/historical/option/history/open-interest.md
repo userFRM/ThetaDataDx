@@ -13,18 +13,27 @@ Retrieve open interest history for an option contract.
 
 ::: code-group
 ```rust [Rust]
-let oi: Vec<OpenInterestTick> = tdx.option_history_open_interest(
-    "SPY", "20241220", "500", "C", "20240315"
-).await?;
+let data = tdx.option_history_open_interest("SPY", "20260417", "550", "C", "20260315").await?;
+for t in &data {
+    println!("date={} open_interest={}", t.date, t.open_interest);
+}
 ```
 ```python [Python]
-oi = tdx.option_history_open_interest("SPY", "20241220", "500", "C", "20240315")
+data = tdx.option_history_open_interest("SPY", "20260417", "550", "C", "20260315")
+for t in data:
+    print(f"date={t['date']} open_interest={t['open_interest']}")
 ```
 ```go [Go]
-oi, err := client.OptionHistoryOpenInterest("SPY", "20241220", "500", "C", "20240315")
+data, _ := client.OptionHistoryOpenInterest("SPY", "20260417", "550", "C", "20260315")
+for _, t := range data {
+    fmt.Printf("date=%d open_interest=%d\n", t.Date, t.OpenInterest)
+}
 ```
 ```cpp [C++]
-auto oi = client.option_history_open_interest("SPY", "20241220", "500", "C", "20240315");
+auto data = client.option_history_open_interest("SPY", "20260417", "550", "C", "20260315");
+for (const auto& t : data) {
+    printf("date=%d open_interest=%d\n", t.date, t.open_interest);
+}
 ```
 :::
 

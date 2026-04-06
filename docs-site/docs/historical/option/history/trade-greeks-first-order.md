@@ -13,19 +13,31 @@ Retrieve first-order Greeks computed on each individual trade for an option cont
 
 ::: code-group
 ```rust [Rust]
-let g: Vec<GreeksTick> = tdx.option_history_trade_greeks_first_order(
-    "SPY", "20241220", "500", "C", "20240315"
-).await?;
+let data = tdx.option_history_trade_greeks_first_order("SPY", "20260417", "550", "C", "20260315").await?;
+for t in &data {
+    println!("date={} ms_of_day={} implied_volatility={:.4} delta={:.4} theta={:.4} vega={:.4} rho={:.4}",
+        t.date, t.ms_of_day, t.implied_volatility, t.delta, t.theta, t.vega, t.rho);
+}
 ```
 ```python [Python]
-g = tdx.option_history_trade_greeks_first_order("SPY", "20241220", "500", "C", "20240315")
+data = tdx.option_history_trade_greeks_first_order("SPY", "20260417", "550", "C", "20260315")
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} implied_volatility={t['implied_volatility']:.4f} "
+          f"delta={t['delta']:.4f} theta={t['theta']:.4f} vega={t['vega']:.4f} rho={t['rho']:.4f}")
 ```
 ```go [Go]
-g, err := client.OptionHistoryTradeGreeksFirstOrder("SPY", "20241220", "500", "C", "20240315")
+data, _ := client.OptionHistoryTradeGreeksFirstOrder("SPY", "20260417", "550", "C", "20260315")
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d implied_volatility=%.4f delta=%.4f theta=%.4f vega=%.4f rho=%.4f\n",
+        t.Date, t.MsOfDay, t.ImpliedVolatility, t.Delta, t.Theta, t.Vega, t.Rho)
+}
 ```
 ```cpp [C++]
-auto g = client.option_history_trade_greeks_first_order("SPY", "20241220", "500", "C",
-                                                          "20240315");
+auto data = client.option_history_trade_greeks_first_order("SPY", "20260417", "550", "C", "20260315");
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d implied_volatility=%.4f delta=%.4f theta=%.4f vega=%.4f rho=%.4f\n",
+        t.date, t.ms_of_day, t.implied_volatility, t.delta, t.theta, t.vega, t.rho);
+}
 ```
 :::
 

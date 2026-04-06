@@ -13,18 +13,27 @@ List all available strike prices for a given underlying symbol and expiration da
 
 ::: code-group
 ```rust [Rust]
-let strikes: Vec<String> = tdx.option_list_strikes("SPY", "20241220").await?;
-println!("{} strikes available", strikes.len());
+let data = tdx.option_list_strikes("SPY", "20260417").await?;
+for item in &data {
+    println!("{}", item);
+}
 ```
 ```python [Python]
-strikes = tdx.option_list_strikes("SPY", "20241220")
-print(f"{len(strikes)} strikes")
+data = tdx.option_list_strikes("SPY", "20260417")
+for item in data:
+    print(item)
 ```
 ```go [Go]
-strikes, err := client.OptionListStrikes("SPY", "20241220")
+data, _ := client.OptionListStrikes("SPY", "20260417")
+for _, item := range data {
+    fmt.Println(item)
+}
 ```
 ```cpp [C++]
-auto strikes = client.option_list_strikes("SPY", "20241220");
+auto data = client.option_list_strikes("SPY", "20260417");
+for (const auto& item : data) {
+    printf("%s\n", item.c_str());
+}
 ```
 :::
 

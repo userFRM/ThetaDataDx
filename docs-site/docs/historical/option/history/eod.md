@@ -13,25 +13,31 @@ Retrieve end-of-day option data across a date range. Returns one row per trading
 
 ::: code-group
 ```rust [Rust]
-let eod: Vec<EodTick> = tdx.option_history_eod(
-    "SPY", "20241220", "500", "C", "20240101", "20240301"
-).await?;
-for t in &eod {
-    println!("{}: O={} H={} L={} C={}", t.date, t.open_price(), t.high_price(),
-        t.low_price(), t.close_price());
+let data = tdx.option_history_eod("SPY", "20260417", "550", "C", "20260101", "20260301").await?;
+for t in &data {
+    println!("date={} open={:.2} high={:.2} low={:.2} close={:.2} volume={} bid={:.2} ask={:.2}",
+        t.date, t.open_f64(), t.high_f64(), t.low_f64(), t.close_f64(), t.volume, t.bid_f64(), t.ask_f64());
 }
 ```
 ```python [Python]
-eod = tdx.option_history_eod("SPY", "20241220", "500", "C",
-                                "20240101", "20240301")
+data = tdx.option_history_eod("SPY", "20260417", "550", "C", "20260101", "20260301")
+for t in data:
+    print(f"date={t['date']} open={t['open']:.2f} high={t['high']:.2f} low={t['low']:.2f} "
+          f"close={t['close']:.2f} volume={t['volume']} bid={t['bid']:.2f} ask={t['ask']:.2f}")
 ```
 ```go [Go]
-eod, err := client.OptionHistoryEOD("SPY", "20241220", "500", "C",
-    "20240101", "20240301")
+data, _ := client.OptionHistoryEOD("SPY", "20260417", "550", "C", "20260101", "20260301")
+for _, t := range data {
+    fmt.Printf("date=%d open=%.2f high=%.2f low=%.2f close=%.2f volume=%d bid=%.2f ask=%.2f\n",
+        t.Date, t.Open, t.High, t.Low, t.Close, t.Volume, t.Bid, t.Ask)
+}
 ```
 ```cpp [C++]
-auto eod = client.option_history_eod("SPY", "20241220", "500", "C",
-                                      "20240101", "20240301");
+auto data = client.option_history_eod("SPY", "20260417", "550", "C", "20260101", "20260301");
+for (const auto& t : data) {
+    printf("date=%d open=%.2f high=%.2f low=%.2f close=%.2f volume=%d bid=%.2f ask=%.2f\n",
+        t.date, t.open, t.high, t.low, t.close, t.volume, t.bid, t.ask);
+}
 ```
 :::
 

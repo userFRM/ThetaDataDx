@@ -13,16 +13,31 @@ Get the latest trade snapshot for an option contract.
 
 ::: code-group
 ```rust [Rust]
-let trades: Vec<TradeTick> = tdx.option_snapshot_trade("SPY", "20241220", "500", "C").await?;
+let data = tdx.option_snapshot_trade("SPY", "20260417", "550", "C").await?;
+for t in &data {
+    println!("date={} ms_of_day={} price={:.2} size={} expiration={} strike={:.2}",
+        t.date, t.ms_of_day, t.price_f64(), t.size, t.expiration, t.strike);
+}
 ```
 ```python [Python]
-trades = tdx.option_snapshot_trade("SPY", "20241220", "500", "C")
+data = tdx.option_snapshot_trade("SPY", "20260417", "550", "C")
+for t in data:
+    print(f"date={t['date']} ms_of_day={t['ms_of_day']} price={t['price']:.2f} "
+          f"size={t['size']} expiration={t['expiration']} strike={t['strike']:.2f}")
 ```
 ```go [Go]
-trades, err := client.OptionSnapshotTrade("SPY", "20241220", "500", "C")
+data, _ := client.OptionSnapshotTrade("SPY", "20260417", "550", "C")
+for _, t := range data {
+    fmt.Printf("date=%d ms_of_day=%d price=%.2f size=%d expiration=%d strike=%.2f\n",
+        t.Date, t.MsOfDay, t.Price, t.Size, t.Expiration, t.Strike)
+}
 ```
 ```cpp [C++]
-auto trades = client.option_snapshot_trade("SPY", "20241220", "500", "C");
+auto data = client.option_snapshot_trade("SPY", "20260417", "550", "C");
+for (const auto& t : data) {
+    printf("date=%d ms_of_day=%d price=%.2f size=%d expiration=%d strike=%.2f\n",
+        t.date, t.ms_of_day, t.price, t.size, t.expiration, t.strike);
+}
 ```
 :::
 

@@ -13,19 +13,31 @@ Retrieve the complete trading calendar for an entire year, including every tradi
 
 ::: code-group
 ```rust [Rust]
-let days: Vec<CalendarDay> = tdx.calendar_year("2024").await?;
+let data = tdx.calendar_year("2026").await?;
+for t in &data {
+    println!("date={} is_open={} open_time={} close_time={}",
+        t.date, t.is_open, t.open_time, t.close_time);
+}
 ```
 ```python [Python]
-result = tdx.calendar_year("2024")
+data = tdx.calendar_year("2026")
+for t in data:
+    print(f"date={t['date']} is_open={t['is_open']} "
+          f"open_time={t['open_time']} close_time={t['close_time']}")
 ```
 ```go [Go]
-result, err := client.CalendarYear("2024")
-if err != nil {
-    log.Fatal(err)
+data, _ := client.CalendarYear("2026")
+for _, t := range data {
+    fmt.Printf("date=%d is_open=%d open_time=%d close_time=%d\n",
+        t.Date, t.IsOpen, t.OpenTime, t.CloseTime)
 }
 ```
 ```cpp [C++]
-auto year_info = client.calendar_year("2024");
+auto data = client.calendar_year("2026");
+for (const auto& t : data) {
+    printf("date=%d is_open=%d open_time=%d close_time=%d\n",
+        t.date, t.is_open, t.open_time, t.close_time);
+}
 ```
 :::
 
