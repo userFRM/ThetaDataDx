@@ -31,8 +31,8 @@ match thetadatadx::fpss::reconnect_delay(reason) {
         tdx.reconnect_streaming(|event: &FpssEvent| {
             // Your event handler -- same signature as start_streaming()
             match event {
-                FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, .. }) => {
-                    println!("Quote: {contract_id} {bid}/{ask}");
+                FpssEvent::Data(FpssData::Quote { contract_id, bid_f64, ask_f64, .. }) => {
+                    println!("Quote: {contract_id} {bid_f64:.2}/{ask_f64:.2}");
                 }
                 _ => {}
             }
@@ -132,22 +132,19 @@ async fn main() -> Result<(), thetadatadx::Error> {
                 contracts_clone.lock().unwrap().insert(*id, contract.clone());
             }
             FpssEvent::Data(FpssData::Quote {
-                contract_id, bid, ask, price_type, received_at_ns, ..
+                contract_id, bid_f64, ask_f64, received_at_ns, ..
             }) => {
                 if let Some(c) = contracts_clone.lock().unwrap().get(contract_id) {
-                    let bid_p = Price::new(*bid, *price_type);
-                    let ask_p = Price::new(*ask, *price_type);
-                    println!("[QUOTE] {}: bid={} ask={} rx={}ns",
-                        c.root, bid_p, ask_p, received_at_ns);
+                    println!("[QUOTE] {}: bid={bid_f64:.2} ask={ask_f64:.2} rx={received_at_ns}ns",
+                        c.root);
                 }
             }
             FpssEvent::Data(FpssData::Trade {
-                contract_id, price, size, price_type, received_at_ns, ..
+                contract_id, price_f64, size, received_at_ns, ..
             }) => {
                 if let Some(c) = contracts_clone.lock().unwrap().get(contract_id) {
-                    let trade_p = Price::new(*price, *price_type);
-                    println!("[TRADE] {}: price={} size={} rx={}ns",
-                        c.root, trade_p, size, received_at_ns);
+                    println!("[TRADE] {}: price={price_f64:.2} size={size} rx={received_at_ns}ns",
+                        c.root);
                 }
             }
             FpssEvent::Control(FpssControl::Disconnected { reason }) => {

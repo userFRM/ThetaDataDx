@@ -59,6 +59,148 @@ Events are either **data** (market ticks) or **control** (lifecycle/protocol):
 | `Batched` (default) | Flush only on PING frames (~100ms) | Up to 100ms additional | Lower |
 | `Immediate` | Flush after every frame write | Lowest possible | Higher |
 
+## Quick Start
+
+::: code-group
+```rust [Rust]
+use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
+use thetadatadx::fpss::{FpssData, FpssControl, FpssEvent};
+use thetadatadx::fpss::protocol::Contract;
+
+let creds = Credentials::from_file("creds.txt")?;
+let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+
+tdx.start_streaming(|event: &FpssEvent| {
+    match event {
+        FpssEvent::Data(FpssData::Quote { contract_id, bid_f64, ask_f64, .. }) => {
+            println!("Quote: contract={contract_id} bid={bid_f64:.2} ask={ask_f64:.2}");
+        }
+        FpssEvent::Data(FpssData::Trade { contract_id, price_f64, size, .. }) => {
+            println!("Trade: contract={contract_id} price={price_f64:.2} size={size}");
+        }
+        _ => {}
+    }
+})?;
+
+tdx.subscribe_quotes(&Contract::stock("AAPL"))?;
+tdx.subscribe_trades(&Contract::stock("MSFT"))?;
+
+std::thread::park(); // block until interrupted
+tdx.stop_streaming();
+```
+```python [Python]
+from thetadatadx import Credentials, Config, ThetaDataDx
+
+creds = Credentials.from_file("creds.txt")
+tdx = ThetaDataDx(creds, Config.production())
+tdx.start_streaming()
+
+tdx.subscribe_quotes("AAPL")
+tdx.subscribe_trades("MSFT")
+
+while True:
+    event = tdx.next_event(timeout_ms=5000)
+    if event is None:
+        continue
+    if event["kind"] == "quote":
+        print(f"Quote: contract={event['contract_id']} "
+              f"bid={event['bid']:.2f} ask={event['ask']:.2f}")
+    elif event["kind"] == "trade":
+        print(f"Trade: contract={event['contract_id']} "
+              f"price={event['price']:.2f} size={event['size']}")
+    elif event["kind"] == "disconnected":
+        break
+
+tdx.stop_streaming()
+```
+```go [Go]
+package main
+
+import (
+    "fmt"
+    "log"
+
+    thetadatadx "github.com/userFRM/ThetaDataDx/sdks/go"
+)
+
+func main() {
+    creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
+    defer creds.Close()
+
+    config := thetadatadx.ProductionConfig()
+    defer config.Close()
+
+    fpss, _ := thetadatadx.NewFpssClient(creds, config)
+    defer fpss.Close()
+
+    fpss.SubscribeQuotes("AAPL")
+    fpss.SubscribeTrades("MSFT")
+
+    for {
+        event, err := fpss.NextEvent(5000)
+        if err != nil {
+            log.Println("Error:", err)
+            break
+        }
+        if event == nil {
+            continue
+        }
+        switch event.Kind {
+        case thetadatadx.FpssQuoteEvent:
+            q := event.Quote
+            fmt.Printf("Quote: contract=%d bid=%.2f ask=%.2f\n",
+                q.ContractID, q.Bid, q.Ask)
+        case thetadatadx.FpssTradeEvent:
+            t := event.Trade
+            fmt.Printf("Trade: contract=%d price=%.2f size=%d\n",
+                t.ContractID, t.Price, t.Size)
+        }
+    }
+
+    fpss.Shutdown()
+}
+```
+```cpp [C++]
+#include "thetadx.hpp"
+#include <iostream>
+
+int main() {
+    auto creds = tdx::Credentials::from_file("creds.txt");
+    auto config = tdx::Config::production();
+    tdx::FpssClient fpss(creds, config);
+
+    fpss.subscribe_quotes("AAPL");
+    fpss.subscribe_trades("MSFT");
+
+    while (true) {
+        auto event = fpss.next_event(5000);
+        if (!event) continue;
+
+        switch (event->kind) {
+        case TDX_FPSS_QUOTE: {
+            auto& q = event->quote;
+            double bid = tdx::price_to_f64(q.bid, q.price_type);
+            double ask = tdx::price_to_f64(q.ask, q.price_type);
+            std::cout << "Quote: contract=" << q.contract_id
+                      << " bid=" << bid << " ask=" << ask << std::endl;
+            break;
+        }
+        case TDX_FPSS_TRADE: {
+            auto& t = event->trade;
+            double price = tdx::price_to_f64(t.price, t.price_type);
+            std::cout << "Trade: contract=" << t.contract_id
+                      << " price=" << price << " size=" << t.size << std::endl;
+            break;
+        }
+        default: break;
+        }
+    }
+
+    fpss.shutdown();
+}
+```
+:::
+
 ## Server Environments
 
 | Config | FPSS Ports | Purpose |

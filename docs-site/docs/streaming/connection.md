@@ -30,11 +30,11 @@ let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 
 tdx.start_streaming(|event: &FpssEvent| {
     match event {
-        FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, received_at_ns, .. }) => {
-            println!("Quote: contract={contract_id} bid={bid} ask={ask} rx={received_at_ns}ns");
+        FpssEvent::Data(FpssData::Quote { contract_id, bid_f64, ask_f64, received_at_ns, .. }) => {
+            println!("Quote: contract={contract_id} bid={bid_f64:.2} ask={ask_f64:.2} rx={received_at_ns}ns");
         }
-        FpssEvent::Data(FpssData::Trade { contract_id, price, size, received_at_ns, .. }) => {
-            println!("Trade: contract={contract_id} price={price} size={size} rx={received_at_ns}ns");
+        FpssEvent::Data(FpssData::Trade { contract_id, price_f64, size, received_at_ns, .. }) => {
+            println!("Trade: contract={contract_id} price={price_f64:.2} size={size} rx={received_at_ns}ns");
         }
         FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
             println!("Contract {id} = {contract}");
@@ -135,32 +135,79 @@ let mut config = DirectConfig::production();
 config.fpss_flush_mode = FpssFlushMode::Immediate; // lowest latency
 let tdx = ThetaDataDx::connect(&creds, config).await?;
 ```
-```toml [config.toml]
-[fpss]
-flush_mode = "immediate"  # or "batched" (default)
+```python [Python]
+# Flush mode is configured at the Rust level.
+# Python inherits it from the config passed at connection time.
+# To use Immediate mode, set it in config.toml:
+#   [fpss]
+#   flush_mode = "immediate"
+tdx = ThetaDataDx(creds, Config.production())
+```
+```go [Go]
+// Flush mode is configured at the Rust level.
+// Go inherits it from the config passed at connection time.
+// To use Immediate mode, set it in config.toml:
+//   [fpss]
+//   flush_mode = "immediate"
+config := thetadatadx.ProductionConfig()
+defer config.Close()
+fpss, _ := thetadatadx.NewFpssClient(creds, config)
+```
+```cpp [C++]
+// Flush mode is configured at the Rust level.
+// C++ inherits it from the config passed at connection time.
+// To use Immediate mode, set it in config.toml:
+//   [fpss]
+//   flush_mode = "immediate"
+auto config = tdx::Config::production();
+tdx::FpssClient fpss(creds, config);
 ```
 :::
 
-Flush mode is configured at the Rust level. Python, Go, and C++ inherit it from the config passed at connection time.
-
 ## Custom FPSS Hosts
 
-FPSS hosts are not hardcoded. You can override them on `DirectConfig`:
+FPSS hosts are not hardcoded. You can override them:
 
-```rust
+::: code-group
+```rust [Rust]
 let mut config = DirectConfig::production();
 config.fpss_hosts = vec![
     ("custom-host-a.example.com".to_string(), 20000),
     ("custom-host-b.example.com".to_string(), 20000),
 ];
 let tdx = ThetaDataDx::connect(&creds, config).await?;
-```
 
-Or parse from a comma-separated string (same format as `config_0.properties`):
-
-```rust
+// Or parse from a comma-separated string (same format as config_0.properties):
 let hosts = DirectConfig::parse_fpss_hosts("host-a:20000,host-b:20001")?;
 ```
+```python [Python]
+# Custom hosts are configured at the Rust level via DirectConfig or
+# TOML config file. Python inherits them from the config at connection time.
+# Set hosts in config.toml:
+#   [fpss]
+#   hosts = ["host-a.example.com:20000", "host-b.example.com:20001"]
+tdx = ThetaDataDx(creds, Config.production())
+```
+```go [Go]
+// Custom hosts are configured at the Rust level via DirectConfig or
+// TOML config file. Go inherits them from the config at connection time.
+// Set hosts in config.toml:
+//   [fpss]
+//   hosts = ["host-a.example.com:20000", "host-b.example.com:20001"]
+config := thetadatadx.ProductionConfig()
+defer config.Close()
+fpss, _ := thetadatadx.NewFpssClient(creds, config)
+```
+```cpp [C++]
+// Custom hosts are configured at the Rust level via DirectConfig or
+// TOML config file. C++ inherits them from the config at connection time.
+// Set hosts in config.toml:
+//   [fpss]
+//   hosts = ["host-a.example.com:20000", "host-b.example.com:20001"]
+auto config = tdx::Config::production();
+tdx::FpssClient fpss(creds, config);
+```
+:::
 
 Or use a TOML config file (requires `config-file` feature):
 
@@ -255,11 +302,9 @@ tdx.start_streaming(move |event: &FpssEvent| {
         FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
             contracts_clone.lock().unwrap().insert(*id, contract.clone());
         }
-        FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, price_type, .. }) => {
+        FpssEvent::Data(FpssData::Quote { contract_id, bid_f64, ask_f64, .. }) => {
             if let Some(contract) = contracts_clone.lock().unwrap().get(contract_id) {
-                let bid_price = Price::new(*bid, *price_type);
-                let ask_price = Price::new(*ask, *price_type);
-                println!("{}: bid={} ask={}", contract.root, bid_price, ask_price);
+                println!("{}: bid={bid_f64:.2} ask={ask_f64:.2}", contract.root);
             }
         }
         _ => {}

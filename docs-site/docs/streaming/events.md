@@ -13,18 +13,15 @@ tdx.start_streaming(|event: &FpssEvent| {
     match event {
         // --- Data events ---
         FpssEvent::Data(FpssData::Quote {
-            contract_id, ms_of_day, bid, ask, bid_size, ask_size,
-            price_type, received_at_ns, ..
+            contract_id, ms_of_day, bid_f64, ask_f64, bid_size, ask_size,
+            received_at_ns, ..
         }) => {
-            let bid_price = Price::new(*bid, *price_type);
-            let ask_price = Price::new(*ask, *price_type);
-            println!("Quote: id={contract_id} bid={bid_price} ask={ask_price} rx={received_at_ns}ns");
+            println!("Quote: id={contract_id} bid={bid_f64:.2} ask={ask_f64:.2} rx={received_at_ns}ns");
         }
         FpssEvent::Data(FpssData::Trade {
-            contract_id, price, size, price_type, sequence, received_at_ns, ..
+            contract_id, price_f64, size, sequence, received_at_ns, ..
         }) => {
-            let trade_price = Price::new(*price, *price_type);
-            println!("Trade: id={contract_id} price={trade_price} size={size} seq={sequence}");
+            println!("Trade: id={contract_id} price={price_f64:.2} size={size} seq={sequence}");
         }
         FpssEvent::Data(FpssData::OpenInterest {
             contract_id, open_interest, received_at_ns, ..
@@ -32,10 +29,11 @@ tdx.start_streaming(|event: &FpssEvent| {
             println!("OI: id={contract_id} oi={open_interest} rx={received_at_ns}ns");
         }
         FpssEvent::Data(FpssData::Ohlcvc {
-            contract_id, open, high, low, close, volume, count, received_at_ns, ..
+            contract_id, open_f64, high_f64, low_f64, close_f64,
+            volume, count, received_at_ns, ..
         }) => {
             // volume and count are i64 to avoid overflow on high-volume symbols
-            println!("OHLCVC: id={contract_id} O={open} H={high} L={low} C={close} vol={volume} n={count}");
+            println!("OHLCVC: id={contract_id} O={open_f64:.2} H={high_f64:.2} L={low_f64:.2} C={close_f64:.2} vol={volume} n={count}");
         }
 
         // --- Control events ---
@@ -195,6 +193,8 @@ while (true) {
         std::cout << "OHLCVC: contract=" << o.contract_id
                   << " O=" << tdx::price_to_f64(o.open, o.price_type)
                   << " H=" << tdx::price_to_f64(o.high, o.price_type)
+                  << " L=" << tdx::price_to_f64(o.low, o.price_type)
+                  << " C=" << tdx::price_to_f64(o.close, o.price_type)
                   << " vol=" << o.volume << " count=" << o.count << std::endl;
         break;
     }
@@ -229,10 +229,12 @@ Every data event carries `received_at_ns` (wall-clock nanoseconds since UNIX epo
 | `bid_size` | `i32` | Bid size in lots |
 | `bid_exchange` | `i32` | Bid exchange code |
 | `bid` | `i32` | Bid price (raw integer, decode with `price_type`) |
+| `bid_f64` | `f64` | Pre-decoded bid price (use this in most cases) |
 | `bid_condition` | `i32` | Bid condition code |
 | `ask_size` | `i32` | Ask size in lots |
 | `ask_exchange` | `i32` | Ask exchange code |
 | `ask` | `i32` | Ask price (raw integer, decode with `price_type`) |
+| `ask_f64` | `f64` | Pre-decoded ask price (use this in most cases) |
 | `ask_condition` | `i32` | Ask condition code |
 | `price_type` | `i32` | Price encoding exponent |
 | `date` | `i32` | Date as YYYYMMDD integer |
@@ -253,6 +255,7 @@ Every data event carries `received_at_ns` (wall-clock nanoseconds since UNIX epo
 | `size` | `i32` | Trade size in shares/contracts |
 | `exchange` | `i32` | Exchange code |
 | `price` | `i32` | Trade price (raw integer, decode with `price_type`) |
+| `price_f64` | `f64` | Pre-decoded trade price (use this in most cases) |
 | `condition_flags` | `i32` | Condition flag bits |
 | `price_flags` | `i32` | Price flag bits |
 | `volume_type` | `i32` | Volume type indicator |
@@ -282,9 +285,13 @@ The dev server (port 20200) sends a simplified 8-field trade format: `ms_of_day`
 | `contract_id` | `i32` | Server-assigned contract identifier |
 | `ms_of_day` | `i32` | Milliseconds since midnight ET |
 | `open` | `i32` | Open price (raw integer) |
+| `open_f64` | `f64` | Pre-decoded open price |
 | `high` | `i32` | High price (raw integer) |
+| `high_f64` | `f64` | Pre-decoded high price |
 | `low` | `i32` | Low price (raw integer) |
+| `low_f64` | `f64` | Pre-decoded low price |
 | `close` | `i32` | Close price (raw integer) |
+| `close_f64` | `f64` | Pre-decoded close price |
 | `volume` | **`i64`** | Cumulative volume (i64 to avoid overflow on high-volume symbols) |
 | `count` | **`i64`** | Trade count (i64 to avoid overflow) |
 | `price_type` | `i32` | Price encoding exponent |

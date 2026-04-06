@@ -61,40 +61,35 @@ pub fn latency_ns(exchange_ms_of_day: i32, event_date: i32, received_at_ns: u64)
 
 **Returns:** Latency in nanoseconds. DST-aware (handles EST/EDT transitions automatically). Returns negative values if your clock is behind the exchange (clock skew).
 
-## Rust
+## Measuring Latency
 
-```rust
+::: code-group
+```rust [Rust]
 use thetadatadx::fpss::{FpssEvent, FpssData};
 use tdbe::latency::latency_ns;
 
 tdx.start_streaming(|event: &FpssEvent| {
     match event {
         FpssEvent::Data(FpssData::Quote {
-            ms_of_day, date, received_at_ns, bid, ask, price_type, ..
+            ms_of_day, date, received_at_ns, bid_f64, ask_f64, ..
         }) => {
             let lat_ns = latency_ns(*ms_of_day, *date, *received_at_ns);
             let lat_ms = lat_ns as f64 / 1_000_000.0;
-
-            let b = tdbe::Price::new(*bid, *price_type).to_f64();
-            let a = tdbe::Price::new(*ask, *price_type).to_f64();
-            println!("SPY {:.2}/{:.2}  latency: {:.1}ms", b, a, lat_ms);
+            println!("SPY {bid_f64:.2}/{ask_f64:.2}  latency: {lat_ms:.1}ms");
         }
         FpssEvent::Data(FpssData::Trade {
-            ms_of_day, date, received_at_ns, price, size, price_type, ..
+            ms_of_day, date, received_at_ns, price_f64, size, ..
         }) => {
             let lat_ns = latency_ns(*ms_of_day, *date, *received_at_ns);
             let lat_us = lat_ns as f64 / 1_000.0;
-            let p = tdbe::Price::new(*price, *price_type).to_f64();
-            println!("TRADE {:.2} x{}  latency: {:.0}us", p, size, lat_us);
+            println!("TRADE {price_f64:.2} x{size}  latency: {lat_us:.0}us");
         }
         _ => {}
     }
 })?;
 ```
-
-## Python
-
-```python
+```python [Python]
+import time
 from thetadatadx import ThetaDataDx, Credentials, Config
 
 tdx = ThetaDataDx(Credentials.from_file("creds.txt"), Config.production())
@@ -107,43 +102,57 @@ while True:
         continue
     if event["kind"] == "quote":
         received_ns = event["received_at_ns"]
-        # Convert exchange ms_of_day + date to epoch nanoseconds
-        # (simplified -- for precise results use tdbe::latency_ns from Rust)
-        import time
+        # received_at_ns is the Rust-side receive time.
+        # The delta to time.time_ns() measures Rust-to-Python bridging
+        # overhead (typically <1ms). True wire latency is best computed
+        # on the Rust side using tdbe::latency::latency_ns().
         now_ns = time.time_ns()
         approx_latency_ms = (now_ns - received_ns) / 1_000_000
         print(f"SPY {event['bid']:.2f}/{event['ask']:.2f}  "
               f"received_at_ns={received_ns}  "
               f"since_receive={approx_latency_ms:.1f}ms")
 ```
+```go [Go]
+for {
+    event, err := fpss.NextEvent(5000)
+    if err != nil {
+        log.Println("Error:", err)
+        break
+    }
+    if event == nil {
+        continue
+    }
 
-Note: in Python, `received_at_ns` is the Rust-side receive time. The delta between `received_at_ns` and `time.time_ns()` measures Rust-to-Python bridging overhead (typically <1ms). The true wire latency is best computed on the Rust side using `tdbe::latency::latency_ns()`.
-
-## Go
-
-```go
-event, _ := fpss.NextEvent(5000)
-if event != nil && event.Kind == thetadatadx.FpssQuoteEvent {
-    q := event.Quote
-    // received_at_ns is on the typed struct
-    fmt.Printf("Quote rx=%d ns\n", q.ReceivedAtNs)
-
-    // For precise latency, subtract exchange epoch ns from received_at_ns.
-    // The exchange ms_of_day + date -> epoch conversion is best done
-    // on the Rust side via tdbe::latency::latency_ns().
+    if event.Kind == thetadatadx.FpssQuoteEvent {
+        q := event.Quote
+        // ReceivedAtNs is captured at frame decode time on the Rust side.
+        // For precise wire latency, subtract the exchange epoch ns from
+        // ReceivedAtNs. The ms_of_day + date -> epoch conversion is best
+        // done on the Rust side via tdbe::latency::latency_ns().
+        fmt.Printf("Quote: bid=%.4f ask=%.4f rx=%dns\n",
+            q.Bid, q.Ask, q.ReceivedAtNs)
+    }
 }
 ```
+```cpp [C++]
+while (true) {
+    auto event = fpss.next_event(5000);
+    if (!event) continue;
 
-## C++
-
-```cpp
-auto event = fpss.next_event(5000);
-if (event && event->kind == TDX_FPSS_QUOTE) {
-    auto& q = event->quote;
-    // received_at_ns is directly on the struct
-    std::cout << "Quote rx=" << q.received_at_ns << "ns" << std::endl;
+    if (event->kind == TDX_FPSS_QUOTE) {
+        auto& q = event->quote;
+        // received_at_ns is captured at frame decode time on the Rust side.
+        // For precise wire latency, subtract the exchange epoch ns from
+        // received_at_ns. The ms_of_day + date -> epoch conversion is best
+        // done on the Rust side via tdbe::latency::latency_ns().
+        double bid = tdx::price_to_f64(q.bid, q.price_type);
+        double ask = tdx::price_to_f64(q.ask, q.price_type);
+        std::cout << "Quote: bid=" << bid << " ask=" << ask
+                  << " rx=" << q.received_at_ns << "ns" << std::endl;
+    }
 }
 ```
+:::
 
 ## Lowest Latency Configuration
 
@@ -186,9 +195,10 @@ For latency-sensitive applications:
 2. **`FpssFlushMode::Immediate`** reduces software batching latency by up to 100ms, but cannot beat physics
 3. **Use the Rust SDK directly** -- eliminates the FFI channel hop present in Python/Go/C++ (adds <1ms)
 
-## Latency Histogram Example (Rust)
+## Latency Histogram Example
 
-```rust
+::: code-group
+```rust [Rust]
 use std::sync::{Arc, Mutex};
 use thetadatadx::fpss::{FpssEvent, FpssData};
 use tdbe::latency::latency_ns;
@@ -217,6 +227,135 @@ for (i, count) in h.iter().enumerate() {
     }
 }
 ```
+```python [Python]
+import time
+from thetadatadx import ThetaDataDx, Credentials, Config
+
+tdx = ThetaDataDx(Credentials.from_file("creds.txt"), Config.production())
+tdx.start_streaming()
+tdx.subscribe_quotes("SPY")
+
+buckets = [0] * 20  # 0-10ms, 10-20ms, ...
+
+deadline = time.time() + 60  # collect for 60 seconds
+while time.time() < deadline:
+    event = tdx.next_event(timeout_ms=5000)
+    if event is None:
+        continue
+    if event["kind"] == "quote":
+        # Approximate: time.time_ns() - received_at_ns measures
+        # Rust-to-Python overhead, not true wire latency.
+        now_ns = time.time_ns()
+        lat_ms = (now_ns - event["received_at_ns"]) // 1_000_000
+        bucket = min(lat_ms // 10, 19)
+        buckets[bucket] += 1
+
+tdx.stop_streaming()
+
+for i, count in enumerate(buckets):
+    if count > 0:
+        print(f"{i*10:>3}-{(i+1)*10:>3}ms: {count} events")
+```
+```go [Go]
+package main
+
+import (
+    "fmt"
+    "log"
+    "time"
+
+    thetadatadx "github.com/userFRM/ThetaDataDx/sdks/go"
+)
+
+func main() {
+    creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
+    defer creds.Close()
+
+    config := thetadatadx.ProductionConfig()
+    defer config.Close()
+
+    fpss, _ := thetadatadx.NewFpssClient(creds, config)
+    defer fpss.Close()
+
+    fpss.SubscribeQuotes("SPY")
+
+    buckets := make([]uint64, 20) // 0-10ms, 10-20ms, ...
+    deadline := time.Now().Add(60 * time.Second)
+
+    for time.Now().Before(deadline) {
+        event, err := fpss.NextEvent(5000)
+        if err != nil {
+            log.Println("Error:", err)
+            break
+        }
+        if event == nil {
+            continue
+        }
+        if event.Kind == thetadatadx.FpssQuoteEvent {
+            // ReceivedAtNs is Rust-side; approximate histogram only
+            q := event.Quote
+            latMs := (uint64(time.Now().UnixNano()) - q.ReceivedAtNs) / 1_000_000
+            bucket := latMs / 10
+            if bucket > 19 {
+                bucket = 19
+            }
+            buckets[bucket]++
+        }
+    }
+
+    fpss.Shutdown()
+
+    for i, count := range buckets {
+        if count > 0 {
+            fmt.Printf("%3d-%3dms: %d events\n", i*10, (i+1)*10, count)
+        }
+    }
+}
+```
+```cpp [C++]
+#include "thetadx.hpp"
+#include <array>
+#include <chrono>
+#include <iomanip>
+#include <iostream>
+
+int main() {
+    auto creds = tdx::Credentials::from_file("creds.txt");
+    auto config = tdx::Config::production();
+    tdx::FpssClient fpss(creds, config);
+
+    fpss.subscribe_quotes("SPY");
+
+    std::array<uint64_t, 20> buckets{}; // 0-10ms, 10-20ms, ...
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+
+    while (std::chrono::steady_clock::now() < deadline) {
+        auto event = fpss.next_event(5000);
+        if (!event) continue;
+
+        if (event->kind == TDX_FPSS_QUOTE) {
+            auto& q = event->quote;
+            // received_at_ns is Rust-side; approximate histogram only
+            auto now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+            int64_t lat_ms = (now_ns - q.received_at_ns) / 1'000'000;
+            size_t bucket = std::min(static_cast<size_t>(lat_ms / 10), size_t{19});
+            buckets[bucket]++;
+        }
+    }
+
+    fpss.shutdown();
+
+    for (size_t i = 0; i < buckets.size(); ++i) {
+        if (buckets[i] > 0) {
+            std::cout << std::setw(3) << i*10 << "-"
+                      << std::setw(3) << (i+1)*10 << "ms: "
+                      << buckets[i] << " events" << std::endl;
+        }
+    }
+}
+```
+:::
 
 ## `received_at_ns` on Every Data Event
 
