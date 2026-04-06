@@ -72,7 +72,7 @@ macro_rules! list_endpoint {
             metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
             let _metrics_start = std::time::Instant::now();
             let _permit = self.request_semaphore.acquire().await
-                .map_err(|_| Error::Fpss { kind: crate::error::FpssErrorKind::Disconnected, message: "request semaphore closed".into() })?;
+                .map_err(|_| Error::Config("request semaphore closed".into()))?;
             let request = proto_v3::$req {
                 query_info: Some(self.query_info()),
                 params: Some(proto_v3::$query { $($field : $val),* }),
@@ -163,7 +163,7 @@ macro_rules! parsed_endpoint {
                     metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
                     let _metrics_start = std::time::Instant::now();
                     let _permit = client.request_semaphore.acquire().await
-                        .map_err(|_| Error::Fpss { kind: crate::error::FpssErrorKind::Disconnected, message: "request semaphore closed".into() })?;
+                        .map_err(|_| Error::Config("request semaphore closed".into()))?;
                     let request = proto_v3::$req {
                         query_info: Some(client.query_info()),
                         params: Some(proto_v3::$query { $($field : $val),* }),
@@ -336,7 +336,7 @@ macro_rules! streaming_endpoint {
                 metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
                 let _metrics_start = std::time::Instant::now();
                 let _permit = client.request_semaphore.acquire().await
-                    .map_err(|_| Error::Fpss { kind: crate::error::FpssErrorKind::Disconnected, message: "request semaphore closed".into() })?;
+                    .map_err(|_| Error::Config("request semaphore closed".into()))?;
                 let request = proto_v3::$req {
                     query_info: Some(client.query_info()),
                     params: Some(proto_v3::$query { $($field : $val),* }),

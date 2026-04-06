@@ -217,8 +217,15 @@ pub async fn authenticate(creds: &Credentials) -> Result<AuthResponse, Error> {
                     tokio::time::sleep(AUTH_RETRY_DELAY).await;
                 }
                 Err(e) => {
+                    let kind = if e.is_timeout() {
+                        crate::error::AuthErrorKind::Timeout
+                    } else if e.is_connect() {
+                        crate::error::AuthErrorKind::NetworkError
+                    } else {
+                        crate::error::AuthErrorKind::ServerError
+                    };
                     return Err(Error::Auth {
-                        kind: crate::error::AuthErrorKind::NetworkError,
+                        kind,
                         message: format!("Nexus API request failed: {e}"),
                     });
                 }

@@ -449,6 +449,9 @@ impl FpssClient {
         let shutdown = Arc::new(AtomicBool::new(false));
         let authenticated = Arc::new(AtomicBool::new(true));
         let contract_map = Arc::new(Mutex::new(HashMap::new()));
+        // Pre-rendered symbol strings keyed by contract ID. Populated on
+        // ContractAssigned so resolve_symbol() is zero-alloc on the hot path.
+        let symbol_cache: Arc<Mutex<HashMap<i32, Arc<str>>>> = Arc::new(Mutex::new(HashMap::new()));
 
         // Command channel: FpssClient -> I/O thread
         let (cmd_tx, cmd_rx) = std_mpsc::channel::<IoCommand>();
@@ -460,6 +463,7 @@ impl FpssClient {
         let io_shutdown = Arc::clone(&shutdown);
         let io_authenticated = Arc::clone(&authenticated);
         let io_contract_map = Arc::clone(&contract_map);
+        let io_symbol_cache = Arc::clone(&symbol_cache);
         let io_server_addr = server_addr.clone();
         let io_creds = creds.clone();
         let io_hosts = hosts.to_vec();
@@ -475,6 +479,7 @@ impl FpssClient {
                     io_shutdown,
                     io_authenticated,
                     io_contract_map,
+                    io_symbol_cache,
                     permissions,
                     io_server_addr,
                     derive_ohlcvc,
@@ -551,6 +556,12 @@ impl FpssClient {
     }
 
     /// Subscribe to quotes + trades for a contract (convenience batch).
+    ///
+    /// **Note:** if the second subscription (trades) fails, the first (quotes)
+    /// remains active. The FPSS protocol does not support batched subscriptions,
+    /// so rollback would require an `unsubscribe` call that could itself fail.
+    /// Use individual `subscribe_quotes` / `subscribe_trades` and their
+    /// corresponding `unsubscribe` methods when you need atomic control.
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
@@ -1036,6 +1047,7 @@ fn io_loop<F>(
     shutdown: Arc<AtomicBool>,
     authenticated: Arc<AtomicBool>,
     contract_map: Arc<Mutex<HashMap<i32, Contract>>>,
+    symbol_cache: Arc<Mutex<HashMap<i32, Arc<str>>>>,
     permissions: String,
     _server_addr: String,
     derive_ohlcvc: bool,
@@ -1109,6 +1121,7 @@ fn io_loop<F>(
                         &frame_buf[..payload_len],
                         &authenticated,
                         &contract_map,
+                        &symbol_cache,
                         &shutdown,
                         &mut delta_state,
                         derive_ohlcvc,
@@ -1705,6 +1718,7 @@ fn decode_frame(
     payload: &[u8],
     authenticated: &AtomicBool,
     contract_map: &Mutex<HashMap<i32, Contract>>,
+    symbol_cache: &Mutex<HashMap<i32, Arc<str>>>,
     shutdown: &AtomicBool,
     delta_state: &mut DeltaState,
     derive_ohlcvc: bool,
@@ -1715,14 +1729,16 @@ fn decode_frame(
         .unwrap_or_default()
         .as_nanos() as u64;
 
-    // Resolve contract_id to a symbol string from the contract map.
+    // Resolve contract_id to a symbol string from the pre-rendered cache.
     // Returns Arc::clone of the cached symbol, or the empty-string sentinel.
+    // Zero allocation on the hot path -- the Arc<str> was built once in
+    // the ContractAssigned handler below.
     let resolve_symbol = |contract_id: i32| -> Arc<str> {
-        contract_map
+        symbol_cache
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .get(&contract_id)
-            .map(|c| Arc::from(c.to_string().as_str()))
+            .map(Arc::clone)
             .unwrap_or_else(|| Arc::clone(&EMPTY_SYMBOL))
     };
 
@@ -1756,6 +1772,13 @@ fn decode_frame(
         StreamMsgType::Contract => match parse_contract_message(payload) {
             Ok((id, contract)) => {
                 tracing::debug!(id, contract = %contract, "contract assigned");
+                // Pre-render the symbol string once and cache as Arc<str>
+                // so resolve_symbol() on the hot path is just Arc::clone.
+                let symbol_str: Arc<str> = Arc::from(contract.to_string().as_str());
+                symbol_cache
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .insert(id, symbol_str);
                 contract_map
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner)

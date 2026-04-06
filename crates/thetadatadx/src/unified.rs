@@ -33,6 +33,7 @@
 //! ```
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 use crate::auth::Credentials;
@@ -89,6 +90,10 @@ pub struct ThetaDataDx {
     historical: DirectClient,
     streaming: Mutex<Option<FpssClient>>,
     creds: Credentials,
+    /// Set to `true` once `start_streaming()` succeeds; never cleared.
+    /// Used by `connection_status()` to distinguish "never started" from
+    /// "was started but the client was dropped/stopped".
+    was_streaming: AtomicBool,
 }
 
 impl ThetaDataDx {
@@ -105,6 +110,7 @@ impl ThetaDataDx {
             historical,
             streaming: Mutex::new(None),
             creds: creds.clone(),
+            was_streaming: AtomicBool::new(false),
         })
     }
 
@@ -143,6 +149,7 @@ impl ThetaDataDx {
             handler,
         )?;
         *guard = Some(client);
+        self.was_streaming.store(true, Ordering::Release);
         Ok(())
     }
 
@@ -391,7 +398,14 @@ impl ThetaDataDx {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         match guard.as_ref() {
-            None => ConnectionStatus::NotStarted,
+            None => {
+                // Client is gone (never set, or taken/dropped by stop_streaming).
+                if self.was_streaming.load(Ordering::Acquire) {
+                    ConnectionStatus::Disconnected
+                } else {
+                    ConnectionStatus::NotStarted
+                }
+            }
             Some(client) => {
                 if client.is_authenticated() {
                     ConnectionStatus::Connected

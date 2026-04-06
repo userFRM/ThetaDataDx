@@ -51,9 +51,12 @@ impl Credentials {
     /// Returns an error on network, authentication, or parsing failure.
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
         let path = path.as_ref();
-        let contents = std::fs::read_to_string(path).map_err(|e| Error::Auth {
-            kind: crate::error::AuthErrorKind::InvalidCredentials,
-            message: format!("failed to read credentials file {}: {}", path.display(), e),
+        let contents = std::fs::read_to_string(path).map_err(|e| {
+            Error::Config(format!(
+                "failed to read credentials file {}: {}",
+                path.display(),
+                e
+            ))
         })?;
 
         Self::parse(&contents)
