@@ -90,7 +90,7 @@ auto dates = client.stock_list_dates("TRADE", "AAPL");
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `request_type` | string | Yes | Data type: `"TRADE"`, `"TRADE"`, `"QUOTE"`, `"OHLC"` |
+| `request_type` | string | Yes | Data type: `"TRADE"`, `"QUOTE"`, `"OHLC"` |
 | `symbol` | string | Yes | Ticker symbol |
 
 **Returns:** List of date strings (`YYYYMMDD`).
@@ -522,7 +522,7 @@ auto dates = client.option_list_dates("TRADE", "SPY", "20241220", "500", "C");
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `request_type` | string | Yes | Data type: `"TRADE"`, `"TRADE"`, `"QUOTE"`, etc. |
+| `request_type` | string | Yes | Data type: `"TRADE"`, `"QUOTE"`, etc. |
 | `symbol` | string | Yes | Underlying symbol |
 | `expiration` | string | Yes | Expiration date (`YYYYMMDD`) |
 | `strike` | string | Yes | Strike price (scaled integer) |
@@ -2253,11 +2253,11 @@ fpss.shutdown();
 
 Events are delivered as one of three categories:
 
-**FpssData** - Market data events:
-- `Quote` - NBBO quote update (bid, ask, sizes, exchanges, conditions)
-- `Trade` - Trade execution (price, size, exchange, conditions)
+**FpssData** - Market data events (all variants include `received_at_ns: u64` wall-clock timestamp):
+- `Quote` - NBBO quote update (bid, ask, sizes, exchanges, conditions, plus pre-decoded `bid_f64`/`ask_f64`)
+- `Trade` - Trade execution (price, size, exchange, conditions, plus pre-decoded `price_f64`)
 - `OpenInterest` - Open interest update
-- `Ohlcvc` - Aggregated OHLCVC bar (derived from trades via internal accumulator)
+- `Ohlcvc` - Aggregated OHLCVC bar (derived from trades via internal accumulator, plus pre-decoded `open_f64`/`high_f64`/`low_f64`/`close_f64`; `volume`/`count` are `i64` to avoid overflow on high-volume symbols)
 
 **FpssControl** - Lifecycle events:
 - `LoginSuccess` - Authentication successful (includes permissions string)
@@ -2286,17 +2286,19 @@ For historical endpoints that can return millions of rows, `_stream` variants pr
 ### stock_history_trade_stream
 
 ```rust
-tdx.stock_history_trade_stream("AAPL", "20240315", |trades: &[TradeTick]| {
-    for t in trades {
-        println!("{}: {}", t.date, t.get_price());
-    }
-}).await?;
+tdx.stock_history_trade_stream("AAPL", "20240315")
+    .stream(|trades: &[TradeTick]| {
+        for t in trades {
+            println!("{}: {}", t.date, t.get_price());
+        }
+    }).await?;
 ```
 
 ### stock_history_quote_stream
 
 ```rust
-tdx.stock_history_quote_stream("AAPL", "20240315", "0", |quotes: &[QuoteTick]| {
+tdx.stock_history_quote_stream("AAPL", "20240315", "0")
+    .stream(|quotes: &[QuoteTick]| {
     println!("Chunk: {} quotes", quotes.len());
 }).await?;
 ```
@@ -2304,17 +2306,19 @@ tdx.stock_history_quote_stream("AAPL", "20240315", "0", |quotes: &[QuoteTick]| {
 ### option_history_trade_stream
 
 ```rust
-tdx.option_history_trade_stream("SPY", "20241220", "500", "C", "20240315", |trades: &[TradeTick]| {
-    println!("Chunk: {} trades", trades.len());
-}).await?;
+tdx.option_history_trade_stream("SPY", "20241220", "500", "C", "20240315")
+    .stream(|trades: &[TradeTick]| {
+        println!("Chunk: {} trades", trades.len());
+    }).await?;
 ```
 
 ### option_history_quote_stream
 
 ```rust
-tdx.option_history_quote_stream("SPY", "20241220", "500", "C", "20240315", "0", |quotes: &[QuoteTick]| {
-    println!("Chunk: {} quotes", quotes.len());
-}).await?;
+tdx.option_history_quote_stream("SPY", "20241220", "500", "C", "20240315", "0")
+    .stream(|quotes: &[QuoteTick]| {
+        println!("Chunk: {} quotes", quotes.len());
+    }).await?;
 ```
 
 ---
@@ -2362,7 +2366,7 @@ A single trade execution.
 | `right` | i32 (Rust/FFI), string (Go) | Contract right. Rust: C=67/P=80. Go: `"C"`/`"P"`. |
 | `strike_price_type` | i32 | Strike price type (wildcard queries) |
 
-Helper methods: `get_price()`, `is_cancelled()`, `regular_trading_hours()`, `is_seller()`, `is_incremental_volume()`, `strike_price()`, `is_call()`, `is_put()`, `has_contract_id()`
+Helper methods: `get_price()`, `price_f64()`, `is_cancelled()`, `trade_condition_no_last()`, `price_condition_set_last()`, `regular_trading_hours()`, `is_seller()`, `is_incremental_volume()`, `strike_price()`, `is_call()`, `is_put()`, `has_contract_id()`
 
 ### QuoteTick
 
@@ -2379,7 +2383,7 @@ An NBBO quote.
 | `date` | i32 | Date as YYYYMMDD integer |
 | `expiration` / `strike` / `right` / `strike_price_type` | i32 (Go: `right` is string) | Contract ID (wildcard queries) |
 
-Helper methods: `bid_price()`, `ask_price()`, `midpoint_price()`, `midpoint_value()`, plus contract ID helpers
+Helper methods: `bid_price()`, `ask_price()`, `midpoint_price()`, `midpoint_value()`, `bid_f64()`, `ask_f64()`, `midpoint_f64()`, plus contract ID helpers
 
 ### OhlcTick
 
@@ -2395,7 +2399,7 @@ An aggregated OHLC bar.
 | `date` | i32 | Date as YYYYMMDD integer |
 | `expiration` / `strike` / `right` / `strike_price_type` | i32 (Go: `right` is string) | Contract ID (wildcard queries) |
 
-Helper methods: `open_price()`, `high_price()`, `low_price()`, `close_price()`, plus contract ID helpers
+Helper methods: `open_price()`, `high_price()`, `low_price()`, `close_price()`, `open_f64()`, `high_f64()`, `low_f64()`, `close_f64()`, plus contract ID helpers
 
 ### EodTick
 
@@ -2415,13 +2419,13 @@ Full end-of-day snapshot with OHLC + closing quote data.
 | `date` | i32 | Date as YYYYMMDD |
 | `expiration` / `strike` / `right` / `strike_price_type` | i32 (Go: `right` is string) | Contract ID (wildcard queries) |
 
-Helper methods: `open_price()`, `high_price()`, `low_price()`, `close_price()`, `bid_price()`, `ask_price()`, `midpoint_value()`, plus contract ID helpers
+Helper methods: `open_price()`, `high_price()`, `low_price()`, `close_price()`, `bid_price()`, `ask_price()`, `midpoint_value()`, `open_f64()`, `high_f64()`, `low_f64()`, `close_f64()`, `bid_f64()`, `ask_f64()`, plus contract ID helpers
 
 ### TradeQuoteTick
 
 Combined trade + quote tick. Contains the full trade data plus the prevailing NBBO quote at the time of the trade.
 
-Helper methods: `trade_price()`, `bid_price()`, `ask_price()`, plus contract ID helpers
+Helper methods: `trade_price()`, `bid_price()`, `ask_price()`, `trade_price_f64()`, `bid_f64()`, `ask_f64()`, plus contract ID helpers
 
 ### OpenInterestTick
 
@@ -2586,10 +2590,19 @@ auto creds = tdx::Credentials::from_email("email@example.com", "password");
 ::: code-group
 ```rust [Rust]
 pub enum Error {
-    Auth(String),          // Invalid credentials (401/404)
-    Http(String),          // Network or server issue
-    Grpc(tonic::Status),   // gRPC transport error
-    NoData,                // Symbol does not exist
+    Transport(tonic::transport::Error), // gRPC channel errors
+    Status(Box<tonic::Status>),         // gRPC status codes (enriched with ThetaData error info)
+    Decompress(String),                 // zstd decompression failure
+    Decode(String),                     // protobuf decode failure
+    NoData,                             // endpoint returned no usable data
+    Auth(String),                       // Nexus auth errors (401/404)
+    Fpss(String),                       // FPSS connection errors
+    FpssProtocol(String),               // FPSS wire protocol errors
+    FpssDisconnected(String),           // FPSS server rejected connection
+    Config(String),                     // configuration errors
+    Http(reqwest::Error),               // HTTP request errors
+    Io(std::io::Error),                 // I/O errors
+    Tls(rustls::Error),                 // TLS handshake errors
 }
 ```
 ```python [Python]
