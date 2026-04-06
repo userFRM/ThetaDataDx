@@ -16,7 +16,7 @@ End-of-day stock data across a date range. Each row contains the full daily OHLC
 let data = tdx.stock_history_eod("SPY", "20260101", "20260301").await?;
 for t in &data {
     println!("date={} open={:.2} high={:.2} low={:.2} close={:.2} volume={} bid={:.2} ask={:.2}",
-        t.date, t.open_f64(), t.high_f64(), t.low_f64(), t.close_f64(), t.volume, t.bid_f64(), t.ask_f64());
+        t.date, t.open, t.high, t.low, t.close, t.volume, t.bid, t.ask);
 }
 ```
 ```python [Python]
@@ -94,8 +94,6 @@ for (const auto& t : data) {
 <div class="param-desc">Closing quote condition codes</div>
 </div>
 <div class="param">
-<div class="param-header"><code>price_type</code><span class="param-type">i32</span></div>
-<div class="param-desc">Decimal type used for fixed-point price decoding</div>
 </div>
 <div class="param">
 <div class="param-header"><code>date</code><span class="param-type">i32</span></div>

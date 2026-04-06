@@ -16,7 +16,7 @@ Get the latest NBBO (National Best Bid and Offer) quote snapshot for an option c
 let data = tdx.option_snapshot_quote("SPY", "20260417", "550", "C").await?;
 for t in &data {
     println!("date={} ms_of_day={} bid={:.2} ask={:.2} bid_size={} ask_size={} expiration={} strike={:.2}",
-        t.date, t.ms_of_day, t.bid_f64(), t.ask_f64(), t.bid_size, t.ask_size, t.expiration, t.strike);
+        t.date, t.ms_of_day, t.bid, t.ask, t.bid_size, t.ask_size, t.expiration, t.strike);
 }
 ```
 ```python [Python]

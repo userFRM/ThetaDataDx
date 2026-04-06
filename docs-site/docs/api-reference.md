@@ -2366,7 +2366,7 @@ A single trade execution.
 | `right` | i32 (Rust/FFI), string (Go) | Contract right. Rust: C=67/P=80. Go: `"C"`/`"P"`. |
 | `strike_price_type` | i32 | Strike price type (wildcard queries) |
 
-Helper methods: `get_price()`, `price_f64()`, `is_cancelled()`, `trade_condition_no_last()`, `price_condition_set_last()`, `regular_trading_hours()`, `is_seller()`, `is_incremental_volume()`, `strike_price()`, `is_call()`, `is_put()`, `has_contract_id()`
+Helper methods: `is_cancelled()`, `trade_condition_no_last()`, `price_condition_set_last()`, `regular_trading_hours()`, `is_seller()`, `is_incremental_volume()`, `is_call()`, `is_put()`, `has_contract_id()`
 
 ### QuoteTick
 
@@ -2383,7 +2383,7 @@ An NBBO quote.
 | `date` | i32 | Date as YYYYMMDD integer |
 | `expiration` / `strike` / `right` / `strike_price_type` | i32 (Go: `right` is string) | Contract ID (wildcard queries) |
 
-Helper methods: `bid_price()`, `ask_price()`, `midpoint_price()`, `midpoint_value()`, `bid_f64()`, `ask_f64()`, `midpoint_f64()`, plus contract ID helpers
+Helper methods: `is_call()`, `is_put()`, `has_contract_id()`, plus contract ID helpers
 
 ### OhlcTick
 
@@ -2399,7 +2399,7 @@ An aggregated OHLC bar.
 | `date` | i32 | Date as YYYYMMDD integer |
 | `expiration` / `strike` / `right` / `strike_price_type` | i32 (Go: `right` is string) | Contract ID (wildcard queries) |
 
-Helper methods: `open_price()`, `high_price()`, `low_price()`, `close_price()`, `open_f64()`, `high_f64()`, `low_f64()`, `close_f64()`, plus contract ID helpers
+Helper methods: `is_call()`, `is_put()`, `has_contract_id()`, plus contract ID helpers
 
 ### EodTick
 
@@ -2419,13 +2419,13 @@ Full end-of-day snapshot with OHLC + closing quote data.
 | `date` | i32 | Date as YYYYMMDD |
 | `expiration` / `strike` / `right` / `strike_price_type` | i32 (Go: `right` is string) | Contract ID (wildcard queries) |
 
-Helper methods: `open_price()`, `high_price()`, `low_price()`, `close_price()`, `bid_price()`, `ask_price()`, `midpoint_value()`, `open_f64()`, `high_f64()`, `low_f64()`, `close_f64()`, `bid_f64()`, `ask_f64()`, plus contract ID helpers
+Helper methods: `is_call()`, `is_put()`, `has_contract_id()`, plus contract ID helpers
 
 ### TradeQuoteTick
 
 Combined trade + quote tick. Contains the full trade data plus the prevailing NBBO quote at the time of the trade.
 
-Helper methods: `trade_price()`, `bid_price()`, `ask_price()`, `trade_price_f64()`, `bid_f64()`, `ask_f64()`, plus contract ID helpers
+Helper methods: `is_call()`, `is_put()`, `has_contract_id()`, plus contract ID helpers
 
 ### OpenInterestTick
 

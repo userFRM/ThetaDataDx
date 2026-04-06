@@ -30,11 +30,11 @@ let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 
 tdx.start_streaming(|event: &FpssEvent| {
     match event {
-        FpssEvent::Data(FpssData::Quote { contract_id, bid_f64, ask_f64, received_at_ns, .. }) => {
-            println!("Quote: contract={contract_id} bid={bid_f64:.2} ask={ask_f64:.2} rx={received_at_ns}ns");
+        FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, received_at_ns, .. }) => {
+            println!("Quote: contract={contract_id} bid={bid:.2} ask={ask:.2} rx={received_at_ns}ns");
         }
-        FpssEvent::Data(FpssData::Trade { contract_id, price_f64, size, received_at_ns, .. }) => {
-            println!("Trade: contract={contract_id} price={price_f64:.2} size={size} rx={received_at_ns}ns");
+        FpssEvent::Data(FpssData::Trade { contract_id, price, size, received_at_ns, .. }) => {
+            println!("Trade: contract={contract_id} price={price:.2} size={size} rx={received_at_ns}ns");
         }
         FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
             println!("Contract {id} = {contract}");
@@ -136,30 +136,20 @@ config.fpss_flush_mode = FpssFlushMode::Immediate; // lowest latency
 let tdx = ThetaDataDx::connect(&creds, config).await?;
 ```
 ```python [Python]
-# Flush mode is configured at the Rust level.
-# Python inherits it from the config passed at connection time.
-# To use Immediate mode, set it in config.toml:
-#   [fpss]
-#   flush_mode = "immediate"
+# Flush mode cannot currently be changed from the Python SDK.
+# It defaults to Batched (flush on PING frames, ~100ms).
+# Use the Rust SDK directly if you need Immediate mode.
 tdx = ThetaDataDx(creds, Config.production())
 ```
 ```go [Go]
-// Flush mode is configured at the Rust level.
-// Go inherits it from the config passed at connection time.
-// To use Immediate mode, set it in config.toml:
-//   [fpss]
-//   flush_mode = "immediate"
 config := thetadatadx.ProductionConfig()
+config.SetFlushMode(thetadatadx.FlushModeImmediate)
 defer config.Close()
 fpss, _ := thetadatadx.NewFpssClient(creds, config)
 ```
 ```cpp [C++]
-// Flush mode is configured at the Rust level.
-// C++ inherits it from the config passed at connection time.
-// To use Immediate mode, set it in config.toml:
-//   [fpss]
-//   flush_mode = "immediate"
 auto config = tdx::Config::production();
+config.set_flush_mode(tdx::FlushMode::Immediate);
 tdx::FpssClient fpss(creds, config);
 ```
 :::
@@ -302,9 +292,9 @@ tdx.start_streaming(move |event: &FpssEvent| {
         FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
             contracts_clone.lock().unwrap().insert(*id, contract.clone());
         }
-        FpssEvent::Data(FpssData::Quote { contract_id, bid_f64, ask_f64, .. }) => {
+        FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, .. }) => {
             if let Some(contract) = contracts_clone.lock().unwrap().get(contract_id) {
-                println!("{}: bid={bid_f64:.2} ask={ask_f64:.2}", contract.root);
+                println!("{}: bid={bid:.2} ask={ask:.2}", contract.root);
             }
         }
         _ => {}

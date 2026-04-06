@@ -16,7 +16,7 @@ Retrieve combined trade + quote ticks for an option contract on a given date. Ea
 let data = tdx.option_history_trade_quote("SPY", "20260417", "550", "C", "20260315").await?;
 for t in &data {
     println!("date={} ms_of_day={} trade_price={:.2} size={} bid={:.2} ask={:.2} exchange={}",
-        t.date, t.ms_of_day, t.trade_price_f64(), t.size, t.bid_f64(), t.ask_f64(), t.exchange);
+        t.date, t.ms_of_day, t.trade_price, t.size, t.bid, t.ask, t.exchange);
 }
 ```
 ```python [Python]

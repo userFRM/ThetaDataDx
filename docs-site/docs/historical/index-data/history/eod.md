@@ -16,7 +16,7 @@ Retrieve end-of-day data for an index across a date range. Returns one row per t
 let data = tdx.index_history_eod("SPX", "20260101", "20260301").await?;
 for t in &data {
     println!("date={} open={:.2} high={:.2} low={:.2} close={:.2} volume={}",
-        t.date, t.open_f64(), t.high_f64(), t.low_f64(), t.close_f64(), t.volume);
+        t.date, t.open, t.high, t.low, t.close, t.volume);
 }
 ```
 ```python [Python]

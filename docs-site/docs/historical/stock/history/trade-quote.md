@@ -16,7 +16,7 @@ Combined trade + quote ticks for a stock on a given date. Each row contains the 
 let data = tdx.stock_history_trade_quote("SPY", "20260315").await?;
 for t in &data {
     println!("date={} ms_of_day={} trade_price={:.2} size={} bid={:.2} ask={:.2} exchange={}",
-        t.date, t.ms_of_day, t.trade_price_f64(), t.size, t.bid_f64(), t.ask_f64(), t.exchange);
+        t.date, t.ms_of_day, t.trade_price, t.size, t.bid, t.ask, t.exchange);
 }
 ```
 ```python [Python]

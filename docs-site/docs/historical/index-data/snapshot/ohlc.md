@@ -16,7 +16,7 @@ Get the latest OHLC (open, high, low, close) snapshot for one or more index symb
 let data = tdx.index_snapshot_ohlc(&["SPX", "VIX"]).await?;
 for t in &data {
     println!("date={} ms_of_day={} open={:.2} high={:.2} low={:.2} close={:.2} volume={}",
-        t.date, t.ms_of_day, t.open_f64(), t.high_f64(), t.low_f64(), t.close_f64(), t.volume);
+        t.date, t.ms_of_day, t.open, t.high, t.low, t.close, t.volume);
 }
 ```
 ```python [Python]

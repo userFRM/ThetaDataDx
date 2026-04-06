@@ -16,7 +16,7 @@ Retrieve NBBO quotes for an option contract, sampled at a specified interval.
 let data = tdx.option_history_quote("SPY", "20260417", "550", "C", "20260315", "60000").await?;
 for t in &data {
     println!("date={} ms_of_day={} bid={:.2} ask={:.2} bid_size={} ask_size={}",
-        t.date, t.ms_of_day, t.bid_f64(), t.ask_f64(), t.bid_size, t.ask_size);
+        t.date, t.ms_of_day, t.bid, t.ask, t.bid_size, t.ask_size);
 }
 ```
 ```python [Python]

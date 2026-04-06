@@ -13,10 +13,10 @@ Retrieve intraday OHLC bars for an index across a date range at a specified inte
 
 ::: code-group
 ```rust [Rust]
-let data = tdx.index_history_ohlc("SPX", "20260101", "20260301", "60000".await?;
+let data = tdx.index_history_ohlc("SPX", "20260101", "20260301", "60000").await?;
 for t in &data {
     println!("date={} ms_of_day={} open={:.2} high={:.2} low={:.2} close={:.2}",
-        t.date, t.ms_of_day, t.open_f64(), t.high_f64(), t.low_f64(), t.close_f64());
+        t.date, t.ms_of_day, t.open, t.high, t.low, t.close);
 }
 ```
 ```python [Python]

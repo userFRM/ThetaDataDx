@@ -16,7 +16,7 @@ Get the latest trade snapshot for an option contract.
 let data = tdx.option_snapshot_trade("SPY", "20260417", "550", "C").await?;
 for t in &data {
     println!("date={} ms_of_day={} price={:.2} size={} expiration={} strike={:.2}",
-        t.date, t.ms_of_day, t.price_f64(), t.size, t.expiration, t.strike);
+        t.date, t.ms_of_day, t.price, t.size, t.expiration, t.strike);
 }
 ```
 ```python [Python]

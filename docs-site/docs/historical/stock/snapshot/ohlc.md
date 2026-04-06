@@ -16,7 +16,7 @@ Latest OHLC (open-high-low-close) snapshot for one or more stocks. Returns the c
 let data = tdx.stock_snapshot_ohlc(&["SPY", "MSFT"]).await?;
 for t in &data {
     println!("date={} ms_of_day={} open={:.2} high={:.2} low={:.2} close={:.2} volume={} count={}",
-        t.date, t.ms_of_day, t.open_f64(), t.high_f64(), t.low_f64(), t.close_f64(), t.volume, t.count);
+        t.date, t.ms_of_day, t.open, t.high, t.low, t.close, t.volume, t.count);
 }
 ```
 ```python [Python]
@@ -78,8 +78,6 @@ for (const auto& t : data) {
 <div class="param-desc">Number of trades in the bar</div>
 </div>
 <div class="param">
-<div class="param-header"><code>price_type</code><span class="param-type">i32</span></div>
-<div class="param-desc">Decimal type for price decoding</div>
 </div>
 <div class="param">
 <div class="param-header"><code>date</code><span class="param-type">i32</span></div>

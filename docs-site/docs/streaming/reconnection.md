@@ -31,8 +31,8 @@ match thetadatadx::fpss::reconnect_delay(reason) {
         tdx.reconnect_streaming(|event: &FpssEvent| {
             // Your event handler -- same signature as start_streaming()
             match event {
-                FpssEvent::Data(FpssData::Quote { contract_id, bid_f64, ask_f64, .. }) => {
-                    println!("Quote: {contract_id} {bid_f64:.2}/{ask_f64:.2}");
+                FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, .. }) => {
+                    println!("Quote: {contract_id} {bid:.2}/{ask:.2}");
                 }
                 _ => {}
             }
@@ -132,18 +132,18 @@ async fn main() -> Result<(), thetadatadx::Error> {
                 contracts_clone.lock().unwrap().insert(*id, contract.clone());
             }
             FpssEvent::Data(FpssData::Quote {
-                contract_id, bid_f64, ask_f64, received_at_ns, ..
+                contract_id, bid, ask, received_at_ns, ..
             }) => {
                 if let Some(c) = contracts_clone.lock().unwrap().get(contract_id) {
-                    println!("[QUOTE] {}: bid={bid_f64:.2} ask={ask_f64:.2} rx={received_at_ns}ns",
+                    println!("[QUOTE] {}: bid={bid:.2} ask={ask:.2} rx={received_at_ns}ns",
                         c.root);
                 }
             }
             FpssEvent::Data(FpssData::Trade {
-                contract_id, price_f64, size, received_at_ns, ..
+                contract_id, price, size, received_at_ns, ..
             }) => {
                 if let Some(c) = contracts_clone.lock().unwrap().get(contract_id) {
-                    println!("[TRADE] {}: price={price_f64:.2} size={size} rx={received_at_ns}ns",
+                    println!("[TRADE] {}: price={price:.2} size={size} rx={received_at_ns}ns",
                         c.root);
                 }
             }
@@ -218,7 +218,7 @@ import (
     "fmt"
     "log"
 
-    thetadatadx "github.com/userFRM/ThetaDataDx/sdks/go"
+    thetadatadx "github.com/userFRM/thetadatadx/sdks/go"
 )
 
 func main() {
@@ -298,18 +298,18 @@ int main() {
         switch (event->kind) {
         case TDX_FPSS_QUOTE: {
             auto& q = event->quote;
-            double bid = tdx::price_to_f64(q.bid, q.price_type);
-            double ask = tdx::price_to_f64(q.ask, q.price_type);
+            
+            
             std::cout << "[QUOTE] contract=" << q.contract_id
-                      << " bid=" << bid << " ask=" << ask
+                      << " bid=" << q.bid << " ask=" << q.ask
                       << " rx=" << q.received_at_ns << "ns" << std::endl;
             break;
         }
         case TDX_FPSS_TRADE: {
             auto& t = event->trade;
-            double price = tdx::price_to_f64(t.price, t.price_type);
+            
             std::cout << "[TRADE] contract=" << t.contract_id
-                      << " price=" << price << " size=" << t.size << std::endl;
+                      << " price=" << t.price << " size=" << t.size << std::endl;
             break;
         }
         case TDX_FPSS_CONTROL: {

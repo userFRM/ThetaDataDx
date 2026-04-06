@@ -118,11 +118,11 @@ let ticks = client.stock_snapshot_trade(&["AAPL"]).await?;
 // Latest NBBO quote snapshot
 let ticks = client.stock_snapshot_quote(&["AAPL", "MSFT", "GOOGL"]).await?;
 for q in &ticks {
-    println!("bid={} ask={}", q.bid_f64(), q.ask_f64());
+    println!("bid={} ask={}", q.bid, q.ask);
 }
 
 // Latest market value snapshot
-let ticks = tdx.stock_snapshot_market_value(&["AAPL"]).await?;
+let ticks = client.stock_snapshot_market_value(&["AAPL"]).await?;
 ```
 ```python [Python]
 # Latest OHLC snapshot (one or more symbols)
@@ -152,7 +152,7 @@ mv, _ := client.StockSnapshotMarketValue([]string{"AAPL"})
 // Latest quote snapshot (multiple symbols)
 auto quotes = client.stock_snapshot_quote({"AAPL", "MSFT", "GOOGL"});
 for (auto& q : quotes) {
-    std::cout << "bid=" << tdx::bid_f64(q) << " ask=" << tdx::ask_f64(q) << std::endl;
+    std::cout << "bid=" << q.bid << " ask=" << q.ask << std::endl;
 }
 
 auto ohlc = client.stock_snapshot_ohlc({"AAPL", "MSFT"});
@@ -169,8 +169,8 @@ auto mv = client.stock_snapshot_market_value({"AAPL"});
 let eod = client.stock_history_eod("AAPL", "20240101", "20240301").await?;
 for t in &eod {
     println!("{}: O={} H={} L={} C={} V={}",
-        t.date, t.open_f64(), t.high_f64(),
-        t.low_f64(), t.close_f64(), t.volume);
+        t.date, t.open, t.high,
+        t.low, t.close, t.volume);
 }
 
 // Intraday OHLC bars (single date)
@@ -188,7 +188,7 @@ let trades = client.stock_history_trade("AAPL", "20240315").await?;
 let quotes = client.stock_history_quote("AAPL", "20240315", "60000").await?;
 
 // Combined trade + quote ticks
-let ticks = tdx.stock_history_trade_quote("AAPL", "20240315").await?;
+let ticks = client.stock_history_trade_quote("AAPL", "20240315").await?;
 ```
 ```python [Python]
 # End-of-day data for a date range
@@ -245,9 +245,9 @@ result, _ := client.StockHistoryTradeQuote("AAPL", "20240315")
 // End-of-day data
 auto eod = client.stock_history_eod("AAPL", "20240101", "20240301");
 for (auto& tick : eod) {
-    std::cout << tick.date << ": O=" << tdx::open_f64(tick)
-              << " H=" << tdx::high_f64(tick) << " L=" << tdx::low_f64(tick)
-              << " C=" << tdx::close_f64(tick) << " V=" << tick.volume << std::endl;
+    std::cout << tick.date << ": O=" << tick.open
+              << " H=" << tick.high << " L=" << tick.low
+              << " C=" << tick.close << " V=" << tick.volume << std::endl;
 }
 
 // Intraday OHLC bars
@@ -345,7 +345,7 @@ let exps = client.option_list_expirations("SPY").await?;
 let strikes = client.option_list_strikes("SPY", "20240419").await?;
 
 // All contracts for a symbol on a date
-let contracts = tdx.option_list_contracts("TRADE", "SPY", "20240315").await?;
+let contracts = client.option_list_contracts("TRADE", "SPY", "20240315").await?;
 ```
 ```python [Python]
 # All option underlying symbols
@@ -711,8 +711,8 @@ auto dates = client.index_list_dates("SPX");
 ::: code-group
 ```rust [Rust]
 let ohlc = client.index_snapshot_ohlc(&["SPX", "NDX"]).await?;
-let ticks = tdx.index_snapshot_price(&["SPX", "NDX"]).await?;
-let ticks = tdx.index_snapshot_market_value(&["SPX"]).await?;
+let ticks = client.index_snapshot_price(&["SPX", "NDX"]).await?;
+let ticks = client.index_snapshot_market_value(&["SPX"]).await?;
 ```
 ```python [Python]
 ohlc = client.index_snapshot_ohlc(["SPX", "NDX"])
@@ -741,7 +741,7 @@ let bars = client.index_history_ohlc(
     "SPX", "20240101", "20240301", "60000"
 ).await?;
 
-let ticks = tdx.index_history_price("SPX", "20240315", "60000").await?;
+let ticks = client.index_history_price("SPX", "20240315", "60000").await?;
 ```
 ```python [Python]
 eod = client.index_history_eod("SPX", "20240101", "20240301")
@@ -765,7 +765,7 @@ auto price_hist = client.index_history_price("SPX", "20240315", "60000");
 
 ::: code-group
 ```rust [Rust]
-let ticks = tdx.index_at_time_price(
+let ticks = client.index_at_time_price(
     "SPX", "20240101", "20240301", "34200000"
 ).await?;
 ```
@@ -786,7 +786,7 @@ auto at_time = client.index_at_time_price("SPX", "20240101", "20240301", "342000
 
 ::: code-group
 ```rust [Rust]
-let rates = tdx.interest_rate_history_eod(
+let rates = client.interest_rate_history_eod(
     "SOFR", "20240101", "20240301"
 ).await?;
 ```
@@ -809,9 +809,9 @@ Available rate symbols: `SOFR`, `TREASURY_M1`, `TREASURY_M3`, `TREASURY_M6`, `TR
 
 ::: code-group
 ```rust [Rust]
-let days = tdx.calendar_open_today().await?;
-let days = tdx.calendar_on_date("20240315").await?;
-let days = tdx.calendar_year("2024").await?;
+let days = client.calendar_open_today().await?;
+let days = client.calendar_on_date("20240315").await?;
+let days = client.calendar_year("2024").await?;
 ```
 ```python [Python]
 result = client.calendar_open_today()

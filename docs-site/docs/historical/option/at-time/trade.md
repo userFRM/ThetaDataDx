@@ -16,7 +16,7 @@ Retrieve the trade at a specific time of day across a date range for an option c
 let data = tdx.option_at_time_trade("SPY", "20260417", "550", "C", "20260101", "20260301", "34200000").await?;
 for t in &data {
     println!("date={} ms_of_day={} price={:.2} size={}",
-        t.date, t.ms_of_day, t.price_f64(), t.size);
+        t.date, t.ms_of_day, t.price, t.size);
 }
 ```
 ```python [Python]

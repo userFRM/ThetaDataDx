@@ -15,7 +15,7 @@ Retrieve intraday price history for an index on a single date at a specified int
 ```rust [Rust]
 let data = tdx.index_history_price("SPX", "20260315", "60000").await?;
 for t in &data {
-    println!("date={} ms_of_day={} price={:.2}", t.date, t.ms_of_day, t.price_f64());
+    println!("date={} ms_of_day={} price={:.2}", t.date, t.ms_of_day, t.price);
 }
 ```
 ```python [Python]

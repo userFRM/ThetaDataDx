@@ -15,7 +15,7 @@ Get the latest price snapshot for one or more index symbols. Returns the most re
 ```rust [Rust]
 let data = tdx.index_snapshot_price(&["SPX", "NDX"]).await?;
 for t in &data {
-    println!("date={} ms_of_day={} price={:.2}", t.date, t.ms_of_day, t.price_f64());
+    println!("date={} ms_of_day={} price={:.2}", t.date, t.ms_of_day, t.price);
 }
 ```
 ```python [Python]

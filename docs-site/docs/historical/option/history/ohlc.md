@@ -16,7 +16,7 @@ Retrieve intraday OHLC bars for an option contract on a given date at a specifie
 let data = tdx.option_history_ohlc("SPY", "20260417", "550", "C", "20260315", "60000").await?;
 for t in &data {
     println!("date={} ms_of_day={} open={:.2} high={:.2} low={:.2} close={:.2} volume={} count={}",
-        t.date, t.ms_of_day, t.open_f64(), t.high_f64(), t.low_f64(), t.close_f64(), t.volume, t.count);
+        t.date, t.ms_of_day, t.open, t.high, t.low, t.close, t.volume, t.count);
 }
 ```
 ```python [Python]
