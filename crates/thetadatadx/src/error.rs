@@ -1,43 +1,112 @@
 use thiserror::Error;
 
+/// Classification of authentication failures.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum AuthErrorKind {
+    /// Wrong email/password or expired credentials.
+    InvalidCredentials,
+    /// Transient network error (DNS, timeout, connection refused).
+    NetworkError,
+    /// Upstream server returned a non-auth HTTP error.
+    ServerError,
+    /// Request timed out.
+    Timeout,
+}
+
+impl std::fmt::Display for AuthErrorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidCredentials => write!(f, "InvalidCredentials"),
+            Self::NetworkError => write!(f, "NetworkError"),
+            Self::ServerError => write!(f, "ServerError"),
+            Self::Timeout => write!(f, "Timeout"),
+        }
+    }
+}
+
+/// Classification of FPSS streaming failures.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum FpssErrorKind {
+    /// Could not connect to any FPSS server.
+    ConnectionRefused,
+    /// Operation timed out.
+    Timeout,
+    /// Wire protocol violation (corrupt frame, unexpected payload).
+    ProtocolError,
+    /// Server disconnected the client.
+    Disconnected,
+    /// Server sent `TOO_MANY_REQUESTS` -- back off.
+    TooManyRequests,
+}
+
+impl std::fmt::Display for FpssErrorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ConnectionRefused => write!(f, "ConnectionRefused"),
+            Self::Timeout => write!(f, "Timeout"),
+            Self::ProtocolError => write!(f, "ProtocolError"),
+            Self::Disconnected => write!(f, "Disconnected"),
+            Self::TooManyRequests => write!(f, "TooManyRequests"),
+        }
+    }
+}
+
+/// Structured error type for `thetadatadx`.
+///
+/// All error variants carry enough context for callers to programmatically
+/// match on the failure category (`kind`) without parsing error messages.
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum Error {
+    /// gRPC transport-level error (TLS handshake, connection refused, etc.).
     #[error("gRPC transport error: {0}")]
     Transport(#[from] tonic::transport::Error),
 
-    #[error("gRPC status: {0}")]
-    Status(Box<tonic::Status>),
+    /// gRPC status error from the upstream MDDS server.
+    #[error("gRPC status: {status} -- {message}")]
+    Grpc { status: String, message: String },
 
+    /// Decompression failure (zstd, gzip, etc.).
     #[error("Decompression failed: {0}")]
     Decompress(String),
 
+    /// Protobuf decode failure.
     #[error("Protobuf decode failed: {0}")]
     Decode(String),
 
+    /// Query returned no data rows.
     #[error("No data returned")]
     NoData,
 
-    #[error("Authentication error: {0}")]
-    Auth(String),
+    /// Authentication error.
+    #[error("Authentication error ({kind}): {message}")]
+    Auth {
+        kind: AuthErrorKind,
+        message: String,
+    },
 
-    #[error("FPSS connection error: {0}")]
-    Fpss(String),
+    /// FPSS streaming error.
+    #[error("FPSS error ({kind}): {message}")]
+    Fpss {
+        kind: FpssErrorKind,
+        message: String,
+    },
 
-    #[error("FPSS protocol error: {0}")]
-    FpssProtocol(String),
-
-    #[error("FPSS disconnected: {0}")]
-    FpssDisconnected(String),
-
+    /// Configuration / input validation error.
     #[error("Configuration error: {0}")]
     Config(String),
 
+    /// HTTP error (reqwest).
     #[error("HTTP error: {0}")]
     Http(#[from] reqwest::Error),
 
+    /// I/O error.
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
+    /// TLS error.
     #[error("TLS error: {0}")]
     Tls(#[from] rustls::Error),
 }
@@ -48,18 +117,20 @@ impl From<tonic::Status> for Error {
         // message with the ThetaData error name when available.
         let metadata_str = format!("{:?}", s.metadata());
         if let Some(td_err) = tdbe::errors::error_from_grpc_metadata(&metadata_str) {
-            let enriched = tonic::Status::new(
-                s.code(),
-                format!(
+            Self::Grpc {
+                status: format!("{:?}", s.code()),
+                message: format!(
                     "{} (ThetaData: {} -- {})",
                     s.message(),
                     td_err.name,
                     td_err.description
                 ),
-            );
-            Self::Status(Box::new(enriched))
+            }
         } else {
-            Self::Status(Box::new(s))
+            Self::Grpc {
+                status: format!("{:?}", s.code()),
+                message: s.message().to_string(),
+            }
         }
     }
 }
@@ -74,5 +145,27 @@ mod tests {
         let err = Error::from(status);
         let msg = format!("{}", err);
         assert!(msg.contains("something went wrong"));
+    }
+
+    #[test]
+    fn auth_error_display_includes_kind() {
+        let err = Error::Auth {
+            kind: AuthErrorKind::InvalidCredentials,
+            message: "bad password".to_string(),
+        };
+        let msg = format!("{err}");
+        assert!(msg.contains("InvalidCredentials"));
+        assert!(msg.contains("bad password"));
+    }
+
+    #[test]
+    fn fpss_error_display_includes_kind() {
+        let err = Error::Fpss {
+            kind: FpssErrorKind::Disconnected,
+            message: "server rejected login".to_string(),
+        };
+        let msg = format!("{err}");
+        assert!(msg.contains("Disconnected"));
+        assert!(msg.contains("server rejected login"));
     }
 }

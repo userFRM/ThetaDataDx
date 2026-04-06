@@ -51,12 +51,9 @@ impl Credentials {
     /// Returns an error on network, authentication, or parsing failure.
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
         let path = path.as_ref();
-        let contents = std::fs::read_to_string(path).map_err(|e| {
-            Error::Auth(format!(
-                "failed to read credentials file {}: {}",
-                path.display(),
-                e
-            ))
+        let contents = std::fs::read_to_string(path).map_err(|e| Error::Auth {
+            kind: crate::error::AuthErrorKind::InvalidCredentials,
+            message: format!("failed to read credentials file {}: {}", path.display(), e),
         })?;
 
         Self::parse(&contents)
@@ -73,21 +70,30 @@ impl Credentials {
         let lines: Vec<&str> = contents.lines().collect();
 
         if lines.len() < 2 {
-            return Err(Error::Auth(format!(
-                "creds.txt must contain at least 2 lines (email + password), got {}",
-                lines.len()
-            )));
+            return Err(Error::Auth {
+                kind: crate::error::AuthErrorKind::InvalidCredentials,
+                message: format!(
+                    "creds.txt must contain at least 2 lines (email + password), got {}",
+                    lines.len()
+                ),
+            });
         }
 
         let email = lines[0].trim().to_lowercase();
         let password = lines[1].trim().to_string();
 
         if email.is_empty() {
-            return Err(Error::Auth("email (line 1) is empty".to_string()));
+            return Err(Error::Auth {
+                kind: crate::error::AuthErrorKind::InvalidCredentials,
+                message: "email (line 1) is empty".to_string(),
+            });
         }
 
         if password.is_empty() {
-            return Err(Error::Auth("password (line 2) is empty".to_string()));
+            return Err(Error::Auth {
+                kind: crate::error::AuthErrorKind::InvalidCredentials,
+                message: "password (line 2) is empty".to_string(),
+            });
         }
 
         Ok(Self { email, password })

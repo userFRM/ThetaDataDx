@@ -489,10 +489,13 @@ pub fn parse_req_response(
     payload: &[u8],
 ) -> Result<(i32, StreamResponseType), crate::error::Error> {
     if payload.len() < 8 {
-        return Err(crate::error::Error::FpssProtocol(format!(
-            "REQ_RESPONSE payload too short: {} bytes, expected 8",
-            payload.len()
-        )));
+        return Err(crate::error::Error::Fpss {
+            kind: crate::error::FpssErrorKind::ProtocolError,
+            message: format!(
+                "REQ_RESPONSE payload too short: {} bytes, expected 8",
+                payload.len()
+            ),
+        });
     }
 
     let req_id = i32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]);
@@ -504,9 +507,10 @@ pub fn parse_req_response(
         2 => StreamResponseType::MaxStreamsReached,
         3 => StreamResponseType::InvalidPerms,
         _ => {
-            return Err(crate::error::Error::FpssProtocol(format!(
-                "unknown REQ_RESPONSE code: {resp_code}"
-            )));
+            return Err(crate::error::Error::Fpss {
+                kind: crate::error::FpssErrorKind::ProtocolError,
+                message: format!("unknown REQ_RESPONSE code: {resp_code}"),
+            });
         }
     };
 
@@ -568,15 +572,18 @@ pub fn parse_disconnect_reason(payload: &[u8]) -> RemoveReason {
 /// Returns an error on network, authentication, or parsing failure.
 pub fn parse_contract_message(payload: &[u8]) -> Result<(i32, Contract), crate::error::Error> {
     if payload.len() < 5 {
-        return Err(crate::error::Error::FpssProtocol(format!(
-            "CONTRACT payload too short: {} bytes",
-            payload.len()
-        )));
+        return Err(crate::error::Error::Fpss {
+            kind: crate::error::FpssErrorKind::ProtocolError,
+            message: format!("CONTRACT payload too short: {} bytes", payload.len()),
+        });
     }
 
     let contract_id = i32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]);
-    let (contract, _consumed) = Contract::from_bytes(&payload[4..])
-        .map_err(|e| crate::error::Error::FpssProtocol(format!("failed to parse contract: {e}")))?;
+    let (contract, _consumed) =
+        Contract::from_bytes(&payload[4..]).map_err(|e| crate::error::Error::Fpss {
+            kind: crate::error::FpssErrorKind::ProtocolError,
+            message: format!("failed to parse contract: {e}"),
+        })?;
 
     Ok((contract_id, contract))
 }

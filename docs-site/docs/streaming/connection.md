@@ -208,16 +208,51 @@ hosts = ["host-a.example.com:20000", "host-b.example.com:20001"]
 # hosts = "host-a.example.com:20000,host-b.example.com:20001"
 ```
 
+## Async/Sync Design
+
+ThetaDataDx uses two different concurrency models for its two data paths:
+
+| Path | Runtime | Why |
+|------|---------|-----|
+| `connect()` + all historical methods | **async** (tokio) | gRPC/tonic requires tokio for HTTP/2 multiplexing |
+| `start_streaming()` + callbacks | **sync** (OS threads) | Dedicated I/O thread + LMAX Disruptor ring buffer for lowest latency |
+
+**What this means for your code:**
+
+- You need a tokio runtime for `connect()` and any historical data call (`stock_history_eod`, etc.).
+- The streaming callback (`FnMut(&FpssEvent)`) runs on a plain OS thread -- no async executor involved. This eliminates all executor scheduling jitter from the hot path.
+- `subscribe_quotes()` and other subscription methods are synchronous -- they send a command through an internal channel to the I/O thread.
+
+```text
+tokio runtime
+  +-- connect()          async, gRPC/tonic/HTTP2
+  +-- stock_history_*()  async, gRPC streaming
+
+std::thread (fpss-io)
+  +-- TLS read loop      blocking, 50ms timeout
+  +-- Disruptor publish  lock-free, zero-alloc
+
+std::thread (fpss-ping)
+  +-- PING heartbeat     100ms sleep loop
+
+Disruptor consumer thread
+  +-- your callback(FnMut(&FpssEvent))
+```
+
+You can safely call `subscribe_*()` from any thread -- the command is sent through an `mpsc` channel and executed by the I/O thread.
+
 ## Subscribe
 
 ::: code-group
 ```rust [Rust]
 // Stock quotes
-let req_id = tdx.subscribe_quotes(&Contract::stock("AAPL"))?;
-println!("Subscribed (req_id={req_id})");
+tdx.subscribe_quotes(&Contract::stock("AAPL"))?;
 
 // Stock trades
 tdx.subscribe_trades(&Contract::stock("MSFT"))?;
+
+// Quotes + trades in one call
+tdx.subscribe_all(&Contract::stock("TSLA"))?;
 
 // Option quotes
 let opt = Contract::option("SPY", "20261218", "600", "C");
@@ -241,8 +276,7 @@ tdx.subscribe_full_open_interest("OPTION")
 ```
 ```go [Go]
 // Stock quotes
-reqID, _ := fpss.SubscribeQuotes("AAPL")
-fmt.Printf("Subscribed (req_id=%d)\n", reqID)
+_, err := fpss.SubscribeQuotes("AAPL")
 
 // Stock trades
 fpss.SubscribeTrades("MSFT")
@@ -257,9 +291,8 @@ fpss.SubscribeFullTrades("STOCK")
 fpss.SubscribeFullOpenInterest("OPTION")
 ```
 ```cpp [C++]
-// Stock quotes
-int32_t req_id = fpss.subscribe_quotes("AAPL");
-std::cout << "Subscribed (req_id=" << req_id << ")" << std::endl;
+// Stock quotes (returns 0 on success, -1 on error)
+fpss.subscribe_quotes("AAPL");
 
 // Stock trades
 fpss.subscribe_trades("MSFT");

@@ -43,6 +43,40 @@ use crate::fpss::protocol::{Contract, SubscriptionKind};
 use crate::fpss::{FpssClient, FpssEvent};
 use tdbe::types::enums::SecType;
 
+/// Subscription tier information captured at authentication time.
+#[derive(Debug, Clone)]
+pub struct SubscriptionInfo {
+    /// Stock data subscription tier (e.g. "Free", "Value", "Standard", "Pro").
+    pub stock: String,
+    /// Options data subscription tier (e.g. "Free", "Value", "Standard", "Pro").
+    pub options: String,
+}
+
+fn tier_name(level: Option<i32>) -> String {
+    match level {
+        Some(0) => "Free".to_string(),
+        Some(1) => "Value".to_string(),
+        Some(2) => "Standard".to_string(),
+        Some(3) => "Pro".to_string(),
+        Some(n) => format!("Unknown({n})"),
+        None => "Unknown".to_string(),
+    }
+}
+
+/// Current state of the streaming connection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ConnectionStatus {
+    /// `start_streaming()` has not been called yet.
+    NotStarted,
+    /// Connected and authenticated.
+    Connected,
+    /// Currently attempting to reconnect after an involuntary disconnect.
+    Reconnecting,
+    /// Explicitly stopped or failed to connect.
+    Disconnected,
+}
+
 /// Unified `ThetaData` client.
 ///
 /// Authenticates once at connect time. Historical data (MDDS gRPC) is
@@ -93,7 +127,10 @@ impl ThetaDataDx {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         if guard.is_some() {
-            return Err(Error::Fpss("streaming already started".into()));
+            return Err(Error::Fpss {
+                kind: crate::error::FpssErrorKind::ConnectionRefused,
+                message: "streaming already started".into(),
+            });
         }
         let config = self.historical.config();
         let client = FpssClient::connect(
@@ -127,8 +164,9 @@ impl ThetaDataDx {
             .streaming
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let client = guard.as_ref().ok_or_else(|| {
-            Error::Fpss("streaming not started -- call start_streaming() first".into())
+        let client = guard.as_ref().ok_or_else(|| Error::Fpss {
+            kind: crate::error::FpssErrorKind::Disconnected,
+            message: "streaming not started -- call start_streaming() first".into(),
         })?;
         f(client)
     }
@@ -137,7 +175,7 @@ impl ThetaDataDx {
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
-    pub fn subscribe_quotes(&self, contract: &Contract) -> Result<i32, Error> {
+    pub fn subscribe_quotes(&self, contract: &Contract) -> Result<(), Error> {
         self.with_streaming(|s| s.subscribe_quotes(contract))
     }
 
@@ -145,7 +183,7 @@ impl ThetaDataDx {
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
-    pub fn subscribe_trades(&self, contract: &Contract) -> Result<i32, Error> {
+    pub fn subscribe_trades(&self, contract: &Contract) -> Result<(), Error> {
         self.with_streaming(|s| s.subscribe_trades(contract))
     }
 
@@ -153,15 +191,23 @@ impl ThetaDataDx {
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
-    pub fn subscribe_open_interest(&self, contract: &Contract) -> Result<i32, Error> {
+    pub fn subscribe_open_interest(&self, contract: &Contract) -> Result<(), Error> {
         self.with_streaming(|s| s.subscribe_open_interest(contract))
+    }
+
+    /// Subscribe to quotes + trades for a contract (convenience batch).
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
+    pub fn subscribe_all(&self, contract: &Contract) -> Result<(), Error> {
+        self.with_streaming(|s| s.subscribe_all(contract))
     }
 
     /// Subscribe to all trades for a security type (firehose).
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
-    pub fn subscribe_full_trades(&self, sec_type: SecType) -> Result<i32, Error> {
+    pub fn subscribe_full_trades(&self, sec_type: SecType) -> Result<(), Error> {
         self.with_streaming(|s| s.subscribe_full_trades(sec_type))
     }
 
@@ -169,7 +215,7 @@ impl ThetaDataDx {
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
-    pub fn subscribe_full_open_interest(&self, sec_type: SecType) -> Result<i32, Error> {
+    pub fn subscribe_full_open_interest(&self, sec_type: SecType) -> Result<(), Error> {
         self.with_streaming(|s| s.subscribe_full_open_interest(sec_type))
     }
 
@@ -177,7 +223,7 @@ impl ThetaDataDx {
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
-    pub fn unsubscribe_quotes(&self, contract: &Contract) -> Result<i32, Error> {
+    pub fn unsubscribe_quotes(&self, contract: &Contract) -> Result<(), Error> {
         self.with_streaming(|s| s.unsubscribe_quotes(contract))
     }
 
@@ -185,7 +231,7 @@ impl ThetaDataDx {
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
-    pub fn unsubscribe_trades(&self, contract: &Contract) -> Result<i32, Error> {
+    pub fn unsubscribe_trades(&self, contract: &Contract) -> Result<(), Error> {
         self.with_streaming(|s| s.unsubscribe_trades(contract))
     }
 
@@ -193,7 +239,7 @@ impl ThetaDataDx {
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
-    pub fn unsubscribe_open_interest(&self, contract: &Contract) -> Result<i32, Error> {
+    pub fn unsubscribe_open_interest(&self, contract: &Contract) -> Result<(), Error> {
         self.with_streaming(|s| s.unsubscribe_open_interest(contract))
     }
 
@@ -201,7 +247,7 @@ impl ThetaDataDx {
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
-    pub fn unsubscribe_full_trades(&self, sec_type: SecType) -> Result<i32, Error> {
+    pub fn unsubscribe_full_trades(&self, sec_type: SecType) -> Result<(), Error> {
         self.with_streaming(|s| s.unsubscribe_full_trades(sec_type))
     }
 
@@ -209,7 +255,7 @@ impl ThetaDataDx {
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
-    pub fn unsubscribe_full_open_interest(&self, sec_type: SecType) -> Result<i32, Error> {
+    pub fn unsubscribe_full_open_interest(&self, sec_type: SecType) -> Result<(), Error> {
         self.with_streaming(|s| s.unsubscribe_full_open_interest(sec_type))
     }
 
@@ -338,6 +384,27 @@ impl ThetaDataDx {
         Ok(())
     }
 
+    /// Get the current streaming connection status.
+    pub fn connection_status(&self) -> ConnectionStatus {
+        let guard = self
+            .streaming
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        match guard.as_ref() {
+            None => ConnectionStatus::NotStarted,
+            Some(client) => {
+                if client.is_authenticated() {
+                    ConnectionStatus::Connected
+                } else {
+                    // The client exists but is not authenticated -- this happens
+                    // during reconnection (authenticated flag is cleared on
+                    // disconnect, restored on successful re-auth).
+                    ConnectionStatus::Reconnecting
+                }
+            }
+        }
+    }
+
     /// Access the session UUID from the initial auth.
     pub fn session_uuid(&self) -> &str {
         self.historical.session_uuid()
@@ -346,6 +413,14 @@ impl ThetaDataDx {
     /// Access the config.
     pub fn config(&self) -> &DirectConfig {
         self.historical.config()
+    }
+
+    /// Get subscription tier information captured at authentication time.
+    pub fn subscription_info(&self) -> SubscriptionInfo {
+        SubscriptionInfo {
+            stock: tier_name(self.historical.stock_tier()),
+            options: tier_name(self.historical.options_tier()),
+        }
     }
 }
 

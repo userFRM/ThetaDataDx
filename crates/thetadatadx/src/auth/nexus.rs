@@ -175,7 +175,10 @@ pub async fn authenticate(creds: &Credentials) -> Result<AuthResponse, Error> {
         .timeout(Duration::from_secs(10))
         .connect_timeout(Duration::from_secs(5))
         .build()
-        .map_err(|e| Error::Auth(format!("failed to build HTTP client: {e}")))?;
+        .map_err(|e| Error::Auth {
+            kind: crate::error::AuthErrorKind::NetworkError,
+            message: format!("failed to build HTTP client: {e}"),
+        })?;
 
     let body = AuthRequest {
         email: &creds.email,
@@ -214,46 +217,55 @@ pub async fn authenticate(creds: &Credentials) -> Result<AuthResponse, Error> {
                     tokio::time::sleep(AUTH_RETRY_DELAY).await;
                 }
                 Err(e) => {
-                    return Err(Error::Auth(format!("Nexus API request failed: {e}")));
+                    return Err(Error::Auth {
+                        kind: crate::error::AuthErrorKind::NetworkError,
+                        message: format!("Nexus API request failed: {e}"),
+                    });
                 }
             }
         }
         // All retries exhausted (should not reach here, but handle defensively).
-        return Err(Error::Auth(format!(
-            "Nexus API request failed after {AUTH_MAX_RETRIES} retries: {}",
-            last_err.map_or_else(|| "unknown".to_string(), |e| e.to_string())
-        )));
+        return Err(Error::Auth {
+            kind: crate::error::AuthErrorKind::NetworkError,
+            message: format!(
+                "Nexus API request failed after {AUTH_MAX_RETRIES} retries: {}",
+                last_err.map_or_else(|| "unknown".to_string(), |e| e.to_string())
+            ),
+        });
     };
 
     let status = resp.status();
     // Java special-cases 401 and 404 as "invalid credentials".
     // Source: AuthenticationManager.authenticateViaCloud() in decompiled terminal.
     if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::NOT_FOUND {
-        return Err(Error::Auth(
-            "invalid credentials (server returned 401/404)".into(),
-        ));
+        return Err(Error::Auth {
+            kind: crate::error::AuthErrorKind::InvalidCredentials,
+            message: "invalid credentials (server returned 401/404)".into(),
+        });
     }
     if !status.is_success() {
         let body_text = resp
             .text()
             .await
             .unwrap_or_else(|_| "<unreadable>".to_string());
-        return Err(Error::Auth(format!(
-            "Nexus API returned HTTP {status}: {body_text}"
-        )));
+        return Err(Error::Auth {
+            kind: crate::error::AuthErrorKind::ServerError,
+            message: format!("Nexus API returned HTTP {status}: {body_text}"),
+        });
     }
 
-    let auth: AuthResponse = resp
-        .json()
-        .await
-        .map_err(|e| Error::Auth(format!("failed to parse Nexus API response: {e}")))?;
+    let auth: AuthResponse = resp.json().await.map_err(|e| Error::Auth {
+        kind: crate::error::AuthErrorKind::ServerError,
+        message: format!("failed to parse Nexus API response: {e}"),
+    })?;
 
     // Validate the session UUID is well-formed.
-    let _uuid = Uuid::parse_str(&auth.session_id).map_err(|e| {
-        Error::Auth(format!(
+    let _uuid = Uuid::parse_str(&auth.session_id).map_err(|e| Error::Auth {
+        kind: crate::error::AuthErrorKind::ServerError,
+        message: format!(
             "Nexus API returned invalid session UUID '{}': {e}",
             auth.session_id
-        ))
+        ),
     })?;
 
     tracing::debug!(
@@ -282,8 +294,10 @@ impl SessionToken {
     ///
     /// Returns an error on network, authentication, or parsing failure.
     pub fn from_response(resp: &AuthResponse) -> Result<Self, Error> {
-        let _uuid = Uuid::parse_str(&resp.session_id)
-            .map_err(|e| Error::Auth(format!("invalid session UUID '{}': {e}", resp.session_id)))?;
+        let _uuid = Uuid::parse_str(&resp.session_id).map_err(|e| Error::Auth {
+            kind: crate::error::AuthErrorKind::ServerError,
+            message: format!("invalid session UUID '{}': {e}", resp.session_id),
+        })?;
 
         Ok(Self {
             session_uuid: resp.session_id.clone(),

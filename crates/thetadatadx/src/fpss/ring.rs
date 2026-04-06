@@ -253,6 +253,7 @@ mod tests {
         producer.publish(|slot| {
             slot.event = Some(FpssEvent::Data(FpssData::Quote {
                 contract_id: 42,
+                symbol: std::sync::Arc::from(""),
                 ms_of_day: 34200000,
                 bid_size: 100,
                 bid_exchange: 1,
@@ -347,6 +348,7 @@ mod tests {
             producer.publish(|slot| {
                 slot.event = Some(FpssEvent::Data(FpssData::Quote {
                     contract_id: i as i32,
+                    symbol: std::sync::Arc::from(""),
                     ms_of_day: 0,
                     bid_size: 0,
                     bid_exchange: 0,

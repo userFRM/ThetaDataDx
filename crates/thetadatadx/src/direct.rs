@@ -72,7 +72,7 @@ macro_rules! list_endpoint {
             metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
             let _metrics_start = std::time::Instant::now();
             let _permit = self.request_semaphore.acquire().await
-                .map_err(|_| Error::Fpss("request semaphore closed".into()))?;
+                .map_err(|_| Error::Fpss { kind: crate::error::FpssErrorKind::Disconnected, message: "request semaphore closed".into() })?;
             let request = proto_v3::$req {
                 query_info: Some(self.query_info()),
                 params: Some(proto_v3::$query { $($field : $val),* }),
@@ -163,7 +163,7 @@ macro_rules! parsed_endpoint {
                     metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
                     let _metrics_start = std::time::Instant::now();
                     let _permit = client.request_semaphore.acquire().await
-                        .map_err(|_| Error::Fpss("request semaphore closed".into()))?;
+                        .map_err(|_| Error::Fpss { kind: crate::error::FpssErrorKind::Disconnected, message: "request semaphore closed".into() })?;
                     let request = proto_v3::$req {
                         query_info: Some(client.query_info()),
                         params: Some(proto_v3::$query { $($field : $val),* }),
@@ -336,7 +336,7 @@ macro_rules! streaming_endpoint {
                 metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
                 let _metrics_start = std::time::Instant::now();
                 let _permit = client.request_semaphore.acquire().await
-                    .map_err(|_| Error::Fpss("request semaphore closed".into()))?;
+                    .map_err(|_| Error::Fpss { kind: crate::error::FpssErrorKind::Disconnected, message: "request semaphore closed".into() })?;
                 let request = proto_v3::$req {
                     query_info: Some(client.query_info()),
                     params: Some(proto_v3::$query { $($field : $val),* }),
@@ -443,6 +443,9 @@ pub struct DirectClient {
     /// (Free=1, Value=2, Standard=4, Pro=16). This semaphore enforces the same
     /// bound to prevent server-side rate limiting / 429 disconnects.
     request_semaphore: Arc<tokio::sync::Semaphore>,
+    /// Per-asset subscription tiers captured from the Nexus auth response.
+    stock_tier: Option<i32>,
+    options_tier: Option<i32>,
 }
 
 impl DirectClient {
@@ -531,12 +534,17 @@ impl DirectClient {
             "request semaphore initialized"
         );
 
+        let stock_tier = auth_resp.user.as_ref().and_then(|u| u.stock_subscription);
+        let options_tier = auth_resp.user.as_ref().and_then(|u| u.options_subscription);
+
         Ok(Self {
             session,
             channel,
             config,
             query_info_template,
             request_semaphore,
+            stock_tier,
+            options_tier,
         })
     }
 
@@ -665,6 +673,18 @@ impl DirectClient {
     #[must_use]
     pub fn session_uuid(&self) -> &str {
         &self.session.session_uuid
+    }
+
+    /// Stock subscription tier from Nexus auth response (0=Free, 1=Value, 2=Standard, 3=Pro).
+    #[must_use]
+    pub fn stock_tier(&self) -> Option<i32> {
+        self.stock_tier
+    }
+
+    /// Options subscription tier from Nexus auth response (0=Free, 1=Value, 2=Standard, 3=Pro).
+    #[must_use]
+    pub fn options_tier(&self) -> Option<i32> {
+        self.options_tier
     }
 
     // ═══════════════════════════════════════════════════════════════════

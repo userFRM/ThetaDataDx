@@ -220,7 +220,7 @@ async fn handle_client_message(state: &AppState, text: &str, socket: &mut WebSoc
                 }
                 _ => {
                     tracing::warn!(req_type = %req_type, "unknown req_type for subscription");
-                    Ok(0)
+                    Ok(())
                 }
             }
         } else {
@@ -228,7 +228,7 @@ async fn handle_client_message(state: &AppState, text: &str, socket: &mut WebSoc
                 "QUOTE" => tdx.unsubscribe_quotes(&contract),
                 "TRADE" => tdx.unsubscribe_trades(&contract),
                 "OPEN_INTEREST" => tdx.unsubscribe_open_interest(&contract),
-                _ => Ok(0),
+                _ => Ok(()),
             }
         };
 
@@ -368,6 +368,7 @@ fn fpss_event_to_ws_json(
                     open_interest,
                     date,
                     received_at_ns,
+                    ..
                 } => (
                     "OPEN_INTEREST",
                     *contract_id,

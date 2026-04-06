@@ -72,9 +72,10 @@ fn read_header<R: Read>(reader: &mut R) -> Result<Option<[u8; 2]>, crate::error:
         match reader.read(&mut header[n..]) {
             Ok(0) if n == 0 => return Ok(None),
             Ok(0) => {
-                return Err(crate::error::Error::FpssProtocol(format!(
-                    "truncated FPSS header: got {n} byte(s), expected 2"
-                )))
+                return Err(crate::error::Error::Fpss {
+                    kind: crate::error::FpssErrorKind::ProtocolError,
+                    message: format!("truncated FPSS header: got {n} byte(s), expected 2"),
+                })
             }
             Ok(read) => {
                 n += read;
@@ -84,9 +85,10 @@ fn read_header<R: Read>(reader: &mut R) -> Result<Option<[u8; 2]>, crate::error:
             }
             Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof && n == 0 => return Ok(None),
             Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
-                return Err(crate::error::Error::FpssProtocol(format!(
-                    "truncated FPSS header: got {n} byte(s), expected 2"
-                )))
+                return Err(crate::error::Error::Fpss {
+                    kind: crate::error::FpssErrorKind::ProtocolError,
+                    message: format!("truncated FPSS header: got {n} byte(s), expected 2"),
+                })
             }
             Err(e) => return Err(e.into()),
         }
@@ -147,10 +149,13 @@ pub fn read_frame_into<R: Read>(
         }
         consecutive_unknown += 1;
         if consecutive_unknown >= MAX_CONSECUTIVE_UNKNOWN_CODES {
-            return Err(crate::error::Error::Fpss(format!(
-                "framing corruption: {consecutive_unknown} consecutive \
-                 unknown message codes (last code: {code_byte})"
-            )));
+            return Err(crate::error::Error::Fpss {
+                kind: crate::error::FpssErrorKind::ProtocolError,
+                message: format!(
+                    "framing corruption: {consecutive_unknown} consecutive \
+                     unknown message codes (last code: {code_byte})"
+                ),
+            });
         }
         tracing::debug!(
             code = code_byte,
@@ -191,19 +196,20 @@ pub fn read_frame<R: Read>(reader: &mut R) -> Result<Option<Frame>, crate::error
 /// Returns an error on network, authentication, or parsing failure.
 pub fn write_frame<W: Write>(writer: &mut W, frame: &Frame) -> Result<(), crate::error::Error> {
     if frame.payload.len() > MAX_PAYLOAD_LEN {
-        return Err(crate::error::Error::FpssProtocol(format!(
-            "frame payload too large: {} bytes (max {})",
-            frame.payload.len(),
-            MAX_PAYLOAD_LEN
-        )));
+        return Err(crate::error::Error::Fpss {
+            kind: crate::error::FpssErrorKind::ProtocolError,
+            message: format!(
+                "frame payload too large: {} bytes (max {})",
+                frame.payload.len(),
+                MAX_PAYLOAD_LEN
+            ),
+        });
     }
 
     // Length already validated <= MAX_PAYLOAD_LEN (255); code is a StreamMsgType u8 repr.
-    let len_byte = u8::try_from(frame.payload.len()).map_err(|_| {
-        crate::error::Error::Fpss(format!(
-            "frame payload length overflow: {}",
-            frame.payload.len()
-        ))
+    let len_byte = u8::try_from(frame.payload.len()).map_err(|_| crate::error::Error::Fpss {
+        kind: crate::error::FpssErrorKind::ProtocolError,
+        message: format!("frame payload length overflow: {}", frame.payload.len()),
     })?;
     let header = [len_byte, frame.code as u8];
     writer.write_all(&header)?;
@@ -248,16 +254,20 @@ pub fn write_raw_frame_no_flush<W: Write>(
     payload: &[u8],
 ) -> Result<(), crate::error::Error> {
     if payload.len() > MAX_PAYLOAD_LEN {
-        return Err(crate::error::Error::FpssProtocol(format!(
-            "frame payload too large: {} bytes (max {})",
-            payload.len(),
-            MAX_PAYLOAD_LEN
-        )));
+        return Err(crate::error::Error::Fpss {
+            kind: crate::error::FpssErrorKind::ProtocolError,
+            message: format!(
+                "frame payload too large: {} bytes (max {})",
+                payload.len(),
+                MAX_PAYLOAD_LEN
+            ),
+        });
     }
 
     // Length already validated <= MAX_PAYLOAD_LEN (255).
-    let len_byte = u8::try_from(payload.len()).map_err(|_| {
-        crate::error::Error::Fpss(format!("frame payload length overflow: {}", payload.len()))
+    let len_byte = u8::try_from(payload.len()).map_err(|_| crate::error::Error::Fpss {
+        kind: crate::error::FpssErrorKind::ProtocolError,
+        message: format!("frame payload length overflow: {}", payload.len()),
     })?;
     let header = [len_byte, code as u8];
     writer.write_all(&header)?;

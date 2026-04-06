@@ -68,7 +68,10 @@ pub fn connect_to_servers(
         }
     }
 
-    Err(last_err.unwrap_or_else(|| crate::error::Error::Fpss("no servers configured".to_string())))
+    Err(last_err.unwrap_or_else(|| crate::error::Error::Fpss {
+        kind: crate::error::FpssErrorKind::ConnectionRefused,
+        message: "no servers configured".to_string(),
+    }))
 }
 
 /// Build a shared rustls `ClientConfig` that skips certificate verification.
@@ -152,10 +155,14 @@ fn try_connect(
     // accepts numeric IP addresses and would fail for DNS hostnames.
     let sock_addr = addr
         .to_socket_addrs()
-        .map_err(|e| crate::error::Error::Fpss(format!("DNS resolution failed for '{addr}': {e}")))?
+        .map_err(|e| crate::error::Error::Fpss {
+            kind: crate::error::FpssErrorKind::ConnectionRefused,
+            message: format!("DNS resolution failed for '{addr}': {e}"),
+        })?
         .next()
-        .ok_or_else(|| {
-            crate::error::Error::Fpss(format!("DNS resolution returned no addresses for '{addr}'"))
+        .ok_or_else(|| crate::error::Error::Fpss {
+            kind: crate::error::FpssErrorKind::ConnectionRefused,
+            message: format!("DNS resolution returned no addresses for '{addr}'"),
         })?;
 
     // TCP connect with timeout
@@ -168,11 +175,18 @@ fn try_connect(
     tcp.set_read_timeout(Some(read_timeout))?;
 
     // TLS handshake (blocking) using rustls with webpki root certificates.
-    let server_name = ServerName::try_from(host.to_owned())
-        .map_err(|e| crate::error::Error::Fpss(format!("invalid TLS server name '{host}': {e}")))?;
+    let server_name =
+        ServerName::try_from(host.to_owned()).map_err(|e| crate::error::Error::Fpss {
+            kind: crate::error::FpssErrorKind::ConnectionRefused,
+            message: format!("invalid TLS server name '{host}': {e}"),
+        })?;
 
-    let tls_conn = ClientConnection::new(tls_client_config(), server_name)
-        .map_err(|e| crate::error::Error::Fpss(format!("TLS setup for {addr} failed: {e}")))?;
+    let tls_conn = ClientConnection::new(tls_client_config(), server_name).map_err(|e| {
+        crate::error::Error::Fpss {
+            kind: crate::error::FpssErrorKind::ConnectionRefused,
+            message: format!("TLS setup for {addr} failed: {e}"),
+        }
+    })?;
 
     // StreamOwned performs the TLS handshake lazily on first read/write.
     // The first write_frame (CREDENTIALS) will drive the handshake to completion.

@@ -26,7 +26,7 @@ fn runtime() -> &'static tokio::runtime::Runtime {
 
 fn to_py_err(e: thetadatadx::Error) -> PyErr {
     match e {
-        thetadatadx::Error::Auth(msg) => PyConnectionError::new_err(msg),
+        thetadatadx::Error::Auth { message, .. } => PyConnectionError::new_err(message),
         thetadatadx::Error::Config(msg) => PyValueError::new_err(msg),
         _ => PyRuntimeError::new_err(e.to_string()),
     }
@@ -914,19 +914,19 @@ impl ThetaDataDx {
     // ── Streaming methods ──
 
     /// Subscribe to quote data for a stock symbol.
-    fn subscribe_quotes(&self, symbol: &str) -> PyResult<i32> {
+    fn subscribe_quotes(&self, symbol: &str) -> PyResult<()> {
         let contract = fpss::protocol::Contract::stock(symbol);
         self.tdx.subscribe_quotes(&contract).map_err(to_py_err)
     }
 
     /// Subscribe to trade data for a stock symbol.
-    fn subscribe_trades(&self, symbol: &str) -> PyResult<i32> {
+    fn subscribe_trades(&self, symbol: &str) -> PyResult<()> {
         let contract = fpss::protocol::Contract::stock(symbol);
         self.tdx.subscribe_trades(&contract).map_err(to_py_err)
     }
 
     /// Subscribe to open interest data for a stock symbol.
-    fn subscribe_open_interest(&self, symbol: &str) -> PyResult<i32> {
+    fn subscribe_open_interest(&self, symbol: &str) -> PyResult<()> {
         let contract = fpss::protocol::Contract::stock(symbol);
         self.tdx
             .subscribe_open_interest(&contract)
@@ -940,7 +940,7 @@ impl ThetaDataDx {
         exp_date: &str,
         right: &str,
         strike: &str,
-    ) -> PyResult<i32> {
+    ) -> PyResult<()> {
         let contract = fpss::protocol::Contract::option(symbol, exp_date, strike, right);
         self.tdx.subscribe_quotes(&contract).map_err(to_py_err)
     }
@@ -952,7 +952,7 @@ impl ThetaDataDx {
         exp_date: &str,
         right: &str,
         strike: &str,
-    ) -> PyResult<i32> {
+    ) -> PyResult<()> {
         let contract = fpss::protocol::Contract::option(symbol, exp_date, strike, right);
         self.tdx.subscribe_trades(&contract).map_err(to_py_err)
     }
@@ -964,7 +964,7 @@ impl ThetaDataDx {
         exp_date: &str,
         right: &str,
         strike: &str,
-    ) -> PyResult<i32> {
+    ) -> PyResult<()> {
         let contract = fpss::protocol::Contract::option(symbol, exp_date, strike, right);
         self.tdx
             .subscribe_open_interest(&contract)
@@ -972,43 +972,43 @@ impl ThetaDataDx {
     }
 
     /// Subscribe to all trades for a security type (full trade stream).
-    fn subscribe_full_trades(&self, sec_type: &str) -> PyResult<i32> {
+    fn subscribe_full_trades(&self, sec_type: &str) -> PyResult<()> {
         let st = parse_sec_type(sec_type)?;
         self.tdx.subscribe_full_trades(st).map_err(to_py_err)
     }
 
     /// Subscribe to all open interest for a security type (full OI stream).
-    fn subscribe_full_open_interest(&self, sec_type: &str) -> PyResult<i32> {
+    fn subscribe_full_open_interest(&self, sec_type: &str) -> PyResult<()> {
         let st = parse_sec_type(sec_type)?;
         self.tdx.subscribe_full_open_interest(st).map_err(to_py_err)
     }
 
     /// Unsubscribe from all trades for a security type (full trade stream).
-    fn unsubscribe_full_trades(&self, sec_type: &str) -> PyResult<i32> {
+    fn unsubscribe_full_trades(&self, sec_type: &str) -> PyResult<()> {
         let st = parse_sec_type(sec_type)?;
         self.tdx.unsubscribe_full_trades(st).map_err(to_py_err)
     }
 
     /// Unsubscribe from all open interest for a security type (full OI stream).
-    fn unsubscribe_full_open_interest(&self, sec_type: &str) -> PyResult<i32> {
+    fn unsubscribe_full_open_interest(&self, sec_type: &str) -> PyResult<()> {
         let st = parse_sec_type(sec_type)?;
         self.tdx.unsubscribe_full_open_interest(st).map_err(to_py_err)
     }
 
     /// Unsubscribe from quote data for a stock symbol.
-    fn unsubscribe_quotes(&self, symbol: &str) -> PyResult<i32> {
+    fn unsubscribe_quotes(&self, symbol: &str) -> PyResult<()> {
         let contract = fpss::protocol::Contract::stock(symbol);
         self.tdx.unsubscribe_quotes(&contract).map_err(to_py_err)
     }
 
     /// Unsubscribe from trade data for a stock symbol.
-    fn unsubscribe_trades(&self, symbol: &str) -> PyResult<i32> {
+    fn unsubscribe_trades(&self, symbol: &str) -> PyResult<()> {
         let contract = fpss::protocol::Contract::stock(symbol);
         self.tdx.unsubscribe_trades(&contract).map_err(to_py_err)
     }
 
     /// Unsubscribe from open interest data for a stock symbol.
-    fn unsubscribe_open_interest(&self, symbol: &str) -> PyResult<i32> {
+    fn unsubscribe_open_interest(&self, symbol: &str) -> PyResult<()> {
         let contract = fpss::protocol::Contract::stock(symbol);
         self.tdx
             .unsubscribe_open_interest(&contract)
@@ -1022,7 +1022,7 @@ impl ThetaDataDx {
         exp_date: &str,
         right: &str,
         strike: &str,
-    ) -> PyResult<i32> {
+    ) -> PyResult<()> {
         let contract = fpss::protocol::Contract::option(symbol, exp_date, strike, right);
         self.tdx.unsubscribe_quotes(&contract).map_err(to_py_err)
     }
@@ -1034,7 +1034,7 @@ impl ThetaDataDx {
         exp_date: &str,
         right: &str,
         strike: &str,
-    ) -> PyResult<i32> {
+    ) -> PyResult<()> {
         let contract = fpss::protocol::Contract::option(symbol, exp_date, strike, right);
         self.tdx.unsubscribe_trades(&contract).map_err(to_py_err)
     }
@@ -1046,7 +1046,7 @@ impl ThetaDataDx {
         exp_date: &str,
         right: &str,
         strike: &str,
-    ) -> PyResult<i32> {
+    ) -> PyResult<()> {
         let contract = fpss::protocol::Contract::option(symbol, exp_date, strike, right);
         self.tdx
             .unsubscribe_open_interest(&contract)

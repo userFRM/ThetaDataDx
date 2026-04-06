@@ -199,7 +199,7 @@ fn normalize_right(s: &str) -> Result<&'static str, thetadatadx::Error> {
     match s.to_ascii_uppercase().as_str() {
         "C" | "CALL" => Ok("C"),
         "P" | "PUT" => Ok("P"),
-        _ => Err(thetadatadx::Error::Fpss(format!(
+        _ => Err(thetadatadx::Error::Config(format!(
             "invalid option right '{s}': expected C, P, call, or put"
         ))),
     }

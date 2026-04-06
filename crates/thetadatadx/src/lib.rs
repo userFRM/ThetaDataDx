@@ -138,6 +138,6 @@ pub mod proto_v3 {
 
 pub use auth::Credentials;
 pub use config::{DirectConfig, FpssFlushMode, ReconnectPolicy};
-pub use error::Error;
+pub use error::{AuthErrorKind, Error, FpssErrorKind};
 pub use registry::{EndpointMeta, ParamMeta, ParamType, ReturnType, ENDPOINTS};
-pub use unified::ThetaDataDx;
+pub use unified::{ConnectionStatus, SubscriptionInfo, ThetaDataDx};

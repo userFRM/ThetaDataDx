@@ -439,6 +439,7 @@ fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
             open_interest,
             date,
             received_at_ns,
+            ..
         }) => FfiBufferedEvent {
             event: TdxFpssEvent {
                 kind: TdxFpssEventKind::OpenInterest,
@@ -1955,7 +1956,7 @@ pub unsafe extern "C" fn tdx_unified_start_streaming(handle: *const TdxUnified) 
 
 /// Subscribe to quote data for a stock symbol via the unified client.
 ///
-/// Returns the request ID on success, or -1 on error (check `tdx_last_error()`).
+/// Returns 0 on success, or -1 on error (check `tdx_last_error()`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_unified_subscribe_quotes(
     handle: *const TdxUnified,
@@ -1974,7 +1975,7 @@ pub unsafe extern "C" fn tdx_unified_subscribe_quotes(
     let handle = unsafe { &*handle };
     let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
     match handle.inner.subscribe_quotes(&contract) {
-        Ok(req_id) => req_id,
+        Ok(()) => 0,
         Err(e) => {
             set_error(&e.to_string());
             -1
@@ -1984,7 +1985,7 @@ pub unsafe extern "C" fn tdx_unified_subscribe_quotes(
 
 /// Subscribe to trade data for a stock symbol via the unified client.
 ///
-/// Returns the request ID on success, or -1 on error (check `tdx_last_error()`).
+/// Returns 0 on success, or -1 on error (check `tdx_last_error()`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_unified_subscribe_trades(
     handle: *const TdxUnified,
@@ -2003,7 +2004,7 @@ pub unsafe extern "C" fn tdx_unified_subscribe_trades(
     let handle = unsafe { &*handle };
     let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
     match handle.inner.subscribe_trades(&contract) {
-        Ok(req_id) => req_id,
+        Ok(()) => 0,
         Err(e) => {
             set_error(&e.to_string());
             -1
@@ -2013,7 +2014,7 @@ pub unsafe extern "C" fn tdx_unified_subscribe_trades(
 
 /// Unsubscribe from quote data for a stock symbol via the unified client.
 ///
-/// Returns the request ID on success, or -1 on error (check `tdx_last_error()`).
+/// Returns 0 on success, or -1 on error (check `tdx_last_error()`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_unified_unsubscribe_quotes(
     handle: *const TdxUnified,
@@ -2032,7 +2033,7 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe_quotes(
     let handle = unsafe { &*handle };
     let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
     match handle.inner.unsubscribe_quotes(&contract) {
-        Ok(req_id) => req_id,
+        Ok(()) => 0,
         Err(e) => {
             set_error(&e.to_string());
             -1
@@ -2042,7 +2043,7 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe_quotes(
 
 /// Unsubscribe from trade data for a stock symbol via the unified client.
 ///
-/// Returns the request ID on success, or -1 on error (check `tdx_last_error()`).
+/// Returns 0 on success, or -1 on error (check `tdx_last_error()`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_unified_unsubscribe_trades(
     handle: *const TdxUnified,
@@ -2061,7 +2062,7 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe_trades(
     let handle = unsafe { &*handle };
     let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
     match handle.inner.unsubscribe_trades(&contract) {
-        Ok(req_id) => req_id,
+        Ok(()) => 0,
         Err(e) => {
             set_error(&e.to_string());
             -1
@@ -2088,7 +2089,7 @@ pub unsafe extern "C" fn tdx_unified_subscribe_open_interest(
     let handle = unsafe { &*handle };
     let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
     match handle.inner.subscribe_open_interest(&contract) {
-        Ok(id) => id,
+        Ok(()) => 0,
         Err(e) => {
             set_error(&e.to_string());
             -1
@@ -2124,7 +2125,7 @@ pub unsafe extern "C" fn tdx_unified_subscribe_full_trades(
     };
     let handle = unsafe { &*handle };
     match handle.inner.subscribe_full_trades(st) {
-        Ok(id) => id,
+        Ok(()) => 0,
         Err(e) => {
             set_error(&e.to_string());
             -1
@@ -2160,7 +2161,7 @@ pub unsafe extern "C" fn tdx_unified_subscribe_full_open_interest(
     };
     let handle = unsafe { &*handle };
     match handle.inner.subscribe_full_open_interest(st) {
-        Ok(id) => id,
+        Ok(()) => 0,
         Err(e) => {
             set_error(&e.to_string());
             -1
@@ -2196,7 +2197,7 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe_full_trades(
     };
     let handle = unsafe { &*handle };
     match handle.inner.unsubscribe_full_trades(st) {
-        Ok(id) => id,
+        Ok(()) => 0,
         Err(e) => {
             set_error(&e.to_string());
             -1
@@ -2232,7 +2233,7 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe_full_open_interest(
     };
     let handle = unsafe { &*handle };
     match handle.inner.unsubscribe_full_open_interest(st) {
-        Ok(id) => id,
+        Ok(()) => 0,
         Err(e) => {
             set_error(&e.to_string());
             -1
@@ -2259,7 +2260,7 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe_open_interest(
     let handle = unsafe { &*handle };
     let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
     match handle.inner.unsubscribe_open_interest(&contract) {
-        Ok(id) => id,
+        Ok(()) => 0,
         Err(e) => {
             set_error(&e.to_string());
             -1
@@ -2471,7 +2472,7 @@ pub unsafe extern "C" fn tdx_fpss_connect(
 
 /// Subscribe to quote data for a stock symbol.
 ///
-/// Returns the request ID on success, or -1 on error (check `tdx_last_error()`).
+/// Returns 0 on success, or -1 on error (check `tdx_last_error()`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_fpss_subscribe_quotes(
     handle: *const TdxFpssHandle,
@@ -2500,7 +2501,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_quotes(
     };
     let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
     match client.subscribe_quotes(&contract) {
-        Ok(req_id) => req_id,
+        Ok(()) => 0,
         Err(e) => {
             set_error(&e.to_string());
             -1
@@ -2510,7 +2511,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_quotes(
 
 /// Subscribe to trade data for a stock symbol.
 ///
-/// Returns the request ID on success, or -1 on error (check `tdx_last_error()`).
+/// Returns 0 on success, or -1 on error (check `tdx_last_error()`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_fpss_subscribe_trades(
     handle: *const TdxFpssHandle,
@@ -2539,7 +2540,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_trades(
     };
     let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
     match client.subscribe_trades(&contract) {
-        Ok(req_id) => req_id,
+        Ok(()) => 0,
         Err(e) => {
             set_error(&e.to_string());
             -1
@@ -2549,7 +2550,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_trades(
 
 /// Unsubscribe from quote data for a stock symbol.
 ///
-/// Returns the request ID on success, or -1 on error (check `tdx_last_error()`).
+/// Returns 0 on success, or -1 on error (check `tdx_last_error()`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_fpss_unsubscribe_quotes(
     handle: *const TdxFpssHandle,
@@ -2578,7 +2579,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_quotes(
     };
     let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
     match client.unsubscribe_quotes(&contract) {
-        Ok(req_id) => req_id,
+        Ok(()) => 0,
         Err(e) => {
             set_error(&e.to_string());
             -1
@@ -2588,7 +2589,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_quotes(
 
 /// Unsubscribe from trade data for a stock symbol.
 ///
-/// Returns the request ID on success, or -1 on error (check `tdx_last_error()`).
+/// Returns 0 on success, or -1 on error (check `tdx_last_error()`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_fpss_unsubscribe_trades(
     handle: *const TdxFpssHandle,
@@ -2617,7 +2618,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_trades(
     };
     let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
     match client.unsubscribe_trades(&contract) {
-        Ok(req_id) => req_id,
+        Ok(()) => 0,
         Err(e) => {
             set_error(&e.to_string());
             -1
@@ -2627,7 +2628,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_trades(
 
 /// Subscribe to open interest data for a stock symbol.
 ///
-/// Returns the request ID on success, or -1 on error (check `tdx_last_error()`).
+/// Returns 0 on success, or -1 on error (check `tdx_last_error()`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_fpss_subscribe_open_interest(
     handle: *const TdxFpssHandle,
@@ -2656,7 +2657,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_open_interest(
     };
     let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
     match client.subscribe_open_interest(&contract) {
-        Ok(req_id) => req_id,
+        Ok(()) => 0,
         Err(e) => {
             set_error(&e.to_string());
             -1
@@ -2666,7 +2667,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_open_interest(
 
 /// Unsubscribe from open interest data for a stock symbol.
 ///
-/// Returns the request ID on success, or -1 on error (check `tdx_last_error()`).
+/// Returns 0 on success, or -1 on error (check `tdx_last_error()`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_fpss_unsubscribe_open_interest(
     handle: *const TdxFpssHandle,
@@ -2695,7 +2696,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_open_interest(
     };
     let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
     match client.unsubscribe_open_interest(&contract) {
-        Ok(req_id) => req_id,
+        Ok(()) => 0,
         Err(e) => {
             set_error(&e.to_string());
             -1
@@ -2707,7 +2708,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_open_interest(
 ///
 /// `sec_type` must be one of: "STOCK", "OPTION", "INDEX".
 ///
-/// Returns the request ID on success, or -1 on error (check `tdx_last_error()`).
+/// Returns 0 on success, or -1 on error (check `tdx_last_error()`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_fpss_subscribe_full_trades(
     handle: *const TdxFpssHandle,
@@ -2746,7 +2747,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_full_trades(
         return -1;
     };
     match client.subscribe_full_trades(st) {
-        Ok(req_id) => req_id,
+        Ok(()) => 0,
         Err(e) => {
             set_error(&e.to_string());
             -1
@@ -2758,7 +2759,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_full_trades(
 ///
 /// `sec_type` must be one of: "STOCK", "OPTION", "INDEX".
 ///
-/// Returns the request ID on success, or -1 on error (check `tdx_last_error()`).
+/// Returns 0 on success, or -1 on error (check `tdx_last_error()`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_fpss_subscribe_full_open_interest(
     handle: *const TdxFpssHandle,
@@ -2797,7 +2798,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_full_open_interest(
         return -1;
     };
     match client.subscribe_full_open_interest(st) {
-        Ok(req_id) => req_id,
+        Ok(()) => 0,
         Err(e) => {
             set_error(&e.to_string());
             -1
@@ -2809,7 +2810,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_full_open_interest(
 ///
 /// `sec_type` must be one of: "STOCK", "OPTION", "INDEX".
 ///
-/// Returns the request ID on success, or -1 on error (check `tdx_last_error()`).
+/// Returns 0 on success, or -1 on error (check `tdx_last_error()`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_fpss_unsubscribe_full_trades(
     handle: *const TdxFpssHandle,
@@ -2848,7 +2849,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_full_trades(
         return -1;
     };
     match client.unsubscribe_full_trades(st) {
-        Ok(req_id) => req_id,
+        Ok(()) => 0,
         Err(e) => {
             set_error(&e.to_string());
             -1
@@ -2860,7 +2861,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_full_trades(
 ///
 /// `sec_type` must be one of: "STOCK", "OPTION", "INDEX".
 ///
-/// Returns the request ID on success, or -1 on error (check `tdx_last_error()`).
+/// Returns 0 on success, or -1 on error (check `tdx_last_error()`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_fpss_unsubscribe_full_open_interest(
     handle: *const TdxFpssHandle,
@@ -2899,7 +2900,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_full_open_interest(
         return -1;
     };
     match client.unsubscribe_full_open_interest(st) {
-        Ok(req_id) => req_id,
+        Ok(()) => 0,
         Err(e) => {
             set_error(&e.to_string());
             -1
