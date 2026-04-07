@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- **`FpssControl::LoginSuccess { permissions }`** -- documented as opaque diagnostic metadata. The Java terminal does not parse this string; it is the server's "Bundle" label, used for logs and an `isVerified()` null sentinel only. For feature gating, use `auth::AuthUser` subscription tier integers (the same surface the Java terminal uses to compute concurrency limits). Resolves #194.
+
 ## [6.0.0] - 2026-04-06
 
 ### Breaking Changes

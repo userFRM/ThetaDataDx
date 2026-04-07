@@ -200,6 +200,22 @@ pub enum FpssData {
 #[non_exhaustive]
 pub enum FpssControl {
     /// Login succeeded (METADATA code 3).
+    ///
+    /// `permissions` is the server's "Bundle" string, copied verbatim from the
+    /// METADATA frame payload as UTF-8. **It is opaque diagnostic metadata, not
+    /// a structured permission set.** The Java terminal (`FPSSClient.perms`,
+    /// source of truth for the wire protocol) does not parse it: it logs the
+    /// value as `[FPSS] CONNECTED: [host], Bundle: <perms>` and uses non-null
+    /// as the `isVerified()` sentinel — that's it.
+    ///
+    /// **For feature gating, use [`crate::auth::AuthUser`] instead**.
+    /// The Nexus REST endpoint exposes per-asset subscription tiers
+    /// (`stock_subscription`, `options_subscription`, `indices_subscription`,
+    /// `interest_rate_subscription`, each `0=FREE / 1=VALUE / 2=STANDARD /
+    /// 3=PRO`), which is the canonical surface the Java terminal itself uses
+    /// to compute concurrency limits and gate features.
+    ///
+    /// Treat this field as a log/diagnostic string only. Do not parse it.
     LoginSuccess { permissions: String },
     /// Server sent a CONTRACT assignment (code 20).
     ContractAssigned { id: i32, contract: Contract },
@@ -983,6 +999,10 @@ enum LoginResult {
 /// Wait for the server's login response (blocking).
 ///
 /// Source: `FPSSClient.connect()` -- reads frames until METADATA or DISCONNECTED.
+///
+/// On `Metadata`, the payload is the server's "Bundle" string. We copy it
+/// verbatim into [`LoginResult::Success`]; see
+/// [`FpssControl::LoginSuccess`] for why this string is treated as opaque.
 fn wait_for_login(stream: &mut connection::FpssStream) -> Result<LoginResult, Error> {
     loop {
         let frame = read_frame(stream)?.ok_or_else(|| Error::Fpss {
@@ -1757,7 +1777,9 @@ fn decode_frame(
 
     match code {
         StreamMsgType::Metadata => {
-            // Can arrive again after reconnection
+            // Can arrive again after reconnection.
+            // The payload is the server's opaque "Bundle" string -- see
+            // FpssControl::LoginSuccess docs for why we don't parse it.
             let permissions = String::from_utf8_lossy(payload).to_string();
             tracing::debug!(permissions = %permissions, "received METADATA");
             authenticated.store(true, Ordering::Release);
