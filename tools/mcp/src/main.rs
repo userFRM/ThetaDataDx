@@ -22,10 +22,12 @@
 //! one entry to the registry and this server picks it up automatically.
 
 use std::io::Write as _;
+use std::sync::Arc;
 
 use serde::Serialize;
 use sonic_rs::{json, JsonContainerTrait, JsonValueTrait, Value};
 use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::sync::RwLock;
 
 use thetadatadx::registry::{self, ENDPOINTS};
 use thetadatadx::{Credentials, DirectConfig, ThetaDataDx};
@@ -726,6 +728,7 @@ async fn execute_tool(
                 "connected": client.is_some(),
             }));
         }
+        // (client is already dereferenced above via the RwLock read guard)
 
         "all_greeks" => {
             let s = param!(arg_f64(args, "spot"));
@@ -1575,9 +1578,11 @@ async fn execute_tool(
 
 async fn handle_request(
     req: &JsonRpcRequest,
-    client: &Option<ThetaDataDx>,
+    client: &Arc<RwLock<Option<ThetaDataDx>>>,
     start_time: std::time::Instant,
 ) -> JsonRpcResponse {
+    let client = client.read().await;
+    let client = &*client;
     let id = req.id.clone().unwrap_or(Value::new_null());
 
     match req.method.as_str() {
@@ -1754,28 +1759,31 @@ async fn main() {
         None
     };
 
-    // ── Connect to ThetaData (if credentials available) ─────────────
-    let client: Option<ThetaDataDx> = if let Some(creds) = creds {
-        match ThetaDataDx::connect(&creds, DirectConfig::production()).await {
-            Ok(c) => {
-                tracing::info!("connected to ThetaData MDDS");
-                Some(c)
+    // ── Connect to ThetaData in the background ──────────────────────
+    // We must NOT block here: MCP clients (e.g. Claude Code) send `initialize`
+    // immediately after spawning and time out waiting for a response if we block
+    // on the ThetaData gRPC handshake (~800 ms).  Wrap the client in an
+    // Arc<RwLock> so the background task can populate it while the stdin loop
+    // is already running.
+    let client: Arc<RwLock<Option<ThetaDataDx>>> = Arc::new(RwLock::new(None));
+
+    if let Some(creds) = creds {
+        let client_bg = Arc::clone(&client);
+        tokio::spawn(async move {
+            match ThetaDataDx::connect(&creds, DirectConfig::production()).await {
+                Ok(c) => {
+                    tracing::info!("connected to ThetaData MDDS");
+                    *client_bg.write().await = Some(c);
+                }
+                Err(e) => {
+                    tracing::error!(error = %e, "failed to connect to ThetaData, running in offline mode");
+                }
             }
-            Err(e) => {
-                tracing::error!(error = %e, "failed to connect to ThetaData, starting in offline mode");
-                None
-            }
-        }
-    } else {
-        None
-    };
+        });
+    }
 
     // ── Main JSON-RPC loop over stdin ───────────────────────────────
-    tracing::info!(
-        version = VERSION,
-        connected = client.is_some(),
-        "thetadatadx-mcp ready, reading JSON-RPC from stdin"
-    );
+    tracing::info!(version = VERSION, "thetadatadx-mcp ready, reading JSON-RPC from stdin");
 
     let stdin = tokio::io::stdin();
     let reader = BufReader::new(stdin);
