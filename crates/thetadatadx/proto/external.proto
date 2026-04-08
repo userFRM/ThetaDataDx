@@ -5,7 +5,9 @@ import "google/protobuf/struct.proto";
 option java_multiple_files = true;
 option java_package = "net.thetadata.grpc";
 
-package ExternalEndpoints;
+// Production MDDS routes on BetaEndpoints.BetaThetaTerminal/<method>.
+// Do not rename without confirming the server has been updated.
+package BetaEndpoints;
 
 message AuthToken {
   string session_uuid = 1;

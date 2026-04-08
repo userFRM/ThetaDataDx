@@ -1,6 +1,6 @@
 # ThetaDataDx -- Live Endpoint Test Results
 
-Date: 2026-04-06 15:14 UTC
+Date: 2026-04-08 20:41 UTC
 Version: tdx 6.0.0
 
 ## 1. stock list_symbols
@@ -22,6 +22,7 @@ $ tdx stock list_symbols
 │ AABA         │
 │ AAC          │
 ```
+**Latency: 1156ms**
 **PASS** (13 rows)
 
 ## 2. stock list_dates
@@ -43,18 +44,20 @@ $ tdx stock list_dates TRADE AAPL
 │ 2012-06-15 │
 │ 2012-06-18 │
 ```
+**Latency: 625ms**
 **PASS** (13 rows)
 
 ## 3. stock snapshot_ohlc
 ```
 $ tdx stock snapshot_ohlc AAPL
-┌────────────┬──────────────┬──────────┬────────┬────────┬─────────┬─────────┬────────┐
-│ date       ┆ time         ┆ open     ┆ high   ┆ low    ┆ close   ┆ volume  ┆ count  │
-╞════════════╪══════════════╪══════════╪════════╪════════╪═════════╪═════════╪════════╡
-│ 2026-04-06 ┆ 11:14:13.349 ┆ 256.9625 ┆ 262.16 ┆ 256.48 ┆ 259.425 ┆ 7463406 ┆ 243053 │
-└────────────┴──────────────┴──────────┴────────┴────────┴─────────┴─────────┴────────┘
+┌────────────┬──────────────┬────────┬──────────┬────────┬────────┬──────────┬────────┐
+│ date       ┆ time         ┆ open   ┆ high     ┆ low    ┆ close  ┆ volume   ┆ count  │
+╞════════════╪══════════════╪════════╪══════════╪════════╪════════╪══════════╪════════╡
+│ 2026-04-08 ┆ 16:41:56.443 ┆ 258.51 ┆ 259.7499 ┆ 256.53 ┆ 258.90 ┆ 30224295 ┆ 500456 │
+└────────────┴──────────────┴────────┴──────────┴────────┴────────┴──────────┴────────┘
 1 rows
 ```
+**Latency: 612ms**
 **PASS** (2 rows)
 
 ## 4. stock snapshot_trade
@@ -63,10 +66,11 @@ $ tdx stock snapshot_trade AAPL
 ┌────────────┬──────────────┬──────────┬──────┬──────────┬───────────┬──────────┐
 │ date       ┆ time         ┆ price    ┆ size ┆ exchange ┆ condition ┆ sequence │
 ╞════════════╪══════════════╪══════════╪══════╪══════════╪═══════════╪══════════╡
-│ 2026-04-06 ┆ 11:14:13.847 ┆ 259.4643 ┆ 1    ┆ 0        ┆ 115       ┆ 23189868 │
+│ 2026-04-08 ┆ 16:41:56.443 ┆ 258.8945 ┆ 1    ┆ 0        ┆ 1         ┆ 85332617 │
 └────────────┴──────────────┴──────────┴──────┴──────────┴───────────┴──────────┘
 1 rows
 ```
+**Latency: 605ms**
 **PASS** (2 rows)
 
 ## 5. stock snapshot_quote
@@ -75,10 +79,11 @@ $ tdx stock snapshot_quote AAPL
 ┌────────────┬──────────────┬──────────┬──────────────┬────────┬───────────────┬──────────┬──────────────┬────────┬───────────────┐
 │ date       ┆ ms_of_day    ┆ bid_size ┆ bid_exchange ┆ bid    ┆ bid_condition ┆ ask_size ┆ ask_exchange ┆ ask    ┆ ask_condition │
 ╞════════════╪══════════════╪══════════╪══════════════╪════════╪═══════════════╪══════════╪══════════════╪════════╪═══════════════╡
-│ 2026-04-06 ┆ 11:14:14.626 ┆ 185      ┆ 29           ┆ 259.42 ┆ 0             ┆ 24       ┆ 29           ┆ 259.45 ┆ 0             │
+│ 2026-04-08 ┆ 16:41:41.498 ┆ 20       ┆ 29           ┆ 258.79 ┆ 0             ┆ 317      ┆ 29           ┆ 258.90 ┆ 0             │
 └────────────┴──────────────┴──────────┴──────────────┴────────┴───────────────┴──────────┴──────────────┴────────┴───────────────┘
 1 rows
 ```
+**Latency: 623ms**
 **PASS** (2 rows)
 
 ## 6. stock snapshot_market_value
@@ -87,10 +92,11 @@ $ tdx stock snapshot_market_value AAPL
 ┌────────────┬──────────────┬────────────┬────────────────────┬──────────────────┬────────────┬────────────┐
 │ date       ┆ ms_of_day    ┆ market_cap ┆ shares_outstanding ┆ enterprise_value ┆ book_value ┆ free_float │
 ╞════════════╪══════════════╪════════════╪════════════════════╪══════════════════╪════════════╪════════════╡
-│ 2026-04-06 ┆ 11:14:15.062 ┆ 0          ┆ 0                  ┆ 0                ┆ 0          ┆ 0          │
+│ 2026-04-08 ┆ 16:41:41.498 ┆ 0          ┆ 0                  ┆ 0                ┆ 0          ┆ 0          │
 └────────────┴──────────────┴────────────┴────────────────────┴──────────────────┴────────────┴────────────┘
 1 rows
 ```
+**Latency: 619ms**
 **PASS** (2 rows)
 
 ## 7. stock history_eod
@@ -104,6 +110,7 @@ $ tdx stock history_eod AAPL 20260401 20260404
 └────────────┴──────────────┴──────────────┴────────┴────────┴────────┴────────┴──────────┴────────┴──────────┴──────────────┴────────┴───────────────┴──────────┴──────────────┴────────┴───────────────┘
 2 rows
 ```
+**Latency: 865ms**
 **PASS** (3 rows)
 
 ## 8. stock history_ohlc
@@ -125,6 +132,7 @@ $ tdx stock history_ohlc AAPL 20260402 60000
 │ 2026-04-02 ┆ 09:40:00.000 ┆ 250.88   ┆ 251.085    ┆ 250.67     ┆ 250.82     ┆ 167595 ┆ 2707  │
 │ 2026-04-02 ┆ 09:41:00.000 ┆ 250.81   ┆ 251.5795   ┆ 250.79     ┆ 251.5795   ┆ 171724 ┆ 2986  │
 ```
+**Latency: 1086ms**
 **PASS** (13 rows)
 
 ## 9. stock history_ohlc_range
@@ -146,6 +154,7 @@ $ tdx stock history_ohlc_range AAPL 20260401 20260402 60000
 │ 2026-04-01 ┆ 09:40:00.000 ┆ 255.05   ┆ 255.44     ┆ 255.03     ┆ 255.27     ┆ 158100  ┆ 2847  │
 │ 2026-04-01 ┆ 09:41:00.000 ┆ 255.27   ┆ 255.59     ┆ 255.22     ┆ 255.40     ┆ 129005  ┆ 2189  │
 ```
+**Latency: 1613ms**
 **PASS** (13 rows)
 
 ## 10. stock history_trade
@@ -167,6 +176,7 @@ $ tdx stock history_trade AAPL 20260402
 │ 2026-04-02 ┆ 09:30:00.107 ┆ 254.13     ┆ 1      ┆ 7        ┆ 115       ┆ 3254229  │
 │ 2026-04-02 ┆ 09:30:00.107 ┆ 254.20     ┆ 225    ┆ 7        ┆ 95        ┆ 3254238  │
 ```
+**Latency: 11060ms**
 **PASS** (13 rows)
 
 ## 11. stock history_quote
@@ -188,6 +198,7 @@ $ tdx stock history_quote AAPL 20260402 60000
 │ 2026-04-02 ┆ 09:40:00.000 ┆ 200      ┆ 1            ┆ 250.85 ┆ 0             ┆ 100      ┆ 7            ┆ 250.88 ┆ 0             │
 │ 2026-04-02 ┆ 09:41:00.000 ┆ 100      ┆ 68           ┆ 250.80 ┆ 0             ┆ 100      ┆ 65           ┆ 250.82 ┆ 0             │
 ```
+**Latency: 657ms**
 **PASS** (13 rows)
 
 ## 12. stock history_trade_quote
@@ -195,6 +206,7 @@ $ tdx stock history_quote AAPL 20260402 60000
 $ tdx stock history_trade_quote AAPL 20260402
 0 rows
 ```
+**Latency: 12717ms**
 **PASS** (0 rows)
 
 ## 13. stock at_time_trade
@@ -208,6 +220,7 @@ $ tdx stock at_time_trade AAPL 20260401 20260402 34200000
 └────────────┴──────────────┴────────┴──────┴──────────┴───────────┴──────────┘
 2 rows
 ```
+**Latency: 1149ms**
 **PASS** (3 rows)
 
 ## 14. stock at_time_quote
@@ -221,6 +234,7 @@ $ tdx stock at_time_quote AAPL 20260401 20260402 34200000
 └────────────┴──────────────┴──────────┴──────────────┴────────┴───────────────┴──────────┴──────────────┴────────┴───────────────┘
 2 rows
 ```
+**Latency: 662ms**
 **PASS** (3 rows)
 
 ## 15. option list_symbols
@@ -242,6 +256,7 @@ $ tdx option list_symbols
 │ 9AE    │
 │ 9BC    │
 ```
+**Latency: 805ms**
 **PASS** (13 rows)
 
 ## 16. option list_dates
@@ -263,6 +278,7 @@ $ tdx option list_dates TRADE SPY 20260417 550 C
 │ 2026-02-02 │
 │ 2026-02-05 │
 ```
+**Latency: 677ms**
 **PASS** (13 rows)
 
 ## 17. option list_expirations
@@ -284,6 +300,7 @@ $ tdx option list_expirations SPY
 │ 2012-08-10 │
 │ 2012-08-18 │
 ```
+**Latency: 618ms**
 **PASS** (13 rows)
 
 ## 18. option list_strikes
@@ -305,6 +322,7 @@ $ tdx option list_strikes SPY 20260417
 │ 703    │
 │ 895    │
 ```
+**Latency: 614ms**
 **PASS** (13 rows)
 
 ## 19. option list_contracts
@@ -326,30 +344,33 @@ $ tdx option list_contracts TRADE SPY 20260402
 │ SPY  ┆ 20260501   ┆ 670.00  ┆ 80    │
 │ SPY  ┆ 20260630   ┆ 538.00  ┆ 80    │
 ```
+**Latency: 821ms**
 **PASS** (13 rows)
 
 ## 20. option snapshot_ohlc
 ```
 $ tdx option snapshot_ohlc SPY 20260417 550 C
-┌────────────┬──────────────┬───────┬───────┬───────┬───────┬────────┬───────┐
-│ date       ┆ time         ┆ open  ┆ high  ┆ low   ┆ close ┆ volume ┆ count │
-╞════════════╪══════════════╪═══════╪═══════╪═══════╪═══════╪════════╪═══════╡
-│ 2026-04-02 ┆ 09:30:03.497 ┆ 98.59 ┆ 98.59 ┆ 98.59 ┆ 98.59 ┆ 1      ┆ 1     │
-└────────────┴──────────────┴───────┴───────┴───────┴───────┴────────┴───────┘
+┌────────────┬──────────────┬────────┬────────┬────────┬────────┬────────┬───────┐
+│ date       ┆ time         ┆ open   ┆ high   ┆ low    ┆ close  ┆ volume ┆ count │
+╞════════════╪══════════════╪════════╪════════╪════════╪════════╪════════╪═══════╡
+│ 2026-04-08 ┆ 09:53:18.259 ┆ 125.30 ┆ 125.30 ┆ 125.30 ┆ 125.30 ┆ 1      ┆ 1     │
+└────────────┴──────────────┴────────┴────────┴────────┴────────┴────────┴───────┘
 1 rows
 ```
+**Latency: 608ms**
 **PASS** (2 rows)
 
 ## 21. option snapshot_trade
 ```
 $ tdx option snapshot_trade SPY 20260417 550 C
-┌────────────┬──────────────┬───────┬──────┬──────────┬───────────┬─────────────┐
-│ date       ┆ time         ┆ price ┆ size ┆ exchange ┆ condition ┆ sequence    │
-╞════════════╪══════════════╪═══════╪══════╪══════════╪═══════════╪═════════════╡
-│ 2026-04-02 ┆ 09:30:03.497 ┆ 98.59 ┆ 1    ┆ 0        ┆ 130       ┆ -1982678572 │
-└────────────┴──────────────┴───────┴──────┴──────────┴───────────┴─────────────┘
+┌────────────┬──────────────┬────────┬──────┬──────────┬───────────┬─────────────┐
+│ date       ┆ time         ┆ price  ┆ size ┆ exchange ┆ condition ┆ sequence    │
+╞════════════╪══════════════╪════════╪══════╪══════════╪═══════════╪═════════════╡
+│ 2026-04-08 ┆ 09:53:18.259 ┆ 125.30 ┆ 1    ┆ 0        ┆ 131       ┆ -1589641033 │
+└────────────┴──────────────┴────────┴──────┴──────────┴───────────┴─────────────┘
 1 rows
 ```
+**Latency: 606ms**
 **PASS** (2 rows)
 
 ## 22. option snapshot_quote
@@ -358,10 +379,11 @@ $ tdx option snapshot_quote SPY 20260417 550 C
 ┌────────────┬──────────────┬──────────┬──────────────┬────────┬───────────────┬──────────┬──────────────┬────────┬───────────────┐
 │ date       ┆ ms_of_day    ┆ bid_size ┆ bid_exchange ┆ bid    ┆ bid_condition ┆ ask_size ┆ ask_exchange ┆ ask    ┆ ask_condition │
 ╞════════════╪══════════════╪══════════╪══════════════╪════════╪═══════════════╪══════════╪══════════════╪════════╪═══════════════╡
-│ 2026-04-06 ┆ 11:14:47.476 ┆ 14       ┆ 5            ┆ 106.80 ┆ 50            ┆ 10       ┆ 46           ┆ 110.15 ┆ 50            │
+│ 2026-04-08 ┆ 16:14:59.742 ┆ 6        ┆ 76           ┆ 124.75 ┆ 50            ┆ 41       ┆ 42           ┆ 127.57 ┆ 50            │
 └────────────┴──────────────┴──────────┴──────────────┴────────┴───────────────┴──────────┴──────────────┴────────┴───────────────┘
 1 rows
 ```
+**Latency: 613ms**
 **PASS** (2 rows)
 
 ## 23. option snapshot_open_interest
@@ -370,10 +392,11 @@ $ tdx option snapshot_open_interest SPY 20260417 550 C
 ┌────────────┬──────────────┬───────────────┐
 │ date       ┆ ms_of_day    ┆ open_interest │
 ╞════════════╪══════════════╪═══════════════╡
-│ 2026-04-06 ┆ 06:30:01.533 ┆ 32            │
+│ 2026-04-08 ┆ 06:30:01.885 ┆ 32            │
 └────────────┴──────────────┴───────────────┘
 1 rows
 ```
+**Latency: 624ms**
 **PASS** (2 rows)
 
 ## 24. option snapshot_market_value
@@ -382,10 +405,11 @@ $ tdx option snapshot_market_value SPY 20260417 550 C
 ┌────────────┬──────────────┬────────────┬────────────────────┬──────────────────┬────────────┬────────────┐
 │ date       ┆ ms_of_day    ┆ market_cap ┆ shares_outstanding ┆ enterprise_value ┆ book_value ┆ free_float │
 ╞════════════╪══════════════╪════════════╪════════════════════╪══════════════════╪════════════╪════════════╡
-│ 2026-04-06 ┆ 11:14:47.476 ┆ 0          ┆ 0                  ┆ 0                ┆ 0          ┆ 0          │
+│ 2026-04-08 ┆ 16:14:59.742 ┆ 0          ┆ 0                  ┆ 0                ┆ 0          ┆ 0          │
 └────────────┴──────────────┴────────────┴────────────────────┴──────────────────┴────────────┴────────────┘
 1 rows
 ```
+**Latency: 628ms**
 **PASS** (2 rows)
 
 ## 25. option snapshot_greeks_iv
@@ -394,17 +418,19 @@ $ tdx option snapshot_greeks_implied_volatility SPY 20260417 550 C
 ┌────────────┬──────────────┬────────────────────┬──────────┐
 │ date       ┆ ms_of_day    ┆ implied_volatility ┆ iv_error │
 ╞════════════╪══════════════╪════════════════════╪══════════╡
-│ 2026-04-06 ┆ 11:14:47.476 ┆ 0.524600           ┆ 0.000000 │
+│ 2026-04-08 ┆ 16:14:59.742 ┆ 0.634700           ┆ 0.000000 │
 └────────────┴──────────────┴────────────────────┴──────────┘
 1 rows
 ```
+**Latency: 607ms**
 **PASS** (2 rows)
 
 ## 26. option snapshot_greeks_all
 ```
 $ tdx option snapshot_greeks_all SPY 20260417 550 C
-error: gRPC status: code: 'The caller does not have permission to execute the specified operation', message: "Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )"
+error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
+**Latency: 615ms**
 **SKIP** -- requires professional subscription
 
 ## 27. option snapshot_greeks_first_order
@@ -413,24 +439,27 @@ $ tdx option snapshot_greeks_first_order SPY 20260417 550 C
 ┌────────────┬──────────────┬──────────┬──────────┬──────────┬───────────┬──────────┬───────────┐
 │ date       ┆ ms_of_day    ┆ iv       ┆ delta    ┆ gamma    ┆ theta     ┆ vega     ┆ rho       │
 ╞════════════╪══════════════╪══════════╪══════════╪══════════╪═══════════╪══════════╪═══════════╡
-│ 2026-04-06 ┆ 11:14:53.840 ┆ 0.501100 ┆ 0.982400 ┆ 0.000000 ┆ -0.166500 ┆ 4.945700 ┆ 16.197900 │
+│ 2026-04-08 ┆ 16:14:59.742 ┆ 0.634700 ┆ 0.982800 ┆ 0.000000 ┆ -0.211900 ┆ 4.499600 ┆ 13.253700 │
 └────────────┴──────────────┴──────────┴──────────┴──────────┴───────────┴──────────┴───────────┘
 1 rows
 ```
+**Latency: 612ms**
 **PASS** (2 rows)
 
 ## 28. option snapshot_greeks_second_order
 ```
 $ tdx option snapshot_greeks_second_order SPY 20260417 550 C
-error: gRPC status: code: 'The caller does not have permission to execute the specified operation', message: "Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )"
+error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
+**Latency: 621ms**
 **SKIP** -- requires professional subscription
 
 ## 29. option snapshot_greeks_third_order
 ```
 $ tdx option snapshot_greeks_third_order SPY 20260417 550 C
-error: gRPC status: code: 'The caller does not have permission to execute the specified operation', message: "Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )"
+error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
+**Latency: 621ms**
 **SKIP** -- requires professional subscription
 
 ## 30. option history_eod
@@ -444,6 +473,7 @@ $ tdx option history_eod SPY 20260417 550 C 20260401 20260402
 └────────────┴──────────────┴──────────────┴────────┴────────┴────────┴────────┴────────┴───────┴──────────┴──────────────┴────────┴───────────────┴──────────┴──────────────┴────────┴───────────────┘
 2 rows
 ```
+**Latency: 653ms**
 **PASS** (3 rows)
 
 ## 31. option history_ohlc
@@ -465,6 +495,7 @@ $ tdx option history_ohlc SPY 20260417 550 C 20260402 60000
 │ 2026-04-02 ┆ 09:40:00.000 ┆ 0.00  ┆ 0.00  ┆ 0.00  ┆ 0.00  ┆ 0      ┆ 0     │
 │ 2026-04-02 ┆ 09:41:00.000 ┆ 0.00  ┆ 0.00  ┆ 0.00  ┆ 0.00  ┆ 0      ┆ 0     │
 ```
+**Latency: 881ms**
 **PASS** (13 rows)
 
 ## 32. option history_trade
@@ -477,6 +508,7 @@ $ tdx option history_trade SPY 20260417 550 C 20260402
 └────────────┴──────────────┴───────┴──────┴──────────┴───────────┴─────────────┘
 1 rows
 ```
+**Latency: 610ms**
 **PASS** (2 rows)
 
 ## 33. option history_quote
@@ -498,6 +530,7 @@ $ tdx option history_quote SPY 20260417 550 C 20260402 60000
 │ 2026-04-02 ┆ 09:40:00.000 ┆ 2        ┆ 76           ┆ 95.79  ┆ 50            ┆ 11       ┆ 4            ┆ 98.77  ┆ 50            │
 │ 2026-04-02 ┆ 09:41:00.000 ┆ 4        ┆ 5            ┆ 95.33  ┆ 50            ┆ 1        ┆ 5            ┆ 98.58  ┆ 50            │
 ```
+**Latency: 637ms**
 **PASS** (13 rows)
 
 ## 34. option history_trade_quote
@@ -505,6 +538,7 @@ $ tdx option history_quote SPY 20260417 550 C 20260402 60000
 $ tdx option history_trade_quote SPY 20260417 550 C 20260402
 0 rows
 ```
+**Latency: 679ms**
 **PASS** (0 rows)
 
 ## 35. option history_open_interest
@@ -517,6 +551,7 @@ $ tdx option history_open_interest SPY 20260417 550 C 20260402
 └────────────┴──────────────┴───────────────┘
 1 rows
 ```
+**Latency: 658ms**
 **PASS** (2 rows)
 
 ## 36. option history_greeks_eod
@@ -530,13 +565,15 @@ $ tdx option history_greeks_eod SPY 20260417 550 C 20260401 20260402
 └────────────┴──────────────┴──────────┴──────────┴──────────┴───────────┴───────────┴───────────┘
 2 rows
 ```
+**Latency: 726ms**
 **PASS** (3 rows)
 
 ## 37. option history_greeks_all
 ```
 $ tdx option history_greeks_all SPY 20260417 550 C 20260402 60000
-error: gRPC status: code: 'The caller does not have permission to execute the specified operation', message: "Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )"
+error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
+**Latency: 661ms**
 **SKIP** -- requires professional subscription
 
 ## 38. option history_greeks_first_order
@@ -558,20 +595,23 @@ $ tdx option history_greeks_first_order SPY 20260417 550 C 20260402 60000
 │ 2026-04-02 ┆ 09:40:00.000 ┆ 0.474300 ┆ 0.957800 ┆ 0.000000 ┆ -0.238200 ┆ 11.763100 ┆ 21.405500 │
 │ 2026-04-02 ┆ 09:41:00.000 ┆ 0.438400 ┆ 0.968600 ┆ 0.000000 ┆ -0.188000 ┆ 9.241000  ┆ 21.706500 │
 ```
+**Latency: 708ms**
 **PASS** (13 rows)
 
 ## 39. option history_greeks_second_order
 ```
 $ tdx option history_greeks_second_order SPY 20260417 550 C 20260402 60000
-error: gRPC status: code: 'The caller does not have permission to execute the specified operation', message: "Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )"
+error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
+**Latency: 617ms**
 **SKIP** -- requires professional subscription
 
 ## 40. option history_greeks_third_order
 ```
 $ tdx option history_greeks_third_order SPY 20260417 550 C 20260402 60000
-error: gRPC status: code: 'The caller does not have permission to execute the specified operation', message: "Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )"
+error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
+**Latency: 613ms**
 **SKIP** -- requires professional subscription
 
 ## 41. option history_greeks_iv
@@ -593,48 +633,55 @@ $ tdx option history_greeks_implied_volatility SPY 20260417 550 C 20260402 60000
 │ 2026-04-02 ┆ 09:40:00.000 ┆ 0.474300           ┆ 0.001300   │
 │ 2026-04-02 ┆ 09:41:00.000 ┆ 0.438400           ┆ 0.003100   │
 ```
+**Latency: 662ms**
 **PASS** (13 rows)
 
 ## 42. option history_trade_greeks_all
 ```
 $ tdx option history_trade_greeks_all SPY 20260417 550 C 20260402
-error: gRPC status: code: 'The caller does not have permission to execute the specified operation', message: "Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )"
+error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
+**Latency: 615ms**
 **SKIP** -- requires professional subscription
 
 ## 43. option history_trade_greeks_first
 ```
 $ tdx option history_trade_greeks_first_order SPY 20260417 550 C 20260402
-error: gRPC status: code: 'The caller does not have permission to execute the specified operation', message: "Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )"
+error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
+**Latency: 603ms**
 **SKIP** -- requires professional subscription
 
 ## 44. option history_trade_greeks_second
 ```
 $ tdx option history_trade_greeks_second_order SPY 20260417 550 C 20260402
-error: gRPC status: code: 'The caller does not have permission to execute the specified operation', message: "Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )"
+error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
+**Latency: 618ms**
 **SKIP** -- requires professional subscription
 
 ## 45. option history_trade_greeks_third
 ```
 $ tdx option history_trade_greeks_third_order SPY 20260417 550 C 20260402
-error: gRPC status: code: 'The caller does not have permission to execute the specified operation', message: "Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )"
+error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
+**Latency: 613ms**
 **SKIP** -- requires professional subscription
 
 ## 46. option history_trade_greeks_iv
 ```
 $ tdx option history_trade_greeks_implied_volatility SPY 20260417 550 C 20260402
-error: gRPC status: code: 'The caller does not have permission to execute the specified operation', message: "Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )"
+error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
+**Latency: 624ms**
 **SKIP** -- requires professional subscription
 
 ## 47. option at_time_trade
 ```
 $ tdx option at_time_trade SPY 20260417 550 C 20260401 20260402 34200000
-error: gRPC status: code: 'Some requested entity was not found', message: "No data found for your request"
+error: gRPC status: NotFound -- No data found for your request
 ```
+**Latency: 609ms**
 **OK** -- no data for query (valid response)
 
 ## 48. option at_time_quote
@@ -648,6 +695,7 @@ $ tdx option at_time_quote SPY 20260417 550 C 20260401 20260402 34200000
 └────────────┴──────────────┴──────────┴──────────────┴──────┴───────────────┴──────────┴──────────────┴──────┴───────────────┘
 2 rows
 ```
+**Latency: 625ms**
 **PASS** (3 rows)
 
 ## 49. index list_symbols
@@ -669,6 +717,7 @@ $ tdx index list_symbols
 │ 500KRWT                       │
 │ 500VNTR                       │
 ```
+**Latency: 807ms**
 **PASS** (13 rows)
 
 ## 50. index list_dates
@@ -690,27 +739,31 @@ $ tdx index list_dates SPX
 │ 2017-01-18 │
 │ 2017-01-19 │
 ```
+**Latency: 652ms**
 **PASS** (13 rows)
 
 ## 51. index snapshot_ohlc
 ```
 $ tdx index snapshot_ohlc SPX
-error: gRPC status: code: 'The caller does not have permission to execute the specified operation', message: "Requesting an index endpoint requiring a standard subscription, but you only have a FREE subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )"
+error: gRPC status: PermissionDenied -- Requesting an index endpoint requiring a standard subscription, but you only have a FREE subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
+**Latency: 645ms**
 **SKIP** -- requires standard subscription
 
 ## 52. index snapshot_price
 ```
 $ tdx index snapshot_price SPX
-error: gRPC status: code: 'The caller does not have permission to execute the specified operation', message: "Requesting an index endpoint requiring a standard subscription, but you only have a FREE subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )"
+error: gRPC status: PermissionDenied -- Requesting an index endpoint requiring a standard subscription, but you only have a FREE subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
+**Latency: 626ms**
 **SKIP** -- requires standard subscription
 
 ## 53. index snapshot_market_value
 ```
 $ tdx index snapshot_market_value SPX
-error: gRPC status: code: 'The caller does not have permission to execute the specified operation', message: "Requesting an index endpoint requiring a standard subscription, but you only have a FREE subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )"
+error: gRPC status: PermissionDenied -- Requesting an index endpoint requiring a standard subscription, but you only have a FREE subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
+**Latency: 636ms**
 **SKIP** -- requires standard subscription
 
 ## 54. index history_eod
@@ -724,27 +777,31 @@ $ tdx index history_eod SPX 20260401 20260402
 └────────────┴──────────────┴──────────────┴─────────┴─────────┴─────────┴─────────┴────────┴───────┴──────────┴──────────────┴──────┴───────────────┴──────────┴──────────────┴──────┴───────────────┘
 2 rows
 ```
+**Latency: 664ms**
 **PASS** (3 rows)
 
 ## 55. index history_ohlc
 ```
 $ tdx index history_ohlc SPX 20260401 20260402 60000
-error: gRPC status: code: 'The caller does not have permission to execute the specified operation', message: "Requesting an index endpoint requiring a standard subscription, but you only have a FREE subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )"
+error: gRPC status: PermissionDenied -- Requesting an index endpoint requiring a standard subscription, but you only have a FREE subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
+**Latency: 635ms**
 **SKIP** -- requires standard subscription
 
 ## 56. index history_price
 ```
 $ tdx index history_price 20260402 SPX 60000
-error: gRPC status: code: 'The caller does not have permission to execute the specified operation', message: "Requesting an index endpoint requiring a value subscription, but you only have a FREE subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )"
+error: gRPC status: PermissionDenied -- Requesting an index endpoint requiring a value subscription, but you only have a FREE subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
+**Latency: 619ms**
 **SKIP** -- requires value subscription
 
 ## 57. index at_time_price
 ```
 $ tdx index at_time_price SPX 20260401 20260402 34200000
-error: gRPC status: code: 'The caller does not have permission to execute the specified operation', message: "Requesting an index endpoint requiring a value subscription, but you only have a FREE subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )"
+error: gRPC status: PermissionDenied -- Requesting an index endpoint requiring a value subscription, but you only have a FREE subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
+**Latency: 620ms**
 **SKIP** -- requires value subscription
 
 ## 58. calendar open_today
@@ -757,6 +814,7 @@ $ tdx calendar open_today
 └──────┴─────────┴──────────────┴──────────────┴────────┘
 1 rows
 ```
+**Latency: 648ms**
 **PASS** (2 rows)
 
 ## 59. calendar on_date
@@ -769,6 +827,7 @@ $ tdx calendar on_date 20260406
 └──────┴─────────┴──────────────┴──────────────┴────────┘
 1 rows
 ```
+**Latency: 629ms**
 **PASS** (2 rows)
 
 ## 60. calendar year
@@ -790,13 +849,15 @@ $ tdx calendar year 2026
 │ 2026-12-24 ┆ 1       ┆ 09:30:00.000 ┆ 13:00:00.000 ┆ 1      │
 │ 2026-12-25 ┆ 0       ┆ 00:00:00.000 ┆ 00:00:00.000 ┆ 2      │
 ```
+**Latency: 629ms**
 **PASS** (13 rows)
 
 ## 61. rate history_eod
 ```
 $ tdx rate history_eod SOFR 20260401 20260402
-error: gRPC status: code: 'The caller does not have permission to execute the specified operation', message: "Requesting an interest rate endpoint requiring a value subscription, but you only have a FREE subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )"
+error: gRPC status: PermissionDenied -- Requesting an interest rate endpoint requiring a value subscription, but you only have a FREE subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
+**Latency: 630ms**
 **SKIP** -- requires value subscription
 
 ---

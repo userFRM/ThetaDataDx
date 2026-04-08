@@ -425,8 +425,8 @@ fn generate_endpoint_registry() -> Result<(), Box<dyn std::error::Error>> {
         .collect();
 
     // ── Parse query messages ────────────────────────────────────────────────
-    // Now that everything lives in one package (ExternalEndpoints), ContractSpec
-    // is referenced unqualified instead of `endpoints.ContractSpec`.
+    // Everything lives in one package, so ContractSpec is referenced
+    // unqualified instead of `endpoints.ContractSpec`.
     let msg_re = regex::Regex::new(r"message\s+(\w+RequestQuery)\s*\{([^}]*)}")?;
     let field_re = regex::Regex::new(
         r"(optional\s+|repeated\s+)?(string|int32|double|bool|ContractSpec)\s+(\w+)\s*=\s*\d+",
@@ -540,6 +540,27 @@ fn generate_endpoint_registry() -> Result<(), Box<dyn std::error::Error>> {
     );
     code.push_str("                param_type: ParamType::Interval,\n");
     code.push_str("                required: true,\n");
+    code.push_str("            },\n");
+    // Optional chainable params on the StockHistoryOhlcRangeBuilder — kept in
+    // sync with the builder in `src/direct.rs` so registry consumers (CLI,
+    // MCP schema) see the full surface.
+    code.push_str("            ParamMeta {\n");
+    code.push_str("                name: \"start_time\",\n");
+    code.push_str("                description: \"Start time filter (hh:mm:ss.SSS or ms)\",\n");
+    code.push_str("                param_type: ParamType::Str,\n");
+    code.push_str("                required: false,\n");
+    code.push_str("            },\n");
+    code.push_str("            ParamMeta {\n");
+    code.push_str("                name: \"end_time\",\n");
+    code.push_str("                description: \"End time filter (hh:mm:ss.SSS or ms)\",\n");
+    code.push_str("                param_type: ParamType::Str,\n");
+    code.push_str("                required: false,\n");
+    code.push_str("            },\n");
+    code.push_str("            ParamMeta {\n");
+    code.push_str("                name: \"venue\",\n");
+    code.push_str("                description: \"Venue/exchange filter\",\n");
+    code.push_str("                param_type: ParamType::Str,\n");
+    code.push_str("                required: false,\n");
     code.push_str("            },\n");
     code.push_str("        ],\n");
     code.push_str("        returns: ReturnType::OhlcTicks,\n");

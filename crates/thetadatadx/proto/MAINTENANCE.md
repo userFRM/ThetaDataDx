@@ -13,14 +13,15 @@ extracted from `ThetaTerminalv3.jar` via `FileDescriptor` reflection. Those have
 replaced by the official single-file definition. Do not reverse-engineer or hand-edit;
 request an updated `external.proto` from ThetaData when the wire protocol changes.
 
-Package: `ExternalEndpoints` (everything lives here — shared types, request/response
-messages, and the `BetaThetaTerminal` service).
+Package: `BetaEndpoints` (everything lives here — shared types, request/response
+messages, and the `BetaThetaTerminal` service). Production MDDS routes on this
+package name; do not rename without confirming the server has been updated.
 
 ## Directory layout
 
 ```
 proto/
-  external.proto    - canonical proto from ThetaData (60 RPCs, ExternalEndpoints package)
+  external.proto    - canonical proto from ThetaData (60 RPCs, BetaEndpoints package)
   MAINTENANCE.md    - this file
 
 ../endpoint_schema.toml    - column schemas for all DataTable-returning endpoints
@@ -30,7 +31,7 @@ proto/
 ## What happens on `cargo build`
 
 1. **Proto compilation**: `tonic-prost-build` compiles `external.proto` into Rust gRPC
-   client stubs and message types. Output: `$OUT_DIR/external_endpoints.rs`, exposed
+   client stubs and message types. Output: `$OUT_DIR/beta_endpoints.rs`, exposed
    at `crate::proto`.
 
 2. **Endpoint registry**: `build.rs` parses `external.proto` with regex to extract all

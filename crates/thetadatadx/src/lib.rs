@@ -76,9 +76,8 @@
 //!
 //! ## Wire protocol
 //!
-//! - **Proto definitions**: `crates/thetadatadx/proto/external.proto` — the canonical
-//!   gRPC schema provided directly by ThetaData engineering. Single `ExternalEndpoints`
-//!   package, 60 RPCs, `BetaThetaTerminal` service.
+//! - **Proto definitions**: `crates/thetadatadx/proto/external.proto` — single
+//!   `BetaEndpoints` package, 60 RPCs, `BetaThetaTerminal` service.
 //!
 //! - **Auth flow**: POST to `https://nexus-api.thetadata.us/identity/terminal/auth_user`
 //!   with header `TD-TERMINAL-KEY` and JSON `{email, password}` → `SessionInfoV3` with UUID.
@@ -101,9 +100,9 @@ pub mod fpss;
 pub mod registry;
 pub mod unified;
 
-/// Generated protobuf types from `external.proto` (canonical source from ThetaData).
+/// Generated protobuf types from `external.proto`.
 ///
-/// Contains ALL wire types in a single package `ExternalEndpoints`:
+/// Contains all wire types in a single package `BetaEndpoints`:
 /// - Shared types: `AuthToken`, `ContractSpec`, `Price`, `DataValue`, `DataValueList`,
 ///   `DataTable`, `ResponseData`, `CompressionAlgo`, `CompressionDescription`,
 ///   `TimeZone`, `ZonedDateTime`, `QueryInfo`
@@ -112,7 +111,7 @@ pub mod unified;
 // Generated code -- not under our control.
 #[allow(clippy::pedantic)]
 pub mod proto {
-    tonic::include_proto!("external_endpoints");
+    tonic::include_proto!("beta_endpoints");
 }
 
 pub use auth::Credentials;

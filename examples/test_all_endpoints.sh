@@ -62,7 +62,7 @@ run() {
         echo "PANIC (${elapsed_ms}ms)"
         echo "**PANIC** -- CLI crash" >> "$OUT"
         FAIL=$((FAIL + 1))
-    elif echo "$result" | grep -qi 'does not have permission'; then
+    elif echo "$result" | grep -qiE 'does not have permission|PermissionDenied|requiring (a|an) \w+ subscription'; then
         tier=$(echo "$result" | grep -oP 'requiring a \K\w+')
         echo "SKIP ($tier tier) (${elapsed_ms}ms)"
         echo "**SKIP** -- requires $tier subscription" >> "$OUT"
