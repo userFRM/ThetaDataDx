@@ -1,4 +1,5 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
+use std::hint::black_box;
 
 use thetadatadx::decode::{
     decode_data_table, decompress_response, extract_number_column, extract_price_column,

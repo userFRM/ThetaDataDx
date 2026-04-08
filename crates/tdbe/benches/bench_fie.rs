@@ -1,4 +1,5 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
+use std::hint::black_box;
 
 use tdbe::codec::fie::{fie_line_to_string, string_to_fie_line, try_string_to_fie_line};
 
@@ -19,7 +20,7 @@ fn bench_fie_try_encode(c: &mut Criterion) {
     let input = "21,0,1,0,20240315,0,15000";
     c.bench_function("fie_try_encode", |b| {
         b.iter(|| {
-            black_box(try_string_to_fie_line(black_box(input)));
+            let _ = black_box(try_string_to_fie_line(black_box(input)));
         });
     });
 }

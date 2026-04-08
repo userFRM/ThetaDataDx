@@ -74,16 +74,14 @@
 //! let ticks = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
 //! ```
 //!
-//! ## Reverse-Engineering Notes
+//! ## Wire protocol
 //!
-//! This crate was built by decompiling `ThetaData`'s Java terminal (v202603181, 58.5MB):
-//!
-//! - **Proto definitions**: Extracted via protobuf `FileDescriptor` reflection at runtime
-//!   - `endpoints.proto` — shared types (`ResponseData`, `DataTable`, Price, etc.)
-//!   - `v3_endpoints.proto` — v3 service (`BetaThetaTerminal`, 60 RPCs with `QueryInfo` wrapper)
+//! - **Proto definitions**: `crates/thetadatadx/proto/external.proto` — the canonical
+//!   gRPC schema provided directly by ThetaData engineering. Single `ExternalEndpoints`
+//!   package, 60 RPCs, `BetaThetaTerminal` service.
 //!
 //! - **Auth flow**: POST to `https://nexus-api.thetadata.us/identity/terminal/auth_user`
-//!   with header `TD-TERMINAL-KEY` and JSON `{email, password}` → `SessionInfoV3` with UUID
+//!   with header `TD-TERMINAL-KEY` and JSON `{email, password}` → `SessionInfoV3` with UUID.
 //!
 //! - **MDDS**: Standard gRPC server-streaming over TLS. Session UUID embedded in
 //!   `QueryInfo.auth_token` field of every request (in-band, not metadata).
@@ -91,16 +89,8 @@
 //! - **FPSS**: Custom TLS-over-TCP protocol. 1-byte length + 1-byte message code + payload.
 //!   FIT nibble encoding (4-bit variable-length integers) with delta compression for ticks.
 //!
-//! To re-extract protos after a terminal update:
-//! ```bash
-//! # 1. Get latest version
-//! curl -s https://nexus-api.thetadata.us/bootstrap/jars | jq '.[-1]'
-//! # 2. Download
-//! curl -L -o terminal.jar 'https://nexus-api.thetadata.us/bootstrap/jars/<version>'
-//! # 3. Decompile
-//! java -jar cfr.jar terminal.jar --outputdir decompiled/ --jarfilter "net.thetadata.*"
-//! # 4. Extract proto via DumpV3Proto.java (see theta-terminal-re/)
-//! ```
+//! See [`proto/MAINTENANCE.md`](../../crates/thetadatadx/proto/MAINTENANCE.md) for how to
+//! update the proto file and regenerate stubs when ThetaData ships a new version.
 
 pub mod auth;
 pub mod config;
@@ -111,29 +101,18 @@ pub mod fpss;
 pub mod registry;
 pub mod unified;
 
-/// Generated protobuf types from `endpoints.proto` (shared types).
+/// Generated protobuf types from `external.proto` (canonical source from ThetaData).
 ///
-/// Also re-exported as `endpoints` at crate root so that the v3 generated code
-/// can resolve cross-proto references via `super::endpoints::*`.
+/// Contains ALL wire types in a single package `ExternalEndpoints`:
+/// - Shared types: `AuthToken`, `ContractSpec`, `Price`, `DataValue`, `DataValueList`,
+///   `DataTable`, `ResponseData`, `CompressionAlgo`, `CompressionDescription`,
+///   `TimeZone`, `ZonedDateTime`, `QueryInfo`
+/// - 60 request/response types (`StockHistoryEodRequest`, `OptionSnapshotQuoteRequest`, ...)
+/// - gRPC client stub (`beta_theta_terminal_client::BetaThetaTerminalClient`)
 // Generated code -- not under our control.
 #[allow(clippy::pedantic)]
 pub mod proto {
-    tonic::include_proto!("endpoints");
-}
-
-/// Alias required by prost codegen: `beta_endpoints.rs` references
-/// `super::endpoints::AuthToken` (and other shared types), so the crate root
-/// must expose an `endpoints` module that maps to the `endpoints` proto package.
-pub use proto as endpoints;
-
-/// Generated protobuf/gRPC types from `v3_endpoints.proto` (upstream MDDS service).
-///
-/// Contains `BetaThetaTerminalClient` gRPC stub and all v3 request/response types
-/// (`QueryInfo`, `StockHistoryEodRequest`, etc.).
-// Generated code -- not under our control.
-#[allow(clippy::pedantic)]
-pub mod proto_v3 {
-    tonic::include_proto!("beta_endpoints");
+    tonic::include_proto!("external_endpoints");
 }
 
 pub use auth::Credentials;

@@ -542,35 +542,35 @@ mod tests {
         //   COMMA COMMA COMMA COMMA 1 COMMA 20240315 END
         //
         // We'll build this byte-by-byte.
-        let mut data = Vec::new();
-
-        // 34200000: digits 3,4,2,0,0,0,0,0
-        data.push(pack(3, 4));
-        data.push(pack(2, 0));
-        data.push(pack(0, 0));
-        data.push(pack(0, 0));
-        // COMMA, 1
-        data.push(pack(FIELD_SEP, 1));
-        // SLASH (zero-fills ext1..ext4), then 100: 1,0,0
-        data.push(pack(ROW_SEP, 1));
-        data.push(pack(0, 0));
-        // COMMA, 4
-        data.push(pack(FIELD_SEP, 4));
-        // COMMA, 15025: 1,5,0,2,5
-        data.push(pack(FIELD_SEP, 1));
-        data.push(pack(5, 0));
-        data.push(pack(2, 5));
-        // Five empty COMMAd fields (cond_flags, price_flags, volume_type,
-        // records_back, then price_type=1)
-        data.push(pack(FIELD_SEP, FIELD_SEP));
-        data.push(pack(FIELD_SEP, FIELD_SEP));
-        data.push(pack(FIELD_SEP, 1));
-        // COMMA, 20240315: 2,0,2,4,0,3,1,5
-        data.push(pack(FIELD_SEP, 2));
-        data.push(pack(0, 2));
-        data.push(pack(4, 0));
-        data.push(pack(3, 1));
-        data.push(pack(5, END));
+        let data = vec![
+            // 34200000: digits 3,4,2,0,0,0,0,0
+            pack(3, 4),
+            pack(2, 0),
+            pack(0, 0),
+            pack(0, 0),
+            // COMMA, 1
+            pack(FIELD_SEP, 1),
+            // SLASH (zero-fills ext1..ext4), then 100: 1,0,0
+            pack(ROW_SEP, 1),
+            pack(0, 0),
+            // COMMA, 4
+            pack(FIELD_SEP, 4),
+            // COMMA, 15025: 1,5,0,2,5
+            pack(FIELD_SEP, 1),
+            pack(5, 0),
+            pack(2, 5),
+            // Five empty COMMAd fields (cond_flags, price_flags, volume_type,
+            // records_back, then price_type=1)
+            pack(FIELD_SEP, FIELD_SEP),
+            pack(FIELD_SEP, FIELD_SEP),
+            pack(FIELD_SEP, 1),
+            // COMMA, 20240315: 2,0,2,4,0,3,1,5
+            pack(FIELD_SEP, 2),
+            pack(0, 2),
+            pack(4, 0),
+            pack(3, 1),
+            pack(5, END),
+        ];
 
         let mut alloc = [0i32; 32];
         let mut reader = FitReader::new(&data);
