@@ -577,39 +577,77 @@ fn rpc_to_method(rpc_name: &str) -> String {
 }
 
 /// Expand proto fields, replacing `contract_spec` with (symbol, expiration, strike, right).
+///
+/// Many option query messages carry both a `ContractSpec` (contract identity,
+/// expanded here to 4 fields) AND an explicit top-level `expiration` field
+/// (the query range expiration — e.g. "include all contracts expiring by..."),
+/// which would otherwise collide with the contract's own expiration. Any
+/// post-expansion duplicate parameter name is dropped in favor of the first
+/// occurrence (ContractSpec wins, since it is structurally the contract
+/// identity the user really cares about).
 fn expand_fields(fields: &[ProtoField]) -> Vec<(String, String, String, bool)> {
-    let mut params = Vec::new();
+    let mut params: Vec<(String, String, String, bool)> = Vec::new();
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    let push = |params: &mut Vec<(String, String, String, bool)>,
+                seen: &mut std::collections::HashSet<String>,
+                entry: (String, String, String, bool)| {
+        if seen.insert(entry.0.clone()) {
+            params.push(entry);
+        }
+    };
+
     for f in fields {
         if f.proto_type == "ContractSpec" {
-            // Expand to the 4 contract spec fields
-            params.push((
-                "symbol".into(),
-                "Underlying symbol (e.g. AAPL)".into(),
-                "Symbol".into(),
-                true,
-            ));
-            params.push((
-                "expiration".into(),
-                "Expiration date YYYYMMDD".into(),
-                "Expiration".into(),
-                true,
-            ));
-            params.push((
-                "strike".into(),
-                "Strike price (raw integer)".into(),
-                "Strike".into(),
-                true,
-            ));
-            params.push((
-                "right".into(),
-                "C for call, P for put".into(),
-                "Right".into(),
-                true,
-            ));
+            // Expand to the 4 contract spec fields (symbol, expiration, strike, right).
+            push(
+                &mut params,
+                &mut seen,
+                (
+                    "symbol".into(),
+                    "Underlying symbol (e.g. AAPL)".into(),
+                    "Symbol".into(),
+                    true,
+                ),
+            );
+            push(
+                &mut params,
+                &mut seen,
+                (
+                    "expiration".into(),
+                    "Expiration date YYYYMMDD".into(),
+                    "Expiration".into(),
+                    true,
+                ),
+            );
+            push(
+                &mut params,
+                &mut seen,
+                (
+                    "strike".into(),
+                    "Strike price (raw integer)".into(),
+                    "Strike".into(),
+                    true,
+                ),
+            );
+            push(
+                &mut params,
+                &mut seen,
+                (
+                    "right".into(),
+                    "C for call, P for put".into(),
+                    "Right".into(),
+                    true,
+                ),
+            );
         } else {
             let (param_type, desc) = map_field(&f.name, &f.proto_type, f.is_repeated);
             let required = !f.is_optional;
-            params.push((f.name.clone(), desc, param_type, required));
+            push(
+                &mut params,
+                &mut seen,
+                (f.name.clone(), desc, param_type, required),
+            );
         }
     }
     params

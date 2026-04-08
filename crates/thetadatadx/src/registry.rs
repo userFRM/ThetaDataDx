@@ -164,6 +164,27 @@ mod tests {
     }
 
     #[test]
+    fn all_endpoints_have_unique_param_names() {
+        // Regression test: the build.rs ContractSpec expansion used to emit
+        // a duplicate `expiration` parameter for option endpoints whose query
+        // message carried both a ContractSpec and an explicit top-level
+        // `expiration` field. Any dedup failure here means the registry is
+        // lying to downstream consumers (CLI args, MCP schema, FFI
+        // parameter metadata).
+        for endpoint in ENDPOINTS {
+            let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+            for param in endpoint.params {
+                assert!(
+                    seen.insert(param.name),
+                    "endpoint {} has duplicate param name {:?}",
+                    endpoint.name,
+                    param.name,
+                );
+            }
+        }
+    }
+
+    #[test]
     fn find_works() {
         assert!(find("stock_history_eod").is_some());
         assert!(find("nonexistent").is_none());
