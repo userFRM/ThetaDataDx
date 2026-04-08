@@ -33,7 +33,8 @@ use thetadatadx::registry::{self, ENDPOINTS};
 use thetadatadx::{Credentials, DirectConfig, ThetaDataDx};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
-const PROTOCOL_VERSION: &str = "2024-11-05";
+const PROTOCOL_VERSION: &str = "2025-11-25";
+const SUPPORTED_PROTOCOL_VERSIONS: &[&str] = &["2025-11-25", "2024-11-05"];
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  JSON-RPC types
@@ -373,7 +374,7 @@ fn tool_definitions() -> Vec<Value> {
                     "description": p.description,
                 }),
             );
-            if p.required {
+            if p.required && !required.contains(&p.name) {
                 required.push(p.name);
             }
         }
@@ -426,6 +427,17 @@ fn tool_definitions() -> Vec<Value> {
     }));
 
     tools
+}
+
+fn negotiate_protocol_version(client_version: Option<&str>) -> &'static str {
+    client_version
+        .and_then(|version| {
+            SUPPORTED_PROTOCOL_VERSIONS
+                .iter()
+                .copied()
+                .find(|supported| version == *supported)
+        })
+        .unwrap_or(PROTOCOL_VERSION)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1591,23 +1603,13 @@ async fn handle_request(
                 .params
                 .get("protocolVersion")
                 .and_then(|v: &Value| v.as_str())
-                .unwrap_or("");
-
-            if !client_version.is_empty() && client_version != PROTOCOL_VERSION {
-                return JsonRpcResponse::error(
-                    id,
-                    -32602,
-                    format!(
-                        "Unsupported protocol version '{}'. This server implements '{}'.",
-                        client_version, PROTOCOL_VERSION
-                    ),
-                );
-            }
+                .filter(|version| !version.is_empty());
+            let protocol_version = negotiate_protocol_version(client_version);
 
             JsonRpcResponse::success(
                 id,
                 json!({
-                    "protocolVersion": PROTOCOL_VERSION,
+                    "protocolVersion": protocol_version,
                     "capabilities": {
                         "tools": {}
                     },
@@ -1816,4 +1818,60 @@ async fn main() {
     }
 
     tracing::info!("stdin closed, shutting down");
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use super::*;
+
+    #[test]
+    fn negotiate_protocol_version_uses_requested_supported_version() {
+        assert_eq!(
+            negotiate_protocol_version(Some("2025-11-25")),
+            "2025-11-25"
+        );
+        assert_eq!(
+            negotiate_protocol_version(Some("2024-11-05")),
+            "2024-11-05"
+        );
+    }
+
+    #[test]
+    fn negotiate_protocol_version_falls_back_to_latest_supported_version() {
+        assert_eq!(negotiate_protocol_version(None), PROTOCOL_VERSION);
+        assert_eq!(negotiate_protocol_version(Some("")), PROTOCOL_VERSION);
+        assert_eq!(
+            negotiate_protocol_version(Some("2099-01-01")),
+            PROTOCOL_VERSION
+        );
+    }
+
+    #[test]
+    fn tool_schemas_do_not_emit_duplicate_required_parameters() {
+        for tool in tool_definitions() {
+            let name = tool
+                .get("name")
+                .and_then(|value: &Value| value.as_str())
+                .unwrap_or("<unnamed>");
+            let Some(required) = tool
+                .pointer(["inputSchema", "required"])
+                .and_then(|value| value.as_array())
+            else {
+                continue;
+            };
+
+            let mut seen = HashSet::new();
+            for param in required.as_slice() {
+                let param = param
+                    .as_str()
+                    .expect("tool required parameters must be strings");
+                assert!(
+                    seen.insert(param),
+                    "tool {name} emits duplicate required parameter {param}"
+                );
+            }
+        }
+    }
 }
