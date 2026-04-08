@@ -22,16 +22,19 @@
 //! one entry to the registry and this server picks it up automatically.
 
 use std::io::Write as _;
+use std::sync::Arc;
 
 use serde::Serialize;
 use sonic_rs::{json, JsonContainerTrait, JsonValueTrait, Value};
 use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::sync::RwLock;
 
 use thetadatadx::registry::{self, ENDPOINTS};
 use thetadatadx::{Credentials, DirectConfig, ThetaDataDx};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
-const PROTOCOL_VERSION: &str = "2024-11-05";
+const PROTOCOL_VERSION: &str = "2025-11-25";
+const SUPPORTED_PROTOCOL_VERSIONS: &[&str] = &["2025-11-25", "2024-11-05"];
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  JSON-RPC types
@@ -322,9 +325,11 @@ fn validate_symbol(value: &str, param_name: &str) -> Result<(), String> {
 }
 
 fn validate_interval(value: &str, param_name: &str) -> Result<(), String> {
-    if value.is_empty() || !value.bytes().all(|b| b.is_ascii_digit()) {
+    // Accepts raw milliseconds ("60000") or shorthand ("1m", "5m", "1h", "100ms", etc.)
+    if value.is_empty() || !value.bytes().all(|b| b.is_ascii_alphanumeric()) {
         return Err(format!(
-            "'{param_name}' must be a non-empty string of digits, got: '{value}'"
+            "'{param_name}' must be a non-empty alphanumeric string \
+             (e.g. '60000' for raw ms, or '1m' / '5m' / '1h' shorthand), got: '{value}'"
         ));
     }
     Ok(())
@@ -369,7 +374,7 @@ fn tool_definitions() -> Vec<Value> {
                     "description": p.description,
                 }),
             );
-            if p.required {
+            if p.required && !required.contains(&p.name) {
                 required.push(p.name);
             }
         }
@@ -422,6 +427,17 @@ fn tool_definitions() -> Vec<Value> {
     }));
 
     tools
+}
+
+fn negotiate_protocol_version(client_version: Option<&str>) -> &'static str {
+    client_version
+        .and_then(|version| {
+            SUPPORTED_PROTOCOL_VERSIONS
+                .iter()
+                .copied()
+                .find(|supported| version == *supported)
+        })
+        .unwrap_or(PROTOCOL_VERSION)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -724,6 +740,7 @@ async fn execute_tool(
                 "connected": client.is_some(),
             }));
         }
+        // (client is already dereferenced above via the RwLock read guard)
 
         "all_greeks" => {
             let s = param!(arg_f64(args, "spot"));
@@ -802,13 +819,13 @@ async fn execute_tool(
 
         // ── Stock Snapshot ──────────────────────────────────────────
         "stock_snapshot_ohlc" => {
-            let syms_str = param!(arg_symbol(args, "symbols"));
+            let syms_str = param!(arg_symbol(args, "symbol"));
             let syms = parse_symbols(syms_str);
             let ticks = api!(client.stock_snapshot_ohlc(&syms).await);
             Ok(serialize_ohlc_ticks(&ticks))
         }
         "stock_snapshot_trade" => {
-            let syms_str = param!(arg_symbol(args, "symbols"));
+            let syms_str = param!(arg_symbol(args, "symbol"));
             let syms = parse_symbols(syms_str);
             let ticks = api!(
                 client
@@ -818,7 +835,7 @@ async fn execute_tool(
             Ok(serialize_trade_ticks(&ticks))
         }
         "stock_snapshot_quote" => {
-            let syms_str = param!(arg_symbol(args, "symbols"));
+            let syms_str = param!(arg_symbol(args, "symbol"));
             let syms = parse_symbols(syms_str);
             let ticks = api!(
                 client
@@ -828,7 +845,7 @@ async fn execute_tool(
             Ok(serialize_quote_ticks(&ticks))
         }
         "stock_snapshot_market_value" => {
-            let syms_str = param!(arg_symbol(args, "symbols"));
+            let syms_str = param!(arg_symbol(args, "symbol"));
             let syms = parse_symbols(syms_str);
             let ticks = api!(
                 client
@@ -848,7 +865,11 @@ async fn execute_tool(
         }
         "stock_history_ohlc" => {
             let sym = param!(arg_symbol(args, "symbol"));
-            let date = param!(arg_date(args, "date"));
+            // `date` is optional in the registry; omit it to get the most recent session.
+            let date = match args.get("date") {
+                Some(_) => param!(arg_date(args, "date")),
+                None => "",
+            };
             let interval = param!(arg_interval(args, "interval"));
             let ticks = api!(
                 client
@@ -1466,13 +1487,13 @@ async fn execute_tool(
 
         // ── Index Snapshot ──────────────────────────────────────────
         "index_snapshot_ohlc" => {
-            let syms_str = param!(arg_symbol(args, "symbols"));
+            let syms_str = param!(arg_symbol(args, "symbol"));
             let syms = parse_symbols(syms_str);
             let ticks = api!(client.index_snapshot_ohlc(&syms).await);
             Ok(serialize_ohlc_ticks(&ticks))
         }
         "index_snapshot_price" => {
-            let syms_str = param!(arg_symbol(args, "symbols"));
+            let syms_str = param!(arg_symbol(args, "symbol"));
             let syms = parse_symbols(syms_str);
             let ticks = api!(
                 client
@@ -1482,7 +1503,7 @@ async fn execute_tool(
             Ok(serialize_price_ticks(&ticks))
         }
         "index_snapshot_market_value" => {
-            let syms_str = param!(arg_symbol(args, "symbols"));
+            let syms_str = param!(arg_symbol(args, "symbol"));
             let syms = parse_symbols(syms_str);
             let ticks = api!(
                 client
@@ -1569,9 +1590,11 @@ async fn execute_tool(
 
 async fn handle_request(
     req: &JsonRpcRequest,
-    client: &Option<ThetaDataDx>,
+    client: &Arc<RwLock<Option<ThetaDataDx>>>,
     start_time: std::time::Instant,
 ) -> JsonRpcResponse {
+    let client = client.read().await;
+    let client = &*client;
     let id = req.id.clone().unwrap_or(Value::new_null());
 
     match req.method.as_str() {
@@ -1580,23 +1603,13 @@ async fn handle_request(
                 .params
                 .get("protocolVersion")
                 .and_then(|v: &Value| v.as_str())
-                .unwrap_or("");
-
-            if !client_version.is_empty() && client_version != PROTOCOL_VERSION {
-                return JsonRpcResponse::error(
-                    id,
-                    -32602,
-                    format!(
-                        "Unsupported protocol version '{}'. This server implements '{}'.",
-                        client_version, PROTOCOL_VERSION
-                    ),
-                );
-            }
+                .filter(|version| !version.is_empty());
+            let protocol_version = negotiate_protocol_version(client_version);
 
             JsonRpcResponse::success(
                 id,
                 json!({
-                    "protocolVersion": PROTOCOL_VERSION,
+                    "protocolVersion": protocol_version,
                     "capabilities": {
                         "tools": {}
                     },
@@ -1748,28 +1761,31 @@ async fn main() {
         None
     };
 
-    // ── Connect to ThetaData (if credentials available) ─────────────
-    let client: Option<ThetaDataDx> = if let Some(creds) = creds {
-        match ThetaDataDx::connect(&creds, DirectConfig::production()).await {
-            Ok(c) => {
-                tracing::info!("connected to ThetaData MDDS");
-                Some(c)
+    // ── Connect to ThetaData in the background ──────────────────────
+    // We must NOT block here: MCP clients (e.g. Claude Code) send `initialize`
+    // immediately after spawning and time out waiting for a response if we block
+    // on the ThetaData gRPC handshake (~800 ms).  Wrap the client in an
+    // Arc<RwLock> so the background task can populate it while the stdin loop
+    // is already running.
+    let client: Arc<RwLock<Option<ThetaDataDx>>> = Arc::new(RwLock::new(None));
+
+    if let Some(creds) = creds {
+        let client_bg = Arc::clone(&client);
+        tokio::spawn(async move {
+            match ThetaDataDx::connect(&creds, DirectConfig::production()).await {
+                Ok(c) => {
+                    tracing::info!("connected to ThetaData MDDS");
+                    *client_bg.write().await = Some(c);
+                }
+                Err(e) => {
+                    tracing::error!(error = %e, "failed to connect to ThetaData, running in offline mode");
+                }
             }
-            Err(e) => {
-                tracing::error!(error = %e, "failed to connect to ThetaData, starting in offline mode");
-                None
-            }
-        }
-    } else {
-        None
-    };
+        });
+    }
 
     // ── Main JSON-RPC loop over stdin ───────────────────────────────
-    tracing::info!(
-        version = VERSION,
-        connected = client.is_some(),
-        "thetadatadx-mcp ready, reading JSON-RPC from stdin"
-    );
+    tracing::info!(version = VERSION, "thetadatadx-mcp ready, reading JSON-RPC from stdin");
 
     let stdin = tokio::io::stdin();
     let reader = BufReader::new(stdin);
@@ -1802,4 +1818,60 @@ async fn main() {
     }
 
     tracing::info!("stdin closed, shutting down");
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use super::*;
+
+    #[test]
+    fn negotiate_protocol_version_uses_requested_supported_version() {
+        assert_eq!(
+            negotiate_protocol_version(Some("2025-11-25")),
+            "2025-11-25"
+        );
+        assert_eq!(
+            negotiate_protocol_version(Some("2024-11-05")),
+            "2024-11-05"
+        );
+    }
+
+    #[test]
+    fn negotiate_protocol_version_falls_back_to_latest_supported_version() {
+        assert_eq!(negotiate_protocol_version(None), PROTOCOL_VERSION);
+        assert_eq!(negotiate_protocol_version(Some("")), PROTOCOL_VERSION);
+        assert_eq!(
+            negotiate_protocol_version(Some("2099-01-01")),
+            PROTOCOL_VERSION
+        );
+    }
+
+    #[test]
+    fn tool_schemas_do_not_emit_duplicate_required_parameters() {
+        for tool in tool_definitions() {
+            let name = tool
+                .get("name")
+                .and_then(|value: &Value| value.as_str())
+                .unwrap_or("<unnamed>");
+            let Some(required) = tool
+                .pointer(["inputSchema", "required"])
+                .and_then(|value| value.as_array())
+            else {
+                continue;
+            };
+
+            let mut seen = HashSet::new();
+            for param in required.as_slice() {
+                let param = param
+                    .as_str()
+                    .expect("tool required parameters must be strings");
+                assert!(
+                    seen.insert(param),
+                    "tool {name} emits duplicate required parameter {param}"
+                );
+            }
+        }
+    }
 }

@@ -515,6 +515,227 @@ mod decode_generated {
 }
 pub use decode_generated::*;
 
+/// Hand-written parser for `OptionContract` that handles the v3 server's
+/// text-formatted fields (expiration as ISO date, right as "PUT"/"CALL").
+#[must_use]
+pub fn parse_option_contracts_v3(table: &crate::proto::DataTable) -> Vec<OptionContract> {
+    let h: Vec<&str> = table
+        .headers
+        .iter()
+        .map(std::string::String::as_str)
+        .collect();
+
+    let Some(root_idx) = find_header(&h, "root") else {
+        return vec![];
+    };
+    let exp_idx = find_header(&h, "expiration");
+    let strike_idx = find_header(&h, "strike");
+    let right_idx = find_header(&h, "right");
+
+    table
+        .data_table
+        .iter()
+        .map(|row| {
+            let root = row_text(row, root_idx);
+
+            // Expiration: may be YYYYMMDD int or ISO date string "2026-04-13"
+            let expiration = exp_idx.map_or(0, |i| {
+                let n = row_number(row, i);
+                if n != 0 {
+                    return n;
+                }
+                // Try text: "2026-04-13" -> 20260413
+                let s = row_text(row, i);
+                parse_iso_date(&s)
+            });
+
+            // Strike: decode to f64 from Price or Number cell.
+            let strike = strike_idx.map_or(0.0, |i| row_price_f64(row, i));
+
+            // Right: may be int or text "PUT"/"CALL"/"C"/"P"
+            let right = right_idx.map_or(0, |i| {
+                let n = row_number(row, i);
+                if n != 0 {
+                    return n;
+                }
+                let s = row_text(row, i);
+                match s.as_str() {
+                    "CALL" | "C" => 67, // ASCII 'C'
+                    "PUT" | "P" => 80,  // ASCII 'P'
+                    _ => 0,
+                }
+            });
+
+            OptionContract {
+                root,
+                expiration,
+                strike,
+                right,
+            }
+        })
+        .collect()
+}
+
+/// Parse an ISO date string "2026-04-13" to YYYYMMDD integer 20260413.
+// Reason: date parsing with known-safe integer ranges.
+#[allow(clippy::cast_possible_truncation, clippy::missing_panics_doc)]
+pub(crate) fn parse_iso_date(s: &str) -> i32 {
+    // Fast path: already numeric (YYYYMMDD)
+    if let Ok(n) = s.parse::<i32>() {
+        return n;
+    }
+    // ISO format: YYYY-MM-DD
+    let parts: Vec<&str> = s.split('-').collect();
+    if parts.len() == 3 {
+        if let (Ok(y), Ok(m), Ok(d)) = (
+            parts[0].parse::<i32>(),
+            parts[1].parse::<i32>(),
+            parts[2].parse::<i32>(),
+        ) {
+            return y * 10_000 + m * 100 + d;
+        }
+    }
+    0
+}
+
+/// Parse a time string "HH:MM:SS" to milliseconds from midnight.
+fn parse_time_text(s: &str) -> i32 {
+    let parts: Vec<&str> = s.split(':').collect();
+    if parts.len() == 3 {
+        if let (Ok(h), Ok(m), Ok(sec)) = (
+            parts[0].parse::<i32>(),
+            parts[1].parse::<i32>(),
+            parts[2].parse::<i32>(),
+        ) {
+            return (h * 3_600 + m * 60 + sec) * 1_000;
+        }
+    }
+    0
+}
+
+/// Calendar day status constants.
+///
+/// The v3 MDDS server sends a `type` column with text values. We map them to
+/// integer constants for the `CalendarDay.status` field:
+///
+/// | Server text    | Constant | Meaning                           |
+/// |----------------|----------|-----------------------------------|
+/// | `"open"`       | `0`      | Normal trading day                |
+/// | `"early_close"`| `1`      | Early close (e.g. day after Thanksgiving) |
+/// | `"full_close"` | `2`      | Market closed (holiday)           |
+/// | `"weekend"`    | `3`      | Weekend                           |
+/// | (unknown)      | `-1`     | Unrecognized status text          |
+pub const CALENDAR_STATUS_OPEN: i32 = 0;
+pub const CALENDAR_STATUS_EARLY_CLOSE: i32 = 1;
+pub const CALENDAR_STATUS_FULL_CLOSE: i32 = 2;
+pub const CALENDAR_STATUS_WEEKEND: i32 = 3;
+pub const CALENDAR_STATUS_UNKNOWN: i32 = -1;
+
+/// Map a v3 calendar `type` text to `(is_open, status)`.
+fn calendar_type_text(s: &str) -> (i32, i32) {
+    match s {
+        "open" => (1, CALENDAR_STATUS_OPEN),
+        "early_close" => (1, CALENDAR_STATUS_EARLY_CLOSE),
+        "full_close" => (0, CALENDAR_STATUS_FULL_CLOSE),
+        "weekend" => (0, CALENDAR_STATUS_WEEKEND),
+        _ => (0, CALENDAR_STATUS_UNKNOWN),
+    }
+}
+
+/// Hand-written parser for `CalendarDay` that handles the v3 server's
+/// text-formatted fields.
+///
+/// The v3 MDDS server sends calendar data with different column names and types
+/// than the generated parser expects:
+///
+/// | Schema field | Server header | Server type | Mapping                               |
+/// |--------------|---------------|-------------|---------------------------------------|
+/// | `date`       | `date`        | Text        | "2025-01-01" -> 20250101              |
+/// | `is_open`    | `type`        | Text        | "`open"/"early_close`" -> 1, else -> 0  |
+/// | `open_time`  | `open`        | Text / Null | "09:30:00" -> 34200000 ms             |
+/// | `close_time` | `close`       | Text / Null | "16:00:00" -> 57600000 ms             |
+/// | `status`     | `type`        | Text        | See [`CALENDAR_STATUS_OPEN`] etc.     |
+///
+/// Note: `calendar_on_date` and `calendar_open_today` omit the `date` column.
+#[must_use]
+pub fn parse_calendar_days_v3(table: &crate::proto::DataTable) -> Vec<CalendarDay> {
+    let h: Vec<&str> = table
+        .headers
+        .iter()
+        .map(std::string::String::as_str)
+        .collect();
+
+    let date_idx = h.iter().position(|&s| s == "date");
+    let type_idx = h.iter().position(|&s| s == "type");
+    let open_idx = h.iter().position(|&s| s == "open");
+    let close_idx = h.iter().position(|&s| s == "close");
+
+    table
+        .data_table
+        .iter()
+        .map(|row| {
+            // date: Text "2025-01-01" -> YYYYMMDD, or Number, or Timestamp
+            let date = date_idx.map_or(0, |i| {
+                // Try Number/Timestamp first (generated parser path)
+                let n = row_number(row, i);
+                if n != 0 {
+                    return n;
+                }
+                // v3: Text "2025-01-01"
+                let s = row_text(row, i);
+                if !s.is_empty() {
+                    return parse_iso_date(&s);
+                }
+                0
+            });
+
+            // type: Text "open"/"full_close"/"early_close"/"weekend"
+            let (is_open, status) = type_idx.map_or((0, 0), |i| {
+                let s = row_text(row, i);
+                if !s.is_empty() {
+                    return calendar_type_text(&s);
+                }
+                // Fallback: try as Number (future-proofing)
+                let n = row_number(row, i);
+                (i32::from(n != 0), n)
+            });
+
+            // open: Text "09:30:00" -> ms_of_day, or Null/Number
+            let open_time = open_idx.map_or(0, |i| {
+                let n = row_number(row, i);
+                if n != 0 {
+                    return n;
+                }
+                let s = row_text(row, i);
+                if !s.is_empty() {
+                    return parse_time_text(&s);
+                }
+                0
+            });
+
+            // close: Text "16:00:00" -> ms_of_day, or Null/Number
+            let close_time = close_idx.map_or(0, |i| {
+                let n = row_number(row, i);
+                if n != 0 {
+                    return n;
+                }
+                let s = row_text(row, i);
+                if !s.is_empty() {
+                    return parse_time_text(&s);
+                }
+                0
+            });
+
+            CalendarDay {
+                date,
+                is_open,
+                open_time,
+                close_time,
+                status,
+            }
+        })
+        .collect()
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -841,226 +1062,4 @@ mod tests {
         assert_eq!(super::parse_time_text("invalid"), 0);
         assert_eq!(super::parse_time_text(""), 0);
     }
-}
-
-/// Hand-written parser for `OptionContract` that handles the v3 server's
-/// text-formatted fields (expiration as ISO date, right as "PUT"/"CALL").
-#[must_use]
-pub fn parse_option_contracts_v3(table: &crate::proto::DataTable) -> Vec<OptionContract> {
-    let h: Vec<&str> = table
-        .headers
-        .iter()
-        .map(std::string::String::as_str)
-        .collect();
-
-    let Some(root_idx) = find_header(&h, "root") else {
-        return vec![];
-    };
-    let exp_idx = find_header(&h, "expiration");
-    let strike_idx = find_header(&h, "strike");
-    let right_idx = find_header(&h, "right");
-
-    table
-        .data_table
-        .iter()
-        .map(|row| {
-            let root = row_text(row, root_idx);
-
-            // Expiration: may be YYYYMMDD int or ISO date string "2026-04-13"
-            let expiration = exp_idx.map_or(0, |i| {
-                let n = row_number(row, i);
-                if n != 0 {
-                    return n;
-                }
-                // Try text: "2026-04-13" -> 20260413
-                let s = row_text(row, i);
-                parse_iso_date(&s)
-            });
-
-            // Strike: decode to f64 from Price or Number cell.
-            let strike = strike_idx.map_or(0.0, |i| row_price_f64(row, i));
-
-            // Right: may be int or text "PUT"/"CALL"/"C"/"P"
-            let right = right_idx.map_or(0, |i| {
-                let n = row_number(row, i);
-                if n != 0 {
-                    return n;
-                }
-                let s = row_text(row, i);
-                match s.as_str() {
-                    "CALL" | "C" => 67, // ASCII 'C'
-                    "PUT" | "P" => 80,  // ASCII 'P'
-                    _ => 0,
-                }
-            });
-
-            OptionContract {
-                root,
-                expiration,
-                strike,
-                right,
-            }
-        })
-        .collect()
-}
-
-/// Parse an ISO date string "2026-04-13" to YYYYMMDD integer 20260413.
-// Reason: date parsing with known-safe integer ranges.
-#[allow(clippy::cast_possible_truncation, clippy::missing_panics_doc)]
-pub(crate) fn parse_iso_date(s: &str) -> i32 {
-    // Fast path: already numeric (YYYYMMDD)
-    if let Ok(n) = s.parse::<i32>() {
-        return n;
-    }
-    // ISO format: YYYY-MM-DD
-    let parts: Vec<&str> = s.split('-').collect();
-    if parts.len() == 3 {
-        if let (Ok(y), Ok(m), Ok(d)) = (
-            parts[0].parse::<i32>(),
-            parts[1].parse::<i32>(),
-            parts[2].parse::<i32>(),
-        ) {
-            return y * 10_000 + m * 100 + d;
-        }
-    }
-    0
-}
-
-/// Parse a time string "HH:MM:SS" to milliseconds from midnight.
-fn parse_time_text(s: &str) -> i32 {
-    let parts: Vec<&str> = s.split(':').collect();
-    if parts.len() == 3 {
-        if let (Ok(h), Ok(m), Ok(sec)) = (
-            parts[0].parse::<i32>(),
-            parts[1].parse::<i32>(),
-            parts[2].parse::<i32>(),
-        ) {
-            return (h * 3_600 + m * 60 + sec) * 1_000;
-        }
-    }
-    0
-}
-
-/// Calendar day status constants.
-///
-/// The v3 MDDS server sends a `type` column with text values. We map them to
-/// integer constants for the `CalendarDay.status` field:
-///
-/// | Server text    | Constant | Meaning                           |
-/// |----------------|----------|-----------------------------------|
-/// | `"open"`       | `0`      | Normal trading day                |
-/// | `"early_close"`| `1`      | Early close (e.g. day after Thanksgiving) |
-/// | `"full_close"` | `2`      | Market closed (holiday)           |
-/// | `"weekend"`    | `3`      | Weekend                           |
-/// | (unknown)      | `-1`     | Unrecognized status text          |
-pub const CALENDAR_STATUS_OPEN: i32 = 0;
-pub const CALENDAR_STATUS_EARLY_CLOSE: i32 = 1;
-pub const CALENDAR_STATUS_FULL_CLOSE: i32 = 2;
-pub const CALENDAR_STATUS_WEEKEND: i32 = 3;
-pub const CALENDAR_STATUS_UNKNOWN: i32 = -1;
-
-/// Map a v3 calendar `type` text to `(is_open, status)`.
-fn calendar_type_text(s: &str) -> (i32, i32) {
-    match s {
-        "open" => (1, CALENDAR_STATUS_OPEN),
-        "early_close" => (1, CALENDAR_STATUS_EARLY_CLOSE),
-        "full_close" => (0, CALENDAR_STATUS_FULL_CLOSE),
-        "weekend" => (0, CALENDAR_STATUS_WEEKEND),
-        _ => (0, CALENDAR_STATUS_UNKNOWN),
-    }
-}
-
-/// Hand-written parser for `CalendarDay` that handles the v3 server's
-/// text-formatted fields.
-///
-/// The v3 MDDS server sends calendar data with different column names and types
-/// than the generated parser expects:
-///
-/// | Schema field | Server header | Server type | Mapping                               |
-/// |--------------|---------------|-------------|---------------------------------------|
-/// | `date`       | `date`        | Text        | "2025-01-01" -> 20250101              |
-/// | `is_open`    | `type`        | Text        | "`open"/"early_close`" -> 1, else -> 0  |
-/// | `open_time`  | `open`        | Text / Null | "09:30:00" -> 34200000 ms             |
-/// | `close_time` | `close`       | Text / Null | "16:00:00" -> 57600000 ms             |
-/// | `status`     | `type`        | Text        | See [`CALENDAR_STATUS_OPEN`] etc.     |
-///
-/// Note: `calendar_on_date` and `calendar_open_today` omit the `date` column.
-#[must_use]
-pub fn parse_calendar_days_v3(table: &crate::proto::DataTable) -> Vec<CalendarDay> {
-    let h: Vec<&str> = table
-        .headers
-        .iter()
-        .map(std::string::String::as_str)
-        .collect();
-
-    let date_idx = h.iter().position(|&s| s == "date");
-    let type_idx = h.iter().position(|&s| s == "type");
-    let open_idx = h.iter().position(|&s| s == "open");
-    let close_idx = h.iter().position(|&s| s == "close");
-
-    table
-        .data_table
-        .iter()
-        .map(|row| {
-            // date: Text "2025-01-01" -> YYYYMMDD, or Number, or Timestamp
-            let date = date_idx.map_or(0, |i| {
-                // Try Number/Timestamp first (generated parser path)
-                let n = row_number(row, i);
-                if n != 0 {
-                    return n;
-                }
-                // v3: Text "2025-01-01"
-                let s = row_text(row, i);
-                if !s.is_empty() {
-                    return parse_iso_date(&s);
-                }
-                0
-            });
-
-            // type: Text "open"/"full_close"/"early_close"/"weekend"
-            let (is_open, status) = type_idx.map_or((0, 0), |i| {
-                let s = row_text(row, i);
-                if !s.is_empty() {
-                    return calendar_type_text(&s);
-                }
-                // Fallback: try as Number (future-proofing)
-                let n = row_number(row, i);
-                (i32::from(n != 0), n)
-            });
-
-            // open: Text "09:30:00" -> ms_of_day, or Null/Number
-            let open_time = open_idx.map_or(0, |i| {
-                let n = row_number(row, i);
-                if n != 0 {
-                    return n;
-                }
-                let s = row_text(row, i);
-                if !s.is_empty() {
-                    return parse_time_text(&s);
-                }
-                0
-            });
-
-            // close: Text "16:00:00" -> ms_of_day, or Null/Number
-            let close_time = close_idx.map_or(0, |i| {
-                let n = row_number(row, i);
-                if n != 0 {
-                    return n;
-                }
-                let s = row_text(row, i);
-                if !s.is_empty() {
-                    return parse_time_text(&s);
-                }
-                0
-            });
-
-            CalendarDay {
-                date,
-                is_open,
-                open_time,
-                close_time,
-                status,
-            }
-        })
-        .collect()
 }

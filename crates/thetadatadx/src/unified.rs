@@ -461,7 +461,7 @@ mod tests {
         // Can't test connect() without real creds, but can verify the type exists
         // and Deref works at compile time.
         fn _assert_deref(tdx: &ThetaDataDx) -> &DirectClient {
-            &*tdx
+            tdx
         }
     }
 }

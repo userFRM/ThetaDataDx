@@ -32,8 +32,8 @@ use crate::config::DirectConfig;
 use crate::decode;
 use crate::error::Error;
 use crate::proto;
-use crate::proto_v3;
-use crate::proto_v3::beta_theta_terminal_client::BetaThetaTerminalClient;
+
+use crate::proto::beta_theta_terminal_client::BetaThetaTerminalClient;
 use tdbe::types::tick::{
     CalendarDay, EodTick, GreeksTick, InterestRateTick, IvTick, MarketValueTick, OhlcTick,
     OpenInterestTick, OptionContract, PriceTick, QuoteTick, TradeQuoteTick, TradeTick,
@@ -73,9 +73,9 @@ macro_rules! list_endpoint {
             let _metrics_start = std::time::Instant::now();
             let _permit = self.request_semaphore.acquire().await
                 .map_err(|_| Error::Config("request semaphore closed".into()))?;
-            let request = proto_v3::$req {
+            let request = proto::$req {
                 query_info: Some(self.query_info()),
-                params: Some(proto_v3::$query { $($field : $val),* }),
+                params: Some(proto::$query { $($field : $val),* }),
             };
             let stream = match self.stub().$grpc(request).await {
                 Ok(resp) => resp.into_inner(),
@@ -164,9 +164,9 @@ macro_rules! parsed_endpoint {
                     let _metrics_start = std::time::Instant::now();
                     let _permit = client.request_semaphore.acquire().await
                         .map_err(|_| Error::Config("request semaphore closed".into()))?;
-                    let request = proto_v3::$req {
+                    let request = proto::$req {
                         query_info: Some(client.query_info()),
-                        params: Some(proto_v3::$query { $($field : $val),* }),
+                        params: Some(proto::$query { $($field : $val),* }),
                     };
                     let stream = match client.stub().$grpc(request).await {
                         Ok(resp) => resp.into_inner(),
@@ -337,9 +337,9 @@ macro_rules! streaming_endpoint {
                 let _metrics_start = std::time::Instant::now();
                 let _permit = client.request_semaphore.acquire().await
                     .map_err(|_| Error::Config("request semaphore closed".into()))?;
-                let request = proto_v3::$req {
+                let request = proto::$req {
                     query_info: Some(client.query_info()),
-                    params: Some(proto_v3::$query { $($field : $val),* }),
+                    params: Some(proto::$query { $($field : $val),* }),
                 };
                 let stream = match client.stub().$grpc(request).await {
                     Ok(resp) => resp.into_inner(),
@@ -436,7 +436,7 @@ pub struct DirectClient {
     config: DirectConfig,
     /// Pre-built `QueryInfo` template — cloned per-request instead of allocating
     /// new Strings each time.
-    query_info_template: proto_v3::QueryInfo,
+    query_info_template: proto::QueryInfo,
     /// Semaphore limiting concurrent in-flight gRPC requests.
     ///
     /// The Java terminal limits concurrent requests to `2^subscription_tier`
@@ -501,7 +501,7 @@ impl DirectClient {
         // Source: MddsConnectionManager in decompiled terminal.
         query_parameters.insert("client".to_string(), "terminal".to_string());
 
-        let query_info_template = proto_v3::QueryInfo {
+        let query_info_template = proto::QueryInfo {
             auth_token: Some(proto::AuthToken {
                 session_uuid: session.session_uuid.clone(),
             }),
@@ -553,7 +553,7 @@ impl DirectClient {
     /// The template is constructed once at connection time, avoiding per-call
     /// String allocations for session UUID, client type, and version.
     #[inline]
-    fn query_info(&self) -> proto_v3::QueryInfo {
+    fn query_info(&self) -> proto::QueryInfo {
         self.query_info_template.clone()
     }
 
@@ -826,7 +826,7 @@ impl DirectClient {
 
     /// Get a `QueryInfo` for use with [`raw_query`](Self::raw_query).
     #[must_use]
-    pub fn raw_query_info(&self) -> proto_v3::QueryInfo {
+    pub fn raw_query_info(&self) -> proto::QueryInfo {
         self.query_info()
     }
 

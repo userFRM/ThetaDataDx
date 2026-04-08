@@ -1,16 +1,84 @@
 syntax = "proto3";
-package BetaEndpoints;
 
 import "google/protobuf/struct.proto";
-import "endpoints.proto";
+
+option java_multiple_files = true;
+option java_package = "net.thetadata.grpc";
+
+// Production MDDS routes on BetaEndpoints.BetaThetaTerminal/<method>.
+// Do not rename without confirming the server has been updated.
+package BetaEndpoints;
+
+message AuthToken {
+  string session_uuid = 1;
+}
+
+message ContractSpec {
+  string symbol = 1;
+  string expiration = 2;
+  optional string strike = 3;
+  optional string right = 4;
+}
 
 message QueryInfo {
-  endpoints.AuthToken auth_token = 1;
-  map<string, string> query_parameters = 2;
+  AuthToken auth_token = 1;
+  map <string, string> query_parameters = 2;
   string client_type = 3;
   string terminal_git_commit = 4;
   string terminal_version = 5;
 }
+
+message Price {
+  int32 value = 1;
+  int32 type = 2;
+}
+
+enum TimeZone {
+  NEW_YORK = 0;
+  UTC = 1;
+}
+
+message ZonedDateTime {
+  uint64 epoch_ms = 1;
+  TimeZone zone = 2;
+}
+
+message DataValue {
+  oneof data_type {
+    string text = 1;
+    int64 number = 2;
+    Price price = 3;
+    ZonedDateTime timestamp = 4;
+    google.protobuf.NullValue null_value = 5;
+  }
+}
+
+message DataValueList {
+  repeated DataValue values = 1;
+}
+
+message DataTable {
+  repeated string headers = 1;
+  repeated DataValueList data_table = 2;
+}
+
+enum CompressionAlgo {
+  NONE = 0;
+  ZSTD = 1;
+}
+
+message CompressionDescription {
+  CompressionAlgo algo = 1;
+  int32 level = 2;
+}
+
+message ResponseData {
+  // compressed_data holds a DataTable when decompressed; can add a type field for other data types
+  bytes compressed_data = 1;
+  CompressionDescription compression_description = 2;
+  int32 original_size = 3;  // original size in bytes before compressing
+}
+
 
 message StockListSymbolsRequestQuery {
 }
@@ -184,7 +252,7 @@ message OptionListSymbolsRequest {
 
 message OptionListDatesRequestQuery {
   string request_type = 1;
-  endpoints.ContractSpec contract_spec = 2;
+  ContractSpec contract_spec = 2;
   string expiration = 3;
 }
 
@@ -225,7 +293,7 @@ message OptionListContractsRequest {
 }
 
 message OptionSnapshotOhlcRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   string expiration = 2;
   optional int32 max_dte = 3;
   optional int32 strike_range = 4;
@@ -238,7 +306,7 @@ message OptionSnapshotOhlcRequest {
 }
 
 message OptionSnapshotTradeRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   string expiration = 2;
   optional int32 strike_range = 3;
   optional string min_time = 4;
@@ -250,7 +318,7 @@ message OptionSnapshotTradeRequest {
 }
 
 message OptionSnapshotQuoteRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   string expiration = 2;
   optional int32 max_dte = 3;
   optional int32 strike_range = 4;
@@ -263,7 +331,7 @@ message OptionSnapshotQuoteRequest {
 }
 
 message OptionSnapshotOpenInterestRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   string expiration = 2;
   optional int32 max_dte = 3;
   optional int32 strike_range = 4;
@@ -276,7 +344,7 @@ message OptionSnapshotOpenInterestRequest {
 }
 
 message OptionSnapshotMarketValueRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   string expiration = 2;
   optional int32 max_dte = 3;
   optional int32 strike_range = 4;
@@ -289,7 +357,7 @@ message OptionSnapshotMarketValueRequest {
 }
 
 message OptionSnapshotGreeksImpliedVolatilityRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   string expiration = 2;
   optional double annual_dividend = 3;
   optional string rate_type = 4;
@@ -308,7 +376,7 @@ message OptionSnapshotGreeksImpliedVolatilityRequest {
 }
 
 message OptionSnapshotGreeksAllRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   string expiration = 2;
   optional double annual_dividend = 3;
   optional string rate_type = 4;
@@ -327,7 +395,7 @@ message OptionSnapshotGreeksAllRequest {
 }
 
 message OptionSnapshotGreeksFirstOrderRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   string expiration = 2;
   optional double annual_dividend = 3;
   optional string rate_type = 4;
@@ -346,7 +414,7 @@ message OptionSnapshotGreeksFirstOrderRequest {
 }
 
 message OptionSnapshotGreeksSecondOrderRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   string expiration = 2;
   optional double annual_dividend = 3;
   optional string rate_type = 4;
@@ -365,7 +433,7 @@ message OptionSnapshotGreeksSecondOrderRequest {
 }
 
 message OptionSnapshotGreeksThirdOrderRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   string expiration = 2;
   optional double annual_dividend = 3;
   optional string rate_type = 4;
@@ -384,7 +452,7 @@ message OptionSnapshotGreeksThirdOrderRequest {
 }
 
 message OptionHistoryEodRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   string start_date = 2;
   string end_date = 3;
   string expiration = 4;
@@ -398,7 +466,7 @@ message OptionHistoryEodRequest {
 }
 
 message OptionHistoryOhlcRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   optional string date = 2;
   string expiration = 3;
   string interval = 4;
@@ -415,7 +483,7 @@ message OptionHistoryOhlcRequest {
 }
 
 message OptionHistoryTradeRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   optional string date = 2;
   string expiration = 3;
   optional string start_time = 4;
@@ -432,7 +500,7 @@ message OptionHistoryTradeRequest {
 }
 
 message OptionHistoryQuoteRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   optional string date = 2;
   string expiration = 3;
   optional string start_time = 4;
@@ -450,7 +518,7 @@ message OptionHistoryQuoteRequest {
 }
 
 message OptionHistoryTradeQuoteRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   optional string date = 2;
   string expiration = 3;
   optional string start_time = 4;
@@ -468,7 +536,7 @@ message OptionHistoryTradeQuoteRequest {
 }
 
 message OptionHistoryOpenInterestRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   optional string date = 2;
   string expiration = 3;
   optional int32 max_dte = 4;
@@ -483,7 +551,7 @@ message OptionHistoryOpenInterestRequest {
 }
 
 message OptionHistoryGreeksEodRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   string expiration = 2;
   string start_date = 3;
   string end_date = 4;
@@ -502,7 +570,7 @@ message OptionHistoryGreeksEodRequest {
 }
 
 message OptionHistoryGreeksAllRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   optional string date = 2;
   string expiration = 3;
   optional string start_time = 4;
@@ -523,7 +591,7 @@ message OptionHistoryGreeksAllRequest {
 }
 
 message OptionHistoryTradeGreeksAllRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   optional string date = 2;
   string expiration = 3;
   optional string start_time = 4;
@@ -544,7 +612,7 @@ message OptionHistoryTradeGreeksAllRequest {
 }
 
 message OptionHistoryGreeksFirstOrderRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   optional string date = 2;
   string expiration = 3;
   optional string start_time = 4;
@@ -565,7 +633,7 @@ message OptionHistoryGreeksFirstOrderRequest {
 }
 
 message OptionHistoryTradeGreeksFirstOrderRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   optional string date = 2;
   string expiration = 3;
   optional string start_time = 4;
@@ -586,7 +654,7 @@ message OptionHistoryTradeGreeksFirstOrderRequest {
 }
 
 message OptionHistoryGreeksSecondOrderRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   optional string date = 2;
   string expiration = 3;
   optional string start_time = 4;
@@ -607,7 +675,7 @@ message OptionHistoryGreeksSecondOrderRequest {
 }
 
 message OptionHistoryTradeGreeksSecondOrderRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   optional string date = 2;
   string expiration = 3;
   optional string start_time = 4;
@@ -628,7 +696,7 @@ message OptionHistoryTradeGreeksSecondOrderRequest {
 }
 
 message OptionHistoryGreeksThirdOrderRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   optional string date = 2;
   string expiration = 3;
   optional string start_time = 4;
@@ -649,7 +717,7 @@ message OptionHistoryGreeksThirdOrderRequest {
 }
 
 message OptionHistoryTradeGreeksThirdOrderRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   optional string date = 2;
   string expiration = 3;
   optional string start_time = 4;
@@ -670,7 +738,7 @@ message OptionHistoryTradeGreeksThirdOrderRequest {
 }
 
 message OptionHistoryGreeksImpliedVolatilityRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   optional string date = 2;
   string expiration = 3;
   optional string start_time = 4;
@@ -691,7 +759,7 @@ message OptionHistoryGreeksImpliedVolatilityRequest {
 }
 
 message OptionHistoryTradeGreeksImpliedVolatilityRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   optional string date = 2;
   string expiration = 3;
   optional string start_time = 4;
@@ -712,7 +780,7 @@ message OptionHistoryTradeGreeksImpliedVolatilityRequest {
 }
 
 message OptionAtTimeTradeRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   string start_date = 2;
   string end_date = 3;
   string time_of_day = 4;
@@ -727,7 +795,7 @@ message OptionAtTimeTradeRequest {
 }
 
 message OptionAtTimeQuoteRequestQuery {
-  endpoints.ContractSpec contract_spec = 1;
+  ContractSpec contract_spec = 1;
   string start_date = 2;
   string end_date = 3;
   string time_of_day = 4;
@@ -877,65 +945,128 @@ message InterestRateHistoryEodRequest {
   InterestRateHistoryEodRequestQuery params = 2;
 }
 
+
 service BetaThetaTerminal {
-  rpc GetStockListSymbols (StockListSymbolsRequest) returns (stream endpoints.ResponseData);
-  rpc GetStockListDates (StockListDatesRequest) returns (stream endpoints.ResponseData);
-  rpc GetStockSnapshotOhlc (StockSnapshotOhlcRequest) returns (stream endpoints.ResponseData);
-  rpc GetStockSnapshotTrade (StockSnapshotTradeRequest) returns (stream endpoints.ResponseData);
-  rpc GetStockSnapshotQuote (StockSnapshotQuoteRequest) returns (stream endpoints.ResponseData);
-  rpc GetStockSnapshotMarketValue (StockSnapshotMarketValueRequest) returns (stream endpoints.ResponseData);
-  rpc GetStockHistoryEod (StockHistoryEodRequest) returns (stream endpoints.ResponseData);
-  rpc GetStockHistoryOhlc (StockHistoryOhlcRequest) returns (stream endpoints.ResponseData);
-  rpc GetStockHistoryTrade (StockHistoryTradeRequest) returns (stream endpoints.ResponseData);
-  rpc GetStockHistoryQuote (StockHistoryQuoteRequest) returns (stream endpoints.ResponseData);
-  rpc GetStockHistoryTradeQuote (StockHistoryTradeQuoteRequest) returns (stream endpoints.ResponseData);
-  rpc GetStockAtTimeTrade (StockAtTimeTradeRequest) returns (stream endpoints.ResponseData);
-  rpc GetStockAtTimeQuote (StockAtTimeQuoteRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionListSymbols (OptionListSymbolsRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionListDates (OptionListDatesRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionListExpirations (OptionListExpirationsRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionListStrikes (OptionListStrikesRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionListContracts (OptionListContractsRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionSnapshotOhlc (OptionSnapshotOhlcRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionSnapshotTrade (OptionSnapshotTradeRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionSnapshotQuote (OptionSnapshotQuoteRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionSnapshotOpenInterest (OptionSnapshotOpenInterestRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionSnapshotMarketValue (OptionSnapshotMarketValueRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionSnapshotGreeksImpliedVolatility (OptionSnapshotGreeksImpliedVolatilityRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionSnapshotGreeksAll (OptionSnapshotGreeksAllRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionSnapshotGreeksFirstOrder (OptionSnapshotGreeksFirstOrderRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionSnapshotGreeksSecondOrder (OptionSnapshotGreeksSecondOrderRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionSnapshotGreeksThirdOrder (OptionSnapshotGreeksThirdOrderRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionHistoryEod (OptionHistoryEodRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionHistoryOhlc (OptionHistoryOhlcRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionHistoryTrade (OptionHistoryTradeRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionHistoryQuote (OptionHistoryQuoteRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionHistoryTradeQuote (OptionHistoryTradeQuoteRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionHistoryOpenInterest (OptionHistoryOpenInterestRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionHistoryGreeksEod (OptionHistoryGreeksEodRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionHistoryGreeksAll (OptionHistoryGreeksAllRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionHistoryTradeGreeksAll (OptionHistoryTradeGreeksAllRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionHistoryGreeksFirstOrder (OptionHistoryGreeksFirstOrderRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionHistoryTradeGreeksFirstOrder (OptionHistoryTradeGreeksFirstOrderRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionHistoryGreeksSecondOrder (OptionHistoryGreeksSecondOrderRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionHistoryTradeGreeksSecondOrder (OptionHistoryTradeGreeksSecondOrderRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionHistoryGreeksThirdOrder (OptionHistoryGreeksThirdOrderRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionHistoryTradeGreeksThirdOrder (OptionHistoryTradeGreeksThirdOrderRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionHistoryGreeksImpliedVolatility (OptionHistoryGreeksImpliedVolatilityRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionHistoryTradeGreeksImpliedVolatility (OptionHistoryTradeGreeksImpliedVolatilityRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionAtTimeTrade (OptionAtTimeTradeRequest) returns (stream endpoints.ResponseData);
-  rpc GetOptionAtTimeQuote (OptionAtTimeQuoteRequest) returns (stream endpoints.ResponseData);
-  rpc GetIndexListSymbols (IndexListSymbolsRequest) returns (stream endpoints.ResponseData);
-  rpc GetIndexListDates (IndexListDatesRequest) returns (stream endpoints.ResponseData);
-  rpc GetIndexSnapshotOhlc (IndexSnapshotOhlcRequest) returns (stream endpoints.ResponseData);
-  rpc GetIndexSnapshotPrice (IndexSnapshotPriceRequest) returns (stream endpoints.ResponseData);
-  rpc GetIndexSnapshotMarketValue (IndexSnapshotMarketValueRequest) returns (stream endpoints.ResponseData);
-  rpc GetIndexHistoryEod (IndexHistoryEodRequest) returns (stream endpoints.ResponseData);
-  rpc GetIndexHistoryOhlc (IndexHistoryOhlcRequest) returns (stream endpoints.ResponseData);
-  rpc GetIndexHistoryPrice (IndexHistoryPriceRequest) returns (stream endpoints.ResponseData);
-  rpc GetIndexAtTimePrice (IndexAtTimePriceRequest) returns (stream endpoints.ResponseData);
-  rpc GetCalendarOpenToday (CalendarOpenTodayRequest) returns (stream endpoints.ResponseData);
-  rpc GetCalendarOnDate (CalendarOnDateRequest) returns (stream endpoints.ResponseData);
-  rpc GetCalendarYear (CalendarYearRequest) returns (stream endpoints.ResponseData);
-  rpc GetInterestRateHistoryEod (InterestRateHistoryEodRequest) returns (stream endpoints.ResponseData);
+
+
+  rpc GetStockListSymbols (StockListSymbolsRequest) returns (stream ResponseData);
+
+  rpc GetStockListDates (StockListDatesRequest) returns (stream ResponseData);
+
+  rpc GetStockSnapshotOhlc (StockSnapshotOhlcRequest) returns (stream ResponseData);
+
+  rpc GetStockSnapshotTrade (StockSnapshotTradeRequest) returns (stream ResponseData);
+
+  rpc GetStockSnapshotQuote (StockSnapshotQuoteRequest) returns (stream ResponseData);
+
+  rpc GetStockSnapshotMarketValue (StockSnapshotMarketValueRequest) returns (stream ResponseData);
+
+  rpc GetStockHistoryEod (StockHistoryEodRequest) returns (stream ResponseData);
+
+  rpc GetStockHistoryOhlc (StockHistoryOhlcRequest) returns (stream ResponseData);
+
+  rpc GetStockHistoryTrade (StockHistoryTradeRequest) returns (stream ResponseData);
+
+  rpc GetStockHistoryQuote (StockHistoryQuoteRequest) returns (stream ResponseData);
+
+  rpc GetStockHistoryTradeQuote (StockHistoryTradeQuoteRequest) returns (stream ResponseData);
+
+  rpc GetStockAtTimeTrade (StockAtTimeTradeRequest) returns (stream ResponseData);
+
+  rpc GetStockAtTimeQuote (StockAtTimeQuoteRequest) returns (stream ResponseData);
+
+  rpc GetOptionListSymbols (OptionListSymbolsRequest) returns (stream ResponseData);
+
+  rpc GetOptionListDates (OptionListDatesRequest) returns (stream ResponseData);
+
+  rpc GetOptionListExpirations (OptionListExpirationsRequest) returns (stream ResponseData);
+
+  rpc GetOptionListStrikes (OptionListStrikesRequest) returns (stream ResponseData);
+
+  rpc GetOptionListContracts (OptionListContractsRequest) returns (stream ResponseData);
+
+  rpc GetOptionSnapshotOhlc (OptionSnapshotOhlcRequest) returns (stream ResponseData);
+
+  rpc GetOptionSnapshotTrade (OptionSnapshotTradeRequest) returns (stream ResponseData);
+
+  rpc GetOptionSnapshotQuote (OptionSnapshotQuoteRequest) returns (stream ResponseData);
+
+  rpc GetOptionSnapshotOpenInterest (OptionSnapshotOpenInterestRequest) returns (stream ResponseData);
+
+  rpc GetOptionSnapshotMarketValue (OptionSnapshotMarketValueRequest) returns (stream ResponseData);
+
+  rpc GetOptionSnapshotGreeksImpliedVolatility (OptionSnapshotGreeksImpliedVolatilityRequest) returns (stream ResponseData);
+
+  rpc GetOptionSnapshotGreeksAll (OptionSnapshotGreeksAllRequest) returns (stream ResponseData);
+
+  rpc GetOptionSnapshotGreeksFirstOrder (OptionSnapshotGreeksFirstOrderRequest) returns (stream ResponseData);
+
+  rpc GetOptionSnapshotGreeksSecondOrder (OptionSnapshotGreeksSecondOrderRequest) returns (stream ResponseData);
+
+  rpc GetOptionSnapshotGreeksThirdOrder (OptionSnapshotGreeksThirdOrderRequest) returns (stream ResponseData);
+
+  rpc GetOptionHistoryEod (OptionHistoryEodRequest) returns (stream ResponseData);
+
+  rpc GetOptionHistoryOhlc (OptionHistoryOhlcRequest) returns (stream ResponseData);
+
+  rpc GetOptionHistoryTrade (OptionHistoryTradeRequest) returns (stream ResponseData);
+
+  rpc GetOptionHistoryQuote (OptionHistoryQuoteRequest) returns (stream ResponseData);
+
+  rpc GetOptionHistoryTradeQuote (OptionHistoryTradeQuoteRequest) returns (stream ResponseData);
+
+  rpc GetOptionHistoryOpenInterest (OptionHistoryOpenInterestRequest) returns (stream ResponseData);
+
+  rpc GetOptionHistoryGreeksEod (OptionHistoryGreeksEodRequest) returns (stream ResponseData);
+
+  rpc GetOptionHistoryGreeksAll (OptionHistoryGreeksAllRequest) returns (stream ResponseData);
+
+  rpc GetOptionHistoryTradeGreeksAll (OptionHistoryTradeGreeksAllRequest) returns (stream ResponseData);
+
+  rpc GetOptionHistoryGreeksFirstOrder (OptionHistoryGreeksFirstOrderRequest) returns (stream ResponseData);
+
+  rpc GetOptionHistoryTradeGreeksFirstOrder (OptionHistoryTradeGreeksFirstOrderRequest) returns (stream ResponseData);
+
+  rpc GetOptionHistoryGreeksSecondOrder (OptionHistoryGreeksSecondOrderRequest) returns (stream ResponseData);
+
+  rpc GetOptionHistoryTradeGreeksSecondOrder (OptionHistoryTradeGreeksSecondOrderRequest) returns (stream ResponseData);
+
+  rpc GetOptionHistoryGreeksThirdOrder (OptionHistoryGreeksThirdOrderRequest) returns (stream ResponseData);
+
+  rpc GetOptionHistoryTradeGreeksThirdOrder (OptionHistoryTradeGreeksThirdOrderRequest) returns (stream ResponseData);
+
+  rpc GetOptionHistoryGreeksImpliedVolatility (OptionHistoryGreeksImpliedVolatilityRequest) returns (stream ResponseData);
+
+  rpc GetOptionHistoryTradeGreeksImpliedVolatility (OptionHistoryTradeGreeksImpliedVolatilityRequest) returns (stream ResponseData);
+
+  rpc GetOptionAtTimeTrade (OptionAtTimeTradeRequest) returns (stream ResponseData);
+
+  rpc GetOptionAtTimeQuote (OptionAtTimeQuoteRequest) returns (stream ResponseData);
+
+  rpc GetIndexListSymbols (IndexListSymbolsRequest) returns (stream ResponseData);
+
+  rpc GetIndexListDates (IndexListDatesRequest) returns (stream ResponseData);
+
+  rpc GetIndexSnapshotOhlc (IndexSnapshotOhlcRequest) returns (stream ResponseData);
+
+  rpc GetIndexSnapshotPrice (IndexSnapshotPriceRequest) returns (stream ResponseData);
+
+  rpc GetIndexSnapshotMarketValue (IndexSnapshotMarketValueRequest) returns (stream ResponseData);
+
+  rpc GetIndexHistoryEod (IndexHistoryEodRequest) returns (stream ResponseData);
+
+  rpc GetIndexHistoryOhlc (IndexHistoryOhlcRequest) returns (stream ResponseData);
+
+  rpc GetIndexHistoryPrice (IndexHistoryPriceRequest) returns (stream ResponseData);
+
+  rpc GetIndexAtTimePrice (IndexAtTimePriceRequest) returns (stream ResponseData);
+
+  rpc GetCalendarOpenToday (CalendarOpenTodayRequest) returns (stream ResponseData);
+
+  rpc GetCalendarOnDate (CalendarOnDateRequest) returns (stream ResponseData);
+
+  rpc GetCalendarYear (CalendarYearRequest) returns (stream ResponseData);
+
+  rpc GetInterestRateHistoryEod (InterestRateHistoryEodRequest) returns (stream ResponseData);
+
 }
