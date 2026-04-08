@@ -502,11 +502,13 @@ fn generate_endpoint_registry() -> Result<(), Box<dyn std::error::Error>> {
         code.push_str("    },\n");
     }
 
-    // ── Manual extra: stock_history_ohlc_range (not in proto) ───────────────
-    // stock_history_ohlc_range is a convenience wrapper over GetStockHistoryOhlc
-    // with start_date/end_date instead of single date. Not in the proto but
-    // useful for users. Manually appended to the auto-generated list.
-    code.push_str("    // Manual entry — convenience method not in proto\n");
+    // ── Manual extra: stock_history_ohlc_range ─────────────────────────────
+    // Second SDK-level method on top of the same GetStockHistoryOhlc RPC.
+    // The proto supports both shapes via the optional `date` vs
+    // `start_date`/`end_date` fields; the SDK exposes them as two distinct
+    // methods for nicer ergonomics. The registry parser only picks up one
+    // method per RPC, so the range variant is appended manually here.
+    code.push_str("    // Manual entry — second method sharing the GetStockHistoryOhlc RPC\n");
     code.push_str("    EndpointMeta {\n");
     code.push_str("        name: \"stock_history_ohlc_range\",\n");
     code.push_str("        description: \"Fetch intraday OHLC bars across a date range.\",\n");
