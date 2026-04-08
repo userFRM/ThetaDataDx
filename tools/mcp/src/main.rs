@@ -322,9 +322,11 @@ fn validate_symbol(value: &str, param_name: &str) -> Result<(), String> {
 }
 
 fn validate_interval(value: &str, param_name: &str) -> Result<(), String> {
-    if value.is_empty() || !value.bytes().all(|b| b.is_ascii_digit()) {
+    // Accepts raw milliseconds ("60000") or shorthand ("1m", "5m", "1h", "100ms", etc.)
+    if value.is_empty() || !value.bytes().all(|b| b.is_ascii_alphanumeric()) {
         return Err(format!(
-            "'{param_name}' must be a non-empty string of digits, got: '{value}'"
+            "'{param_name}' must be a non-empty alphanumeric string \
+             (e.g. '60000' for raw ms, or '1m' / '5m' / '1h' shorthand), got: '{value}'"
         ));
     }
     Ok(())
@@ -802,13 +804,13 @@ async fn execute_tool(
 
         // ── Stock Snapshot ──────────────────────────────────────────
         "stock_snapshot_ohlc" => {
-            let syms_str = param!(arg_symbol(args, "symbols"));
+            let syms_str = param!(arg_symbol(args, "symbol"));
             let syms = parse_symbols(syms_str);
             let ticks = api!(client.stock_snapshot_ohlc(&syms).await);
             Ok(serialize_ohlc_ticks(&ticks))
         }
         "stock_snapshot_trade" => {
-            let syms_str = param!(arg_symbol(args, "symbols"));
+            let syms_str = param!(arg_symbol(args, "symbol"));
             let syms = parse_symbols(syms_str);
             let ticks = api!(
                 client
@@ -818,7 +820,7 @@ async fn execute_tool(
             Ok(serialize_trade_ticks(&ticks))
         }
         "stock_snapshot_quote" => {
-            let syms_str = param!(arg_symbol(args, "symbols"));
+            let syms_str = param!(arg_symbol(args, "symbol"));
             let syms = parse_symbols(syms_str);
             let ticks = api!(
                 client
@@ -828,7 +830,7 @@ async fn execute_tool(
             Ok(serialize_quote_ticks(&ticks))
         }
         "stock_snapshot_market_value" => {
-            let syms_str = param!(arg_symbol(args, "symbols"));
+            let syms_str = param!(arg_symbol(args, "symbol"));
             let syms = parse_symbols(syms_str);
             let ticks = api!(
                 client
@@ -848,7 +850,11 @@ async fn execute_tool(
         }
         "stock_history_ohlc" => {
             let sym = param!(arg_symbol(args, "symbol"));
-            let date = param!(arg_date(args, "date"));
+            // `date` is optional in the registry; omit it to get the most recent session.
+            let date = match args.get("date") {
+                Some(_) => param!(arg_date(args, "date")),
+                None => "",
+            };
             let interval = param!(arg_interval(args, "interval"));
             let ticks = api!(
                 client
@@ -1466,13 +1472,13 @@ async fn execute_tool(
 
         // ── Index Snapshot ──────────────────────────────────────────
         "index_snapshot_ohlc" => {
-            let syms_str = param!(arg_symbol(args, "symbols"));
+            let syms_str = param!(arg_symbol(args, "symbol"));
             let syms = parse_symbols(syms_str);
             let ticks = api!(client.index_snapshot_ohlc(&syms).await);
             Ok(serialize_ohlc_ticks(&ticks))
         }
         "index_snapshot_price" => {
-            let syms_str = param!(arg_symbol(args, "symbols"));
+            let syms_str = param!(arg_symbol(args, "symbol"));
             let syms = parse_symbols(syms_str);
             let ticks = api!(
                 client
@@ -1482,7 +1488,7 @@ async fn execute_tool(
             Ok(serialize_price_ticks(&ticks))
         }
         "index_snapshot_market_value" => {
-            let syms_str = param!(arg_symbol(args, "symbols"));
+            let syms_str = param!(arg_symbol(args, "symbol"));
             let syms = parse_symbols(syms_str);
             let ticks = api!(
                 client
