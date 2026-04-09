@@ -132,6 +132,16 @@ The server speaks standard MCP over stdio:
 - `option_history_greeks_implied_volatility`, `option_history_trade_greeks_implied_volatility`
 - `option_at_time_trade`, `option_at_time_quote`
 
+### Wildcard Option Queries
+
+For option tools, MCP uses `"0"` as the wildcard value for `strike` and `expiration`.
+
+- Use a pinned strike like `"strike":"385"` when you want one contract.
+- Use `"strike":"0"` when you want a bulk chain-style response with contract identification fields on each row.
+- `strike_range` filters a wildcard bulk selection around spot / ATM. It does **not** fan out a pinned strike into neighboring strikes.
+
+This matches the current Java terminal behavior. The v3 REST surface uses `*` for the same wildcard concept; the MCP server uses `"0"` because it follows the underlying SDK contract.
+
 ### Index Data (9 tools)
 - `index_list_symbols`, `index_list_dates`
 - `index_snapshot_ohlc`, `index_snapshot_price`, `index_snapshot_market_value`
@@ -160,6 +170,14 @@ Response:
 ```json
 {"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"{\"ticks\":[{\"date\":20240102,\"ms_of_day\":57600000,\"open\":187.15,\"high\":188.44,\"low\":183.89,\"close\":185.64,\"volume\":82488700,\"count\":1036575,\"bid\":185.63,\"ask\":185.65,\"bid_size\":1,\"ask_size\":3},...],\"count\":41}"}]}}
 ```
+
+### Fetch bulk option Greeks around ATM
+
+```json
+{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"option_history_greeks_eod","arguments":{"symbol":"SPY","expiration":"20230120","strike":"0","right":"C","start_date":"20221219","end_date":"20221220","strike_range":5}}}
+```
+
+This returns a filtered bulk response across multiple strikes. If you change `strike` to `"385"`, the response is limited to that single contract.
 
 ### Compute Greeks offline
 

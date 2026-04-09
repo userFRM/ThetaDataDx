@@ -445,14 +445,19 @@ fn serialize_eod_ticks(ticks: &[tdbe::types::tick::EodTick]) -> Value {
             let mut row = json!({
                 "date": t.date,
                 "ms_of_day": t.ms_of_day,
+                "ms_of_day2": t.ms_of_day2,
                 "open": t.open,
                 "high": t.high,
                 "low": t.low,
                 "close": t.close,
                 "volume": t.volume,
                 "count": t.count,
+                "bid_exchange": t.bid_exchange,
                 "bid": t.bid,
+                "bid_condition": t.bid_condition,
+                "ask_exchange": t.ask_exchange,
                 "ask": t.ask,
+                "ask_condition": t.ask_condition,
                 "bid_size": t.bid_size,
                 "ask_size": t.ask_size,
             });
@@ -1095,8 +1100,8 @@ mod tests {
 
     fn sample_eod_tick(expiration: i32, strike: f64, right: i32) -> EodTick {
         EodTick {
-            ms_of_day: 0,
-            ms_of_day2: 0,
+            ms_of_day: 34_200_000,
+            ms_of_day2: 57_600_000,
             open: 1.0,
             high: 1.0,
             low: 1.0,
@@ -1104,13 +1109,13 @@ mod tests {
             volume: 10,
             count: 1,
             bid_size: 2,
-            bid_exchange: 0,
+            bid_exchange: 11,
             bid: 0.9,
-            bid_condition: 0,
+            bid_condition: 22,
             ask_size: 3,
-            ask_exchange: 0,
+            ask_exchange: 33,
             ask: 1.1,
-            ask_condition: 0,
+            ask_condition: 44,
             date: 20221219,
             expiration,
             strike,
@@ -1293,6 +1298,45 @@ mod tests {
         assert_eq!(
             tick.get("right").and_then(|value: &Value| value.as_str()),
             Some("C")
+        );
+    }
+
+    #[test]
+    fn serialize_eod_ticks_preserves_full_eod_fields() {
+        let payload = serialize_eod_ticks(&[sample_eod_tick(0, 0.0, 0)]);
+        let tick = payload
+            .get("ticks")
+            .and_then(|value: &Value| value.as_array())
+            .and_then(|rows| rows.first())
+            .expect("serialized tick row should exist");
+
+        assert_eq!(
+            tick.get("ms_of_day").and_then(|value: &Value| value.as_i64()),
+            Some(34_200_000)
+        );
+        assert_eq!(
+            tick.get("ms_of_day2").and_then(|value: &Value| value.as_i64()),
+            Some(57_600_000)
+        );
+        assert_eq!(
+            tick.get("bid_exchange")
+                .and_then(|value: &Value| value.as_i64()),
+            Some(11)
+        );
+        assert_eq!(
+            tick.get("bid_condition")
+                .and_then(|value: &Value| value.as_i64()),
+            Some(22)
+        );
+        assert_eq!(
+            tick.get("ask_exchange")
+                .and_then(|value: &Value| value.as_i64()),
+            Some(33)
+        );
+        assert_eq!(
+            tick.get("ask_condition")
+                .and_then(|value: &Value| value.as_i64()),
+            Some(44)
         );
     }
 

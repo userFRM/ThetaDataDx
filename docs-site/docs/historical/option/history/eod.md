@@ -80,6 +80,8 @@ for (const auto& t : data) {
 
 ## Response
 
+> `strike_range` filters a wildcard bulk request. If you pin `strike` to one contract, the response stays single-strike. Use `strike="0"` in ThetaDataDx SDK/MCP or `strike=*` in the v3 REST API when you want multi-strike EOD output.
+
 <div class="param-list">
 <div class="param">
 <div class="param-header"><code>date</code><span class="param-type">string</span></div>
@@ -122,4 +124,3 @@ for (const auto& t : data) {
 ```
 
 > EOD data for SPY 2026-04-17 550 call. Days with no trades show `0.00` for OHLC but still have closing bid/ask.
-

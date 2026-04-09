@@ -170,7 +170,7 @@ fn civil_to_epoch_days(year: i32, month: u32, day: u32) -> i64 {
 /// Convert `epoch_ms` to milliseconds-of-day in Eastern Time (DST-aware).
 // Reason: ms_of_day fits in i32; epoch_ms is in valid market data range.
 #[allow(clippy::cast_possible_wrap, clippy::cast_possible_truncation)]
-fn timestamp_to_ms_of_day(epoch_ms: u64) -> i32 {
+pub(crate) fn timestamp_to_ms_of_day(epoch_ms: u64) -> i32 {
     let offset = eastern_offset_ms(epoch_ms);
     let local_ms = epoch_ms as i64 + offset;
     (local_ms.rem_euclid(86_400_000)) as i32
@@ -764,6 +764,15 @@ mod tests {
         }
     }
 
+    /// Build a DataValue containing a Timestamp.
+    fn dv_timestamp(epoch_ms: u64) -> proto::DataValue {
+        proto::DataValue {
+            data_type: Some(proto::data_value::DataType::Timestamp(
+                proto::ZonedDateTime { epoch_ms, zone: 0 },
+            )),
+        }
+    }
+
     /// Build a DataValue with no data_type set (missing).
     fn dv_missing() -> proto::DataValue {
         proto::DataValue { data_type: None }
@@ -1061,5 +1070,33 @@ mod tests {
     fn parse_time_text_invalid_returns_zero() {
         assert_eq!(super::parse_time_text("invalid"), 0);
         assert_eq!(super::parse_time_text(""), 0);
+    }
+
+    #[test]
+    fn parse_eod_timestamp_aliases_decode_time_and_date_separately() {
+        // 2026-04-01 13:30:00 UTC = 2026-04-01 09:30:00 ET (EDT).
+        let epoch_ms: u64 = 1_775_050_200_000;
+        let table = proto::DataTable {
+            headers: vec![
+                "timestamp".into(),
+                "timestamp2".into(),
+                "open".into(),
+                "close".into(),
+            ],
+            data_table: vec![row_of(vec![
+                dv_timestamp(epoch_ms),
+                dv_timestamp(epoch_ms),
+                dv_number(15000),
+                dv_number(15100),
+            ])],
+        };
+
+        let ticks = parse_eod_ticks(&table);
+        assert_eq!(ticks.len(), 1);
+        assert_eq!(ticks[0].ms_of_day, 34_200_000);
+        assert_eq!(ticks[0].ms_of_day2, 34_200_000);
+        assert_eq!(ticks[0].date, 20260401);
+        assert!((ticks[0].open - 15000.0).abs() < 1e-10);
+        assert!((ticks[0].close - 15100.0).abs() < 1e-10);
     }
 }

@@ -94,9 +94,11 @@ for (const auto& t : data) {
 </div>
 <div class="param">
 <div class="param-header"><code>strike_range</code><span class="param-type">int</span><span class="param-badge optional">optional</span></div>
-<div class="param-desc">Strike range filter</div>
+<div class="param-desc">Strike range filter. This only narrows a wildcard bulk query; it does not expand a pinned strike into neighboring strikes.</div>
 </div>
 </div>
+
+> For multi-strike EOD Greeks requests, use a wildcard strike selection first (`strike="0"` in ThetaDataDx SDK/MCP, `strike=*` in the v3 REST API), then apply `strike_range`.
 
 ## Response
 

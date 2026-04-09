@@ -131,6 +131,13 @@ for row in chain[:5]:
 
 When you pass `"0"` for `expiration` or `strike`, the server returns data across all matching contracts. Each tick includes contract identification fields (`expiration`, `strike`, `right`) so you can distinguish which contract each tick belongs to.
 
+`strike_range` only narrows one of these wildcard bulk queries. It does not expand a pinned strike into neighboring strikes. In other words:
+
+- `strike="500"` + `strike_range=5` still targets the single 500 strike contract
+- `strike="0"` + `strike_range=5` returns a spot-relative range of strikes around ATM
+
+If you are comparing against the v3 REST API, the same wildcard behavior is expressed with `strike=*` / `expiration=*` instead of `"0"`.
+
 ::: warning
 The `right` parameter does **not** accept `"0"` as a wildcard. Use `"C"` (call), `"P"` (put), or `"both"` (calls and puts). Only `expiration` and `strike` accept `"0"` as a wildcard.
 :::

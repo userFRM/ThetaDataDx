@@ -9,7 +9,8 @@
 #   f64     -> row_float(row, i)                          default: 0.0
 #   String  -> row_text(row, i)                           default: ""
 #   price   -> decode to f64 via Price::new(raw, pt).to_f64()
-#   eod_num -> eod_num(row, i) handles both Price and Number cells  default: 0
+#   eod_num -> EOD numeric/time field: Price/Number direct, Timestamp -> ms_of_day
+#   eod_date -> EOD date field: Price/Number direct, Timestamp -> YYYYMMDD
 #   eod_price -> EOD price fields: decode to f64 at parse time
 #
 # Parser options:
@@ -115,7 +116,7 @@ columns = [
     { name = "ask_exchange",  field = "ask_exchange",  type = "eod_num" },
     { name = "ask",           field = "ask",           type = "eod_price" },
     { name = "ask_condition", field = "ask_condition", type = "eod_num" },
-    { name = "date",          field = "date",          type = "eod_num" },
+    { name = "date",          field = "date",          type = "eod_date" },
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────

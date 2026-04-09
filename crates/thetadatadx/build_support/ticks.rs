@@ -82,10 +82,32 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
     )
     .unwrap();
 
-    // If eod_style, emit the local eod_num and eod_price helpers inline.
+    // If eod_style, emit the local EOD helpers inline.
     if def.eod_style {
-        out.push_str("    // EOD rows may have Price-typed cells or plain Number cells.\n");
+        out.push_str(
+            "    // EOD numeric/time fields may arrive as Price, Number, or Timestamp cells.\n",
+        );
         out.push_str("    fn eod_num(row: &crate::proto::DataValueList, idx: usize) -> i32 {\n");
+        out.push_str("        row.values\n");
+        out.push_str("            .get(idx)\n");
+        out.push_str("            .and_then(|dv| dv.data_type.as_ref())\n");
+        out.push_str("            .and_then(|dt| match dt {\n");
+        out.push_str(
+            "                crate::proto::data_value::DataType::Number(n) => Some(*n as i32),\n",
+        );
+        out.push_str(
+            "                crate::proto::data_value::DataType::Price(p) => Some(p.value),\n",
+        );
+        out.push_str(
+            "                crate::proto::data_value::DataType::Timestamp(ts) => Some(crate::decode::timestamp_to_ms_of_day(ts.epoch_ms)),\n",
+        );
+        out.push_str("                _ => None,\n");
+        out.push_str("            })\n");
+        out.push_str("            .unwrap_or(0)\n");
+        out.push_str("    }\n\n");
+
+        out.push_str("    // EOD date fields may arrive as Price, Number, or Timestamp cells.\n");
+        out.push_str("    fn eod_date(row: &crate::proto::DataValueList, idx: usize) -> i32 {\n");
         out.push_str("        row.values\n");
         out.push_str("            .get(idx)\n");
         out.push_str("            .and_then(|dv| dv.data_type.as_ref())\n");
@@ -314,6 +336,14 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
                 writeln!(
                     out,
                     "                {}: {var}.map(|i| eod_num(row, i)).unwrap_or(0),",
+                    col.field
+                )
+                .unwrap();
+            }
+            "eod_date" => {
+                writeln!(
+                    out,
+                    "                {}: {var}.map(|i| eod_date(row, i)).unwrap_or(0),",
                     col.field
                 )
                 .unwrap();
