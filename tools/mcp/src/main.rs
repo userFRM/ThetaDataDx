@@ -332,7 +332,7 @@ fn tool_definitions() -> Vec<Value> {
                 &p.name,
                 json!({
                     "type": registry::param_type_to_json_type(p.param_type),
-                    "description": p.description,
+                    "description": mcp_param_description(ep, p),
                 }),
             );
             if p.required && !required.contains(&p.name) {
@@ -388,6 +388,40 @@ fn tool_definitions() -> Vec<Value> {
     }));
 
     tools
+}
+
+/// Return the LLM-facing MCP parameter description for a registry endpoint.
+///
+/// Most parameters can use the shared registry wording directly. A small set of
+/// option bulk-query parameters benefit from MCP-specific clarification because
+/// the MCP transport uses `"0"` as the wildcard sentinel instead of REST's
+/// `*`, and `strike_range` only filters an already-bulk selection.
+fn mcp_param_description(ep: &registry::EndpointMeta, param: &registry::ParamMeta) -> String {
+    if ep.category == "option" {
+        match param.name {
+            "strike" => {
+                return format!(
+                    "{}. Use \"0\" for wildcard/bulk strike selection on endpoints that support bulk option queries.",
+                    param.description
+                );
+            }
+            "expiration" => {
+                return format!(
+                    "{}. Use \"0\" for wildcard/bulk expiration selection on endpoints that support bulk option queries.",
+                    param.description
+                );
+            }
+            "strike_range" => {
+                return format!(
+                    "{}. Filters a wildcard/bulk option selection around spot/ATM; it does not expand a pinned strike.",
+                    param.description
+                );
+            }
+            _ => {}
+        }
+    }
+
+    param.description.to_string()
 }
 
 fn negotiate_protocol_version(client_version: Option<&str>) -> &'static str {
@@ -1202,6 +1236,44 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn tool_schemas_clarify_option_bulk_wildcards_for_llm_consumers() {
+        let tool = tool_definitions()
+            .into_iter()
+            .find(|tool| {
+                tool.get("name")
+                    .and_then(|value: &Value| value.as_str())
+                    == Some("option_history_greeks_eod")
+            })
+            .expect("option_history_greeks_eod tool should exist");
+
+        let strike = tool
+            .pointer(["inputSchema", "properties", "strike", "description"])
+            .and_then(|value| value.as_str())
+            .expect("strike description should exist");
+        let expiration = tool
+            .pointer(["inputSchema", "properties", "expiration", "description"])
+            .and_then(|value| value.as_str())
+            .expect("expiration description should exist");
+        let strike_range = tool
+            .pointer(["inputSchema", "properties", "strike_range", "description"])
+            .and_then(|value| value.as_str())
+            .expect("strike_range description should exist");
+
+        assert!(
+            strike.contains("\"0\" for wildcard/bulk strike selection"),
+            "strike description should explain MCP wildcard strike semantics: {strike}"
+        );
+        assert!(
+            expiration.contains("\"0\" for wildcard/bulk expiration selection"),
+            "expiration description should explain MCP wildcard expiration semantics: {expiration}"
+        );
+        assert!(
+            strike_range.contains("does not expand a pinned strike"),
+            "strike_range description should explain wildcard-only filtering semantics: {strike_range}"
+        );
     }
 
     #[test]

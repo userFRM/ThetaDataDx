@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "ThetaDataDx documentation site",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "vitepress dev docs",
     "build": "vitepress build docs",
