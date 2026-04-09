@@ -341,49 +341,111 @@ pub fn option_contracts_to_json(contracts: &[OptionContract]) -> Vec<sonic_rs::V
 
 /// Convert a JSON response array to CSV with headers.
 ///
-/// Returns `None` if the response is empty. Each object's keys become CSV
-/// column headers (order taken from the first row).
+/// Returns `None` if the response is empty or contains unsupported row shapes.
+///
+/// Object rows are emitted with one column per key using the first row's key
+/// order. Scalar rows are emitted as a single-column CSV with the `value`
+/// header so list endpoints can round-trip through `format=csv`.
 pub fn json_to_csv(response: &[sonic_rs::Value]) -> Option<String> {
     let first = response.first()?;
-    let obj = first.as_object()?;
-    let null_val = sonic_rs::Value::default();
-    let keys: Vec<&str> = obj.iter().map(|(k, _)| k).collect();
-    if keys.is_empty() {
-        return None;
-    }
-
     let mut out = String::with_capacity(response.len() * 128);
-    // Header row
-    for (i, k) in keys.iter().enumerate() {
-        if i > 0 {
-            out.push(',');
-        }
-        out.push_str(k);
-    }
-    out.push('\n');
 
-    // Data rows
-    for row in response {
-        if let Some(row_obj) = row.as_object() {
-            for (i, k) in keys.iter().enumerate() {
+    if let Some(obj) = first.as_object() {
+        let null_val = sonic_rs::Value::default();
+        let keys: Vec<&str> = obj.iter().map(|(k, _)| k).collect();
+        if keys.is_empty() {
+            return None;
+        }
+
+        for (i, key) in keys.iter().enumerate() {
+            if i > 0 {
+                out.push(',');
+            }
+            out.push_str(&escape_csv_field(key));
+        }
+        out.push('\n');
+
+        for row in response {
+            let row_obj = row.as_object()?;
+            for (i, key) in keys.iter().enumerate() {
                 if i > 0 {
                     out.push(',');
                 }
-                let val = row_obj.get(k).unwrap_or(&null_val);
-                if val.is_str() {
-                    if let Some(s) = val.as_str() {
-                        out.push_str(s);
-                    }
-                } else if val.is_null() {
-                    // empty cell
-                } else {
-                    let rendered = sonic_rs::to_string(val).unwrap_or_default();
-                    out.push_str(&rendered);
-                }
+                let value = row_obj.get(key).unwrap_or(&null_val);
+                out.push_str(&render_csv_value(value));
             }
             out.push('\n');
         }
+
+        return Some(out);
+    }
+
+    if response.iter().any(|row| row.is_object() || row.is_array()) {
+        return None;
+    }
+
+    out.push_str("value\n");
+    for row in response {
+        out.push_str(&render_csv_value(row));
+        out.push('\n');
     }
 
     Some(out)
+}
+
+fn render_csv_value(value: &sonic_rs::Value) -> String {
+    if let Some(s) = value.as_str() {
+        return escape_csv_field(s);
+    }
+    if value.is_null() {
+        return String::new();
+    }
+    let rendered = sonic_rs::to_string(value).unwrap_or_default();
+    escape_csv_field(&rendered)
+}
+
+fn escape_csv_field(value: &str) -> String {
+    if value.contains([',', '"', '\n', '\r']) {
+        format!("\"{}\"", value.replace('"', "\"\""))
+    } else {
+        value.to_owned()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::json_to_csv;
+
+    #[test]
+    fn json_to_csv_formats_scalar_lists_as_single_column() {
+        let csv = json_to_csv(&[
+            sonic_rs::Value::from("AAPL"),
+            sonic_rs::Value::from("MS,FT"),
+            sonic_rs::Value::from("He said \"hi\""),
+        ])
+        .expect("scalar list should format as CSV");
+
+        assert_eq!(csv, "value\nAAPL\n\"MS,FT\"\n\"He said \"\"hi\"\"\"\n");
+    }
+
+    #[test]
+    fn json_to_csv_formats_object_rows_with_headers() {
+        let csv = json_to_csv(&[
+            sonic_rs::json!({ "symbol": "AAPL", "count": 1 }),
+            sonic_rs::json!({ "symbol": "MSFT", "count": 2 }),
+        ])
+        .expect("object rows should format as CSV");
+
+        assert_eq!(csv, "symbol,count\nAAPL,1\nMSFT,2\n");
+    }
+
+    #[test]
+    fn json_to_csv_rejects_mixed_row_shapes() {
+        let csv = json_to_csv(&[
+            sonic_rs::json!({ "symbol": "AAPL" }),
+            sonic_rs::Value::from("MSFT"),
+        ]);
+
+        assert!(csv.is_none(), "mixed row shapes should not format as CSV");
+    }
 }
