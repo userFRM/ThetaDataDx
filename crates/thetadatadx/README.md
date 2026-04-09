@@ -46,12 +46,23 @@ proto/
   v3_endpoints.proto   - v3 service (BetaThetaTerminal, 60 RPCs)
   MAINTENANCE.md       - guide for ThetaData engineers
 endpoint_schema.toml   - single source of truth for tick type definitions
-build.rs               - proto compilation + endpoint registry + TOML codegen
+endpoint_surface.toml  - explicit endpoint surface spec for registry/direct/runtime generation
+build.rs               - small build entrypoint
+build_support/         - build-time generators for tick decoding and endpoint surfaces
 ```
 
 ## TOML Codegen
 
 All 14 tick types and their DataTable parsers are generated at compile time from `endpoint_schema.toml`. Adding a new column is one line in the TOML. See [docs/endpoint-schema.md](../../docs/endpoint-schema.md).
+
+## Endpoint Surface Spec
+
+Endpoint projections are generated from the checked-in `endpoint_surface.toml`
+file, which defines the normalized endpoint surface: names, descriptions,
+parameter semantics, REST paths, return kinds, and projection call-shapes. The
+build pipeline validates that spec against `proto/external.proto` before
+generating the registry, shared endpoint runtime, and `DirectClient` endpoint
+declarations.
 
 ## Tick Types
 
