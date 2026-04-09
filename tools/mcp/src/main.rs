@@ -700,32 +700,71 @@ fn parse_symbols(s: &str) -> Vec<&str> {
 }
 
 // ── Optional argument helpers ──────────────────────────────────────────────
-fn arg_opt_str<'a>(args: &'a Value, key: &str) -> Option<&'a str> {
-    args.get(key).and_then(|v| v.as_str())
+fn arg_opt_str<'a>(args: &'a Value, key: &str) -> Result<Option<&'a str>, String> {
+    match args.get(key) {
+        None => Ok(None),
+        Some(value) => value
+            .as_str()
+            .map(Some)
+            .ok_or_else(|| format!("optional string argument '{key}' must be a string")),
+    }
 }
-fn arg_opt_i32(args: &Value, key: &str) -> Option<i32> {
-    args.get(key).and_then(|v| v.as_i64()).map(|v| v as i32)
+fn arg_opt_date<'a>(args: &'a Value, key: &str) -> Result<Option<&'a str>, String> {
+    let Some(value) = arg_opt_str(args, key)? else {
+        return Ok(None);
+    };
+    validate_date(value, key)?;
+    Ok(Some(value))
 }
-fn arg_opt_f64(args: &Value, key: &str) -> Option<f64> {
-    args.get(key).and_then(|v| v.as_f64())
+fn arg_opt_i32(args: &Value, key: &str) -> Result<Option<i32>, String> {
+    match args.get(key) {
+        None => Ok(None),
+        Some(value) => {
+            let raw = value.as_i64().ok_or_else(|| {
+                format!("optional integer argument '{key}' must be an integer")
+            })?;
+            let narrowed = i32::try_from(raw).map_err(|_| {
+                format!("optional integer argument '{key}' is out of range for i32: {raw}")
+            })?;
+            Ok(Some(narrowed))
+        }
+    }
 }
-fn arg_opt_bool(args: &Value, key: &str) -> Option<bool> {
-    args.get(key).and_then(|v| v.as_bool())
+fn arg_opt_f64(args: &Value, key: &str) -> Result<Option<f64>, String> {
+    match args.get(key) {
+        None => Ok(None),
+        Some(value) => value
+            .as_f64()
+            .map(Some)
+            .ok_or_else(|| format!("optional number argument '{key}' must be a number")),
+    }
+}
+fn arg_opt_bool(args: &Value, key: &str) -> Result<Option<bool>, String> {
+    match args.get(key) {
+        None => Ok(None),
+        Some(value) => value
+            .as_bool()
+            .map(Some)
+            .ok_or_else(|| format!("optional boolean argument '{key}' must be a boolean")),
+    }
 }
 
 /// Chain optional builder params from MCP tool arguments.
 macro_rules! chain_opt {
     ($b:ident, $a:ident, $field:ident, i32) => {
-        if let Some(v) = arg_opt_i32($a, stringify!($field)) { $b = $b.$field(v); }
+        if let Some(v) = param!(arg_opt_i32($a, stringify!($field))) { $b = $b.$field(v); }
     };
     ($b:ident, $a:ident, $field:ident, f64) => {
-        if let Some(v) = arg_opt_f64($a, stringify!($field)) { $b = $b.$field(v); }
+        if let Some(v) = param!(arg_opt_f64($a, stringify!($field))) { $b = $b.$field(v); }
     };
     ($b:ident, $a:ident, $field:ident, str) => {
-        if let Some(v) = arg_opt_str($a, stringify!($field)) { $b = $b.$field(v); }
+        if let Some(v) = param!(arg_opt_str($a, stringify!($field))) { $b = $b.$field(v); }
     };
     ($b:ident, $a:ident, $field:ident, bool) => {
-        if let Some(v) = arg_opt_bool($a, stringify!($field)) { $b = $b.$field(v); }
+        if let Some(v) = param!(arg_opt_bool($a, stringify!($field))) { $b = $b.$field(v); }
+    };
+    ($b:ident, $a:ident, $field:ident, date) => {
+        if let Some(v) = param!(arg_opt_date($a, stringify!($field))) { $b = $b.$field(v); }
     };
 }
 macro_rules! chain_opts {
@@ -902,7 +941,7 @@ async fn execute_tool(
             };
             let interval = param!(arg_interval(args, "interval"));
             let mut b = client.stock_history_ohlc(sym, date, interval);
-            chain_opts!(b, args, { start_time: str, end_time: str, venue: str, start_date: str, end_date: str });
+            chain_opts!(b, args, { start_time: str, end_time: str, venue: str, start_date: date, end_date: date });
             let ticks = api!(b.await);
             Ok(serialize_ohlc_ticks(&ticks))
         }
@@ -920,7 +959,7 @@ async fn execute_tool(
             let sym = param!(arg_symbol(args, "symbol"));
             let date = param!(arg_date(args, "date"));
             let mut b = client.stock_history_trade(sym, date);
-            chain_opts!(b, args, { start_time: str, end_time: str, venue: str, start_date: str, end_date: str });
+            chain_opts!(b, args, { start_time: str, end_time: str, venue: str, start_date: date, end_date: date });
             let ticks = api!(b.await);
             Ok(serialize_trade_ticks(&ticks))
         }
@@ -929,7 +968,7 @@ async fn execute_tool(
             let date = param!(arg_date(args, "date"));
             let interval = param!(arg_interval(args, "interval"));
             let mut b = client.stock_history_quote(sym, date, interval);
-            chain_opts!(b, args, { start_time: str, end_time: str, venue: str, start_date: str, end_date: str });
+            chain_opts!(b, args, { start_time: str, end_time: str, venue: str, start_date: date, end_date: date });
             let ticks = api!(b.await);
             Ok(serialize_quote_ticks(&ticks))
         }
@@ -937,7 +976,7 @@ async fn execute_tool(
             let sym = param!(arg_symbol(args, "symbol"));
             let date = param!(arg_date(args, "date"));
             let mut b = client.stock_history_trade_quote(sym, date);
-            chain_opts!(b, args, { start_time: str, end_time: str, exclusive: bool, venue: str, start_date: str, end_date: str });
+            chain_opts!(b, args, { start_time: str, end_time: str, exclusive: bool, venue: str, start_date: date, end_date: date });
             let ticks = api!(b.await);
             Ok(serialize_trade_quote_ticks(&ticks))
         }
@@ -1100,7 +1139,7 @@ async fn execute_tool(
             let date = param!(arg_date(args, "date"));
             let interval = param!(arg_interval(args, "interval"));
             let mut b = client.option_history_ohlc(sym, exp, strike, right, date, interval);
-            chain_opts!(b, args, { start_time: str, end_time: str, strike_range: i32, start_date: str, end_date: str });
+            chain_opts!(b, args, { start_time: str, end_time: str, strike_range: i32, start_date: date, end_date: date });
             let ticks = api!(b.await);
             Ok(serialize_ohlc_ticks(&ticks))
         }
@@ -1111,7 +1150,7 @@ async fn execute_tool(
             let right = param!(arg_right(args, "right"));
             let date = param!(arg_date(args, "date"));
             let mut b = client.option_history_trade(sym, exp, strike, right, date);
-            chain_opts!(b, args, { start_time: str, end_time: str, max_dte: i32, strike_range: i32, start_date: str, end_date: str });
+            chain_opts!(b, args, { start_time: str, end_time: str, max_dte: i32, strike_range: i32, start_date: date, end_date: date });
             let ticks = api!(b.await);
             Ok(serialize_trade_ticks(&ticks))
         }
@@ -1123,7 +1162,7 @@ async fn execute_tool(
             let date = param!(arg_date(args, "date"));
             let interval = param!(arg_interval(args, "interval"));
             let mut b = client.option_history_quote(sym, exp, strike, right, date, interval);
-            chain_opts!(b, args, { start_time: str, end_time: str, max_dte: i32, strike_range: i32, start_date: str, end_date: str });
+            chain_opts!(b, args, { start_time: str, end_time: str, max_dte: i32, strike_range: i32, start_date: date, end_date: date });
             let ticks = api!(b.await);
             Ok(serialize_quote_ticks(&ticks))
         }
@@ -1134,7 +1173,7 @@ async fn execute_tool(
             let right = param!(arg_right(args, "right"));
             let date = param!(arg_date(args, "date"));
             let mut b = client.option_history_trade_quote(sym, exp, strike, right, date);
-            chain_opts!(b, args, { start_time: str, end_time: str, exclusive: bool, max_dte: i32, strike_range: i32, start_date: str, end_date: str });
+            chain_opts!(b, args, { start_time: str, end_time: str, exclusive: bool, max_dte: i32, strike_range: i32, start_date: date, end_date: date });
             let ticks = api!(b.await);
             Ok(serialize_trade_quote_ticks(&ticks))
         }
@@ -1145,7 +1184,7 @@ async fn execute_tool(
             let right = param!(arg_right(args, "right"));
             let date = param!(arg_date(args, "date"));
             let mut b = client.option_history_open_interest(sym, exp, strike, right, date);
-            chain_opts!(b, args, { max_dte: i32, strike_range: i32, start_date: str, end_date: str });
+            chain_opts!(b, args, { max_dte: i32, strike_range: i32, start_date: date, end_date: date });
             let ticks = api!(b.await);
             Ok(serialize_open_interest_ticks(&ticks))
         }
@@ -1176,22 +1215,22 @@ async fn execute_tool(
             let ticks = match name {
                 "option_history_greeks_all" => {
                     let mut b = client.option_history_greeks_all(sym, exp, strike, right, date, interval);
-                    chain_opts!(b, args, { start_time: str, end_time: str, strike_range: i32, start_date: str, end_date: str, annual_dividend: f64, rate_type: str, rate_value: f64, version: str });
+                    chain_opts!(b, args, { start_time: str, end_time: str, strike_range: i32, start_date: date, end_date: date, annual_dividend: f64, rate_type: str, rate_value: f64, version: str });
                     api!(b.await)
                 }
                 "option_history_greeks_first_order" => {
                     let mut b = client.option_history_greeks_first_order(sym, exp, strike, right, date, interval);
-                    chain_opts!(b, args, { start_time: str, end_time: str, strike_range: i32, start_date: str, end_date: str, annual_dividend: f64, rate_type: str, rate_value: f64, version: str });
+                    chain_opts!(b, args, { start_time: str, end_time: str, strike_range: i32, start_date: date, end_date: date, annual_dividend: f64, rate_type: str, rate_value: f64, version: str });
                     api!(b.await)
                 }
                 "option_history_greeks_second_order" => {
                     let mut b = client.option_history_greeks_second_order(sym, exp, strike, right, date, interval);
-                    chain_opts!(b, args, { start_time: str, end_time: str, strike_range: i32, start_date: str, end_date: str, annual_dividend: f64, rate_type: str, rate_value: f64, version: str });
+                    chain_opts!(b, args, { start_time: str, end_time: str, strike_range: i32, start_date: date, end_date: date, annual_dividend: f64, rate_type: str, rate_value: f64, version: str });
                     api!(b.await)
                 }
                 "option_history_greeks_third_order" => {
                     let mut b = client.option_history_greeks_third_order(sym, exp, strike, right, date, interval);
-                    chain_opts!(b, args, { start_time: str, end_time: str, strike_range: i32, start_date: str, end_date: str, annual_dividend: f64, rate_type: str, rate_value: f64, version: str });
+                    chain_opts!(b, args, { start_time: str, end_time: str, strike_range: i32, start_date: date, end_date: date, annual_dividend: f64, rate_type: str, rate_value: f64, version: str });
                     api!(b.await)
                 }
                 _ => unreachable!(),
@@ -1206,7 +1245,7 @@ async fn execute_tool(
             let date = param!(arg_date(args, "date"));
             let interval = param!(arg_interval(args, "interval"));
             let mut b = client.option_history_greeks_implied_volatility(sym, exp, strike, right, date, interval);
-            chain_opts!(b, args, { start_time: str, end_time: str, strike_range: i32, start_date: str, end_date: str, annual_dividend: f64, rate_type: str, rate_value: f64, version: str });
+            chain_opts!(b, args, { start_time: str, end_time: str, strike_range: i32, start_date: date, end_date: date, annual_dividend: f64, rate_type: str, rate_value: f64, version: str });
             let ticks = api!(b.await);
             Ok(serialize_iv_ticks(&ticks))
         }
@@ -1222,22 +1261,22 @@ async fn execute_tool(
             let ticks = match name {
                 "option_history_trade_greeks_all" => {
                     let mut b = client.option_history_trade_greeks_all(sym, exp, strike, right, date);
-                    chain_opts!(b, args, { start_time: str, end_time: str, max_dte: i32, strike_range: i32, start_date: str, end_date: str, annual_dividend: f64, rate_type: str, rate_value: f64, version: str });
+                    chain_opts!(b, args, { start_time: str, end_time: str, max_dte: i32, strike_range: i32, start_date: date, end_date: date, annual_dividend: f64, rate_type: str, rate_value: f64, version: str });
                     api!(b.await)
                 }
                 "option_history_trade_greeks_first_order" => {
                     let mut b = client.option_history_trade_greeks_first_order(sym, exp, strike, right, date);
-                    chain_opts!(b, args, { start_time: str, end_time: str, max_dte: i32, strike_range: i32, start_date: str, end_date: str, annual_dividend: f64, rate_type: str, rate_value: f64, version: str });
+                    chain_opts!(b, args, { start_time: str, end_time: str, max_dte: i32, strike_range: i32, start_date: date, end_date: date, annual_dividend: f64, rate_type: str, rate_value: f64, version: str });
                     api!(b.await)
                 }
                 "option_history_trade_greeks_second_order" => {
                     let mut b = client.option_history_trade_greeks_second_order(sym, exp, strike, right, date);
-                    chain_opts!(b, args, { start_time: str, end_time: str, max_dte: i32, strike_range: i32, start_date: str, end_date: str, annual_dividend: f64, rate_type: str, rate_value: f64, version: str });
+                    chain_opts!(b, args, { start_time: str, end_time: str, max_dte: i32, strike_range: i32, start_date: date, end_date: date, annual_dividend: f64, rate_type: str, rate_value: f64, version: str });
                     api!(b.await)
                 }
                 "option_history_trade_greeks_third_order" => {
                     let mut b = client.option_history_trade_greeks_third_order(sym, exp, strike, right, date);
-                    chain_opts!(b, args, { start_time: str, end_time: str, max_dte: i32, strike_range: i32, start_date: str, end_date: str, annual_dividend: f64, rate_type: str, rate_value: f64, version: str });
+                    chain_opts!(b, args, { start_time: str, end_time: str, max_dte: i32, strike_range: i32, start_date: date, end_date: date, annual_dividend: f64, rate_type: str, rate_value: f64, version: str });
                     api!(b.await)
                 }
                 _ => unreachable!(),
@@ -1251,7 +1290,7 @@ async fn execute_tool(
             let right = param!(arg_right(args, "right"));
             let date = param!(arg_date(args, "date"));
             let mut b = client.option_history_trade_greeks_implied_volatility(sym, exp, strike, right, date);
-            chain_opts!(b, args, { start_time: str, end_time: str, max_dte: i32, strike_range: i32, start_date: str, end_date: str, annual_dividend: f64, rate_type: str, rate_value: f64, version: str });
+            chain_opts!(b, args, { start_time: str, end_time: str, max_dte: i32, strike_range: i32, start_date: date, end_date: date, annual_dividend: f64, rate_type: str, rate_value: f64, version: str });
             let ticks = api!(b.await);
             Ok(serialize_iv_ticks(&ticks))
         }
@@ -1344,7 +1383,7 @@ async fn execute_tool(
             let date = param!(arg_date(args, "date"));
             let interval = param!(arg_interval(args, "interval"));
             let mut b = client.index_history_price(sym, date, interval);
-            chain_opts!(b, args, { start_time: str, end_time: str, start_date: str, end_date: str });
+            chain_opts!(b, args, { start_time: str, end_time: str, start_date: date, end_date: date });
             let ticks = api!(b.await);
             Ok(serialize_price_ticks(&ticks))
         }
@@ -1677,5 +1716,54 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn optional_i32_args_reject_out_of_range_values() {
+        let args = sonic_rs::json!({
+            "strike_range": i64::from(i32::MAX) + 1
+        });
+
+        let err = arg_opt_i32(&args, "strike_range").unwrap_err();
+        assert!(err.contains("out of range for i32"));
+    }
+
+    #[test]
+    fn optional_args_reject_type_mismatches() {
+        let args = sonic_rs::json!({
+            "exclusive": "false",
+            "rate_value": "3.5",
+            "venue": 42
+        });
+
+        assert_eq!(
+            arg_opt_bool(&args, "exclusive").unwrap_err(),
+            "optional boolean argument 'exclusive' must be a boolean"
+        );
+        assert_eq!(
+            arg_opt_f64(&args, "rate_value").unwrap_err(),
+            "optional number argument 'rate_value' must be a number"
+        );
+        assert_eq!(
+            arg_opt_str(&args, "venue").unwrap_err(),
+            "optional string argument 'venue' must be a string"
+        );
+    }
+
+    #[test]
+    fn optional_date_args_validate_format() {
+        let args = sonic_rs::json!({
+            "start_date": "2026-04-09",
+            "end_date": "20260409"
+        });
+
+        assert_eq!(
+            arg_opt_date(&args, "start_date").unwrap_err(),
+            "'start_date' must be exactly 8 digits (YYYYMMDD), got: '2026-04-09'"
+        );
+        assert_eq!(
+            arg_opt_date(&args, "end_date").unwrap(),
+            Some("20260409")
+        );
     }
 }
