@@ -2,7 +2,7 @@
 //!
 //! Used by the CLI and MCP server to auto-generate commands and tool definitions.
 //! When `ThetaData` adds a new proto RPC, the build script parses
-//! `v3_endpoints.proto` and regenerates the registry automatically.
+//! `external.proto` and regenerates the registry automatically.
 //!
 //! # Design
 //!
@@ -61,8 +61,24 @@ pub enum ReturnType {
     TradeTicks,
     /// `Vec<QuoteTick>`
     QuoteTicks,
-    /// Raw `proto::DataTable` (Greeks, calendar, rates, etc.)
-    DataTable,
+    /// `Vec<TradeQuoteTick>`
+    TradeQuoteTicks,
+    /// `Vec<OpenInterestTick>`
+    OpenInterestTicks,
+    /// `Vec<MarketValueTick>`
+    MarketValueTicks,
+    /// `Vec<GreeksTick>`
+    GreeksTicks,
+    /// `Vec<IvTick>`
+    IvTicks,
+    /// `Vec<PriceTick>`
+    PriceTicks,
+    /// `Vec<CalendarDay>`
+    CalendarDays,
+    /// `Vec<InterestRateTick>`
+    InterestRateTicks,
+    /// `Vec<OptionContract>`
+    OptionContracts,
 }
 
 /// Metadata for a single parameter.
@@ -93,7 +109,7 @@ pub struct EndpointMeta {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  Generated from v3_endpoints.proto by build.rs
+//  Generated from external.proto by build.rs
 // ═══════════════════════════════════════════════════════════════════════════
 
 include!(concat!(env!("OUT_DIR"), "/registry_generated.rs"));

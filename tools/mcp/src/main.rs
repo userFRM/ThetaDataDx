@@ -29,6 +29,7 @@ use sonic_rs::{json, JsonContainerTrait, JsonValueTrait, Value};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::RwLock;
 
+use thetadatadx::mcp::{self, McpArgValue, McpArgs, McpError, McpOutput};
 use thetadatadx::registry::{self, ENDPOINTS};
 use thetadatadx::{Credentials, DirectConfig, ThetaDataDx};
 
@@ -302,46 +303,6 @@ fn is_hex_token_at(bytes: &[u8], pos: usize) -> bool {
         }
     }
     false
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-//  Tool argument validation
-// ═══════════════════════════════════════════════════════════════════════════
-
-fn validate_date(value: &str, param_name: &str) -> Result<(), String> {
-    if value.len() != 8 || !value.bytes().all(|b| b.is_ascii_digit()) {
-        return Err(format!(
-            "'{param_name}' must be exactly 8 digits (YYYYMMDD), got: '{value}'"
-        ));
-    }
-    Ok(())
-}
-
-fn validate_symbol(value: &str, param_name: &str) -> Result<(), String> {
-    if value.is_empty() {
-        return Err(format!("'{param_name}' must be non-empty"));
-    }
-    Ok(())
-}
-
-fn validate_interval(value: &str, param_name: &str) -> Result<(), String> {
-    // Accepts raw milliseconds ("60000") or shorthand ("1m", "5m", "1h", "100ms", etc.)
-    if value.is_empty() || !value.bytes().all(|b| b.is_ascii_alphanumeric()) {
-        return Err(format!(
-            "'{param_name}' must be a non-empty alphanumeric string \
-             (e.g. '60000' for raw ms, or '1m' / '5m' / '1h' shorthand), got: '{value}'"
-        ));
-    }
-    Ok(())
-}
-
-fn validate_right(value: &str, param_name: &str) -> Result<(), String> {
-    match value.to_uppercase().as_str() {
-        "C" | "P" | "CALL" | "PUT" => Ok(()),
-        _ => Err(format!(
-            "'{param_name}' must be C, P, call, or put, got: '{value}'"
-        )),
-    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -646,15 +607,43 @@ fn serialize_option_contracts(contracts: &[tdbe::types::tick::OptionContract]) -
     json!({ "contracts": rows, "count": rows.len() })
 }
 
+fn serialize_string_list(name: &str, values: &[String]) -> Value {
+    let key = if name.ends_with("_symbols") {
+        "symbols"
+    } else if name.ends_with("_dates") {
+        "dates"
+    } else if name.ends_with("_expirations") {
+        "expirations"
+    } else if name.ends_with("_strikes") {
+        "strikes"
+    } else {
+        "values"
+    };
+    json!({ key: values, "count": values.len() })
+}
+
+fn serialize_mcp_output(name: &str, output: &McpOutput) -> Value {
+    match output {
+        McpOutput::StringList(values) => serialize_string_list(name, values),
+        McpOutput::EodTicks(ticks) => serialize_eod_ticks(ticks),
+        McpOutput::OhlcTicks(ticks) => serialize_ohlc_ticks(ticks),
+        McpOutput::TradeTicks(ticks) => serialize_trade_ticks(ticks),
+        McpOutput::QuoteTicks(ticks) => serialize_quote_ticks(ticks),
+        McpOutput::TradeQuoteTicks(ticks) => serialize_trade_quote_ticks(ticks),
+        McpOutput::OpenInterestTicks(ticks) => serialize_open_interest_ticks(ticks),
+        McpOutput::MarketValueTicks(ticks) => serialize_market_value_ticks(ticks),
+        McpOutput::GreeksTicks(ticks) => serialize_greeks_ticks(ticks),
+        McpOutput::IvTicks(ticks) => serialize_iv_ticks(ticks),
+        McpOutput::PriceTicks(ticks) => serialize_price_ticks(ticks),
+        McpOutput::CalendarDays(days) => serialize_calendar_days(days),
+        McpOutput::InterestRateTicks(ticks) => serialize_interest_rate_ticks(ticks),
+        McpOutput::OptionContracts(contracts) => serialize_option_contracts(contracts),
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  Argument extraction helpers
 // ═══════════════════════════════════════════════════════════════════════════
-
-fn arg_str<'a>(args: &'a Value, key: &str) -> Result<&'a str, String> {
-    args.get(key)
-        .and_then(|v: &Value| v.as_str())
-        .ok_or_else(|| format!("missing required string argument: {key}"))
-}
 
 fn arg_f64(args: &Value, key: &str) -> Result<f64, String> {
     args.get(key)
@@ -668,35 +657,29 @@ fn arg_bool(args: &Value, key: &str) -> Result<bool, String> {
         .ok_or_else(|| format!("missing required boolean argument: {key}"))
 }
 
-fn arg_date<'a>(args: &'a Value, key: &str) -> Result<&'a str, String> {
-    let val = arg_str(args, key)?;
-    validate_date(val, key)?;
-    Ok(val)
-}
-
-fn arg_symbol<'a>(args: &'a Value, key: &str) -> Result<&'a str, String> {
-    let val = arg_str(args, key)?;
-    validate_symbol(val, key)?;
-    Ok(val)
-}
-
-fn arg_interval<'a>(args: &'a Value, key: &str) -> Result<&'a str, String> {
-    let val = arg_str(args, key)?;
-    validate_interval(val, key)?;
-    Ok(val)
-}
-
-fn arg_right<'a>(args: &'a Value, key: &str) -> Result<&'a str, String> {
-    let val = arg_str(args, key)?;
-    validate_right(val, key)?;
-    Ok(val)
-}
-
-fn parse_symbols(s: &str) -> Vec<&str> {
-    s.split(',')
-        .map(|s| s.trim())
-        .filter(|s| !s.is_empty())
-        .collect()
+fn convert_mcp_args(args: &Value) -> Result<McpArgs, String> {
+    let obj = args
+        .as_object()
+        .ok_or_else(|| "tool arguments must be a JSON object".to_string())?;
+    let mut converted = McpArgs::new();
+    for (key, value) in obj.iter() {
+        let arg_value = if let Some(v) = value.as_str() {
+            McpArgValue::Str(v.to_string())
+        } else if let Some(v) = value.as_i64() {
+            McpArgValue::Int(v)
+        } else if let Some(v) = value.as_f64() {
+            McpArgValue::Float(v)
+        } else if let Some(v) = value.as_bool() {
+            McpArgValue::Bool(v)
+        } else {
+            return Err(format!(
+                "argument '{}' must be a string, integer, number, or boolean",
+                key
+            ));
+        };
+        converted.insert(key.to_string(), arg_value);
+    }
+    Ok(converted)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -713,12 +696,6 @@ enum ToolError {
 macro_rules! param {
     ($expr:expr) => {
         ($expr).map_err(ToolError::InvalidParams)?
-    };
-}
-
-macro_rules! api {
-    ($expr:expr) => {
-        ($expr).map_err(|e| ToolError::ServerError(sanitize_error(&e.to_string())))?
     };
 }
 
@@ -804,784 +781,21 @@ async fn execute_tool(
         )
     })?;
 
-    match name {
-        // ── Stock List ──────────────────────────────────────────────
-        "stock_list_symbols" => {
-            let symbols = api!(client.stock_list_symbols().await);
-            Ok(json!({ "symbols": symbols, "count": symbols.len() }))
+    let converted_args = param!(convert_mcp_args(args));
+    let output = match mcp::invoke_endpoint(client, name, &converted_args).await {
+        Ok(output) => output,
+        Err(McpError::InvalidParams(message)) => {
+            return Err(ToolError::InvalidParams(message));
         }
-        "stock_list_dates" => {
-            let rt = param!(arg_str(args, "request_type"));
-            let sym = param!(arg_symbol(args, "symbol"));
-            let dates = api!(client.stock_list_dates(rt, sym).await);
-            Ok(json!({ "dates": dates, "count": dates.len() }))
+        Err(McpError::UnknownEndpoint(_)) => {
+            return Err(ToolError::InvalidParams(format!("unknown tool: {name}")));
         }
+        Err(McpError::Server(error)) => {
+            return Err(ToolError::ServerError(sanitize_error(&error.to_string())));
+        }
+    };
 
-        // ── Stock Snapshot ──────────────────────────────────────────
-        "stock_snapshot_ohlc" => {
-            let syms_str = param!(arg_symbol(args, "symbol"));
-            let syms = parse_symbols(syms_str);
-            let ticks = api!(client.stock_snapshot_ohlc(&syms).await);
-            Ok(serialize_ohlc_ticks(&ticks))
-        }
-        "stock_snapshot_trade" => {
-            let syms_str = param!(arg_symbol(args, "symbol"));
-            let syms = parse_symbols(syms_str);
-            let ticks = api!(
-                client
-                    .stock_snapshot_trade(&syms)
-                    .await
-            );
-            Ok(serialize_trade_ticks(&ticks))
-        }
-        "stock_snapshot_quote" => {
-            let syms_str = param!(arg_symbol(args, "symbol"));
-            let syms = parse_symbols(syms_str);
-            let ticks = api!(
-                client
-                    .stock_snapshot_quote(&syms)
-                    .await
-            );
-            Ok(serialize_quote_ticks(&ticks))
-        }
-        "stock_snapshot_market_value" => {
-            let syms_str = param!(arg_symbol(args, "symbol"));
-            let syms = parse_symbols(syms_str);
-            let ticks = api!(
-                client
-                    .stock_snapshot_market_value(&syms)
-                    .await
-            );
-            Ok(serialize_market_value_ticks(&ticks))
-        }
-
-        // ── Stock History ───────────────────────────────────────────
-        "stock_history_eod" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let start = param!(arg_date(args, "start_date"));
-            let end = param!(arg_date(args, "end_date"));
-            let ticks = api!(client.stock_history_eod(sym, start, end).await);
-            Ok(serialize_eod_ticks(&ticks))
-        }
-        "stock_history_ohlc" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            // `date` is optional in the registry; omit it to get the most recent session.
-            let date = match args.get("date") {
-                Some(_) => param!(arg_date(args, "date")),
-                None => "",
-            };
-            let interval = param!(arg_interval(args, "interval"));
-            let ticks = api!(
-                client
-                    .stock_history_ohlc(sym, date, interval)
-                    .await
-            );
-            Ok(serialize_ohlc_ticks(&ticks))
-        }
-        "stock_history_ohlc_range" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let start = param!(arg_date(args, "start_date"));
-            let end = param!(arg_date(args, "end_date"));
-            let interval = param!(arg_interval(args, "interval"));
-            let ticks = api!(
-                client
-                    .stock_history_ohlc_range(
-                        sym,
-                        start,
-                        end,
-                        interval
-                    )
-                    .await
-            );
-            Ok(serialize_ohlc_ticks(&ticks))
-        }
-        "stock_history_trade" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let date = param!(arg_date(args, "date"));
-            let ticks = api!(
-                client
-                    .stock_history_trade(sym, date)
-                    .await
-            );
-            Ok(serialize_trade_ticks(&ticks))
-        }
-        "stock_history_quote" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let date = param!(arg_date(args, "date"));
-            let interval = param!(arg_interval(args, "interval"));
-            let ticks = api!(
-                client
-                    .stock_history_quote(sym, date, interval)
-                    .await
-            );
-            Ok(serialize_quote_ticks(&ticks))
-        }
-        "stock_history_trade_quote" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let date = param!(arg_date(args, "date"));
-            let ticks = api!(
-                client
-                    .stock_history_trade_quote(sym, date)
-                    .await
-            );
-            Ok(serialize_trade_quote_ticks(&ticks))
-        }
-
-        // ── Stock At-Time ───────────────────────────────────────────
-        "stock_at_time_trade" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let start = param!(arg_date(args, "start_date"));
-            let end = param!(arg_date(args, "end_date"));
-            let tod = param!(arg_str(args, "time_of_day"));
-            let ticks = api!(
-                client
-                    .stock_at_time_trade(sym, start, end, tod)
-                    .await
-            );
-            Ok(serialize_trade_ticks(&ticks))
-        }
-        "stock_at_time_quote" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let start = param!(arg_date(args, "start_date"));
-            let end = param!(arg_date(args, "end_date"));
-            let tod = param!(arg_str(args, "time_of_day"));
-            let ticks = api!(
-                client
-                    .stock_at_time_quote(sym, start, end, tod)
-                    .await
-            );
-            Ok(serialize_quote_ticks(&ticks))
-        }
-
-        // ── Option List ─────────────────────────────────────────────
-        "option_list_symbols" => {
-            let symbols = api!(client.option_list_symbols().await);
-            Ok(json!({ "symbols": symbols, "count": symbols.len() }))
-        }
-        "option_list_dates" => {
-            let rt = param!(arg_str(args, "request_type"));
-            let sym = param!(arg_symbol(args, "symbol"));
-            let exp = param!(arg_date(args, "expiration"));
-            let strike = param!(arg_str(args, "strike"));
-            let right = param!(arg_right(args, "right"));
-            let dates = api!(client.option_list_dates(rt, sym, exp, strike, right).await);
-            Ok(json!({ "dates": dates, "count": dates.len() }))
-        }
-        "option_list_expirations" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let exps = api!(client.option_list_expirations(sym).await);
-            Ok(json!({ "expirations": exps, "count": exps.len() }))
-        }
-        "option_list_strikes" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let exp = param!(arg_date(args, "expiration"));
-            let strikes = api!(client.option_list_strikes(sym, exp).await);
-            Ok(json!({ "strikes": strikes, "count": strikes.len() }))
-        }
-        "option_list_contracts" => {
-            let rt = param!(arg_str(args, "request_type"));
-            let sym = param!(arg_symbol(args, "symbol"));
-            let date = param!(arg_date(args, "date"));
-            let ticks = api!(
-                client
-                    .option_list_contracts(rt, sym, date)
-                    .await
-            );
-            Ok(serialize_option_contracts(&ticks))
-        }
-
-        // ── Option Snapshot ─────────────────────────────────────────
-        "option_snapshot_ohlc"
-        | "option_snapshot_trade"
-        | "option_snapshot_quote"
-        | "option_snapshot_open_interest"
-        | "option_snapshot_market_value"
-        | "option_snapshot_greeks_implied_volatility"
-        | "option_snapshot_greeks_all"
-        | "option_snapshot_greeks_first_order"
-        | "option_snapshot_greeks_second_order"
-        | "option_snapshot_greeks_third_order" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let exp = param!(arg_date(args, "expiration"));
-            let strike = param!(arg_str(args, "strike"));
-            let right = param!(arg_right(args, "right"));
-            match name {
-                "option_snapshot_ohlc" => {
-                    let ticks = api!(
-                        client
-                            .option_snapshot_ohlc(sym, exp, strike, right)
-                            .await
-                    );
-                    Ok(serialize_ohlc_ticks(&ticks))
-                }
-                "option_snapshot_trade" => {
-                    let ticks = api!(
-                        client
-                            .option_snapshot_trade(sym, exp, strike, right)
-                            .await
-                    );
-                    Ok(serialize_trade_ticks(&ticks))
-                }
-                "option_snapshot_quote" => {
-                    let ticks = api!(
-                        client
-                            .option_snapshot_quote(sym, exp, strike, right)
-                            .await
-                    );
-                    Ok(serialize_quote_ticks(&ticks))
-                }
-                "option_snapshot_open_interest" => {
-                    let ticks = api!(
-                        client
-                            .option_snapshot_open_interest(
-                                sym,
-                                exp,
-                                strike,
-                                right
-                            )
-                            .await
-                    );
-                    Ok(serialize_open_interest_ticks(&ticks))
-                }
-                "option_snapshot_market_value" => {
-                    let ticks = api!(
-                        client
-                            .option_snapshot_market_value(
-                                sym,
-                                exp,
-                                strike,
-                                right
-                            )
-                            .await
-                    );
-                    Ok(serialize_market_value_ticks(&ticks))
-                }
-                "option_snapshot_greeks_implied_volatility" => {
-                    let ticks = api!(
-                        client
-                            .option_snapshot_greeks_implied_volatility(
-                                sym,
-                                exp,
-                                strike,
-                                right
-                            )
-                            .await
-                    );
-                    Ok(serialize_iv_ticks(&ticks))
-                }
-                "option_snapshot_greeks_all" => {
-                    let ticks = api!(
-                        client
-                            .option_snapshot_greeks_all(
-                                sym,
-                                exp,
-                                strike,
-                                right
-                            )
-                            .await
-                    );
-                    Ok(serialize_greeks_ticks(&ticks))
-                }
-                "option_snapshot_greeks_first_order" => {
-                    let ticks = api!(
-                        client
-                            .option_snapshot_greeks_first_order(
-                                sym,
-                                exp,
-                                strike,
-                                right
-                            )
-                            .await
-                    );
-                    Ok(serialize_greeks_ticks(&ticks))
-                }
-                "option_snapshot_greeks_second_order" => {
-                    let ticks = api!(
-                        client
-                            .option_snapshot_greeks_second_order(
-                                sym,
-                                exp,
-                                strike,
-                                right
-                            )
-                            .await
-                    );
-                    Ok(serialize_greeks_ticks(&ticks))
-                }
-                "option_snapshot_greeks_third_order" => {
-                    let ticks = api!(
-                        client
-                            .option_snapshot_greeks_third_order(
-                                sym,
-                                exp,
-                                strike,
-                                right
-                            )
-                            .await
-                    );
-                    Ok(serialize_greeks_ticks(&ticks))
-                }
-                _ => unreachable!(),
-            }
-        }
-
-        // ── Option History ──────────────────────────────────────────
-        "option_history_eod" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let exp = param!(arg_date(args, "expiration"));
-            let strike = param!(arg_str(args, "strike"));
-            let right = param!(arg_right(args, "right"));
-            let start = param!(arg_date(args, "start_date"));
-            let end = param!(arg_date(args, "end_date"));
-            let ticks = api!(
-                client
-                    .option_history_eod(sym, exp, strike, right, start, end)
-                    .await
-            );
-            Ok(serialize_eod_ticks(&ticks))
-        }
-        "option_history_ohlc" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let exp = param!(arg_date(args, "expiration"));
-            let strike = param!(arg_str(args, "strike"));
-            let right = param!(arg_right(args, "right"));
-            let date = param!(arg_date(args, "date"));
-            let interval = param!(arg_interval(args, "interval"));
-            let ticks = api!(
-                client
-                    .option_history_ohlc(
-                        sym,
-                        exp,
-                        strike,
-                        right,
-                        date,
-                        interval
-                    )
-                    .await
-            );
-            Ok(serialize_ohlc_ticks(&ticks))
-        }
-        "option_history_trade" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let exp = param!(arg_date(args, "expiration"));
-            let strike = param!(arg_str(args, "strike"));
-            let right = param!(arg_right(args, "right"));
-            let date = param!(arg_date(args, "date"));
-            let ticks = api!(
-                client
-                    .option_history_trade(
-                        sym,
-                        exp,
-                        strike,
-                        right,
-                        date
-                    )
-                    .await
-            );
-            Ok(serialize_trade_ticks(&ticks))
-        }
-        "option_history_quote" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let exp = param!(arg_date(args, "expiration"));
-            let strike = param!(arg_str(args, "strike"));
-            let right = param!(arg_right(args, "right"));
-            let date = param!(arg_date(args, "date"));
-            let interval = param!(arg_interval(args, "interval"));
-            let ticks = api!(
-                client
-                    .option_history_quote(
-                        sym,
-                        exp,
-                        strike,
-                        right,
-                        date,
-                        interval
-                    )
-                    .await
-            );
-            Ok(serialize_quote_ticks(&ticks))
-        }
-        "option_history_trade_quote" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let exp = param!(arg_date(args, "expiration"));
-            let strike = param!(arg_str(args, "strike"));
-            let right = param!(arg_right(args, "right"));
-            let date = param!(arg_date(args, "date"));
-            let ticks = api!(
-                client
-                    .option_history_trade_quote(
-                        sym,
-                        exp,
-                        strike,
-                        right,
-                        date
-                    )
-                    .await
-            );
-            Ok(serialize_trade_quote_ticks(&ticks))
-        }
-        "option_history_open_interest" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let exp = param!(arg_date(args, "expiration"));
-            let strike = param!(arg_str(args, "strike"));
-            let right = param!(arg_right(args, "right"));
-            let date = param!(arg_date(args, "date"));
-            let ticks = api!(
-                client
-                    .option_history_open_interest(
-                        sym,
-                        exp,
-                        strike,
-                        right,
-                        date
-                    )
-                    .await
-            );
-            Ok(serialize_open_interest_ticks(&ticks))
-        }
-
-        // ── Option History Greeks ───────────────────────────────────
-        "option_history_greeks_eod" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let exp = param!(arg_date(args, "expiration"));
-            let strike = param!(arg_str(args, "strike"));
-            let right = param!(arg_right(args, "right"));
-            let start = param!(arg_date(args, "start_date"));
-            let end = param!(arg_date(args, "end_date"));
-            let ticks = api!(
-                client
-                    .option_history_greeks_eod(
-                        sym,
-                        exp,
-                        strike,
-                        right,
-                        start,
-                        end
-                    )
-                    .await
-            );
-            Ok(serialize_greeks_ticks(&ticks))
-        }
-        // Greeks with interval (4 endpoints)
-        "option_history_greeks_all"
-        | "option_history_greeks_first_order"
-        | "option_history_greeks_second_order"
-        | "option_history_greeks_third_order" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let exp = param!(arg_date(args, "expiration"));
-            let strike = param!(arg_str(args, "strike"));
-            let right = param!(arg_right(args, "right"));
-            let date = param!(arg_date(args, "date"));
-            let interval = param!(arg_interval(args, "interval"));
-            let ticks = match name {
-                "option_history_greeks_all" => api!(
-                    client
-                        .option_history_greeks_all(
-                            sym,
-                            exp,
-                            strike,
-                            right,
-                            date,
-                            interval
-                        )
-                        .await
-                ),
-                "option_history_greeks_first_order" => api!(
-                    client
-                        .option_history_greeks_first_order(
-                            sym,
-                            exp,
-                            strike,
-                            right,
-                            date,
-                            interval
-                        )
-                        .await
-                ),
-                "option_history_greeks_second_order" => api!(
-                    client
-                        .option_history_greeks_second_order(
-                            sym,
-                            exp,
-                            strike,
-                            right,
-                            date,
-                            interval,
-                        )
-                        .await
-                ),
-                "option_history_greeks_third_order" => api!(
-                    client
-                        .option_history_greeks_third_order(
-                            sym,
-                            exp,
-                            strike,
-                            right,
-                            date,
-                            interval
-                        )
-                        .await
-                ),
-                _ => unreachable!(),
-            };
-            Ok(serialize_greeks_ticks(&ticks))
-        }
-        "option_history_greeks_implied_volatility" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let exp = param!(arg_date(args, "expiration"));
-            let strike = param!(arg_str(args, "strike"));
-            let right = param!(arg_right(args, "right"));
-            let date = param!(arg_date(args, "date"));
-            let interval = param!(arg_interval(args, "interval"));
-            let ticks = api!(
-                client
-                    .option_history_greeks_implied_volatility(
-                        sym,
-                        exp,
-                        strike,
-                        right,
-                        date,
-                        interval,
-                    )
-                    .await
-            );
-            Ok(serialize_iv_ticks(&ticks))
-        }
-        // Trade Greeks (4 endpoints, no interval)
-        "option_history_trade_greeks_all"
-        | "option_history_trade_greeks_first_order"
-        | "option_history_trade_greeks_second_order"
-        | "option_history_trade_greeks_third_order" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let exp = param!(arg_date(args, "expiration"));
-            let strike = param!(arg_str(args, "strike"));
-            let right = param!(arg_right(args, "right"));
-            let date = param!(arg_date(args, "date"));
-            let ticks = match name {
-                "option_history_trade_greeks_all" => api!(
-                    client
-                        .option_history_trade_greeks_all(
-                            sym,
-                            exp,
-                            strike,
-                            right,
-                            date
-                        )
-                        .await
-                ),
-                "option_history_trade_greeks_first_order" => api!(
-                    client
-                        .option_history_trade_greeks_first_order(
-                            sym,
-                            exp,
-                            strike,
-                            right,
-                            date
-                        )
-                        .await
-                ),
-                "option_history_trade_greeks_second_order" => api!(
-                    client
-                        .option_history_trade_greeks_second_order(
-                            sym,
-                            exp,
-                            strike,
-                            right,
-                            date
-                        )
-                        .await
-                ),
-                "option_history_trade_greeks_third_order" => api!(
-                    client
-                        .option_history_trade_greeks_third_order(
-                            sym,
-                            exp,
-                            strike,
-                            right,
-                            date
-                        )
-                        .await
-                ),
-                _ => unreachable!(),
-            };
-            Ok(serialize_greeks_ticks(&ticks))
-        }
-        "option_history_trade_greeks_implied_volatility" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let exp = param!(arg_date(args, "expiration"));
-            let strike = param!(arg_str(args, "strike"));
-            let right = param!(arg_right(args, "right"));
-            let date = param!(arg_date(args, "date"));
-            let ticks = api!(
-                client
-                    .option_history_trade_greeks_implied_volatility(
-                        sym,
-                        exp,
-                        strike,
-                        right,
-                        date
-                    )
-                    .await
-            );
-            Ok(serialize_iv_ticks(&ticks))
-        }
-
-        // ── Option At-Time ──────────────────────────────────────────
-        "option_at_time_trade" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let exp = param!(arg_date(args, "expiration"));
-            let strike = param!(arg_str(args, "strike"));
-            let right = param!(arg_right(args, "right"));
-            let start = param!(arg_date(args, "start_date"));
-            let end = param!(arg_date(args, "end_date"));
-            let tod = param!(arg_str(args, "time_of_day"));
-            let ticks = api!(
-                client
-                    .option_at_time_trade(
-                        sym,
-                        exp,
-                        strike,
-                        right,
-                        start,
-                        end,
-                        tod
-                    )
-                    .await
-            );
-            Ok(serialize_trade_ticks(&ticks))
-        }
-        "option_at_time_quote" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let exp = param!(arg_date(args, "expiration"));
-            let strike = param!(arg_str(args, "strike"));
-            let right = param!(arg_right(args, "right"));
-            let start = param!(arg_date(args, "start_date"));
-            let end = param!(arg_date(args, "end_date"));
-            let tod = param!(arg_str(args, "time_of_day"));
-            let ticks = api!(
-                client
-                    .option_at_time_quote(
-                        sym,
-                        exp,
-                        strike,
-                        right,
-                        start,
-                        end,
-                        tod
-                    )
-                    .await
-            );
-            Ok(serialize_quote_ticks(&ticks))
-        }
-
-        // ── Index List ──────────────────────────────────────────────
-        "index_list_symbols" => {
-            let symbols = api!(client.index_list_symbols().await);
-            Ok(json!({ "symbols": symbols, "count": symbols.len() }))
-        }
-        "index_list_dates" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let dates = api!(client.index_list_dates(sym).await);
-            Ok(json!({ "dates": dates, "count": dates.len() }))
-        }
-
-        // ── Index Snapshot ──────────────────────────────────────────
-        "index_snapshot_ohlc" => {
-            let syms_str = param!(arg_symbol(args, "symbol"));
-            let syms = parse_symbols(syms_str);
-            let ticks = api!(client.index_snapshot_ohlc(&syms).await);
-            Ok(serialize_ohlc_ticks(&ticks))
-        }
-        "index_snapshot_price" => {
-            let syms_str = param!(arg_symbol(args, "symbol"));
-            let syms = parse_symbols(syms_str);
-            let ticks = api!(
-                client
-                    .index_snapshot_price(&syms)
-                    .await
-            );
-            Ok(serialize_price_ticks(&ticks))
-        }
-        "index_snapshot_market_value" => {
-            let syms_str = param!(arg_symbol(args, "symbol"));
-            let syms = parse_symbols(syms_str);
-            let ticks = api!(
-                client
-                    .index_snapshot_market_value(&syms)
-                    .await
-            );
-            Ok(serialize_market_value_ticks(&ticks))
-        }
-
-        // ── Index History ───────────────────────────────────────────
-        "index_history_eod" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let start = param!(arg_date(args, "start_date"));
-            let end = param!(arg_date(args, "end_date"));
-            let ticks = api!(client.index_history_eod(sym, start, end).await);
-            Ok(serialize_eod_ticks(&ticks))
-        }
-        "index_history_ohlc" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let start = param!(arg_date(args, "start_date"));
-            let end = param!(arg_date(args, "end_date"));
-            let interval = param!(arg_interval(args, "interval"));
-            let ticks = api!(
-                client
-                    .index_history_ohlc(sym, start, end, interval)
-                    .await
-            );
-            Ok(serialize_ohlc_ticks(&ticks))
-        }
-        "index_history_price" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let date = param!(arg_date(args, "date"));
-            let interval = param!(arg_interval(args, "interval"));
-            let ticks = api!(
-                client
-                    .index_history_price(sym, date, interval)
-                    .await
-            );
-            Ok(serialize_price_ticks(&ticks))
-        }
-
-        // ── Index At-Time ───────────────────────────────────────────
-        "index_at_time_price" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let start = param!(arg_date(args, "start_date"));
-            let end = param!(arg_date(args, "end_date"));
-            let tod = param!(arg_str(args, "time_of_day"));
-            let ticks = api!(client.index_at_time_price(sym, start, end, tod).await);
-            Ok(serialize_price_ticks(&ticks))
-        }
-
-        // ── Calendar ────────────────────────────────────────────────
-        "calendar_open_today" => {
-            let ticks = api!(client.calendar_open_today().await);
-            Ok(serialize_calendar_days(&ticks))
-        }
-        "calendar_on_date" => {
-            let date = param!(arg_date(args, "date"));
-            let ticks = api!(client.calendar_on_date(date).await);
-            Ok(serialize_calendar_days(&ticks))
-        }
-        "calendar_year" => {
-            let year = param!(arg_str(args, "year"));
-            let ticks = api!(client.calendar_year(year).await);
-            Ok(serialize_calendar_days(&ticks))
-        }
-
-        // ── Interest Rate ───────────────────────────────────────────
-        "interest_rate_history_eod" => {
-            let sym = param!(arg_symbol(args, "symbol"));
-            let start = param!(arg_date(args, "start_date"));
-            let end = param!(arg_date(args, "end_date"));
-            let ticks = api!(client.interest_rate_history_eod(sym, start, end).await);
-            Ok(serialize_interest_rate_ticks(&ticks))
-        }
-
-        _ => Err(ToolError::InvalidParams(format!("unknown tool: {name}"))),
-    }
+    Ok(serialize_mcp_output(name, &output))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1873,5 +1087,79 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn optional_i32_args_reject_out_of_range_values() {
+        let args = convert_mcp_args(&sonic_rs::json!({
+            "strike_range": i64::from(i32::MAX) + 1
+        }))
+        .expect("arguments should convert");
+
+        assert!(
+            matches!(
+                args.optional_int32("strike_range").unwrap_err(),
+                McpError::InvalidParams(message) if message.contains("out of range for i32")
+            ),
+            "expected i32 overflow validation error"
+        );
+    }
+
+    #[test]
+    fn optional_args_reject_type_mismatches() {
+        let args = convert_mcp_args(&sonic_rs::json!({
+            "exclusive": "false",
+            "rate_value": "3.5",
+            "venue": 42
+        }))
+        .expect("arguments should convert");
+
+        assert!(
+            matches!(
+                args.optional_bool("exclusive").unwrap_err(),
+                McpError::InvalidParams(message)
+                    if message == "optional boolean argument 'exclusive' must be a boolean"
+            ),
+            "expected boolean type validation error"
+        );
+        assert!(
+            matches!(
+                args.optional_float64("rate_value").unwrap_err(),
+                McpError::InvalidParams(message)
+                    if message == "optional number argument 'rate_value' must be a number"
+            ),
+            "expected number type validation error"
+        );
+        assert!(
+            matches!(
+                args.optional_str("venue").unwrap_err(),
+                McpError::InvalidParams(message)
+                    if message == "optional string argument 'venue' must be a string"
+            ),
+            "expected string type validation error"
+        );
+    }
+
+    #[test]
+    fn optional_date_args_validate_format() {
+        let args = convert_mcp_args(&sonic_rs::json!({
+            "start_date": "2026-04-09",
+            "end_date": "20260409"
+        }))
+        .expect("arguments should convert");
+
+        assert!(
+            matches!(
+                args.optional_date("start_date").unwrap_err(),
+                McpError::InvalidParams(message)
+                    if message
+                        == "'start_date' must be exactly 8 digits (YYYYMMDD), got: '2026-04-09'"
+            ),
+            "expected date format validation error"
+        );
+        assert_eq!(
+            args.optional_date("end_date").expect("end_date should validate"),
+            Some("20260409")
+        );
     }
 }
