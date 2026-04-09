@@ -1,0 +1,30 @@
+name: Install protoc
+description: Install the Protocol Buffers compiler on GitHub-hosted runners.
+
+runs:
+  using: composite
+  steps:
+    - name: Install protoc on Linux
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo apt-get update
+        sudo apt-get install -y protobuf-compiler
+        protoc --version
+
+    - name: Install protoc on macOS
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        set -euo pipefail
+        brew update
+        brew install protobuf
+        protoc --version
+
+    - name: Install protoc on Windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        choco install protoc --yes
+        protoc --version
