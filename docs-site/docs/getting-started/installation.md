@@ -60,7 +60,7 @@ make
 For unsupported platforms where pre-built wheels are not available:
 
 ```bash
-pip install maturin
+pip install "maturin>=1.9.4,<2.0"
 git clone https://github.com/userFRM/ThetaDataDx.git
 cd ThetaDataDx/sdks/python
 maturin develop --release

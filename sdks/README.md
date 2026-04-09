@@ -77,7 +77,7 @@ pip install thetadatadx[all]       # both
 
 # From source (requires Rust toolchain and maturin 1.9.4+)
 cd sdks/python
-pip install maturin
+pip install "maturin>=1.9.4,<2.0"
 maturin develop --release
 ```
 

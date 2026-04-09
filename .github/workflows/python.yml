@@ -45,7 +45,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/install-protoc
       - shell: bash
-        run: python -m pip install --upgrade pip maturin
+        run: python -m pip install --upgrade pip "maturin>=1.9.4,<2.0"
       - name: Build wheel
         shell: bash
         run: python -m maturin build --release -m sdks/python/Cargo.toml -o dist/ --interpreter python
@@ -87,7 +87,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/install-protoc
       - shell: bash
-        run: python -m pip install --upgrade pip maturin
+        run: python -m pip install --upgrade pip "maturin>=1.9.4,<2.0"
       - shell: bash
         run: python -m maturin build --release -m sdks/python/Cargo.toml -o dist/ --interpreter python
       - shell: bash
@@ -108,7 +108,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/install-protoc
       - shell: bash
-        run: python -m pip install --upgrade pip maturin
+        run: python -m pip install --upgrade pip "maturin>=1.9.4,<2.0"
       - shell: bash
         run: python -m maturin sdist -m sdks/python/Cargo.toml -o dist/
       - shell: bash
