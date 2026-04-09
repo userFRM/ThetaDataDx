@@ -50,9 +50,10 @@ proto/
    `$OUT_DIR/direct_list_endpoints_generated.rs`,
    `$OUT_DIR/direct_parsed_endpoints_generated.rs`.
 
-3. **Tick type codegen**: the build reads `endpoint_schema.toml` and generates typed Rust
-   structs and DataTable parser functions. Output: `$OUT_DIR/tick_generated.rs`,
-   `$OUT_DIR/decode_generated.rs`.
+3. **Tick parser codegen**: the build reads `endpoint_schema.toml` and generates
+   `DataTable` parser functions. Output: `$OUT_DIR/decode_generated.rs`.
+   The public tick structs live in `crates/tdbe/src/types/tick.rs` and must stay
+   aligned with that schema.
 
 All three steps are automatic. Just run `cargo build`.
 

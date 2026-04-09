@@ -1,20 +1,23 @@
 # Endpoint Schema (`endpoint_schema.toml`)
 
-The file `crates/thetadatadx/endpoint_schema.toml` is the **single source of truth** for all tick type struct definitions and their DataTable parsers.
+The file `crates/thetadatadx/endpoint_schema.toml` is the canonical schema for
+ThetaData `DataTable` response layouts and the generated parser functions that
+decode them into typed ticks.
 
 ## What it is
 
 A TOML file where each `[types.TypeName]` table describes:
-- The Rust struct (fields, types, derives, repr/alignment)
+- The expected `DataTable` columns for a tick layout
 - The parser function that converts a protobuf `DataTable` into a `Vec<TypeName>`
 
-`build.rs` reads this file at compile time and generates two Rust source files into `$OUT_DIR`:
-- `tick_generated.rs` - all tick struct definitions
+`build.rs` reads this file at compile time and generates one Rust source file into `$OUT_DIR`:
 - `decode_generated.rs` - all `parse_*` functions
 
-These are included into the crate via `include!()`:
-- `src/types/tick.rs` includes `tick_generated.rs` and adds hand-written `impl` blocks
+The parser module is included into the crate via `include!()`:
 - `src/decode.rs` includes `decode_generated.rs` alongside the hand-written helper functions
+
+The public tick structs themselves live in `crates/tdbe/src/types/tick.rs` and
+must stay aligned with the schema.
 
 ## Column types
 
@@ -56,27 +59,16 @@ These are included into the crate via `include!()`:
 2. Define all columns with their header names, field names, and types
 3. Set `parser = "parse_your_new_ticks"`
 4. Set `required`, `copy`, `align`, etc. as needed
-5. Run `cargo build` - the struct and parser are generated automatically
-6. If the tick needs helper methods (like `get_price()`), add an `impl YourNewTick` block in `src/types/tick.rs` after the `include!()` line
-7. Wire up the new parser in `src/direct.rs` where needed
+5. Run `cargo build` - the parser is generated automatically
+6. Add or update the corresponding tick struct in `crates/tdbe/src/types/tick.rs`
+7. If the tick needs helper methods, add them in `tdbe`
+8. Wire the new layout into `endpoint_surface.toml` / `external.proto` as needed
 
 To add a column to an existing type, just add a new entry to that type's `columns` array.
 
 ## What build.rs generates
 
 For each type in the schema:
-
-**Struct** (`tick_generated.rs`):
-```rust
-/// Doc comment from schema
-#[derive(Debug, Clone, Copy)]  // Copy if copy = true
-#[repr(C, align(64))]          // if align is set
-pub struct GreeksTick {
-    pub ms_of_day: i32,
-    pub implied_volatility: f64,
-    // ...
-}
-```
 
 **Parser** (`decode_generated.rs`):
 ```rust
@@ -97,7 +89,7 @@ If ThetaData adds new fields to an existing endpoint's DataTable:
 
 If ThetaData adds a completely new endpoint:
 
-1. Add the proto definitions to `proto/v3_endpoints.proto`
-2. Add the tick type to `endpoint_schema.toml`
-3. Wire up the RPC in `src/direct.rs`
-4. Add any needed `impl` blocks in `src/types/tick.rs`
+1. Update `proto/external.proto`
+2. Add the endpoint entry to `endpoint_surface.toml`
+3. Add the tick type to `endpoint_schema.toml`
+4. Add or update the corresponding tick struct in `crates/tdbe/src/types/tick.rs`

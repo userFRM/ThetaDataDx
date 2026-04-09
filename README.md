@@ -29,7 +29,7 @@ No-JVM ThetaData Terminal - native Rust SDK for direct market data access.
 | [`tools/cli/`](tools/cli/) | `tdx` CLI - all 61 endpoints from the command line |
 | [`tools/mcp/`](tools/mcp/) | MCP server - gives LLMs access to 64 tools over JSON-RPC |
 | [`tools/server/`](tools/server/) | REST+WS server - drop-in replacement for the Java terminal |
-| [`docs/`](docs/) | Architecture, API reference, JVM deviations, reverse-engineering guide |
+| [`docs/`](docs/) | Architecture, API reference, JVM deviations, and historical reverse-engineering notes |
 | [`docs-site/`](docs-site/) | mdBook documentation site (deployed to GitHub Pages) |
 | [`notebooks/`](notebooks/) | 7 Jupyter notebooks (101-107) |
 | [`examples/`](examples/) | Example programs and test scripts |
@@ -143,7 +143,7 @@ All endpoints return fully typed native structs in every language. Zero raw JSON
 | [API Reference](docs/api-reference.md) | All 61 methods, 14 tick types, configuration options |
 | [Architecture](docs/architecture.md) | System design, wire protocols, TOML codegen pipeline |
 | [JVM Deviations](docs/jvm-deviations.md) | Intentional differences from the Java terminal |
-| [Reverse-Engineering Guide](docs/reverse-engineering.md) | How to decompile the terminal and extract proto definitions |
+| [Reverse-Engineering Guide](docs/reverse-engineering.md) | Historical archive of the original reverse-engineering process before the official proto handoff |
 | [Endpoint Schema](docs/endpoint-schema.md) | TOML codegen format for adding new types/columns |
 | [Java Class Mapping](docs/java-class-mapping.md) | All 588 Java terminal classes enumerated |
 | [Proto Maintenance](crates/thetadatadx/proto/MAINTENANCE.md) | Guide for ThetaData engineers updating proto files |

@@ -860,6 +860,13 @@ fn validate_surface_endpoint(
             )
             .into());
         }
+        if param.binding == "method" && !param.required {
+            return Err(format!(
+                "endpoint '{}.{}' cannot declare an optional method-bound parameter",
+                surface.name, param.name
+            )
+            .into());
+        }
         if param.default.is_some() && param.binding != "builder" {
             return Err(format!(
                 "endpoint '{}.{}' can only define defaults for builder-bound parameters",
@@ -869,15 +876,15 @@ fn validate_surface_endpoint(
         }
     }
 
-    if surface.wire_name.is_none() {
-        for wire_param in &wire.params {
-            if !surface_names.contains(&wire_param.name) {
-                return Err(format!(
-                    "endpoint '{}' is missing wire parameter '{}' in endpoint_surface.toml",
-                    surface.name, wire_param.name
-                )
-                .into());
-            }
+    for wire_param in &wire.params {
+        let missing_from_surface = !surface_names.contains(&wire_param.name);
+        let must_be_present = surface.wire_name.is_none() || wire_param.required;
+        if missing_from_surface && must_be_present {
+            return Err(format!(
+                "endpoint '{}' is missing wire parameter '{}' in endpoint_surface.toml",
+                surface.name, wire_param.name
+            )
+            .into());
         }
     }
 
@@ -1523,12 +1530,7 @@ fn generate_endpoint_dispatch_arm(out: &mut String, endpoint: &GeneratedEndpoint
     out.push_str("        }\n");
 }
 
-fn emit_required_arg(out: &mut String, endpoint: &GeneratedEndpoint, param: &GeneratedParam) {
-    if endpoint.name == "stock_history_ohlc" && param.name == "date" && !param.required {
-        out.push_str("            let date = args.optional_date(\"date\")?.unwrap_or(\"\");\n");
-        return;
-    }
-
+fn emit_required_arg(out: &mut String, _endpoint: &GeneratedEndpoint, param: &GeneratedParam) {
     if param.param_type == "Symbols" {
         writeln!(
             out,

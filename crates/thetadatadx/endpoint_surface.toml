@@ -88,15 +88,6 @@ param_type = "Date"
 required = true
 binding = "method"
 
-[param_groups.optional_date]
-
-[[param_groups.optional_date.params]]
-name = "date"
-description = "Date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "method"
-
 [param_groups.interval]
 
 [[param_groups.interval.params]]
@@ -419,7 +410,7 @@ subcategory = "history"
 use = "stock_symbol"
 
 [[templates.stock_history_intraday_interval.params]]
-use = "optional_date"
+use = "required_date"
 
 [[templates.stock_history_intraday_interval.params]]
 use = "interval"
@@ -441,7 +432,7 @@ subcategory = "history"
 use = "stock_symbol"
 
 [[templates.stock_history_intraday_ticks.params]]
-use = "optional_date"
+use = "required_date"
 
 [[templates.stock_history_intraday_ticks.params]]
 use = "history_time_filters"
@@ -460,7 +451,7 @@ subcategory = "history"
 use = "stock_symbol"
 
 [[templates.stock_history_trade_quote.params]]
-use = "optional_date"
+use = "required_date"
 
 [[templates.stock_history_trade_quote.params]]
 use = "history_time_filters"
@@ -600,7 +591,7 @@ subcategory = "history"
 use = "contract_identity"
 
 [[templates.option_history_ohlc.params]]
-use = "optional_date"
+use = "required_date"
 
 [[templates.option_history_ohlc.params]]
 use = "interval"
@@ -622,7 +613,7 @@ subcategory = "history"
 use = "contract_identity"
 
 [[templates.option_history_trade.params]]
-use = "optional_date"
+use = "required_date"
 
 [[templates.option_history_trade.params]]
 use = "history_time_filters"
@@ -644,7 +635,7 @@ subcategory = "history"
 use = "contract_identity"
 
 [[templates.option_history_quote.params]]
-use = "optional_date"
+use = "required_date"
 
 [[templates.option_history_quote.params]]
 use = "interval"
@@ -669,7 +660,7 @@ subcategory = "history"
 use = "contract_identity"
 
 [[templates.option_history_trade_quote.params]]
-use = "optional_date"
+use = "required_date"
 
 [[templates.option_history_trade_quote.params]]
 use = "history_time_filters"
@@ -694,7 +685,7 @@ subcategory = "history"
 use = "contract_identity"
 
 [[templates.option_history_open_interest.params]]
-use = "optional_date"
+use = "required_date"
 
 [[templates.option_history_open_interest.params]]
 use = "max_dte_filter"
@@ -735,7 +726,7 @@ subcategory = "history_greeks"
 use = "contract_identity"
 
 [[templates.option_history_greeks.params]]
-use = "optional_date"
+use = "required_date"
 
 [[templates.option_history_greeks.params]]
 use = "interval"
@@ -760,7 +751,7 @@ subcategory = "history_trade_greeks"
 use = "contract_identity"
 
 [[templates.option_history_trade_greeks.params]]
-use = "optional_date"
+use = "required_date"
 
 [[templates.option_history_trade_greeks.params]]
 use = "history_time_filters"
@@ -849,7 +840,7 @@ extends = "index_parsed"
 subcategory = "history"
 
 [[templates.index_history_price.params]]
-use = "optional_date"
+use = "required_date"
 
 [[templates.index_history_price.params]]
 use = "stock_symbol"
