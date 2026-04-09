@@ -1,10 +1,8 @@
-//! Shared endpoint invocation bridge for `thetadatadx`.
+//! Shared endpoint invocation runtime for `thetadatadx`.
 //!
-//! This module provides the typed argument model, validation helpers, and
-//! generated endpoint dispatch first introduced for the standalone MCP server.
-//! The same runtime is also reused by other endpoint projections such as the
-//! CLI and REST server so they do not maintain their own handwritten endpoint
-//! matches.
+//! This module owns the typed argument model, validation helpers, and
+//! generated endpoint dispatch used by registry-driven projections such as the
+//! CLI, REST server, and MCP server.
 
 use std::collections::BTreeMap;
 
@@ -16,13 +14,9 @@ use tdbe::types::tick::{
 use crate::registry::ParamType;
 use crate::{Error, ThetaDataDx};
 
-/// Validated scalar argument value accepted by the MCP bridge.
-///
-/// The MCP transport normalizes JSON values into this small set so endpoint
-/// validation and dispatch can run without depending on a particular JSON
-/// library.
+/// Validated scalar argument value accepted by the shared endpoint runtime.
 #[derive(Debug, Clone, PartialEq)]
-pub enum McpArgValue {
+pub enum EndpointArgValue {
     /// UTF-8 string value.
     Str(String),
     /// Signed integer value.
@@ -33,23 +27,22 @@ pub enum McpArgValue {
     Bool(bool),
 }
 
-/// Typed argument bag consumed by generated MCP endpoint dispatch.
+/// Typed argument bag consumed by generated endpoint dispatch.
 ///
-/// Callers insert raw validated values, then endpoint adapters use the
-/// typed accessors on this type to enforce parameter semantics such as
-/// symbol format, date format, and integer range checks.
+/// Callers insert normalized values, then generated adapters use typed
+/// accessors on this type to enforce endpoint parameter semantics.
 #[derive(Debug, Clone, Default, PartialEq)]
-pub struct McpArgs(BTreeMap<String, McpArgValue>);
+pub struct EndpointArgs(BTreeMap<String, EndpointArgValue>);
 
-impl McpArgs {
-    /// Create an empty MCP argument bag.
+impl EndpointArgs {
+    /// Create an empty endpoint argument bag.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Insert or replace a normalized MCP argument value.
-    pub fn insert(&mut self, key: String, value: McpArgValue) -> Option<McpArgValue> {
+    /// Insert or replace a normalized endpoint argument value.
+    pub fn insert(&mut self, key: String, value: EndpointArgValue) -> Option<EndpointArgValue> {
         self.0.insert(key, value)
     }
 
@@ -59,56 +52,56 @@ impl McpArgs {
         key: &str,
         param_type: ParamType,
         raw: &str,
-    ) -> Result<(), McpError> {
+    ) -> Result<(), EndpointError> {
         let value = parse_raw_arg_value(param_type, key, raw)?;
         self.insert(key.to_string(), value);
         Ok(())
     }
 
-    fn required_value(&self, key: &str) -> Result<&McpArgValue, McpError> {
-        self.0
-            .get(key)
-            .ok_or_else(|| McpError::InvalidParams(format!("missing required argument: {key}")))
+    fn required_value(&self, key: &str) -> Result<&EndpointArgValue, EndpointError> {
+        self.0.get(key).ok_or_else(|| {
+            EndpointError::InvalidParams(format!("missing required argument: {key}"))
+        })
     }
 
-    fn optional_value(&self, key: &str) -> Option<&McpArgValue> {
+    fn optional_value(&self, key: &str) -> Option<&EndpointArgValue> {
         self.0.get(key)
     }
 
     /// Read a required string argument.
-    pub fn required_str(&self, key: &str) -> Result<&str, McpError> {
+    pub fn required_str(&self, key: &str) -> Result<&str, EndpointError> {
         match self.required_value(key)? {
-            McpArgValue::Str(value) => Ok(value),
-            _ => Err(McpError::InvalidParams(format!(
+            EndpointArgValue::Str(value) => Ok(value),
+            _ => Err(EndpointError::InvalidParams(format!(
                 "required string argument '{key}' must be a string"
             ))),
         }
     }
 
     /// Read an optional string argument.
-    pub fn optional_str(&self, key: &str) -> Result<Option<&str>, McpError> {
+    pub fn optional_str(&self, key: &str) -> Result<Option<&str>, EndpointError> {
         match self.optional_value(key) {
             None => Ok(None),
-            Some(McpArgValue::Str(value)) => Ok(Some(value)),
-            Some(_) => Err(McpError::InvalidParams(format!(
+            Some(EndpointArgValue::Str(value)) => Ok(Some(value)),
+            Some(_) => Err(EndpointError::InvalidParams(format!(
                 "optional string argument '{key}' must be a string"
             ))),
         }
     }
 
     /// Read a required single symbol argument.
-    pub fn required_symbol(&self, key: &str) -> Result<&str, McpError> {
+    pub fn required_symbol(&self, key: &str) -> Result<&str, EndpointError> {
         let value = self.required_str(key)?;
         validate_symbol(value, key)?;
         Ok(value)
     }
 
     /// Read a required comma-separated symbol list argument.
-    pub fn required_symbols(&self, key: &str) -> Result<Vec<String>, McpError> {
+    pub fn required_symbols(&self, key: &str) -> Result<Vec<String>, EndpointError> {
         let value = self.required_str(key)?;
         let symbols = parse_symbols(value);
         if symbols.is_empty() {
-            return Err(McpError::InvalidParams(format!(
+            return Err(EndpointError::InvalidParams(format!(
                 "'{key}' must contain at least one non-empty ticker symbol"
             )));
         }
@@ -116,14 +109,14 @@ impl McpArgs {
     }
 
     /// Read a required `YYYYMMDD` date argument.
-    pub fn required_date(&self, key: &str) -> Result<&str, McpError> {
+    pub fn required_date(&self, key: &str) -> Result<&str, EndpointError> {
         let value = self.required_str(key)?;
         validate_date(value, key)?;
         Ok(value)
     }
 
     /// Read an optional `YYYYMMDD` date argument.
-    pub fn optional_date(&self, key: &str) -> Result<Option<&str>, McpError> {
+    pub fn optional_date(&self, key: &str) -> Result<Option<&str>, EndpointError> {
         let Some(value) = self.optional_str(key)? else {
             return Ok(None);
         };
@@ -132,58 +125,58 @@ impl McpArgs {
     }
 
     /// Read a required interval argument.
-    pub fn required_interval(&self, key: &str) -> Result<&str, McpError> {
+    pub fn required_interval(&self, key: &str) -> Result<&str, EndpointError> {
         let value = self.required_str(key)?;
         validate_interval(value, key)?;
         Ok(value)
     }
 
     /// Read a required option right argument.
-    pub fn required_right(&self, key: &str) -> Result<&str, McpError> {
+    pub fn required_right(&self, key: &str) -> Result<&str, EndpointError> {
         let value = self.required_str(key)?;
         validate_right(value, key)?;
         Ok(value)
     }
 
     /// Read a required `YYYY` year argument.
-    pub fn required_year(&self, key: &str) -> Result<&str, McpError> {
+    pub fn required_year(&self, key: &str) -> Result<&str, EndpointError> {
         let value = self.required_str(key)?;
         validate_year(value, key)?;
         Ok(value)
     }
 
     /// Read a required integer argument and narrow it to `i32`.
-    pub fn required_int32(&self, key: &str) -> Result<i32, McpError> {
+    pub fn required_int32(&self, key: &str) -> Result<i32, EndpointError> {
         let raw = match self.required_value(key)? {
-            McpArgValue::Int(value) => *value,
+            EndpointArgValue::Int(value) => *value,
             _ => {
-                return Err(McpError::InvalidParams(format!(
+                return Err(EndpointError::InvalidParams(format!(
                     "required integer argument '{key}' must be an integer"
                 )))
             }
         };
         i32::try_from(raw).map_err(|_| {
-            McpError::InvalidParams(format!(
+            EndpointError::InvalidParams(format!(
                 "required integer argument '{key}' is out of range for i32: {raw}"
             ))
         })
     }
 
     /// Read an optional integer argument and narrow it to `i32`.
-    pub fn optional_int32(&self, key: &str) -> Result<Option<i32>, McpError> {
+    pub fn optional_int32(&self, key: &str) -> Result<Option<i32>, EndpointError> {
         let Some(value) = self.optional_value(key) else {
             return Ok(None);
         };
         let raw = match value {
-            McpArgValue::Int(value) => *value,
+            EndpointArgValue::Int(value) => *value,
             _ => {
-                return Err(McpError::InvalidParams(format!(
+                return Err(EndpointError::InvalidParams(format!(
                     "optional integer argument '{key}' must be an integer"
                 )))
             }
         };
         let narrowed = i32::try_from(raw).map_err(|_| {
-            McpError::InvalidParams(format!(
+            EndpointError::InvalidParams(format!(
                 "optional integer argument '{key}' is out of range for i32: {raw}"
             ))
         })?;
@@ -191,81 +184,81 @@ impl McpArgs {
     }
 
     /// Read a required floating-point argument.
-    pub fn required_float64(&self, key: &str) -> Result<f64, McpError> {
+    pub fn required_float64(&self, key: &str) -> Result<f64, EndpointError> {
         match self.required_value(key)? {
-            McpArgValue::Float(value) => Ok(*value),
-            McpArgValue::Int(value) => Ok(*value as f64),
-            _ => Err(McpError::InvalidParams(format!(
+            EndpointArgValue::Float(value) => Ok(*value),
+            EndpointArgValue::Int(value) => Ok(*value as f64),
+            _ => Err(EndpointError::InvalidParams(format!(
                 "required number argument '{key}' must be a number"
             ))),
         }
     }
 
     /// Read an optional floating-point argument.
-    pub fn optional_float64(&self, key: &str) -> Result<Option<f64>, McpError> {
+    pub fn optional_float64(&self, key: &str) -> Result<Option<f64>, EndpointError> {
         match self.optional_value(key) {
             None => Ok(None),
-            Some(McpArgValue::Float(value)) => Ok(Some(*value)),
-            Some(McpArgValue::Int(value)) => Ok(Some(*value as f64)),
-            Some(_) => Err(McpError::InvalidParams(format!(
+            Some(EndpointArgValue::Float(value)) => Ok(Some(*value)),
+            Some(EndpointArgValue::Int(value)) => Ok(Some(*value as f64)),
+            Some(_) => Err(EndpointError::InvalidParams(format!(
                 "optional number argument '{key}' must be a number"
             ))),
         }
     }
 
     /// Read a required boolean argument.
-    pub fn required_bool(&self, key: &str) -> Result<bool, McpError> {
+    pub fn required_bool(&self, key: &str) -> Result<bool, EndpointError> {
         match self.required_value(key)? {
-            McpArgValue::Bool(value) => Ok(*value),
-            _ => Err(McpError::InvalidParams(format!(
+            EndpointArgValue::Bool(value) => Ok(*value),
+            _ => Err(EndpointError::InvalidParams(format!(
                 "required boolean argument '{key}' must be a boolean"
             ))),
         }
     }
 
     /// Read an optional boolean argument.
-    pub fn optional_bool(&self, key: &str) -> Result<Option<bool>, McpError> {
+    pub fn optional_bool(&self, key: &str) -> Result<Option<bool>, EndpointError> {
         match self.optional_value(key) {
             None => Ok(None),
-            Some(McpArgValue::Bool(value)) => Ok(Some(*value)),
-            Some(_) => Err(McpError::InvalidParams(format!(
+            Some(EndpointArgValue::Bool(value)) => Ok(Some(*value)),
+            Some(_) => Err(EndpointError::InvalidParams(format!(
                 "optional boolean argument '{key}' must be a boolean"
             ))),
         }
     }
 }
 
-/// Error surface for the shared MCP bridge.
+/// Error surface for the shared endpoint runtime.
 #[derive(Debug)]
-pub enum McpError {
+pub enum EndpointError {
     /// The caller supplied invalid or missing endpoint arguments.
     InvalidParams(String),
     /// The underlying SDK call failed.
     Server(Error),
-    /// No generated endpoint adapter matches the requested tool name.
+    /// No generated endpoint adapter matches the requested endpoint name.
     UnknownEndpoint(String),
 }
 
-impl From<Error> for McpError {
+impl From<Error> for EndpointError {
     fn from(value: Error) -> Self {
         Self::Server(value)
     }
 }
 
-impl From<McpError> for Error {
-    fn from(value: McpError) -> Self {
+impl From<EndpointError> for Error {
+    fn from(value: EndpointError) -> Self {
         match value {
-            McpError::InvalidParams(message) | McpError::UnknownEndpoint(message) => {
+            EndpointError::InvalidParams(message) | EndpointError::UnknownEndpoint(message) => {
                 Error::Config(message)
             }
-            McpError::Server(error) => error,
+            EndpointError::Server(error) => error,
         }
     }
 }
 
-/// Typed result variants emitted by generated MCP endpoint adapters.
+/// Typed result variants emitted by generated endpoint adapters.
 #[derive(Debug)]
-pub enum McpOutput {
+pub enum EndpointOutput {
     /// `Vec<String>` list result.
     StringList(Vec<String>),
     /// `Vec<EodTick>` result.
@@ -296,14 +289,12 @@ pub enum McpOutput {
     OptionContracts(Vec<OptionContract>),
 }
 
-/// Invoke a generated MCP adapter by endpoint name.
-///
-/// This is the shared execution entrypoint used by the standalone MCP server.
+/// Invoke a generated endpoint adapter by endpoint name.
 pub async fn invoke_endpoint(
     client: &ThetaDataDx,
     name: &str,
-    args: &McpArgs,
-) -> Result<McpOutput, McpError> {
+    args: &EndpointArgs,
+) -> Result<EndpointOutput, EndpointError> {
     invoke_generated_endpoint(client, name, args).await
 }
 
@@ -312,66 +303,74 @@ pub fn parse_raw_arg_value(
     param_type: ParamType,
     param_name: &str,
     raw: &str,
-) -> Result<McpArgValue, McpError> {
+) -> Result<EndpointArgValue, EndpointError> {
     match param_type {
-        ParamType::Float => raw.parse::<f64>().map(McpArgValue::Float).map_err(|error| {
-            McpError::InvalidParams(format!(
-                "'{param_name}' must be a number, got '{raw}': {error}"
-            ))
-        }),
-        ParamType::Int => raw.parse::<i64>().map(McpArgValue::Int).map_err(|error| {
-            McpError::InvalidParams(format!(
-                "'{param_name}' must be an integer, got '{raw}': {error}"
-            ))
-        }),
-        ParamType::Bool => parse_bool(raw).map(McpArgValue::Bool).map_err(|message| {
-            McpError::InvalidParams(format!(
-                "'{param_name}' must be true/false or 1/0, got '{raw}': {message}"
-            ))
-        }),
-        _ => Ok(McpArgValue::Str(raw.to_string())),
+        ParamType::Float => raw
+            .parse::<f64>()
+            .map(EndpointArgValue::Float)
+            .map_err(|error| {
+                EndpointError::InvalidParams(format!(
+                    "'{param_name}' must be a number, got '{raw}': {error}"
+                ))
+            }),
+        ParamType::Int => raw
+            .parse::<i64>()
+            .map(EndpointArgValue::Int)
+            .map_err(|error| {
+                EndpointError::InvalidParams(format!(
+                    "'{param_name}' must be an integer, got '{raw}': {error}"
+                ))
+            }),
+        ParamType::Bool => parse_bool(raw)
+            .map(EndpointArgValue::Bool)
+            .map_err(|message| {
+                EndpointError::InvalidParams(format!(
+                    "'{param_name}' must be true/false or 1/0, got '{raw}': {message}"
+                ))
+            }),
+        _ => Ok(EndpointArgValue::Str(raw.to_string())),
     }
 }
 
-fn validate_date(value: &str, param_name: &str) -> Result<(), McpError> {
+fn validate_date(value: &str, param_name: &str) -> Result<(), EndpointError> {
     if value.len() != 8 || !value.bytes().all(|b| b.is_ascii_digit()) {
-        return Err(McpError::InvalidParams(format!(
+        return Err(EndpointError::InvalidParams(format!(
             "'{param_name}' must be exactly 8 digits (YYYYMMDD), got: '{value}'"
         )));
     }
     Ok(())
 }
 
-fn validate_symbol(value: &str, param_name: &str) -> Result<(), McpError> {
+fn validate_symbol(value: &str, param_name: &str) -> Result<(), EndpointError> {
     if value.is_empty() {
-        return Err(McpError::InvalidParams(format!(
+        return Err(EndpointError::InvalidParams(format!(
             "'{param_name}' must be non-empty"
         )));
     }
     Ok(())
 }
 
-fn validate_interval(value: &str, param_name: &str) -> Result<(), McpError> {
+fn validate_interval(value: &str, param_name: &str) -> Result<(), EndpointError> {
     if value.is_empty() || !value.bytes().all(|b| b.is_ascii_alphanumeric()) {
-        return Err(McpError::InvalidParams(format!(
+        return Err(EndpointError::InvalidParams(format!(
             "'{param_name}' must be a non-empty alphanumeric string (e.g. '60000' or '1m'), got: '{value}'"
         )));
     }
     Ok(())
 }
 
-fn validate_right(value: &str, param_name: &str) -> Result<(), McpError> {
+fn validate_right(value: &str, param_name: &str) -> Result<(), EndpointError> {
     match value.to_uppercase().as_str() {
         "C" | "P" | "CALL" | "PUT" => Ok(()),
-        _ => Err(McpError::InvalidParams(format!(
+        _ => Err(EndpointError::InvalidParams(format!(
             "'{param_name}' must be C, P, call, or put, got: '{value}'"
         ))),
     }
 }
 
-fn validate_year(value: &str, param_name: &str) -> Result<(), McpError> {
+fn validate_year(value: &str, param_name: &str) -> Result<(), EndpointError> {
     if value.len() != 4 || !value.bytes().all(|b| b.is_ascii_digit()) {
-        return Err(McpError::InvalidParams(format!(
+        return Err(EndpointError::InvalidParams(format!(
             "'{param_name}' must be exactly 4 digits (YYYY), got: '{value}'"
         )));
     }
@@ -397,7 +396,7 @@ fn parse_bool(value: &str) -> Result<bool, &'static str> {
     }
 }
 
-include!(concat!(env!("OUT_DIR"), "/mcp_generated.rs"));
+include!(concat!(env!("OUT_DIR"), "/endpoint_generated.rs"));
 
 #[cfg(test)]
 mod tests {
@@ -405,8 +404,11 @@ mod tests {
 
     #[test]
     fn required_symbols_trim_and_reject_empty_entries() {
-        let mut args = McpArgs::new();
-        args.insert("symbol".into(), McpArgValue::Str(" AAPL, MSFT ,, ".into()));
+        let mut args = EndpointArgs::new();
+        args.insert(
+            "symbol".into(),
+            EndpointArgValue::Str(" AAPL, MSFT ,, ".into()),
+        );
 
         assert_eq!(
             args.required_symbols("symbol").unwrap(),
@@ -416,26 +418,26 @@ mod tests {
 
     #[test]
     fn optional_i32_rejects_out_of_range_values() {
-        let mut args = McpArgs::new();
+        let mut args = EndpointArgs::new();
         args.insert(
             "strike_range".into(),
-            McpArgValue::Int(i64::from(i32::MAX) + 1),
+            EndpointArgValue::Int(i64::from(i32::MAX) + 1),
         );
 
         let err = args.optional_int32("strike_range").unwrap_err();
         assert!(
-            matches!(err, McpError::InvalidParams(message) if message.contains("out of range for i32"))
+            matches!(err, EndpointError::InvalidParams(message) if message.contains("out of range for i32"))
         );
     }
 
     #[test]
     fn required_date_enforces_yyyymmdd() {
-        let mut args = McpArgs::new();
-        args.insert("date".into(), McpArgValue::Str("2026-04-09".into()));
+        let mut args = EndpointArgs::new();
+        args.insert("date".into(), EndpointArgValue::Str("2026-04-09".into()));
 
         let err = args.required_date("date").unwrap_err();
         assert!(
-            matches!(err, McpError::InvalidParams(message) if message.contains("exactly 8 digits"))
+            matches!(err, EndpointError::InvalidParams(message) if message.contains("exactly 8 digits"))
         );
     }
 
@@ -443,11 +445,11 @@ mod tests {
     fn parse_raw_bool_accepts_terminal_style_values() {
         assert_eq!(
             parse_raw_arg_value(ParamType::Bool, "exclusive", "true").unwrap(),
-            McpArgValue::Bool(true)
+            EndpointArgValue::Bool(true)
         );
         assert_eq!(
             parse_raw_arg_value(ParamType::Bool, "exclusive", "0").unwrap(),
-            McpArgValue::Bool(false)
+            EndpointArgValue::Bool(false)
         );
     }
 }
