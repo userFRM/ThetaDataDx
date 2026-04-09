@@ -433,6 +433,14 @@ struct ParsedEndpoints {
     endpoints: Vec<GeneratedEndpoint>,
 }
 
+/// Parse endpoint metadata from `external.proto` into a reusable intermediate form.
+///
+/// This build-time parser performs several tightly-coupled passes over the same
+/// proto source: RPC discovery, request-query extraction, field expansion,
+/// endpoint normalization, and a small set of SDK-specific augmentations. It is
+/// intentionally kept in one place so the generated registry and MCP bridge stay
+/// aligned.
+#[allow(clippy::too_many_lines)] // Reason: build-time endpoint parser coordinates multiple passes over one proto source.
 fn load_parsed_endpoints() -> Result<ParsedEndpoints, Box<dyn std::error::Error>> {
     let proto = std::fs::read_to_string("proto/external.proto")?;
 
