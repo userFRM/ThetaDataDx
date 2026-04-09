@@ -22,9 +22,11 @@ pip install thetadatadx[all]
 Or build from source (requires Rust toolchain):
 
 ```bash
-pip install maturin
+pip install "maturin>=1.9.4,<2.0"
 maturin develop --release
 ```
+
+Binary wheels use CPython's stable ABI (`abi3`) with a minimum Python version of 3.9, so one wheel per platform supports Python 3.9+.
 
 ## Quick Start
 

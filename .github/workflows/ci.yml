@@ -7,6 +7,13 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -14,72 +21,102 @@ jobs:
   check:
     name: Format & Lint (${{ matrix.os }})
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
-      - uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: ./.github/actions/install-protoc
       - run: cargo fmt --all -- --check
-      - run: cargo clippy --workspace -- -D warnings
+      - run: cargo clippy --workspace --locked -- -D warnings
 
   test:
     name: Test
     runs-on: ubuntu-latest
     needs: check
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: cargo test --workspace
+      - uses: ./.github/actions/install-protoc
+      - run: cargo test --workspace --locked
 
   surfaces:
     name: Extended Surfaces
     runs-on: ubuntu-latest
     needs: check
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: "1.23"
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - uses: Swatinem/rust-cache@v2
-      - uses: arduino/setup-protoc@v3
+      - uses: ./.github/actions/install-protoc
+      - run: cargo clippy --manifest-path tools/mcp/Cargo.toml --locked -- -D warnings
+      - run: cargo test --manifest-path tools/mcp/Cargo.toml --locked
+      - run: cargo clippy --manifest-path tools/server/Cargo.toml --locked -- -D warnings
+      - run: cargo test --manifest-path tools/server/Cargo.toml --locked
+      - run: cargo clippy --manifest-path tools/cli/Cargo.toml --locked -- -D warnings
+      - run: cargo test --manifest-path tools/cli/Cargo.toml --locked
+      - run: cargo check --manifest-path sdks/python/Cargo.toml --locked
+
+  sdk-bindings:
+    name: SDK Bindings (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: check
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            go_enabled: true
+          - os: macos-latest
+            go_enabled: true
+          - os: windows-latest
+            go_enabled: false
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - if: matrix.go_enabled
+        uses: actions/setup-go@v6
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: cargo clippy --manifest-path tools/mcp/Cargo.toml -- -D warnings
-      - run: cargo test --manifest-path tools/mcp/Cargo.toml
-      - run: cargo clippy --manifest-path tools/server/Cargo.toml -- -D warnings
-      - run: cargo test --manifest-path tools/server/Cargo.toml
-      - run: cargo clippy --manifest-path tools/cli/Cargo.toml -- -D warnings
-      - run: cargo test --manifest-path tools/cli/Cargo.toml
-      - run: cargo check --manifest-path sdks/python/Cargo.toml
-      - run: cargo build --release -p thetadatadx-ffi
-      - run: go test ./...
-        working-directory: sdks/go
-        env:
-          LD_LIBRARY_PATH: ${{ github.workspace }}/target/release
-      - run: c++ -std=c++17 -fsyntax-only -I sdks/cpp/include sdks/cpp/src/thetadx.cpp
+          go-version: "1.23"
+      - uses: Swatinem/rust-cache@v2
+      - uses: ./.github/actions/install-protoc
+      - run: cargo build --release -p thetadatadx-ffi --locked
       - run: cmake -S sdks/cpp -B build/cpp
-      - run: cmake --build build/cpp --target thetadatadx_cpp
+      - run: cmake --build build/cpp --config Release --target thetadatadx_cpp
+      - if: matrix.go_enabled
+        shell: bash
+        working-directory: sdks/go
+        run: |
+          set -euo pipefail
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            export LD_LIBRARY_PATH="${{ github.workspace }}/target/release"
+          else
+            export DYLD_LIBRARY_PATH="${{ github.workspace }}/target/release"
+          fi
+          go test ./...
 
   build-ffi:
     name: Build FFI (${{ matrix.os }})
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         include:
@@ -100,15 +137,14 @@ jobs:
               target/release/thetadatadx_ffi.dll.lib
     runs-on: ${{ matrix.os }}
     needs: check
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: cargo build --release -p thetadatadx-ffi
-      - uses: actions/upload-artifact@v4
+      - uses: ./.github/actions/install-protoc
+      - run: cargo build --release -p thetadatadx-ffi --locked
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact-name }}
           path: ${{ matrix.artifact-path }}
@@ -116,19 +152,28 @@ jobs:
   publish-crate:
     name: Publish to crates.io
     runs-on: ubuntu-latest
-    needs: [test, surfaces, build-ffi]
+    needs: [test, surfaces, sdk-bindings, build-ffi]
     if: startsWith(github.ref, 'refs/tags/v')
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
-      - uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: cargo publish -p tdbe --allow-dirty || true
+      - uses: ./.github/actions/install-protoc
+      - run: cargo publish -p tdbe --locked
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-      - run: sleep 30
-      - run: cargo publish -p thetadatadx --allow-dirty || true
+      - shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..10}; do
+            if cargo publish -p thetadatadx --locked; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 10 ]; then
+              exit 1
+            fi
+            sleep 30
+          done
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
@@ -140,16 +185,16 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
         with:
           name: ffi-linux-x86_64
           path: artifacts/linux/
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: ffi-macos-arm64
           path: artifacts/macos/
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: ffi-windows-x86_64
           path: artifacts/windows/

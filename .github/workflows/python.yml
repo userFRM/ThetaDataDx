@@ -8,64 +8,115 @@ on:
     branches: [main]
   workflow_dispatch:
 
-jobs:
-  smoke:
-    name: Smoke build (ubuntu py3.12)
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: pip install maturin
-      - run: maturin build --release -m sdks/python/Cargo.toml -o dist/ -i python3.12
-        env:
-          PYO3_USE_ABI3_FORWARD_COMPATIBILITY: "1"
+permissions:
+  contents: read
 
+concurrency:
+  group: python-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
   build:
-    name: Build wheels (${{ matrix.os }} py${{ matrix.python }})
+    name: Build wheel (${{ matrix.label }})
     runs-on: ${{ matrix.os }}
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 45
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        python: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        include:
+          - os: ubuntu-latest
+            python: "3.12"
+            label: ubuntu py3.12
+          - os: macos-latest
+            python: "3.12"
+            label: macos py3.12
+          - os: windows-latest
+            python: "3.12"
+            label: windows py3.12
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
-      - uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: pip install maturin
+      - uses: Swatinem/rust-cache@v2
+      - uses: ./.github/actions/install-protoc
+      - shell: bash
+        run: python -m pip install --upgrade pip "maturin>=1.9.4,<2.0"
       - name: Build wheel
-        run: maturin build --release -m sdks/python/Cargo.toml -o dist/ -i python${{ matrix.python }}
-        env:
-          PYO3_USE_ABI3_FORWARD_COMPATIBILITY: "1"
-      - uses: actions/upload-artifact@v4
+        shell: bash
+        run: python -m maturin build --release -m sdks/python/Cargo.toml -o dist/ --interpreter python
+      - name: Install wheel
+        shell: bash
+        run: python -m pip install --force-reinstall dist/*.whl
+      - name: Import smoke
+        shell: bash
+        run: |
+          python - <<'PY'
+          import thetadatadx
+          from thetadatadx import implied_volatility
+
+          iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0 / 365.0, 8.50, True)
+          print(thetadatadx.__file__)
+          print(round(iv, 6), round(err, 6))
+          PY
+      - if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
         with:
-          name: wheels-${{ matrix.os }}-py${{ matrix.python }}
+          name: wheel-${{ runner.os }}
           path: dist/*.whl
+
+  compatibility:
+    name: ABI3 smoke (ubuntu py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.9", "3.14"]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: Swatinem/rust-cache@v2
+      - uses: ./.github/actions/install-protoc
+      - shell: bash
+        run: python -m pip install --upgrade pip "maturin>=1.9.4,<2.0"
+      - shell: bash
+        run: python -m maturin build --release -m sdks/python/Cargo.toml -o dist/ --interpreter python
+      - shell: bash
+        run: python -m pip install --force-reinstall dist/*.whl
+      - shell: bash
+        run: python -c "import thetadatadx"
 
   sdist:
     name: Build source distribution
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - run: pip install maturin
-      - run: maturin sdist -m sdks/python/Cargo.toml -o dist/
-      - uses: actions/upload-artifact@v4
+      - uses: Swatinem/rust-cache@v2
+      - uses: ./.github/actions/install-protoc
+      - shell: bash
+        run: python -m pip install --upgrade pip "maturin>=1.9.4,<2.0"
+      - shell: bash
+        run: python -m maturin sdist -m sdks/python/Cargo.toml -o dist/
+      - shell: bash
+        run: python -m pip install --force-reinstall dist/*.tar.gz
+      - shell: bash
+        run: python -c "import thetadatadx"
+      - if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
         with:
           name: sdist
           path: dist/*.tar.gz
@@ -76,7 +127,7 @@ jobs:
     needs: [build, sdist]
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist/
           merge-multiple: true

@@ -10,6 +10,12 @@ C++ SDK for ThetaData market data, powered by the `thetadatadx` Rust crate via C
 - CMake 3.16+
 - Rust toolchain (for building the FFI library)
 
+## Platform Support
+
+- Linux: CI-validated
+- macOS: CI-validated
+- Windows: CI-validated
+
 ## Building
 
 First, build the Rust FFI library:
@@ -22,16 +28,14 @@ cargo build --release -p thetadatadx-ffi
 Then build the C++ SDK:
 
 ```bash
-cd sdks/cpp
-mkdir build && cd build
-cmake ..
-make
+cmake -S sdks/cpp -B build/cpp
+cmake --build build/cpp --config Release --target thetadatadx_cpp
 ```
 
 Run the example:
 
 ```bash
-./thetadatadx_example
+./build/cpp/thetadatadx_example
 ```
 
 ## Quick Start

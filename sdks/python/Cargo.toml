@@ -3,6 +3,11 @@ name = "thetadatadx-py"
 version = "6.0.0"
 edition = "2021"
 description = "Python bindings for thetadatadx — native ThetaData SDK powered by Rust"
+license = "GPL-3.0-or-later"
+homepage = "https://github.com/userFRM/ThetaDataDx"
+repository = "https://github.com/userFRM/ThetaDataDx"
+documentation = "https://github.com/userFRM/ThetaDataDx/blob/main/docs/api-reference.md"
+readme = "README.md"
 
 [lib]
 name = "thetadatadx"
@@ -13,8 +18,9 @@ crate-type = ["cdylib"]
 thetadatadx = { path = "../../crates/thetadatadx" }
 tdbe = { version = "0.7.0", path = "../../crates/tdbe" }
 
-# PyO3 bindings
-pyo3 = { version = "=0.28.2", features = ["extension-module"] }
+# PyO3 bindings. We target the stable ABI so one wheel per platform supports
+# every Python version from 3.9 upward.
+pyo3 = { version = "=0.28.2", features = ["abi3-py39"] }
 
 # Async bridge: run tokio futures from sync Python
 tokio = { version = "1.50.0", features = ["rt-multi-thread"] }

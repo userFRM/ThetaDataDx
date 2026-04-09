@@ -20,6 +20,14 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#if defined(_MSC_VER)
+#define TDX_ALIGN64_BEGIN __declspec(align(64))
+#define TDX_ALIGN64_END
+#else
+#define TDX_ALIGN64_BEGIN
+#define TDX_ALIGN64_END __attribute__((aligned(64)))
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -37,15 +45,15 @@ typedef struct TdxFpssHandle TdxFpssHandle;
 /* All tick structs are 64-byte aligned to match Rust's #[repr(C, align(64))].
  * Price fields are f64 (double) -- decoded during parsing. No price_type. */
 
-typedef struct __attribute__((aligned(64))) {
+TDX_ALIGN64_BEGIN typedef struct {
     int32_t date;
     int32_t is_open;
     int32_t open_time;
     int32_t close_time;
     int32_t status;
-} TdxCalendarDay;
+} TdxCalendarDay TDX_ALIGN64_END;
 
-typedef struct __attribute__((aligned(64))) {
+TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t ms_of_day2;
     double open;
@@ -68,9 +76,9 @@ typedef struct __attribute__((aligned(64))) {
     /* 4 bytes padding */
     double strike;
     int32_t right;
-} TdxEodTick;
+} TdxEodTick TDX_ALIGN64_END;
 
-typedef struct __attribute__((aligned(64))) {
+TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     /* 4 bytes padding before f64 */
     double implied_volatility;
@@ -99,16 +107,16 @@ typedef struct __attribute__((aligned(64))) {
     int32_t expiration;
     double strike;
     int32_t right;
-} TdxGreeksTick;
+} TdxGreeksTick TDX_ALIGN64_END;
 
-typedef struct __attribute__((aligned(64))) {
+TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     /* 4 bytes padding before f64 */
     double rate;
     int32_t date;
-} TdxInterestRateTick;
+} TdxInterestRateTick TDX_ALIGN64_END;
 
-typedef struct __attribute__((aligned(64))) {
+TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     /* 4 bytes padding before f64 */
     double implied_volatility;
@@ -117,9 +125,9 @@ typedef struct __attribute__((aligned(64))) {
     int32_t expiration;
     double strike;
     int32_t right;
-} TdxIvTick;
+} TdxIvTick TDX_ALIGN64_END;
 
-typedef struct __attribute__((aligned(64))) {
+TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     /* 4 bytes padding before i64 */
     int64_t market_cap;
@@ -131,9 +139,9 @@ typedef struct __attribute__((aligned(64))) {
     int32_t expiration;
     double strike;
     int32_t right;
-} TdxMarketValueTick;
+} TdxMarketValueTick TDX_ALIGN64_END;
 
-typedef struct __attribute__((aligned(64))) {
+TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     /* 4 bytes padding before f64 */
     double open;
@@ -146,25 +154,25 @@ typedef struct __attribute__((aligned(64))) {
     int32_t expiration;
     double strike;
     int32_t right;
-} TdxOhlcTick;
+} TdxOhlcTick TDX_ALIGN64_END;
 
-typedef struct __attribute__((aligned(64))) {
+TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t open_interest;
     int32_t date;
     int32_t expiration;
     double strike;
     int32_t right;
-} TdxOpenInterestTick;
+} TdxOpenInterestTick TDX_ALIGN64_END;
 
-typedef struct __attribute__((aligned(64))) {
+TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     /* 4 bytes padding before f64 */
     double price;
     int32_t date;
-} TdxPriceTick;
+} TdxPriceTick TDX_ALIGN64_END;
 
-typedef struct __attribute__((aligned(64))) {
+TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t bid_size;
     int32_t bid_exchange;
@@ -183,9 +191,9 @@ typedef struct __attribute__((aligned(64))) {
     int32_t right;
     /* 4 bytes padding before f64 */
     double midpoint;
-} TdxQuoteTick;
+} TdxQuoteTick TDX_ALIGN64_END;
 
-typedef struct __attribute__((aligned(64))) {
+TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t size;
@@ -195,9 +203,9 @@ typedef struct __attribute__((aligned(64))) {
     int32_t expiration;
     double strike;
     int32_t right;
-} TdxSnapshotTradeTick;
+} TdxSnapshotTradeTick TDX_ALIGN64_END;
 
-typedef struct __attribute__((aligned(64))) {
+TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
@@ -229,9 +237,9 @@ typedef struct __attribute__((aligned(64))) {
     /* 4 bytes padding before f64 */
     double strike;
     int32_t right;
-} TdxTradeQuoteTick;
+} TdxTradeQuoteTick TDX_ALIGN64_END;
 
-typedef struct __attribute__((aligned(64))) {
+TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
@@ -251,7 +259,7 @@ typedef struct __attribute__((aligned(64))) {
     int32_t expiration;
     double strike;
     int32_t right;
-} TdxTradeTick;
+} TdxTradeTick TDX_ALIGN64_END;
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Typed array return types                                              */

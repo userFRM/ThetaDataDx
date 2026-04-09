@@ -25,7 +25,7 @@ use std::io::Write as _;
 use std::sync::Arc;
 
 use serde::Serialize;
-use sonic_rs::{json, JsonContainerTrait, JsonValueTrait, Value};
+use sonic_rs::{json, JsonContainerTrait, JsonValueMutTrait, JsonValueTrait, Value};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::RwLock;
 
@@ -405,11 +405,44 @@ fn negotiate_protocol_version(client_version: Option<&str>) -> &'static str {
 //  Serialization helpers
 // ═══════════════════════════════════════════════════════════════════════════
 
+/// Render ThetaData's option right code as a human-readable MCP field value.
+fn option_right_value(right: i32) -> Value {
+    match right {
+        67 => "C".into(),
+        80 => "P".into(),
+        _ => right.into(),
+    }
+}
+
+/// Attach wildcard option contract identifiers to a serialized tick row.
+///
+/// ThetaData only populates these fields on wildcard/bulk queries, where
+/// callers request `expiration = "0"` and/or `strike = "0"`. Single-contract
+/// queries leave them as zero, so MCP omits them to keep those payloads lean.
+fn insert_contract_id_fields(row: &mut Value, expiration: i32, strike: f64, right: i32) {
+    if expiration == 0 {
+        return;
+    }
+
+    let object = row
+        .as_object_mut()
+        .expect("serialized tick rows must always be JSON objects");
+    object.insert(
+        "expiration",
+        sonic_rs::to_value(&expiration).expect("i32 contract expiration should serialize"),
+    );
+    object.insert(
+        "strike",
+        sonic_rs::to_value(&strike).expect("f64 contract strike should serialize"),
+    );
+    object.insert("right", option_right_value(right));
+}
+
 fn serialize_eod_ticks(ticks: &[tdbe::types::tick::EodTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
-            json!({
+            let mut row = json!({
                 "date": t.date,
                 "ms_of_day": t.ms_of_day,
                 "open": t.open,
@@ -422,7 +455,9 @@ fn serialize_eod_ticks(ticks: &[tdbe::types::tick::EodTick]) -> Value {
                 "ask": t.ask,
                 "bid_size": t.bid_size,
                 "ask_size": t.ask_size,
-            })
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
         })
         .collect();
     json!({ "ticks": rows, "count": rows.len() })
@@ -432,7 +467,7 @@ fn serialize_ohlc_ticks(ticks: &[tdbe::types::tick::OhlcTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
-            json!({
+            let mut row = json!({
                 "date": t.date,
                 "ms_of_day": t.ms_of_day,
                 "open": t.open,
@@ -441,7 +476,9 @@ fn serialize_ohlc_ticks(ticks: &[tdbe::types::tick::OhlcTick]) -> Value {
                 "close": t.close,
                 "volume": t.volume,
                 "count": t.count,
-            })
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
         })
         .collect();
     json!({ "ticks": rows, "count": rows.len() })
@@ -451,7 +488,7 @@ fn serialize_trade_ticks(ticks: &[tdbe::types::tick::TradeTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
-            json!({
+            let mut row = json!({
                 "date": t.date,
                 "ms_of_day": t.ms_of_day,
                 "price": t.price,
@@ -459,7 +496,9 @@ fn serialize_trade_ticks(ticks: &[tdbe::types::tick::TradeTick]) -> Value {
                 "exchange": t.exchange,
                 "condition": t.condition,
                 "sequence": t.sequence,
-            })
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
         })
         .collect();
     json!({ "ticks": rows, "count": rows.len() })
@@ -469,7 +508,7 @@ fn serialize_quote_ticks(ticks: &[tdbe::types::tick::QuoteTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
-            json!({
+            let mut row = json!({
                 "date": t.date,
                 "ms_of_day": t.ms_of_day,
                 "bid": t.bid,
@@ -478,7 +517,9 @@ fn serialize_quote_ticks(ticks: &[tdbe::types::tick::QuoteTick]) -> Value {
                 "ask": t.ask,
                 "ask_size": t.ask_size,
                 "ask_exchange": t.ask_exchange,
-            })
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
         })
         .collect();
     json!({ "ticks": rows, "count": rows.len() })
@@ -488,7 +529,7 @@ fn serialize_trade_quote_ticks(ticks: &[tdbe::types::tick::TradeQuoteTick]) -> V
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
-            json!({
+            let mut row = json!({
                 "date": t.date,
                 "ms_of_day": t.ms_of_day,
                 "price": t.price,
@@ -500,7 +541,9 @@ fn serialize_trade_quote_ticks(ticks: &[tdbe::types::tick::TradeQuoteTick]) -> V
                 "bid_size": t.bid_size,
                 "ask": t.ask,
                 "ask_size": t.ask_size,
-            })
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
         })
         .collect();
     json!({ "ticks": rows, "count": rows.len() })
@@ -509,9 +552,12 @@ fn serialize_trade_quote_ticks(ticks: &[tdbe::types::tick::TradeQuoteTick]) -> V
 fn serialize_open_interest_ticks(ticks: &[tdbe::types::tick::OpenInterestTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
-        .map(
-            |t| json!({"date": t.date, "ms_of_day": t.ms_of_day, "open_interest": t.open_interest}),
-        )
+        .map(|t| {
+            let mut row =
+                json!({"date": t.date, "ms_of_day": t.ms_of_day, "open_interest": t.open_interest});
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
+        })
         .collect();
     json!({ "ticks": rows, "count": rows.len() })
 }
@@ -520,12 +566,14 @@ fn serialize_market_value_ticks(ticks: &[tdbe::types::tick::MarketValueTick]) ->
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
-            json!({
+            let mut row = json!({
                 "date": t.date, "ms_of_day": t.ms_of_day,
                 "market_cap": t.market_cap, "shares_outstanding": t.shares_outstanding,
                 "enterprise_value": t.enterprise_value, "book_value": t.book_value,
                 "free_float": t.free_float,
-            })
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
         })
         .collect();
     json!({ "ticks": rows, "count": rows.len() })
@@ -535,12 +583,14 @@ fn serialize_greeks_ticks(ticks: &[tdbe::types::tick::GreeksTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
-            json!({
+            let mut row = json!({
                 "date": t.date, "ms_of_day": t.ms_of_day,
                 "implied_volatility": t.implied_volatility, "delta": t.delta,
                 "gamma": t.gamma, "theta": t.theta, "vega": t.vega, "rho": t.rho,
                 "iv_error": t.iv_error,
-            })
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
         })
         .collect();
     json!({ "ticks": rows, "count": rows.len() })
@@ -550,10 +600,12 @@ fn serialize_iv_ticks(ticks: &[tdbe::types::tick::IvTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
-            json!({
+            let mut row = json!({
                 "date": t.date, "ms_of_day": t.ms_of_day,
                 "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
-            })
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
         })
         .collect();
     json!({ "ticks": rows, "count": rows.len() })
@@ -1039,6 +1091,64 @@ mod tests {
     use std::collections::HashSet;
 
     use super::*;
+    use tdbe::types::tick::{EodTick, GreeksTick};
+
+    fn sample_eod_tick(expiration: i32, strike: f64, right: i32) -> EodTick {
+        EodTick {
+            ms_of_day: 0,
+            ms_of_day2: 0,
+            open: 1.0,
+            high: 1.0,
+            low: 1.0,
+            close: 1.0,
+            volume: 10,
+            count: 1,
+            bid_size: 2,
+            bid_exchange: 0,
+            bid: 0.9,
+            bid_condition: 0,
+            ask_size: 3,
+            ask_exchange: 0,
+            ask: 1.1,
+            ask_condition: 0,
+            date: 20221219,
+            expiration,
+            strike,
+            right,
+        }
+    }
+
+    fn sample_greeks_tick(expiration: i32, strike: f64, right: i32) -> GreeksTick {
+        GreeksTick {
+            ms_of_day: 0,
+            implied_volatility: 0.25,
+            delta: 0.5,
+            gamma: 0.1,
+            theta: -0.01,
+            vega: 0.2,
+            rho: 0.05,
+            iv_error: 0.0,
+            vanna: 0.0,
+            charm: 0.0,
+            vomma: 0.0,
+            veta: 0.0,
+            speed: 0.0,
+            zomma: 0.0,
+            color: 0.0,
+            ultima: 0.0,
+            d1: 0.0,
+            d2: 0.0,
+            dual_delta: 0.0,
+            dual_gamma: 0.0,
+            epsilon: 0.0,
+            lambda: 0.0,
+            vera: 0.0,
+            date: 20221219,
+            expiration,
+            strike,
+            right,
+        }
+    }
 
     #[test]
     fn negotiate_protocol_version_uses_requested_supported_version() {
@@ -1160,6 +1270,52 @@ mod tests {
         assert_eq!(
             args.optional_date("end_date").expect("end_date should validate"),
             Some("20260409")
+        );
+    }
+
+    #[test]
+    fn serialize_option_history_eod_preserves_bulk_contract_identifiers() {
+        let payload = serialize_eod_ticks(&[sample_eod_tick(20230120, 385.0, 67)]);
+        let tick = payload
+            .get("ticks")
+            .and_then(|value: &Value| value.as_array())
+            .and_then(|rows| rows.get(0))
+            .expect("serialized tick row should exist");
+
+        assert_eq!(
+            tick.get("expiration").and_then(|value: &Value| value.as_i64()),
+            Some(20230120)
+        );
+        assert_eq!(
+            tick.get("strike").and_then(|value: &Value| value.as_f64()),
+            Some(385.0)
+        );
+        assert_eq!(
+            tick.get("right").and_then(|value: &Value| value.as_str()),
+            Some("C")
+        );
+    }
+
+    #[test]
+    fn serialize_option_history_greeks_eod_omits_contract_identifiers_for_single_contract_rows() {
+        let payload = serialize_greeks_ticks(&[sample_greeks_tick(0, 0.0, 0)]);
+        let tick = payload
+            .get("ticks")
+            .and_then(|value: &Value| value.as_array())
+            .and_then(|rows| rows.get(0))
+            .expect("serialized tick row should exist");
+
+        assert!(
+            tick.get("expiration").is_none(),
+            "single-contract rows should not emit wildcard-only expiration metadata"
+        );
+        assert!(
+            tick.get("strike").is_none(),
+            "single-contract rows should not emit wildcard-only strike metadata"
+        );
+        assert!(
+            tick.get("right").is_none(),
+            "single-contract rows should not emit wildcard-only right metadata"
         );
     }
 }

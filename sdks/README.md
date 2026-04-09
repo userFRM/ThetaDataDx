@@ -56,6 +56,12 @@ Multi-language SDKs for ThetaDataDx. All powered by the Rust core via FFI - thes
 
 The Python SDK uses [PyO3](https://pyo3.rs/) with [Maturin](https://www.maturin.rs/) for direct Rust-to-Python bindings, bypassing the C FFI layer. The Go and C++ SDKs go through the C FFI crate (`thetadatadx-ffi`), which exposes `extern "C"` functions compiled as both a shared library (`cdylib`) and a static archive (`staticlib`).
 
+## Validation Matrix
+
+- Python: wheel builds and import smoke are validated on Linux, macOS, and Windows. The package now targets the CPython stable ABI (`abi3`) with a minimum version of Python 3.9, so one wheel per platform covers Python 3.9+.
+- Go: validated on Linux and macOS. Windows support is not yet part of the official CI matrix because the Rust-to-CGo linking story still needs a dedicated import-library flow there.
+- C++: validated with CMake builds on Linux, macOS, and Windows against the generated FFI library.
+
 ## Python SDK
 
 **Binding technology:** PyO3 + Maturin (direct Rust-to-Python, no C FFI intermediate)
@@ -69,9 +75,9 @@ pip install thetadatadx[pandas]    # pandas
 pip install thetadatadx[polars]    # polars
 pip install thetadatadx[all]       # both
 
-# From source (requires Rust toolchain)
+# From source (requires Rust toolchain and maturin 1.9.4+)
 cd sdks/python
-pip install maturin
+pip install "maturin>=1.9.4,<2.0"
 maturin develop --release
 ```
 
@@ -89,7 +95,7 @@ g = all_greeks(spot=150.0, strike=155.0, rate=0.05,
                div_yield=0.015, tte=45/365, option_price=3.50, is_call=True)
 ```
 
-Requires Python 3.9+. See [sdks/python/README.md](python/README.md) for full documentation.
+Requires Python 3.9+. Binary wheels target the CPython stable ABI, so one wheel works across supported Python 3.9+ interpreters on the same platform. See [sdks/python/README.md](python/README.md) for full documentation.
 
 ## Go SDK
 
@@ -176,7 +182,8 @@ cargo build --release -p thetadatadx-ffi
 cd sdks/python && maturin develop --release && cd ../..
 
 # 3. Build the C++ SDK
-cd sdks/cpp && mkdir -p build && cd build && cmake .. && make && cd ../../..
+cmake -S sdks/cpp -B build/cpp
+cmake --build build/cpp --config Release --target thetadatadx_cpp
 
 # 4. Go SDK - no separate build step; CGo links at compile time
 cd sdks/go/examples && go build . && cd ../../..
