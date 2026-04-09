@@ -1,56 +1,36 @@
 # Explicit endpoint surface specification for ThetaDataDx.
 #
 # This file is the normalized source of truth for endpoint metadata,
-# parameter semantics, REST paths, and projection call-shapes.
+# parameter semantics, REST paths, projection call-shapes, and reusable
+# endpoint families.
 # The build pipeline validates it against `proto/external.proto` and
 # combines it with wire metadata extracted from the proto.
 
-version = 1
+version = 2
 
-[[endpoints]]
-name = "stock_list_symbols"
-description = "List all available stock ticker symbols."
-category = "stock"
-subcategory = "list"
-rest_path = "/v3/stock/list/symbols"
-kind = "list"
-returns = "StringList"
-list_column = "symbol"
+# Reusable parameter groups.
 
-[[endpoints]]
-name = "stock_list_dates"
-description = "List available dates for a stock by request type (EOD, TRADE, QUOTE, etc.)."
-category = "stock"
-subcategory = "list"
-rest_path = "/v3/stock/list/dates"
-kind = "list"
-returns = "StringList"
-list_column = "date"
+[param_groups.request_type]
 
-[[endpoints.params]]
+[[param_groups.request_type.params]]
 name = "request_type"
 description = "Request type: EOD, TRADE, QUOTE, OHLC, etc."
 param_type = "RequestType"
 required = true
 binding = "method"
 
-[[endpoints.params]]
+[param_groups.stock_symbol]
+
+[[param_groups.stock_symbol.params]]
 name = "symbol"
 description = "Ticker symbol (e.g. AAPL)"
 param_type = "Symbol"
 required = true
 binding = "method"
 
-[[endpoints]]
-name = "stock_snapshot_ohlc"
-description = "Get the latest OHLC snapshot for one or more stocks."
-category = "stock"
-subcategory = "snapshot"
-rest_path = "/v3/stock/snapshot/ohlc"
-kind = "parsed"
-returns = "OhlcTicks"
+[param_groups.multi_symbol]
 
-[[endpoints.params]]
+[[param_groups.multi_symbol.params]]
 name = "symbol"
 description = "Comma-separated ticker symbols (e.g. AAPL,MSFT)"
 param_type = "Symbols"
@@ -58,130 +38,123 @@ required = true
 binding = "method"
 arg_name = "symbols"
 
-[[endpoints.params]]
+[param_groups.expiration_param]
+
+[[param_groups.expiration_param.params]]
+name = "expiration"
+description = "Expiration date YYYYMMDD"
+param_type = "Expiration"
+required = true
+binding = "method"
+
+[param_groups.strike_param]
+
+[[param_groups.strike_param.params]]
+name = "strike"
+description = "Strike price (raw integer)"
+param_type = "Strike"
+required = true
+binding = "method"
+
+[param_groups.right_param]
+
+[[param_groups.right_param.params]]
+name = "right"
+description = "C for call, P for put"
+param_type = "Right"
+required = true
+binding = "method"
+
+[param_groups.contract_identity]
+
+[[param_groups.contract_identity.params]]
+use = "stock_symbol"
+
+[[param_groups.contract_identity.params]]
+use = "expiration_param"
+
+[[param_groups.contract_identity.params]]
+use = "strike_param"
+
+[[param_groups.contract_identity.params]]
+use = "right_param"
+
+[param_groups.required_date]
+
+[[param_groups.required_date.params]]
+name = "date"
+description = "Date YYYYMMDD"
+param_type = "Date"
+required = true
+binding = "method"
+
+[param_groups.optional_date]
+
+[[param_groups.optional_date.params]]
+name = "date"
+description = "Date YYYYMMDD"
+param_type = "Date"
+required = false
+binding = "method"
+
+[param_groups.interval]
+
+[[param_groups.interval.params]]
+name = "interval"
+description = "Accepts milliseconds (60000) or shorthand (1m). Presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h."
+param_type = "Interval"
+required = true
+binding = "method"
+
+[param_groups.start_time_filter]
+
+[[param_groups.start_time_filter.params]]
+name = "start_time"
+description = "Start time filter"
+param_type = "Str"
+required = false
+binding = "builder"
+default = "09:30:00"
+
+[param_groups.end_time_filter]
+
+[[param_groups.end_time_filter.params]]
+name = "end_time"
+description = "End time filter"
+param_type = "Str"
+required = false
+binding = "builder"
+default = "16:00:00"
+
+[param_groups.history_time_filters]
+
+[[param_groups.history_time_filters.params]]
+use = "start_time_filter"
+
+[[param_groups.history_time_filters.params]]
+use = "end_time_filter"
+
+[param_groups.stock_venue_filter]
+
+[[param_groups.stock_venue_filter.params]]
 name = "venue"
 description = "Venue/exchange filter"
 param_type = "Str"
 required = false
 binding = "builder"
 
-[[endpoints.params]]
+[param_groups.min_time_filter]
+
+[[param_groups.min_time_filter.params]]
 name = "min_time"
 description = "Minimum time filter"
 param_type = "Str"
 required = false
 binding = "builder"
 
-[[endpoints]]
-name = "stock_snapshot_trade"
-description = "Get the latest trade snapshot for one or more stocks."
-category = "stock"
-subcategory = "snapshot"
-rest_path = "/v3/stock/snapshot/trade"
-kind = "parsed"
-returns = "TradeTicks"
+[param_groups.start_date_required_alias]
 
-[[endpoints.params]]
-name = "symbol"
-description = "Comma-separated ticker symbols (e.g. AAPL,MSFT)"
-param_type = "Symbols"
-required = true
-binding = "method"
-arg_name = "symbols"
-
-[[endpoints.params]]
-name = "venue"
-description = "Venue/exchange filter"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "min_time"
-description = "Minimum time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "stock_snapshot_quote"
-description = "Get the latest NBBO quote snapshot for one or more stocks."
-category = "stock"
-subcategory = "snapshot"
-rest_path = "/v3/stock/snapshot/quote"
-kind = "parsed"
-returns = "QuoteTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Comma-separated ticker symbols (e.g. AAPL,MSFT)"
-param_type = "Symbols"
-required = true
-binding = "method"
-arg_name = "symbols"
-
-[[endpoints.params]]
-name = "venue"
-description = "Venue/exchange filter"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "min_time"
-description = "Minimum time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "stock_snapshot_market_value"
-description = "Get the latest market value snapshot for one or more stocks."
-category = "stock"
-subcategory = "snapshot"
-rest_path = "/v3/stock/snapshot/market_value"
-kind = "parsed"
-returns = "MarketValueTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Comma-separated ticker symbols (e.g. AAPL,MSFT)"
-param_type = "Symbols"
-required = true
-binding = "method"
-arg_name = "symbols"
-
-[[endpoints.params]]
-name = "venue"
-description = "Venue/exchange filter"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "min_time"
-description = "Minimum time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "stock_history_eod"
-description = "Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day."
-category = "stock"
-subcategory = "history"
-rest_path = "/v3/stock/history/eod"
-kind = "parsed"
-returns = "EodTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Ticker symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
+[[param_groups.start_date_required_alias.params]]
 name = "start_date"
 description = "Start date YYYYMMDD"
 param_type = "Date"
@@ -189,7 +162,9 @@ required = true
 binding = "method"
 arg_name = "start"
 
-[[endpoints.params]]
+[param_groups.end_date_required_alias]
+
+[[param_groups.end_date_required_alias.params]]
 name = "end_date"
 description = "End date YYYYMMDD"
 param_type = "Date"
@@ -197,3589 +172,1210 @@ required = true
 binding = "method"
 arg_name = "end"
 
-[[endpoints]]
-name = "stock_history_ohlc"
-description = "Fetch intraday OHLC bars for a stock on a single date."
-category = "stock"
-subcategory = "history"
-rest_path = "/v3/stock/history/ohlc"
-kind = "parsed"
-returns = "OhlcTicks"
+[param_groups.date_range_required_aliases]
 
-[[endpoints.params]]
-name = "symbol"
-description = "Ticker symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
+[[param_groups.date_range_required_aliases.params]]
+use = "start_date_required_alias"
 
-[[endpoints.params]]
-name = "date"
-description = "Date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "method"
+[[param_groups.date_range_required_aliases.params]]
+use = "end_date_required_alias"
 
-[[endpoints.params]]
-name = "interval"
-description = "Accepts milliseconds (60000) or shorthand (1m). Presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h."
-param_type = "Interval"
-required = true
-binding = "method"
+[param_groups.start_date_required]
 
-[[endpoints.params]]
-name = "start_time"
-description = "Start time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "09:30:00"
-
-[[endpoints.params]]
-name = "end_time"
-description = "End time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "16:00:00"
-
-[[endpoints.params]]
-name = "venue"
-description = "Venue/exchange filter"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "stock_history_trade"
-description = "Fetch all trades for a stock on a given date."
-category = "stock"
-subcategory = "history"
-rest_path = "/v3/stock/history/trade"
-kind = "parsed"
-returns = "TradeTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Ticker symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "date"
-description = "Date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "method"
-
-[[endpoints.params]]
-name = "start_time"
-description = "Start time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "09:30:00"
-
-[[endpoints.params]]
-name = "end_time"
-description = "End time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "16:00:00"
-
-[[endpoints.params]]
-name = "venue"
-description = "Venue/exchange filter"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "stock_history_quote"
-description = "Fetch NBBO quotes for a stock on a given date at a given interval."
-category = "stock"
-subcategory = "history"
-rest_path = "/v3/stock/history/quote"
-kind = "parsed"
-returns = "QuoteTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Ticker symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "date"
-description = "Date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "method"
-
-[[endpoints.params]]
-name = "interval"
-description = "Accepts milliseconds (60000) or shorthand (1m). Presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h."
-param_type = "Interval"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "start_time"
-description = "Start time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "09:30:00"
-
-[[endpoints.params]]
-name = "end_time"
-description = "End time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "16:00:00"
-
-[[endpoints.params]]
-name = "venue"
-description = "Venue/exchange filter"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "stock_history_trade_quote"
-description = "Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable."
-category = "stock"
-subcategory = "history"
-rest_path = "/v3/stock/history/trade_quote"
-kind = "parsed"
-returns = "TradeQuoteTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Ticker symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "date"
-description = "Date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "method"
-
-[[endpoints.params]]
-name = "start_time"
-description = "Start time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "09:30:00"
-
-[[endpoints.params]]
-name = "end_time"
-description = "End time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "16:00:00"
-
-[[endpoints.params]]
-name = "exclusive"
-description = "Exclusive time boundary"
-param_type = "Bool"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "venue"
-description = "Venue/exchange filter"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "stock_at_time_trade"
-description = "Fetch the trade at a specific time of day across a date range."
-category = "stock"
-subcategory = "at_time"
-rest_path = "/v3/stock/at_time/trade"
-kind = "parsed"
-returns = "TradeTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Ticker symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
+[[param_groups.start_date_required.params]]
 name = "start_date"
 description = "Start date YYYYMMDD"
 param_type = "Date"
 required = true
 binding = "method"
 
-[[endpoints.params]]
+[param_groups.end_date_required]
+
+[[param_groups.end_date_required.params]]
 name = "end_date"
 description = "End date YYYYMMDD"
 param_type = "Date"
 required = true
 binding = "method"
 
-[[endpoints.params]]
+[param_groups.date_range_required]
+
+[[param_groups.date_range_required.params]]
+use = "start_date_required"
+
+[[param_groups.date_range_required.params]]
+use = "end_date_required"
+
+[param_groups.start_date_optional]
+
+[[param_groups.start_date_optional.params]]
+name = "start_date"
+description = "Start date YYYYMMDD"
+param_type = "Date"
+required = false
+binding = "builder"
+
+[param_groups.end_date_optional]
+
+[[param_groups.end_date_optional.params]]
+name = "end_date"
+description = "End date YYYYMMDD"
+param_type = "Date"
+required = false
+binding = "builder"
+
+[param_groups.date_range_optional]
+
+[[param_groups.date_range_optional.params]]
+use = "start_date_optional"
+
+[[param_groups.date_range_optional.params]]
+use = "end_date_optional"
+
+[param_groups.time_of_day]
+
+[[param_groups.time_of_day.params]]
 name = "time_of_day"
 description = "Milliseconds from midnight ET (e.g. 34200000 = 9:30 AM)"
 param_type = "Str"
 required = true
 binding = "method"
 
-[[endpoints.params]]
-name = "venue"
-description = "Venue/exchange filter"
-param_type = "Str"
-required = false
-binding = "builder"
+[param_groups.exclusive_flag]
 
-[[endpoints]]
-name = "stock_at_time_quote"
-description = "Fetch the quote at a specific time of day across a date range."
-category = "stock"
-subcategory = "at_time"
-rest_path = "/v3/stock/at_time/quote"
-kind = "parsed"
-returns = "QuoteTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Ticker symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "time_of_day"
-description = "Milliseconds from midnight ET (e.g. 34200000 = 9:30 AM)"
-param_type = "Str"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "venue"
-description = "Venue/exchange filter"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_list_symbols"
-description = "List all available option underlying symbols."
-category = "option"
-subcategory = "list"
-rest_path = "/v3/option/list/symbols"
-kind = "list"
-returns = "StringList"
-list_column = "symbol"
-
-[[endpoints]]
-name = "option_list_dates"
-description = "List available dates for an option contract by request type."
-category = "option"
-subcategory = "list"
-rest_path = "/v3/option/list/dates"
-kind = "list"
-returns = "StringList"
-list_column = "date"
-
-[[endpoints.params]]
-name = "request_type"
-description = "Request type: EOD, TRADE, QUOTE, OHLC, etc."
-param_type = "RequestType"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints]]
-name = "option_list_expirations"
-description = "List available expiration dates for an option underlying."
-category = "option"
-subcategory = "list"
-rest_path = "/v3/option/list/expirations"
-kind = "list"
-returns = "StringList"
-list_column = "expiration"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Ticker symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints]]
-name = "option_list_strikes"
-description = "List available strike prices for an option at a given expiration."
-category = "option"
-subcategory = "list"
-rest_path = "/v3/option/list/strikes"
-kind = "list"
-returns = "StringList"
-list_column = "strike"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Ticker symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints]]
-name = "option_list_contracts"
-description = "List all option contracts for a symbol on a given date."
-category = "option"
-subcategory = "list"
-rest_path = "/v3/option/list/contracts"
-kind = "parsed"
-returns = "OptionContracts"
-
-[[endpoints.params]]
-name = "request_type"
-description = "Request type: EOD, TRADE, QUOTE, OHLC, etc."
-param_type = "RequestType"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Ticker symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "date"
-description = "Date YYYYMMDD"
-param_type = "Date"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "max_dte"
-description = "Maximum days to expiration"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_snapshot_ohlc"
-description = "Get the latest OHLC snapshot for an option contract."
-category = "option"
-subcategory = "snapshot"
-rest_path = "/v3/option/snapshot/ohlc"
-kind = "parsed"
-returns = "OhlcTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "max_dte"
-description = "Maximum days to expiration"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "min_time"
-description = "Minimum time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_snapshot_trade"
-description = "Get the latest trade snapshot for an option contract."
-category = "option"
-subcategory = "snapshot"
-rest_path = "/v3/option/snapshot/trade"
-kind = "parsed"
-returns = "TradeTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "min_time"
-description = "Minimum time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_snapshot_quote"
-description = "Get the latest NBBO quote snapshot for an option contract."
-category = "option"
-subcategory = "snapshot"
-rest_path = "/v3/option/snapshot/quote"
-kind = "parsed"
-returns = "QuoteTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "max_dte"
-description = "Maximum days to expiration"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "min_time"
-description = "Minimum time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_snapshot_open_interest"
-description = "Get the latest open interest snapshot for an option contract."
-category = "option"
-subcategory = "snapshot"
-rest_path = "/v3/option/snapshot/open_interest"
-kind = "parsed"
-returns = "OpenInterestTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "max_dte"
-description = "Maximum days to expiration"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "min_time"
-description = "Minimum time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_snapshot_market_value"
-description = "Get the latest market value snapshot for an option contract."
-category = "option"
-subcategory = "snapshot"
-rest_path = "/v3/option/snapshot/market_value"
-kind = "parsed"
-returns = "MarketValueTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "max_dte"
-description = "Maximum days to expiration"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "min_time"
-description = "Minimum time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_snapshot_greeks_implied_volatility"
-description = "Get implied volatility snapshot for an option contract (from ThetaData server)."
-category = "option"
-subcategory = "snapshot_greeks"
-rest_path = "/v3/option/snapshot/greeks/implied_volatility"
-kind = "parsed"
-returns = "IvTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "annual_dividend"
-description = "Annual dividend"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_type"
-description = "Rate type"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_value"
-description = "Rate value"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "stock_price"
-description = "Stock price"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "version"
-description = "Greeks model version"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "max_dte"
-description = "Maximum days to expiration"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "min_time"
-description = "Minimum time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "use_market_value"
-description = "Use market value for Greeks"
-param_type = "Bool"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_snapshot_greeks_all"
-description = "Get all Greeks snapshot for an option contract (from ThetaData server)."
-category = "option"
-subcategory = "snapshot_greeks"
-rest_path = "/v3/option/snapshot/greeks/all"
-kind = "parsed"
-returns = "GreeksTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "annual_dividend"
-description = "Annual dividend"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_type"
-description = "Rate type"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_value"
-description = "Rate value"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "stock_price"
-description = "Stock price"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "version"
-description = "Greeks model version"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "max_dte"
-description = "Maximum days to expiration"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "min_time"
-description = "Minimum time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "use_market_value"
-description = "Use market value for Greeks"
-param_type = "Bool"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_snapshot_greeks_first_order"
-description = "Get first-order Greeks snapshot (delta, theta, rho) for an option contract."
-category = "option"
-subcategory = "snapshot_greeks"
-rest_path = "/v3/option/snapshot/greeks/first_order"
-kind = "parsed"
-returns = "GreeksTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "annual_dividend"
-description = "Annual dividend"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_type"
-description = "Rate type"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_value"
-description = "Rate value"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "stock_price"
-description = "Stock price"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "version"
-description = "Greeks model version"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "max_dte"
-description = "Maximum days to expiration"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "min_time"
-description = "Minimum time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "use_market_value"
-description = "Use market value for Greeks"
-param_type = "Bool"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_snapshot_greeks_second_order"
-description = "Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract."
-category = "option"
-subcategory = "snapshot_greeks"
-rest_path = "/v3/option/snapshot/greeks/second_order"
-kind = "parsed"
-returns = "GreeksTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "annual_dividend"
-description = "Annual dividend"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_type"
-description = "Rate type"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_value"
-description = "Rate value"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "stock_price"
-description = "Stock price"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "version"
-description = "Greeks model version"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "max_dte"
-description = "Maximum days to expiration"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "min_time"
-description = "Minimum time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "use_market_value"
-description = "Use market value for Greeks"
-param_type = "Bool"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_snapshot_greeks_third_order"
-description = "Get third-order Greeks snapshot (speed, color, ultima) for an option contract."
-category = "option"
-subcategory = "snapshot_greeks"
-rest_path = "/v3/option/snapshot/greeks/third_order"
-kind = "parsed"
-returns = "GreeksTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "annual_dividend"
-description = "Annual dividend"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_type"
-description = "Rate type"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_value"
-description = "Rate value"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "stock_price"
-description = "Stock price"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "version"
-description = "Greeks model version"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "max_dte"
-description = "Maximum days to expiration"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "min_time"
-description = "Minimum time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "use_market_value"
-description = "Use market value for Greeks"
-param_type = "Bool"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_history_eod"
-description = "Fetch end-of-day option data for a contract over a date range."
-category = "option"
-subcategory = "history"
-rest_path = "/v3/option/history/eod"
-kind = "parsed"
-returns = "EodTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = true
-binding = "method"
-arg_name = "start"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = true
-binding = "method"
-arg_name = "end"
-
-[[endpoints.params]]
-name = "max_dte"
-description = "Maximum days to expiration"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_history_ohlc"
-description = "Fetch intraday OHLC bars for an option contract."
-category = "option"
-subcategory = "history"
-rest_path = "/v3/option/history/ohlc"
-kind = "parsed"
-returns = "OhlcTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "date"
-description = "Date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "method"
-
-[[endpoints.params]]
-name = "interval"
-description = "Accepts milliseconds (60000) or shorthand (1m). Presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h."
-param_type = "Interval"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "start_time"
-description = "Start time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "09:30:00"
-
-[[endpoints.params]]
-name = "end_time"
-description = "End time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "16:00:00"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_history_trade"
-description = "Fetch all trades for an option contract on a given date."
-category = "option"
-subcategory = "history"
-rest_path = "/v3/option/history/trade"
-kind = "parsed"
-returns = "TradeTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "date"
-description = "Date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "method"
-
-[[endpoints.params]]
-name = "start_time"
-description = "Start time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "09:30:00"
-
-[[endpoints.params]]
-name = "end_time"
-description = "End time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "16:00:00"
-
-[[endpoints.params]]
-name = "max_dte"
-description = "Maximum days to expiration"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_history_quote"
-description = "Fetch NBBO quotes for an option contract on a given date."
-category = "option"
-subcategory = "history"
-rest_path = "/v3/option/history/quote"
-kind = "parsed"
-returns = "QuoteTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "date"
-description = "Date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "method"
-
-[[endpoints.params]]
-name = "start_time"
-description = "Start time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "09:30:00"
-
-[[endpoints.params]]
-name = "end_time"
-description = "End time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "16:00:00"
-
-[[endpoints.params]]
-name = "interval"
-description = "Accepts milliseconds (60000) or shorthand (1m). Presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h."
-param_type = "Interval"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "max_dte"
-description = "Maximum days to expiration"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_history_trade_quote"
-description = "Fetch combined trade + quote ticks for an option contract."
-category = "option"
-subcategory = "history"
-rest_path = "/v3/option/history/trade_quote"
-kind = "parsed"
-returns = "TradeQuoteTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "date"
-description = "Date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "method"
-
-[[endpoints.params]]
-name = "start_time"
-description = "Start time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "09:30:00"
-
-[[endpoints.params]]
-name = "end_time"
-description = "End time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "16:00:00"
-
-[[endpoints.params]]
+[[param_groups.exclusive_flag.params]]
 name = "exclusive"
 description = "Exclusive time boundary"
 param_type = "Bool"
 required = false
 binding = "builder"
 
-[[endpoints.params]]
+[param_groups.max_dte_filter]
+
+[[param_groups.max_dte_filter.params]]
 name = "max_dte"
 description = "Maximum days to expiration"
 param_type = "Int"
 required = false
 binding = "builder"
 
-[[endpoints.params]]
+[param_groups.strike_range_filter]
+
+[[param_groups.strike_range_filter.params]]
 name = "strike_range"
 description = "Strike range filter"
 param_type = "Int"
 required = false
 binding = "builder"
 
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
+[param_groups.annual_dividend_input]
 
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_history_open_interest"
-description = "Fetch open interest history for an option contract."
-category = "option"
-subcategory = "history"
-rest_path = "/v3/option/history/open_interest"
-kind = "parsed"
-returns = "OpenInterestTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "date"
-description = "Date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "method"
-
-[[endpoints.params]]
-name = "max_dte"
-description = "Maximum days to expiration"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_history_greeks_eod"
-description = "Fetch end-of-day Greeks history for an option contract."
-category = "option"
-subcategory = "history_greeks"
-rest_path = "/v3/option/history/greeks/eod"
-kind = "parsed"
-returns = "GreeksTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = true
-binding = "method"
-
-[[endpoints.params]]
+[[param_groups.annual_dividend_input.params]]
 name = "annual_dividend"
 description = "Annual dividend"
 param_type = "Float"
 required = false
 binding = "builder"
 
-[[endpoints.params]]
+[param_groups.rate_type_input]
+
+[[param_groups.rate_type_input.params]]
 name = "rate_type"
 description = "Rate type"
 param_type = "Str"
 required = false
 binding = "builder"
 
-[[endpoints.params]]
+[param_groups.rate_value_input]
+
+[[param_groups.rate_value_input.params]]
 name = "rate_value"
 description = "Rate value"
 param_type = "Float"
 required = false
 binding = "builder"
 
-[[endpoints.params]]
+[param_groups.option_greeks_rate_inputs]
+
+[[param_groups.option_greeks_rate_inputs.params]]
+use = "annual_dividend_input"
+
+[[param_groups.option_greeks_rate_inputs.params]]
+use = "rate_type_input"
+
+[[param_groups.option_greeks_rate_inputs.params]]
+use = "rate_value_input"
+
+[param_groups.stock_price_input]
+
+[[param_groups.stock_price_input.params]]
+name = "stock_price"
+description = "Stock price"
+param_type = "Float"
+required = false
+binding = "builder"
+
+[param_groups.version_input]
+
+[[param_groups.version_input.params]]
 name = "version"
 description = "Greeks model version"
 param_type = "Str"
 required = false
 binding = "builder"
 
-[[endpoints.params]]
+[param_groups.option_snapshot_greeks_inputs]
+
+[[param_groups.option_snapshot_greeks_inputs.params]]
+use = "option_greeks_rate_inputs"
+
+[[param_groups.option_snapshot_greeks_inputs.params]]
+use = "stock_price_input"
+
+[[param_groups.option_snapshot_greeks_inputs.params]]
+use = "version_input"
+
+[param_groups.option_history_greeks_inputs]
+
+[[param_groups.option_history_greeks_inputs.params]]
+use = "option_greeks_rate_inputs"
+
+[[param_groups.option_history_greeks_inputs.params]]
+use = "version_input"
+
+[param_groups.use_market_value_flag]
+
+[[param_groups.use_market_value_flag.params]]
+name = "use_market_value"
+description = "Use market value for Greeks"
+param_type = "Bool"
+required = false
+binding = "builder"
+
+[param_groups.underlyer_use_nbbo_flag]
+
+[[param_groups.underlyer_use_nbbo_flag.params]]
 name = "underlyer_use_nbbo"
 description = "Use NBBO for underlyer price"
 param_type = "Bool"
 required = false
 binding = "builder"
 
-[[endpoints.params]]
-name = "max_dte"
-description = "Maximum days to expiration"
-param_type = "Int"
-required = false
-binding = "builder"
+[param_groups.year_param]
 
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_history_greeks_all"
-description = "Fetch all Greeks history for an option contract (intraday, sampled by interval)."
-category = "option"
-subcategory = "history_greeks"
-rest_path = "/v3/option/history/greeks/all"
-kind = "parsed"
-returns = "GreeksTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "date"
-description = "Date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "method"
-
-[[endpoints.params]]
-name = "start_time"
-description = "Start time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "09:30:00"
-
-[[endpoints.params]]
-name = "end_time"
-description = "End time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "16:00:00"
-
-[[endpoints.params]]
-name = "interval"
-description = "Accepts milliseconds (60000) or shorthand (1m). Presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h."
-param_type = "Interval"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "annual_dividend"
-description = "Annual dividend"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_type"
-description = "Rate type"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_value"
-description = "Rate value"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "version"
-description = "Greeks model version"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_history_trade_greeks_all"
-description = "Fetch all Greeks on each trade for an option contract."
-category = "option"
-subcategory = "history_trade_greeks"
-rest_path = "/v3/option/history/trade_greeks/all"
-kind = "parsed"
-returns = "GreeksTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "date"
-description = "Date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "method"
-
-[[endpoints.params]]
-name = "start_time"
-description = "Start time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "09:30:00"
-
-[[endpoints.params]]
-name = "end_time"
-description = "End time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "16:00:00"
-
-[[endpoints.params]]
-name = "annual_dividend"
-description = "Annual dividend"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_type"
-description = "Rate type"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_value"
-description = "Rate value"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "version"
-description = "Greeks model version"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "max_dte"
-description = "Maximum days to expiration"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_history_greeks_first_order"
-description = "Fetch first-order Greeks history (intraday, sampled by interval)."
-category = "option"
-subcategory = "history_greeks"
-rest_path = "/v3/option/history/greeks/first_order"
-kind = "parsed"
-returns = "GreeksTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "date"
-description = "Date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "method"
-
-[[endpoints.params]]
-name = "start_time"
-description = "Start time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "09:30:00"
-
-[[endpoints.params]]
-name = "end_time"
-description = "End time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "16:00:00"
-
-[[endpoints.params]]
-name = "interval"
-description = "Accepts milliseconds (60000) or shorthand (1m). Presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h."
-param_type = "Interval"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "annual_dividend"
-description = "Annual dividend"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_type"
-description = "Rate type"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_value"
-description = "Rate value"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "version"
-description = "Greeks model version"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_history_trade_greeks_first_order"
-description = "Fetch first-order Greeks on each trade for an option contract."
-category = "option"
-subcategory = "history_trade_greeks"
-rest_path = "/v3/option/history/trade_greeks/first_order"
-kind = "parsed"
-returns = "GreeksTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "date"
-description = "Date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "method"
-
-[[endpoints.params]]
-name = "start_time"
-description = "Start time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "09:30:00"
-
-[[endpoints.params]]
-name = "end_time"
-description = "End time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "16:00:00"
-
-[[endpoints.params]]
-name = "annual_dividend"
-description = "Annual dividend"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_type"
-description = "Rate type"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_value"
-description = "Rate value"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "version"
-description = "Greeks model version"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "max_dte"
-description = "Maximum days to expiration"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_history_greeks_second_order"
-description = "Fetch second-order Greeks history (intraday, sampled by interval)."
-category = "option"
-subcategory = "history_greeks"
-rest_path = "/v3/option/history/greeks/second_order"
-kind = "parsed"
-returns = "GreeksTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "date"
-description = "Date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "method"
-
-[[endpoints.params]]
-name = "start_time"
-description = "Start time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "09:30:00"
-
-[[endpoints.params]]
-name = "end_time"
-description = "End time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "16:00:00"
-
-[[endpoints.params]]
-name = "interval"
-description = "Accepts milliseconds (60000) or shorthand (1m). Presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h."
-param_type = "Interval"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "annual_dividend"
-description = "Annual dividend"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_type"
-description = "Rate type"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_value"
-description = "Rate value"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "version"
-description = "Greeks model version"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_history_trade_greeks_second_order"
-description = "Fetch second-order Greeks on each trade for an option contract."
-category = "option"
-subcategory = "history_trade_greeks"
-rest_path = "/v3/option/history/trade_greeks/second_order"
-kind = "parsed"
-returns = "GreeksTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "date"
-description = "Date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "method"
-
-[[endpoints.params]]
-name = "start_time"
-description = "Start time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "09:30:00"
-
-[[endpoints.params]]
-name = "end_time"
-description = "End time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "16:00:00"
-
-[[endpoints.params]]
-name = "annual_dividend"
-description = "Annual dividend"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_type"
-description = "Rate type"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_value"
-description = "Rate value"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "version"
-description = "Greeks model version"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "max_dte"
-description = "Maximum days to expiration"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_history_greeks_third_order"
-description = "Fetch third-order Greeks history (intraday, sampled by interval)."
-category = "option"
-subcategory = "history_greeks"
-rest_path = "/v3/option/history/greeks/third_order"
-kind = "parsed"
-returns = "GreeksTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "date"
-description = "Date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "method"
-
-[[endpoints.params]]
-name = "start_time"
-description = "Start time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "09:30:00"
-
-[[endpoints.params]]
-name = "end_time"
-description = "End time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "16:00:00"
-
-[[endpoints.params]]
-name = "interval"
-description = "Accepts milliseconds (60000) or shorthand (1m). Presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h."
-param_type = "Interval"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "annual_dividend"
-description = "Annual dividend"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_type"
-description = "Rate type"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_value"
-description = "Rate value"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "version"
-description = "Greeks model version"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_history_trade_greeks_third_order"
-description = "Fetch third-order Greeks on each trade for an option contract."
-category = "option"
-subcategory = "history_trade_greeks"
-rest_path = "/v3/option/history/trade_greeks/third_order"
-kind = "parsed"
-returns = "GreeksTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "date"
-description = "Date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "method"
-
-[[endpoints.params]]
-name = "start_time"
-description = "Start time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "09:30:00"
-
-[[endpoints.params]]
-name = "end_time"
-description = "End time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "16:00:00"
-
-[[endpoints.params]]
-name = "annual_dividend"
-description = "Annual dividend"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_type"
-description = "Rate type"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_value"
-description = "Rate value"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "version"
-description = "Greeks model version"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "max_dte"
-description = "Maximum days to expiration"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_history_greeks_implied_volatility"
-description = "Fetch implied volatility history (intraday, sampled by interval)."
-category = "option"
-subcategory = "history_greeks"
-rest_path = "/v3/option/history/greeks/implied_volatility"
-kind = "parsed"
-returns = "IvTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "date"
-description = "Date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "method"
-
-[[endpoints.params]]
-name = "start_time"
-description = "Start time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "09:30:00"
-
-[[endpoints.params]]
-name = "end_time"
-description = "End time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "16:00:00"
-
-[[endpoints.params]]
-name = "interval"
-description = "Accepts milliseconds (60000) or shorthand (1m). Presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h."
-param_type = "Interval"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "annual_dividend"
-description = "Annual dividend"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_type"
-description = "Rate type"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_value"
-description = "Rate value"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "version"
-description = "Greeks model version"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_history_trade_greeks_implied_volatility"
-description = "Fetch implied volatility on each trade for an option contract."
-category = "option"
-subcategory = "history_trade_greeks"
-rest_path = "/v3/option/history/trade_greeks/implied_volatility"
-kind = "parsed"
-returns = "IvTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "date"
-description = "Date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "method"
-
-[[endpoints.params]]
-name = "start_time"
-description = "Start time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "09:30:00"
-
-[[endpoints.params]]
-name = "end_time"
-description = "End time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "16:00:00"
-
-[[endpoints.params]]
-name = "annual_dividend"
-description = "Annual dividend"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_type"
-description = "Rate type"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "rate_value"
-description = "Rate value"
-param_type = "Float"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "version"
-description = "Greeks model version"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "max_dte"
-description = "Maximum days to expiration"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_at_time_trade"
-description = "Fetch the trade at a specific time of day across a date range for an option."
-category = "option"
-subcategory = "at_time"
-rest_path = "/v3/option/at_time/trade"
-kind = "parsed"
-returns = "TradeTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "time_of_day"
-description = "Milliseconds from midnight ET (e.g. 34200000 = 9:30 AM)"
-param_type = "Str"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "max_dte"
-description = "Maximum days to expiration"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "option_at_time_quote"
-description = "Fetch the quote at a specific time of day across a date range for an option."
-category = "option"
-subcategory = "at_time"
-rest_path = "/v3/option/at_time/quote"
-kind = "parsed"
-returns = "QuoteTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Underlying symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "expiration"
-description = "Expiration date YYYYMMDD"
-param_type = "Expiration"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "strike"
-description = "Strike price (raw integer)"
-param_type = "Strike"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "right"
-description = "C for call, P for put"
-param_type = "Right"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "time_of_day"
-description = "Milliseconds from midnight ET (e.g. 34200000 = 9:30 AM)"
-param_type = "Str"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "max_dte"
-description = "Maximum days to expiration"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "strike_range"
-description = "Strike range filter"
-param_type = "Int"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "index_list_symbols"
-description = "List all available index symbols."
-category = "index"
-subcategory = "list"
-rest_path = "/v3/index/list/symbols"
-kind = "list"
-returns = "StringList"
-list_column = "symbol"
-
-[[endpoints]]
-name = "index_list_dates"
-description = "List available dates for an index symbol."
-category = "index"
-subcategory = "list"
-rest_path = "/v3/index/list/dates"
-kind = "list"
-returns = "StringList"
-list_column = "date"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Ticker symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints]]
-name = "index_snapshot_ohlc"
-description = "Get the latest OHLC snapshot for one or more indices."
-category = "index"
-subcategory = "snapshot"
-rest_path = "/v3/index/snapshot/ohlc"
-kind = "parsed"
-returns = "OhlcTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Comma-separated ticker symbols (e.g. AAPL,MSFT)"
-param_type = "Symbols"
-required = true
-binding = "method"
-arg_name = "symbols"
-
-[[endpoints.params]]
-name = "min_time"
-description = "Minimum time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "index_snapshot_price"
-description = "Get the latest price snapshot for one or more indices."
-category = "index"
-subcategory = "snapshot"
-rest_path = "/v3/index/snapshot/price"
-kind = "parsed"
-returns = "PriceTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Comma-separated ticker symbols (e.g. AAPL,MSFT)"
-param_type = "Symbols"
-required = true
-binding = "method"
-arg_name = "symbols"
-
-[[endpoints.params]]
-name = "min_time"
-description = "Minimum time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "index_snapshot_market_value"
-description = "Get the latest market value snapshot for one or more indices."
-category = "index"
-subcategory = "snapshot"
-rest_path = "/v3/index/snapshot/market_value"
-kind = "parsed"
-returns = "MarketValueTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Comma-separated ticker symbols (e.g. AAPL,MSFT)"
-param_type = "Symbols"
-required = true
-binding = "method"
-arg_name = "symbols"
-
-[[endpoints.params]]
-name = "min_time"
-description = "Minimum time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "index_history_eod"
-description = "Fetch end-of-day index data for a date range."
-category = "index"
-subcategory = "history"
-rest_path = "/v3/index/history/eod"
-kind = "parsed"
-returns = "EodTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Ticker symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = true
-binding = "method"
-arg_name = "start"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = true
-binding = "method"
-arg_name = "end"
-
-[[endpoints]]
-name = "index_history_ohlc"
-description = "Fetch intraday OHLC bars for an index."
-category = "index"
-subcategory = "history"
-rest_path = "/v3/index/history/ohlc"
-kind = "parsed"
-returns = "OhlcTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Ticker symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "interval"
-description = "Accepts milliseconds (60000) or shorthand (1m). Presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h."
-param_type = "Interval"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "start_time"
-description = "Start time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "09:30:00"
-
-[[endpoints.params]]
-name = "end_time"
-description = "End time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "16:00:00"
-
-[[endpoints]]
-name = "index_history_price"
-description = "Fetch intraday price history for an index."
-category = "index"
-subcategory = "history"
-rest_path = "/v3/index/history/price"
-kind = "parsed"
-returns = "PriceTicks"
-
-[[endpoints.params]]
-name = "date"
-description = "Date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "method"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Ticker symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "start_time"
-description = "Start time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "09:30:00"
-
-[[endpoints.params]]
-name = "end_time"
-description = "End time filter"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "16:00:00"
-
-[[endpoints.params]]
-name = "interval"
-description = "Accepts milliseconds (60000) or shorthand (1m). Presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h."
-param_type = "Interval"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = false
-binding = "builder"
-
-[[endpoints]]
-name = "index_at_time_price"
-description = "Fetch the index price at a specific time of day across a date range."
-category = "index"
-subcategory = "at_time"
-rest_path = "/v3/index/at_time/price"
-kind = "parsed"
-returns = "PriceTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Ticker symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "time_of_day"
-description = "Milliseconds from midnight ET (e.g. 34200000 = 9:30 AM)"
-param_type = "Str"
-required = true
-binding = "method"
-
-[[endpoints]]
-name = "calendar_open_today"
-description = "Check whether the market is open today."
-category = "calendar"
-subcategory = "status"
-rest_path = "/v3/calendar/open_today"
-kind = "parsed"
-returns = "CalendarDays"
-
-[[endpoints]]
-name = "calendar_on_date"
-description = "Get calendar information for a specific date."
-category = "calendar"
-subcategory = "query"
-rest_path = "/v3/calendar/on_date"
-kind = "parsed"
-returns = "CalendarDays"
-
-[[endpoints.params]]
-name = "date"
-description = "Date YYYYMMDD"
-param_type = "Date"
-required = true
-binding = "method"
-
-[[endpoints]]
-name = "calendar_year"
-description = "Get calendar information for an entire year."
-category = "calendar"
-subcategory = "query"
-rest_path = "/v3/calendar/year"
-kind = "parsed"
-returns = "CalendarDays"
-
-[[endpoints.params]]
+[[param_groups.year_param.params]]
 name = "year"
 description = "4-digit year (e.g. 2024)"
 param_type = "Year"
 required = true
 binding = "method"
 
+# Reusable endpoint templates.
+
+[templates.list_base]
+kind = "list"
+returns = "StringList"
+
+[templates.stock_base]
+category = "stock"
+
+[templates.stock_parsed]
+extends = "stock_base"
+kind = "parsed"
+
+[templates.stock_list]
+extends = "list_base"
+category = "stock"
+subcategory = "list"
+
+[templates.stock_snapshot]
+extends = "stock_parsed"
+subcategory = "snapshot"
+
+[[templates.stock_snapshot.params]]
+use = "multi_symbol"
+
+[[templates.stock_snapshot.params]]
+use = "stock_venue_filter"
+
+[[templates.stock_snapshot.params]]
+use = "min_time_filter"
+
+[templates.stock_history_eod]
+extends = "stock_parsed"
+subcategory = "history"
+
+[[templates.stock_history_eod.params]]
+use = "stock_symbol"
+
+[[templates.stock_history_eod.params]]
+use = "date_range_required_aliases"
+
+[templates.stock_history_intraday_interval]
+extends = "stock_parsed"
+subcategory = "history"
+
+[[templates.stock_history_intraday_interval.params]]
+use = "stock_symbol"
+
+[[templates.stock_history_intraday_interval.params]]
+use = "optional_date"
+
+[[templates.stock_history_intraday_interval.params]]
+use = "interval"
+
+[[templates.stock_history_intraday_interval.params]]
+use = "history_time_filters"
+
+[[templates.stock_history_intraday_interval.params]]
+use = "stock_venue_filter"
+
+[[templates.stock_history_intraday_interval.params]]
+use = "date_range_optional"
+
+[templates.stock_history_intraday_ticks]
+extends = "stock_parsed"
+subcategory = "history"
+
+[[templates.stock_history_intraday_ticks.params]]
+use = "stock_symbol"
+
+[[templates.stock_history_intraday_ticks.params]]
+use = "optional_date"
+
+[[templates.stock_history_intraday_ticks.params]]
+use = "history_time_filters"
+
+[[templates.stock_history_intraday_ticks.params]]
+use = "stock_venue_filter"
+
+[[templates.stock_history_intraday_ticks.params]]
+use = "date_range_optional"
+
+[templates.stock_history_trade_quote]
+extends = "stock_parsed"
+subcategory = "history"
+
+[[templates.stock_history_trade_quote.params]]
+use = "stock_symbol"
+
+[[templates.stock_history_trade_quote.params]]
+use = "optional_date"
+
+[[templates.stock_history_trade_quote.params]]
+use = "history_time_filters"
+
+[[templates.stock_history_trade_quote.params]]
+use = "exclusive_flag"
+
+[[templates.stock_history_trade_quote.params]]
+use = "stock_venue_filter"
+
+[[templates.stock_history_trade_quote.params]]
+use = "date_range_optional"
+
+[templates.stock_at_time]
+extends = "stock_parsed"
+subcategory = "at_time"
+
+[[templates.stock_at_time.params]]
+use = "stock_symbol"
+
+[[templates.stock_at_time.params]]
+use = "date_range_required"
+
+[[templates.stock_at_time.params]]
+use = "time_of_day"
+
+[[templates.stock_at_time.params]]
+use = "stock_venue_filter"
+
+[templates.stock_history_ohlc_range]
+extends = "stock_parsed"
+subcategory = "history"
+
+[[templates.stock_history_ohlc_range.params]]
+use = "stock_symbol"
+
+[[templates.stock_history_ohlc_range.params]]
+use = "date_range_required"
+
+[[templates.stock_history_ohlc_range.params]]
+use = "interval"
+
+[[templates.stock_history_ohlc_range.params]]
+use = "history_time_filters"
+
+[[templates.stock_history_ohlc_range.params]]
+use = "stock_venue_filter"
+
+[templates.option_base]
+category = "option"
+
+[templates.option_parsed]
+extends = "option_base"
+kind = "parsed"
+
+[templates.option_list]
+extends = "list_base"
+category = "option"
+subcategory = "list"
+
+[templates.option_list_parsed]
+extends = "option_parsed"
+subcategory = "list"
+
+[templates.option_snapshot_standard]
+extends = "option_parsed"
+subcategory = "snapshot"
+
+[[templates.option_snapshot_standard.params]]
+use = "contract_identity"
+
+[[templates.option_snapshot_standard.params]]
+use = "max_dte_filter"
+
+[[templates.option_snapshot_standard.params]]
+use = "strike_range_filter"
+
+[[templates.option_snapshot_standard.params]]
+use = "min_time_filter"
+
+[templates.option_snapshot_trade]
+extends = "option_parsed"
+subcategory = "snapshot"
+
+[[templates.option_snapshot_trade.params]]
+use = "contract_identity"
+
+[[templates.option_snapshot_trade.params]]
+use = "strike_range_filter"
+
+[[templates.option_snapshot_trade.params]]
+use = "min_time_filter"
+
+[templates.option_snapshot_greeks]
+extends = "option_parsed"
+subcategory = "snapshot_greeks"
+
+[[templates.option_snapshot_greeks.params]]
+use = "contract_identity"
+
+[[templates.option_snapshot_greeks.params]]
+use = "option_snapshot_greeks_inputs"
+
+[[templates.option_snapshot_greeks.params]]
+use = "max_dte_filter"
+
+[[templates.option_snapshot_greeks.params]]
+use = "strike_range_filter"
+
+[[templates.option_snapshot_greeks.params]]
+use = "min_time_filter"
+
+[[templates.option_snapshot_greeks.params]]
+use = "use_market_value_flag"
+
+[templates.option_history_eod]
+extends = "option_parsed"
+subcategory = "history"
+
+[[templates.option_history_eod.params]]
+use = "contract_identity"
+
+[[templates.option_history_eod.params]]
+use = "date_range_required_aliases"
+
+[[templates.option_history_eod.params]]
+use = "max_dte_filter"
+
+[[templates.option_history_eod.params]]
+use = "strike_range_filter"
+
+[templates.option_history_ohlc]
+extends = "option_parsed"
+subcategory = "history"
+
+[[templates.option_history_ohlc.params]]
+use = "contract_identity"
+
+[[templates.option_history_ohlc.params]]
+use = "optional_date"
+
+[[templates.option_history_ohlc.params]]
+use = "interval"
+
+[[templates.option_history_ohlc.params]]
+use = "history_time_filters"
+
+[[templates.option_history_ohlc.params]]
+use = "strike_range_filter"
+
+[[templates.option_history_ohlc.params]]
+use = "date_range_optional"
+
+[templates.option_history_trade]
+extends = "option_parsed"
+subcategory = "history"
+
+[[templates.option_history_trade.params]]
+use = "contract_identity"
+
+[[templates.option_history_trade.params]]
+use = "optional_date"
+
+[[templates.option_history_trade.params]]
+use = "history_time_filters"
+
+[[templates.option_history_trade.params]]
+use = "max_dte_filter"
+
+[[templates.option_history_trade.params]]
+use = "strike_range_filter"
+
+[[templates.option_history_trade.params]]
+use = "date_range_optional"
+
+[templates.option_history_quote]
+extends = "option_parsed"
+subcategory = "history"
+
+[[templates.option_history_quote.params]]
+use = "contract_identity"
+
+[[templates.option_history_quote.params]]
+use = "optional_date"
+
+[[templates.option_history_quote.params]]
+use = "interval"
+
+[[templates.option_history_quote.params]]
+use = "history_time_filters"
+
+[[templates.option_history_quote.params]]
+use = "max_dte_filter"
+
+[[templates.option_history_quote.params]]
+use = "strike_range_filter"
+
+[[templates.option_history_quote.params]]
+use = "date_range_optional"
+
+[templates.option_history_trade_quote]
+extends = "option_parsed"
+subcategory = "history"
+
+[[templates.option_history_trade_quote.params]]
+use = "contract_identity"
+
+[[templates.option_history_trade_quote.params]]
+use = "optional_date"
+
+[[templates.option_history_trade_quote.params]]
+use = "history_time_filters"
+
+[[templates.option_history_trade_quote.params]]
+use = "exclusive_flag"
+
+[[templates.option_history_trade_quote.params]]
+use = "max_dte_filter"
+
+[[templates.option_history_trade_quote.params]]
+use = "strike_range_filter"
+
+[[templates.option_history_trade_quote.params]]
+use = "date_range_optional"
+
+[templates.option_history_open_interest]
+extends = "option_parsed"
+subcategory = "history"
+
+[[templates.option_history_open_interest.params]]
+use = "contract_identity"
+
+[[templates.option_history_open_interest.params]]
+use = "optional_date"
+
+[[templates.option_history_open_interest.params]]
+use = "max_dte_filter"
+
+[[templates.option_history_open_interest.params]]
+use = "strike_range_filter"
+
+[[templates.option_history_open_interest.params]]
+use = "date_range_optional"
+
+[templates.option_history_greeks_eod]
+extends = "option_parsed"
+subcategory = "history_greeks"
+
+[[templates.option_history_greeks_eod.params]]
+use = "contract_identity"
+
+[[templates.option_history_greeks_eod.params]]
+use = "date_range_required"
+
+[[templates.option_history_greeks_eod.params]]
+use = "option_history_greeks_inputs"
+
+[[templates.option_history_greeks_eod.params]]
+use = "underlyer_use_nbbo_flag"
+
+[[templates.option_history_greeks_eod.params]]
+use = "max_dte_filter"
+
+[[templates.option_history_greeks_eod.params]]
+use = "strike_range_filter"
+
+[templates.option_history_greeks]
+extends = "option_parsed"
+subcategory = "history_greeks"
+
+[[templates.option_history_greeks.params]]
+use = "contract_identity"
+
+[[templates.option_history_greeks.params]]
+use = "optional_date"
+
+[[templates.option_history_greeks.params]]
+use = "interval"
+
+[[templates.option_history_greeks.params]]
+use = "history_time_filters"
+
+[[templates.option_history_greeks.params]]
+use = "option_history_greeks_inputs"
+
+[[templates.option_history_greeks.params]]
+use = "strike_range_filter"
+
+[[templates.option_history_greeks.params]]
+use = "date_range_optional"
+
+[templates.option_history_trade_greeks]
+extends = "option_parsed"
+subcategory = "history_trade_greeks"
+
+[[templates.option_history_trade_greeks.params]]
+use = "contract_identity"
+
+[[templates.option_history_trade_greeks.params]]
+use = "optional_date"
+
+[[templates.option_history_trade_greeks.params]]
+use = "history_time_filters"
+
+[[templates.option_history_trade_greeks.params]]
+use = "option_history_greeks_inputs"
+
+[[templates.option_history_trade_greeks.params]]
+use = "max_dte_filter"
+
+[[templates.option_history_trade_greeks.params]]
+use = "strike_range_filter"
+
+[[templates.option_history_trade_greeks.params]]
+use = "date_range_optional"
+
+[templates.option_at_time]
+extends = "option_parsed"
+subcategory = "at_time"
+
+[[templates.option_at_time.params]]
+use = "contract_identity"
+
+[[templates.option_at_time.params]]
+use = "date_range_required"
+
+[[templates.option_at_time.params]]
+use = "time_of_day"
+
+[[templates.option_at_time.params]]
+use = "max_dte_filter"
+
+[[templates.option_at_time.params]]
+use = "strike_range_filter"
+
+[templates.index_base]
+category = "index"
+
+[templates.index_parsed]
+extends = "index_base"
+kind = "parsed"
+
+[templates.index_list]
+extends = "list_base"
+category = "index"
+subcategory = "list"
+
+[templates.index_snapshot]
+extends = "index_parsed"
+subcategory = "snapshot"
+
+[[templates.index_snapshot.params]]
+use = "multi_symbol"
+
+[[templates.index_snapshot.params]]
+use = "min_time_filter"
+
+[templates.index_history_eod]
+extends = "index_parsed"
+subcategory = "history"
+
+[[templates.index_history_eod.params]]
+use = "stock_symbol"
+
+[[templates.index_history_eod.params]]
+use = "date_range_required_aliases"
+
+[templates.index_history_ohlc]
+extends = "index_parsed"
+subcategory = "history"
+
+[[templates.index_history_ohlc.params]]
+use = "stock_symbol"
+
+[[templates.index_history_ohlc.params]]
+use = "date_range_required"
+
+[[templates.index_history_ohlc.params]]
+use = "interval"
+
+[[templates.index_history_ohlc.params]]
+use = "history_time_filters"
+
+[templates.index_history_price]
+extends = "index_parsed"
+subcategory = "history"
+
+[[templates.index_history_price.params]]
+use = "optional_date"
+
+[[templates.index_history_price.params]]
+use = "stock_symbol"
+
+[[templates.index_history_price.params]]
+use = "interval"
+
+[[templates.index_history_price.params]]
+use = "history_time_filters"
+
+[[templates.index_history_price.params]]
+use = "date_range_optional"
+
+[templates.index_at_time]
+extends = "index_parsed"
+subcategory = "at_time"
+
+[[templates.index_at_time.params]]
+use = "stock_symbol"
+
+[[templates.index_at_time.params]]
+use = "date_range_required"
+
+[[templates.index_at_time.params]]
+use = "time_of_day"
+
+[templates.calendar_base]
+category = "calendar"
+
+[templates.calendar_parsed]
+extends = "calendar_base"
+kind = "parsed"
+
+[templates.calendar_status]
+extends = "calendar_parsed"
+subcategory = "status"
+
+[templates.calendar_query]
+extends = "calendar_parsed"
+subcategory = "query"
+
+[templates.rate_base]
+category = "rate"
+
+[templates.rate_parsed]
+extends = "rate_base"
+kind = "parsed"
+
+[templates.rate_history_eod]
+extends = "rate_parsed"
+subcategory = "history"
+
+[[templates.rate_history_eod.params]]
+use = "stock_symbol"
+
+[[templates.rate_history_eod.params]]
+use = "date_range_required"
+
+# Concrete endpoint declarations.
+
+[[endpoints]]
+name = "stock_list_symbols"
+template = "stock_list"
+description = "List all available stock ticker symbols."
+rest_path = "/v3/stock/list/symbols"
+list_column = "symbol"
+
+[[endpoints]]
+name = "stock_list_dates"
+template = "stock_list"
+description = "List available dates for a stock by request type (EOD, TRADE, QUOTE, etc.)."
+rest_path = "/v3/stock/list/dates"
+list_column = "date"
+
+[[endpoints.params]]
+use = "request_type"
+
+[[endpoints.params]]
+use = "stock_symbol"
+
+[[endpoints]]
+name = "stock_snapshot_ohlc"
+template = "stock_snapshot"
+description = "Get the latest OHLC snapshot for one or more stocks."
+rest_path = "/v3/stock/snapshot/ohlc"
+returns = "OhlcTicks"
+
+[[endpoints]]
+name = "stock_snapshot_trade"
+template = "stock_snapshot"
+description = "Get the latest trade snapshot for one or more stocks."
+rest_path = "/v3/stock/snapshot/trade"
+returns = "TradeTicks"
+
+[[endpoints]]
+name = "stock_snapshot_quote"
+template = "stock_snapshot"
+description = "Get the latest NBBO quote snapshot for one or more stocks."
+rest_path = "/v3/stock/snapshot/quote"
+returns = "QuoteTicks"
+
+[[endpoints]]
+name = "stock_snapshot_market_value"
+template = "stock_snapshot"
+description = "Get the latest market value snapshot for one or more stocks."
+rest_path = "/v3/stock/snapshot/market_value"
+returns = "MarketValueTicks"
+
+[[endpoints]]
+name = "stock_history_eod"
+template = "stock_history_eod"
+description = "Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day."
+rest_path = "/v3/stock/history/eod"
+returns = "EodTicks"
+
+[[endpoints]]
+name = "stock_history_ohlc"
+template = "stock_history_intraday_interval"
+description = "Fetch intraday OHLC bars for a stock on a single date."
+rest_path = "/v3/stock/history/ohlc"
+returns = "OhlcTicks"
+
+[[endpoints]]
+name = "stock_history_trade"
+template = "stock_history_intraday_ticks"
+description = "Fetch all trades for a stock on a given date."
+rest_path = "/v3/stock/history/trade"
+returns = "TradeTicks"
+
+[[endpoints]]
+name = "stock_history_quote"
+template = "stock_history_intraday_interval"
+description = "Fetch NBBO quotes for a stock on a given date at a given interval."
+rest_path = "/v3/stock/history/quote"
+returns = "QuoteTicks"
+
+[[endpoints]]
+name = "stock_history_trade_quote"
+template = "stock_history_trade_quote"
+description = "Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable."
+rest_path = "/v3/stock/history/trade_quote"
+returns = "TradeQuoteTicks"
+
+[[endpoints]]
+name = "stock_at_time_trade"
+template = "stock_at_time"
+description = "Fetch the trade at a specific time of day across a date range."
+rest_path = "/v3/stock/at_time/trade"
+returns = "TradeTicks"
+
+[[endpoints]]
+name = "stock_at_time_quote"
+template = "stock_at_time"
+description = "Fetch the quote at a specific time of day across a date range."
+rest_path = "/v3/stock/at_time/quote"
+returns = "QuoteTicks"
+
+[[endpoints]]
+name = "option_list_symbols"
+template = "option_list"
+description = "List all available option underlying symbols."
+rest_path = "/v3/option/list/symbols"
+list_column = "symbol"
+
+[[endpoints]]
+name = "option_list_dates"
+template = "option_list"
+description = "List available dates for an option contract by request type."
+rest_path = "/v3/option/list/dates"
+list_column = "date"
+
+[[endpoints.params]]
+use = "request_type"
+
+[[endpoints.params]]
+use = "contract_identity"
+
+[[endpoints]]
+name = "option_list_expirations"
+template = "option_list"
+description = "List available expiration dates for an option underlying."
+rest_path = "/v3/option/list/expirations"
+list_column = "expiration"
+
+[[endpoints.params]]
+use = "stock_symbol"
+
+[[endpoints]]
+name = "option_list_strikes"
+template = "option_list"
+description = "List available strike prices for an option at a given expiration."
+rest_path = "/v3/option/list/strikes"
+list_column = "strike"
+
+[[endpoints.params]]
+use = "stock_symbol"
+
+[[endpoints.params]]
+use = "expiration_param"
+
+[[endpoints]]
+name = "option_list_contracts"
+template = "option_list_parsed"
+description = "List all option contracts for a symbol on a given date."
+rest_path = "/v3/option/list/contracts"
+returns = "OptionContracts"
+
+[[endpoints.params]]
+use = "request_type"
+
+[[endpoints.params]]
+use = "stock_symbol"
+
+[[endpoints.params]]
+use = "required_date"
+
+[[endpoints.params]]
+use = "max_dte_filter"
+
+[[endpoints]]
+name = "option_snapshot_ohlc"
+template = "option_snapshot_standard"
+description = "Get the latest OHLC snapshot for an option contract."
+rest_path = "/v3/option/snapshot/ohlc"
+returns = "OhlcTicks"
+
+[[endpoints]]
+name = "option_snapshot_trade"
+template = "option_snapshot_trade"
+description = "Get the latest trade snapshot for an option contract."
+rest_path = "/v3/option/snapshot/trade"
+returns = "TradeTicks"
+
+[[endpoints]]
+name = "option_snapshot_quote"
+template = "option_snapshot_standard"
+description = "Get the latest NBBO quote snapshot for an option contract."
+rest_path = "/v3/option/snapshot/quote"
+returns = "QuoteTicks"
+
+[[endpoints]]
+name = "option_snapshot_open_interest"
+template = "option_snapshot_standard"
+description = "Get the latest open interest snapshot for an option contract."
+rest_path = "/v3/option/snapshot/open_interest"
+returns = "OpenInterestTicks"
+
+[[endpoints]]
+name = "option_snapshot_market_value"
+template = "option_snapshot_standard"
+description = "Get the latest market value snapshot for an option contract."
+rest_path = "/v3/option/snapshot/market_value"
+returns = "MarketValueTicks"
+
+[[endpoints]]
+name = "option_snapshot_greeks_implied_volatility"
+template = "option_snapshot_greeks"
+description = "Get implied volatility snapshot for an option contract (from ThetaData server)."
+rest_path = "/v3/option/snapshot/greeks/implied_volatility"
+returns = "IvTicks"
+
+[[endpoints]]
+name = "option_snapshot_greeks_all"
+template = "option_snapshot_greeks"
+description = "Get all Greeks snapshot for an option contract (from ThetaData server)."
+rest_path = "/v3/option/snapshot/greeks/all"
+returns = "GreeksTicks"
+
+[[endpoints]]
+name = "option_snapshot_greeks_first_order"
+template = "option_snapshot_greeks"
+description = "Get first-order Greeks snapshot (delta, theta, rho) for an option contract."
+rest_path = "/v3/option/snapshot/greeks/first_order"
+returns = "GreeksTicks"
+
+[[endpoints]]
+name = "option_snapshot_greeks_second_order"
+template = "option_snapshot_greeks"
+description = "Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract."
+rest_path = "/v3/option/snapshot/greeks/second_order"
+returns = "GreeksTicks"
+
+[[endpoints]]
+name = "option_snapshot_greeks_third_order"
+template = "option_snapshot_greeks"
+description = "Get third-order Greeks snapshot (speed, color, ultima) for an option contract."
+rest_path = "/v3/option/snapshot/greeks/third_order"
+returns = "GreeksTicks"
+
+[[endpoints]]
+name = "option_history_eod"
+template = "option_history_eod"
+description = "Fetch end-of-day option data for a contract over a date range."
+rest_path = "/v3/option/history/eod"
+returns = "EodTicks"
+
+[[endpoints]]
+name = "option_history_ohlc"
+template = "option_history_ohlc"
+description = "Fetch intraday OHLC bars for an option contract."
+rest_path = "/v3/option/history/ohlc"
+returns = "OhlcTicks"
+
+[[endpoints]]
+name = "option_history_trade"
+template = "option_history_trade"
+description = "Fetch all trades for an option contract on a given date."
+rest_path = "/v3/option/history/trade"
+returns = "TradeTicks"
+
+[[endpoints]]
+name = "option_history_quote"
+template = "option_history_quote"
+description = "Fetch NBBO quotes for an option contract on a given date."
+rest_path = "/v3/option/history/quote"
+returns = "QuoteTicks"
+
+[[endpoints]]
+name = "option_history_trade_quote"
+template = "option_history_trade_quote"
+description = "Fetch combined trade + quote ticks for an option contract."
+rest_path = "/v3/option/history/trade_quote"
+returns = "TradeQuoteTicks"
+
+[[endpoints]]
+name = "option_history_open_interest"
+template = "option_history_open_interest"
+description = "Fetch open interest history for an option contract."
+rest_path = "/v3/option/history/open_interest"
+returns = "OpenInterestTicks"
+
+[[endpoints]]
+name = "option_history_greeks_eod"
+template = "option_history_greeks_eod"
+description = "Fetch end-of-day Greeks history for an option contract."
+rest_path = "/v3/option/history/greeks/eod"
+returns = "GreeksTicks"
+
+[[endpoints]]
+name = "option_history_greeks_all"
+template = "option_history_greeks"
+description = "Fetch all Greeks history for an option contract (intraday, sampled by interval)."
+rest_path = "/v3/option/history/greeks/all"
+returns = "GreeksTicks"
+
+[[endpoints]]
+name = "option_history_trade_greeks_all"
+template = "option_history_trade_greeks"
+description = "Fetch all Greeks on each trade for an option contract."
+rest_path = "/v3/option/history/trade_greeks/all"
+returns = "GreeksTicks"
+
+[[endpoints]]
+name = "option_history_greeks_first_order"
+template = "option_history_greeks"
+description = "Fetch first-order Greeks history (intraday, sampled by interval)."
+rest_path = "/v3/option/history/greeks/first_order"
+returns = "GreeksTicks"
+
+[[endpoints]]
+name = "option_history_trade_greeks_first_order"
+template = "option_history_trade_greeks"
+description = "Fetch first-order Greeks on each trade for an option contract."
+rest_path = "/v3/option/history/trade_greeks/first_order"
+returns = "GreeksTicks"
+
+[[endpoints]]
+name = "option_history_greeks_second_order"
+template = "option_history_greeks"
+description = "Fetch second-order Greeks history (intraday, sampled by interval)."
+rest_path = "/v3/option/history/greeks/second_order"
+returns = "GreeksTicks"
+
+[[endpoints]]
+name = "option_history_trade_greeks_second_order"
+template = "option_history_trade_greeks"
+description = "Fetch second-order Greeks on each trade for an option contract."
+rest_path = "/v3/option/history/trade_greeks/second_order"
+returns = "GreeksTicks"
+
+[[endpoints]]
+name = "option_history_greeks_third_order"
+template = "option_history_greeks"
+description = "Fetch third-order Greeks history (intraday, sampled by interval)."
+rest_path = "/v3/option/history/greeks/third_order"
+returns = "GreeksTicks"
+
+[[endpoints]]
+name = "option_history_trade_greeks_third_order"
+template = "option_history_trade_greeks"
+description = "Fetch third-order Greeks on each trade for an option contract."
+rest_path = "/v3/option/history/trade_greeks/third_order"
+returns = "GreeksTicks"
+
+[[endpoints]]
+name = "option_history_greeks_implied_volatility"
+template = "option_history_greeks"
+description = "Fetch implied volatility history (intraday, sampled by interval)."
+rest_path = "/v3/option/history/greeks/implied_volatility"
+returns = "IvTicks"
+
+[[endpoints]]
+name = "option_history_trade_greeks_implied_volatility"
+template = "option_history_trade_greeks"
+description = "Fetch implied volatility on each trade for an option contract."
+rest_path = "/v3/option/history/trade_greeks/implied_volatility"
+returns = "IvTicks"
+
+[[endpoints]]
+name = "option_at_time_trade"
+template = "option_at_time"
+description = "Fetch the trade at a specific time of day across a date range for an option."
+rest_path = "/v3/option/at_time/trade"
+returns = "TradeTicks"
+
+[[endpoints]]
+name = "option_at_time_quote"
+template = "option_at_time"
+description = "Fetch the quote at a specific time of day across a date range for an option."
+rest_path = "/v3/option/at_time/quote"
+returns = "QuoteTicks"
+
+[[endpoints]]
+name = "index_list_symbols"
+template = "index_list"
+description = "List all available index symbols."
+rest_path = "/v3/index/list/symbols"
+list_column = "symbol"
+
+[[endpoints]]
+name = "index_list_dates"
+template = "index_list"
+description = "List available dates for an index symbol."
+rest_path = "/v3/index/list/dates"
+list_column = "date"
+
+[[endpoints.params]]
+use = "stock_symbol"
+
+[[endpoints]]
+name = "index_snapshot_ohlc"
+template = "index_snapshot"
+description = "Get the latest OHLC snapshot for one or more indices."
+rest_path = "/v3/index/snapshot/ohlc"
+returns = "OhlcTicks"
+
+[[endpoints]]
+name = "index_snapshot_price"
+template = "index_snapshot"
+description = "Get the latest price snapshot for one or more indices."
+rest_path = "/v3/index/snapshot/price"
+returns = "PriceTicks"
+
+[[endpoints]]
+name = "index_snapshot_market_value"
+template = "index_snapshot"
+description = "Get the latest market value snapshot for one or more indices."
+rest_path = "/v3/index/snapshot/market_value"
+returns = "MarketValueTicks"
+
+[[endpoints]]
+name = "index_history_eod"
+template = "index_history_eod"
+description = "Fetch end-of-day index data for a date range."
+rest_path = "/v3/index/history/eod"
+returns = "EodTicks"
+
+[[endpoints]]
+name = "index_history_ohlc"
+template = "index_history_ohlc"
+description = "Fetch intraday OHLC bars for an index."
+rest_path = "/v3/index/history/ohlc"
+returns = "OhlcTicks"
+
+[[endpoints]]
+name = "index_history_price"
+template = "index_history_price"
+description = "Fetch intraday price history for an index."
+rest_path = "/v3/index/history/price"
+returns = "PriceTicks"
+
+[[endpoints]]
+name = "index_at_time_price"
+template = "index_at_time"
+description = "Fetch the index price at a specific time of day across a date range."
+rest_path = "/v3/index/at_time/price"
+returns = "PriceTicks"
+
+[[endpoints]]
+name = "calendar_open_today"
+template = "calendar_status"
+description = "Check whether the market is open today."
+rest_path = "/v3/calendar/open_today"
+returns = "CalendarDays"
+
+[[endpoints]]
+name = "calendar_on_date"
+template = "calendar_query"
+description = "Get calendar information for a specific date."
+rest_path = "/v3/calendar/on_date"
+returns = "CalendarDays"
+
+[[endpoints.params]]
+use = "required_date"
+
+[[endpoints]]
+name = "calendar_year"
+template = "calendar_query"
+description = "Get calendar information for an entire year."
+rest_path = "/v3/calendar/year"
+returns = "CalendarDays"
+
+[[endpoints.params]]
+use = "year_param"
+
 [[endpoints]]
 name = "interest_rate_history_eod"
+template = "rate_history_eod"
 description = "Fetch end-of-day interest rate history."
-category = "rate"
-subcategory = "history"
 rest_path = "/v3/rate/history/eod"
-kind = "parsed"
 returns = "InterestRateTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Ticker symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = true
-binding = "method"
 
 [[endpoints]]
 name = "stock_history_ohlc_range"
+template = "stock_history_ohlc_range"
 wire_name = "stock_history_ohlc"
 description = "Fetch intraday OHLC bars across a date range."
-category = "stock"
-subcategory = "history"
 rest_path = "/v3/stock/history/ohlc_range"
-kind = "parsed"
 returns = "OhlcTicks"
-
-[[endpoints.params]]
-name = "symbol"
-description = "Ticker symbol (e.g. AAPL)"
-param_type = "Symbol"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "interval"
-description = "Accepts milliseconds (60000) or shorthand (1m). Presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h."
-param_type = "Interval"
-required = true
-binding = "method"
-
-[[endpoints.params]]
-name = "start_time"
-description = "Start time filter (hh:mm:ss.SSS or ms)"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "09:30:00"
-
-[[endpoints.params]]
-name = "end_time"
-description = "End time filter (hh:mm:ss.SSS or ms)"
-param_type = "Str"
-required = false
-binding = "builder"
-default = "16:00:00"
-
-[[endpoints.params]]
-name = "venue"
-description = "Venue/exchange filter"
-param_type = "Str"
-required = false
-binding = "builder"

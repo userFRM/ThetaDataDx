@@ -14,31 +14,80 @@ use serde::Deserialize;
 
 /// A checked-in endpoint surface specification file.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct SurfaceSpec {
     version: u32,
+    #[serde(default)]
+    param_groups: HashMap<String, SurfaceParamGroup>,
+    #[serde(default)]
+    templates: HashMap<String, SurfaceTemplate>,
     endpoints: Vec<SurfaceEndpoint>,
+}
+
+/// A reusable parameter group declared in `endpoint_surface.toml`.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SurfaceParamGroup {
+    #[serde(default)]
+    params: Vec<SurfaceParamEntry>,
+}
+
+/// A reusable endpoint template declared in `endpoint_surface.toml`.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SurfaceTemplate {
+    #[serde(default)]
+    extends: Option<String>,
+    #[serde(default)]
+    wire_name: Option<String>,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    category: Option<String>,
+    #[serde(default)]
+    subcategory: Option<String>,
+    #[serde(default)]
+    rest_path: Option<String>,
+    #[serde(default)]
+    kind: Option<String>,
+    #[serde(default)]
+    returns: Option<String>,
+    #[serde(default)]
+    list_column: Option<String>,
+    #[serde(default)]
+    params: Vec<SurfaceParamEntry>,
 }
 
 /// A normalized endpoint surface entry loaded from `endpoint_surface.toml`.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct SurfaceEndpoint {
     name: String,
     #[serde(default)]
+    template: Option<String>,
+    #[serde(default)]
     wire_name: Option<String>,
-    description: String,
-    category: String,
-    subcategory: String,
-    rest_path: String,
-    kind: String,
-    returns: String,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    category: Option<String>,
+    #[serde(default)]
+    subcategory: Option<String>,
+    #[serde(default)]
+    rest_path: Option<String>,
+    #[serde(default)]
+    kind: Option<String>,
+    #[serde(default)]
+    returns: Option<String>,
     #[serde(default)]
     list_column: Option<String>,
     #[serde(default)]
-    params: Vec<SurfaceParam>,
+    params: Vec<SurfaceParamEntry>,
 }
 
 /// A normalized endpoint parameter entry loaded from `endpoint_surface.toml`.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct SurfaceParam {
     name: String,
     description: String,
@@ -49,6 +98,49 @@ struct SurfaceParam {
     arg_name: Option<String>,
     #[serde(default)]
     default: Option<String>,
+}
+
+/// A single parameter entry or reference inside a parameter group, template, or endpoint.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+enum SurfaceParamEntry {
+    Use(SurfaceParamUse),
+    Param(SurfaceParam),
+}
+
+/// A reference to a reusable parameter group.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SurfaceParamUse {
+    #[serde(rename = "use")]
+    group: String,
+}
+
+#[derive(Debug, Clone, Default)]
+struct ResolvedTemplate {
+    wire_name: Option<String>,
+    description: Option<String>,
+    category: Option<String>,
+    subcategory: Option<String>,
+    rest_path: Option<String>,
+    kind: Option<String>,
+    returns: Option<String>,
+    list_column: Option<String>,
+    params: Vec<SurfaceParam>,
+}
+
+#[derive(Debug, Clone)]
+struct ResolvedSurfaceEndpoint {
+    name: String,
+    wire_name: Option<String>,
+    description: String,
+    category: String,
+    subcategory: String,
+    rest_path: String,
+    kind: String,
+    returns: String,
+    list_column: Option<String>,
+    params: Vec<SurfaceParam>,
 }
 
 /// A parsed proto field.
@@ -347,7 +439,7 @@ fn load_endpoint_specs() -> Result<ParsedEndpoints, Box<dyn std::error::Error>> 
     let spec_path = "endpoint_surface.toml";
     let spec_str = std::fs::read_to_string(spec_path)?;
     let spec: SurfaceSpec = toml::from_str(&spec_str)?;
-    if spec.version != 1 {
+    if spec.version != 2 {
         return Err(format!(
             "unsupported endpoint surface spec version {} in {spec_path}",
             spec.version
@@ -355,14 +447,16 @@ fn load_endpoint_specs() -> Result<ParsedEndpoints, Box<dyn std::error::Error>> 
         .into());
     }
 
+    let resolved = resolve_surface_endpoints(&spec)?;
+
     let mut seen_names = HashSet::new();
     let mut wire_by_name = HashMap::new();
     for endpoint in wire.endpoints {
         wire_by_name.insert(endpoint.name.clone(), endpoint);
     }
 
-    let mut endpoints = Vec::with_capacity(spec.endpoints.len());
-    for surface in spec.endpoints {
+    let mut endpoints = Vec::with_capacity(resolved.len());
+    for surface in resolved {
         if !seen_names.insert(surface.name.clone()) {
             return Err(format!("duplicate endpoint surface entry: {}", surface.name).into());
         }
@@ -383,8 +477,300 @@ fn load_endpoint_specs() -> Result<ParsedEndpoints, Box<dyn std::error::Error>> 
     Ok(ParsedEndpoints { endpoints })
 }
 
+/// Resolve the reusable spec language in `endpoint_surface.toml` into concrete endpoints.
+///
+/// This expands parameter groups, resolves template inheritance, detects
+/// cycles, and rejects dead configuration such as unused groups or templates.
+fn resolve_surface_endpoints(
+    spec: &SurfaceSpec,
+) -> Result<Vec<ResolvedSurfaceEndpoint>, Box<dyn std::error::Error>> {
+    let mut template_cache = HashMap::new();
+    let mut param_group_cache = HashMap::new();
+    let mut template_stack = Vec::new();
+    let mut param_group_stack = Vec::new();
+    let mut used_templates = HashSet::new();
+    let mut used_param_groups = HashSet::new();
+    let mut endpoints = Vec::with_capacity(spec.endpoints.len());
+
+    for endpoint in &spec.endpoints {
+        endpoints.push(resolve_surface_endpoint(
+            endpoint,
+            spec,
+            &mut template_cache,
+            &mut param_group_cache,
+            &mut template_stack,
+            &mut param_group_stack,
+            &mut used_templates,
+            &mut used_param_groups,
+        )?);
+    }
+
+    let mut unused_templates = spec
+        .templates
+        .keys()
+        .filter(|name| !used_templates.contains(*name))
+        .cloned()
+        .collect::<Vec<_>>();
+    unused_templates.sort();
+    if !unused_templates.is_empty() {
+        return Err(format!(
+            "unused endpoint templates in endpoint_surface.toml: {}",
+            unused_templates.join(", ")
+        )
+        .into());
+    }
+
+    let mut unused_param_groups = spec
+        .param_groups
+        .keys()
+        .filter(|name| !used_param_groups.contains(*name))
+        .cloned()
+        .collect::<Vec<_>>();
+    unused_param_groups.sort();
+    if !unused_param_groups.is_empty() {
+        return Err(format!(
+            "unused parameter groups in endpoint_surface.toml: {}",
+            unused_param_groups.join(", ")
+        )
+        .into());
+    }
+
+    Ok(endpoints)
+}
+
+/// Resolve a single concrete endpoint, applying any referenced template first.
+#[allow(clippy::too_many_arguments)]
+fn resolve_surface_endpoint(
+    endpoint: &SurfaceEndpoint,
+    spec: &SurfaceSpec,
+    template_cache: &mut HashMap<String, ResolvedTemplate>,
+    param_group_cache: &mut HashMap<String, Vec<SurfaceParam>>,
+    template_stack: &mut Vec<String>,
+    param_group_stack: &mut Vec<String>,
+    used_templates: &mut HashSet<String>,
+    used_param_groups: &mut HashSet<String>,
+) -> Result<ResolvedSurfaceEndpoint, Box<dyn std::error::Error>> {
+    let template = if let Some(template_name) = endpoint.template.as_deref() {
+        used_templates.insert(template_name.to_string());
+        resolve_surface_template(
+            template_name,
+            spec,
+            template_cache,
+            param_group_cache,
+            template_stack,
+            param_group_stack,
+            used_templates,
+            used_param_groups,
+        )?
+    } else {
+        ResolvedTemplate::default()
+    };
+
+    let mut params = template.params;
+    params.extend(resolve_param_entries(
+        &endpoint.params,
+        spec,
+        param_group_cache,
+        param_group_stack,
+        used_param_groups,
+    )?);
+
+    Ok(ResolvedSurfaceEndpoint {
+        name: endpoint.name.clone(),
+        wire_name: endpoint.wire_name.clone().or(template.wire_name),
+        description: resolve_required_surface_field(
+            endpoint.description.clone().or(template.description),
+            &endpoint.name,
+            "description",
+        )?,
+        category: resolve_required_surface_field(
+            endpoint.category.clone().or(template.category),
+            &endpoint.name,
+            "category",
+        )?,
+        subcategory: resolve_required_surface_field(
+            endpoint.subcategory.clone().or(template.subcategory),
+            &endpoint.name,
+            "subcategory",
+        )?,
+        rest_path: resolve_required_surface_field(
+            endpoint.rest_path.clone().or(template.rest_path),
+            &endpoint.name,
+            "rest_path",
+        )?,
+        kind: resolve_required_surface_field(
+            endpoint.kind.clone().or(template.kind),
+            &endpoint.name,
+            "kind",
+        )?,
+        returns: resolve_required_surface_field(
+            endpoint.returns.clone().or(template.returns),
+            &endpoint.name,
+            "returns",
+        )?,
+        list_column: endpoint.list_column.clone().or(template.list_column),
+        params,
+    })
+}
+
+/// Resolve a template, including any inherited parent template chain.
+#[allow(clippy::too_many_arguments)]
+fn resolve_surface_template(
+    name: &str,
+    spec: &SurfaceSpec,
+    template_cache: &mut HashMap<String, ResolvedTemplate>,
+    param_group_cache: &mut HashMap<String, Vec<SurfaceParam>>,
+    template_stack: &mut Vec<String>,
+    param_group_stack: &mut Vec<String>,
+    used_templates: &mut HashSet<String>,
+    used_param_groups: &mut HashSet<String>,
+) -> Result<ResolvedTemplate, Box<dyn std::error::Error>> {
+    if let Some(cached) = template_cache.get(name) {
+        return Ok(cached.clone());
+    }
+    if template_stack.iter().any(|entry| entry == name) {
+        let mut cycle = template_stack.clone();
+        cycle.push(name.to_string());
+        return Err(format!("template inheritance cycle: {}", cycle.join(" -> ")).into());
+    }
+
+    let template = spec
+        .templates
+        .get(name)
+        .ok_or_else(|| format!("unknown endpoint template '{}'", name))?;
+    template_stack.push(name.to_string());
+
+    let mut resolved = if let Some(parent) = template.extends.as_deref() {
+        used_templates.insert(parent.to_string());
+        resolve_surface_template(
+            parent,
+            spec,
+            template_cache,
+            param_group_cache,
+            template_stack,
+            param_group_stack,
+            used_templates,
+            used_param_groups,
+        )?
+    } else {
+        ResolvedTemplate::default()
+    };
+
+    if let Some(value) = &template.wire_name {
+        resolved.wire_name = Some(value.clone());
+    }
+    if let Some(value) = &template.description {
+        resolved.description = Some(value.clone());
+    }
+    if let Some(value) = &template.category {
+        resolved.category = Some(value.clone());
+    }
+    if let Some(value) = &template.subcategory {
+        resolved.subcategory = Some(value.clone());
+    }
+    if let Some(value) = &template.rest_path {
+        resolved.rest_path = Some(value.clone());
+    }
+    if let Some(value) = &template.kind {
+        resolved.kind = Some(value.clone());
+    }
+    if let Some(value) = &template.returns {
+        resolved.returns = Some(value.clone());
+    }
+    if let Some(value) = &template.list_column {
+        resolved.list_column = Some(value.clone());
+    }
+    resolved.params.extend(resolve_param_entries(
+        &template.params,
+        spec,
+        param_group_cache,
+        param_group_stack,
+        used_param_groups,
+    )?);
+
+    template_stack.pop();
+    template_cache.insert(name.to_string(), resolved.clone());
+    Ok(resolved)
+}
+
+/// Expand a sequence of parameter entries, recursively resolving group references.
+fn resolve_param_entries(
+    entries: &[SurfaceParamEntry],
+    spec: &SurfaceSpec,
+    param_group_cache: &mut HashMap<String, Vec<SurfaceParam>>,
+    param_group_stack: &mut Vec<String>,
+    used_param_groups: &mut HashSet<String>,
+) -> Result<Vec<SurfaceParam>, Box<dyn std::error::Error>> {
+    let mut params = Vec::new();
+    for entry in entries {
+        match entry {
+            SurfaceParamEntry::Param(param) => params.push(param.clone()),
+            SurfaceParamEntry::Use(param_use) => {
+                used_param_groups.insert(param_use.group.clone());
+                params.extend(resolve_param_group(
+                    &param_use.group,
+                    spec,
+                    param_group_cache,
+                    param_group_stack,
+                    used_param_groups,
+                )?);
+            }
+        }
+    }
+    Ok(params)
+}
+
+/// Resolve a reusable parameter group with cycle detection and memoization.
+fn resolve_param_group(
+    name: &str,
+    spec: &SurfaceSpec,
+    param_group_cache: &mut HashMap<String, Vec<SurfaceParam>>,
+    param_group_stack: &mut Vec<String>,
+    used_param_groups: &mut HashSet<String>,
+) -> Result<Vec<SurfaceParam>, Box<dyn std::error::Error>> {
+    if let Some(cached) = param_group_cache.get(name) {
+        return Ok(cached.clone());
+    }
+    if param_group_stack.iter().any(|entry| entry == name) {
+        let mut cycle = param_group_stack.clone();
+        cycle.push(name.to_string());
+        return Err(format!("parameter group cycle: {}", cycle.join(" -> ")).into());
+    }
+
+    let group = spec
+        .param_groups
+        .get(name)
+        .ok_or_else(|| format!("unknown parameter group '{}'", name))?;
+    param_group_stack.push(name.to_string());
+    let params = resolve_param_entries(
+        &group.params,
+        spec,
+        param_group_cache,
+        param_group_stack,
+        used_param_groups,
+    )?;
+    param_group_stack.pop();
+    param_group_cache.insert(name.to_string(), params.clone());
+    Ok(params)
+}
+
+/// Require a fully-resolved endpoint field after template inheritance has been applied.
+fn resolve_required_surface_field(
+    value: Option<String>,
+    endpoint_name: &str,
+    field_name: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    value.ok_or_else(|| {
+        format!(
+            "endpoint '{}' is missing required field '{}'",
+            endpoint_name, field_name
+        )
+        .into()
+    })
+}
+
 fn validate_surface_endpoint(
-    surface: &SurfaceEndpoint,
+    surface: &ResolvedSurfaceEndpoint,
     wire: &GeneratedEndpoint,
 ) -> Result<(), Box<dyn std::error::Error>> {
     match surface.kind.as_str() {
@@ -498,7 +884,10 @@ fn validate_surface_endpoint(
     Ok(())
 }
 
-fn merge_surface_and_wire(surface: SurfaceEndpoint, wire: &GeneratedEndpoint) -> GeneratedEndpoint {
+fn merge_surface_and_wire(
+    surface: ResolvedSurfaceEndpoint,
+    wire: &GeneratedEndpoint,
+) -> GeneratedEndpoint {
     GeneratedEndpoint {
         name: surface.name,
         description: surface.description,

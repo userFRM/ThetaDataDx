@@ -31,7 +31,7 @@ tdx.stop_streaming();
 src/
   lib.rs           - public re-exports (ThetaDataDx, Credentials, DirectConfig, Error)
   unified.rs       - ThetaDataDx: single entry point, lazy streaming
-  direct.rs        - DirectClient: 61 gRPC endpoints via parsed_endpoint! macro
+  direct.rs        - DirectClient macros plus generated endpoint declarations
   auth/            - Nexus API authentication, credential parsing
   fpss/            - FPSS streaming client (sync, LMAX Disruptor ring buffer)
   codec/           - FIT nibble encoder/decoder, delta compression
@@ -39,12 +39,11 @@ src/
   decode.rs        - DataTable -> typed tick parsing (generated from TOML)
   types/           - Tick structs, Price, enums (generated from TOML)
   greeks.rs        - 22 Black-Scholes Greeks + IV solver
-  registry.rs      - Endpoint metadata (generated from proto at build time)
+  registry.rs      - Endpoint metadata (generated from the endpoint surface spec)
   error.rs         - Error enum
 proto/
-  endpoints.proto      - shared types (DataTable, ResponseData, Price)
-  v3_endpoints.proto   - v3 service (BetaThetaTerminal, 60 RPCs)
-  MAINTENANCE.md       - guide for ThetaData engineers
+  external.proto       - canonical MDDS wire contract from ThetaData
+  MAINTENANCE.md       - endpoint/proto maintenance guide
 endpoint_schema.toml   - single source of truth for tick type definitions
 endpoint_surface.toml  - explicit endpoint surface spec for registry/direct/runtime generation
 build.rs               - small build entrypoint
@@ -59,10 +58,14 @@ All 14 tick types and their DataTable parsers are generated at compile time from
 
 Endpoint projections are generated from the checked-in `endpoint_surface.toml`
 file, which defines the normalized endpoint surface: names, descriptions,
-parameter semantics, REST paths, return kinds, and projection call-shapes. The
-build pipeline validates that spec against `proto/external.proto` before
-generating the registry, shared endpoint runtime, and `DirectClient` endpoint
-declarations.
+parameter semantics, REST paths, return kinds, projection call-shapes, reusable
+parameter groups, and endpoint templates. Templates support inheritance via
+`extends`, so the spec can model repeated endpoint families without copying the
+same parameter blocks across every declaration.
+
+The build pipeline validates that surface spec against `proto/external.proto`
+before generating the registry, shared endpoint runtime, and `DirectClient`
+endpoint declarations.
 
 ## Tick Types
 

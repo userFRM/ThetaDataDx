@@ -10,8 +10,8 @@ type structs, and DataTable parsers across all languages.
 
 **`endpoint_surface.toml` is the canonical endpoint surface contract inside this repository.**
 It owns normalized endpoint names, parameter semantics, REST paths, return kinds,
-and projection call-shapes. The build validates that surface spec against the
-wire contract in `external.proto`.
+projection call-shapes, reusable parameter groups, and endpoint templates. The
+build validates that surface spec against the wire contract in `external.proto`.
 
 We used to maintain reverse-engineered protos (`endpoints.proto` + `v3_endpoints.proto`)
 extracted from `ThetaTerminalv3.jar` via `FileDescriptor` reflection. Those have been
@@ -55,6 +55,22 @@ proto/
    `$OUT_DIR/decode_generated.rs`.
 
 All three steps are automatic. Just run `cargo build`.
+
+## Endpoint surface spec structure
+
+`endpoint_surface.toml` is intentionally more expressive than the upstream
+proto. It supports three layers:
+
+1. **`param_groups.*`** for reusable parameter blocks such as contract
+   identity, date ranges, or common builder filters.
+2. **`templates.*`** for reusable endpoint families such as stock snapshots or
+   option Greeks history. Templates may inherit from each other with `extends`.
+3. **`[[endpoints]]`** for concrete endpoint declarations that bind a name,
+   description, rest path, return kind, and any endpoint-specific overrides.
+
+The generator expands groups and templates first, then validates the fully
+resolved endpoint against `external.proto`. Cycles, unknown references, unused
+groups/templates, and invalid overrides fail the build.
 
 ## How to: add a new column to an existing endpoint
 
@@ -119,6 +135,11 @@ use the existing type.
 Add a new entry to `../endpoint_surface.toml` describing the normalized endpoint
 surface. The build will validate it against the wire contract in
 `external.proto` and generate the SDK-facing declarations automatically.
+
+Prefer reusing existing `param_groups` and `templates` instead of copying whole
+parameter blocks. If the new endpoint introduces a new repeated family shape,
+add a new template or parameter group first and then reference it from the
+concrete endpoint entry.
 
 **Step 4 — Build and test**
 
