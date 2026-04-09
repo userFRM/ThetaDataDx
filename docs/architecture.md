@@ -57,7 +57,7 @@ MDDS is a standard gRPC service over TLS, operating on port 443.
 
 - **Package**: `BetaEndpoints`
 - **Service**: `BetaThetaTerminal`
-- **Methods**: 60 RPCs, all server-streaming (returning `stream ResponseData`). thetadatadx wraps all 60 gRPC RPCs plus 1 convenience range-query variant = **61 methods** on `ThetaDataDx`, generated via a declarative `parsed_endpoint!` macro (internal implementation uses `DirectClient` via `Deref`).
+- **Methods**: 60 RPCs, all server-streaming (returning `stream ResponseData`). thetadatadx wraps all 60 gRPC RPCs plus 1 convenience range-query variant = **61 methods** on `ThetaDataDx`, generated from the checked-in endpoint surface spec (`endpoint_surface.toml`) validated against `external.proto`. The internal `DirectClient` still uses macro-generated builders, but endpoint declarations are no longer hand-maintained.
 - **Categories**: Stock, Option, Index, Interest Rate, Calendar - each with List, History, Snapshot, AtTime, and Greeks sub-categories
 
 ### Request Structure
@@ -152,29 +152,47 @@ Three response processing modes are available:
 - **`for_each_chunk`**: streaming callback that processes each chunk individually without accumulating the full response in memory.
 - **`_stream` endpoint variants**: `stock_history_trade_stream`, `stock_history_quote_stream`, `option_history_trade_stream`, `option_history_quote_stream` — these combine the gRPC call with `for_each_chunk` processing in a single method call, ideal for endpoints returning millions of rows.
 
-### TOML Codegen Pipeline
+### Build-time Generation Pipeline
 
-All 14 tick type structs and their DataTable parsers are generated from `endpoint_schema.toml` at compile time:
+ThetaDataDx has two generation pipelines at build time:
+- tick parser generation from `endpoint_schema.toml`
+- endpoint surface generation from `endpoint_surface.toml` validated against `external.proto`
 
 ```mermaid
 flowchart LR
     TOML["endpoint_schema.toml<br/><i>14 tick type definitions<br/>with column schemas</i>"]
-    BUILD["build.rs"]
-    STRUCTS["$OUT_DIR/tick_generated.rs<br/><i>struct definitions</i>"]
+    SURFACE["endpoint_surface.toml<br/><i>endpoint spec<br/>groups + templates</i>"]
+    PROTO["external.proto<br/><i>official wire contract</i>"]
+    BUILD["build.rs<br/><i>delegates to build_support/</i>"]
+    SUPPORT["build_support/<br/><i>endpoints.rs + ticks.rs</i>"]
     PARSERS["$OUT_DIR/decode_generated.rs<br/><i>parse_* functions</i>"]
-    TICK["types/tick.rs<br/><i>include!() + hand-written impl blocks</i>"]
+    RUNTIME["$OUT_DIR/endpoint_generated.rs<br/><i>shared endpoint runtime</i>"]
+    REGISTRY_GEN["$OUT_DIR/registry_generated.rs<br/><i>EndpointMeta static</i>"]
+    DIRECT_GEN["$OUT_DIR/direct_*_generated.rs<br/><i>DirectClient declarations</i>"]
+    TICK["crates/tdbe/src/types/tick.rs<br/><i>typed tick structs</i>"]
     DECODE["decode.rs<br/><i>include!() + hand-written helpers</i>"]
+    ENDPOINT["endpoint.rs<br/><i>include!() + runtime glue</i>"]
+    REGISTRY["registry.rs<br/><i>include!() + lookup helpers</i>"]
+    DIRECT["direct.rs<br/><i>macro layer + generated declarations</i>"]
 
     TOML --> BUILD
-    BUILD --> STRUCTS
-    BUILD --> PARSERS
-    STRUCTS --> TICK
+    SURFACE --> BUILD
+    PROTO --> BUILD
+    BUILD --> SUPPORT
+    SUPPORT --> PARSERS
+    SUPPORT --> RUNTIME
+    SUPPORT --> REGISTRY_GEN
+    SUPPORT --> DIRECT_GEN
     PARSERS --> DECODE
+    TICK --> DECODE
+    RUNTIME --> ENDPOINT
+    REGISTRY_GEN --> REGISTRY
+    DIRECT_GEN --> DIRECT
 ```
 
-The 14 generated tick types are: `TradeTick`, `QuoteTick`, `OhlcTick`, `EodTick`, `OpenInterestTick`, `SnapshotTradeTick`, `TradeQuoteTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`. 10 of these (all except `CalendarDay`, `InterestRateTick`, `PriceTick`, `OptionContract`) carry contract identification fields (`expiration`, `strike`, `right`) populated by the server on wildcard queries.
+The 14 tick layouts are: `TradeTick`, `QuoteTick`, `OhlcTick`, `EodTick`, `OpenInterestTick`, `SnapshotTradeTick`, `TradeQuoteTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`. 10 of these (all except `CalendarDay`, `InterestRateTick`, `PriceTick`, `OptionContract`) carry contract identification fields (`expiration`, `strike`, `right`) populated by the server on wildcard queries.
 
-Adding a new tick type requires only adding a TOML table to `endpoint_schema.toml` - no hand-written struct or parser code needed. See `docs/endpoint-schema.md` for the full schema reference.
+Adding a new endpoint now means updating the explicit endpoint surface spec rather than hand-wiring matches across multiple transports. See `crates/thetadatadx/proto/MAINTENANCE.md` for the current maintenance flow.
 
 ## FPSS Protocol (Real-Time Streaming)
 
@@ -513,30 +531,38 @@ graph TD
         end
 
         UNIFIED["unified.rs<br/><i>ThetaDataDx — unified entry point<br/>Deref to DirectClient</i>"]
-        DIRECT["direct.rs<br/><i>DirectClient (internal) — 61 endpoints<br/>via parsed_endpoint! macro</i>"]
+        DIRECT["direct.rs<br/><i>DirectClient (internal) — generated endpoint declarations<br/>on top of builder macros</i>"]
+        ENDPOINT_RT["endpoint.rs<br/><i>shared endpoint runtime</i>"]
         CONFIG["config.rs<br/><i>DirectConfig</i>"]
         DECODE["decode.rs<br/><i>zstd + DataTable parsing<br/>(includes generated parsers)</i>"]
         REGISTRY["registry.rs<br/><i>EndpointMeta, ENDPOINTS static</i>"]
 
-        subgraph codegen["TOML Codegen"]
+        subgraph codegen["Build-time Generation"]
             SCHEMA["endpoint_schema.toml<br/><i>14 tick type definitions</i>"]
-            BUILD["build.rs<br/><i>reads TOML, generates:<br/>tick_generated.rs (structs)<br/>decode_generated.rs (parsers)</i>"]
+            SURFACE["endpoint_surface.toml<br/><i>endpoint surface spec<br/>groups + templates</i>"]
+            BUILD["build.rs<br/><i>delegates to build_support/</i>"]
+            SUPPORT["build_support/<br/><i>endpoints.rs + ticks.rs</i>"]
         end
 
         subgraph proto["proto/"]
-            P_V1["endpoints.proto<br/><i>shared types</i>"]
-            P_V3["v3_endpoints.proto<br/><i>60 server-streaming RPCs</i>"]
+            P_EXT["external.proto<br/><i>official MDDS wire contract<br/>60 server-streaming RPCs</i>"]
         end
     end
 
     LIB --> TDBE_LIB
     UNIFIED --> DIRECT
+    UNIFIED --> ENDPOINT_RT
     DIRECT --> auth
     DIRECT --> DECODE
     DIRECT --> proto
     SCHEMA --> BUILD
-    BUILD --> T_TICK
-    BUILD --> DECODE
+    SURFACE --> BUILD
+    P_EXT --> BUILD
+    BUILD --> SUPPORT
+    SUPPORT --> DECODE
+    SUPPORT --> DIRECT
+    SUPPORT --> REGISTRY
+    SUPPORT --> ENDPOINT_RT
     F_MOD --> tdbe_codec
     F_MOD --> F_CONN
     F_MOD --> F_FRAME

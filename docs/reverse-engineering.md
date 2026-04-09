@@ -1,6 +1,15 @@
 # Reverse-Engineering Guide
 
-This crate was built by decompiling ThetaData's Java terminal. This document covers how to repeat the process when ThetaData releases a new version.
+> [!WARNING]
+> This document is **historical**. ThetaDataDx now uses the official
+> `crates/thetadatadx/proto/external.proto` provided by ThetaData engineering.
+> Current endpoint/proto maintenance should follow
+> [`crates/thetadatadx/proto/MAINTENANCE.md`](../crates/thetadatadx/proto/MAINTENANCE.md),
+> not the reverse-engineering workflow below.
+
+This crate was originally bootstrapped by decompiling ThetaData's Java
+terminal. This document records that process for provenance and protocol
+research; it is no longer the primary update path for the repository.
 
 ## Source Terminal Version
 
@@ -98,7 +107,9 @@ java -cp "dump/:classes/" DumpV3Proto > v3_endpoints.proto
 java -cp "dump/:classes/" DumpV3Proto > endpoints.proto
 ```
 
-The extracted `.proto` files go into `proto/` in the crate root. Run `cargo build` to regenerate the Rust bindings via `tonic-prost-build` (configured in `build.rs`).
+Historically, the extracted `.proto` files were written into `proto/` in the
+crate root. Today, the repository expects the official single-file
+`external.proto`; this extraction workflow is kept only as an archival record.
 
 ## 4. Key Java Classes and Rust Module Mapping
 

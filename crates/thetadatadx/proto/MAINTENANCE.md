@@ -6,7 +6,12 @@ type structs, and DataTable parsers across all languages.
 
 ## Source of truth
 
-**`external.proto` is the canonical proto file, provided directly by ThetaData engineering.**
+**`external.proto` is the canonical wire contract, provided directly by ThetaData engineering.**
+
+**`endpoint_surface.toml` is the canonical endpoint surface contract inside this repository.**
+It owns normalized endpoint names, parameter semantics, REST paths, return kinds,
+projection call-shapes, reusable parameter groups, and endpoint templates. The
+build validates that surface spec against the wire contract in `external.proto`.
 
 We used to maintain reverse-engineered protos (`endpoints.proto` + `v3_endpoints.proto`)
 extracted from `ThetaTerminalv3.jar` via `FileDescriptor` reflection. Those have been
@@ -25,7 +30,9 @@ proto/
   MAINTENANCE.md    - this file
 
 ../endpoint_schema.toml    - column schemas for all DataTable-returning endpoints
-../build.rs                - reads proto/ and endpoint_schema.toml, generates everything
+../endpoint_surface.toml   - normalized endpoint surface specification
+../build.rs                - small build entrypoint
+../build_support/          - build-time generators and validators
 ```
 
 ## What happens on `cargo build`
@@ -34,14 +41,37 @@ proto/
    client stubs and message types. Output: `$OUT_DIR/beta_endpoints.rs`, exposed
    at `crate::proto`.
 
-2. **Endpoint registry**: `build.rs` parses `external.proto` with regex to extract all
-   RPC names, parameter types, and return types. Output: `$OUT_DIR/registry_generated.rs`.
+2. **Endpoint surface validation + generation**: the build loads
+   `endpoint_surface.toml`, parses `external.proto` to extract wire metadata,
+   validates the surface spec against the wire contract, and generates the
+   endpoint registry, shared endpoint runtime dispatch, and `DirectClient`
+   endpoint declarations. Outputs: `$OUT_DIR/registry_generated.rs`,
+   `$OUT_DIR/endpoint_generated.rs`,
+   `$OUT_DIR/direct_list_endpoints_generated.rs`,
+   `$OUT_DIR/direct_parsed_endpoints_generated.rs`.
 
-3. **Tick type codegen**: `build.rs` reads `endpoint_schema.toml` and generates typed Rust
-   structs and DataTable parser functions. Output: `$OUT_DIR/tick_generated.rs`,
-   `$OUT_DIR/decode_generated.rs`.
+3. **Tick parser codegen**: the build reads `endpoint_schema.toml` and generates
+   `DataTable` parser functions. Output: `$OUT_DIR/decode_generated.rs`.
+   The public tick structs live in `crates/tdbe/src/types/tick.rs` and must stay
+   aligned with that schema.
 
 All three steps are automatic. Just run `cargo build`.
+
+## Endpoint surface spec structure
+
+`endpoint_surface.toml` is intentionally more expressive than the upstream
+proto. It supports three layers:
+
+1. **`param_groups.*`** for reusable parameter blocks such as contract
+   identity, date ranges, or common builder filters.
+2. **`templates.*`** for reusable endpoint families such as stock snapshots or
+   option Greeks history. Templates may inherit from each other with `extends`.
+3. **`[[endpoints]]`** for concrete endpoint declarations that bind a name,
+   description, rest path, return kind, and any endpoint-specific overrides.
+
+The generator expands groups and templates first, then validates the fully
+resolved endpoint against `external.proto`. Cycles, unknown references, unused
+groups/templates, and invalid overrides fail the build.
 
 ## How to: add a new column to an existing endpoint
 
@@ -101,25 +131,16 @@ columns = [
 If the response reuses an existing layout (e.g., OHLC bars), skip this step and
 use the existing type.
 
-**Step 3 — Wire it up**
+**Step 3 — Add the endpoint surface entry**
 
-In `src/direct.rs`, add:
-```rust
-parsed_endpoint! {
-    /// Fetch VWAP history for a stock.
-    fn stock_history_vwap(symbol: str, start: str, end: str, interval: str) -> Vec<VwapTick>;
-    grpc: get_stock_history_vwap;
-    request: StockHistoryVwapRequest;
-    query: StockHistoryVwapRequestQuery {
-        symbol: symbol.to_string(),
-        start_date: start.to_string(),
-        end_date: end.to_string(),
-        interval: interval.to_string(),
-    };
-    parse: decode::parse_vwap_ticks;
-    dates: start, end;
-}
-```
+Add a new entry to `../endpoint_surface.toml` describing the normalized endpoint
+surface. The build will validate it against the wire contract in
+`external.proto` and generate the SDK-facing declarations automatically.
+
+Prefer reusing existing `param_groups` and `templates` instead of copying whole
+parameter blocks. If the new endpoint introduces a new repeated family shape,
+add a new template or parameter group first and then reference it from the
+concrete endpoint entry.
 
 **Step 4 — Build and test**
 
@@ -138,10 +159,9 @@ When ThetaData ships a new version:
 1. Back up the current file: `cp external.proto external.proto.bak`
 2. Drop in the new `external.proto`
 3. Run `cargo build` — if the proto is valid, stubs regenerate automatically
-4. If any RPCs were renamed or removed, `cargo build` will fail with compile errors
-   pointing to the broken `parsed_endpoint!` / `streaming_endpoint!` / `list_endpoint!`
-   calls in `direct.rs`. Fix those.
-5. If new RPCs were added, add corresponding macro calls (see above).
+4. If any RPCs were renamed or removed, `cargo build` will fail validation when
+   `endpoint_surface.toml` no longer matches the wire contract. Fix the spec.
+5. If new RPCs were added, add corresponding entries to `endpoint_surface.toml`.
 6. If column schemas changed, update `endpoint_schema.toml` to match.
 7. Run `cargo test` to verify everything works.
 
