@@ -1,10 +1,10 @@
-//! Shared MCP bridge for `thetadatadx`.
+//! Shared endpoint invocation bridge for `thetadatadx`.
 //!
 //! This module provides the typed argument model, validation helpers, and
-//! generated endpoint dispatch used by the standalone MCP server. The goal is
-//! to keep MCP-specific transport code out of the core endpoint matrix while
-//! still exposing a single validated execution path for every generated SDK
-//! endpoint.
+//! generated endpoint dispatch first introduced for the standalone MCP server.
+//! The same runtime is also reused by other endpoint projections such as the
+//! CLI and REST server so they do not maintain their own handwritten endpoint
+//! matches.
 
 use std::collections::BTreeMap;
 
@@ -13,6 +13,7 @@ use tdbe::types::tick::{
     OpenInterestTick, OptionContract, PriceTick, QuoteTick, TradeQuoteTick, TradeTick,
 };
 
+use crate::registry::ParamType;
 use crate::{Error, ThetaDataDx};
 
 /// Validated scalar argument value accepted by the MCP bridge.
@@ -50,6 +51,18 @@ impl McpArgs {
     /// Insert or replace a normalized MCP argument value.
     pub fn insert(&mut self, key: String, value: McpArgValue) -> Option<McpArgValue> {
         self.0.insert(key, value)
+    }
+
+    /// Parse a raw string according to registry metadata and insert it.
+    pub fn insert_raw(
+        &mut self,
+        key: &str,
+        param_type: ParamType,
+        raw: &str,
+    ) -> Result<(), McpError> {
+        let value = parse_raw_arg_value(param_type, key, raw)?;
+        self.insert(key.to_string(), value);
+        Ok(())
     }
 
     fn required_value(&self, key: &str) -> Result<&McpArgValue, McpError> {
@@ -239,6 +252,17 @@ impl From<Error> for McpError {
     }
 }
 
+impl From<McpError> for Error {
+    fn from(value: McpError) -> Self {
+        match value {
+            McpError::InvalidParams(message) | McpError::UnknownEndpoint(message) => {
+                Error::Config(message)
+            }
+            McpError::Server(error) => error,
+        }
+    }
+}
+
 /// Typed result variants emitted by generated MCP endpoint adapters.
 #[derive(Debug)]
 pub enum McpOutput {
@@ -281,6 +305,32 @@ pub async fn invoke_endpoint(
     args: &McpArgs,
 ) -> Result<McpOutput, McpError> {
     invoke_generated_endpoint(client, name, args).await
+}
+
+/// Parse a raw string value according to registry metadata into a typed endpoint arg.
+pub fn parse_raw_arg_value(
+    param_type: ParamType,
+    param_name: &str,
+    raw: &str,
+) -> Result<McpArgValue, McpError> {
+    match param_type {
+        ParamType::Float => raw.parse::<f64>().map(McpArgValue::Float).map_err(|error| {
+            McpError::InvalidParams(format!(
+                "'{param_name}' must be a number, got '{raw}': {error}"
+            ))
+        }),
+        ParamType::Int => raw.parse::<i64>().map(McpArgValue::Int).map_err(|error| {
+            McpError::InvalidParams(format!(
+                "'{param_name}' must be an integer, got '{raw}': {error}"
+            ))
+        }),
+        ParamType::Bool => parse_bool(raw).map(McpArgValue::Bool).map_err(|message| {
+            McpError::InvalidParams(format!(
+                "'{param_name}' must be true/false or 1/0, got '{raw}': {message}"
+            ))
+        }),
+        _ => Ok(McpArgValue::Str(raw.to_string())),
+    }
 }
 
 fn validate_date(value: &str, param_name: &str) -> Result<(), McpError> {
@@ -337,6 +387,16 @@ fn parse_symbols(value: &str) -> Vec<String> {
         .collect()
 }
 
+fn parse_bool(value: &str) -> Result<bool, &'static str> {
+    if value.eq_ignore_ascii_case("true") || value == "1" {
+        Ok(true)
+    } else if value.eq_ignore_ascii_case("false") || value == "0" {
+        Ok(false)
+    } else {
+        Err("accepted values are true, false, 1, or 0")
+    }
+}
+
 include!(concat!(env!("OUT_DIR"), "/mcp_generated.rs"));
 
 #[cfg(test)]
@@ -376,6 +436,18 @@ mod tests {
         let err = args.required_date("date").unwrap_err();
         assert!(
             matches!(err, McpError::InvalidParams(message) if message.contains("exactly 8 digits"))
+        );
+    }
+
+    #[test]
+    fn parse_raw_bool_accepts_terminal_style_values() {
+        assert_eq!(
+            parse_raw_arg_value(ParamType::Bool, "exclusive", "true").unwrap(),
+            McpArgValue::Bool(true)
+        );
+        assert_eq!(
+            parse_raw_arg_value(ParamType::Bool, "exclusive", "0").unwrap(),
+            McpArgValue::Bool(false)
         );
     }
 }

@@ -101,6 +101,18 @@ pub mod mcp;
 pub mod registry;
 pub mod unified;
 
+/// Shared typed endpoint invocation surface used by MCP, CLI, and REST consumers.
+///
+/// This is currently implemented by the `mcp` module because that was the first
+/// consumer, but the types and runtime are intentionally reused across multiple
+/// endpoint projections.
+pub mod endpoint {
+    pub use crate::mcp::{
+        invoke_endpoint, parse_raw_arg_value, McpArgValue as EndpointArgValue,
+        McpArgs as EndpointArgs, McpError as EndpointError, McpOutput as EndpointOutput,
+    };
+}
+
 /// Generated protobuf types from `external.proto`.
 ///
 /// Contains all wire types in a single package `BetaEndpoints`:
@@ -117,6 +129,7 @@ pub mod proto {
 
 pub use auth::Credentials;
 pub use config::{DirectConfig, FpssFlushMode, ReconnectPolicy};
+pub use endpoint::{EndpointArgValue, EndpointArgs, EndpointError, EndpointOutput};
 pub use error::{AuthErrorKind, Error, FpssErrorKind};
 pub use mcp::{McpArgValue, McpArgs, McpError, McpOutput};
 pub use registry::{EndpointMeta, ParamMeta, ParamType, ReturnType, ENDPOINTS};

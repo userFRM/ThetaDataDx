@@ -8,7 +8,6 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use thetadatadx::direct::DirectClient;
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::ThetaDataDx;
 use tokio::sync::{mpsc, RwLock};
@@ -65,11 +64,6 @@ impl AppState {
                 shutdown_token,
             }),
         }
-    }
-
-    /// Borrow the `DirectClient` (via Deref) for issuing gRPC requests.
-    pub fn client(&self) -> &DirectClient {
-        &self.inner.tdx
     }
 
     /// Borrow the unified `ThetaDataDx` client.

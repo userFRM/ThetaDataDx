@@ -12,6 +12,7 @@
 
 use sonic_rs::prelude::*;
 use tdbe::types::tick::*;
+use thetadatadx::endpoint::EndpointOutput;
 
 // ---------------------------------------------------------------------------
 //  JSON envelope
@@ -47,6 +48,29 @@ pub fn list_envelope(items: &[String]) -> sonic_rs::Value {
         .iter()
         .map(|s| sonic_rs::Value::from(s.as_str()))
         .collect();
+    ok_envelope(response)
+}
+
+/// Convert a shared endpoint output into the Java-terminal JSON envelope.
+pub fn output_envelope(output: &EndpointOutput) -> sonic_rs::Value {
+    let response = match output {
+        EndpointOutput::StringList(items) => {
+            return list_envelope(items);
+        }
+        EndpointOutput::EodTicks(ticks) => eod_ticks_to_json(ticks),
+        EndpointOutput::OhlcTicks(ticks) => ohlc_ticks_to_json(ticks),
+        EndpointOutput::TradeTicks(ticks) => trade_ticks_to_json(ticks),
+        EndpointOutput::QuoteTicks(ticks) => quote_ticks_to_json(ticks),
+        EndpointOutput::TradeQuoteTicks(ticks) => trade_quote_ticks_to_json(ticks),
+        EndpointOutput::OpenInterestTicks(ticks) => open_interest_ticks_to_json(ticks),
+        EndpointOutput::MarketValueTicks(ticks) => market_value_ticks_to_json(ticks),
+        EndpointOutput::GreeksTicks(ticks) => greeks_ticks_to_json(ticks),
+        EndpointOutput::IvTicks(ticks) => iv_ticks_to_json(ticks),
+        EndpointOutput::PriceTicks(ticks) => price_ticks_to_json(ticks),
+        EndpointOutput::CalendarDays(days) => calendar_days_to_json(days),
+        EndpointOutput::InterestRateTicks(ticks) => interest_rate_ticks_to_json(ticks),
+        EndpointOutput::OptionContracts(contracts) => option_contracts_to_json(contracts),
+    };
     ok_envelope(response)
 }
 

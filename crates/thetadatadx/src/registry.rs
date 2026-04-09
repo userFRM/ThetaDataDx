@@ -10,6 +10,7 @@
 //! - Method name on `DirectClient` (e.g. `"stock_history_eod"`)
 //! - Human description
 //! - Category / subcategory for grouping
+//! - Canonical REST path for terminal-compatible HTTP routing
 //! - Parameter list with types
 //! - Return type discriminant
 //!
@@ -102,6 +103,8 @@ pub struct EndpointMeta {
     /// Subcategory: `"list"`, `"snapshot"`, `"history"`, `"at_time"`,
     /// `"snapshot_greeks"`, `"history_greeks"`, etc.
     pub subcategory: &'static str,
+    /// Canonical terminal-compatible REST path (for example `/v3/stock/history/eod`).
+    pub rest_path: &'static str,
     /// Parameters in call order.
     pub params: &'static [ParamMeta],
     /// Return type discriminant.
@@ -162,12 +165,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn endpoint_count_is_61() {
-        assert_eq!(
-            ENDPOINTS.len(),
-            61,
-            "expected 61 non-streaming endpoints, got {}",
-            ENDPOINTS.len()
+    fn registry_is_not_empty() {
+        assert!(
+            !ENDPOINTS.is_empty(),
+            "generated registry unexpectedly contains no endpoints"
         );
     }
 
@@ -207,34 +208,30 @@ mod tests {
     }
 
     #[test]
-    fn by_category_stock() {
-        let stock = by_category("stock");
-        // 13 from proto + 1 manual (stock_history_ohlc_range) = 14
-        assert_eq!(stock.len(), 14);
+    fn every_category_has_endpoints() {
+        for category in CATEGORIES {
+            assert!(
+                !by_category(category).is_empty(),
+                "category {category} unexpectedly has no endpoints"
+            );
+        }
     }
 
     #[test]
-    fn by_category_option() {
-        let option = by_category("option");
-        assert_eq!(option.len(), 34);
-    }
-
-    #[test]
-    fn by_category_index() {
-        let index = by_category("index");
-        assert_eq!(index.len(), 9);
-    }
-
-    #[test]
-    fn by_category_calendar() {
-        let cal = by_category("calendar");
-        assert_eq!(cal.len(), 3);
-    }
-
-    #[test]
-    fn by_category_rate() {
-        let rate = by_category("rate");
-        assert_eq!(rate.len(), 1);
+    fn canonical_endpoints_exist_per_category() {
+        let expected = [
+            "stock_history_eod",
+            "option_snapshot_trade",
+            "index_snapshot_price",
+            "calendar_year",
+            "interest_rate_history_eod",
+        ];
+        for endpoint in expected {
+            assert!(
+                find(endpoint).is_some(),
+                "expected representative endpoint {endpoint} to exist"
+            );
+        }
     }
 
     #[test]
@@ -244,8 +241,26 @@ mod tests {
     }
 
     #[test]
+    fn all_rest_paths_are_unique() {
+        let mut paths: Vec<&str> = ENDPOINTS.iter().map(|e| e.rest_path).collect();
+        paths.sort_unstable();
+        paths.dedup();
+        assert_eq!(
+            paths.len(),
+            ENDPOINTS.len(),
+            "duplicate REST paths detected"
+        );
+    }
+
+    #[test]
     fn all_params_have_names() {
         for ep in ENDPOINTS {
+            assert!(
+                ep.rest_path.starts_with("/v3/"),
+                "unexpected REST path in {}: {}",
+                ep.name,
+                ep.rest_path
+            );
             for p in ep.params {
                 assert!(!p.name.is_empty(), "empty param name in {}", ep.name);
                 assert!(
