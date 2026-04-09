@@ -29,7 +29,7 @@ use sonic_rs::{json, JsonContainerTrait, JsonValueTrait, Value};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::RwLock;
 
-use thetadatadx::mcp::{self, McpArgValue, McpArgs, McpError, McpOutput};
+use thetadatadx::endpoint::{self, EndpointArgValue, EndpointArgs, EndpointError, EndpointOutput};
 use thetadatadx::registry::{self, ENDPOINTS};
 use thetadatadx::{Credentials, DirectConfig, ThetaDataDx};
 
@@ -622,22 +622,22 @@ fn serialize_string_list(name: &str, values: &[String]) -> Value {
     json!({ key: values, "count": values.len() })
 }
 
-fn serialize_mcp_output(name: &str, output: &McpOutput) -> Value {
+fn serialize_endpoint_output(name: &str, output: &EndpointOutput) -> Value {
     match output {
-        McpOutput::StringList(values) => serialize_string_list(name, values),
-        McpOutput::EodTicks(ticks) => serialize_eod_ticks(ticks),
-        McpOutput::OhlcTicks(ticks) => serialize_ohlc_ticks(ticks),
-        McpOutput::TradeTicks(ticks) => serialize_trade_ticks(ticks),
-        McpOutput::QuoteTicks(ticks) => serialize_quote_ticks(ticks),
-        McpOutput::TradeQuoteTicks(ticks) => serialize_trade_quote_ticks(ticks),
-        McpOutput::OpenInterestTicks(ticks) => serialize_open_interest_ticks(ticks),
-        McpOutput::MarketValueTicks(ticks) => serialize_market_value_ticks(ticks),
-        McpOutput::GreeksTicks(ticks) => serialize_greeks_ticks(ticks),
-        McpOutput::IvTicks(ticks) => serialize_iv_ticks(ticks),
-        McpOutput::PriceTicks(ticks) => serialize_price_ticks(ticks),
-        McpOutput::CalendarDays(days) => serialize_calendar_days(days),
-        McpOutput::InterestRateTicks(ticks) => serialize_interest_rate_ticks(ticks),
-        McpOutput::OptionContracts(contracts) => serialize_option_contracts(contracts),
+        EndpointOutput::StringList(values) => serialize_string_list(name, values),
+        EndpointOutput::EodTicks(ticks) => serialize_eod_ticks(ticks),
+        EndpointOutput::OhlcTicks(ticks) => serialize_ohlc_ticks(ticks),
+        EndpointOutput::TradeTicks(ticks) => serialize_trade_ticks(ticks),
+        EndpointOutput::QuoteTicks(ticks) => serialize_quote_ticks(ticks),
+        EndpointOutput::TradeQuoteTicks(ticks) => serialize_trade_quote_ticks(ticks),
+        EndpointOutput::OpenInterestTicks(ticks) => serialize_open_interest_ticks(ticks),
+        EndpointOutput::MarketValueTicks(ticks) => serialize_market_value_ticks(ticks),
+        EndpointOutput::GreeksTicks(ticks) => serialize_greeks_ticks(ticks),
+        EndpointOutput::IvTicks(ticks) => serialize_iv_ticks(ticks),
+        EndpointOutput::PriceTicks(ticks) => serialize_price_ticks(ticks),
+        EndpointOutput::CalendarDays(days) => serialize_calendar_days(days),
+        EndpointOutput::InterestRateTicks(ticks) => serialize_interest_rate_ticks(ticks),
+        EndpointOutput::OptionContracts(contracts) => serialize_option_contracts(contracts),
     }
 }
 
@@ -657,20 +657,20 @@ fn arg_bool(args: &Value, key: &str) -> Result<bool, String> {
         .ok_or_else(|| format!("missing required boolean argument: {key}"))
 }
 
-fn convert_mcp_args(args: &Value) -> Result<McpArgs, String> {
+fn convert_endpoint_args(args: &Value) -> Result<EndpointArgs, String> {
     let obj = args
         .as_object()
         .ok_or_else(|| "tool arguments must be a JSON object".to_string())?;
-    let mut converted = McpArgs::new();
+    let mut converted = EndpointArgs::new();
     for (key, value) in obj.iter() {
         let arg_value = if let Some(v) = value.as_str() {
-            McpArgValue::Str(v.to_string())
+            EndpointArgValue::Str(v.to_string())
         } else if let Some(v) = value.as_i64() {
-            McpArgValue::Int(v)
+            EndpointArgValue::Int(v)
         } else if let Some(v) = value.as_f64() {
-            McpArgValue::Float(v)
+            EndpointArgValue::Float(v)
         } else if let Some(v) = value.as_bool() {
-            McpArgValue::Bool(v)
+            EndpointArgValue::Bool(v)
         } else {
             return Err(format!(
                 "argument '{}' must be a string, integer, number, or boolean",
@@ -781,21 +781,21 @@ async fn execute_tool(
         )
     })?;
 
-    let converted_args = param!(convert_mcp_args(args));
-    let output = match mcp::invoke_endpoint(client, name, &converted_args).await {
+    let converted_args = param!(convert_endpoint_args(args));
+    let output = match endpoint::invoke_endpoint(client, name, &converted_args).await {
         Ok(output) => output,
-        Err(McpError::InvalidParams(message)) => {
+        Err(EndpointError::InvalidParams(message)) => {
             return Err(ToolError::InvalidParams(message));
         }
-        Err(McpError::UnknownEndpoint(_)) => {
+        Err(EndpointError::UnknownEndpoint(_)) => {
             return Err(ToolError::InvalidParams(format!("unknown tool: {name}")));
         }
-        Err(McpError::Server(error)) => {
+        Err(EndpointError::Server(error)) => {
             return Err(ToolError::ServerError(sanitize_error(&error.to_string())));
         }
     };
 
-    Ok(serialize_mcp_output(name, &output))
+    Ok(serialize_endpoint_output(name, &output))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1091,7 +1091,7 @@ mod tests {
 
     #[test]
     fn optional_i32_args_reject_out_of_range_values() {
-        let args = convert_mcp_args(&sonic_rs::json!({
+        let args = convert_endpoint_args(&sonic_rs::json!({
             "strike_range": i64::from(i32::MAX) + 1
         }))
         .expect("arguments should convert");
@@ -1099,7 +1099,7 @@ mod tests {
         assert!(
             matches!(
                 args.optional_int32("strike_range").unwrap_err(),
-                McpError::InvalidParams(message) if message.contains("out of range for i32")
+                EndpointError::InvalidParams(message) if message.contains("out of range for i32")
             ),
             "expected i32 overflow validation error"
         );
@@ -1107,7 +1107,7 @@ mod tests {
 
     #[test]
     fn optional_args_reject_type_mismatches() {
-        let args = convert_mcp_args(&sonic_rs::json!({
+        let args = convert_endpoint_args(&sonic_rs::json!({
             "exclusive": "false",
             "rate_value": "3.5",
             "venue": 42
@@ -1117,7 +1117,7 @@ mod tests {
         assert!(
             matches!(
                 args.optional_bool("exclusive").unwrap_err(),
-                McpError::InvalidParams(message)
+                EndpointError::InvalidParams(message)
                     if message == "optional boolean argument 'exclusive' must be a boolean"
             ),
             "expected boolean type validation error"
@@ -1125,7 +1125,7 @@ mod tests {
         assert!(
             matches!(
                 args.optional_float64("rate_value").unwrap_err(),
-                McpError::InvalidParams(message)
+                EndpointError::InvalidParams(message)
                     if message == "optional number argument 'rate_value' must be a number"
             ),
             "expected number type validation error"
@@ -1133,7 +1133,7 @@ mod tests {
         assert!(
             matches!(
                 args.optional_str("venue").unwrap_err(),
-                McpError::InvalidParams(message)
+                EndpointError::InvalidParams(message)
                     if message == "optional string argument 'venue' must be a string"
             ),
             "expected string type validation error"
@@ -1142,7 +1142,7 @@ mod tests {
 
     #[test]
     fn optional_date_args_validate_format() {
-        let args = convert_mcp_args(&sonic_rs::json!({
+        let args = convert_endpoint_args(&sonic_rs::json!({
             "start_date": "2026-04-09",
             "end_date": "20260409"
         }))
@@ -1151,7 +1151,7 @@ mod tests {
         assert!(
             matches!(
                 args.optional_date("start_date").unwrap_err(),
-                McpError::InvalidParams(message)
+                EndpointError::InvalidParams(message)
                     if message
                         == "'start_date' must be exactly 8 digits (YYYYMMDD), got: '2026-04-09'"
             ),

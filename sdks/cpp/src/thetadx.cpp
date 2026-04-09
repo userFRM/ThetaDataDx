@@ -15,15 +15,14 @@ namespace tdx {
 
 namespace detail {
 
-// Build a JSON array string from a vector of strings: ["a","b","c"]
-static std::string build_json_array(const std::vector<std::string>& items) {
-    std::string json = "[";
-    for (size_t i = 0; i < items.size(); ++i) {
-        if (i > 0) json += ",";
-        json += "\"" + items[i] + "\"";
+// Borrow `const char*` views into a stable vector<string> for C FFI calls.
+static std::vector<const char*> string_ptrs(const std::vector<std::string>& items) {
+    std::vector<const char*> ptrs;
+    ptrs.reserve(items.size());
+    for (const auto& item : items) {
+        ptrs.push_back(item.c_str());
     }
-    json += "]";
-    return json;
+    return ptrs;
 }
 
 } // namespace detail
@@ -69,11 +68,11 @@ Client Client::connect(const Credentials& creds, const Config& config) {
         return result; \
     } while (0)
 
-// Helper macro for snapshot endpoints (symbols -> JSON array)
+// Helper macro for snapshot endpoints (symbols -> borrowed C string array)
 #define TDX_SNAPSHOT(arr_type, tick_type, free_fn, ffi_fn) \
     do { \
-        auto json = detail::build_json_array(symbols); \
-        arr_type arr = ffi_fn(handle_.get(), json.c_str()); \
+        auto symbol_ptrs = detail::string_ptrs(symbols); \
+        arr_type arr = ffi_fn(handle_.get(), symbol_ptrs.data(), symbol_ptrs.size()); \
         auto result = detail::to_vector(arr.data, arr.len); \
         free_fn(arr); \
         return result; \
@@ -460,9 +459,8 @@ std::optional<std::string> FpssClient::contract_lookup(int id) const {
     return result.str();
 }
 
-std::string FpssClient::active_subscriptions() const {
-    detail::FfiString result(tdx_fpss_active_subscriptions(handle_.get()));
-    return result.ok() ? result.str() : "[]";
+std::vector<Subscription> FpssClient::active_subscriptions() const {
+    return detail::subscription_array_to_vector(tdx_fpss_active_subscriptions(handle_.get()));
 }
 
 FpssEventPtr FpssClient::next_event(uint64_t timeout_ms) {
@@ -482,49 +480,47 @@ FpssClient::~FpssClient() {
 //  Standalone Greeks — still JSON-based (single-value, not arrays)
 // ═══════════════════════════════════════════════════════════════
 
-// Minimal JSON parser for the Greeks JSON object
-namespace detail {
-
-static double json_double(const std::string& json, const std::string& key) {
-    std::string needle = "\"" + key + "\":";
-    auto pos = json.find(needle);
-    if (pos == std::string::npos) return 0.0;
-    pos += needle.size();
-    while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t')) ++pos;
-    return std::stod(json.substr(pos));
-}
-
-} // namespace detail
-
 Greeks all_greeks(double spot, double strike, double rate, double div_yield,
                   double tte, double option_price, bool is_call) {
-    detail::FfiString result(tdx_all_greeks(spot, strike, rate, div_yield, tte, option_price, is_call ? 1 : 0));
-    if (!result.ok()) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
-    auto json = result.str();
-    return Greeks{
-        detail::json_double(json, "value"),
-        detail::json_double(json, "delta"),
-        detail::json_double(json, "gamma"),
-        detail::json_double(json, "theta"),
-        detail::json_double(json, "vega"),
-        detail::json_double(json, "rho"),
-        detail::json_double(json, "iv"),
-        detail::json_double(json, "iv_error"),
-        detail::json_double(json, "vanna"),
-        detail::json_double(json, "charm"),
-        detail::json_double(json, "vomma"),
-        detail::json_double(json, "veta"),
-        detail::json_double(json, "speed"),
-        detail::json_double(json, "zomma"),
-        detail::json_double(json, "color"),
-        detail::json_double(json, "ultima"),
-        detail::json_double(json, "d1"),
-        detail::json_double(json, "d2"),
-        detail::json_double(json, "dual_delta"),
-        detail::json_double(json, "dual_gamma"),
-        detail::json_double(json, "epsilon"),
-        detail::json_double(json, "lambda"),
+    TdxGreeksResult* raw = tdx_all_greeks(
+        spot,
+        strike,
+        rate,
+        div_yield,
+        tte,
+        option_price,
+        is_call ? 1 : 0
+    );
+    if (raw == nullptr) {
+        throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+    }
+
+    Greeks result{
+        raw->value,
+        raw->delta,
+        raw->gamma,
+        raw->theta,
+        raw->vega,
+        raw->rho,
+        raw->iv,
+        raw->iv_error,
+        raw->vanna,
+        raw->charm,
+        raw->vomma,
+        raw->veta,
+        raw->speed,
+        raw->zomma,
+        raw->color,
+        raw->ultima,
+        raw->d1,
+        raw->d2,
+        raw->dual_delta,
+        raw->dual_gamma,
+        raw->epsilon,
+        raw->lambda,
     };
+    tdx_greeks_result_free(raw);
+    return result;
 }
 
 std::pair<double, double> implied_volatility(double spot, double strike,

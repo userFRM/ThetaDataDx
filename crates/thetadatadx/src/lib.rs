@@ -95,9 +95,9 @@ pub mod auth;
 pub mod config;
 pub mod decode;
 pub mod direct;
+pub mod endpoint;
 pub mod error;
 pub mod fpss;
-pub mod mcp;
 pub mod registry;
 pub mod unified;
 
@@ -117,7 +117,7 @@ pub mod proto {
 
 pub use auth::Credentials;
 pub use config::{DirectConfig, FpssFlushMode, ReconnectPolicy};
+pub use endpoint::{EndpointArgValue, EndpointArgs, EndpointError, EndpointOutput};
 pub use error::{AuthErrorKind, Error, FpssErrorKind};
-pub use mcp::{McpArgValue, McpArgs, McpError, McpOutput};
 pub use registry::{EndpointMeta, ParamMeta, ParamType, ReturnType, ENDPOINTS};
 pub use unified::{ConnectionStatus, SubscriptionInfo, ThetaDataDx};

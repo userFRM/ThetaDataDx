@@ -615,6 +615,7 @@ fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                 open_interest,
                 date,
                 received_at_ns,
+                ..
             } => BufferedEvent::OpenInterest {
                 contract_id: *contract_id,
                 ms_of_day: *ms_of_day,

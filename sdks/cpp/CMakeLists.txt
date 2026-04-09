@@ -11,7 +11,7 @@ set(THETADX_FFI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../target/release" CACHE PAT
 # ── thetadatadx C++ library ──
 
 add_library(thetadatadx_cpp STATIC
-    src/thetadatadx.cpp
+    src/thetadx.cpp
 )
 
 target_include_directories(thetadatadx_cpp PUBLIC

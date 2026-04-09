@@ -50,6 +50,12 @@ struct OptionContract {
     int32_t right;
 };
 
+/// Active FPSS subscription descriptor.
+struct Subscription {
+    std::string kind;
+    std::string contract;
+};
+
 // ── Greeks result (from standalone tdx_all_greeks) ──
 
 struct Greeks {
@@ -109,6 +115,25 @@ inline std::vector<std::string> check_string_array(TdxStringArray arr) {
     // Note: empty array is valid (no results), not an error.
     // Errors are signaled by tdx_last_error().
     return string_array_to_vector(arr);
+}
+
+inline std::vector<Subscription> subscription_array_to_vector(TdxSubscriptionArray* arr) {
+    if (arr == nullptr) {
+        throw std::runtime_error("thetadatadx: " + last_ffi_error());
+    }
+
+    std::vector<Subscription> result;
+    if (arr->data != nullptr && arr->len > 0) {
+        result.reserve(arr->len);
+        for (size_t i = 0; i < arr->len; ++i) {
+            result.push_back(Subscription{
+                arr->data[i].kind ? std::string(arr->data[i].kind) : "",
+                arr->data[i].contract ? std::string(arr->data[i].contract) : "",
+            });
+        }
+    }
+    tdx_subscription_array_free(arr);
+    return result;
 }
 
 /// Managed C string from FFI: auto-frees on destruction.
@@ -478,7 +503,7 @@ public:
 
     bool is_authenticated() const;
     std::optional<std::string> contract_lookup(int id) const;
-    std::string active_subscriptions() const;
+    std::vector<Subscription> active_subscriptions() const;
 
     /** Poll for the next event as a typed struct. Returns nullptr on timeout. */
     FpssEventPtr next_event(uint64_t timeout_ms);

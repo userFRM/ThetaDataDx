@@ -2,6 +2,7 @@ use std::process;
 
 use clap::{Arg, ArgMatches, Command};
 use comfy_table::{presets::UTF8_FULL_CONDENSED, Cell, ContentArrangement, Table};
+use thetadatadx::endpoint::{invoke_endpoint, EndpointArgs, EndpointOutput};
 use thetadatadx::registry::{self, EndpointMeta};
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -152,10 +153,6 @@ fn build_cli() -> Command {
     app
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-//  Dynamic dispatch — calls the right DirectClient method based on endpoint name
-// ═══════════════════════════════════════════════════════════════════════════
-
 /// Extract a string arg from clap matches, or panic with a clear message.
 fn get_arg<'a>(m: &'a ArgMatches, name: &str) -> &'a str {
     m.get_one::<String>(name).map_or_else(
@@ -164,554 +161,25 @@ fn get_arg<'a>(m: &'a ArgMatches, name: &str) -> &'a str {
     )
 }
 
-/// Try to get a string arg, returning None if absent.
-fn try_arg<'a>(m: &'a ArgMatches, name: &str) -> Option<&'a str> {
-    m.get_one::<String>(name).map(std::string::String::as_str)
-}
-
-/// Parse comma-separated symbols into a `Vec<&str>`, filtering out empty entries.
-fn parse_symbols(s: &str) -> Vec<&str> {
-    s.split(',')
-        .map(str::trim)
-        .filter(|sym| !sym.is_empty())
-        .collect()
-}
-
-/// Normalize time_of_day: if all digits (ms since midnight), convert to hh:mm:ss.SSS.
-/// The v3 server expects hh:mm:ss.SSS format, but users may pass milliseconds.
-fn normalize_time(s: &str) -> String {
-    if s.contains(':') {
-        return s.to_string();
-    }
-    if let Ok(ms) = s.parse::<u64>() {
-        let h = ms / 3_600_000;
-        let m = (ms % 3_600_000) / 60_000;
-        let sec = (ms % 60_000) / 1_000;
-        let frac = ms % 1_000;
-        format!("{h:02}:{m:02}:{sec:02}.{frac:03}")
-    } else {
-        s.to_string()
-    }
-}
-
-/// Normalize option right to the uppercase single-letter format the API expects.
-fn normalize_right(s: &str) -> Result<&'static str, thetadatadx::Error> {
-    match s.to_ascii_uppercase().as_str() {
-        "C" | "CALL" => Ok("C"),
-        "P" | "PUT" => Ok("P"),
-        _ => Err(thetadatadx::Error::Config(format!(
-            "invalid option right '{s}': expected C, P, call, or put"
-        ))),
-    }
-}
-
-/// Dispatch a single endpoint call based on its registry metadata.
-///
-/// This is the core of the dynamic dispatch system: given an `EndpointMeta`
-/// and parsed `ArgMatches`, it calls the right `ThetaDataDx` method (via
-/// Deref to `DirectClient`) and renders the result in the requested format.
-// Reason: endpoint dispatcher matches over 61 endpoints; cannot be meaningfully split.
-#[allow(clippy::too_many_lines)]
-async fn dispatch_endpoint(
+/// Build validated endpoint arguments from clap matches and registry metadata.
+fn build_endpoint_args(
     ep: &EndpointMeta,
     m: &ArgMatches,
-    client: &thetadatadx::ThetaDataDx,
-    fmt: &OutputFormat,
-) -> Result<(), thetadatadx::Error> {
-    // The match is on the exact endpoint name from the registry.
-    // This is unavoidable because DirectClient methods have heterogeneous signatures.
-    match ep.name {
-        // ── Stock List ──────────────────────────────────────────────
-        "stock_list_symbols" => {
-            let symbols = client.stock_list_symbols().await?;
-            render_string_list(&symbols, "symbol", fmt);
-        }
-        "stock_list_dates" => {
-            let rt = get_arg(m, "request_type");
-            let sym = get_arg(m, "symbol");
-            let dates = client.stock_list_dates(rt, sym).await?;
-            render_string_list(&dates, "date", fmt);
-        }
-
-        // ── Stock Snapshot ──────────────────────────────────────────
-        "stock_snapshot_ohlc" => {
-            let syms = parse_symbols(get_arg(m, "symbol"));
-            let ticks = client.stock_snapshot_ohlc(&syms).await?;
-            render_ohlc(&ticks, fmt);
-        }
-        "stock_snapshot_trade" => {
-            let syms = parse_symbols(get_arg(m, "symbol"));
-            let ticks = client.stock_snapshot_trade(&syms).await?;
-            render_trades(&ticks, fmt);
-        }
-        "stock_snapshot_quote" => {
-            let syms = parse_symbols(get_arg(m, "symbol"));
-            let ticks = client.stock_snapshot_quote(&syms).await?;
-            render_quotes(&ticks, fmt);
-        }
-        "stock_snapshot_market_value" => {
-            let syms = parse_symbols(get_arg(m, "symbol"));
-            let ticks = client.stock_snapshot_market_value(&syms).await?;
-            render_market_value(&ticks, fmt);
-        }
-
-        // ── Stock History ───────────────────────────────────────────
-        "stock_history_eod" => {
-            let sym = get_arg(m, "symbol");
-            let start = get_arg(m, "start_date");
-            let end = get_arg(m, "end_date");
-            let ticks = client.stock_history_eod(sym, start, end).await?;
-            render_eod(&ticks, fmt);
-        }
-        "stock_history_ohlc" => {
-            let sym = get_arg(m, "symbol");
-            let date = get_arg(m, "date");
-            let interval =
-                try_arg(m, "interval").unwrap_or(try_arg(m, "start_time").unwrap_or("60000"));
-            let ticks = client.stock_history_ohlc(sym, date, interval).await?;
-            render_ohlc(&ticks, fmt);
-        }
-        "stock_history_ohlc_range" => {
-            let sym = get_arg(m, "symbol");
-            let start = get_arg(m, "start_date");
-            let end = get_arg(m, "end_date");
-            let interval =
-                try_arg(m, "interval").unwrap_or(try_arg(m, "start_time").unwrap_or("60000"));
-            let ticks = client
-                .stock_history_ohlc_range(sym, start, end, interval)
-                .await?;
-            render_ohlc(&ticks, fmt);
-        }
-        "stock_history_trade" => {
-            let sym = get_arg(m, "symbol");
-            let date = get_arg(m, "date");
-            let ticks = client.stock_history_trade(sym, date).await?;
-            render_trades(&ticks, fmt);
-        }
-        "stock_history_quote" => {
-            let sym = get_arg(m, "symbol");
-            let date = get_arg(m, "date");
-            let interval =
-                try_arg(m, "interval").unwrap_or(try_arg(m, "start_time").unwrap_or("60000"));
-            let ticks = client.stock_history_quote(sym, date, interval).await?;
-            render_quotes(&ticks, fmt);
-        }
-        "stock_history_trade_quote" => {
-            let sym = get_arg(m, "symbol");
-            let date = get_arg(m, "date");
-            let ticks = client.stock_history_trade_quote(sym, date).await?;
-            render_trade_quotes(&ticks, fmt);
-        }
-
-        // ── Stock At-Time ───────────────────────────────────────────
-        "stock_at_time_trade" => {
-            let sym = get_arg(m, "symbol");
-            let start = get_arg(m, "start_date");
-            let end = get_arg(m, "end_date");
-            let tod = normalize_time(get_arg(m, "time_of_day"));
-            let ticks = client.stock_at_time_trade(sym, start, end, &tod).await?;
-            render_trades(&ticks, fmt);
-        }
-        "stock_at_time_quote" => {
-            let sym = get_arg(m, "symbol");
-            let start = get_arg(m, "start_date");
-            let end = get_arg(m, "end_date");
-            let tod = normalize_time(get_arg(m, "time_of_day"));
-            let ticks = client.stock_at_time_quote(sym, start, end, &tod).await?;
-            render_quotes(&ticks, fmt);
-        }
-
-        // ── Option List ─────────────────────────────────────────────
-        "option_list_symbols" => {
-            let symbols = client.option_list_symbols().await?;
-            render_string_list(&symbols, "symbol", fmt);
-        }
-        "option_list_dates" => {
-            let rt = get_arg(m, "request_type");
-            let sym = get_arg(m, "symbol");
-            let exp = get_arg(m, "expiration");
-            let strike = get_arg(m, "strike");
-            let right = normalize_right(get_arg(m, "right"))?;
-            let dates = client
-                .option_list_dates(rt, sym, exp, strike, right)
-                .await?;
-            render_string_list(&dates, "date", fmt);
-        }
-        "option_list_expirations" => {
-            let sym = get_arg(m, "symbol");
-            let exps = client.option_list_expirations(sym).await?;
-            render_string_list(&exps, "expiration", fmt);
-        }
-        "option_list_strikes" => {
-            let sym = get_arg(m, "symbol");
-            let exp = get_arg(m, "expiration");
-            let strikes = client.option_list_strikes(sym, exp).await?;
-            render_string_list(&strikes, "strike", fmt);
-        }
-        "option_list_contracts" => {
-            let rt = get_arg(m, "request_type");
-            let sym = get_arg(m, "symbol");
-            let date = get_arg(m, "date");
-            let contracts = client.option_list_contracts(rt, sym, date).await?;
-            render_option_contracts(&contracts, fmt);
-        }
-
-        // ── Option Snapshot ─────────────────────────────────────────
-        "option_snapshot_ohlc" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let ticks = client.option_snapshot_ohlc(sym, exp, strike, right).await?;
-            render_ohlc(&ticks, fmt);
-        }
-        "option_snapshot_trade" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let ticks = client
-                .option_snapshot_trade(sym, exp, strike, right)
-                .await?;
-            render_trades(&ticks, fmt);
-        }
-        "option_snapshot_quote" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let ticks = client
-                .option_snapshot_quote(sym, exp, strike, right)
-                .await?;
-            render_quotes(&ticks, fmt);
-        }
-        "option_snapshot_open_interest" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let ticks = client
-                .option_snapshot_open_interest(sym, exp, strike, right)
-                .await?;
-            render_open_interest(&ticks, fmt);
-        }
-        "option_snapshot_market_value" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let ticks = client
-                .option_snapshot_market_value(sym, exp, strike, right)
-                .await?;
-            render_market_value(&ticks, fmt);
-        }
-        "option_snapshot_greeks_implied_volatility" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let ticks = client
-                .option_snapshot_greeks_implied_volatility(sym, exp, strike, right)
-                .await?;
-            render_iv(&ticks, fmt);
-        }
-        "option_snapshot_greeks_all" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let ticks = client
-                .option_snapshot_greeks_all(sym, exp, strike, right)
-                .await?;
-            render_greeks(&ticks, fmt);
-        }
-        "option_snapshot_greeks_first_order" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let ticks = client
-                .option_snapshot_greeks_first_order(sym, exp, strike, right)
-                .await?;
-            render_greeks(&ticks, fmt);
-        }
-        "option_snapshot_greeks_second_order" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let ticks = client
-                .option_snapshot_greeks_second_order(sym, exp, strike, right)
-                .await?;
-            render_greeks(&ticks, fmt);
-        }
-        "option_snapshot_greeks_third_order" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let ticks = client
-                .option_snapshot_greeks_third_order(sym, exp, strike, right)
-                .await?;
-            render_greeks(&ticks, fmt);
-        }
-
-        // ── Option History ──────────────────────────────────────────
-        "option_history_eod" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let start = get_arg(m, "start_date");
-            let end = get_arg(m, "end_date");
-            let ticks = client
-                .option_history_eod(sym, exp, strike, right, start, end)
-                .await?;
-            render_eod(&ticks, fmt);
-        }
-        "option_history_ohlc" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let date = get_arg(m, "date");
-            let interval =
-                try_arg(m, "interval").unwrap_or(try_arg(m, "start_time").unwrap_or("60000"));
-            let ticks = client
-                .option_history_ohlc(sym, exp, strike, right, date, interval)
-                .await?;
-            render_ohlc(&ticks, fmt);
-        }
-        "option_history_trade" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let date = get_arg(m, "date");
-            let ticks = client
-                .option_history_trade(sym, exp, strike, right, date)
-                .await?;
-            render_trades(&ticks, fmt);
-        }
-        "option_history_quote" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let date = get_arg(m, "date");
-            let interval =
-                try_arg(m, "interval").unwrap_or(try_arg(m, "start_time").unwrap_or("60000"));
-            let ticks = client
-                .option_history_quote(sym, exp, strike, right, date, interval)
-                .await?;
-            render_quotes(&ticks, fmt);
-        }
-        "option_history_trade_quote" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let date = get_arg(m, "date");
-            let ticks = client
-                .option_history_trade_quote(sym, exp, strike, right, date)
-                .await?;
-            render_trade_quotes(&ticks, fmt);
-        }
-        "option_history_open_interest" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let date = get_arg(m, "date");
-            let ticks = client
-                .option_history_open_interest(sym, exp, strike, right, date)
-                .await?;
-            render_open_interest(&ticks, fmt);
-        }
-
-        // ── Option History Greeks ───────────────────────────────────
-        "option_history_greeks_eod" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let start = get_arg(m, "start_date");
-            let end = get_arg(m, "end_date");
-            let ticks = client
-                .option_history_greeks_eod(sym, exp, strike, right, start, end)
-                .await?;
-            render_greeks(&ticks, fmt);
-        }
-        "option_history_greeks_all" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let date = get_arg(m, "date");
-            let interval =
-                try_arg(m, "interval").unwrap_or(try_arg(m, "start_time").unwrap_or("60000"));
-            let ticks = client
-                .option_history_greeks_all(sym, exp, strike, right, date, interval)
-                .await?;
-            render_greeks(&ticks, fmt);
-        }
-        "option_history_trade_greeks_all" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let date = get_arg(m, "date");
-            let ticks = client
-                .option_history_trade_greeks_all(sym, exp, strike, right, date)
-                .await?;
-            render_greeks(&ticks, fmt);
-        }
-        "option_history_greeks_first_order" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let date = get_arg(m, "date");
-            let interval =
-                try_arg(m, "interval").unwrap_or(try_arg(m, "start_time").unwrap_or("60000"));
-            let ticks = client
-                .option_history_greeks_first_order(sym, exp, strike, right, date, interval)
-                .await?;
-            render_greeks(&ticks, fmt);
-        }
-        "option_history_trade_greeks_first_order" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let date = get_arg(m, "date");
-            let ticks = client
-                .option_history_trade_greeks_first_order(sym, exp, strike, right, date)
-                .await?;
-            render_greeks(&ticks, fmt);
-        }
-        "option_history_greeks_second_order" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let date = get_arg(m, "date");
-            let interval =
-                try_arg(m, "interval").unwrap_or(try_arg(m, "start_time").unwrap_or("60000"));
-            let ticks = client
-                .option_history_greeks_second_order(sym, exp, strike, right, date, interval)
-                .await?;
-            render_greeks(&ticks, fmt);
-        }
-        "option_history_trade_greeks_second_order" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let date = get_arg(m, "date");
-            let ticks = client
-                .option_history_trade_greeks_second_order(sym, exp, strike, right, date)
-                .await?;
-            render_greeks(&ticks, fmt);
-        }
-        "option_history_greeks_third_order" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let date = get_arg(m, "date");
-            let interval =
-                try_arg(m, "interval").unwrap_or(try_arg(m, "start_time").unwrap_or("60000"));
-            let ticks = client
-                .option_history_greeks_third_order(sym, exp, strike, right, date, interval)
-                .await?;
-            render_greeks(&ticks, fmt);
-        }
-        "option_history_trade_greeks_third_order" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let date = get_arg(m, "date");
-            let ticks = client
-                .option_history_trade_greeks_third_order(sym, exp, strike, right, date)
-                .await?;
-            render_greeks(&ticks, fmt);
-        }
-        "option_history_greeks_implied_volatility" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let date = get_arg(m, "date");
-            let interval =
-                try_arg(m, "interval").unwrap_or(try_arg(m, "start_time").unwrap_or("60000"));
-            let ticks = client
-                .option_history_greeks_implied_volatility(sym, exp, strike, right, date, interval)
-                .await?;
-            render_iv(&ticks, fmt);
-        }
-        "option_history_trade_greeks_implied_volatility" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let date = get_arg(m, "date");
-            let ticks = client
-                .option_history_trade_greeks_implied_volatility(sym, exp, strike, right, date)
-                .await?;
-            render_iv(&ticks, fmt);
-        }
-
-        // ── Option At-Time ──────────────────────────────────────────
-        "option_at_time_trade" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let start = get_arg(m, "start_date");
-            let end = get_arg(m, "end_date");
-            let tod = normalize_time(get_arg(m, "time_of_day"));
-            let ticks = client
-                .option_at_time_trade(sym, exp, strike, right, start, end, &tod)
-                .await?;
-            render_trades(&ticks, fmt);
-        }
-        "option_at_time_quote" => {
-            let (sym, exp, strike, right) = option_contract_args(m)?;
-            let start = get_arg(m, "start_date");
-            let end = get_arg(m, "end_date");
-            let tod = normalize_time(get_arg(m, "time_of_day"));
-            let ticks = client
-                .option_at_time_quote(sym, exp, strike, right, start, end, &tod)
-                .await?;
-            render_quotes(&ticks, fmt);
-        }
-
-        // ── Index List ──────────────────────────────────────────────
-        "index_list_symbols" => {
-            let symbols = client.index_list_symbols().await?;
-            render_string_list(&symbols, "symbol", fmt);
-        }
-        "index_list_dates" => {
-            let sym = get_arg(m, "symbol");
-            let dates = client.index_list_dates(sym).await?;
-            render_string_list(&dates, "date", fmt);
-        }
-
-        // ── Index Snapshot ──────────────────────────────────────────
-        "index_snapshot_ohlc" => {
-            let syms = parse_symbols(get_arg(m, "symbol"));
-            let ticks = client.index_snapshot_ohlc(&syms).await?;
-            render_ohlc(&ticks, fmt);
-        }
-        "index_snapshot_price" => {
-            let syms = parse_symbols(get_arg(m, "symbol"));
-            let ticks = client.index_snapshot_price(&syms).await?;
-            render_price(&ticks, fmt);
-        }
-        "index_snapshot_market_value" => {
-            let syms = parse_symbols(get_arg(m, "symbol"));
-            let ticks = client.index_snapshot_market_value(&syms).await?;
-            render_market_value(&ticks, fmt);
-        }
-
-        // ── Index History ───────────────────────────────────────────
-        "index_history_eod" => {
-            let sym = get_arg(m, "symbol");
-            let start = get_arg(m, "start_date");
-            let end = get_arg(m, "end_date");
-            let ticks = client.index_history_eod(sym, start, end).await?;
-            render_eod(&ticks, fmt);
-        }
-        "index_history_ohlc" => {
-            let sym = get_arg(m, "symbol");
-            let start = get_arg(m, "start_date");
-            let end = get_arg(m, "end_date");
-            let interval =
-                try_arg(m, "interval").unwrap_or(try_arg(m, "start_time").unwrap_or("60000"));
-            let ticks = client.index_history_ohlc(sym, start, end, interval).await?;
-            render_ohlc(&ticks, fmt);
-        }
-        "index_history_price" => {
-            let sym = get_arg(m, "symbol");
-            let date = get_arg(m, "date");
-            let interval =
-                try_arg(m, "interval").unwrap_or(try_arg(m, "start_time").unwrap_or("60000"));
-            let ticks = client.index_history_price(sym, date, interval).await?;
-            render_price(&ticks, fmt);
-        }
-
-        // ── Index At-Time ───────────────────────────────────────────
-        "index_at_time_price" => {
-            let sym = get_arg(m, "symbol");
-            let start = get_arg(m, "start_date");
-            let end = get_arg(m, "end_date");
-            let tod = normalize_time(get_arg(m, "time_of_day"));
-            let ticks = client.index_at_time_price(sym, start, end, &tod).await?;
-            render_price(&ticks, fmt);
-        }
-
-        // ── Calendar ────────────────────────────────────────────────
-        "calendar_open_today" => {
-            let days = client.calendar_open_today().await?;
-            render_calendar(&days, fmt);
-        }
-        "calendar_on_date" => {
-            let date = get_arg(m, "date");
-            let days = client.calendar_on_date(date).await?;
-            render_calendar(&days, fmt);
-        }
-        "calendar_year" => {
-            let year = get_arg(m, "year");
-            let days = client.calendar_year(year).await?;
-            render_calendar(&days, fmt);
-        }
-
-        // ── Interest Rate ───────────────────────────────────────────
-        "interest_rate_history_eod" => {
-            let sym = get_arg(m, "symbol");
-            let start = get_arg(m, "start_date");
-            let end = get_arg(m, "end_date");
-            let ticks = client.interest_rate_history_eod(sym, start, end).await?;
-            render_interest_rates(&ticks, fmt);
-        }
-
-        other => {
-            return Err(thetadatadx::Error::Config(format!(
-                "unhandled endpoint in dispatch: {other}"
-            )));
+) -> Result<EndpointArgs, thetadatadx::Error> {
+    let mut args = EndpointArgs::new();
+    for param in ep.params {
+        match m.get_one::<String>(param.name) {
+            Some(raw) => args.insert_raw(param.name, param.param_type, raw)?,
+            None if param.required => {
+                return Err(thetadatadx::Error::Config(format!(
+                    "missing required argument: {}",
+                    param.name
+                )));
+            }
+            None => {}
         }
     }
-
-    Ok(())
-}
-
-/// Extract the 4 standard option contract args from clap matches.
-fn option_contract_args(
-    m: &ArgMatches,
-) -> Result<(&str, &str, &str, &'static str), thetadatadx::Error> {
-    let sym = get_arg(m, "symbol");
-    let exp = get_arg(m, "expiration");
-    let strike = get_arg(m, "strike");
-    let right = normalize_right(get_arg(m, "right"))?;
-    Ok((sym, exp, strike, right))
+    Ok(args)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1206,6 +674,42 @@ fn render_option_contracts(contracts: &[tdbe::types::tick::OptionContract], fmt:
     td.render(fmt);
 }
 
+fn string_list_header(ep: &EndpointMeta) -> &'static str {
+    if ep.name.ends_with("_list_symbols") {
+        "symbol"
+    } else if ep.name.ends_with("_list_dates") {
+        "date"
+    } else if ep.name.ends_with("_list_expirations") {
+        "expiration"
+    } else if ep.name.ends_with("_list_strikes") {
+        "strike"
+    } else {
+        "value"
+    }
+}
+
+/// Render a shared endpoint runtime result using the CLI formatters.
+fn render_output(ep: &EndpointMeta, output: EndpointOutput, fmt: &OutputFormat) {
+    match output {
+        EndpointOutput::StringList(items) => {
+            render_string_list(&items, string_list_header(ep), fmt)
+        }
+        EndpointOutput::EodTicks(ticks) => render_eod(&ticks, fmt),
+        EndpointOutput::OhlcTicks(ticks) => render_ohlc(&ticks, fmt),
+        EndpointOutput::TradeTicks(ticks) => render_trades(&ticks, fmt),
+        EndpointOutput::QuoteTicks(ticks) => render_quotes(&ticks, fmt),
+        EndpointOutput::TradeQuoteTicks(ticks) => render_trade_quotes(&ticks, fmt),
+        EndpointOutput::OpenInterestTicks(ticks) => render_open_interest(&ticks, fmt),
+        EndpointOutput::MarketValueTicks(ticks) => render_market_value(&ticks, fmt),
+        EndpointOutput::GreeksTicks(ticks) => render_greeks(&ticks, fmt),
+        EndpointOutput::IvTicks(ticks) => render_iv(&ticks, fmt),
+        EndpointOutput::PriceTicks(ticks) => render_price(&ticks, fmt),
+        EndpointOutput::CalendarDays(days) => render_calendar(&days, fmt),
+        EndpointOutput::InterestRateTicks(ticks) => render_interest_rates(&ticks, fmt),
+        EndpointOutput::OptionContracts(contracts) => render_option_contracts(&contracts, fmt),
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  Main
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1382,7 +886,9 @@ async fn run(matches: ArgMatches) -> Result<(), thetadatadx::Error> {
                 })?;
 
                 let client = connect(creds_path, config_preset).await?;
-                dispatch_endpoint(ep, sub_m, &client, &fmt).await?;
+                let args = build_endpoint_args(ep, sub_m)?;
+                let output = invoke_endpoint(&client, ep.name, &args).await?;
+                render_output(ep, output, &fmt);
             } else {
                 // No sub-command: print help for this category
                 let mut cmd = build_cli();
