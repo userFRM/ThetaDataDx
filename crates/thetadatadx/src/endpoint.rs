@@ -504,16 +504,24 @@ mod tests {
     #[test]
     fn required_expiration_accepts_yyyymmdd() {
         let mut args = EndpointArgs::new();
-        args.insert("expiration".into(), EndpointArgValue::Str("20260410".into()));
+        args.insert(
+            "expiration".into(),
+            EndpointArgValue::Str("20260410".into()),
+        );
         assert_eq!(args.required_expiration("expiration").unwrap(), "20260410");
     }
 
     #[test]
     fn required_expiration_rejects_invalid_formats() {
         let mut args = EndpointArgs::new();
-        args.insert("expiration".into(), EndpointArgValue::Str("2026-04-10".into()));
+        args.insert(
+            "expiration".into(),
+            EndpointArgValue::Str("2026-04-10".into()),
+        );
         let err = args.required_expiration("expiration").unwrap_err();
-        assert!(matches!(err, EndpointError::InvalidParams(message) if message.contains("exactly 8 digits")));
+        assert!(
+            matches!(err, EndpointError::InvalidParams(message) if message.contains("exactly 8 digits"))
+        );
     }
 
     #[test]
