@@ -293,140 +293,17 @@ fn load_proto_endpoints() -> Result<ParsedEndpoints, Box<dyn std::error::Error>>
         });
     }
 
-    // ── Manual extra: stock_history_ohlc_range ─────────────────────────────
+    // ── Synthetic extra: stock_history_ohlc_range ──────────────────────────
     // Second SDK-level method on top of the same GetStockHistoryOhlc RPC.
     // The proto supports both shapes via the optional `date` vs
     // `start_date`/`end_date` fields; the SDK exposes them as two distinct
-    // methods for nicer ergonomics. The registry parser only picks up one
-    // method per RPC, so the range variant is appended manually here.
-    endpoints.push(GeneratedEndpoint {
-        name: "stock_history_ohlc_range".into(),
-        description: "Fetch intraday OHLC bars across a date range.".into(),
-        category: "stock".into(),
-        subcategory: "history".into(),
-        rest_path: "/v3/stock/history/ohlc_range".into(),
-        grpc_name: "get_stock_history_ohlc".into(),
-        request_type: "StockHistoryOhlcRequest".into(),
-        query_type: "StockHistoryOhlcRequestQuery".into(),
-        fields: vec![
-            ProtoField {
-                name: "symbol".into(),
-                proto_type: "string".into(),
-                is_optional: false,
-                is_repeated: false,
-            },
-            ProtoField {
-                name: "date".into(),
-                proto_type: "string".into(),
-                is_optional: true,
-                is_repeated: false,
-            },
-            ProtoField {
-                name: "interval".into(),
-                proto_type: "string".into(),
-                is_optional: false,
-                is_repeated: false,
-            },
-            ProtoField {
-                name: "start_time".into(),
-                proto_type: "string".into(),
-                is_optional: true,
-                is_repeated: false,
-            },
-            ProtoField {
-                name: "end_time".into(),
-                proto_type: "string".into(),
-                is_optional: true,
-                is_repeated: false,
-            },
-            ProtoField {
-                name: "venue".into(),
-                proto_type: "string".into(),
-                is_optional: true,
-                is_repeated: false,
-            },
-            ProtoField {
-                name: "start_date".into(),
-                proto_type: "string".into(),
-                is_optional: true,
-                is_repeated: false,
-            },
-            ProtoField {
-                name: "end_date".into(),
-                proto_type: "string".into(),
-                is_optional: true,
-                is_repeated: false,
-            },
-        ],
-        params: vec![
-            GeneratedParam {
-                name: "symbol".into(),
-                description: "Ticker symbol (e.g. AAPL)".into(),
-                param_type: "Symbol".into(),
-                required: true,
-                binding: String::new(),
-                arg_name: None,
-                default: None,
-            },
-            GeneratedParam {
-                name: "start_date".into(),
-                description: "Start date YYYYMMDD".into(),
-                param_type: "Date".into(),
-                required: true,
-                binding: String::new(),
-                arg_name: None,
-                default: None,
-            },
-            GeneratedParam {
-                name: "end_date".into(),
-                description: "End date YYYYMMDD".into(),
-                param_type: "Date".into(),
-                required: true,
-                binding: String::new(),
-                arg_name: None,
-                default: None,
-            },
-            GeneratedParam {
-                name: "interval".into(),
-                description: "Accepts milliseconds (60000) or shorthand (1m). Presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.".into(),
-                param_type: "Interval".into(),
-                required: true,
-                binding: String::new(),
-                arg_name: None,
-                default: None,
-            },
-            GeneratedParam {
-                name: "start_time".into(),
-                description: "Start time filter (hh:mm:ss.SSS or ms)".into(),
-                param_type: "Str".into(),
-                required: false,
-                binding: String::new(),
-                arg_name: None,
-                default: None,
-            },
-            GeneratedParam {
-                name: "end_time".into(),
-                description: "End time filter (hh:mm:ss.SSS or ms)".into(),
-                param_type: "Str".into(),
-                required: false,
-                binding: String::new(),
-                arg_name: None,
-                default: None,
-            },
-            GeneratedParam {
-                name: "venue".into(),
-                description: "Venue/exchange filter".into(),
-                param_type: "Str".into(),
-                required: false,
-                binding: String::new(),
-                arg_name: None,
-                default: None,
-            },
-        ],
-        return_type: "OhlcTicks".into(),
-        kind: String::new(),
-        list_column: None,
-    });
+    // methods for nicer ergonomics.  Clone the wire model from the base RPC
+    // and rename; the TOML surface spec carries the parameter differences.
+    if let Some(ohlc) = endpoints.iter().find(|e| e.name == "stock_history_ohlc") {
+        let mut range = ohlc.clone();
+        range.name = "stock_history_ohlc_range".into();
+        endpoints.push(range);
+    }
 
     Ok(ParsedEndpoints { endpoints })
 }
@@ -474,8 +351,8 @@ fn load_endpoint_specs() -> Result<ParsedEndpoints, Box<dyn std::error::Error>> 
 
     // Detect proto RPCs not covered by endpoint_surface.toml. A new RPC added
     // to the proto should fail the build rather than being silently ignored.
-    // Synthetic wire entries (hand-built variants like stock_history_ohlc_range
-    // that share an RPC with another endpoint) are excluded because they don't
+    // Synthetic wire entries (cloned variants like stock_history_ohlc_range that
+    // share an RPC with another endpoint) are excluded because they don't
     // correspond to a unique proto RPC.
     let synthetic = ["stock_history_ohlc_range"];
     for wire_name in wire_by_name.keys() {
