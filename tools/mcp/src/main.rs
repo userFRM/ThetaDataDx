@@ -1152,7 +1152,7 @@ mod tests {
     use std::collections::HashSet;
 
     use super::*;
-    use tdbe::types::tick::{EodTick, GreeksTick};
+    use tdbe::types::tick::{EodTick, GreeksTick, QuoteTick, TradeQuoteTick};
 
     fn sample_eod_tick(expiration: i32, strike: f64, right: i32) -> EodTick {
         EodTick {
@@ -1455,5 +1455,125 @@ mod tests {
             tick.get("right").is_none(),
             "single-contract rows should not emit wildcard-only right metadata"
         );
+    }
+
+    // ── Serializer field-parity regression tests ──────────────────────
+    // These catch future field loss by asserting specific keys exist in
+    // the serialized JSON output.
+
+    #[test]
+    fn serialize_quote_ticks_includes_condition_and_midpoint_fields() {
+        let tick = QuoteTick {
+            ms_of_day: 0,
+            bid_size: 100,
+            bid_exchange: 11,
+            bid: 150.0,
+            bid_condition: 1,
+            ask_size: 200,
+            ask_exchange: 12,
+            ask: 151.0,
+            ask_condition: 2,
+            date: 20260410,
+            expiration: 0,
+            strike: 0.0,
+            right: 0,
+            midpoint: 150.5,
+        };
+        let payload = serialize_quote_ticks(&[tick]);
+        let row = payload["ticks"].as_array().unwrap().first().unwrap();
+        for key in [
+            "bid_condition",
+            "ask_condition",
+            "midpoint",
+            "bid_exchange",
+            "ask_exchange",
+        ] {
+            assert!(row.get(key).is_some(), "missing key: {key}");
+        }
+    }
+
+    #[test]
+    fn serialize_trade_quote_ticks_includes_extended_fields() {
+        let tick = TradeQuoteTick {
+            ms_of_day: 0,
+            sequence: 1,
+            ext_condition1: 10,
+            ext_condition2: 20,
+            ext_condition3: 30,
+            ext_condition4: 40,
+            condition: 1,
+            size: 100,
+            exchange: 11,
+            price: 150.0,
+            condition_flags: 0,
+            price_flags: 0,
+            volume_type: 1,
+            records_back: 0,
+            quote_ms_of_day: 34_200_000,
+            bid_size: 100,
+            bid_exchange: 11,
+            bid: 149.0,
+            bid_condition: 1,
+            ask_size: 200,
+            ask_exchange: 12,
+            ask: 151.0,
+            ask_condition: 2,
+            date: 20260410,
+            expiration: 0,
+            strike: 0.0,
+            right: 0,
+        };
+        let payload = serialize_trade_quote_ticks(&[tick]);
+        let row = payload["ticks"].as_array().unwrap().first().unwrap();
+        for key in [
+            "quote_ms_of_day",
+            "bid_exchange",
+            "ask_exchange",
+            "bid_condition",
+            "ask_condition",
+            "ext_condition1",
+            "ext_condition2",
+            "ext_condition3",
+            "ext_condition4",
+            "condition_flags",
+            "price_flags",
+            "volume_type",
+            "records_back",
+        ] {
+            assert!(row.get(key).is_some(), "missing key: {key}");
+        }
+    }
+
+    #[test]
+    fn serialize_greeks_ticks_includes_all_22_greeks() {
+        let tick = sample_greeks_tick(0, 0.0, 0);
+        let payload = serialize_greeks_ticks(&[tick]);
+        let row = payload["ticks"].as_array().unwrap().first().unwrap();
+        for key in [
+            "implied_volatility",
+            "delta",
+            "gamma",
+            "theta",
+            "vega",
+            "rho",
+            "iv_error",
+            "vanna",
+            "charm",
+            "vomma",
+            "veta",
+            "speed",
+            "zomma",
+            "color",
+            "ultima",
+            "d1",
+            "d2",
+            "dual_delta",
+            "dual_gamma",
+            "epsilon",
+            "lambda",
+            "vera",
+        ] {
+            assert!(row.get(key).is_some(), "missing Greek: {key}");
+        }
     }
 }
