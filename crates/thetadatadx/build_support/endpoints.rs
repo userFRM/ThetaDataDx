@@ -1338,7 +1338,8 @@ fn required_getter_name(param_type: &str) -> &'static str {
     match param_type {
         "Symbol" => "required_symbol",
         "Symbols" => "required_symbols",
-        "Date" | "Expiration" => "required_date",
+        "Date" => "required_date",
+        "Expiration" => "required_expiration",
         "Interval" => "required_interval",
         "Right" => "required_right",
         "Int" => "required_int32",
@@ -1351,7 +1352,8 @@ fn required_getter_name(param_type: &str) -> &'static str {
 
 fn optional_getter_name(param_type: &str) -> &'static str {
     match param_type {
-        "Date" | "Expiration" => "optional_date",
+        "Date" => "optional_date",
+        "Expiration" => "optional_expiration",
         "Int" => "optional_int32",
         "Float" => "optional_float64",
         "Bool" => "optional_bool",
