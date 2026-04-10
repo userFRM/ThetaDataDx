@@ -184,6 +184,8 @@ impl EndpointArgs {
     }
 
     /// Read a required floating-point argument.
+    ///
+    /// Accepts both `Float` and `Int` values. `Int` is widened to `f64`.
     pub fn required_float64(&self, key: &str) -> Result<f64, EndpointError> {
         match self.required_value(key)? {
             EndpointArgValue::Float(value) => Ok(*value),
@@ -195,6 +197,8 @@ impl EndpointArgs {
     }
 
     /// Read an optional floating-point argument.
+    ///
+    /// Accepts both `Float` and `Int` values. `Int` is widened to `f64`.
     pub fn optional_float64(&self, key: &str) -> Result<Option<f64>, EndpointError> {
         match self.optional_value(key) {
             None => Ok(None),
@@ -237,6 +241,25 @@ pub enum EndpointError {
     Server(Error),
     /// No generated endpoint adapter matches the requested endpoint name.
     UnknownEndpoint(String),
+}
+
+impl std::fmt::Display for EndpointError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidParams(msg) => write!(f, "invalid params: {msg}"),
+            Self::Server(err) => write!(f, "server error: {err}"),
+            Self::UnknownEndpoint(name) => write!(f, "unknown endpoint: {name}"),
+        }
+    }
+}
+
+impl std::error::Error for EndpointError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Server(err) => Some(err),
+            _ => None,
+        }
+    }
 }
 
 impl From<Error> for EndpointError {
@@ -289,7 +312,11 @@ pub enum EndpointOutput {
     OptionContracts(Vec<OptionContract>),
 }
 
-/// Invoke a generated endpoint adapter by endpoint name.
+/// Public entry point for transport-neutral endpoint dispatch.
+///
+/// Delegates to the generated dispatch function. This indirection exists
+/// as a hook point for cross-cutting concerns (auth retry, metrics,
+/// rate limiting) without modifying generated code.
 pub async fn invoke_endpoint(
     client: &ThetaDataDx,
     name: &str,

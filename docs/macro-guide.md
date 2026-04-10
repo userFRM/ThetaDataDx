@@ -8,7 +8,7 @@ surface.
 > The current endpoint workflow is:
 > - update `crates/thetadatadx/proto/external.proto` when the wire contract changes
 > - update `crates/thetadatadx/endpoint_surface.toml` for the normalized SDK surface
-> - update `crates/thetadatadx/endpoint_schema.toml` if a new `DataTable` layout is introduced
+> - update `crates/thetadatadx/tick_schema.toml` if a new `DataTable` layout is introduced
 >
 > The build then generates the registry, shared endpoint runtime, and
 > `DirectClient` declarations automatically. This guide is for understanding and
@@ -130,7 +130,7 @@ expansion.
 
 ### 1. Define the tick type (if new)
 
-Add a `[types.YourTick]` block in `crates/thetadatadx/endpoint_schema.toml`.
+Add a `[types.YourTick]` block in `crates/thetadatadx/tick_schema.toml`.
 `build.rs` generates the `parse_your_ticks()` function automatically. See
 `docs/endpoint-schema.md` for the TOML format. The tick structs themselves live
 in `crates/tdbe/`. Set `contract_id = true` if the tick type should carry

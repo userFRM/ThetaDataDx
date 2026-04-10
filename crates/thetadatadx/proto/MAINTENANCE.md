@@ -29,7 +29,7 @@ proto/
   external.proto    - canonical proto from ThetaData (60 RPCs, BetaEndpoints package)
   MAINTENANCE.md    - this file
 
-../endpoint_schema.toml    - column schemas for all DataTable-returning endpoints
+../tick_schema.toml    - column schemas for all DataTable-returning endpoints
 ../endpoint_surface.toml   - normalized endpoint surface specification
 ../build.rs                - small build entrypoint
 ../build_support/          - build-time generators and validators
@@ -50,7 +50,7 @@ proto/
    `$OUT_DIR/direct_list_endpoints_generated.rs`,
    `$OUT_DIR/direct_parsed_endpoints_generated.rs`.
 
-3. **Tick parser codegen**: the build reads `endpoint_schema.toml` and generates
+3. **Tick parser codegen**: the build reads `tick_schema.toml` and generates
    `DataTable` parser functions. Output: `$OUT_DIR/decode_generated.rs`.
    The public tick structs live in `crates/tdbe/src/types/tick.rs` and must stay
    aligned with that schema.
@@ -77,7 +77,7 @@ groups/templates, and invalid overrides fail the build.
 
 Example: ThetaData adds a `vwap` column to the EOD response.
 
-1. Open `../endpoint_schema.toml`
+1. Open `../tick_schema.toml`
 2. Find the `[types.EodTick]` section
 3. Add one line to the `columns` array:
    ```toml
@@ -113,7 +113,7 @@ service BetaThetaTerminal {
 
 **Step 2 — Column schema**
 
-If the response uses a new column layout, add a type to `../endpoint_schema.toml`:
+If the response uses a new column layout, add a type to `../tick_schema.toml`:
 ```toml
 [types.VwapTick]
 doc = "Volume-weighted average price tick."
@@ -162,7 +162,7 @@ When ThetaData ships a new version:
 4. If any RPCs were renamed or removed, `cargo build` will fail validation when
    `endpoint_surface.toml` no longer matches the wire contract. Fix the spec.
 5. If new RPCs were added, add corresponding entries to `endpoint_surface.toml`.
-6. If column schemas changed, update `endpoint_schema.toml` to match.
+6. If column schemas changed, update `tick_schema.toml` to match.
 7. Run `cargo test` to verify everything works.
 
 Note: the single-file `external.proto` layout means you no longer need to worry
@@ -184,4 +184,4 @@ are all in the same package as the request/response types.
 ## Questions?
 
 If anything is unclear, check `docs/endpoint-schema.md` for the full TOML schema
-reference, or look at the existing entries in `endpoint_schema.toml` as examples.
+reference, or look at the existing entries in `tick_schema.toml` as examples.

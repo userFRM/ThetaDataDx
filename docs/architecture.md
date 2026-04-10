@@ -155,12 +155,12 @@ Three response processing modes are available:
 ### Build-time Generation Pipeline
 
 ThetaDataDx has two generation pipelines at build time:
-- tick parser generation from `endpoint_schema.toml`
+- tick parser generation from `tick_schema.toml`
 - endpoint surface generation from `endpoint_surface.toml` validated against `external.proto`
 
 ```mermaid
 flowchart LR
-    TOML["endpoint_schema.toml<br/><i>14 tick type definitions<br/>with column schemas</i>"]
+    TOML["tick_schema.toml<br/><i>14 tick type definitions<br/>with column schemas</i>"]
     SURFACE["endpoint_surface.toml<br/><i>endpoint spec<br/>groups + templates</i>"]
     PROTO["external.proto<br/><i>official wire contract</i>"]
     BUILD["build.rs<br/><i>delegates to build_support/</i>"]
@@ -538,7 +538,7 @@ graph TD
         REGISTRY["registry.rs<br/><i>EndpointMeta, ENDPOINTS static</i>"]
 
         subgraph codegen["Build-time Generation"]
-            SCHEMA["endpoint_schema.toml<br/><i>14 tick type definitions</i>"]
+            SCHEMA["tick_schema.toml<br/><i>14 tick type definitions</i>"]
             SURFACE["endpoint_surface.toml<br/><i>endpoint surface spec<br/>groups + templates</i>"]
             BUILD["build.rs<br/><i>delegates to build_support/</i>"]
             SUPPORT["build_support/<br/><i>endpoints.rs + ticks.rs</i>"]

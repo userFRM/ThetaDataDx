@@ -507,7 +507,7 @@ pub(crate) fn row_number_i64(row: &proto::DataValueList, idx: usize) -> i64 {
         .unwrap_or(0)
 }
 
-// Generated code -- parser functions from endpoint_schema.toml by build.rs.
+// Generated code -- parser functions from tick_schema.toml by build.rs.
 #[allow(clippy::pedantic)]
 mod decode_generated {
     use super::*;

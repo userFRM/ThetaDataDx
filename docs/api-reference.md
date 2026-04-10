@@ -941,7 +941,7 @@ let (contract, consumed) = Contract::from_bytes(&bytes)?;  // deserialize
 
 ## Tick Types
 
-All 14 tick types are `Clone + Debug` structs generated from `endpoint_schema.toml`. Most are also `Copy` (except `OptionContract`, which contains a `String` field). Fields are typically `i32`, with `i64` for large values (e.g., `MarketValueTick.market_cap`), `f64` for Greeks/IV, and `String` for identifiers. All price fields are `f64` -- decoded during parsing. No `price_type` in the public API.
+All 14 tick types are `Clone + Debug` structs generated from `tick_schema.toml`. Most are also `Copy` (except `OptionContract`, which contains a `String` field). Fields are typically `i32`, with `i64` for large values (e.g., `MarketValueTick.market_cap`), `f64` for Greeks/IV, and `String` for identifiers. All price fields are `f64` -- decoded during parsing. No `price_type` in the public API.
 
 ### Contract Identification Fields
 

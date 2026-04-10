@@ -1,6 +1,6 @@
-# Endpoint Schema (`endpoint_schema.toml`)
+# Endpoint Schema (`tick_schema.toml`)
 
-The file `crates/thetadatadx/endpoint_schema.toml` is the canonical schema for
+The file `crates/thetadatadx/tick_schema.toml` is the canonical schema for
 ThetaData `DataTable` response layouts and the generated parser functions that
 decode them into typed ticks.
 
@@ -55,7 +55,7 @@ must stay aligned with the schema.
 
 ## How to add a new endpoint/column
 
-1. Add a new `[types.YourNewTick]` table to `endpoint_schema.toml`
+1. Add a new `[types.YourNewTick]` table to `tick_schema.toml`
 2. Define all columns with their header names, field names, and types
 3. Set `parser = "parse_your_new_ticks"`
 4. Set `required`, `copy`, `align`, etc. as needed
@@ -83,7 +83,7 @@ pub fn parse_greeks_ticks(table: &crate::proto::DataTable) -> Vec<GreeksTick> {
 
 If ThetaData adds new fields to an existing endpoint's DataTable:
 
-1. Add the new column(s) to the corresponding type in `endpoint_schema.toml`
+1. Add the new column(s) to the corresponding type in `tick_schema.toml`
 2. Run `cargo build` and `cargo test`
 3. The new field automatically appears in the struct and is parsed from the DataTable
 
@@ -91,5 +91,5 @@ If ThetaData adds a completely new endpoint:
 
 1. Update `proto/external.proto`
 2. Add the endpoint entry to `endpoint_surface.toml`
-3. Add the tick type to `endpoint_schema.toml`
+3. Add the tick type to `tick_schema.toml`
 4. Add or update the corresponding tick struct in `crates/tdbe/src/types/tick.rs`

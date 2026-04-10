@@ -44,7 +44,7 @@ src/
 proto/
   external.proto       - canonical MDDS wire contract from ThetaData
   MAINTENANCE.md       - endpoint/proto maintenance guide
-endpoint_schema.toml   - single source of truth for tick type definitions
+tick_schema.toml   - single source of truth for tick type definitions
 endpoint_surface.toml  - explicit endpoint surface spec for registry/direct/runtime generation
 build.rs               - small build entrypoint
 build_support/         - build-time generators for tick decoding and endpoint surfaces
@@ -52,7 +52,7 @@ build_support/         - build-time generators for tick decoding and endpoint su
 
 ## TOML Codegen
 
-All 14 tick types and their DataTable parsers are generated at compile time from `endpoint_schema.toml`. Adding a new column is one line in the TOML. See [docs/endpoint-schema.md](../../docs/endpoint-schema.md).
+All 14 tick types and their DataTable parsers are generated at compile time from `tick_schema.toml`. Adding a new column is one line in the TOML. See [docs/endpoint-schema.md](../../docs/endpoint-schema.md).
 
 ## Endpoint Surface Spec
 
