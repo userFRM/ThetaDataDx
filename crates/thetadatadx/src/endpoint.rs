@@ -124,6 +124,25 @@ impl EndpointArgs {
         Ok(Some(value))
     }
 
+    /// Read a required expiration argument (`YYYYMMDD` or `"0"` wildcard).
+    ///
+    /// ThetaData supports `expiration="0"` as a wildcard meaning "all
+    /// expirations" for bulk option queries.
+    pub fn required_expiration(&self, key: &str) -> Result<&str, EndpointError> {
+        let value = self.required_str(key)?;
+        validate_expiration(value, key)?;
+        Ok(value)
+    }
+
+    /// Read an optional expiration argument (`YYYYMMDD` or `"0"` wildcard).
+    pub fn optional_expiration(&self, key: &str) -> Result<Option<&str>, EndpointError> {
+        let Some(value) = self.optional_str(key)? else {
+            return Ok(None);
+        };
+        validate_expiration(value, key)?;
+        Ok(Some(value))
+    }
+
     /// Read a required interval argument.
     pub fn required_interval(&self, key: &str) -> Result<&str, EndpointError> {
         let value = self.required_str(key)?;
@@ -368,6 +387,13 @@ fn validate_date(value: &str, param_name: &str) -> Result<(), EndpointError> {
     Ok(())
 }
 
+fn validate_expiration(value: &str, param_name: &str) -> Result<(), EndpointError> {
+    if value == "0" {
+        return Ok(());
+    }
+    validate_date(value, param_name)
+}
+
 fn validate_symbol(value: &str, param_name: &str) -> Result<(), EndpointError> {
     if value.is_empty() {
         return Err(EndpointError::InvalidParams(format!(
@@ -466,6 +492,49 @@ mod tests {
         assert!(
             matches!(err, EndpointError::InvalidParams(message) if message.contains("exactly 8 digits"))
         );
+    }
+
+    #[test]
+    fn required_expiration_accepts_wildcard_zero() {
+        let mut args = EndpointArgs::new();
+        args.insert("expiration".into(), EndpointArgValue::Str("0".into()));
+        assert_eq!(args.required_expiration("expiration").unwrap(), "0");
+    }
+
+    #[test]
+    fn required_expiration_accepts_yyyymmdd() {
+        let mut args = EndpointArgs::new();
+        args.insert(
+            "expiration".into(),
+            EndpointArgValue::Str("20260410".into()),
+        );
+        assert_eq!(args.required_expiration("expiration").unwrap(), "20260410");
+    }
+
+    #[test]
+    fn required_expiration_rejects_invalid_formats() {
+        let mut args = EndpointArgs::new();
+        args.insert(
+            "expiration".into(),
+            EndpointArgValue::Str("2026-04-10".into()),
+        );
+        let err = args.required_expiration("expiration").unwrap_err();
+        assert!(
+            matches!(err, EndpointError::InvalidParams(message) if message.contains("exactly 8 digits"))
+        );
+    }
+
+    #[test]
+    fn optional_expiration_accepts_wildcard_zero() {
+        let mut args = EndpointArgs::new();
+        args.insert("expiration".into(), EndpointArgValue::Str("0".into()));
+        assert_eq!(args.optional_expiration("expiration").unwrap(), Some("0"));
+    }
+
+    #[test]
+    fn optional_expiration_returns_none_when_absent() {
+        let args = EndpointArgs::new();
+        assert_eq!(args.optional_expiration("expiration").unwrap(), None);
     }
 
     #[test]

@@ -75,8 +75,24 @@ pub fn output_envelope(output: &EndpointOutput) -> sonic_rs::Value {
 }
 
 // ---------------------------------------------------------------------------
+//  Contract identification helpers
 // ---------------------------------------------------------------------------
 
+fn right_label(right: i32) -> sonic_rs::Value {
+    match right {
+        67 => sonic_rs::Value::from("C"),
+        80 => sonic_rs::Value::from("P"),
+        _ => sonic_rs::Value::from(right),
+    }
+}
+
+fn insert_contract_id_fields(row: &mut sonic_rs::Value, expiration: i32, strike: f64, right: i32) {
+    if expiration == 0 { return; }
+    let object = row.as_object_mut().expect("serialized tick rows must always be JSON objects");
+    object.insert("expiration", sonic_rs::to_value(&expiration).expect("i32 should serialize"));
+    object.insert("strike", sonic_rs::to_value(&strike).expect("f64 should serialize"));
+    object.insert("right", right_label(right));
+}
 
 // ---------------------------------------------------------------------------
 //  Tick -> sonic_rs::Value conversions
@@ -87,7 +103,7 @@ pub fn eod_ticks_to_json(ticks: &[EodTick]) -> Vec<sonic_rs::Value> {
     ticks
         .iter()
         .map(|t| {
-            sonic_rs::json!({
+            let mut row = sonic_rs::json!({
                 "ms_of_day": t.ms_of_day,
                 "ms_of_day2": t.ms_of_day2,
                 "open": t.open,
@@ -105,7 +121,9 @@ pub fn eod_ticks_to_json(ticks: &[EodTick]) -> Vec<sonic_rs::Value> {
                 "ask": t.ask,
                 "ask_condition": t.ask_condition,
                 "date": t.date
-            })
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
         })
         .collect()
 }
@@ -115,7 +133,7 @@ pub fn ohlc_ticks_to_json(ticks: &[OhlcTick]) -> Vec<sonic_rs::Value> {
     ticks
         .iter()
         .map(|t| {
-            sonic_rs::json!({
+            let mut row = sonic_rs::json!({
                 "ms_of_day": t.ms_of_day,
                 "open": t.open,
                 "high": t.high,
@@ -124,7 +142,9 @@ pub fn ohlc_ticks_to_json(ticks: &[OhlcTick]) -> Vec<sonic_rs::Value> {
                 "volume": t.volume,
                 "count": t.count,
                 "date": t.date
-            })
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
         })
         .collect()
 }
@@ -134,7 +154,7 @@ pub fn trade_ticks_to_json(ticks: &[TradeTick]) -> Vec<sonic_rs::Value> {
     ticks
         .iter()
         .map(|t| {
-            sonic_rs::json!({
+            let mut row = sonic_rs::json!({
                 "ms_of_day": t.ms_of_day,
                 "sequence": t.sequence,
                 "size": t.size,
@@ -142,7 +162,9 @@ pub fn trade_ticks_to_json(ticks: &[TradeTick]) -> Vec<sonic_rs::Value> {
                 "price": t.price,
                 "exchange": t.exchange,
                 "date": t.date
-            })
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
         })
         .collect()
 }
@@ -152,7 +174,7 @@ pub fn quote_ticks_to_json(ticks: &[QuoteTick]) -> Vec<sonic_rs::Value> {
     ticks
         .iter()
         .map(|t| {
-            sonic_rs::json!({
+            let mut row = sonic_rs::json!({
                 "ms_of_day": t.ms_of_day,
                 "bid_size": t.bid_size,
                 "bid_exchange": t.bid_exchange,
@@ -162,8 +184,11 @@ pub fn quote_ticks_to_json(ticks: &[QuoteTick]) -> Vec<sonic_rs::Value> {
                 "ask_exchange": t.ask_exchange,
                 "ask": t.ask,
                 "ask_condition": t.ask_condition,
+                "midpoint": t.midpoint,
                 "date": t.date
-            })
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
         })
         .collect()
 }
@@ -173,13 +198,21 @@ pub fn trade_quote_ticks_to_json(ticks: &[TradeQuoteTick]) -> Vec<sonic_rs::Valu
     ticks
         .iter()
         .map(|t| {
-            sonic_rs::json!({
+            let mut row = sonic_rs::json!({
                 "ms_of_day": t.ms_of_day,
                 "sequence": t.sequence,
                 "size": t.size,
                 "condition": t.condition,
                 "price": t.price,
                 "exchange": t.exchange,
+                "ext_condition1": t.ext_condition1,
+                "ext_condition2": t.ext_condition2,
+                "ext_condition3": t.ext_condition3,
+                "ext_condition4": t.ext_condition4,
+                "condition_flags": t.condition_flags,
+                "price_flags": t.price_flags,
+                "volume_type": t.volume_type,
+                "records_back": t.records_back,
                 "quote_ms_of_day": t.quote_ms_of_day,
                 "bid_size": t.bid_size,
                 "bid_exchange": t.bid_exchange,
@@ -190,7 +223,9 @@ pub fn trade_quote_ticks_to_json(ticks: &[TradeQuoteTick]) -> Vec<sonic_rs::Valu
                 "ask": t.ask,
                 "ask_condition": t.ask_condition,
                 "date": t.date
-            })
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
         })
         .collect()
 }
@@ -200,11 +235,13 @@ pub fn open_interest_ticks_to_json(ticks: &[OpenInterestTick]) -> Vec<sonic_rs::
     ticks
         .iter()
         .map(|t| {
-            sonic_rs::json!({
+            let mut row = sonic_rs::json!({
                 "ms_of_day": t.ms_of_day,
                 "open_interest": t.open_interest,
                 "date": t.date
-            })
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
         })
         .collect()
 }
@@ -214,7 +251,7 @@ pub fn market_value_ticks_to_json(ticks: &[MarketValueTick]) -> Vec<sonic_rs::Va
     ticks
         .iter()
         .map(|t| {
-            sonic_rs::json!({
+            let mut row = sonic_rs::json!({
                 "ms_of_day": t.ms_of_day,
                 "market_cap": t.market_cap,
                 "shares_outstanding": t.shares_outstanding,
@@ -222,7 +259,9 @@ pub fn market_value_ticks_to_json(ticks: &[MarketValueTick]) -> Vec<sonic_rs::Va
                 "book_value": t.book_value,
                 "free_float": t.free_float,
                 "date": t.date
-            })
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
         })
         .collect()
 }
@@ -232,7 +271,7 @@ pub fn greeks_ticks_to_json(ticks: &[GreeksTick]) -> Vec<sonic_rs::Value> {
     ticks
         .iter()
         .map(|t| {
-            sonic_rs::json!({
+            let mut row = sonic_rs::json!({
                 "ms_of_day": t.ms_of_day,
                 "implied_volatility": t.implied_volatility,
                 "delta": t.delta,
@@ -257,7 +296,9 @@ pub fn greeks_ticks_to_json(ticks: &[GreeksTick]) -> Vec<sonic_rs::Value> {
                 "lambda": t.lambda,
                 "vera": t.vera,
                 "date": t.date
-            })
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
         })
         .collect()
 }
@@ -267,12 +308,14 @@ pub fn iv_ticks_to_json(ticks: &[IvTick]) -> Vec<sonic_rs::Value> {
     ticks
         .iter()
         .map(|t| {
-            sonic_rs::json!({
+            let mut row = sonic_rs::json!({
                 "ms_of_day": t.ms_of_day,
                 "implied_volatility": t.implied_volatility,
                 "iv_error": t.iv_error,
                 "date": t.date
-            })
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
         })
         .collect()
 }
@@ -414,7 +457,8 @@ fn escape_csv_field(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::json_to_csv;
+    use super::*;
+    use tdbe::types::tick::{GreeksTick, QuoteTick, TradeQuoteTick};
 
     #[test]
     fn json_to_csv_formats_scalar_lists_as_single_column() {
@@ -447,5 +491,31 @@ mod tests {
         ]);
 
         assert!(csv.is_none(), "mixed row shapes should not format as CSV");
+    }
+
+    #[test]
+    fn quote_ticks_includes_midpoint() {
+        let t = QuoteTick { ms_of_day: 0, bid_size: 1, bid_exchange: 2, bid: 3.0, bid_condition: 4, ask_size: 5, ask_exchange: 6, ask: 7.0, ask_condition: 8, date: 20260410, expiration: 20260417, strike: 150.0, right: 67, midpoint: 5.0 };
+        let r = quote_ticks_to_json(&[t]); let r = r.first().unwrap();
+        assert!(r.get("midpoint").is_some()); assert_eq!(r.get("expiration").and_then(|v: &sonic_rs::Value| v.as_i64()), Some(20260417));
+    }
+    #[test]
+    fn trade_quote_ticks_has_extended_fields() {
+        let t = TradeQuoteTick { ms_of_day: 0, sequence: 1, ext_condition1: 10, ext_condition2: 20, ext_condition3: 30, ext_condition4: 40, condition: 1, size: 100, exchange: 11, price: 150.0, condition_flags: 3, price_flags: 7, volume_type: 1, records_back: 5, quote_ms_of_day: 0, bid_size: 100, bid_exchange: 11, bid: 149.0, bid_condition: 1, ask_size: 200, ask_exchange: 12, ask: 151.0, ask_condition: 2, date: 20260410, expiration: 0, strike: 0.0, right: 0 };
+        let r = trade_quote_ticks_to_json(&[t]); let r = r.first().unwrap();
+        for k in ["ext_condition1","ext_condition2","ext_condition3","ext_condition4","condition_flags","price_flags","volume_type","records_back"] { assert!(r.get(k).is_some(), "missing: {k}"); }
+    }
+    #[test]
+    fn greeks_ticks_has_all_greeks() {
+        let t = GreeksTick { ms_of_day: 0, implied_volatility: 0.25, delta: 0.5, gamma: 0.1, theta: -0.01, vega: 0.2, rho: 0.05, iv_error: 0.0, vanna: 0.0, charm: 0.0, vomma: 0.0, veta: 0.0, speed: 0.0, zomma: 0.0, color: 0.0, ultima: 0.0, d1: 0.0, d2: 0.0, dual_delta: 0.0, dual_gamma: 0.0, epsilon: 0.0, lambda: 0.0, vera: 0.0, date: 20260410, expiration: 20260417, strike: 150.0, right: 67 };
+        let r = greeks_ticks_to_json(&[t]); let r = r.first().unwrap();
+        for k in ["implied_volatility","delta","gamma","theta","vega","rho","iv_error","vanna","charm","vomma","veta","speed","zomma","color","ultima","d1","d2","dual_delta","dual_gamma","epsilon","lambda","vera"] { assert!(r.get(k).is_some(), "missing: {k}"); }
+        assert_eq!(r.get("expiration").and_then(|v: &sonic_rs::Value| v.as_i64()), Some(20260417));
+    }
+    #[test]
+    fn greeks_ticks_omits_ids_single_contract() {
+        let t = GreeksTick { ms_of_day: 0, implied_volatility: 0.0, delta: 0.0, gamma: 0.0, theta: 0.0, vega: 0.0, rho: 0.0, iv_error: 0.0, vanna: 0.0, charm: 0.0, vomma: 0.0, veta: 0.0, speed: 0.0, zomma: 0.0, color: 0.0, ultima: 0.0, d1: 0.0, d2: 0.0, dual_delta: 0.0, dual_gamma: 0.0, epsilon: 0.0, lambda: 0.0, vera: 0.0, date: 20260410, expiration: 0, strike: 0.0, right: 0 };
+        let r = greeks_ticks_to_json(&[t]); let r = r.first().unwrap();
+        assert!(r.get("expiration").is_none()); assert!(r.get("strike").is_none()); assert!(r.get("right").is_none());
     }
 }
