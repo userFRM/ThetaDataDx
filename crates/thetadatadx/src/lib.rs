@@ -94,12 +94,20 @@
 pub mod auth;
 pub mod config;
 pub mod decode;
-pub mod direct;
 pub mod endpoint;
 pub mod error;
 pub mod fpss;
 pub mod registry;
 pub mod unified;
+pub(crate) mod validate;
+
+// Macro definitions invoked by generated endpoint code and handwritten
+// streaming builders in `direct`. Declared with `#[macro_use]` so the
+// macro_rules are visible to all subsequent module declarations.
+#[macro_use]
+mod macros;
+
+pub mod direct;
 
 /// Generated protobuf types from `external.proto`.
 ///
