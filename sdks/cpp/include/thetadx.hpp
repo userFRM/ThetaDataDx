@@ -38,6 +38,7 @@ using OpenInterestTick = TdxOpenInterestTick;
 using MarketValueTick = TdxMarketValueTick;
 using CalendarDay = TdxCalendarDay;
 using InterestRateTick = TdxInterestRateTick;
+using SnapshotTradeTick = TdxSnapshotTradeTick;
 using TradeQuoteTick = TdxTradeQuoteTick;
 // OptionContract uses std::string for root to avoid use-after-free.
 // The C FFI TdxOptionContract uses a raw char* that is freed with the array,
