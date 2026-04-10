@@ -70,13 +70,14 @@ jobs:
           path: dist/*.whl
 
   compatibility:
-    name: ABI3 smoke (ubuntu py${{ matrix.python }})
-    runs-on: ubuntu-latest
+    name: ABI3 smoke (${{ matrix.os }} py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
         python: ["3.9", "3.14"]
     steps:
       - uses: actions/checkout@v6
