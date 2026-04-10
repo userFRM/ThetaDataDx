@@ -7,14 +7,18 @@ struct Schema {
     types: HashMap<String, TickTypeDef>,
 }
 
+/// Parsed from tick_schema.toml. `doc`, `copy`, and `align` exist in the
+/// TOML for documentation / FFI layout hints but are not used by the parser
+/// generator — tick structs live in `tdbe::types::tick` (hand-written).
 #[derive(Debug, Deserialize)]
 struct TickTypeDef {
-    #[serde(rename = "doc")]
-    _doc: String,
-    #[serde(rename = "copy")]
-    _copy: bool,
-    #[serde(default, rename = "align")]
-    _align: Option<u32>,
+    #[allow(dead_code)]
+    doc: String,
+    #[allow(dead_code)]
+    copy: bool,
+    #[serde(default)]
+    #[allow(dead_code)]
+    align: Option<u32>,
     parser: String,
     #[serde(default)]
     required: Vec<String>,
