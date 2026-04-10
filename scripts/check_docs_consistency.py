@@ -24,6 +24,12 @@ ENDPOINTS = SURFACE["endpoints"]
 ENDPOINT_NAMES = {ep["name"] for ep in ENDPOINTS}
 REST_PATHS = {ep["rest_path"].removeprefix("/v3") for ep in ENDPOINTS}
 EXPECTED_TOOL_COUNT = len(ENDPOINTS) + 3
+BUILDER_PARAMS = {
+    param["name"]
+    for group in SURFACE["param_groups"].values()
+    for param in group.get("params", [])
+    if param.get("binding") == "builder"
+}
 
 
 def lower_camel(snake: str) -> str:
@@ -34,6 +40,14 @@ def lower_camel(snake: str) -> str:
 def fail(message: str) -> None:
     print(f"docs consistency error: {message}", file=sys.stderr)
     raise SystemExit(1)
+
+
+def snake_to_go(name: str) -> str:
+    acronyms = {
+        "dte": "DTE",
+        "nbbo": "NBBO",
+    }
+    return "".join(acronyms.get(part, part.capitalize()) for part in name.split("_"))
 
 
 def expect_contains(path: Path, snippet: str) -> None:
@@ -160,10 +174,93 @@ def check_openapi() -> None:
         )
 
 
+def extract_struct_fields(path: Path, struct_pattern: str, field_pattern: str) -> set[str]:
+    text = path.read_text()
+    match = re.search(struct_pattern, text, re.DOTALL)
+    if not match:
+        fail(f"{path.relative_to(ROOT)} missing expected struct pattern: {struct_pattern!r}")
+    return set(re.findall(field_pattern, match.group(1), re.MULTILINE))
+
+
+def check_endpoint_option_surface() -> None:
+    rust_fields = extract_struct_fields(
+        ROOT / "ffi/src/lib.rs",
+        r"pub struct TdxEndpointRequestOptions \{(.*?)\n\}",
+        r"^\s*pub\s+([a-z_]+)\s*:",
+    )
+    if rust_fields != BUILDER_PARAMS:
+        missing = sorted(BUILDER_PARAMS - rust_fields)
+        extra = sorted(rust_fields - BUILDER_PARAMS)
+        fail(
+            "ffi/src/lib.rs endpoint option fields drifted from endpoint_surface.toml. "
+            f"missing={missing or '[]'} extra={extra or '[]'}"
+        )
+
+    for path in [
+        ROOT / "sdks/go/ffi_bridge.h",
+        ROOT / "sdks/cpp/include/thetadx.h",
+    ]:
+        c_fields = extract_struct_fields(
+            path,
+            r"typedef struct \{(.*?)\n\}\s*TdxEndpointRequestOptions;",
+            r"^\s*(?:const char\*|int32_t|double)\s+([a-z_]+);",
+        )
+        if c_fields != BUILDER_PARAMS:
+            missing = sorted(BUILDER_PARAMS - c_fields)
+            extra = sorted(c_fields - BUILDER_PARAMS)
+            fail(
+                f"{path.relative_to(ROOT)} endpoint option fields drifted from endpoint_surface.toml. "
+                f"missing={missing or '[]'} extra={extra or '[]'}"
+            )
+
+    go_fields = extract_struct_fields(
+        ROOT / "sdks/go/client.go",
+        r"type EndpointRequestOptions struct \{(.*?)\n\}",
+        r"^\s*([A-Z][A-Za-z0-9]+)\s+\*",
+    )
+    expected_go_fields = {snake_to_go(name) for name in BUILDER_PARAMS}
+    if go_fields != expected_go_fields:
+        missing = sorted(expected_go_fields - go_fields)
+        extra = sorted(go_fields - expected_go_fields)
+        fail(
+            "sdks/go/client.go EndpointRequestOptions fields drifted from endpoint_surface.toml. "
+            f"missing={missing or '[]'} extra={extra or '[]'}"
+        )
+
+    cpp_fields = extract_struct_fields(
+        ROOT / "sdks/cpp/include/thetadx.hpp",
+        r"struct EndpointRequestOptions \{(.*?)\n\};",
+        r"^\s*std::optional<[^>]+>\s+([a-z_]+);",
+    )
+    if cpp_fields != BUILDER_PARAMS:
+        missing = sorted(BUILDER_PARAMS - cpp_fields)
+        extra = sorted(cpp_fields - BUILDER_PARAMS)
+        fail(
+            "sdks/cpp/include/thetadx.hpp EndpointRequestOptions fields drifted from endpoint_surface.toml. "
+            f"missing={missing or '[]'} extra={extra or '[]'}"
+        )
+
+    for path in [
+        ROOT / "ffi/src/lib.rs",
+        ROOT / "sdks/go/ffi_bridge.h",
+        ROOT / "sdks/cpp/include/thetadx.h",
+        ROOT / "sdks/go/client.go",
+        ROOT / "sdks/cpp/include/thetadx.hpp",
+        ROOT / "sdks/cpp/src/thetadx.cpp",
+        ROOT / "sdks/go/README.md",
+        ROOT / "sdks/cpp/README.md",
+        ROOT / "docs-site/docs/getting-started/migration-from-rest-ws.md",
+        ROOT / "docs-site/docs/historical/option/history/greeks-eod.md",
+    ]:
+        expect_not_contains(path, "OptionRequestOptions")
+        expect_not_contains(path, "TdxOptionRequestOptions")
+
+
 def main() -> None:
     check_static_docs()
     check_api_reference()
     check_openapi()
+    check_endpoint_option_surface()
     print("docs consistency: ok")
 
 

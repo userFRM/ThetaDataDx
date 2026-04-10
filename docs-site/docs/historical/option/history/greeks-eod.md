@@ -44,7 +44,7 @@ data, _ := client.OptionHistoryGreeksEODWithOptions(
     "C",
     "20260101",
     "20260301",
-    &thetadatadx.OptionRequestOptions{StrikeRange: thetadatadx.Int32(5)},
+    &thetadatadx.EndpointRequestOptions{StrikeRange: thetadatadx.Int32(5)},
 )
 for _, t := range data {
     fmt.Printf("date=%d implied_volatility=%.4f delta=%.4f gamma=%.4f theta=%.4f vega=%.4f rho=%.4f\n",
@@ -52,7 +52,7 @@ for _, t := range data {
 }
 ```
 ```cpp [C++]
-tdx::OptionRequestOptions options;
+tdx::EndpointRequestOptions options;
 options.strike_range = 5;
 auto data = client.option_history_greeks_eod("SPY", "20260417", "0", "C", "20260101", "20260301", options);
 for (const auto& t : data) {

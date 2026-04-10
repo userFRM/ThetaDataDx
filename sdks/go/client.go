@@ -789,16 +789,26 @@ type Client struct {
 	handle *C.TdxClient
 }
 
-// OptionRequestOptions contains optional builder parameters for option
-// historical and snapshot requests surfaced through the Go SDK.
+// EndpointRequestOptions contains optional builder parameters surfaced through
+// the Go SDK for registry-driven endpoint wrappers.
 //
-// The pointer helpers below keep optional field initialization concise.
-type OptionRequestOptions struct {
+// Rust models these as builder setters. Go projects the same surface as an
+// options bag to keep call sites idiomatic and readable.
+type EndpointRequestOptions struct {
+	Venue            *string
+	MinTime          *string
+	StartTime        *string
+	EndTime          *string
+	StartDate        *string
+	EndDate          *string
+	Exclusive        *bool
 	AnnualDividend   *float64
 	RateType         *string
 	RateValue        *float64
+	StockPrice       *float64
 	Version          *string
 	UnderlyerUseNBBO *bool
+	UseMarketValue   *bool
 	MaxDTE           *int32
 	StrikeRange      *int32
 }
@@ -1062,14 +1072,20 @@ func (c *Client) optArgs4(s, e, k, r string) (*C.char, *C.char, *C.char, *C.char
 	}
 }
 
-func optionRequestOptionsToC(opts *OptionRequestOptions) (*C.TdxOptionRequestOptions, func()) {
+func endpointRequestOptionsToC(opts *EndpointRequestOptions) (*C.TdxEndpointRequestOptions, func()) {
 	if opts == nil {
 		return nil, func() {}
 	}
 
-	cOpts := &C.TdxOptionRequestOptions{}
+	cOpts := &C.TdxEndpointRequestOptions{}
 	cOpts.max_dte = -1
 	cOpts.strike_range = -1
+	cOpts.venue = nil
+	cOpts.min_time = nil
+	cOpts.start_time = nil
+	cOpts.end_time = nil
+	cOpts.start_date = nil
+	cOpts.end_date = nil
 	cOpts.annual_dividend = C.double(math.NaN())
 	cOpts.rate_value = C.double(math.NaN())
 	cOpts.stock_price = C.double(math.NaN())
@@ -1087,6 +1103,43 @@ func optionRequestOptionsToC(opts *OptionRequestOptions) (*C.TdxOptionRequestOpt
 	if opts.AnnualDividend != nil {
 		cOpts.annual_dividend = C.double(*opts.AnnualDividend)
 	}
+	if opts.Venue != nil {
+		venue := C.CString(*opts.Venue)
+		cOpts.venue = venue
+		allocations = append(allocations, unsafe.Pointer(venue))
+	}
+	if opts.MinTime != nil {
+		minTime := C.CString(*opts.MinTime)
+		cOpts.min_time = minTime
+		allocations = append(allocations, unsafe.Pointer(minTime))
+	}
+	if opts.StartTime != nil {
+		startTime := C.CString(*opts.StartTime)
+		cOpts.start_time = startTime
+		allocations = append(allocations, unsafe.Pointer(startTime))
+	}
+	if opts.EndTime != nil {
+		endTime := C.CString(*opts.EndTime)
+		cOpts.end_time = endTime
+		allocations = append(allocations, unsafe.Pointer(endTime))
+	}
+	if opts.StartDate != nil {
+		startDate := C.CString(*opts.StartDate)
+		cOpts.start_date = startDate
+		allocations = append(allocations, unsafe.Pointer(startDate))
+	}
+	if opts.EndDate != nil {
+		endDate := C.CString(*opts.EndDate)
+		cOpts.end_date = endDate
+		allocations = append(allocations, unsafe.Pointer(endDate))
+	}
+	if opts.Exclusive != nil {
+		if *opts.Exclusive {
+			cOpts.exclusive = 1
+		} else {
+			cOpts.exclusive = 0
+		}
+	}
 	if opts.RateType != nil {
 		rateType := C.CString(*opts.RateType)
 		cOpts.rate_type = rateType
@@ -1094,6 +1147,9 @@ func optionRequestOptionsToC(opts *OptionRequestOptions) (*C.TdxOptionRequestOpt
 	}
 	if opts.RateValue != nil {
 		cOpts.rate_value = C.double(*opts.RateValue)
+	}
+	if opts.StockPrice != nil {
+		cOpts.stock_price = C.double(*opts.StockPrice)
 	}
 	if opts.Version != nil {
 		version := C.CString(*opts.Version)
@@ -1105,6 +1161,13 @@ func optionRequestOptionsToC(opts *OptionRequestOptions) (*C.TdxOptionRequestOpt
 			cOpts.underlyer_use_nbbo = 1
 		} else {
 			cOpts.underlyer_use_nbbo = 0
+		}
+	}
+	if opts.UseMarketValue != nil {
+		if *opts.UseMarketValue {
+			cOpts.use_market_value = 1
+		} else {
+			cOpts.use_market_value = 0
 		}
 	}
 	if opts.MaxDTE != nil {
@@ -1274,14 +1337,14 @@ func (c *Client) OptionHistoryGreeksEOD(s, e, k, r, sd, ed string) ([]GreeksTick
 
 // OptionHistoryGreeksEODWithOptions fetches EOD Greeks history with optional
 // builder parameters such as StrikeRange for wildcard multi-strike requests.
-func (c *Client) OptionHistoryGreeksEODWithOptions(s, e, k, r, sd, ed string, opts *OptionRequestOptions) ([]GreeksTick, error) {
+func (c *Client) OptionHistoryGreeksEODWithOptions(s, e, k, r, sd, ed string, opts *EndpointRequestOptions) ([]GreeksTick, error) {
 	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
 	defer free()
 	cSD := C.CString(sd)
 	cED := C.CString(ed)
 	defer C.free(unsafe.Pointer(cSD))
 	defer C.free(unsafe.Pointer(cED))
-	cOpts, freeOpts := optionRequestOptionsToC(opts)
+	cOpts, freeOpts := endpointRequestOptionsToC(opts)
 	defer freeOpts()
 	arr := C.tdx_option_history_greeks_eod_with_options(c.handle, cS, cE, cK, cR, cSD, cED, cOpts)
 	result := convertGreeksTicks(arr)

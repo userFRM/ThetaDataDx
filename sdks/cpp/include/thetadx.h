@@ -39,7 +39,7 @@ typedef struct TdxConfig TdxConfig;
 typedef struct TdxFpssHandle TdxFpssHandle;
 typedef struct TdxUnified TdxUnified;
 
-/* Optional builder parameters for option historical/snapshot requests.
+/* Optional builder parameters for registry-driven endpoint requests.
  * Sentinels:
  * - integers: -1 means unset
  * - booleans: -1 unset, 0 false, 1 true
@@ -49,6 +49,7 @@ typedef struct TdxUnified TdxUnified;
 typedef struct {
     int32_t max_dte;
     int32_t strike_range;
+    const char* venue;
     const char* min_time;
     const char* start_time;
     const char* end_time;
@@ -62,7 +63,7 @@ typedef struct {
     const char* version;
     int32_t underlyer_use_nbbo;
     int32_t use_market_value;
-} TdxOptionRequestOptions;
+} TdxEndpointRequestOptions;
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  #[repr(C)] tick types — layout-compatible with Rust tdbe structs      */
@@ -625,7 +626,7 @@ TdxGreeksTickArray tdx_option_history_greeks_eod(const TdxClient* client, const 
 TdxGreeksTickArray tdx_option_history_greeks_eod_with_options(const TdxClient* client, const char* symbol, const char* expiration,
                                                               const char* strike, const char* right,
                                                               const char* start_date, const char* end_date,
-                                                              const TdxOptionRequestOptions* options);
+                                                              const TdxEndpointRequestOptions* options);
 
 TdxGreeksTickArray tdx_option_history_greeks_all(const TdxClient* client, const char* symbol, const char* expiration,
                                                   const char* strike, const char* right,

@@ -79,11 +79,11 @@ rows, err := client.OptionHistoryGreeksEODWithOptions(
     "C",
     "20221219",
     "20221220",
-    &thetadatadx.OptionRequestOptions{StrikeRange: thetadatadx.Int32(5)},
+    &thetadatadx.EndpointRequestOptions{StrikeRange: thetadatadx.Int32(5)},
 )
 ```
 ```cpp [C++]
-tdx::OptionRequestOptions options;
+tdx::EndpointRequestOptions options;
 options.strike_range = 5;
 auto rows = client.option_history_greeks_eod("SPY", "20230120", "0", "C", "20221219", "20221220", options);
 ```
@@ -218,7 +218,13 @@ The official streaming API exposes `STREAM` requests with `sec_type: "INDEX"` an
 
 ## Rust Builder vs Fixed-Arity Bindings
 
-Rust is the closest direct projection of the merged current REST routes because optional query parameters stay on builder methods.
+Rust is the closest direct projection of the merged current REST routes because required parameters stay in the constructor call and optional query parameters stay on builder methods. That chained style is intentional, not a special case for `strike_range`.
+
+Other SDKs project the same optional surface idiomatically for their language:
+
+- Python uses keyword-only optional parameters
+- Go uses `WithOptions` helpers plus `EndpointRequestOptions`
+- C++ uses `EndpointRequestOptions` overloads
 
 Example:
 
@@ -237,7 +243,7 @@ Python, Go, and C++ still expose fixed-arity convenience methods for the common 
 
 - exact single-date helper when the binding exposes it
 - dedicated range helper when the binding exposes it, such as `stock_history_ohlc_range`
-- Python keyword-only optional parameters, Go `WithOptions` helpers, or C++ `OptionRequestOptions` overloads when the binding exposes them
+- Python keyword-only optional parameters, Go `WithOptions` helpers, or C++ `EndpointRequestOptions` overloads when the binding exposes them
 - Rust for the most faithful 1:1 projection of the official optional query surface
 
 ## Worked Example

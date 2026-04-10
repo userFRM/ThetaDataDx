@@ -165,7 +165,7 @@ auto client = tdx::Client::connect(creds, tdx::Config::production());
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `option_history_greeks_eod(sym, exp, strike, right, start, end[, options])` | `vector<GreeksTick>` | EOD Greeks history. Optional `OptionRequestOptions` exposes filters such as `strike_range`. |
+| `option_history_greeks_eod(sym, exp, strike, right, start, end[, options])` | `vector<GreeksTick>` | EOD Greeks history. Optional `EndpointRequestOptions` exposes filters such as `strike_range`. |
 | `option_history_greeks_all(sym, exp, strike, right, date, interval)` | `vector<GreeksTick>` | All Greeks history (intraday) |
 | `option_history_trade_greeks_all(sym, exp, strike, right, date)` | `vector<GreeksTick>` | All Greeks on each trade |
 | `option_history_greeks_first_order(sym, exp, strike, right, date, interval)` | `vector<GreeksTick>` | First-order Greeks history |

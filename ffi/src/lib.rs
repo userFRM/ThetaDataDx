@@ -118,7 +118,7 @@ pub struct TdxFpssHandle {
     rx: Arc<Mutex<std::sync::mpsc::Receiver<FfiBufferedEvent>>>,
 }
 
-/// Optional builder parameters for option historical/snapshot requests over FFI.
+/// Optional builder parameters for registry-driven endpoint requests over FFI.
 ///
 /// Fields use simple C-friendly sentinels:
 ///
@@ -127,9 +127,10 @@ pub struct TdxFpssHandle {
 /// - floating-point values: `NaN` means unset
 /// - string pointers: null means unset
 #[repr(C)]
-pub struct TdxOptionRequestOptions {
+pub struct TdxEndpointRequestOptions {
     pub max_dte: i32,
     pub strike_range: i32,
+    pub venue: *const c_char,
     pub min_time: *const c_char,
     pub start_time: *const c_char,
     pub end_time: *const c_char,
@@ -679,9 +680,9 @@ fn insert_optional_float_arg(args: &mut thetadatadx::EndpointArgs, key: &str, va
     }
 }
 
-fn apply_option_request_options(
+fn apply_endpoint_request_options(
     args: &mut thetadatadx::EndpointArgs,
-    options: *const TdxOptionRequestOptions,
+    options: *const TdxEndpointRequestOptions,
 ) -> Result<(), String> {
     if options.is_null() {
         return Ok(());
@@ -690,6 +691,7 @@ fn apply_option_request_options(
     let options = unsafe { &*options };
     insert_optional_int_arg(args, "max_dte", options.max_dte);
     insert_optional_int_arg(args, "strike_range", options.strike_range);
+    insert_optional_str_arg(args, "venue", options.venue)?;
     insert_optional_str_arg(args, "min_time", options.min_time)?;
     insert_optional_str_arg(args, "start_time", options.start_time)?;
     insert_optional_str_arg(args, "end_time", options.end_time)?;
@@ -1580,8 +1582,8 @@ ffi_typed_endpoint! {
 
 /// Fetch EOD Greeks history with optional builder parameters.
 ///
-/// This currently enables non-Rust bindings to surface parameters such as
-/// `strike_range` without hand-coding Rust builder logic in each language.
+/// This currently enables non-Rust bindings to surface endpoint builder
+/// parameters without hand-coding Rust builder logic in each language.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
     client: *const TdxClient,
@@ -1591,7 +1593,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
     right: *const c_char,
     start_date: *const c_char,
     end_date: *const c_char,
-    options: *const TdxOptionRequestOptions,
+    options: *const TdxEndpointRequestOptions,
 ) -> TdxGreeksTickArray {
     let empty = TdxGreeksTickArray {
         data: ptr::null(),
@@ -1671,7 +1673,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
         thetadatadx::EndpointArgValue::Str(end_date.to_string()),
     );
 
-    if let Err(message) = apply_option_request_options(&mut args, options) {
+    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
         set_error(&message);
         return empty;
     }

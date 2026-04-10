@@ -26,14 +26,21 @@ static std::vector<const char*> string_ptrs(const std::vector<std::string>& item
     return ptrs;
 }
 
-struct FfiOptionRequestOptions {
-    TdxOptionRequestOptions raw{};
+struct FfiEndpointRequestOptions {
+    TdxEndpointRequestOptions raw{};
+    std::string venue_storage;
+    std::string min_time_storage;
+    std::string start_time_storage;
+    std::string end_time_storage;
+    std::string start_date_storage;
+    std::string end_date_storage;
     std::string rate_type_storage;
     std::string version_storage;
 
-    explicit FfiOptionRequestOptions(const OptionRequestOptions& options) {
+    explicit FfiEndpointRequestOptions(const EndpointRequestOptions& options) {
         raw.max_dte = -1;
         raw.strike_range = -1;
+        raw.venue = nullptr;
         raw.min_time = nullptr;
         raw.start_time = nullptr;
         raw.end_time = nullptr;
@@ -48,6 +55,33 @@ struct FfiOptionRequestOptions {
         raw.underlyer_use_nbbo = -1;
         raw.use_market_value = -1;
 
+        if (options.venue) {
+            venue_storage = *options.venue;
+            raw.venue = venue_storage.c_str();
+        }
+        if (options.min_time) {
+            min_time_storage = *options.min_time;
+            raw.min_time = min_time_storage.c_str();
+        }
+        if (options.start_time) {
+            start_time_storage = *options.start_time;
+            raw.start_time = start_time_storage.c_str();
+        }
+        if (options.end_time) {
+            end_time_storage = *options.end_time;
+            raw.end_time = end_time_storage.c_str();
+        }
+        if (options.start_date) {
+            start_date_storage = *options.start_date;
+            raw.start_date = start_date_storage.c_str();
+        }
+        if (options.end_date) {
+            end_date_storage = *options.end_date;
+            raw.end_date = end_date_storage.c_str();
+        }
+        if (options.exclusive) {
+            raw.exclusive = *options.exclusive ? 1 : 0;
+        }
         if (options.annual_dividend) {
             raw.annual_dividend = *options.annual_dividend;
         }
@@ -58,12 +92,18 @@ struct FfiOptionRequestOptions {
         if (options.rate_value) {
             raw.rate_value = *options.rate_value;
         }
+        if (options.stock_price) {
+            raw.stock_price = *options.stock_price;
+        }
         if (options.version) {
             version_storage = *options.version;
             raw.version = version_storage.c_str();
         }
         if (options.underlyer_use_nbbo) {
             raw.underlyer_use_nbbo = *options.underlyer_use_nbbo ? 1 : 0;
+        }
+        if (options.use_market_value) {
+            raw.use_market_value = *options.use_market_value ? 1 : 0;
         }
         if (options.max_dte) {
             raw.max_dte = *options.max_dte;
@@ -339,8 +379,8 @@ std::vector<OpenInterestTick> Client::option_history_open_interest(const std::st
 //  Option — History Greeks endpoints
 // ═══════════════════════════════════════════════════════════════
 
-std::vector<GreeksTick> Client::option_history_greeks_eod(const std::string& s, const std::string& e, const std::string& k, const std::string& r, const std::string& sd, const std::string& ed, const OptionRequestOptions& options) const {
-    detail::FfiOptionRequestOptions ffi_options(options);
+std::vector<GreeksTick> Client::option_history_greeks_eod(const std::string& s, const std::string& e, const std::string& k, const std::string& r, const std::string& sd, const std::string& ed, const EndpointRequestOptions& options) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
     TDX_TYPED_ARRAY(TdxGreeksTickArray, GreeksTick, tdx_greeks_tick_array_free,
         tdx_option_history_greeks_eod_with_options(handle_.get(), s.c_str(), e.c_str(), k.c_str(), r.c_str(), sd.c_str(), ed.c_str(), &ffi_options.raw));
 }

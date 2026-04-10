@@ -17,7 +17,7 @@ typedef struct { const void* data; size_t len; } TdxTickArray;
 typedef struct { const void* data; size_t len; } TdxStringArray;
 typedef struct { const void* data; size_t len; } TdxOptionContractArray;
 
-/* Optional builder parameters for option historical/snapshot requests.
+/* Optional builder parameters for registry-driven endpoint requests.
  * Sentinels:
  * - integers: -1 means unset
  * - booleans: -1 unset, 0 false, 1 true
@@ -27,6 +27,7 @@ typedef struct { const void* data; size_t len; } TdxOptionContractArray;
 typedef struct {
     int32_t max_dte;
     int32_t strike_range;
+    const char* venue;
     const char* min_time;
     const char* start_time;
     const char* end_time;
@@ -40,7 +41,7 @@ typedef struct {
     const char* version;
     int32_t underlyer_use_nbbo;
     int32_t use_market_value;
-} TdxOptionRequestOptions;
+} TdxEndpointRequestOptions;
 
 /* Error */
 extern const char* tdx_last_error(void);
@@ -117,7 +118,7 @@ extern TdxTickArray tdx_option_history_quote(const TdxClient* client, const char
 extern TdxTickArray tdx_option_history_trade_quote(const TdxClient* client, const char* symbol, const char* expiration, const char* strike, const char* right, const char* date);
 extern TdxTickArray tdx_option_history_open_interest(const TdxClient* client, const char* symbol, const char* expiration, const char* strike, const char* right, const char* date);
 extern TdxTickArray tdx_option_history_greeks_eod(const TdxClient* client, const char* symbol, const char* expiration, const char* strike, const char* right, const char* start_date, const char* end_date);
-extern TdxTickArray tdx_option_history_greeks_eod_with_options(const TdxClient* client, const char* symbol, const char* expiration, const char* strike, const char* right, const char* start_date, const char* end_date, const TdxOptionRequestOptions* options);
+extern TdxTickArray tdx_option_history_greeks_eod_with_options(const TdxClient* client, const char* symbol, const char* expiration, const char* strike, const char* right, const char* start_date, const char* end_date, const TdxEndpointRequestOptions* options);
 extern TdxTickArray tdx_option_history_greeks_all(const TdxClient* client, const char* symbol, const char* expiration, const char* strike, const char* right, const char* date, const char* interval);
 extern TdxTickArray tdx_option_history_trade_greeks_all(const TdxClient* client, const char* symbol, const char* expiration, const char* strike, const char* right, const char* date);
 extern TdxTickArray tdx_option_history_greeks_first_order(const TdxClient* client, const char* symbol, const char* expiration, const char* strike, const char* right, const char* date, const char* interval);

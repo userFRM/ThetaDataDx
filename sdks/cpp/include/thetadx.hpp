@@ -83,16 +83,25 @@ struct Greeks {
     double lambda;
 };
 
-/// Optional builder parameters for option historical/snapshot requests.
+/// Optional builder parameters for registry-driven endpoint wrappers.
 ///
-/// The C++ wrapper uses `std::optional` so callers can opt into the same
-/// metadata-driven filters exposed by Rust without sentinel values.
-struct OptionRequestOptions {
+/// Rust models these as builder setters. The C++ wrapper projects the same
+/// surface as a value object with `std::optional` fields.
+struct EndpointRequestOptions {
+    std::optional<std::string> venue;
+    std::optional<std::string> min_time;
+    std::optional<std::string> start_time;
+    std::optional<std::string> end_time;
+    std::optional<std::string> start_date;
+    std::optional<std::string> end_date;
+    std::optional<bool> exclusive;
     std::optional<double> annual_dividend;
     std::optional<std::string> rate_type;
     std::optional<double> rate_value;
+    std::optional<double> stock_price;
     std::optional<std::string> version;
     std::optional<bool> underlyer_use_nbbo;
+    std::optional<bool> use_market_value;
     std::optional<int32_t> max_dte;
     std::optional<int32_t> strike_range;
 };
@@ -391,7 +400,7 @@ public:
     std::vector<GreeksTick> option_history_greeks_eod(const std::string& symbol, const std::string& expiration,
                                                       const std::string& strike, const std::string& right,
                                                       const std::string& start_date, const std::string& end_date,
-                                                      const OptionRequestOptions& options = {}) const;
+                                                      const EndpointRequestOptions& options = {}) const;
     std::vector<GreeksTick> option_history_greeks_all(const std::string& symbol, const std::string& expiration,
                                                       const std::string& strike, const std::string& right,
                                                       const std::string& date, const std::string& interval) const;
