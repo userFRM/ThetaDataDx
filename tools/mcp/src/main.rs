@@ -553,9 +553,12 @@ fn serialize_quote_ticks(ticks: &[tdbe::types::tick::QuoteTick]) -> Value {
                 "bid": t.bid,
                 "bid_size": t.bid_size,
                 "bid_exchange": t.bid_exchange,
+                "bid_condition": t.bid_condition,
                 "ask": t.ask,
                 "ask_size": t.ask_size,
                 "ask_exchange": t.ask_exchange,
+                "ask_condition": t.ask_condition,
+                "midpoint": t.midpoint,
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
@@ -576,10 +579,23 @@ fn serialize_trade_quote_ticks(ticks: &[tdbe::types::tick::TradeQuoteTick]) -> V
                 "exchange": t.exchange,
                 "condition": t.condition,
                 "sequence": t.sequence,
+                "ext_condition1": t.ext_condition1,
+                "ext_condition2": t.ext_condition2,
+                "ext_condition3": t.ext_condition3,
+                "ext_condition4": t.ext_condition4,
+                "condition_flags": t.condition_flags,
+                "price_flags": t.price_flags,
+                "volume_type": t.volume_type,
+                "records_back": t.records_back,
+                "quote_ms_of_day": t.quote_ms_of_day,
                 "bid": t.bid,
                 "bid_size": t.bid_size,
+                "bid_exchange": t.bid_exchange,
+                "bid_condition": t.bid_condition,
                 "ask": t.ask,
                 "ask_size": t.ask_size,
+                "ask_exchange": t.ask_exchange,
+                "ask_condition": t.ask_condition,
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
@@ -624,9 +640,15 @@ fn serialize_greeks_ticks(ticks: &[tdbe::types::tick::GreeksTick]) -> Value {
         .map(|t| {
             let mut row = json!({
                 "date": t.date, "ms_of_day": t.ms_of_day,
-                "implied_volatility": t.implied_volatility, "delta": t.delta,
-                "gamma": t.gamma, "theta": t.theta, "vega": t.vega, "rho": t.rho,
-                "iv_error": t.iv_error,
+                "implied_volatility": t.implied_volatility,
+                "delta": t.delta, "gamma": t.gamma, "theta": t.theta,
+                "vega": t.vega, "rho": t.rho, "iv_error": t.iv_error,
+                "vanna": t.vanna, "charm": t.charm, "vomma": t.vomma,
+                "veta": t.veta, "speed": t.speed, "zomma": t.zomma,
+                "color": t.color, "ultima": t.ultima,
+                "d1": t.d1, "d2": t.d2,
+                "dual_delta": t.dual_delta, "dual_gamma": t.dual_gamma,
+                "epsilon": t.epsilon, "lambda": t.lambda, "vera": t.vera,
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
