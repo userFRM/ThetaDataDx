@@ -299,6 +299,7 @@ func init() {
 		{"cMarketValueTick", unsafe.Sizeof(cMarketValueTick{}), 128},
 		{"cGreeksTick", unsafe.Sizeof(cGreeksTick{}), 256},
 		{"cTradeQuoteTick", unsafe.Sizeof(cTradeQuoteTick{}), 192},
+		{"cOptionContract", unsafe.Sizeof(cOptionContract{}), 32},
 	}
 	for _, c := range checks {
 		if c.got != c.want {

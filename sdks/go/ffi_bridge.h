@@ -10,6 +10,7 @@ typedef struct TdxCredentials TdxCredentials;
 typedef struct TdxClient TdxClient;
 typedef struct TdxConfig TdxConfig;
 typedef struct TdxFpssHandle TdxFpssHandle;
+typedef struct TdxUnified TdxUnified;
 
 /* Generic array layouts used by the Go bindings. */
 typedef struct { const void* data; size_t len; } TdxTickArray;
@@ -267,5 +268,26 @@ extern TdxFpssEvent* tdx_fpss_next_event(const TdxFpssHandle* h, uint64_t timeou
 extern void tdx_fpss_event_free(TdxFpssEvent* event);
 extern void tdx_fpss_shutdown(const TdxFpssHandle* h);
 extern void tdx_fpss_free(TdxFpssHandle* h);
+
+/* Unified client -- historical + streaming through one handle */
+extern TdxUnified* tdx_unified_connect(const TdxCredentials* creds, const TdxConfig* config);
+extern int tdx_unified_start_streaming(const TdxUnified* handle);
+extern int tdx_unified_subscribe_quotes(const TdxUnified* handle, const char* symbol);
+extern int tdx_unified_subscribe_trades(const TdxUnified* handle, const char* symbol);
+extern int tdx_unified_unsubscribe_quotes(const TdxUnified* handle, const char* symbol);
+extern int tdx_unified_unsubscribe_trades(const TdxUnified* handle, const char* symbol);
+extern int tdx_unified_subscribe_open_interest(const TdxUnified* handle, const char* symbol);
+extern int tdx_unified_unsubscribe_open_interest(const TdxUnified* handle, const char* symbol);
+extern int tdx_unified_subscribe_full_trades(const TdxUnified* handle, const char* sec_type);
+extern int tdx_unified_subscribe_full_open_interest(const TdxUnified* handle, const char* sec_type);
+extern int tdx_unified_unsubscribe_full_trades(const TdxUnified* handle, const char* sec_type);
+extern int tdx_unified_unsubscribe_full_open_interest(const TdxUnified* handle, const char* sec_type);
+extern int tdx_unified_is_streaming(const TdxUnified* handle);
+extern char* tdx_unified_contract_lookup(const TdxUnified* handle, int id);
+extern TdxSubscriptionArray* tdx_unified_active_subscriptions(const TdxUnified* handle);
+extern TdxFpssEvent* tdx_unified_next_event(const TdxUnified* handle, uint64_t timeout_ms);
+extern const TdxClient* tdx_unified_historical(const TdxUnified* handle);
+extern void tdx_unified_stop_streaming(const TdxUnified* handle);
+extern void tdx_unified_free(TdxUnified* handle);
 
 #endif
