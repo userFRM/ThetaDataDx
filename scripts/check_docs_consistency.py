@@ -72,6 +72,22 @@ def check_static_docs() -> None:
         ROOT / "docs-site/docs/tools/mcp.md",
         f"{len(ENDPOINTS)} data endpoints + ping + all_greeks + implied_volatility = {EXPECTED_TOOL_COUNT} tools.",
     )
+    expect_contains(
+        ROOT / "docs-site/docs/.vitepress/config.ts",
+        "{ text: 'Migration from REST & WS', link: '/getting-started/migration-from-rest-ws' }",
+    )
+    expect_contains(
+        ROOT / "docs-site/docs/getting-started/index.md",
+        "[Migration from REST & WebSocket](./migration-from-rest-ws)",
+    )
+    expect_contains(
+        ROOT / "docs-site/docs/tools/mcp.md",
+        'Use `"strike":"0"` when you want a bulk chain-style response',
+    )
+    expect_contains(
+        ROOT / "tools/mcp/README.md",
+        'Use `"strike":"0"` when you want a bulk chain-style response',
+    )
 
     for path in [
         ROOT / "tools/server/README.md",
@@ -93,6 +109,20 @@ def check_static_docs() -> None:
     sdk_overview = ROOT / "sdks/README.md"
     expect_contains(sdk_overview, "`TdxUnified` / `TdxFpssHandle`")
     expect_contains(sdk_overview, "| **Unified** | `tdx_unified_connect`, `tdx_unified_historical`, `tdx_unified_*`, `tdx_unified_free` |")
+
+    option_docs = list((ROOT / "docs-site/docs/historical/option").rglob("*.md"))
+    strike_docs = option_docs + [
+        ROOT / "docs-site/docs/api-reference.md",
+        ROOT / "docs/api-reference.md",
+        ROOT / "tools/cli/README.md",
+        ROOT / "docs-site/docs/tools/cli.md",
+        ROOT / "tools/server/README.md",
+        ROOT / "docs-site/docs/tools/server.md",
+        ROOT / "docs-site/public/thetadatadx.yaml",
+    ]
+    for path in strike_docs:
+        expect_not_contains(path, "scaled integer")
+        expect_not_contains(path, "500000")
 
 
 def check_api_reference() -> None:

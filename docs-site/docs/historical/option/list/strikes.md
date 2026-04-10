@@ -55,7 +55,7 @@ for (const auto& item : data) {
 <div class="param-list">
 <div class="param">
 <div class="param-header"><code>(list)</code><span class="param-type">string[]</span></div>
-<div class="param-desc">Strike prices as scaled integer strings</div>
+<div class="param-desc">Strike prices in dollars as strings</div>
 </div>
 </div>
 

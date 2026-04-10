@@ -1617,7 +1617,10 @@ fn map_field(name: &str, proto_type: &str, is_repeated: bool) -> (String, String
             "Accepts milliseconds (60000) or shorthand (1m). Presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.".into(),
         ),
         ("string", "right") => ("Right".into(), "C for call, P for put".into()),
-        ("string", "strike") => ("Strike".into(), "Strike price (raw integer)".into()),
+        ("string", "strike") => (
+            "Strike".into(),
+            "Strike price in dollars as a string (e.g. 500 or 17.5)".into(),
+        ),
         ("string", "expiration") => ("Expiration".into(), "Expiration date YYYYMMDD".into()),
         ("string", "request_type") => (
             "RequestType".into(),

@@ -50,7 +50,7 @@ tdx option list_expirations SPY
 tdx option list_strikes SPY 20240419
 
 # Option EOD with Greeks
-tdx option history_greeks_eod SPY 20240419 500000 C 20240101 20240301
+tdx option history_greeks_eod SPY 20240419 500 C 20240101 20240301
 
 # Snapshot quotes
 tdx stock snapshot_quote AAPL,MSFT,GOOGL

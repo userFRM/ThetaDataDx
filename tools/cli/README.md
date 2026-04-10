@@ -50,43 +50,43 @@ tdx stock at_time_quote AAPL 20240101 20240301 34200000
 tdx option list_symbols
 tdx option list_expirations SPY
 tdx option list_strikes SPY 20240419
-tdx option list_dates EOD SPY 20240419 500000 C
+tdx option list_dates EOD SPY 20240419 500 C
 tdx option list_contracts EOD SPY 20240315
-tdx option history_trade SPY 20240419 500000 C 20240315
-tdx option history_quote SPY 20240419 500000 C 20240315 1m
-tdx option history_eod SPY 20240419 500000 C 20240101 20240301
-tdx option history_ohlc SPY 20240419 500000 C 20240315 1m
-tdx option history_trade_quote SPY 20240419 500000 C 20240315
-tdx option history_open_interest SPY 20240419 500000 C 20240315
+tdx option history_trade SPY 20240419 500 C 20240315
+tdx option history_quote SPY 20240419 500 C 20240315 1m
+tdx option history_eod SPY 20240419 500 C 20240101 20240301
+tdx option history_ohlc SPY 20240419 500 C 20240315 1m
+tdx option history_trade_quote SPY 20240419 500 C 20240315
+tdx option history_open_interest SPY 20240419 500 C 20240315
 
 # Option snapshots
-tdx option snapshot_ohlc SPY 20240419 500000 C
-tdx option snapshot_trade SPY 20240419 500000 C
-tdx option snapshot_quote SPY 20240419 500000 C
-tdx option snapshot_open_interest SPY 20240419 500000 C
-tdx option snapshot_market_value SPY 20240419 500000 C
-tdx option snapshot_greeks_implied_volatility SPY 20240419 500000 C
-tdx option snapshot_greeks_all SPY 20240419 500000 C
-tdx option snapshot_greeks_first_order SPY 20240419 500000 C
-tdx option snapshot_greeks_second_order SPY 20240419 500000 C
-tdx option snapshot_greeks_third_order SPY 20240419 500000 C
+tdx option snapshot_ohlc SPY 20240419 500 C
+tdx option snapshot_trade SPY 20240419 500 C
+tdx option snapshot_quote SPY 20240419 500 C
+tdx option snapshot_open_interest SPY 20240419 500 C
+tdx option snapshot_market_value SPY 20240419 500 C
+tdx option snapshot_greeks_implied_volatility SPY 20240419 500 C
+tdx option snapshot_greeks_all SPY 20240419 500 C
+tdx option snapshot_greeks_first_order SPY 20240419 500 C
+tdx option snapshot_greeks_second_order SPY 20240419 500 C
+tdx option snapshot_greeks_third_order SPY 20240419 500 C
 
 # Option Greeks history
-tdx option history_greeks_eod SPY 20240419 500000 C 20240101 20240301
-tdx option history_greeks_all SPY 20240419 500000 C 20240315 1m
-tdx option history_trade_greeks_all SPY 20240419 500000 C 20240315
-tdx option history_greeks_first_order SPY 20240419 500000 C 20240315 1m
-tdx option history_trade_greeks_first_order SPY 20240419 500000 C 20240315
-tdx option history_greeks_second_order SPY 20240419 500000 C 20240315 1m
-tdx option history_trade_greeks_second_order SPY 20240419 500000 C 20240315
-tdx option history_greeks_third_order SPY 20240419 500000 C 20240315 1m
-tdx option history_trade_greeks_third_order SPY 20240419 500000 C 20240315
-tdx option history_greeks_implied_volatility SPY 20240419 500000 C 20240315 1m
-tdx option history_trade_greeks_implied_volatility SPY 20240419 500000 C 20240315
+tdx option history_greeks_eod SPY 20240419 500 C 20240101 20240301
+tdx option history_greeks_all SPY 20240419 500 C 20240315 1m
+tdx option history_trade_greeks_all SPY 20240419 500 C 20240315
+tdx option history_greeks_first_order SPY 20240419 500 C 20240315 1m
+tdx option history_trade_greeks_first_order SPY 20240419 500 C 20240315
+tdx option history_greeks_second_order SPY 20240419 500 C 20240315 1m
+tdx option history_trade_greeks_second_order SPY 20240419 500 C 20240315
+tdx option history_greeks_third_order SPY 20240419 500 C 20240315 1m
+tdx option history_trade_greeks_third_order SPY 20240419 500 C 20240315
+tdx option history_greeks_implied_volatility SPY 20240419 500 C 20240315 1m
+tdx option history_trade_greeks_implied_volatility SPY 20240419 500 C 20240315
 
 # Option at-time queries
-tdx option at_time_trade SPY 20240419 500000 C 20240101 20240301 34200000
-tdx option at_time_quote SPY 20240419 500000 C 20240101 20240301 34200000
+tdx option at_time_trade SPY 20240419 500 C 20240101 20240301 34200000
+tdx option at_time_quote SPY 20240419 500 C 20240101 20240301 34200000
 
 # Indices
 tdx index list_symbols

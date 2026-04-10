@@ -72,6 +72,16 @@ Store credentials in environment variables or a secrets manager rather than comm
 
 Without credentials, only `ping`, `all_greeks`, and `implied_volatility` are available. This is useful for testing MCP integration or computing Greeks without a ThetaData subscription.
 
+## Wildcard Option Queries
+
+For option tools, MCP uses `"0"` as the wildcard value for `strike` and `expiration`.
+
+- Use a pinned strike like `"strike":"385"` when you want one contract.
+- Use `"strike":"0"` when you want a bulk chain-style response with contract identification fields on each row.
+- `strike_range` filters a wildcard bulk selection around spot / ATM. It does not fan out a pinned strike into neighboring strikes.
+
+This matches the underlying SDK contract. The current v3 REST surface uses `*` for the same wildcard concept.
+
 ## Logging
 
 ```bash

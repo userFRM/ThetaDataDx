@@ -48,6 +48,7 @@ export default withMermaid(defineConfig({
         collapsed: false,
         items: [
           { text: 'Overview', link: '/getting-started/' },
+          { text: 'Migration from REST & WS', link: '/getting-started/migration-from-rest-ws' },
           { text: 'Subscription Tiers', link: '/getting-started/subscriptions' },
           { text: 'Installation', link: '/getting-started/installation' },
           { text: 'Authentication', link: '/getting-started/authentication' },

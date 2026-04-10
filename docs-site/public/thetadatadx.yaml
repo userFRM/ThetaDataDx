@@ -192,7 +192,7 @@ x-anchors:
     required: true
     schema:
       type: string
-    description: Strike price as scaled integer string (e.g. "500000" for $500)
+    description: Strike price in dollars as a string (e.g. "500" or "17.5")
 
   right-param: &right-param
     name: right
@@ -1217,19 +1217,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let dates = tdx.option_list_dates("TRADE", "SPY", "20240419", "500000", "C").await?;
+            let dates = tdx.option_list_dates("TRADE", "SPY", "20240419", "500", "C").await?;
         - lang: python
           label: Python
           source: |
-            dates = tdx.option_list_dates("TRADE", "SPY", "20240419", "500000", "C")
+            dates = tdx.option_list_dates("TRADE", "SPY", "20240419", "500", "C")
         - lang: go
           label: Go
           source: |
-            dates, err := client.OptionListDates("TRADE", "SPY", "20240419", "500000", "C")
+            dates, err := client.OptionListDates("TRADE", "SPY", "20240419", "500", "C")
         - lang: cpp
           label: C++
           source: |
-            auto dates = client.option_list_dates("TRADE", "SPY", "20240419", "500000", "C");
+            auto dates = client.option_list_dates("TRADE", "SPY", "20240419", "500", "C");
 
   /option/list/expirations:
     x-min-subscription: free
@@ -1363,19 +1363,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let ohlc = tdx.option_snapshot_ohlc("SPY", "20240419", "500000", "C").await?;
+            let ohlc = tdx.option_snapshot_ohlc("SPY", "20240419", "500", "C").await?;
         - lang: python
           label: Python
           source: |
-            ohlc = tdx.option_snapshot_ohlc("SPY", "20240419", "500000", "C")
+            ohlc = tdx.option_snapshot_ohlc("SPY", "20240419", "500", "C")
         - lang: go
           label: Go
           source: |
-            ohlc, err := client.OptionSnapshotOHLC("SPY", "20240419", "500000", "C")
+            ohlc, err := client.OptionSnapshotOHLC("SPY", "20240419", "500", "C")
         - lang: cpp
           label: C++
           source: |
-            auto ohlc = client.option_snapshot_ohlc("SPY", "20240419", "500000", "C");
+            auto ohlc = client.option_snapshot_ohlc("SPY", "20240419", "500", "C");
 
   /option/snapshot/trade:
     x-min-subscription: standard
@@ -1399,19 +1399,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let trades = tdx.option_snapshot_trade("SPY", "20240419", "500000", "C").await?;
+            let trades = tdx.option_snapshot_trade("SPY", "20240419", "500", "C").await?;
         - lang: python
           label: Python
           source: |
-            trades = tdx.option_snapshot_trade("SPY", "20240419", "500000", "C")
+            trades = tdx.option_snapshot_trade("SPY", "20240419", "500", "C")
         - lang: go
           label: Go
           source: |
-            trades, err := client.OptionSnapshotTrade("SPY", "20240419", "500000", "C")
+            trades, err := client.OptionSnapshotTrade("SPY", "20240419", "500", "C")
         - lang: cpp
           label: C++
           source: |
-            auto trades = client.option_snapshot_trade("SPY", "20240419", "500000", "C");
+            auto trades = client.option_snapshot_trade("SPY", "20240419", "500", "C");
 
   /option/snapshot/quote:
     x-min-subscription: value
@@ -1436,19 +1436,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let quotes = tdx.option_snapshot_quote("SPY", "20240419", "500000", "C").await?;
+            let quotes = tdx.option_snapshot_quote("SPY", "20240419", "500", "C").await?;
         - lang: python
           label: Python
           source: |
-            quotes = tdx.option_snapshot_quote("SPY", "20240419", "500000", "C")
+            quotes = tdx.option_snapshot_quote("SPY", "20240419", "500", "C")
         - lang: go
           label: Go
           source: |
-            quotes, err := client.OptionSnapshotQuote("SPY", "20240419", "500000", "C")
+            quotes, err := client.OptionSnapshotQuote("SPY", "20240419", "500", "C")
         - lang: cpp
           label: C++
           source: |
-            auto quotes = client.option_snapshot_quote("SPY", "20240419", "500000", "C");
+            auto quotes = client.option_snapshot_quote("SPY", "20240419", "500", "C");
 
   /option/snapshot/open_interest:
     x-min-subscription: value
@@ -1473,19 +1473,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let oi = tdx.option_snapshot_open_interest("SPY", "20240419", "500000", "C").await?;
+            let oi = tdx.option_snapshot_open_interest("SPY", "20240419", "500", "C").await?;
         - lang: python
           label: Python
           source: |
-            oi = tdx.option_snapshot_open_interest("SPY", "20240419", "500000", "C")
+            oi = tdx.option_snapshot_open_interest("SPY", "20240419", "500", "C")
         - lang: go
           label: Go
           source: |
-            oi, err := client.OptionSnapshotOpenInterest("SPY", "20240419", "500000", "C")
+            oi, err := client.OptionSnapshotOpenInterest("SPY", "20240419", "500", "C")
         - lang: cpp
           label: C++
           source: |
-            auto oi = client.option_snapshot_open_interest("SPY", "20240419", "500000", "C");
+            auto oi = client.option_snapshot_open_interest("SPY", "20240419", "500", "C");
 
   /option/snapshot/market_value:
     x-min-subscription: standard
@@ -1510,19 +1510,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let mv = tdx.option_snapshot_market_value("SPY", "20240419", "500000", "C").await?;
+            let mv = tdx.option_snapshot_market_value("SPY", "20240419", "500", "C").await?;
         - lang: python
           label: Python
           source: |
-            mv = tdx.option_snapshot_market_value("SPY", "20240419", "500000", "C")
+            mv = tdx.option_snapshot_market_value("SPY", "20240419", "500", "C")
         - lang: go
           label: Go
           source: |
-            mv, err := client.OptionSnapshotMarketValue("SPY", "20240419", "500000", "C")
+            mv, err := client.OptionSnapshotMarketValue("SPY", "20240419", "500", "C")
         - lang: cpp
           label: C++
           source: |
-            auto mv = client.option_snapshot_market_value("SPY", "20240419", "500000", "C");
+            auto mv = client.option_snapshot_market_value("SPY", "20240419", "500", "C");
 
   # =========================================================================
   # OPTION / SNAPSHOT GREEKS
@@ -1557,19 +1557,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let iv = tdx.option_snapshot_greeks_implied_volatility("SPY", "20240419", "500000", "C").await?;
+            let iv = tdx.option_snapshot_greeks_implied_volatility("SPY", "20240419", "500", "C").await?;
         - lang: python
           label: Python
           source: |
-            iv = tdx.option_snapshot_greeks_implied_volatility("SPY", "20240419", "500000", "C")
+            iv = tdx.option_snapshot_greeks_implied_volatility("SPY", "20240419", "500", "C")
         - lang: go
           label: Go
           source: |
-            iv, err := client.OptionSnapshotGreeksIV("SPY", "20240419", "500000", "C")
+            iv, err := client.OptionSnapshotGreeksIV("SPY", "20240419", "500", "C")
         - lang: cpp
           label: C++
           source: |
-            auto iv = client.option_snapshot_greeks_implied_volatility("SPY", "20240419", "500000", "C");
+            auto iv = client.option_snapshot_greeks_implied_volatility("SPY", "20240419", "500", "C");
 
   /option/snapshot/greeks/all:
     x-min-subscription: professional
@@ -1601,19 +1601,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let greeks = tdx.option_snapshot_greeks_all("SPY", "20240419", "500000", "C").await?;
+            let greeks = tdx.option_snapshot_greeks_all("SPY", "20240419", "500", "C").await?;
         - lang: python
           label: Python
           source: |
-            greeks = tdx.option_snapshot_greeks_all("SPY", "20240419", "500000", "C")
+            greeks = tdx.option_snapshot_greeks_all("SPY", "20240419", "500", "C")
         - lang: go
           label: Go
           source: |
-            greeks, err := client.OptionSnapshotGreeksAll("SPY", "20240419", "500000", "C")
+            greeks, err := client.OptionSnapshotGreeksAll("SPY", "20240419", "500", "C")
         - lang: cpp
           label: C++
           source: |
-            auto greeks = client.option_snapshot_greeks_all("SPY", "20240419", "500000", "C");
+            auto greeks = client.option_snapshot_greeks_all("SPY", "20240419", "500", "C");
 
   /option/snapshot/greeks/first_order:
     x-min-subscription: standard
@@ -1644,19 +1644,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let g1 = tdx.option_snapshot_greeks_first_order("SPY", "20240419", "500000", "C").await?;
+            let g1 = tdx.option_snapshot_greeks_first_order("SPY", "20240419", "500", "C").await?;
         - lang: python
           label: Python
           source: |
-            g1 = tdx.option_snapshot_greeks_first_order("SPY", "20240419", "500000", "C")
+            g1 = tdx.option_snapshot_greeks_first_order("SPY", "20240419", "500", "C")
         - lang: go
           label: Go
           source: |
-            g1, err := client.OptionSnapshotGreeksFirstOrder("SPY", "20240419", "500000", "C")
+            g1, err := client.OptionSnapshotGreeksFirstOrder("SPY", "20240419", "500", "C")
         - lang: cpp
           label: C++
           source: |
-            auto g1 = client.option_snapshot_greeks_first_order("SPY", "20240419", "500000", "C");
+            auto g1 = client.option_snapshot_greeks_first_order("SPY", "20240419", "500", "C");
 
   /option/snapshot/greeks/second_order:
     x-min-subscription: professional
@@ -1687,19 +1687,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let g2 = tdx.option_snapshot_greeks_second_order("SPY", "20240419", "500000", "C").await?;
+            let g2 = tdx.option_snapshot_greeks_second_order("SPY", "20240419", "500", "C").await?;
         - lang: python
           label: Python
           source: |
-            g2 = tdx.option_snapshot_greeks_second_order("SPY", "20240419", "500000", "C")
+            g2 = tdx.option_snapshot_greeks_second_order("SPY", "20240419", "500", "C")
         - lang: go
           label: Go
           source: |
-            g2, err := client.OptionSnapshotGreeksSecondOrder("SPY", "20240419", "500000", "C")
+            g2, err := client.OptionSnapshotGreeksSecondOrder("SPY", "20240419", "500", "C")
         - lang: cpp
           label: C++
           source: |
-            auto g2 = client.option_snapshot_greeks_second_order("SPY", "20240419", "500000", "C");
+            auto g2 = client.option_snapshot_greeks_second_order("SPY", "20240419", "500", "C");
 
   /option/snapshot/greeks/third_order:
     x-min-subscription: professional
@@ -1730,19 +1730,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let g3 = tdx.option_snapshot_greeks_third_order("SPY", "20240419", "500000", "C").await?;
+            let g3 = tdx.option_snapshot_greeks_third_order("SPY", "20240419", "500", "C").await?;
         - lang: python
           label: Python
           source: |
-            g3 = tdx.option_snapshot_greeks_third_order("SPY", "20240419", "500000", "C")
+            g3 = tdx.option_snapshot_greeks_third_order("SPY", "20240419", "500", "C")
         - lang: go
           label: Go
           source: |
-            g3, err := client.OptionSnapshotGreeksThirdOrder("SPY", "20240419", "500000", "C")
+            g3, err := client.OptionSnapshotGreeksThirdOrder("SPY", "20240419", "500", "C")
         - lang: cpp
           label: C++
           source: |
-            auto g3 = client.option_snapshot_greeks_third_order("SPY", "20240419", "500000", "C");
+            auto g3 = client.option_snapshot_greeks_third_order("SPY", "20240419", "500", "C");
 
   # =========================================================================
   # OPTION / HISTORY
@@ -1772,20 +1772,20 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let eod = tdx.option_history_eod("SPY", "20240419", "500000", "C", "20240101", "20240301").await?;
+            let eod = tdx.option_history_eod("SPY", "20240419", "500", "C", "20240101", "20240301").await?;
         - lang: python
           label: Python
           source: |
-            eod = tdx.option_history_eod("SPY", "20240419", "500000", "C", "20240101", "20240301")
-            df = tdx.option_history_eod_df("SPY", "20240419", "500000", "C", "20240101", "20240301")
+            eod = tdx.option_history_eod("SPY", "20240419", "500", "C", "20240101", "20240301")
+            df = tdx.option_history_eod_df("SPY", "20240419", "500", "C", "20240101", "20240301")
         - lang: go
           label: Go
           source: |
-            eod, err := client.OptionHistoryEOD("SPY", "20240419", "500000", "C", "20240101", "20240301")
+            eod, err := client.OptionHistoryEOD("SPY", "20240419", "500", "C", "20240101", "20240301")
         - lang: cpp
           label: C++
           source: |
-            auto eod = client.option_history_eod("SPY", "20240419", "500000", "C", "20240101", "20240301");
+            auto eod = client.option_history_eod("SPY", "20240419", "500", "C", "20240101", "20240301");
 
   /option/history/ohlc:
     x-min-subscription: value
@@ -1824,19 +1824,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let bars = tdx.option_history_ohlc("SPY", "20240419", "500000", "C", "20240315", "60000").await?;
+            let bars = tdx.option_history_ohlc("SPY", "20240419", "500", "C", "20240315", "60000").await?;
         - lang: python
           label: Python
           source: |
-            bars = tdx.option_history_ohlc("SPY", "20240419", "500000", "C", "20240315", "60000")
+            bars = tdx.option_history_ohlc("SPY", "20240419", "500", "C", "20240315", "60000")
         - lang: go
           label: Go
           source: |
-            bars, err := client.OptionHistoryOHLC("SPY", "20240419", "500000", "C", "20240315", "60000")
+            bars, err := client.OptionHistoryOHLC("SPY", "20240419", "500", "C", "20240315", "60000")
         - lang: cpp
           label: C++
           source: |
-            auto bars = client.option_history_ohlc("SPY", "20240419", "500000", "C", "20240315", "60000");
+            auto bars = client.option_history_ohlc("SPY", "20240419", "500", "C", "20240315", "60000");
 
   /option/history/trade:
     x-min-subscription: standard
@@ -1875,19 +1875,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let trades = tdx.option_history_trade("SPY", "20240419", "500000", "C", "20240315").await?;
+            let trades = tdx.option_history_trade("SPY", "20240419", "500", "C", "20240315").await?;
         - lang: python
           label: Python
           source: |
-            trades = tdx.option_history_trade("SPY", "20240419", "500000", "C", "20240315")
+            trades = tdx.option_history_trade("SPY", "20240419", "500", "C", "20240315")
         - lang: go
           label: Go
           source: |
-            trades, err := client.OptionHistoryTrade("SPY", "20240419", "500000", "C", "20240315")
+            trades, err := client.OptionHistoryTrade("SPY", "20240419", "500", "C", "20240315")
         - lang: cpp
           label: C++
           source: |
-            auto trades = client.option_history_trade("SPY", "20240419", "500000", "C", "20240315");
+            auto trades = client.option_history_trade("SPY", "20240419", "500", "C", "20240315");
 
   /option/history/quote:
     x-min-subscription: value
@@ -1927,19 +1927,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let quotes = tdx.option_history_quote("SPY", "20240419", "500000", "C", "20240315", "60000").await?;
+            let quotes = tdx.option_history_quote("SPY", "20240419", "500", "C", "20240315", "60000").await?;
         - lang: python
           label: Python
           source: |
-            quotes = tdx.option_history_quote("SPY", "20240419", "500000", "C", "20240315", "60000")
+            quotes = tdx.option_history_quote("SPY", "20240419", "500", "C", "20240315", "60000")
         - lang: go
           label: Go
           source: |
-            quotes, err := client.OptionHistoryQuote("SPY", "20240419", "500000", "C", "20240315", "60000")
+            quotes, err := client.OptionHistoryQuote("SPY", "20240419", "500", "C", "20240315", "60000")
         - lang: cpp
           label: C++
           source: |
-            auto quotes = client.option_history_quote("SPY", "20240419", "500000", "C", "20240315", "60000");
+            auto quotes = client.option_history_quote("SPY", "20240419", "500", "C", "20240315", "60000");
 
   /option/history/trade_quote:
     x-min-subscription: standard
@@ -1979,19 +1979,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let tq = tdx.option_history_trade_quote("SPY", "20240419", "500000", "C", "20240315").await?;
+            let tq = tdx.option_history_trade_quote("SPY", "20240419", "500", "C", "20240315").await?;
         - lang: python
           label: Python
           source: |
-            tq = tdx.option_history_trade_quote("SPY", "20240419", "500000", "C", "20240315")
+            tq = tdx.option_history_trade_quote("SPY", "20240419", "500", "C", "20240315")
         - lang: go
           label: Go
           source: |
-            tq, err := client.OptionHistoryTradeQuote("SPY", "20240419", "500000", "C", "20240315")
+            tq, err := client.OptionHistoryTradeQuote("SPY", "20240419", "500", "C", "20240315")
         - lang: cpp
           label: C++
           source: |
-            auto tq = client.option_history_trade_quote("SPY", "20240419", "500000", "C", "20240315");
+            auto tq = client.option_history_trade_quote("SPY", "20240419", "500", "C", "20240315");
 
   /option/history/open_interest:
     x-min-subscription: value
@@ -2028,19 +2028,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let oi = tdx.option_history_open_interest("SPY", "20240419", "500000", "C", "20240315").await?;
+            let oi = tdx.option_history_open_interest("SPY", "20240419", "500", "C", "20240315").await?;
         - lang: python
           label: Python
           source: |
-            oi = tdx.option_history_open_interest("SPY", "20240419", "500000", "C", "20240315")
+            oi = tdx.option_history_open_interest("SPY", "20240419", "500", "C", "20240315")
         - lang: go
           label: Go
           source: |
-            oi, err := client.OptionHistoryOpenInterest("SPY", "20240419", "500000", "C", "20240315")
+            oi, err := client.OptionHistoryOpenInterest("SPY", "20240419", "500", "C", "20240315")
         - lang: cpp
           label: C++
           source: |
-            auto oi = client.option_history_open_interest("SPY", "20240419", "500000", "C", "20240315");
+            auto oi = client.option_history_open_interest("SPY", "20240419", "500", "C", "20240315");
 
   # =========================================================================
   # OPTION / HISTORY GREEKS
@@ -2075,19 +2075,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let greeks = tdx.option_history_greeks_eod("SPY", "20240419", "500000", "C", "20240101", "20240301").await?;
+            let greeks = tdx.option_history_greeks_eod("SPY", "20240419", "500", "C", "20240101", "20240301").await?;
         - lang: python
           label: Python
           source: |
-            greeks = tdx.option_history_greeks_eod("SPY", "20240419", "500000", "C", "20240101", "20240301")
+            greeks = tdx.option_history_greeks_eod("SPY", "20240419", "500", "C", "20240101", "20240301")
         - lang: go
           label: Go
           source: |
-            greeks, err := client.OptionHistoryGreeksEOD("SPY", "20240419", "500000", "C", "20240101", "20240301")
+            greeks, err := client.OptionHistoryGreeksEOD("SPY", "20240419", "500", "C", "20240101", "20240301")
         - lang: cpp
           label: C++
           source: |
-            auto greeks = client.option_history_greeks_eod("SPY", "20240419", "500000", "C", "20240101", "20240301");
+            auto greeks = client.option_history_greeks_eod("SPY", "20240419", "500", "C", "20240101", "20240301");
 
   /option/history/greeks/all:
     x-min-subscription: professional
@@ -2130,19 +2130,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let greeks = tdx.option_history_greeks_all("SPY", "20240419", "500000", "C", "20240315", "60000").await?;
+            let greeks = tdx.option_history_greeks_all("SPY", "20240419", "500", "C", "20240315", "60000").await?;
         - lang: python
           label: Python
           source: |
-            greeks = tdx.option_history_greeks_all("SPY", "20240419", "500000", "C", "20240315", "60000")
+            greeks = tdx.option_history_greeks_all("SPY", "20240419", "500", "C", "20240315", "60000")
         - lang: go
           label: Go
           source: |
-            greeks, err := client.OptionHistoryGreeksAll("SPY", "20240419", "500000", "C", "20240315", "60000")
+            greeks, err := client.OptionHistoryGreeksAll("SPY", "20240419", "500", "C", "20240315", "60000")
         - lang: cpp
           label: C++
           source: |
-            auto greeks = client.option_history_greeks_all("SPY", "20240419", "500000", "C", "20240315", "60000");
+            auto greeks = client.option_history_greeks_all("SPY", "20240419", "500", "C", "20240315", "60000");
 
   /option/history/greeks/first_order:
     x-min-subscription: standard
@@ -2185,19 +2185,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let g1 = tdx.option_history_greeks_first_order("SPY", "20240419", "500000", "C", "20240315", "60000").await?;
+            let g1 = tdx.option_history_greeks_first_order("SPY", "20240419", "500", "C", "20240315", "60000").await?;
         - lang: python
           label: Python
           source: |
-            g1 = tdx.option_history_greeks_first_order("SPY", "20240419", "500000", "C", "20240315", "60000")
+            g1 = tdx.option_history_greeks_first_order("SPY", "20240419", "500", "C", "20240315", "60000")
         - lang: go
           label: Go
           source: |
-            g1, err := client.OptionHistoryGreeksFirstOrder("SPY", "20240419", "500000", "C", "20240315", "60000")
+            g1, err := client.OptionHistoryGreeksFirstOrder("SPY", "20240419", "500", "C", "20240315", "60000")
         - lang: cpp
           label: C++
           source: |
-            auto g1 = client.option_history_greeks_first_order("SPY", "20240419", "500000", "C", "20240315", "60000");
+            auto g1 = client.option_history_greeks_first_order("SPY", "20240419", "500", "C", "20240315", "60000");
 
   /option/history/greeks/second_order:
     x-min-subscription: professional
@@ -2240,19 +2240,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let g2 = tdx.option_history_greeks_second_order("SPY", "20240419", "500000", "C", "20240315", "60000").await?;
+            let g2 = tdx.option_history_greeks_second_order("SPY", "20240419", "500", "C", "20240315", "60000").await?;
         - lang: python
           label: Python
           source: |
-            g2 = tdx.option_history_greeks_second_order("SPY", "20240419", "500000", "C", "20240315", "60000")
+            g2 = tdx.option_history_greeks_second_order("SPY", "20240419", "500", "C", "20240315", "60000")
         - lang: go
           label: Go
           source: |
-            g2, err := client.OptionHistoryGreeksSecondOrder("SPY", "20240419", "500000", "C", "20240315", "60000")
+            g2, err := client.OptionHistoryGreeksSecondOrder("SPY", "20240419", "500", "C", "20240315", "60000")
         - lang: cpp
           label: C++
           source: |
-            auto g2 = client.option_history_greeks_second_order("SPY", "20240419", "500000", "C", "20240315", "60000");
+            auto g2 = client.option_history_greeks_second_order("SPY", "20240419", "500", "C", "20240315", "60000");
 
   /option/history/greeks/third_order:
     x-min-subscription: professional
@@ -2295,19 +2295,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let g3 = tdx.option_history_greeks_third_order("SPY", "20240419", "500000", "C", "20240315", "60000").await?;
+            let g3 = tdx.option_history_greeks_third_order("SPY", "20240419", "500", "C", "20240315", "60000").await?;
         - lang: python
           label: Python
           source: |
-            g3 = tdx.option_history_greeks_third_order("SPY", "20240419", "500000", "C", "20240315", "60000")
+            g3 = tdx.option_history_greeks_third_order("SPY", "20240419", "500", "C", "20240315", "60000")
         - lang: go
           label: Go
           source: |
-            g3, err := client.OptionHistoryGreeksThirdOrder("SPY", "20240419", "500000", "C", "20240315", "60000")
+            g3, err := client.OptionHistoryGreeksThirdOrder("SPY", "20240419", "500", "C", "20240315", "60000")
         - lang: cpp
           label: C++
           source: |
-            auto g3 = client.option_history_greeks_third_order("SPY", "20240419", "500000", "C", "20240315", "60000");
+            auto g3 = client.option_history_greeks_third_order("SPY", "20240419", "500", "C", "20240315", "60000");
 
   /option/history/greeks/implied_volatility:
     x-min-subscription: standard
@@ -2350,19 +2350,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let iv = tdx.option_history_greeks_implied_volatility("SPY", "20240419", "500000", "C", "20240315", "60000").await?;
+            let iv = tdx.option_history_greeks_implied_volatility("SPY", "20240419", "500", "C", "20240315", "60000").await?;
         - lang: python
           label: Python
           source: |
-            iv = tdx.option_history_greeks_implied_volatility("SPY", "20240419", "500000", "C", "20240315", "60000")
+            iv = tdx.option_history_greeks_implied_volatility("SPY", "20240419", "500", "C", "20240315", "60000")
         - lang: go
           label: Go
           source: |
-            iv, err := client.OptionHistoryGreeksImpliedVolatility("SPY", "20240419", "500000", "C", "20240315", "60000")
+            iv, err := client.OptionHistoryGreeksImpliedVolatility("SPY", "20240419", "500", "C", "20240315", "60000")
         - lang: cpp
           label: C++
           source: |
-            auto iv = client.option_history_greeks_implied_volatility("SPY", "20240419", "500000", "C", "20240315", "60000");
+            auto iv = client.option_history_greeks_implied_volatility("SPY", "20240419", "500", "C", "20240315", "60000");
 
   # =========================================================================
   # OPTION / HISTORY TRADE GREEKS
@@ -2409,19 +2409,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let tg = tdx.option_history_trade_greeks_all("SPY", "20240419", "500000", "C", "20240315").await?;
+            let tg = tdx.option_history_trade_greeks_all("SPY", "20240419", "500", "C", "20240315").await?;
         - lang: python
           label: Python
           source: |
-            tg = tdx.option_history_trade_greeks_all("SPY", "20240419", "500000", "C", "20240315")
+            tg = tdx.option_history_trade_greeks_all("SPY", "20240419", "500", "C", "20240315")
         - lang: go
           label: Go
           source: |
-            tg, err := client.OptionHistoryTradeGreeksAll("SPY", "20240419", "500000", "C", "20240315")
+            tg, err := client.OptionHistoryTradeGreeksAll("SPY", "20240419", "500", "C", "20240315")
         - lang: cpp
           label: C++
           source: |
-            auto tg = client.option_history_trade_greeks_all("SPY", "20240419", "500000", "C", "20240315");
+            auto tg = client.option_history_trade_greeks_all("SPY", "20240419", "500", "C", "20240315");
 
   /option/history/trade_greeks/first_order:
     x-min-subscription: professional
@@ -2464,19 +2464,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let tg1 = tdx.option_history_trade_greeks_first_order("SPY", "20240419", "500000", "C", "20240315").await?;
+            let tg1 = tdx.option_history_trade_greeks_first_order("SPY", "20240419", "500", "C", "20240315").await?;
         - lang: python
           label: Python
           source: |
-            tg1 = tdx.option_history_trade_greeks_first_order("SPY", "20240419", "500000", "C", "20240315")
+            tg1 = tdx.option_history_trade_greeks_first_order("SPY", "20240419", "500", "C", "20240315")
         - lang: go
           label: Go
           source: |
-            tg1, err := client.OptionHistoryTradeGreeksFirstOrder("SPY", "20240419", "500000", "C", "20240315")
+            tg1, err := client.OptionHistoryTradeGreeksFirstOrder("SPY", "20240419", "500", "C", "20240315")
         - lang: cpp
           label: C++
           source: |
-            auto tg1 = client.option_history_trade_greeks_first_order("SPY", "20240419", "500000", "C", "20240315");
+            auto tg1 = client.option_history_trade_greeks_first_order("SPY", "20240419", "500", "C", "20240315");
 
   /option/history/trade_greeks/second_order:
     x-min-subscription: professional
@@ -2519,19 +2519,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let tg2 = tdx.option_history_trade_greeks_second_order("SPY", "20240419", "500000", "C", "20240315").await?;
+            let tg2 = tdx.option_history_trade_greeks_second_order("SPY", "20240419", "500", "C", "20240315").await?;
         - lang: python
           label: Python
           source: |
-            tg2 = tdx.option_history_trade_greeks_second_order("SPY", "20240419", "500000", "C", "20240315")
+            tg2 = tdx.option_history_trade_greeks_second_order("SPY", "20240419", "500", "C", "20240315")
         - lang: go
           label: Go
           source: |
-            tg2, err := client.OptionHistoryTradeGreeksSecondOrder("SPY", "20240419", "500000", "C", "20240315")
+            tg2, err := client.OptionHistoryTradeGreeksSecondOrder("SPY", "20240419", "500", "C", "20240315")
         - lang: cpp
           label: C++
           source: |
-            auto tg2 = client.option_history_trade_greeks_second_order("SPY", "20240419", "500000", "C", "20240315");
+            auto tg2 = client.option_history_trade_greeks_second_order("SPY", "20240419", "500", "C", "20240315");
 
   /option/history/trade_greeks/third_order:
     x-min-subscription: professional
@@ -2574,19 +2574,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let tg3 = tdx.option_history_trade_greeks_third_order("SPY", "20240419", "500000", "C", "20240315").await?;
+            let tg3 = tdx.option_history_trade_greeks_third_order("SPY", "20240419", "500", "C", "20240315").await?;
         - lang: python
           label: Python
           source: |
-            tg3 = tdx.option_history_trade_greeks_third_order("SPY", "20240419", "500000", "C", "20240315")
+            tg3 = tdx.option_history_trade_greeks_third_order("SPY", "20240419", "500", "C", "20240315")
         - lang: go
           label: Go
           source: |
-            tg3, err := client.OptionHistoryTradeGreeksThirdOrder("SPY", "20240419", "500000", "C", "20240315")
+            tg3, err := client.OptionHistoryTradeGreeksThirdOrder("SPY", "20240419", "500", "C", "20240315")
         - lang: cpp
           label: C++
           source: |
-            auto tg3 = client.option_history_trade_greeks_third_order("SPY", "20240419", "500000", "C", "20240315");
+            auto tg3 = client.option_history_trade_greeks_third_order("SPY", "20240419", "500", "C", "20240315");
 
   /option/history/trade_greeks/implied_volatility:
     x-min-subscription: professional
@@ -2629,19 +2629,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let tiv = tdx.option_history_trade_greeks_implied_volatility("SPY", "20240419", "500000", "C", "20240315").await?;
+            let tiv = tdx.option_history_trade_greeks_implied_volatility("SPY", "20240419", "500", "C", "20240315").await?;
         - lang: python
           label: Python
           source: |
-            tiv = tdx.option_history_trade_greeks_implied_volatility("SPY", "20240419", "500000", "C", "20240315")
+            tiv = tdx.option_history_trade_greeks_implied_volatility("SPY", "20240419", "500", "C", "20240315")
         - lang: go
           label: Go
           source: |
-            tiv, err := client.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20240419", "500000", "C", "20240315")
+            tiv, err := client.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20240419", "500", "C", "20240315")
         - lang: cpp
           label: C++
           source: |
-            auto tiv = client.option_history_trade_greeks_implied_volatility("SPY", "20240419", "500000", "C", "20240315");
+            auto tiv = client.option_history_trade_greeks_implied_volatility("SPY", "20240419", "500", "C", "20240315");
 
   # =========================================================================
   # OPTION / AT-TIME
@@ -2672,19 +2672,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let trades = tdx.option_at_time_trade("SPY", "20240419", "500000", "C", "20240101", "20240301", "34200000").await?;
+            let trades = tdx.option_at_time_trade("SPY", "20240419", "500", "C", "20240101", "20240301", "34200000").await?;
         - lang: python
           label: Python
           source: |
-            trades = tdx.option_at_time_trade("SPY", "20240419", "500000", "C", "20240101", "20240301", "34200000")
+            trades = tdx.option_at_time_trade("SPY", "20240419", "500", "C", "20240101", "20240301", "34200000")
         - lang: go
           label: Go
           source: |
-            trades, err := client.OptionAtTimeTrade("SPY", "20240419", "500000", "C", "20240101", "20240301", "34200000")
+            trades, err := client.OptionAtTimeTrade("SPY", "20240419", "500", "C", "20240101", "20240301", "34200000")
         - lang: cpp
           label: C++
           source: |
-            auto trades = client.option_at_time_trade("SPY", "20240419", "500000", "C", "20240101", "20240301", "34200000");
+            auto trades = client.option_at_time_trade("SPY", "20240419", "500", "C", "20240101", "20240301", "34200000");
 
   /option/at_time/quote:
     x-min-subscription: value
@@ -2711,19 +2711,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let quotes = tdx.option_at_time_quote("SPY", "20240419", "500000", "C", "20240101", "20240301", "34200000").await?;
+            let quotes = tdx.option_at_time_quote("SPY", "20240419", "500", "C", "20240101", "20240301", "34200000").await?;
         - lang: python
           label: Python
           source: |
-            quotes = tdx.option_at_time_quote("SPY", "20240419", "500000", "C", "20240101", "20240301", "34200000")
+            quotes = tdx.option_at_time_quote("SPY", "20240419", "500", "C", "20240101", "20240301", "34200000")
         - lang: go
           label: Go
           source: |
-            quotes, err := client.OptionAtTimeQuote("SPY", "20240419", "500000", "C", "20240101", "20240301", "34200000")
+            quotes, err := client.OptionAtTimeQuote("SPY", "20240419", "500", "C", "20240101", "20240301", "34200000")
         - lang: cpp
           label: C++
           source: |
-            auto quotes = client.option_at_time_quote("SPY", "20240419", "500000", "C", "20240101", "20240301", "34200000");
+            auto quotes = client.option_at_time_quote("SPY", "20240419", "500", "C", "20240101", "20240301", "34200000");
 
   # =========================================================================
   # INDEX / LIST
@@ -3223,7 +3223,7 @@ components:
           description: Expiration date in YYYYMMDD format
         strike:
           type: string
-          description: Strike price as scaled integer string
+          description: Strike price in dollars as a string
         right:
           type: string
           enum: [C, P]

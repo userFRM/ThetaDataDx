@@ -51,7 +51,7 @@ binding = "method"
 
 [[param_groups.strike_param.params]]
 name = "strike"
-description = "Strike price (raw integer)"
+description = "Strike price in dollars as a string (e.g. 500 or 17.5)"
 param_type = "Strike"
 required = true
 binding = "method"

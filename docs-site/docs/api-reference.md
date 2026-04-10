@@ -473,7 +473,7 @@ All option endpoints that operate on a specific contract require the contract sp
 
 - `symbol` - Underlying ticker (e.g. `"SPY"`)
 - `expiration` - Expiration date as `YYYYMMDD` string
-- `strike` - Strike price as scaled integer string (e.g. `"500"` for $500)
+- `strike` - Strike price in dollars as a string (e.g. `"500"` or `"17.5"`)
 - `right` - `"C"` for call, `"P"` for put
 
 ### option_list_symbols
@@ -525,7 +525,7 @@ auto dates = client.option_list_dates("TRADE", "SPY", "20241220", "500", "C");
 | `request_type` | string | Yes | Data type: `"TRADE"`, `"QUOTE"`, etc. |
 | `symbol` | string | Yes | Underlying symbol |
 | `expiration` | string | Yes | Expiration date (`YYYYMMDD`) |
-| `strike` | string | Yes | Strike price (scaled integer) |
+| `strike` | string | Yes | Strike price in dollars as a string |
 | `right` | string | Yes | `"C"` or `"P"` |
 
 **Returns:** List of date strings (`YYYYMMDD`).
@@ -583,7 +583,7 @@ auto strikes = client.option_list_strikes("SPY", "20241220");
 | `symbol` | string | Yes | Underlying symbol |
 | `expiration` | string | Yes | Expiration date (`YYYYMMDD`) |
 
-**Returns:** List of strike price strings (scaled integers).
+**Returns:** List of strike price strings in dollars.
 
 ---
 
@@ -640,7 +640,7 @@ auto bars = client.option_snapshot_ohlc("SPY", "20241220", "500", "C");
 |-----------|------|----------|-------------|
 | `symbol` | string | Yes | Underlying symbol |
 | `expiration` | string | Yes | Expiration date (`YYYYMMDD`) |
-| `strike` | string | Yes | Strike price (scaled integer) |
+| `strike` | string | Yes | Strike price in dollars as a string |
 | `right` | string | Yes | `"C"` or `"P"` |
 | `max_dte` | int | No | Maximum days to expiration |
 | `strike_range` | int | No | Strike range filter |
@@ -673,7 +673,7 @@ auto trades = client.option_snapshot_trade("SPY", "20241220", "500", "C");
 |-----------|------|----------|-------------|
 | `symbol` | string | Yes | Underlying symbol |
 | `expiration` | string | Yes | Expiration date |
-| `strike` | string | Yes | Strike price (scaled integer) |
+| `strike` | string | Yes | Strike price in dollars as a string |
 | `right` | string | Yes | `"C"` or `"P"` |
 | `strike_range` | int | No | Strike range filter |
 | `min_time` | string | No | Minimum time of day (ms from midnight) |
@@ -705,7 +705,7 @@ auto quotes = client.option_snapshot_quote("SPY", "20241220", "500", "C");
 |-----------|------|----------|-------------|
 | `symbol` | string | Yes | Underlying symbol |
 | `expiration` | string | Yes | Expiration date |
-| `strike` | string | Yes | Strike price (scaled integer) |
+| `strike` | string | Yes | Strike price in dollars as a string |
 | `right` | string | Yes | `"C"` or `"P"` |
 | `max_dte` | int | No | Maximum days to expiration |
 | `strike_range` | int | No | Strike range filter |
@@ -738,7 +738,7 @@ auto oi = client.option_snapshot_open_interest("SPY", "20241220", "500", "C");
 |-----------|------|----------|-------------|
 | `symbol` | string | Yes | Underlying symbol |
 | `expiration` | string | Yes | Expiration date |
-| `strike` | string | Yes | Strike price (scaled integer) |
+| `strike` | string | Yes | Strike price in dollars as a string |
 | `right` | string | Yes | `"C"` or `"P"` |
 | `max_dte` | int | No | Maximum days to expiration |
 | `strike_range` | int | No | Strike range filter |
@@ -771,7 +771,7 @@ auto mv = client.option_snapshot_market_value("SPY", "20241220", "500", "C");
 |-----------|------|----------|-------------|
 | `symbol` | string | Yes | Underlying symbol |
 | `expiration` | string | Yes | Expiration date |
-| `strike` | string | Yes | Strike price (scaled integer) |
+| `strike` | string | Yes | Strike price in dollars as a string |
 | `right` | string | Yes | `"C"` or `"P"` |
 | `max_dte` | int | No | Maximum days to expiration |
 | `strike_range` | int | No | Strike range filter |
@@ -804,7 +804,7 @@ auto iv = client.option_snapshot_greeks_implied_volatility("SPY", "20241220", "5
 |-----------|------|----------|-------------|
 | `symbol` | string | Yes | Underlying symbol |
 | `expiration` | string | Yes | Expiration date |
-| `strike` | string | Yes | Strike price (scaled integer) |
+| `strike` | string | Yes | Strike price in dollars as a string |
 | `right` | string | Yes | `"C"` or `"P"` |
 | `annual_dividend` | float | No | Override annual dividend |
 | `rate_type` | string | No | Interest rate type (e.g. `"SOFR"`) |
@@ -845,7 +845,7 @@ auto greeks = client.option_snapshot_greeks_all("SPY", "20241220", "500", "C");
 |-----------|------|----------|-------------|
 | `symbol` | string | Yes | Underlying symbol |
 | `expiration` | string | Yes | Expiration date |
-| `strike` | string | Yes | Strike price (scaled integer) |
+| `strike` | string | Yes | Strike price in dollars as a string |
 | `right` | string | Yes | `"C"` or `"P"` |
 | `annual_dividend` | float | No | Override annual dividend |
 | `rate_type` | string | No | Interest rate type |
@@ -969,7 +969,7 @@ auto eod = client.option_history_eod("SPY", "20241220", "500", "C", "20240101", 
 |-----------|------|----------|-------------|
 | `symbol` | string | Yes | Underlying symbol |
 | `expiration` | string | Yes | Expiration date |
-| `strike` | string | Yes | Strike price (scaled integer) |
+| `strike` | string | Yes | Strike price in dollars as a string |
 | `right` | string | Yes | `"C"` or `"P"` |
 | `start_date` | string | Yes | Start date (`YYYYMMDD`) |
 | `end_date` | string | Yes | End date (`YYYYMMDD`) |
@@ -1005,7 +1005,7 @@ auto bars = client.option_history_ohlc("SPY", "20241220", "500", "C", "20240315"
 |-----------|------|----------|-------------|
 | `symbol` | string | Yes | Underlying symbol |
 | `expiration` | string | Yes | Expiration date |
-| `strike` | string | Yes | Strike price (scaled integer) |
+| `strike` | string | Yes | Strike price in dollars as a string |
 | `right` | string | Yes | `"C"` or `"P"` |
 | `date` | string | Yes | Date (`YYYYMMDD`) |
 | `interval` | string | Yes | Accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. |
@@ -1040,7 +1040,7 @@ auto trades = client.option_history_trade("SPY", "20241220", "500", "C", "202403
 |-----------|------|----------|-------------|
 | `symbol` | string | Yes | Underlying symbol |
 | `expiration` | string | Yes | Expiration date |
-| `strike` | string | Yes | Strike price (scaled integer) |
+| `strike` | string | Yes | Strike price in dollars as a string |
 | `right` | string | Yes | `"C"` or `"P"` |
 | `date` | string | Yes | Date (`YYYYMMDD`) |
 | `start_time` | string | No | Start time (ms from midnight) |
@@ -1079,7 +1079,7 @@ auto quotes = client.option_history_quote("SPY", "20241220", "500", "C", "202403
 |-----------|------|----------|-------------|
 | `symbol` | string | Yes | Underlying symbol |
 | `expiration` | string | Yes | Expiration date |
-| `strike` | string | Yes | Strike price (scaled integer) |
+| `strike` | string | Yes | Strike price in dollars as a string |
 | `right` | string | Yes | `"C"` or `"P"` |
 | `date` | string | Yes | Date (`YYYYMMDD`) |
 | `interval` | string | Yes | Accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. |
@@ -1115,7 +1115,7 @@ auto tq = client.option_history_trade_quote("SPY", "20241220", "500", "C", "2024
 |-----------|------|----------|-------------|
 | `symbol` | string | Yes | Underlying symbol |
 | `expiration` | string | Yes | Expiration date |
-| `strike` | string | Yes | Strike price (scaled integer) |
+| `strike` | string | Yes | Strike price in dollars as a string |
 | `right` | string | Yes | `"C"` or `"P"` |
 | `date` | string | Yes | Date (`YYYYMMDD`) |
 | `start_time` | string | No | Start time (ms from midnight) |
@@ -1153,7 +1153,7 @@ auto oi = client.option_history_open_interest("SPY", "20241220", "500", "C", "20
 |-----------|------|----------|-------------|
 | `symbol` | string | Yes | Underlying symbol |
 | `expiration` | string | Yes | Expiration date |
-| `strike` | string | Yes | Strike price (scaled integer) |
+| `strike` | string | Yes | Strike price in dollars as a string |
 | `right` | string | Yes | `"C"` or `"P"` |
 | `date` | string | Yes | Date (`YYYYMMDD`) |
 | `max_dte` | int | No | Maximum days to expiration |
@@ -1188,7 +1188,7 @@ auto g = client.option_history_greeks_eod("SPY", "20241220", "500", "C", "202401
 |-----------|------|----------|-------------|
 | `symbol` | string | Yes | Underlying symbol |
 | `expiration` | string | Yes | Expiration date |
-| `strike` | string | Yes | Strike price (scaled integer) |
+| `strike` | string | Yes | Strike price in dollars as a string |
 | `right` | string | Yes | `"C"` or `"P"` |
 | `start_date` | string | Yes | Start date (`YYYYMMDD`) |
 | `end_date` | string | Yes | End date (`YYYYMMDD`) |
@@ -1231,7 +1231,7 @@ auto g = client.option_history_greeks_all("SPY", "20241220", "500", "C", "202403
 |-----------|------|----------|-------------|
 | `symbol` | string | Yes | Underlying symbol |
 | `expiration` | string | Yes | Expiration date |
-| `strike` | string | Yes | Strike price (scaled integer) |
+| `strike` | string | Yes | Strike price in dollars as a string |
 | `right` | string | Yes | `"C"` or `"P"` |
 | `date` | string | Yes | Date (`YYYYMMDD`) |
 | `interval` | string | Yes | Accepts milliseconds (`"60000"`) or shorthand (`"1m"`). Valid presets: `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. |
@@ -1270,7 +1270,7 @@ auto g = client.option_history_trade_greeks_all("SPY", "20241220", "500", "C", "
 |-----------|------|----------|-------------|
 | `symbol` | string | Yes | Underlying symbol |
 | `expiration` | string | Yes | Expiration date |
-| `strike` | string | Yes | Strike price (scaled integer) |
+| `strike` | string | Yes | Strike price in dollars as a string |
 | `right` | string | Yes | `"C"` or `"P"` |
 | `date` | string | Yes | Date (`YYYYMMDD`) |
 | `start_time` | string | No | Start time (ms from midnight) |
@@ -1545,7 +1545,7 @@ auto trades = client.option_at_time_trade("SPY", "20241220", "500", "C", "202401
 |-----------|------|----------|-------------|
 | `symbol` | string | Yes | Underlying symbol |
 | `expiration` | string | Yes | Expiration date |
-| `strike` | string | Yes | Strike price (scaled integer) |
+| `strike` | string | Yes | Strike price in dollars as a string |
 | `right` | string | Yes | `"C"` or `"P"` |
 | `start_date` | string | Yes | Start date (`YYYYMMDD`) |
 | `end_date` | string | Yes | End date (`YYYYMMDD`) |
@@ -1582,7 +1582,7 @@ auto quotes = client.option_at_time_quote("SPY", "20241220", "500", "C", "202401
 |-----------|------|----------|-------------|
 | `symbol` | string | Yes | Underlying symbol |
 | `expiration` | string | Yes | Expiration date |
-| `strike` | string | Yes | Strike price (scaled integer) |
+| `strike` | string | Yes | Strike price in dollars as a string |
 | `right` | string | Yes | `"C"` or `"P"` |
 | `start_date` | string | Yes | Start date (`YYYYMMDD`) |
 | `end_date` | string | Yes | End date (`YYYYMMDD`) |

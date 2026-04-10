@@ -50,7 +50,7 @@ for (const auto& t : data) {
 </div>
 <div class="param">
 <div class="param-header"><code>strike</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">Strike price as scaled integer</div>
+<div class="param-desc">Strike price in dollars as a string</div>
 </div>
 <div class="param">
 <div class="param-header"><code>right</code><span class="param-type">string</span><span class="param-badge required">required</span></div>

@@ -54,7 +54,7 @@ for (const auto& item : data) {
 </div>
 <div class="param">
 <div class="param-header"><code>strike</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">Strike price as a scaled integer (e.g. <code>"500"</code> for $500)</div>
+<div class="param-desc">Strike price in dollars as a string (e.g. <code>"500"</code> or <code>"17.5"</code>)</div>
 </div>
 <div class="param">
 <div class="param-header"><code>right</code><span class="param-type">string</span><span class="param-badge required">required</span></div>

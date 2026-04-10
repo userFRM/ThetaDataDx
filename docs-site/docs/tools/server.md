@@ -54,7 +54,7 @@ All 61 registry endpoints are exposed as HTTP routes following the current v3 pa
 curl "http://127.0.0.1:25503/v3/stock/history/eod?symbol=AAPL&start_date=20240101&end_date=20240301"
 
 # Option snapshot
-curl "http://127.0.0.1:25503/v3/option/snapshot/quote?symbol=SPY&expiration=20240419&strike=500000&right=C"
+curl "http://127.0.0.1:25503/v3/option/snapshot/quote?symbol=SPY&expiration=20240419&strike=500&right=C"
 
 # Stock OHLC range
 curl "http://127.0.0.1:25503/v3/stock/history/ohlc_range?symbol=AAPL&start_date=20240101&end_date=20240301&interval=1m"

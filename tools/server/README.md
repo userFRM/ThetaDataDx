@@ -55,7 +55,7 @@ GET /v3/stock/list/dates?request_type=EOD&symbol=AAPL
 GET /v3/stock/history/eod?symbol=AAPL&start_date=20240101&end_date=20240301
 GET /v3/stock/history/ohlc?symbol=AAPL&date=20240315&interval=1m
 GET /v3/stock/history/ohlc_range?symbol=AAPL&start_date=20240101&end_date=20240301&interval=1m
-GET /v3/option/snapshot/quote?symbol=SPY&expiration=20240419&strike=500000&right=C
+GET /v3/option/snapshot/quote?symbol=SPY&expiration=20240419&strike=500&right=C
 GET /v3/calendar/open_today
 GET /v3/rate/history/eod?symbol=SOFR&start_date=20240101&end_date=20240301
 ```
