@@ -456,6 +456,7 @@ fn load_endpoint_specs() -> Result<ParsedEndpoints, Box<dyn std::error::Error>> 
     }
 
     let mut endpoints = Vec::with_capacity(resolved.len());
+    let mut consumed_wire_names = HashSet::new();
     for surface in resolved {
         if !seen_names.insert(surface.name.clone()) {
             return Err(format!("duplicate endpoint surface entry: {}", surface.name).into());
@@ -467,9 +468,28 @@ fn load_endpoint_specs() -> Result<ParsedEndpoints, Box<dyn std::error::Error>> 
                 surface.name, wire_name
             )
         })?;
+        consumed_wire_names.insert(wire_name.to_string());
 
         validate_surface_endpoint(&surface, wire_endpoint)?;
         endpoints.push(merge_surface_and_wire(surface, wire_endpoint));
+    }
+
+    // Detect proto RPCs not covered by endpoint_surface.toml. A new RPC added
+    // to the proto should fail the build rather than being silently ignored.
+    // Synthetic wire entries (hand-built variants like stock_history_ohlc_range
+    // that share an RPC with another endpoint) are excluded because they don't
+    // correspond to a unique proto RPC.
+    let synthetic = ["stock_history_ohlc_range"];
+    for wire_name in wire_by_name.keys() {
+        if !consumed_wire_names.contains(wire_name.as_str())
+            && !synthetic.contains(&wire_name.as_str())
+        {
+            return Err(format!(
+                "wire endpoint '{}' from external.proto has no entry in endpoint_surface.toml",
+                wire_name
+            )
+            .into());
+        }
     }
 
     println!("cargo:rerun-if-changed={spec_path}");
@@ -874,6 +894,9 @@ fn validate_surface_endpoint(
             )
             .into());
         }
+        if let Some(ref default_val) = param.default {
+            validate_default_type(&surface.name, &param.name, &param.param_type, default_val)?;
+        }
     }
 
     for wire_param in &wire.params {
@@ -888,6 +911,33 @@ fn validate_surface_endpoint(
         }
     }
 
+    Ok(())
+}
+
+/// Verify a TOML default value is compatible with its declared param_type.
+fn validate_default_type(
+    endpoint: &str,
+    param: &str,
+    param_type: &str,
+    default_val: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let ok = match param_type {
+        "Int" => default_val.parse::<i32>().is_ok(),
+        "Float" => default_val.parse::<f64>().is_ok(),
+        "Bool" => default_val == "true" || default_val == "false",
+        "Date" => default_val.len() == 8 && default_val.chars().all(|c| c.is_ascii_digit()),
+        "Year" => default_val.len() == 4 && default_val.chars().all(|c| c.is_ascii_digit()),
+        // String-like types accept any value
+        "Symbol" | "Symbols" | "Interval" | "Right" | "Strike" | "Expiration" | "RequestType"
+        | "Str" => true,
+        _ => true, // unknown types pass (caught elsewhere)
+    };
+    if !ok {
+        return Err(format!(
+            "endpoint '{endpoint}.{param}' has default '{default_val}' incompatible with type {param_type}"
+        )
+        .into());
+    }
     Ok(())
 }
 
