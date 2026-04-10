@@ -37,6 +37,7 @@ typedef struct TdxCredentials TdxCredentials;
 typedef struct TdxClient TdxClient;
 typedef struct TdxConfig TdxConfig;
 typedef struct TdxFpssHandle TdxFpssHandle;
+typedef struct TdxUnified TdxUnified;
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  #[repr(C)] tick types — layout-compatible with Rust tdbe structs      */
@@ -889,6 +890,69 @@ void tdx_fpss_shutdown(const TdxFpssHandle* h);
 
 /** Free the FPSS handle. Must be called after tdx_fpss_shutdown. */
 void tdx_fpss_free(TdxFpssHandle* h);
+
+/* ======================================================================= */
+/*  Unified client -- historical + streaming through one handle            */
+/* ======================================================================= */
+
+/** Connect to ThetaData (historical only -- FPSS streaming is NOT started).
+ *  Returns NULL on connection/auth failure (check tdx_last_error()). */
+TdxUnified* tdx_unified_connect(const TdxCredentials* creds, const TdxConfig* config);
+
+/** Start FPSS streaming on the unified client. Returns 0 on success, -1 on error. */
+int tdx_unified_start_streaming(const TdxUnified* handle);
+
+/** Subscribe to quote data for a stock symbol. Returns 0 on success, -1 on error. */
+int tdx_unified_subscribe_quotes(const TdxUnified* handle, const char* symbol);
+
+/** Subscribe to trade data for a stock symbol. Returns 0 on success, -1 on error. */
+int tdx_unified_subscribe_trades(const TdxUnified* handle, const char* symbol);
+
+/** Unsubscribe from quote data. Returns 0 on success, -1 on error. */
+int tdx_unified_unsubscribe_quotes(const TdxUnified* handle, const char* symbol);
+
+/** Unsubscribe from trade data. Returns 0 on success, -1 on error. */
+int tdx_unified_unsubscribe_trades(const TdxUnified* handle, const char* symbol);
+
+/** Subscribe to open interest data. Returns 0 on success, -1 on error. */
+int tdx_unified_subscribe_open_interest(const TdxUnified* handle, const char* symbol);
+
+/** Unsubscribe from open interest data. Returns 0 on success, -1 on error. */
+int tdx_unified_unsubscribe_open_interest(const TdxUnified* handle, const char* symbol);
+
+/** Subscribe to all trades for a security type ("STOCK", "OPTION", "INDEX"). Returns 0 or -1. */
+int tdx_unified_subscribe_full_trades(const TdxUnified* handle, const char* sec_type);
+
+/** Subscribe to all open interest for a security type. Returns 0 or -1. */
+int tdx_unified_subscribe_full_open_interest(const TdxUnified* handle, const char* sec_type);
+
+/** Unsubscribe from all trades for a security type. Returns 0 or -1. */
+int tdx_unified_unsubscribe_full_trades(const TdxUnified* handle, const char* sec_type);
+
+/** Unsubscribe from all open interest for a security type. Returns 0 or -1. */
+int tdx_unified_unsubscribe_full_open_interest(const TdxUnified* handle, const char* sec_type);
+
+/** Check if streaming is active. Returns 1 if streaming, 0 otherwise. */
+int tdx_unified_is_streaming(const TdxUnified* handle);
+
+/** Look up a contract by ID. Returns string or NULL. Caller must free with tdx_string_free. */
+char* tdx_unified_contract_lookup(const TdxUnified* handle, int id);
+
+/** Get active subscriptions as typed array. Caller must free with tdx_subscription_array_free. */
+TdxSubscriptionArray* tdx_unified_active_subscriptions(const TdxUnified* handle);
+
+/** Poll for next streaming event. Returns TdxFpssEvent* or NULL on timeout.
+ *  Caller MUST free with tdx_fpss_event_free. */
+TdxFpssEvent* tdx_unified_next_event(const TdxUnified* handle, uint64_t timeout_ms);
+
+/** Borrow the historical client from a unified handle. Do NOT free the returned pointer. */
+const TdxClient* tdx_unified_historical(const TdxUnified* handle);
+
+/** Stop streaming on the unified client. Historical remains available. */
+void tdx_unified_stop_streaming(const TdxUnified* handle);
+
+/** Free a unified client handle. */
+void tdx_unified_free(TdxUnified* handle);
 
 #ifdef __cplusplus
 }
