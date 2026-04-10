@@ -938,7 +938,7 @@ fn generate_endpoint_runtime(parsed: &ParsedEndpoints) -> Result<(), Box<dyn std
         "/// metadata so registry-driven projections stay aligned with the SDK surface.\n",
     );
     code.push_str("pub async fn invoke_generated_endpoint(\n");
-    code.push_str("    client: &crate::ThetaDataDx,\n");
+    code.push_str("    client: &crate::direct::DirectClient,\n");
     code.push_str("    name: &str,\n");
     code.push_str("    args: &EndpointArgs,\n");
     code.push_str(") -> Result<EndpointOutput, EndpointError> {\n");

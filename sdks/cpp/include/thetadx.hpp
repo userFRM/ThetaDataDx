@@ -83,6 +83,20 @@ struct Greeks {
     double lambda;
 };
 
+/// Optional builder parameters for option historical/snapshot requests.
+///
+/// The C++ wrapper uses `std::optional` so callers can opt into the same
+/// metadata-driven filters exposed by Rust without sentinel values.
+struct OptionRequestOptions {
+    std::optional<double> annual_dividend;
+    std::optional<std::string> rate_type;
+    std::optional<double> rate_value;
+    std::optional<std::string> version;
+    std::optional<bool> underlyer_use_nbbo;
+    std::optional<int32_t> max_dte;
+    std::optional<int32_t> strike_range;
+};
+
 // ── RAII typed array wrappers ──
 
 namespace detail {
@@ -376,7 +390,8 @@ public:
 
     std::vector<GreeksTick> option_history_greeks_eod(const std::string& symbol, const std::string& expiration,
                                                       const std::string& strike, const std::string& right,
-                                                      const std::string& start_date, const std::string& end_date) const;
+                                                      const std::string& start_date, const std::string& end_date,
+                                                      const OptionRequestOptions& options = {}) const;
     std::vector<GreeksTick> option_history_greeks_all(const std::string& symbol, const std::string& expiration,
                                                       const std::string& strike, const std::string& right,
                                                       const std::string& date, const std::string& interval) const;

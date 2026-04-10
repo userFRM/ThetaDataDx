@@ -61,13 +61,31 @@ let rows = tdx
     .await?;
 ```
 ```python [Python]
-rows = tdx.option_history_greeks_eod("SPY", "20230120", "0", "C", "20221219", "20221220")
+rows = tdx.option_history_greeks_eod(
+    "SPY",
+    "20230120",
+    "0",
+    "C",
+    "20221219",
+    "20221220",
+    strike_range=5,
+)
 ```
 ```go [Go]
-rows, err := client.OptionHistoryGreeksEOD("SPY", "20230120", "0", "C", "20221219", "20221220")
+rows, err := client.OptionHistoryGreeksEODWithOptions(
+    "SPY",
+    "20230120",
+    "0",
+    "C",
+    "20221219",
+    "20221220",
+    &thetadatadx.OptionRequestOptions{StrikeRange: thetadatadx.Int32(5)},
+)
 ```
 ```cpp [C++]
-auto rows = client.option_history_greeks_eod("SPY", "20230120", "0", "C", "20221219", "20221220");
+tdx::OptionRequestOptions options;
+options.strike_range = 5;
+auto rows = client.option_history_greeks_eod("SPY", "20230120", "0", "C", "20221219", "20221220", options);
 ```
 :::
 
@@ -215,10 +233,11 @@ let bars = tdx
     .await?;
 ```
 
-Python, Go, and C++ currently expose fixed-arity convenience methods for the common path. When you are translating a merged official REST route, the direct SDK mapping is:
+Python, Go, and C++ still expose fixed-arity convenience methods for the common path, but selected routes now surface optional builder-style parameters directly as keyword arguments or options structs. When you are translating a merged official REST route, the direct SDK mapping is:
 
 - exact single-date helper when the binding exposes it
 - dedicated range helper when the binding exposes it, such as `stock_history_ohlc_range`
+- Python keyword-only optional parameters, Go `WithOptions` helpers, or C++ `OptionRequestOptions` overloads when the binding exposes them
 - Rust for the most faithful 1:1 projection of the official optional query surface
 
 ## Worked Example

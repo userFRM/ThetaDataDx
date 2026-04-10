@@ -12,7 +12,7 @@ use tdbe::types::tick::{
 };
 
 use crate::registry::ParamType;
-use crate::{Error, ThetaDataDx};
+use crate::Error;
 
 /// Validated scalar argument value accepted by the shared endpoint runtime.
 #[derive(Debug, Clone, PartialEq)]
@@ -337,7 +337,7 @@ pub enum EndpointOutput {
 /// as a hook point for cross-cutting concerns (auth retry, metrics,
 /// rate limiting) without modifying generated code.
 pub async fn invoke_endpoint(
-    client: &ThetaDataDx,
+    client: &crate::direct::DirectClient,
     name: &str,
     args: &EndpointArgs,
 ) -> Result<EndpointOutput, EndpointError> {

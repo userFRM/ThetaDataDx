@@ -13,27 +13,48 @@ Retrieve end-of-day Greeks history for an option contract across a date range.
 
 ::: code-group
 ```rust [Rust]
-let data = tdx.option_history_greeks_eod("SPY", "20260417", "550", "C", "20260101", "20260301").await?;
+let data = tdx
+    .option_history_greeks_eod("SPY", "20260417", "0", "C", "20260101", "20260301")
+    .strike_range(5)
+    .await?;
 for t in &data {
     println!("date={} implied_volatility={:.4} delta={:.4} gamma={:.4} theta={:.4} vega={:.4} rho={:.4}",
         t.date, t.implied_volatility, t.delta, t.gamma, t.theta, t.vega, t.rho);
 }
 ```
 ```python [Python]
-data = tdx.option_history_greeks_eod("SPY", "20260417", "550", "C", "20260101", "20260301")
+data = tdx.option_history_greeks_eod(
+    "SPY",
+    "20260417",
+    "0",
+    "C",
+    "20260101",
+    "20260301",
+    strike_range=5,
+)
 for t in data:
     print(f"date={t['date']} implied_volatility={t['implied_volatility']:.4f} delta={t['delta']:.4f} "
           f"gamma={t['gamma']:.4f} theta={t['theta']:.4f} vega={t['vega']:.4f} rho={t['rho']:.4f}")
 ```
 ```go [Go]
-data, _ := client.OptionHistoryGreeksEOD("SPY", "20260417", "550", "C", "20260101", "20260301")
+data, _ := client.OptionHistoryGreeksEODWithOptions(
+    "SPY",
+    "20260417",
+    "0",
+    "C",
+    "20260101",
+    "20260301",
+    &thetadatadx.OptionRequestOptions{StrikeRange: thetadatadx.Int32(5)},
+)
 for _, t := range data {
     fmt.Printf("date=%d implied_volatility=%.4f delta=%.4f gamma=%.4f theta=%.4f vega=%.4f rho=%.4f\n",
         t.Date, t.ImpliedVolatility, t.Delta, t.Gamma, t.Theta, t.Vega, t.Rho)
 }
 ```
 ```cpp [C++]
-auto data = client.option_history_greeks_eod("SPY", "20260417", "550", "C", "20260101", "20260301");
+tdx::OptionRequestOptions options;
+options.strike_range = 5;
+auto data = client.option_history_greeks_eod("SPY", "20260417", "0", "C", "20260101", "20260301", options);
 for (const auto& t : data) {
     printf("date=%d implied_volatility=%.4f delta=%.4f gamma=%.4f theta=%.4f vega=%.4f rho=%.4f\n",
         t.date, t.implied_volatility, t.delta, t.gamma, t.theta, t.vega, t.rho);

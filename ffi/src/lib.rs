@@ -118,6 +118,33 @@ pub struct TdxFpssHandle {
     rx: Arc<Mutex<std::sync::mpsc::Receiver<FfiBufferedEvent>>>,
 }
 
+/// Optional builder parameters for option historical/snapshot requests over FFI.
+///
+/// Fields use simple C-friendly sentinels:
+///
+/// - integer filters: `-1` means unset
+/// - boolean flags: `-1` means unset, `0` false, `1` true
+/// - floating-point values: `NaN` means unset
+/// - string pointers: null means unset
+#[repr(C)]
+pub struct TdxOptionRequestOptions {
+    pub max_dte: i32,
+    pub strike_range: i32,
+    pub min_time: *const c_char,
+    pub start_time: *const c_char,
+    pub end_time: *const c_char,
+    pub start_date: *const c_char,
+    pub end_date: *const c_char,
+    pub exclusive: i32,
+    pub annual_dividend: f64,
+    pub rate_type: *const c_char,
+    pub rate_value: f64,
+    pub stock_price: f64,
+    pub version: *const c_char,
+    pub underlyer_use_nbbo: i32,
+    pub use_market_value: i32,
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 //  #[repr(C)] FPSS streaming event types — zero-copy across FFI
 // ═══════════════════════════════════════════════════════════════════════
@@ -597,6 +624,86 @@ unsafe fn cstr_to_str<'a>(p: *const c_char) -> Option<&'a str> {
         return None;
     }
     unsafe { CStr::from_ptr(p) }.to_str().ok()
+}
+
+fn insert_optional_str_arg(
+    args: &mut thetadatadx::EndpointArgs,
+    key: &str,
+    raw: *const c_char,
+) -> Result<(), String> {
+    if raw.is_null() {
+        return Ok(());
+    }
+    let value =
+        unsafe { cstr_to_str(raw) }.ok_or_else(|| format!("{key} is null or invalid UTF-8"))?;
+    args.insert(
+        key.to_string(),
+        thetadatadx::EndpointArgValue::Str(value.to_string()),
+    );
+    Ok(())
+}
+
+fn insert_optional_int_arg(args: &mut thetadatadx::EndpointArgs, key: &str, value: i32) {
+    if value >= 0 {
+        args.insert(
+            key.to_string(),
+            thetadatadx::EndpointArgValue::Int(i64::from(value)),
+        );
+    }
+}
+
+fn insert_optional_bool_arg(
+    args: &mut thetadatadx::EndpointArgs,
+    key: &str,
+    value: i32,
+) -> Result<(), String> {
+    match value {
+        -1 => Ok(()),
+        0 => {
+            args.insert(key.to_string(), thetadatadx::EndpointArgValue::Bool(false));
+            Ok(())
+        }
+        1 => {
+            args.insert(key.to_string(), thetadatadx::EndpointArgValue::Bool(true));
+            Ok(())
+        }
+        other => Err(format!(
+            "{key} must be -1 (unset), 0 (false), or 1 (true), got {other}"
+        )),
+    }
+}
+
+fn insert_optional_float_arg(args: &mut thetadatadx::EndpointArgs, key: &str, value: f64) {
+    if !value.is_nan() {
+        args.insert(key.to_string(), thetadatadx::EndpointArgValue::Float(value));
+    }
+}
+
+fn apply_option_request_options(
+    args: &mut thetadatadx::EndpointArgs,
+    options: *const TdxOptionRequestOptions,
+) -> Result<(), String> {
+    if options.is_null() {
+        return Ok(());
+    }
+
+    let options = unsafe { &*options };
+    insert_optional_int_arg(args, "max_dte", options.max_dte);
+    insert_optional_int_arg(args, "strike_range", options.strike_range);
+    insert_optional_str_arg(args, "min_time", options.min_time)?;
+    insert_optional_str_arg(args, "start_time", options.start_time)?;
+    insert_optional_str_arg(args, "end_time", options.end_time)?;
+    insert_optional_str_arg(args, "start_date", options.start_date)?;
+    insert_optional_str_arg(args, "end_date", options.end_date)?;
+    insert_optional_bool_arg(args, "exclusive", options.exclusive)?;
+    insert_optional_float_arg(args, "annual_dividend", options.annual_dividend);
+    insert_optional_str_arg(args, "rate_type", options.rate_type)?;
+    insert_optional_float_arg(args, "rate_value", options.rate_value);
+    insert_optional_float_arg(args, "stock_price", options.stock_price);
+    insert_optional_str_arg(args, "version", options.version)?;
+    insert_optional_bool_arg(args, "underlyer_use_nbbo", options.underlyer_use_nbbo)?;
+    insert_optional_bool_arg(args, "use_market_value", options.use_market_value)?;
+    Ok(())
 }
 
 // ── Credentials ──
@@ -1469,6 +1576,123 @@ ffi_typed_endpoint! {
 ffi_typed_endpoint! {
     /// Fetch EOD Greeks history. Returns TdxGreeksTickArray.
     tdx_option_history_greeks_eod => option_history_greeks_eod, TdxGreeksTickArray(symbol, expiration, strike, right, start_date, end_date)
+}
+
+/// Fetch EOD Greeks history with optional builder parameters.
+///
+/// This currently enables non-Rust bindings to surface parameters such as
+/// `strike_range` without hand-coding Rust builder logic in each language.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
+    client: *const TdxClient,
+    symbol: *const c_char,
+    expiration: *const c_char,
+    strike: *const c_char,
+    right: *const c_char,
+    start_date: *const c_char,
+    end_date: *const c_char,
+    options: *const TdxOptionRequestOptions,
+) -> TdxGreeksTickArray {
+    let empty = TdxGreeksTickArray {
+        data: ptr::null(),
+        len: 0,
+    };
+    if client.is_null() {
+        set_error("client handle is null");
+        return empty;
+    }
+
+    let symbol = match unsafe { cstr_to_str(symbol) } {
+        Some(s) => s,
+        None => {
+            set_error("symbol is null or invalid UTF-8");
+            return empty;
+        }
+    };
+    let expiration = match unsafe { cstr_to_str(expiration) } {
+        Some(s) => s,
+        None => {
+            set_error("expiration is null or invalid UTF-8");
+            return empty;
+        }
+    };
+    let strike = match unsafe { cstr_to_str(strike) } {
+        Some(s) => s,
+        None => {
+            set_error("strike is null or invalid UTF-8");
+            return empty;
+        }
+    };
+    let right = match unsafe { cstr_to_str(right) } {
+        Some(s) => s,
+        None => {
+            set_error("right is null or invalid UTF-8");
+            return empty;
+        }
+    };
+    let start_date = match unsafe { cstr_to_str(start_date) } {
+        Some(s) => s,
+        None => {
+            set_error("start_date is null or invalid UTF-8");
+            return empty;
+        }
+    };
+    let end_date = match unsafe { cstr_to_str(end_date) } {
+        Some(s) => s,
+        None => {
+            set_error("end_date is null or invalid UTF-8");
+            return empty;
+        }
+    };
+
+    let mut args = thetadatadx::EndpointArgs::new();
+    args.insert(
+        "symbol".to_string(),
+        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+    );
+    args.insert(
+        "expiration".to_string(),
+        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+    );
+    args.insert(
+        "strike".to_string(),
+        thetadatadx::EndpointArgValue::Str(strike.to_string()),
+    );
+    args.insert(
+        "right".to_string(),
+        thetadatadx::EndpointArgValue::Str(right.to_string()),
+    );
+    args.insert(
+        "start_date".to_string(),
+        thetadatadx::EndpointArgValue::Str(start_date.to_string()),
+    );
+    args.insert(
+        "end_date".to_string(),
+        thetadatadx::EndpointArgValue::Str(end_date.to_string()),
+    );
+
+    if let Err(message) = apply_option_request_options(&mut args, options) {
+        set_error(&message);
+        return empty;
+    }
+
+    let client = unsafe { &*client };
+    match runtime().block_on(async {
+        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_eod", &args)
+            .await
+    }) {
+        Ok(thetadatadx::EndpointOutput::GreeksTicks(ticks)) => TdxGreeksTickArray::from_vec(ticks),
+        Ok(other) => {
+            set_error(&format!(
+                "internal error: unexpected endpoint output for option_history_greeks_eod: {other:?}"
+            ));
+            empty
+        }
+        Err(e) => {
+            set_error(&e.to_string());
+            empty
+        }
+    }
 }
 
 // 36. option_history_greeks_all

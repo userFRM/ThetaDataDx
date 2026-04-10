@@ -7,6 +7,7 @@ import "C"
 
 import (
 	"fmt"
+	"math"
 	"unsafe"
 )
 
@@ -426,41 +427,41 @@ type OpenInterestTick struct {
 }
 
 type MarketValueTick struct {
-	MsOfDay   int     `json:"ms_of_day"`
-	MarketCap int64   `json:"market_cap"`
-	SharesOut int64   `json:"shares_outstanding"`
-	EntValue  int64   `json:"enterprise_value"`
-	BookValue int64   `json:"book_value"`
-	FreeFloat int64   `json:"free_float"`
-	Date      int     `json:"date"`
-	Expiration int32  `json:"expiration,omitempty"`
-	Strike    float64 `json:"strike,omitempty"`
-	Right     string  `json:"right,omitempty"`
+	MsOfDay    int     `json:"ms_of_day"`
+	MarketCap  int64   `json:"market_cap"`
+	SharesOut  int64   `json:"shares_outstanding"`
+	EntValue   int64   `json:"enterprise_value"`
+	BookValue  int64   `json:"book_value"`
+	FreeFloat  int64   `json:"free_float"`
+	Date       int     `json:"date"`
+	Expiration int32   `json:"expiration,omitempty"`
+	Strike     float64 `json:"strike,omitempty"`
+	Right      string  `json:"right,omitempty"`
 }
 
 type GreeksTick struct {
-	MsOfDay        int     `json:"ms_of_day"`
-	IV             float64 `json:"implied_volatility"`
-	Delta          float64 `json:"delta"`
-	Gamma          float64 `json:"gamma"`
-	Theta          float64 `json:"theta"`
-	Vega           float64 `json:"vega"`
-	Rho            float64 `json:"rho"`
-	IVError        float64 `json:"iv_error"`
-	Vanna          float64 `json:"vanna"`
-	Charm          float64 `json:"charm"`
-	Vomma          float64 `json:"vomma"`
-	Veta           float64 `json:"veta"`
-	Speed          float64 `json:"speed"`
-	Zomma          float64 `json:"zomma"`
-	Color          float64 `json:"color"`
-	Ultima         float64 `json:"ultima"`
-	D1             float64 `json:"d1"`
-	D2             float64 `json:"d2"`
-	DualDelta      float64 `json:"dual_delta"`
-	DualGamma      float64 `json:"dual_gamma"`
-	Epsilon        float64 `json:"epsilon"`
-	Lambda         float64 `json:"lambda"`
+	MsOfDay    int     `json:"ms_of_day"`
+	IV         float64 `json:"implied_volatility"`
+	Delta      float64 `json:"delta"`
+	Gamma      float64 `json:"gamma"`
+	Theta      float64 `json:"theta"`
+	Vega       float64 `json:"vega"`
+	Rho        float64 `json:"rho"`
+	IVError    float64 `json:"iv_error"`
+	Vanna      float64 `json:"vanna"`
+	Charm      float64 `json:"charm"`
+	Vomma      float64 `json:"vomma"`
+	Veta       float64 `json:"veta"`
+	Speed      float64 `json:"speed"`
+	Zomma      float64 `json:"zomma"`
+	Color      float64 `json:"color"`
+	Ultima     float64 `json:"ultima"`
+	D1         float64 `json:"d1"`
+	D2         float64 `json:"d2"`
+	DualDelta  float64 `json:"dual_delta"`
+	DualGamma  float64 `json:"dual_gamma"`
+	Epsilon    float64 `json:"epsilon"`
+	Lambda     float64 `json:"lambda"`
 	Vera       float64 `json:"vera"`
 	Date       int     `json:"date"`
 	Expiration int32   `json:"expiration,omitempty"`
@@ -548,7 +549,9 @@ func RightStr(code int32) string {
 // ── Generic array conversion helpers ──
 
 func convertEodTicks(arr C.TdxTickArray) []EodTick {
-	if arr.data == nil || arr.len == 0 { return nil }
+	if arr.data == nil || arr.len == 0 {
+		return nil
+	}
 	n := int(arr.len)
 	src := unsafe.Slice((*cEodTick)(arr.data), n)
 	result := make([]EodTick, n)
@@ -568,7 +571,9 @@ func convertEodTicks(arr C.TdxTickArray) []EodTick {
 }
 
 func convertOhlcTicks(arr C.TdxTickArray) []OhlcTick {
-	if arr.data == nil || arr.len == 0 { return nil }
+	if arr.data == nil || arr.len == 0 {
+		return nil
+	}
 	n := int(arr.len)
 	src := unsafe.Slice((*cOhlcTick)(arr.data), n)
 	result := make([]OhlcTick, n)
@@ -583,7 +588,9 @@ func convertOhlcTicks(arr C.TdxTickArray) []OhlcTick {
 }
 
 func convertTradeTicks(arr C.TdxTickArray) []TradeTick {
-	if arr.data == nil || arr.len == 0 { return nil }
+	if arr.data == nil || arr.len == 0 {
+		return nil
+	}
 	n := int(arr.len)
 	src := unsafe.Slice((*cTradeTick)(arr.data), n)
 	result := make([]TradeTick, n)
@@ -593,10 +600,10 @@ func convertTradeTicks(arr C.TdxTickArray) []TradeTick {
 			ExtCondition1: int(t.ExtCondition1), ExtCondition2: int(t.ExtCondition2),
 			ExtCondition3: int(t.ExtCondition3), ExtCondition4: int(t.ExtCondition4),
 			Condition: int(t.Condition),
-			Size: int(t.Size), Exchange: int(t.Exchange), Price: t.Price,
+			Size:      int(t.Size), Exchange: int(t.Exchange), Price: t.Price,
 			ConditionFlags: int(t.ConditionFlags),
-			PriceFlags: int(t.PriceFlags), VolumeType: int(t.VolumeType), RecordsBack: int(t.RecordsBack),
-			Date: int(t.Date),
+			PriceFlags:     int(t.PriceFlags), VolumeType: int(t.VolumeType), RecordsBack: int(t.RecordsBack),
+			Date:       int(t.Date),
 			Expiration: t.Expiration, Strike: t.Strike, Right: RightStr(t.Right),
 		}
 	}
@@ -604,7 +611,9 @@ func convertTradeTicks(arr C.TdxTickArray) []TradeTick {
 }
 
 func convertQuoteTicks(arr C.TdxTickArray) []QuoteTick {
-	if arr.data == nil || arr.len == 0 { return nil }
+	if arr.data == nil || arr.len == 0 {
+		return nil
+	}
 	n := int(arr.len)
 	src := unsafe.Slice((*cQuoteTick)(arr.data), n)
 	result := make([]QuoteTick, n)
@@ -622,7 +631,9 @@ func convertQuoteTicks(arr C.TdxTickArray) []QuoteTick {
 }
 
 func convertTradeQuoteTicks(arr C.TdxTickArray) []TradeQuoteTick {
-	if arr.data == nil || arr.len == 0 { return nil }
+	if arr.data == nil || arr.len == 0 {
+		return nil
+	}
 	n := int(arr.len)
 	src := unsafe.Slice((*cTradeQuoteTick)(arr.data), n)
 	result := make([]TradeQuoteTick, n)
@@ -632,14 +643,14 @@ func convertTradeQuoteTicks(arr C.TdxTickArray) []TradeQuoteTick {
 			ExtCondition1: int(t.ExtCondition1), ExtCondition2: int(t.ExtCondition2),
 			ExtCondition3: int(t.ExtCondition3), ExtCondition4: int(t.ExtCondition4),
 			Condition: int(t.Condition),
-			Size: int(t.Size), Exchange: int(t.Exchange), Price: t.Price,
+			Size:      int(t.Size), Exchange: int(t.Exchange), Price: t.Price,
 			ConditionFlags: int(t.ConditionFlags), PriceFlags: int(t.PriceFlags),
 			VolumeType: int(t.VolumeType), RecordsBack: int(t.RecordsBack),
 			QuoteMsOfDay: int(t.QuoteMsOfDay), BidSize: int(t.BidSize), BidExchange: int(t.BidExchange),
 			Bid: t.Bid, BidCondition: int(t.BidCondition),
 			AskSize: int(t.AskSize), AskExchange: int(t.AskExchange),
 			Ask: t.Ask, AskCondition: int(t.AskCondition),
-			Date: int(t.Date),
+			Date:       int(t.Date),
 			Expiration: t.Expiration, Strike: t.Strike, Right: RightStr(t.Right),
 		}
 	}
@@ -647,7 +658,9 @@ func convertTradeQuoteTicks(arr C.TdxTickArray) []TradeQuoteTick {
 }
 
 func convertOpenInterestTicks(arr C.TdxTickArray) []OpenInterestTick {
-	if arr.data == nil || arr.len == 0 { return nil }
+	if arr.data == nil || arr.len == 0 {
+		return nil
+	}
 	n := int(arr.len)
 	src := unsafe.Slice((*cOpenInterestTick)(arr.data), n)
 	result := make([]OpenInterestTick, n)
@@ -661,7 +674,9 @@ func convertOpenInterestTicks(arr C.TdxTickArray) []OpenInterestTick {
 }
 
 func convertMarketValueTicks(arr C.TdxTickArray) []MarketValueTick {
-	if arr.data == nil || arr.len == 0 { return nil }
+	if arr.data == nil || arr.len == 0 {
+		return nil
+	}
 	n := int(arr.len)
 	src := unsafe.Slice((*cMarketValueTick)(arr.data), n)
 	result := make([]MarketValueTick, n)
@@ -676,7 +691,9 @@ func convertMarketValueTicks(arr C.TdxTickArray) []MarketValueTick {
 }
 
 func convertGreeksTicks(arr C.TdxTickArray) []GreeksTick {
-	if arr.data == nil || arr.len == 0 { return nil }
+	if arr.data == nil || arr.len == 0 {
+		return nil
+	}
 	n := int(arr.len)
 	src := unsafe.Slice((*cGreeksTick)(arr.data), n)
 	result := make([]GreeksTick, n)
@@ -695,7 +712,9 @@ func convertGreeksTicks(arr C.TdxTickArray) []GreeksTick {
 }
 
 func convertIvTicks(arr C.TdxTickArray) []IVTick {
-	if arr.data == nil || arr.len == 0 { return nil }
+	if arr.data == nil || arr.len == 0 {
+		return nil
+	}
 	n := int(arr.len)
 	src := unsafe.Slice((*cIvTick)(arr.data), n)
 	result := make([]IVTick, n)
@@ -709,7 +728,9 @@ func convertIvTicks(arr C.TdxTickArray) []IVTick {
 }
 
 func convertPriceTicks(arr C.TdxTickArray) []PriceTick {
-	if arr.data == nil || arr.len == 0 { return nil }
+	if arr.data == nil || arr.len == 0 {
+		return nil
+	}
 	n := int(arr.len)
 	src := unsafe.Slice((*cPriceTick)(arr.data), n)
 	result := make([]PriceTick, n)
@@ -720,25 +741,35 @@ func convertPriceTicks(arr C.TdxTickArray) []PriceTick {
 }
 
 func convertCalendarDays(arr C.TdxTickArray) []CalendarDay {
-	if arr.data == nil || arr.len == 0 { return nil }
+	if arr.data == nil || arr.len == 0 {
+		return nil
+	}
 	n := int(arr.len)
 	src := unsafe.Slice((*cCalendarDay)(arr.data), n)
 	result := make([]CalendarDay, n)
-	for i, t := range src { result[i] = CalendarDay{int(t.Date), t.IsOpen != 0, int(t.OpenTime), int(t.CloseTime), int(t.Status)} }
+	for i, t := range src {
+		result[i] = CalendarDay{int(t.Date), t.IsOpen != 0, int(t.OpenTime), int(t.CloseTime), int(t.Status)}
+	}
 	return result
 }
 
 func convertInterestRateTicks(arr C.TdxTickArray) []InterestRateTick {
-	if arr.data == nil || arr.len == 0 { return nil }
+	if arr.data == nil || arr.len == 0 {
+		return nil
+	}
 	n := int(arr.len)
 	src := unsafe.Slice((*cInterestRateTick)(arr.data), n)
 	result := make([]InterestRateTick, n)
-	for i, t := range src { result[i] = InterestRateTick{int(t.MsOfDay), t.Rate, int(t.Date)} }
+	for i, t := range src {
+		result[i] = InterestRateTick{int(t.MsOfDay), t.Rate, int(t.Date)}
+	}
 	return result
 }
 
 func convertOptionContracts(arr C.TdxOptionContractArray) []OptionContract {
-	if arr.data == nil || arr.len == 0 { return nil }
+	if arr.data == nil || arr.len == 0 {
+		return nil
+	}
 	n := int(arr.len)
 	src := unsafe.Slice((*cOptionContract)(arr.data), n)
 	result := make([]OptionContract, n)
@@ -758,126 +789,258 @@ type Client struct {
 	handle *C.TdxClient
 }
 
+// OptionRequestOptions contains optional builder parameters for option
+// historical and snapshot requests surfaced through the Go SDK.
+//
+// The pointer helpers below keep optional field initialization concise.
+type OptionRequestOptions struct {
+	AnnualDividend   *float64
+	RateType         *string
+	RateValue        *float64
+	Version          *string
+	UnderlyerUseNBBO *bool
+	MaxDTE           *int32
+	StrikeRange      *int32
+}
+
+// Bool returns a pointer to v for optional request fields.
+func Bool(v bool) *bool { return &v }
+
+// Float64 returns a pointer to v for optional request fields.
+func Float64(v float64) *float64 { return &v }
+
+// Int32 returns a pointer to v for optional request fields.
+func Int32(v int32) *int32 { return &v }
+
+// String returns a pointer to v for optional request fields.
+func String(v string) *string { return &v }
+
 func Connect(creds *Credentials, config *Config) (*Client, error) {
-	if creds == nil || creds.handle == nil { return nil, fmt.Errorf("thetadatadx: credentials handle is nil") }
-	if config == nil || config.handle == nil { return nil, fmt.Errorf("thetadatadx: config handle is nil") }
+	if creds == nil || creds.handle == nil {
+		return nil, fmt.Errorf("thetadatadx: credentials handle is nil")
+	}
+	if config == nil || config.handle == nil {
+		return nil, fmt.Errorf("thetadatadx: config handle is nil")
+	}
 	h := C.tdx_client_connect(creds.handle, config.handle)
-	if h == nil { return nil, fmt.Errorf("thetadatadx: %s", lastError()) }
+	if h == nil {
+		return nil, fmt.Errorf("thetadatadx: %s", lastError())
+	}
 	return &Client{handle: h}, nil
 }
 
 func (c *Client) Close() {
-	if c.handle != nil { C.tdx_client_free(c.handle); c.handle = nil }
+	if c.handle != nil {
+		C.tdx_client_free(c.handle)
+		c.handle = nil
+	}
 }
 
 // ═══════════════════════════════════════════════════════════════
 //  Stock endpoints
 // ═══════════════════════════════════════════════════════════════
 
-func (c *Client) StockListSymbols() ([]string, error) { return stringArrayToGo(C.tdx_stock_list_symbols(c.handle)) }
+func (c *Client) StockListSymbols() ([]string, error) {
+	return stringArrayToGo(C.tdx_stock_list_symbols(c.handle))
+}
 
 func (c *Client) StockListDates(requestType, symbol string) ([]string, error) {
-	cRT := C.CString(requestType); cSym := C.CString(symbol)
-	defer C.free(unsafe.Pointer(cRT)); defer C.free(unsafe.Pointer(cSym))
+	cRT := C.CString(requestType)
+	cSym := C.CString(symbol)
+	defer C.free(unsafe.Pointer(cRT))
+	defer C.free(unsafe.Pointer(cSym))
 	return stringArrayToGo(C.tdx_stock_list_dates(c.handle, cRT, cSym))
 }
 
 func (c *Client) StockSnapshotOHLC(symbols []string) ([]OhlcTick, error) {
-	cSyms, cLen := symbolsToCArray(symbols); defer freeSymbolArray(cSyms, cLen)
-	arr := C.tdx_stock_snapshot_ohlc(c.handle, cSyms, cLen); result := convertOhlcTicks(arr); C.tdx_ohlc_tick_array_free(arr); return result, nil
+	cSyms, cLen := symbolsToCArray(symbols)
+	defer freeSymbolArray(cSyms, cLen)
+	arr := C.tdx_stock_snapshot_ohlc(c.handle, cSyms, cLen)
+	result := convertOhlcTicks(arr)
+	C.tdx_ohlc_tick_array_free(arr)
+	return result, nil
 }
 
 func (c *Client) StockSnapshotTrade(symbols []string) ([]TradeTick, error) {
-	cSyms, cLen := symbolsToCArray(symbols); defer freeSymbolArray(cSyms, cLen)
-	arr := C.tdx_stock_snapshot_trade(c.handle, cSyms, cLen); result := convertTradeTicks(arr); C.tdx_trade_tick_array_free(arr); return result, nil
+	cSyms, cLen := symbolsToCArray(symbols)
+	defer freeSymbolArray(cSyms, cLen)
+	arr := C.tdx_stock_snapshot_trade(c.handle, cSyms, cLen)
+	result := convertTradeTicks(arr)
+	C.tdx_trade_tick_array_free(arr)
+	return result, nil
 }
 
 func (c *Client) StockSnapshotQuote(symbols []string) ([]QuoteTick, error) {
-	cSyms, cLen := symbolsToCArray(symbols); defer freeSymbolArray(cSyms, cLen)
-	arr := C.tdx_stock_snapshot_quote(c.handle, cSyms, cLen); result := convertQuoteTicks(arr); C.tdx_quote_tick_array_free(arr); return result, nil
+	cSyms, cLen := symbolsToCArray(symbols)
+	defer freeSymbolArray(cSyms, cLen)
+	arr := C.tdx_stock_snapshot_quote(c.handle, cSyms, cLen)
+	result := convertQuoteTicks(arr)
+	C.tdx_quote_tick_array_free(arr)
+	return result, nil
 }
 
 func (c *Client) StockSnapshotMarketValue(symbols []string) ([]MarketValueTick, error) {
-	cSyms, cLen := symbolsToCArray(symbols); defer freeSymbolArray(cSyms, cLen)
-	arr := C.tdx_stock_snapshot_market_value(c.handle, cSyms, cLen); result := convertMarketValueTicks(arr); C.tdx_market_value_tick_array_free(arr); return result, nil
+	cSyms, cLen := symbolsToCArray(symbols)
+	defer freeSymbolArray(cSyms, cLen)
+	arr := C.tdx_stock_snapshot_market_value(c.handle, cSyms, cLen)
+	result := convertMarketValueTicks(arr)
+	C.tdx_market_value_tick_array_free(arr)
+	return result, nil
 }
 
 func (c *Client) StockHistoryEOD(symbol, startDate, endDate string) ([]EodTick, error) {
-	cS := C.CString(symbol); cSt := C.CString(startDate); cEn := C.CString(endDate)
-	defer C.free(unsafe.Pointer(cS)); defer C.free(unsafe.Pointer(cSt)); defer C.free(unsafe.Pointer(cEn))
-	arr := C.tdx_stock_history_eod(c.handle, cS, cSt, cEn); result := convertEodTicks(arr); C.tdx_eod_tick_array_free(arr); return result, nil
+	cS := C.CString(symbol)
+	cSt := C.CString(startDate)
+	cEn := C.CString(endDate)
+	defer C.free(unsafe.Pointer(cS))
+	defer C.free(unsafe.Pointer(cSt))
+	defer C.free(unsafe.Pointer(cEn))
+	arr := C.tdx_stock_history_eod(c.handle, cS, cSt, cEn)
+	result := convertEodTicks(arr)
+	C.tdx_eod_tick_array_free(arr)
+	return result, nil
 }
 
 func (c *Client) StockHistoryOHLC(symbol, date, interval string) ([]OhlcTick, error) {
-	cS := C.CString(symbol); cD := C.CString(date); cI := C.CString(interval)
-	defer C.free(unsafe.Pointer(cS)); defer C.free(unsafe.Pointer(cD)); defer C.free(unsafe.Pointer(cI))
-	arr := C.tdx_stock_history_ohlc(c.handle, cS, cD, cI); result := convertOhlcTicks(arr); C.tdx_ohlc_tick_array_free(arr); return result, nil
+	cS := C.CString(symbol)
+	cD := C.CString(date)
+	cI := C.CString(interval)
+	defer C.free(unsafe.Pointer(cS))
+	defer C.free(unsafe.Pointer(cD))
+	defer C.free(unsafe.Pointer(cI))
+	arr := C.tdx_stock_history_ohlc(c.handle, cS, cD, cI)
+	result := convertOhlcTicks(arr)
+	C.tdx_ohlc_tick_array_free(arr)
+	return result, nil
 }
 
 func (c *Client) StockHistoryOHLCRange(symbol, startDate, endDate, interval string) ([]OhlcTick, error) {
-	cS := C.CString(symbol); cSt := C.CString(startDate); cEn := C.CString(endDate); cI := C.CString(interval)
-	defer C.free(unsafe.Pointer(cS)); defer C.free(unsafe.Pointer(cSt)); defer C.free(unsafe.Pointer(cEn)); defer C.free(unsafe.Pointer(cI))
-	arr := C.tdx_stock_history_ohlc_range(c.handle, cS, cSt, cEn, cI); result := convertOhlcTicks(arr); C.tdx_ohlc_tick_array_free(arr); return result, nil
+	cS := C.CString(symbol)
+	cSt := C.CString(startDate)
+	cEn := C.CString(endDate)
+	cI := C.CString(interval)
+	defer C.free(unsafe.Pointer(cS))
+	defer C.free(unsafe.Pointer(cSt))
+	defer C.free(unsafe.Pointer(cEn))
+	defer C.free(unsafe.Pointer(cI))
+	arr := C.tdx_stock_history_ohlc_range(c.handle, cS, cSt, cEn, cI)
+	result := convertOhlcTicks(arr)
+	C.tdx_ohlc_tick_array_free(arr)
+	return result, nil
 }
 
 func (c *Client) StockHistoryTrade(symbol, date string) ([]TradeTick, error) {
-	cS := C.CString(symbol); cD := C.CString(date)
-	defer C.free(unsafe.Pointer(cS)); defer C.free(unsafe.Pointer(cD))
-	arr := C.tdx_stock_history_trade(c.handle, cS, cD); result := convertTradeTicks(arr); C.tdx_trade_tick_array_free(arr); return result, nil
+	cS := C.CString(symbol)
+	cD := C.CString(date)
+	defer C.free(unsafe.Pointer(cS))
+	defer C.free(unsafe.Pointer(cD))
+	arr := C.tdx_stock_history_trade(c.handle, cS, cD)
+	result := convertTradeTicks(arr)
+	C.tdx_trade_tick_array_free(arr)
+	return result, nil
 }
 
 func (c *Client) StockHistoryQuote(symbol, date, interval string) ([]QuoteTick, error) {
-	cS := C.CString(symbol); cD := C.CString(date); cI := C.CString(interval)
-	defer C.free(unsafe.Pointer(cS)); defer C.free(unsafe.Pointer(cD)); defer C.free(unsafe.Pointer(cI))
-	arr := C.tdx_stock_history_quote(c.handle, cS, cD, cI); result := convertQuoteTicks(arr); C.tdx_quote_tick_array_free(arr); return result, nil
+	cS := C.CString(symbol)
+	cD := C.CString(date)
+	cI := C.CString(interval)
+	defer C.free(unsafe.Pointer(cS))
+	defer C.free(unsafe.Pointer(cD))
+	defer C.free(unsafe.Pointer(cI))
+	arr := C.tdx_stock_history_quote(c.handle, cS, cD, cI)
+	result := convertQuoteTicks(arr)
+	C.tdx_quote_tick_array_free(arr)
+	return result, nil
 }
 
 func (c *Client) StockHistoryTradeQuote(symbol, date string) ([]TradeQuoteTick, error) {
-	cS := C.CString(symbol); cD := C.CString(date)
-	defer C.free(unsafe.Pointer(cS)); defer C.free(unsafe.Pointer(cD))
-	arr := C.tdx_stock_history_trade_quote(c.handle, cS, cD); result := convertTradeQuoteTicks(arr); C.tdx_trade_quote_tick_array_free(arr); return result, nil
+	cS := C.CString(symbol)
+	cD := C.CString(date)
+	defer C.free(unsafe.Pointer(cS))
+	defer C.free(unsafe.Pointer(cD))
+	arr := C.tdx_stock_history_trade_quote(c.handle, cS, cD)
+	result := convertTradeQuoteTicks(arr)
+	C.tdx_trade_quote_tick_array_free(arr)
+	return result, nil
 }
 
 func (c *Client) StockAtTimeTrade(symbol, startDate, endDate, timeOfDay string) ([]TradeTick, error) {
-	cS := C.CString(symbol); cSt := C.CString(startDate); cEn := C.CString(endDate); cT := C.CString(timeOfDay)
-	defer C.free(unsafe.Pointer(cS)); defer C.free(unsafe.Pointer(cSt)); defer C.free(unsafe.Pointer(cEn)); defer C.free(unsafe.Pointer(cT))
-	arr := C.tdx_stock_at_time_trade(c.handle, cS, cSt, cEn, cT); result := convertTradeTicks(arr); C.tdx_trade_tick_array_free(arr); return result, nil
+	cS := C.CString(symbol)
+	cSt := C.CString(startDate)
+	cEn := C.CString(endDate)
+	cT := C.CString(timeOfDay)
+	defer C.free(unsafe.Pointer(cS))
+	defer C.free(unsafe.Pointer(cSt))
+	defer C.free(unsafe.Pointer(cEn))
+	defer C.free(unsafe.Pointer(cT))
+	arr := C.tdx_stock_at_time_trade(c.handle, cS, cSt, cEn, cT)
+	result := convertTradeTicks(arr)
+	C.tdx_trade_tick_array_free(arr)
+	return result, nil
 }
 
 func (c *Client) StockAtTimeQuote(symbol, startDate, endDate, timeOfDay string) ([]QuoteTick, error) {
-	cS := C.CString(symbol); cSt := C.CString(startDate); cEn := C.CString(endDate); cT := C.CString(timeOfDay)
-	defer C.free(unsafe.Pointer(cS)); defer C.free(unsafe.Pointer(cSt)); defer C.free(unsafe.Pointer(cEn)); defer C.free(unsafe.Pointer(cT))
-	arr := C.tdx_stock_at_time_quote(c.handle, cS, cSt, cEn, cT); result := convertQuoteTicks(arr); C.tdx_quote_tick_array_free(arr); return result, nil
+	cS := C.CString(symbol)
+	cSt := C.CString(startDate)
+	cEn := C.CString(endDate)
+	cT := C.CString(timeOfDay)
+	defer C.free(unsafe.Pointer(cS))
+	defer C.free(unsafe.Pointer(cSt))
+	defer C.free(unsafe.Pointer(cEn))
+	defer C.free(unsafe.Pointer(cT))
+	arr := C.tdx_stock_at_time_quote(c.handle, cS, cSt, cEn, cT)
+	result := convertQuoteTicks(arr)
+	C.tdx_quote_tick_array_free(arr)
+	return result, nil
 }
 
 // ═══════════════════════════════════════════════════════════════
 //  Option — List endpoints
 // ═══════════════════════════════════════════════════════════════
 
-func (c *Client) OptionListSymbols() ([]string, error) { return stringArrayToGo(C.tdx_option_list_symbols(c.handle)) }
+func (c *Client) OptionListSymbols() ([]string, error) {
+	return stringArrayToGo(C.tdx_option_list_symbols(c.handle))
+}
 
 func (c *Client) OptionListDates(requestType, symbol, expiration, strike, right string) ([]string, error) {
-	cRT := C.CString(requestType); cSym := C.CString(symbol); cExp := C.CString(expiration); cStr := C.CString(strike); cR := C.CString(right)
-	defer C.free(unsafe.Pointer(cRT)); defer C.free(unsafe.Pointer(cSym)); defer C.free(unsafe.Pointer(cExp)); defer C.free(unsafe.Pointer(cStr)); defer C.free(unsafe.Pointer(cR))
+	cRT := C.CString(requestType)
+	cSym := C.CString(symbol)
+	cExp := C.CString(expiration)
+	cStr := C.CString(strike)
+	cR := C.CString(right)
+	defer C.free(unsafe.Pointer(cRT))
+	defer C.free(unsafe.Pointer(cSym))
+	defer C.free(unsafe.Pointer(cExp))
+	defer C.free(unsafe.Pointer(cStr))
+	defer C.free(unsafe.Pointer(cR))
 	return stringArrayToGo(C.tdx_option_list_dates(c.handle, cRT, cSym, cExp, cStr, cR))
 }
 
 func (c *Client) OptionListExpirations(symbol string) ([]string, error) {
-	cSym := C.CString(symbol); defer C.free(unsafe.Pointer(cSym))
+	cSym := C.CString(symbol)
+	defer C.free(unsafe.Pointer(cSym))
 	return stringArrayToGo(C.tdx_option_list_expirations(c.handle, cSym))
 }
 
 func (c *Client) OptionListStrikes(symbol, expiration string) ([]string, error) {
-	cSym := C.CString(symbol); cExp := C.CString(expiration)
-	defer C.free(unsafe.Pointer(cSym)); defer C.free(unsafe.Pointer(cExp))
+	cSym := C.CString(symbol)
+	cExp := C.CString(expiration)
+	defer C.free(unsafe.Pointer(cSym))
+	defer C.free(unsafe.Pointer(cExp))
 	return stringArrayToGo(C.tdx_option_list_strikes(c.handle, cSym, cExp))
 }
 
 func (c *Client) OptionListContracts(requestType, symbol, date string) ([]OptionContract, error) {
-	cRT := C.CString(requestType); cSym := C.CString(symbol); cD := C.CString(date)
-	defer C.free(unsafe.Pointer(cRT)); defer C.free(unsafe.Pointer(cSym)); defer C.free(unsafe.Pointer(cD))
+	cRT := C.CString(requestType)
+	cSym := C.CString(symbol)
+	cD := C.CString(date)
+	defer C.free(unsafe.Pointer(cRT))
+	defer C.free(unsafe.Pointer(cSym))
+	defer C.free(unsafe.Pointer(cD))
 	arr := C.tdx_option_list_contracts(c.handle, cRT, cSym, cD)
-	result := convertOptionContracts(arr); C.tdx_option_contract_array_free(arr); return result, nil
+	result := convertOptionContracts(arr)
+	C.tdx_option_contract_array_free(arr)
+	return result, nil
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -887,198 +1050,473 @@ func (c *Client) OptionListContracts(requestType, symbol, date string) ([]Option
 
 // Helper for 4-param option endpoints (symbol, expiration, strike, right)
 func (c *Client) optArgs4(s, e, k, r string) (*C.char, *C.char, *C.char, *C.char, func()) {
-	cS := C.CString(s); cE := C.CString(e); cK := C.CString(k); cR := C.CString(r)
+	cS := C.CString(s)
+	cE := C.CString(e)
+	cK := C.CString(k)
+	cR := C.CString(r)
 	return cS, cE, cK, cR, func() {
-		C.free(unsafe.Pointer(cS)); C.free(unsafe.Pointer(cE)); C.free(unsafe.Pointer(cK)); C.free(unsafe.Pointer(cR))
+		C.free(unsafe.Pointer(cS))
+		C.free(unsafe.Pointer(cE))
+		C.free(unsafe.Pointer(cK))
+		C.free(unsafe.Pointer(cR))
 	}
 }
 
+func optionRequestOptionsToC(opts *OptionRequestOptions) (*C.TdxOptionRequestOptions, func()) {
+	if opts == nil {
+		return nil, func() {}
+	}
+
+	cOpts := &C.TdxOptionRequestOptions{}
+	cOpts.max_dte = -1
+	cOpts.strike_range = -1
+	cOpts.annual_dividend = C.double(math.NaN())
+	cOpts.rate_value = C.double(math.NaN())
+	cOpts.stock_price = C.double(math.NaN())
+	cOpts.exclusive = -1
+	cOpts.underlyer_use_nbbo = -1
+	cOpts.use_market_value = -1
+
+	var allocations []unsafe.Pointer
+	free := func() {
+		for _, allocation := range allocations {
+			C.free(allocation)
+		}
+	}
+
+	if opts.AnnualDividend != nil {
+		cOpts.annual_dividend = C.double(*opts.AnnualDividend)
+	}
+	if opts.RateType != nil {
+		rateType := C.CString(*opts.RateType)
+		cOpts.rate_type = rateType
+		allocations = append(allocations, unsafe.Pointer(rateType))
+	}
+	if opts.RateValue != nil {
+		cOpts.rate_value = C.double(*opts.RateValue)
+	}
+	if opts.Version != nil {
+		version := C.CString(*opts.Version)
+		cOpts.version = version
+		allocations = append(allocations, unsafe.Pointer(version))
+	}
+	if opts.UnderlyerUseNBBO != nil {
+		if *opts.UnderlyerUseNBBO {
+			cOpts.underlyer_use_nbbo = 1
+		} else {
+			cOpts.underlyer_use_nbbo = 0
+		}
+	}
+	if opts.MaxDTE != nil {
+		cOpts.max_dte = C.int32_t(*opts.MaxDTE)
+	}
+	if opts.StrikeRange != nil {
+		cOpts.strike_range = C.int32_t(*opts.StrikeRange)
+	}
+
+	return cOpts, free
+}
+
 func (c *Client) OptionSnapshotOHLC(s, e, k, r string) ([]OhlcTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	arr := C.tdx_option_snapshot_ohlc(c.handle, cS, cE, cK, cR); result := convertOhlcTicks(arr); C.tdx_ohlc_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	arr := C.tdx_option_snapshot_ohlc(c.handle, cS, cE, cK, cR)
+	result := convertOhlcTicks(arr)
+	C.tdx_ohlc_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) OptionSnapshotTrade(s, e, k, r string) ([]TradeTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	arr := C.tdx_option_snapshot_trade(c.handle, cS, cE, cK, cR); result := convertTradeTicks(arr); C.tdx_trade_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	arr := C.tdx_option_snapshot_trade(c.handle, cS, cE, cK, cR)
+	result := convertTradeTicks(arr)
+	C.tdx_trade_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) OptionSnapshotQuote(s, e, k, r string) ([]QuoteTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	arr := C.tdx_option_snapshot_quote(c.handle, cS, cE, cK, cR); result := convertQuoteTicks(arr); C.tdx_quote_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	arr := C.tdx_option_snapshot_quote(c.handle, cS, cE, cK, cR)
+	result := convertQuoteTicks(arr)
+	C.tdx_quote_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) OptionSnapshotOpenInterest(s, e, k, r string) ([]OpenInterestTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	arr := C.tdx_option_snapshot_open_interest(c.handle, cS, cE, cK, cR); result := convertOpenInterestTicks(arr); C.tdx_open_interest_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	arr := C.tdx_option_snapshot_open_interest(c.handle, cS, cE, cK, cR)
+	result := convertOpenInterestTicks(arr)
+	C.tdx_open_interest_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) OptionSnapshotMarketValue(s, e, k, r string) ([]MarketValueTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	arr := C.tdx_option_snapshot_market_value(c.handle, cS, cE, cK, cR); result := convertMarketValueTicks(arr); C.tdx_market_value_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	arr := C.tdx_option_snapshot_market_value(c.handle, cS, cE, cK, cR)
+	result := convertMarketValueTicks(arr)
+	C.tdx_market_value_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) OptionSnapshotGreeksIV(s, e, k, r string) ([]IVTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	arr := C.tdx_option_snapshot_greeks_implied_volatility(c.handle, cS, cE, cK, cR); result := convertIvTicks(arr); C.tdx_iv_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	arr := C.tdx_option_snapshot_greeks_implied_volatility(c.handle, cS, cE, cK, cR)
+	result := convertIvTicks(arr)
+	C.tdx_iv_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) OptionSnapshotGreeksAll(s, e, k, r string) ([]GreeksTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	arr := C.tdx_option_snapshot_greeks_all(c.handle, cS, cE, cK, cR); result := convertGreeksTicks(arr); C.tdx_greeks_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	arr := C.tdx_option_snapshot_greeks_all(c.handle, cS, cE, cK, cR)
+	result := convertGreeksTicks(arr)
+	C.tdx_greeks_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) OptionSnapshotGreeksFirstOrder(s, e, k, r string) ([]GreeksTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	arr := C.tdx_option_snapshot_greeks_first_order(c.handle, cS, cE, cK, cR); result := convertGreeksTicks(arr); C.tdx_greeks_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	arr := C.tdx_option_snapshot_greeks_first_order(c.handle, cS, cE, cK, cR)
+	result := convertGreeksTicks(arr)
+	C.tdx_greeks_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) OptionSnapshotGreeksSecondOrder(s, e, k, r string) ([]GreeksTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	arr := C.tdx_option_snapshot_greeks_second_order(c.handle, cS, cE, cK, cR); result := convertGreeksTicks(arr); C.tdx_greeks_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	arr := C.tdx_option_snapshot_greeks_second_order(c.handle, cS, cE, cK, cR)
+	result := convertGreeksTicks(arr)
+	C.tdx_greeks_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) OptionSnapshotGreeksThirdOrder(s, e, k, r string) ([]GreeksTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	arr := C.tdx_option_snapshot_greeks_third_order(c.handle, cS, cE, cK, cR); result := convertGreeksTicks(arr); C.tdx_greeks_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	arr := C.tdx_option_snapshot_greeks_third_order(c.handle, cS, cE, cK, cR)
+	result := convertGreeksTicks(arr)
+	C.tdx_greeks_tick_array_free(arr)
+	return result, nil
 }
 
 // Option history endpoints follow the same pattern. Including all for completeness.
 
 func (c *Client) OptionHistoryEOD(s, e, k, r, sd, ed string) ([]EodTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	cSD := C.CString(sd); cED := C.CString(ed); defer C.free(unsafe.Pointer(cSD)); defer C.free(unsafe.Pointer(cED))
-	arr := C.tdx_option_history_eod(c.handle, cS, cE, cK, cR, cSD, cED); result := convertEodTicks(arr); C.tdx_eod_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	cSD := C.CString(sd)
+	cED := C.CString(ed)
+	defer C.free(unsafe.Pointer(cSD))
+	defer C.free(unsafe.Pointer(cED))
+	arr := C.tdx_option_history_eod(c.handle, cS, cE, cK, cR, cSD, cED)
+	result := convertEodTicks(arr)
+	C.tdx_eod_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) OptionHistoryOHLC(s, e, k, r, d, iv string) ([]OhlcTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	cD := C.CString(d); cI := C.CString(iv); defer C.free(unsafe.Pointer(cD)); defer C.free(unsafe.Pointer(cI))
-	arr := C.tdx_option_history_ohlc(c.handle, cS, cE, cK, cR, cD, cI); result := convertOhlcTicks(arr); C.tdx_ohlc_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	cD := C.CString(d)
+	cI := C.CString(iv)
+	defer C.free(unsafe.Pointer(cD))
+	defer C.free(unsafe.Pointer(cI))
+	arr := C.tdx_option_history_ohlc(c.handle, cS, cE, cK, cR, cD, cI)
+	result := convertOhlcTicks(arr)
+	C.tdx_ohlc_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) OptionHistoryTrade(s, e, k, r, d string) ([]TradeTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	cD := C.CString(d); defer C.free(unsafe.Pointer(cD))
-	arr := C.tdx_option_history_trade(c.handle, cS, cE, cK, cR, cD); result := convertTradeTicks(arr); C.tdx_trade_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	cD := C.CString(d)
+	defer C.free(unsafe.Pointer(cD))
+	arr := C.tdx_option_history_trade(c.handle, cS, cE, cK, cR, cD)
+	result := convertTradeTicks(arr)
+	C.tdx_trade_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) OptionHistoryQuote(s, e, k, r, d, iv string) ([]QuoteTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	cD := C.CString(d); cI := C.CString(iv); defer C.free(unsafe.Pointer(cD)); defer C.free(unsafe.Pointer(cI))
-	arr := C.tdx_option_history_quote(c.handle, cS, cE, cK, cR, cD, cI); result := convertQuoteTicks(arr); C.tdx_quote_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	cD := C.CString(d)
+	cI := C.CString(iv)
+	defer C.free(unsafe.Pointer(cD))
+	defer C.free(unsafe.Pointer(cI))
+	arr := C.tdx_option_history_quote(c.handle, cS, cE, cK, cR, cD, cI)
+	result := convertQuoteTicks(arr)
+	C.tdx_quote_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) OptionHistoryTradeQuote(s, e, k, r, d string) ([]TradeQuoteTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	cD := C.CString(d); defer C.free(unsafe.Pointer(cD))
-	arr := C.tdx_option_history_trade_quote(c.handle, cS, cE, cK, cR, cD); result := convertTradeQuoteTicks(arr); C.tdx_trade_quote_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	cD := C.CString(d)
+	defer C.free(unsafe.Pointer(cD))
+	arr := C.tdx_option_history_trade_quote(c.handle, cS, cE, cK, cR, cD)
+	result := convertTradeQuoteTicks(arr)
+	C.tdx_trade_quote_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) OptionHistoryOpenInterest(s, e, k, r, d string) ([]OpenInterestTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	cD := C.CString(d); defer C.free(unsafe.Pointer(cD))
-	arr := C.tdx_option_history_open_interest(c.handle, cS, cE, cK, cR, cD); result := convertOpenInterestTicks(arr); C.tdx_open_interest_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	cD := C.CString(d)
+	defer C.free(unsafe.Pointer(cD))
+	arr := C.tdx_option_history_open_interest(c.handle, cS, cE, cK, cR, cD)
+	result := convertOpenInterestTicks(arr)
+	C.tdx_open_interest_tick_array_free(arr)
+	return result, nil
 }
 
 // Option Greeks history (all 11 endpoints)
 func (c *Client) OptionHistoryGreeksEOD(s, e, k, r, sd, ed string) ([]GreeksTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	cSD := C.CString(sd); cED := C.CString(ed); defer C.free(unsafe.Pointer(cSD)); defer C.free(unsafe.Pointer(cED))
-	arr := C.tdx_option_history_greeks_eod(c.handle, cS, cE, cK, cR, cSD, cED); result := convertGreeksTicks(arr); C.tdx_greeks_tick_array_free(arr); return result, nil
+	return c.OptionHistoryGreeksEODWithOptions(s, e, k, r, sd, ed, nil)
+}
+
+// OptionHistoryGreeksEODWithOptions fetches EOD Greeks history with optional
+// builder parameters such as StrikeRange for wildcard multi-strike requests.
+func (c *Client) OptionHistoryGreeksEODWithOptions(s, e, k, r, sd, ed string, opts *OptionRequestOptions) ([]GreeksTick, error) {
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	cSD := C.CString(sd)
+	cED := C.CString(ed)
+	defer C.free(unsafe.Pointer(cSD))
+	defer C.free(unsafe.Pointer(cED))
+	cOpts, freeOpts := optionRequestOptionsToC(opts)
+	defer freeOpts()
+	arr := C.tdx_option_history_greeks_eod_with_options(c.handle, cS, cE, cK, cR, cSD, cED, cOpts)
+	result := convertGreeksTicks(arr)
+	C.tdx_greeks_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) OptionHistoryGreeksAll(s, e, k, r, d, iv string) ([]GreeksTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	cD := C.CString(d); cI := C.CString(iv); defer C.free(unsafe.Pointer(cD)); defer C.free(unsafe.Pointer(cI))
-	arr := C.tdx_option_history_greeks_all(c.handle, cS, cE, cK, cR, cD, cI); result := convertGreeksTicks(arr); C.tdx_greeks_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	cD := C.CString(d)
+	cI := C.CString(iv)
+	defer C.free(unsafe.Pointer(cD))
+	defer C.free(unsafe.Pointer(cI))
+	arr := C.tdx_option_history_greeks_all(c.handle, cS, cE, cK, cR, cD, cI)
+	result := convertGreeksTicks(arr)
+	C.tdx_greeks_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) OptionHistoryTradeGreeksAll(s, e, k, r, d string) ([]GreeksTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	cD := C.CString(d); defer C.free(unsafe.Pointer(cD))
-	arr := C.tdx_option_history_trade_greeks_all(c.handle, cS, cE, cK, cR, cD); result := convertGreeksTicks(arr); C.tdx_greeks_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	cD := C.CString(d)
+	defer C.free(unsafe.Pointer(cD))
+	arr := C.tdx_option_history_trade_greeks_all(c.handle, cS, cE, cK, cR, cD)
+	result := convertGreeksTicks(arr)
+	C.tdx_greeks_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) OptionHistoryGreeksFirstOrder(s, e, k, r, d, iv string) ([]GreeksTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	cD := C.CString(d); cI := C.CString(iv); defer C.free(unsafe.Pointer(cD)); defer C.free(unsafe.Pointer(cI))
-	arr := C.tdx_option_history_greeks_first_order(c.handle, cS, cE, cK, cR, cD, cI); result := convertGreeksTicks(arr); C.tdx_greeks_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	cD := C.CString(d)
+	cI := C.CString(iv)
+	defer C.free(unsafe.Pointer(cD))
+	defer C.free(unsafe.Pointer(cI))
+	arr := C.tdx_option_history_greeks_first_order(c.handle, cS, cE, cK, cR, cD, cI)
+	result := convertGreeksTicks(arr)
+	C.tdx_greeks_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) OptionHistoryTradeGreeksFirstOrder(s, e, k, r, d string) ([]GreeksTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	cD := C.CString(d); defer C.free(unsafe.Pointer(cD))
-	arr := C.tdx_option_history_trade_greeks_first_order(c.handle, cS, cE, cK, cR, cD); result := convertGreeksTicks(arr); C.tdx_greeks_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	cD := C.CString(d)
+	defer C.free(unsafe.Pointer(cD))
+	arr := C.tdx_option_history_trade_greeks_first_order(c.handle, cS, cE, cK, cR, cD)
+	result := convertGreeksTicks(arr)
+	C.tdx_greeks_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) OptionHistoryGreeksSecondOrder(s, e, k, r, d, iv string) ([]GreeksTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	cD := C.CString(d); cI := C.CString(iv); defer C.free(unsafe.Pointer(cD)); defer C.free(unsafe.Pointer(cI))
-	arr := C.tdx_option_history_greeks_second_order(c.handle, cS, cE, cK, cR, cD, cI); result := convertGreeksTicks(arr); C.tdx_greeks_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	cD := C.CString(d)
+	cI := C.CString(iv)
+	defer C.free(unsafe.Pointer(cD))
+	defer C.free(unsafe.Pointer(cI))
+	arr := C.tdx_option_history_greeks_second_order(c.handle, cS, cE, cK, cR, cD, cI)
+	result := convertGreeksTicks(arr)
+	C.tdx_greeks_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) OptionHistoryTradeGreeksSecondOrder(s, e, k, r, d string) ([]GreeksTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	cD := C.CString(d); defer C.free(unsafe.Pointer(cD))
-	arr := C.tdx_option_history_trade_greeks_second_order(c.handle, cS, cE, cK, cR, cD); result := convertGreeksTicks(arr); C.tdx_greeks_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	cD := C.CString(d)
+	defer C.free(unsafe.Pointer(cD))
+	arr := C.tdx_option_history_trade_greeks_second_order(c.handle, cS, cE, cK, cR, cD)
+	result := convertGreeksTicks(arr)
+	C.tdx_greeks_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) OptionHistoryGreeksThirdOrder(s, e, k, r, d, iv string) ([]GreeksTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	cD := C.CString(d); cI := C.CString(iv); defer C.free(unsafe.Pointer(cD)); defer C.free(unsafe.Pointer(cI))
-	arr := C.tdx_option_history_greeks_third_order(c.handle, cS, cE, cK, cR, cD, cI); result := convertGreeksTicks(arr); C.tdx_greeks_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	cD := C.CString(d)
+	cI := C.CString(iv)
+	defer C.free(unsafe.Pointer(cD))
+	defer C.free(unsafe.Pointer(cI))
+	arr := C.tdx_option_history_greeks_third_order(c.handle, cS, cE, cK, cR, cD, cI)
+	result := convertGreeksTicks(arr)
+	C.tdx_greeks_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) OptionHistoryTradeGreeksThirdOrder(s, e, k, r, d string) ([]GreeksTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	cD := C.CString(d); defer C.free(unsafe.Pointer(cD))
-	arr := C.tdx_option_history_trade_greeks_third_order(c.handle, cS, cE, cK, cR, cD); result := convertGreeksTicks(arr); C.tdx_greeks_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	cD := C.CString(d)
+	defer C.free(unsafe.Pointer(cD))
+	arr := C.tdx_option_history_trade_greeks_third_order(c.handle, cS, cE, cK, cR, cD)
+	result := convertGreeksTicks(arr)
+	C.tdx_greeks_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) OptionHistoryGreeksIV(s, e, k, r, d, iv string) ([]IVTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	cD := C.CString(d); cI := C.CString(iv); defer C.free(unsafe.Pointer(cD)); defer C.free(unsafe.Pointer(cI))
-	arr := C.tdx_option_history_greeks_implied_volatility(c.handle, cS, cE, cK, cR, cD, cI); result := convertIvTicks(arr); C.tdx_iv_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	cD := C.CString(d)
+	cI := C.CString(iv)
+	defer C.free(unsafe.Pointer(cD))
+	defer C.free(unsafe.Pointer(cI))
+	arr := C.tdx_option_history_greeks_implied_volatility(c.handle, cS, cE, cK, cR, cD, cI)
+	result := convertIvTicks(arr)
+	C.tdx_iv_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) OptionHistoryTradeGreeksIV(s, e, k, r, d string) ([]IVTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	cD := C.CString(d); defer C.free(unsafe.Pointer(cD))
-	arr := C.tdx_option_history_trade_greeks_implied_volatility(c.handle, cS, cE, cK, cR, cD); result := convertIvTicks(arr); C.tdx_iv_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	cD := C.CString(d)
+	defer C.free(unsafe.Pointer(cD))
+	arr := C.tdx_option_history_trade_greeks_implied_volatility(c.handle, cS, cE, cK, cR, cD)
+	result := convertIvTicks(arr)
+	C.tdx_iv_tick_array_free(arr)
+	return result, nil
 }
 
 func (c *Client) OptionAtTimeTrade(s, e, k, r, sd, ed, tod string) ([]TradeTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	cSD := C.CString(sd); cED := C.CString(ed); cT := C.CString(tod)
-	defer C.free(unsafe.Pointer(cSD)); defer C.free(unsafe.Pointer(cED)); defer C.free(unsafe.Pointer(cT))
-	arr := C.tdx_option_at_time_trade(c.handle, cS, cE, cK, cR, cSD, cED, cT); result := convertTradeTicks(arr); C.tdx_trade_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	cSD := C.CString(sd)
+	cED := C.CString(ed)
+	cT := C.CString(tod)
+	defer C.free(unsafe.Pointer(cSD))
+	defer C.free(unsafe.Pointer(cED))
+	defer C.free(unsafe.Pointer(cT))
+	arr := C.tdx_option_at_time_trade(c.handle, cS, cE, cK, cR, cSD, cED, cT)
+	result := convertTradeTicks(arr)
+	C.tdx_trade_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) OptionAtTimeQuote(s, e, k, r, sd, ed, tod string) ([]QuoteTick, error) {
-	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r); defer free()
-	cSD := C.CString(sd); cED := C.CString(ed); cT := C.CString(tod)
-	defer C.free(unsafe.Pointer(cSD)); defer C.free(unsafe.Pointer(cED)); defer C.free(unsafe.Pointer(cT))
-	arr := C.tdx_option_at_time_quote(c.handle, cS, cE, cK, cR, cSD, cED, cT); result := convertQuoteTicks(arr); C.tdx_quote_tick_array_free(arr); return result, nil
+	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
+	defer free()
+	cSD := C.CString(sd)
+	cED := C.CString(ed)
+	cT := C.CString(tod)
+	defer C.free(unsafe.Pointer(cSD))
+	defer C.free(unsafe.Pointer(cED))
+	defer C.free(unsafe.Pointer(cT))
+	arr := C.tdx_option_at_time_quote(c.handle, cS, cE, cK, cR, cSD, cED, cT)
+	result := convertQuoteTicks(arr)
+	C.tdx_quote_tick_array_free(arr)
+	return result, nil
 }
 
 // ═══════════════════════════════════════════════════════════════
 //  Index endpoints
 // ═══════════════════════════════════════════════════════════════
 
-func (c *Client) IndexListSymbols() ([]string, error) { return stringArrayToGo(C.tdx_index_list_symbols(c.handle)) }
+func (c *Client) IndexListSymbols() ([]string, error) {
+	return stringArrayToGo(C.tdx_index_list_symbols(c.handle))
+}
 func (c *Client) IndexListDates(symbol string) ([]string, error) {
-	cSym := C.CString(symbol); defer C.free(unsafe.Pointer(cSym))
+	cSym := C.CString(symbol)
+	defer C.free(unsafe.Pointer(cSym))
 	return stringArrayToGo(C.tdx_index_list_dates(c.handle, cSym))
 }
 
 func (c *Client) IndexSnapshotOHLC(symbols []string) ([]OhlcTick, error) {
-	cSyms, cLen := symbolsToCArray(symbols); defer freeSymbolArray(cSyms, cLen)
-	arr := C.tdx_index_snapshot_ohlc(c.handle, cSyms, cLen); result := convertOhlcTicks(arr); C.tdx_ohlc_tick_array_free(arr); return result, nil
+	cSyms, cLen := symbolsToCArray(symbols)
+	defer freeSymbolArray(cSyms, cLen)
+	arr := C.tdx_index_snapshot_ohlc(c.handle, cSyms, cLen)
+	result := convertOhlcTicks(arr)
+	C.tdx_ohlc_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) IndexSnapshotPrice(symbols []string) ([]PriceTick, error) {
-	cSyms, cLen := symbolsToCArray(symbols); defer freeSymbolArray(cSyms, cLen)
-	arr := C.tdx_index_snapshot_price(c.handle, cSyms, cLen); result := convertPriceTicks(arr); C.tdx_price_tick_array_free(arr); return result, nil
+	cSyms, cLen := symbolsToCArray(symbols)
+	defer freeSymbolArray(cSyms, cLen)
+	arr := C.tdx_index_snapshot_price(c.handle, cSyms, cLen)
+	result := convertPriceTicks(arr)
+	C.tdx_price_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) IndexSnapshotMarketValue(symbols []string) ([]MarketValueTick, error) {
-	cSyms, cLen := symbolsToCArray(symbols); defer freeSymbolArray(cSyms, cLen)
-	arr := C.tdx_index_snapshot_market_value(c.handle, cSyms, cLen); result := convertMarketValueTicks(arr); C.tdx_market_value_tick_array_free(arr); return result, nil
+	cSyms, cLen := symbolsToCArray(symbols)
+	defer freeSymbolArray(cSyms, cLen)
+	arr := C.tdx_index_snapshot_market_value(c.handle, cSyms, cLen)
+	result := convertMarketValueTicks(arr)
+	C.tdx_market_value_tick_array_free(arr)
+	return result, nil
 }
 
 func (c *Client) IndexHistoryEOD(symbol, startDate, endDate string) ([]EodTick, error) {
-	cS := C.CString(symbol); cSt := C.CString(startDate); cEn := C.CString(endDate)
-	defer C.free(unsafe.Pointer(cS)); defer C.free(unsafe.Pointer(cSt)); defer C.free(unsafe.Pointer(cEn))
-	arr := C.tdx_index_history_eod(c.handle, cS, cSt, cEn); result := convertEodTicks(arr); C.tdx_eod_tick_array_free(arr); return result, nil
+	cS := C.CString(symbol)
+	cSt := C.CString(startDate)
+	cEn := C.CString(endDate)
+	defer C.free(unsafe.Pointer(cS))
+	defer C.free(unsafe.Pointer(cSt))
+	defer C.free(unsafe.Pointer(cEn))
+	arr := C.tdx_index_history_eod(c.handle, cS, cSt, cEn)
+	result := convertEodTicks(arr)
+	C.tdx_eod_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) IndexHistoryOHLC(symbol, startDate, endDate, interval string) ([]OhlcTick, error) {
-	cS := C.CString(symbol); cSt := C.CString(startDate); cEn := C.CString(endDate); cI := C.CString(interval)
-	defer C.free(unsafe.Pointer(cS)); defer C.free(unsafe.Pointer(cSt)); defer C.free(unsafe.Pointer(cEn)); defer C.free(unsafe.Pointer(cI))
-	arr := C.tdx_index_history_ohlc(c.handle, cS, cSt, cEn, cI); result := convertOhlcTicks(arr); C.tdx_ohlc_tick_array_free(arr); return result, nil
+	cS := C.CString(symbol)
+	cSt := C.CString(startDate)
+	cEn := C.CString(endDate)
+	cI := C.CString(interval)
+	defer C.free(unsafe.Pointer(cS))
+	defer C.free(unsafe.Pointer(cSt))
+	defer C.free(unsafe.Pointer(cEn))
+	defer C.free(unsafe.Pointer(cI))
+	arr := C.tdx_index_history_ohlc(c.handle, cS, cSt, cEn, cI)
+	result := convertOhlcTicks(arr)
+	C.tdx_ohlc_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) IndexHistoryPrice(symbol, date, interval string) ([]PriceTick, error) {
-	cS := C.CString(symbol); cD := C.CString(date); cI := C.CString(interval)
-	defer C.free(unsafe.Pointer(cS)); defer C.free(unsafe.Pointer(cD)); defer C.free(unsafe.Pointer(cI))
-	arr := C.tdx_index_history_price(c.handle, cS, cD, cI); result := convertPriceTicks(arr); C.tdx_price_tick_array_free(arr); return result, nil
+	cS := C.CString(symbol)
+	cD := C.CString(date)
+	cI := C.CString(interval)
+	defer C.free(unsafe.Pointer(cS))
+	defer C.free(unsafe.Pointer(cD))
+	defer C.free(unsafe.Pointer(cI))
+	arr := C.tdx_index_history_price(c.handle, cS, cD, cI)
+	result := convertPriceTicks(arr)
+	C.tdx_price_tick_array_free(arr)
+	return result, nil
 }
 func (c *Client) IndexAtTimePrice(symbol, startDate, endDate, timeOfDay string) ([]PriceTick, error) {
-	cS := C.CString(symbol); cSt := C.CString(startDate); cEn := C.CString(endDate); cT := C.CString(timeOfDay)
-	defer C.free(unsafe.Pointer(cS)); defer C.free(unsafe.Pointer(cSt)); defer C.free(unsafe.Pointer(cEn)); defer C.free(unsafe.Pointer(cT))
-	arr := C.tdx_index_at_time_price(c.handle, cS, cSt, cEn, cT); result := convertPriceTicks(arr); C.tdx_price_tick_array_free(arr); return result, nil
+	cS := C.CString(symbol)
+	cSt := C.CString(startDate)
+	cEn := C.CString(endDate)
+	cT := C.CString(timeOfDay)
+	defer C.free(unsafe.Pointer(cS))
+	defer C.free(unsafe.Pointer(cSt))
+	defer C.free(unsafe.Pointer(cEn))
+	defer C.free(unsafe.Pointer(cT))
+	arr := C.tdx_index_at_time_price(c.handle, cS, cSt, cEn, cT)
+	result := convertPriceTicks(arr)
+	C.tdx_price_tick_array_free(arr)
+	return result, nil
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1086,20 +1524,38 @@ func (c *Client) IndexAtTimePrice(symbol, startDate, endDate, timeOfDay string) 
 // ═══════════════════════════════════════════════════════════════
 
 func (c *Client) CalendarOpenToday() ([]CalendarDay, error) {
-	arr := C.tdx_calendar_open_today(c.handle); result := convertCalendarDays(arr); C.tdx_calendar_day_array_free(arr); return result, nil
+	arr := C.tdx_calendar_open_today(c.handle)
+	result := convertCalendarDays(arr)
+	C.tdx_calendar_day_array_free(arr)
+	return result, nil
 }
 func (c *Client) CalendarOnDate(date string) ([]CalendarDay, error) {
-	cD := C.CString(date); defer C.free(unsafe.Pointer(cD))
-	arr := C.tdx_calendar_on_date(c.handle, cD); result := convertCalendarDays(arr); C.tdx_calendar_day_array_free(arr); return result, nil
+	cD := C.CString(date)
+	defer C.free(unsafe.Pointer(cD))
+	arr := C.tdx_calendar_on_date(c.handle, cD)
+	result := convertCalendarDays(arr)
+	C.tdx_calendar_day_array_free(arr)
+	return result, nil
 }
 func (c *Client) CalendarYear(year string) ([]CalendarDay, error) {
-	cY := C.CString(year); defer C.free(unsafe.Pointer(cY))
-	arr := C.tdx_calendar_year(c.handle, cY); result := convertCalendarDays(arr); C.tdx_calendar_day_array_free(arr); return result, nil
+	cY := C.CString(year)
+	defer C.free(unsafe.Pointer(cY))
+	arr := C.tdx_calendar_year(c.handle, cY)
+	result := convertCalendarDays(arr)
+	C.tdx_calendar_day_array_free(arr)
+	return result, nil
 }
 func (c *Client) InterestRateHistoryEOD(symbol, startDate, endDate string) ([]InterestRateTick, error) {
-	cS := C.CString(symbol); cSt := C.CString(startDate); cEn := C.CString(endDate)
-	defer C.free(unsafe.Pointer(cS)); defer C.free(unsafe.Pointer(cSt)); defer C.free(unsafe.Pointer(cEn))
-	arr := C.tdx_interest_rate_history_eod(c.handle, cS, cSt, cEn); result := convertInterestRateTicks(arr); C.tdx_interest_rate_tick_array_free(arr); return result, nil
+	cS := C.CString(symbol)
+	cSt := C.CString(startDate)
+	cEn := C.CString(endDate)
+	defer C.free(unsafe.Pointer(cS))
+	defer C.free(unsafe.Pointer(cSt))
+	defer C.free(unsafe.Pointer(cEn))
+	arr := C.tdx_interest_rate_history_eod(c.handle, cS, cSt, cEn)
+	result := convertInterestRateTicks(arr)
+	C.tdx_interest_rate_tick_array_free(arr)
+	return result, nil
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1107,9 +1563,14 @@ func (c *Client) InterestRateHistoryEOD(symbol, startDate, endDate string) ([]In
 // ═══════════════════════════════════════════════════════════════
 
 func AllGreeks(spot, strike, rate, divYield, tte, optionPrice float64, isCall bool) (*Greeks, error) {
-	call := C.int(0); if isCall { call = 1 }
+	call := C.int(0)
+	if isCall {
+		call = 1
+	}
 	ptr := C.tdx_all_greeks(C.double(spot), C.double(strike), C.double(rate), C.double(divYield), C.double(tte), C.double(optionPrice), call)
-	if ptr == nil { return nil, fmt.Errorf("thetadatadx: %s", lastError()) }
+	if ptr == nil {
+		return nil, fmt.Errorf("thetadatadx: %s", lastError())
+	}
 	defer C.tdx_greeks_result_free(ptr)
 	return &Greeks{
 		Value:     float64(ptr.value),
@@ -1138,10 +1599,15 @@ func AllGreeks(spot, strike, rate, divYield, tte, optionPrice float64, isCall bo
 }
 
 func ImpliedVolatility(spot, strike, rate, divYield, tte, optionPrice float64, isCall bool) (float64, float64, error) {
-	call := C.int(0); if isCall { call = 1 }
+	call := C.int(0)
+	if isCall {
+		call = 1
+	}
 	var iv, ivErr C.double
 	rc := C.tdx_implied_volatility(C.double(spot), C.double(strike), C.double(rate), C.double(divYield), C.double(tte), C.double(optionPrice), call, &iv, &ivErr)
-	if rc != 0 { return 0, 0, fmt.Errorf("thetadatadx: %s", lastError()) }
+	if rc != 0 {
+		return 0, 0, fmt.Errorf("thetadatadx: %s", lastError())
+	}
 	return float64(iv), float64(ivErr), nil
 }
 

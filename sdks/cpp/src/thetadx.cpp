@@ -8,6 +8,7 @@
 
 #include "thetadx.hpp"
 
+#include <limits>
 #include <stdexcept>
 #include <sstream>
 
@@ -24,6 +25,54 @@ static std::vector<const char*> string_ptrs(const std::vector<std::string>& item
     }
     return ptrs;
 }
+
+struct FfiOptionRequestOptions {
+    TdxOptionRequestOptions raw{};
+    std::string rate_type_storage;
+    std::string version_storage;
+
+    explicit FfiOptionRequestOptions(const OptionRequestOptions& options) {
+        raw.max_dte = -1;
+        raw.strike_range = -1;
+        raw.min_time = nullptr;
+        raw.start_time = nullptr;
+        raw.end_time = nullptr;
+        raw.start_date = nullptr;
+        raw.end_date = nullptr;
+        raw.exclusive = -1;
+        raw.annual_dividend = std::numeric_limits<double>::quiet_NaN();
+        raw.rate_type = nullptr;
+        raw.rate_value = std::numeric_limits<double>::quiet_NaN();
+        raw.stock_price = std::numeric_limits<double>::quiet_NaN();
+        raw.version = nullptr;
+        raw.underlyer_use_nbbo = -1;
+        raw.use_market_value = -1;
+
+        if (options.annual_dividend) {
+            raw.annual_dividend = *options.annual_dividend;
+        }
+        if (options.rate_type) {
+            rate_type_storage = *options.rate_type;
+            raw.rate_type = rate_type_storage.c_str();
+        }
+        if (options.rate_value) {
+            raw.rate_value = *options.rate_value;
+        }
+        if (options.version) {
+            version_storage = *options.version;
+            raw.version = version_storage.c_str();
+        }
+        if (options.underlyer_use_nbbo) {
+            raw.underlyer_use_nbbo = *options.underlyer_use_nbbo ? 1 : 0;
+        }
+        if (options.max_dte) {
+            raw.max_dte = *options.max_dte;
+        }
+        if (options.strike_range) {
+            raw.strike_range = *options.strike_range;
+        }
+    }
+};
 
 } // namespace detail
 
@@ -290,9 +339,10 @@ std::vector<OpenInterestTick> Client::option_history_open_interest(const std::st
 //  Option — History Greeks endpoints
 // ═══════════════════════════════════════════════════════════════
 
-std::vector<GreeksTick> Client::option_history_greeks_eod(const std::string& s, const std::string& e, const std::string& k, const std::string& r, const std::string& sd, const std::string& ed) const {
+std::vector<GreeksTick> Client::option_history_greeks_eod(const std::string& s, const std::string& e, const std::string& k, const std::string& r, const std::string& sd, const std::string& ed, const OptionRequestOptions& options) const {
+    detail::FfiOptionRequestOptions ffi_options(options);
     TDX_TYPED_ARRAY(TdxGreeksTickArray, GreeksTick, tdx_greeks_tick_array_free,
-        tdx_option_history_greeks_eod(handle_.get(), s.c_str(), e.c_str(), k.c_str(), r.c_str(), sd.c_str(), ed.c_str()));
+        tdx_option_history_greeks_eod_with_options(handle_.get(), s.c_str(), e.c_str(), k.c_str(), r.c_str(), sd.c_str(), ed.c_str(), &ffi_options.raw));
 }
 
 std::vector<GreeksTick> Client::option_history_greeks_all(const std::string& s, const std::string& e, const std::string& k, const std::string& r, const std::string& d, const std::string& iv) const {

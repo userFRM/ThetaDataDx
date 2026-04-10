@@ -130,7 +130,7 @@ All 61 endpoints are available. Methods return lists of dicts.
 | `option_history_quote(symbol, exp, strike, right, date, interval)` | NBBO quotes |
 | `option_history_trade_quote(symbol, exp, strike, right, date)` | Combined trade+quote |
 | `option_history_open_interest(symbol, exp, strike, right, date)` | Open interest history |
-| `option_history_greeks_eod(symbol, exp, strike, right, start, end)` | EOD Greeks |
+| `option_history_greeks_eod(symbol, exp, strike, right, start, end, *, annual_dividend=None, rate_type=None, rate_value=None, version=None, underlyer_use_nbbo=None, max_dte=None, strike_range=None)` | EOD Greeks |
 | `option_history_greeks_all(symbol, exp, strike, right, date, interval)` | All Greeks history |
 | `option_history_trade_greeks_all(symbol, exp, strike, right, date)` | Greeks on each trade |
 | `option_history_greeks_first_order(symbol, exp, strike, right, date, interval)` | First-order Greeks history |

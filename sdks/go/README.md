@@ -170,6 +170,7 @@ defer client.Close()
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `OptionHistoryGreeksEOD(sym, exp, strike, right, start, end)` | `([]GreeksTick, error)` | EOD Greeks |
+| `OptionHistoryGreeksEODWithOptions(sym, exp, strike, right, start, end, opts)` | `([]GreeksTick, error)` | EOD Greeks with optional builder parameters such as `StrikeRange` |
 | `OptionHistoryGreeksAll(sym, exp, strike, right, date, interval)` | `([]GreeksTick, error)` | All Greeks history |
 | `OptionHistoryTradeGreeksAll(sym, exp, strike, right, date)` | `([]GreeksTick, error)` | Greeks on each trade |
 | `OptionHistoryGreeksFirstOrder(sym, exp, strike, right, date, interval)` | `([]GreeksTick, error)` | First-order Greeks history |

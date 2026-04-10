@@ -39,6 +39,31 @@ typedef struct TdxConfig TdxConfig;
 typedef struct TdxFpssHandle TdxFpssHandle;
 typedef struct TdxUnified TdxUnified;
 
+/* Optional builder parameters for option historical/snapshot requests.
+ * Sentinels:
+ * - integers: -1 means unset
+ * - booleans: -1 unset, 0 false, 1 true
+ * - doubles: NaN means unset
+ * - strings: NULL means unset
+ */
+typedef struct {
+    int32_t max_dte;
+    int32_t strike_range;
+    const char* min_time;
+    const char* start_time;
+    const char* end_time;
+    const char* start_date;
+    const char* end_date;
+    int32_t exclusive;
+    double annual_dividend;
+    const char* rate_type;
+    double rate_value;
+    double stock_price;
+    const char* version;
+    int32_t underlyer_use_nbbo;
+    int32_t use_market_value;
+} TdxOptionRequestOptions;
+
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  #[repr(C)] tick types — layout-compatible with Rust tdbe structs      */
 /* ═══════════════════════════════════════════════════════════════════════ */
@@ -597,6 +622,10 @@ TdxOpenInterestTickArray tdx_option_history_open_interest(const TdxClient* clien
 TdxGreeksTickArray tdx_option_history_greeks_eod(const TdxClient* client, const char* symbol, const char* expiration,
                                                   const char* strike, const char* right,
                                                   const char* start_date, const char* end_date);
+TdxGreeksTickArray tdx_option_history_greeks_eod_with_options(const TdxClient* client, const char* symbol, const char* expiration,
+                                                              const char* strike, const char* right,
+                                                              const char* start_date, const char* end_date,
+                                                              const TdxOptionRequestOptions* options);
 
 TdxGreeksTickArray tdx_option_history_greeks_all(const TdxClient* client, const char* symbol, const char* expiration,
                                                   const char* strike, const char* right,
