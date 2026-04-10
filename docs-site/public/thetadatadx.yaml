@@ -874,56 +874,73 @@ paths:
       operationId: stockHistoryOhlc
       summary: Stock intraday OHLC bars
       description: |
-        Intraday OHLC bars for a single date or date range.
+        Intraday OHLC bars for a single date.
         Interval accepts milliseconds ("60000") or shorthand ("1m"). Valid presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.
-        Use start_date/end_date instead of date for multi-day queries.
         gRPC: GetStockHistoryOhlc
       tags: [Stock / History]
       parameters:
         - *symbol-param
-        - *date-optional-param
+        - *date-param
         - *interval-param
         - *start_time-param
         - *end_time-param
         - *venue-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-            pattern: '^\d{8}$'
-          description: Start date for multi-day range (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-            pattern: '^\d{8}$'
-          description: End date for multi-day range (YYYYMMDD)
       responses:
         '200': *ohlc-response
       x-code-examples:
         - lang: rust
           label: Rust
           source: |
-            // Single date
             let bars = tdx.stock_history_ohlc("AAPL", "20240315", "60000").await?;
-            // Date range
-            let bars = tdx.stock_history_ohlc_range("AAPL", "20240101", "20240301", "60000").await?;
         - lang: python
           label: Python
           source: |
             bars = tdx.stock_history_ohlc("AAPL", "20240315", "60000")
-            bars = tdx.stock_history_ohlc_range("AAPL", "20240101", "20240301", "60000")
         - lang: go
           label: Go
           source: |
             bars, err := client.StockHistoryOHLC("AAPL", "20240315", "60000")
-            bars, err := client.StockHistoryOHLCRange("AAPL", "20240101", "20240301", "60000")
         - lang: cpp
           label: C++
           source: |
             auto bars = client.stock_history_ohlc("AAPL", "20240315", "60000");
+
+  /stock/history/ohlc_range:
+    x-min-subscription: value
+    get:
+      operationId: stockHistoryOhlcRange
+      summary: Stock intraday OHLC bars across a date range
+      description: |
+        Intraday OHLC bars across a date range.
+        Interval accepts milliseconds ("60000") or shorthand ("1m"). Valid presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.
+        gRPC: synthetic ThetaDataDx range projection over GetStockHistoryOhlc
+      tags: [Stock / History]
+      parameters:
+        - *symbol-param
+        - *start_date-param
+        - *end_date-param
+        - *interval-param
+        - *start_time-param
+        - *end_time-param
+        - *venue-param
+      responses:
+        '200': *ohlc-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let bars = tdx.stock_history_ohlc_range("AAPL", "20240101", "20240301", "60000").await?;
+        - lang: python
+          label: Python
+          source: |
+            bars = tdx.stock_history_ohlc_range("AAPL", "20240101", "20240301", "60000")
+        - lang: go
+          label: Go
+          source: |
+            bars, err := client.StockHistoryOHLCRange("AAPL", "20240101", "20240301", "60000")
+        - lang: cpp
+          label: C++
+          source: |
             auto bars = client.stock_history_ohlc_range("AAPL", "20240101", "20240301", "60000");
 
   /stock/history/trade:
@@ -3137,7 +3154,7 @@ paths:
   # INTEREST RATE
   # =========================================================================
 
-  /interest_rate/history/eod:
+  /rate/history/eod:
     x-min-subscription: free
     get:
       operationId: interestRateHistoryEod

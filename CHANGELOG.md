@@ -437,7 +437,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
   Works with Claude Code, Cursor, Codex.
 - **REST+WS Server** (`tools/server/`) — drop-in replacement for the Java terminal.
   v3 API on port 25503, WebSocket on 25520 with real FPSS bridge. sonic-rs JSON.
-- **mdBook documentation site** (`docs-site/`) — 33 pages covering API reference,
+- **VitePress documentation site** (`docs-site/`) — 33 pages covering API reference,
   guides, SDK docs, wire protocol internals. Deployed to GitHub Pages.
 
 ### Breaking Changes

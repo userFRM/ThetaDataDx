@@ -23,6 +23,7 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: docs-site/package-lock.json
+      - run: python3 scripts/check_docs_consistency.py
       - run: cd docs-site && npm ci
       - run: cd docs-site && npx vitepress build docs
       - uses: actions/upload-pages-artifact@v4

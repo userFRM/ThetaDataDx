@@ -30,7 +30,7 @@ No-JVM ThetaData Terminal - native Rust SDK for direct market data access.
 | [`tools/mcp/`](tools/mcp/) | MCP server - gives LLMs access to 64 tools over JSON-RPC |
 | [`tools/server/`](tools/server/) | REST+WS server - drop-in replacement for the Java terminal |
 | [`docs/`](docs/) | Architecture, API reference, JVM deviations, and historical reverse-engineering notes |
-| [`docs-site/`](docs-site/) | mdBook documentation site (deployed to GitHub Pages) |
+| [`docs-site/`](docs-site/) | VitePress documentation site (deployed to GitHub Pages) |
 | [`notebooks/`](notebooks/) | 7 Jupyter notebooks (101-107) |
 | [`examples/`](examples/) | Example programs and test scripts |
 | [`assets/`](assets/) | Logo and static assets |

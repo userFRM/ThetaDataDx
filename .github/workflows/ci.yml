@@ -66,6 +66,7 @@ jobs:
           python-version: "3.12"
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/install-protoc
+      - run: python3 scripts/check_docs_consistency.py
       - run: cargo clippy --manifest-path tools/mcp/Cargo.toml --locked -- -D warnings
       - run: cargo test --manifest-path tools/mcp/Cargo.toml --locked
       - run: cargo clippy --manifest-path tools/server/Cargo.toml --locked -- -D warnings
