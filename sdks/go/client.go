@@ -279,6 +279,34 @@ type cOptionContract struct {
 	_pad2      int32
 }
 
+// ── FFI layout assertions ──
+// Panic at init time if Go struct sizes diverge from the Rust repr(C, align(64)) layout.
+func init() {
+	checks := []struct {
+		name string
+		got  uintptr
+		want uintptr
+	}{
+		{"cEodTick", unsafe.Sizeof(cEodTick{}), 128},
+		{"cOhlcTick", unsafe.Sizeof(cOhlcTick{}), 128},
+		{"cTradeTick", unsafe.Sizeof(cTradeTick{}), 128},
+		{"cQuoteTick", unsafe.Sizeof(cQuoteTick{}), 128},
+		{"cOpenInterestTick", unsafe.Sizeof(cOpenInterestTick{}), 64},
+		{"cCalendarDay", unsafe.Sizeof(cCalendarDay{}), 64},
+		{"cInterestRateTick", unsafe.Sizeof(cInterestRateTick{}), 64},
+		{"cIvTick", unsafe.Sizeof(cIvTick{}), 64},
+		{"cPriceTick", unsafe.Sizeof(cPriceTick{}), 64},
+		{"cMarketValueTick", unsafe.Sizeof(cMarketValueTick{}), 128},
+		{"cGreeksTick", unsafe.Sizeof(cGreeksTick{}), 256},
+		{"cTradeQuoteTick", unsafe.Sizeof(cTradeQuoteTick{}), 192},
+	}
+	for _, c := range checks {
+		if c.got != c.want {
+			panic(fmt.Sprintf("thetadatadx: %s size mismatch: Go=%d, expected=%d (Rust FFI layout changed)", c.name, c.got, c.want))
+		}
+	}
+}
+
 // ── Go tick types (public API) ──
 // These are pure Go structs with decoded float prices for user convenience.
 
