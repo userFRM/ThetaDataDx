@@ -136,7 +136,7 @@ feat(core)!: replace DirectClient with ThetaDataDx unified client
 The endpoint-facing source of truth is now split across:
 - `crates/thetadatadx/proto/external.proto` for the wire contract
 - `crates/thetadatadx/endpoint_surface.toml` for the normalized SDK surface
-- `crates/thetadatadx/endpoint_schema.toml` for DataTable parser layouts
+- `crates/thetadatadx/tick_schema.toml` for DataTable parser layouts
 
 The build expands that metadata into the registry, shared endpoint runtime, and
 `DirectClient` declarations automatically.
@@ -151,7 +151,7 @@ The build expands that metadata into the registry, shared endpoint runtime, and
    - `cargo build` validates the declared surface against `external.proto` and generates the registry/runtime/direct surfaces
 
 3. **Add the column schema** (if the response has a new layout)
-   - Add a `[types.YourTick]` block to `crates/thetadatadx/endpoint_schema.toml`
+   - Add a `[types.YourTick]` block to `crates/thetadatadx/tick_schema.toml`
    - `cargo build` generates the parser
    - See `docs/endpoint-schema.md` for the TOML format
    - Note: tick type structs, `Price`, enums, codecs, and Greeks live in `crates/tdbe/`.
@@ -190,7 +190,7 @@ When ThetaData ships a new official proto revision:
 
 1. Replace `crates/thetadatadx/proto/external.proto`
 2. Update `endpoint_surface.toml` when the normalized SDK surface changes
-3. Update `endpoint_schema.toml` if DataTable column layouts changed
+3. Update `tick_schema.toml` if DataTable column layouts changed
 4. Run the relevant checks from the sections above
 5. See `crates/thetadatadx/proto/MAINTENANCE.md` for the detailed guide
 

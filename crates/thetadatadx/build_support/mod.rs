@@ -1,7 +1,7 @@
 //! Build-time generator orchestration for `thetadatadx`.
 //!
 //! The build pipeline has two distinct responsibilities:
-//! - generate tick decoders from `endpoint_schema.toml`
+//! - generate tick decoders from `tick_schema.toml`
 //! - generate endpoint-facing surfaces from the explicit endpoint spec plus
 //!   the upstream wire contract in `proto/external.proto`
 

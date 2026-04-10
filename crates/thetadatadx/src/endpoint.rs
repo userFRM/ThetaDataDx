@@ -239,6 +239,25 @@ pub enum EndpointError {
     UnknownEndpoint(String),
 }
 
+impl std::fmt::Display for EndpointError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidParams(msg) => write!(f, "invalid params: {msg}"),
+            Self::Server(err) => write!(f, "server error: {err}"),
+            Self::UnknownEndpoint(name) => write!(f, "unknown endpoint: {name}"),
+        }
+    }
+}
+
+impl std::error::Error for EndpointError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Server(err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
 impl From<Error> for EndpointError {
     fn from(value: Error) -> Self {
         Self::Server(value)
