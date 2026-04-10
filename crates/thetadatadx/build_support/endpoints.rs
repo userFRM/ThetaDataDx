@@ -5,6 +5,11 @@
 //! endpoint against the upstream gRPC wire contract in `proto/external.proto`.
 //! The resulting joined model drives generated registry metadata, the shared
 //! endpoint runtime, and non-streaming `DirectClient` methods.
+//!
+//! Note: runtime parameter validation (date format, symbol format, interval,
+//! right, year) lives in `crate::validate`. The validators here operate at
+//! *build time* on the TOML surface spec and proto schema — a fundamentally
+//! different domain — so they are intentionally separate.
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
