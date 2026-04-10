@@ -259,11 +259,9 @@ fn load_proto_endpoints() -> Result<ParsedEndpoints, Box<dyn std::error::Error>>
         // Expand fields (contract_spec → symbol, expiration, strike, right)
         let params = expand_fields(&fields);
 
-        let category = derive_category(&method);
-        let subcategory = derive_subcategory(&method, &category);
-        let rest_path = derive_rest_path(&method, &category);
+        // Only return_type is cross-validated against the surface spec (line ~804).
+        // Category, subcategory, rest_path, description come entirely from the TOML.
         let return_type = derive_return_type(&method);
-        let description = derive_description(&method);
         let mut params = params
             .into_iter()
             .map(|(name, description, param_type, required)| GeneratedParam {
@@ -280,10 +278,10 @@ fn load_proto_endpoints() -> Result<ParsedEndpoints, Box<dyn std::error::Error>>
 
         endpoints.push(GeneratedEndpoint {
             name: method,
-            description,
-            category,
-            subcategory,
-            rest_path,
+            description: String::new(),
+            category: String::new(),
+            subcategory: String::new(),
+            rest_path: String::new(),
             grpc_name: format!("get_{}", rpc_to_method(&rpc.rpc_name)),
             request_type: rpc.request_type.clone(),
             query_type: query_msg_name,
@@ -1783,86 +1781,6 @@ fn humanize_name(name: &str) -> String {
         .join(" ")
 }
 
-fn derive_category(method: &str) -> String {
-    if method.starts_with("stock_") {
-        "stock".into()
-    } else if method.starts_with("option_") {
-        "option".into()
-    } else if method.starts_with("index_") {
-        "index".into()
-    } else if method.starts_with("calendar_") {
-        "calendar".into()
-    } else if method.starts_with("interest_rate_") {
-        "rate".into()
-    } else {
-        "other".into()
-    }
-}
-
-fn derive_subcategory(method: &str, category: &str) -> String {
-    // Strip the category prefix to get the rest
-    let rest = match category {
-        // build script: panic is intentional (unwrap_or provides safe fallback)
-        "stock" => method.strip_prefix("stock_").unwrap_or(method),
-        "option" => method.strip_prefix("option_").unwrap_or(method),
-        "index" => method.strip_prefix("index_").unwrap_or(method),
-        "calendar" => method.strip_prefix("calendar_").unwrap_or(method),
-        "rate" => method.strip_prefix("interest_rate_").unwrap_or(method),
-        _ => method,
-    };
-
-    if rest.starts_with("list_") {
-        "list".into()
-    } else if rest.starts_with("snapshot_greeks_") || rest.starts_with("snapshot_greeks") {
-        "snapshot_greeks".into()
-    } else if rest.starts_with("snapshot_") {
-        "snapshot".into()
-    } else if rest.starts_with("history_trade_greeks_") {
-        "history_trade_greeks".into()
-    } else if rest.starts_with("history_greeks_") {
-        "history_greeks".into()
-    } else if rest.starts_with("history_") {
-        "history".into()
-    } else if rest.starts_with("at_time_") {
-        "at_time".into()
-    } else if rest == "open_today" {
-        "status".into()
-    } else if rest == "on_date" || rest == "year" {
-        "query".into()
-    } else {
-        "other".into()
-    }
-}
-
-fn derive_rest_path(method: &str, category: &str) -> String {
-    let rest = match category {
-        "rate" => method.strip_prefix("interest_rate_").unwrap_or(method),
-        _ => method
-            .strip_prefix(&format!("{category}_"))
-            .unwrap_or(method),
-    };
-
-    let path_rest = if let Some(what) = rest.strip_prefix("history_trade_greeks_") {
-        format!("history/trade_greeks/{what}")
-    } else if let Some(what) = rest.strip_prefix("history_greeks_") {
-        format!("history/greeks/{what}")
-    } else if let Some(what) = rest.strip_prefix("snapshot_greeks_") {
-        format!("snapshot/greeks/{what}")
-    } else if let Some(what) = rest.strip_prefix("history_") {
-        format!("history/{what}")
-    } else if let Some(what) = rest.strip_prefix("snapshot_") {
-        format!("snapshot/{what}")
-    } else if let Some(what) = rest.strip_prefix("list_") {
-        format!("list/{what}")
-    } else if let Some(what) = rest.strip_prefix("at_time_") {
-        format!("at_time/{what}")
-    } else {
-        rest.to_string()
-    };
-
-    format!("/v3/{category}/{path_rest}")
-}
-
 fn derive_return_type(method: &str) -> String {
     if is_simple_list_method(method) {
         return "StringList".into();
@@ -1924,175 +1842,4 @@ fn derive_return_type(method: &str) -> String {
     }
 
     panic!("unhandled return type mapping for endpoint {method}");
-}
-
-// Reason: one match dispatch per endpoint — cannot be meaningfully split.
-#[allow(clippy::too_many_lines)]
-fn derive_description(method: &str) -> String {
-    // Hand-crafted descriptions for known patterns
-    match method {
-        // Stock List
-        "stock_list_symbols" => "List all available stock ticker symbols.".into(),
-        "stock_list_dates" => {
-            "List available dates for a stock by request type (EOD, TRADE, QUOTE, etc.).".into()
-        }
-        // Stock Snapshot
-        "stock_snapshot_ohlc" => "Get the latest OHLC snapshot for one or more stocks.".into(),
-        "stock_snapshot_trade" => "Get the latest trade snapshot for one or more stocks.".into(),
-        "stock_snapshot_quote" => {
-            "Get the latest NBBO quote snapshot for one or more stocks.".into()
-        }
-        "stock_snapshot_market_value" => {
-            "Get the latest market value snapshot for one or more stocks.".into()
-        }
-        // Stock History
-        "stock_history_eod" => {
-            "Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day."
-                .into()
-        }
-        "stock_history_ohlc" => "Fetch intraday OHLC bars for a stock on a single date.".into(),
-        "stock_history_trade" => "Fetch all trades for a stock on a given date.".into(),
-        "stock_history_quote" => {
-            "Fetch NBBO quotes for a stock on a given date at a given interval.".into()
-        }
-        "stock_history_trade_quote" => {
-            "Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable."
-                .into()
-        }
-        // Stock At-Time
-        "stock_at_time_trade" => {
-            "Fetch the trade at a specific time of day across a date range.".into()
-        }
-        "stock_at_time_quote" => {
-            "Fetch the quote at a specific time of day across a date range.".into()
-        }
-        // Option List
-        "option_list_symbols" => "List all available option underlying symbols.".into(),
-        "option_list_dates" => {
-            "List available dates for an option contract by request type.".into()
-        }
-        "option_list_expirations" => {
-            "List available expiration dates for an option underlying.".into()
-        }
-        "option_list_strikes" => {
-            "List available strike prices for an option at a given expiration.".into()
-        }
-        "option_list_contracts" => "List all option contracts for a symbol on a given date.".into(),
-        // Option Snapshot
-        "option_snapshot_ohlc" => "Get the latest OHLC snapshot for an option contract.".into(),
-        "option_snapshot_trade" => "Get the latest trade snapshot for an option contract.".into(),
-        "option_snapshot_quote" => {
-            "Get the latest NBBO quote snapshot for an option contract.".into()
-        }
-        "option_snapshot_open_interest" => {
-            "Get the latest open interest snapshot for an option contract.".into()
-        }
-        "option_snapshot_market_value" => {
-            "Get the latest market value snapshot for an option contract.".into()
-        }
-        // Option Snapshot Greeks
-        "option_snapshot_greeks_implied_volatility" => {
-            "Get implied volatility snapshot for an option contract (from ThetaData server).".into()
-        }
-        "option_snapshot_greeks_all" => {
-            "Get all Greeks snapshot for an option contract (from ThetaData server).".into()
-        }
-        "option_snapshot_greeks_first_order" => {
-            "Get first-order Greeks snapshot (delta, theta, rho) for an option contract.".into()
-        }
-        "option_snapshot_greeks_second_order" => {
-            "Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.".into()
-        }
-        "option_snapshot_greeks_third_order" => {
-            "Get third-order Greeks snapshot (speed, color, ultima) for an option contract.".into()
-        }
-        // Option History
-        "option_history_eod" => {
-            "Fetch end-of-day option data for a contract over a date range.".into()
-        }
-        "option_history_ohlc" => "Fetch intraday OHLC bars for an option contract.".into(),
-        "option_history_trade" => "Fetch all trades for an option contract on a given date.".into(),
-        "option_history_quote" => {
-            "Fetch NBBO quotes for an option contract on a given date.".into()
-        }
-        "option_history_trade_quote" => {
-            "Fetch combined trade + quote ticks for an option contract.".into()
-        }
-        "option_history_open_interest" => {
-            "Fetch open interest history for an option contract.".into()
-        }
-        // Option History Greeks
-        "option_history_greeks_eod" => {
-            "Fetch end-of-day Greeks history for an option contract.".into()
-        }
-        "option_history_greeks_all" => {
-            "Fetch all Greeks history for an option contract (intraday, sampled by interval)."
-                .into()
-        }
-        "option_history_trade_greeks_all" => {
-            "Fetch all Greeks on each trade for an option contract.".into()
-        }
-        "option_history_greeks_first_order" => {
-            "Fetch first-order Greeks history (intraday, sampled by interval).".into()
-        }
-        "option_history_trade_greeks_first_order" => {
-            "Fetch first-order Greeks on each trade for an option contract.".into()
-        }
-        "option_history_greeks_second_order" => {
-            "Fetch second-order Greeks history (intraday, sampled by interval).".into()
-        }
-        "option_history_trade_greeks_second_order" => {
-            "Fetch second-order Greeks on each trade for an option contract.".into()
-        }
-        "option_history_greeks_third_order" => {
-            "Fetch third-order Greeks history (intraday, sampled by interval).".into()
-        }
-        "option_history_trade_greeks_third_order" => {
-            "Fetch third-order Greeks on each trade for an option contract.".into()
-        }
-        "option_history_greeks_implied_volatility" => {
-            "Fetch implied volatility history (intraday, sampled by interval).".into()
-        }
-        "option_history_trade_greeks_implied_volatility" => {
-            "Fetch implied volatility on each trade for an option contract.".into()
-        }
-        // Option At-Time
-        "option_at_time_trade" => {
-            "Fetch the trade at a specific time of day across a date range for an option.".into()
-        }
-        "option_at_time_quote" => {
-            "Fetch the quote at a specific time of day across a date range for an option.".into()
-        }
-        // Index
-        "index_list_symbols" => "List all available index symbols.".into(),
-        "index_list_dates" => "List available dates for an index symbol.".into(),
-        "index_snapshot_ohlc" => "Get the latest OHLC snapshot for one or more indices.".into(),
-        "index_snapshot_price" => "Get the latest price snapshot for one or more indices.".into(),
-        "index_snapshot_market_value" => {
-            "Get the latest market value snapshot for one or more indices.".into()
-        }
-        "index_history_eod" => "Fetch end-of-day index data for a date range.".into(),
-        "index_history_ohlc" => "Fetch intraday OHLC bars for an index.".into(),
-        "index_history_price" => "Fetch intraday price history for an index.".into(),
-        "index_at_time_price" => {
-            "Fetch the index price at a specific time of day across a date range.".into()
-        }
-        // Calendar
-        "calendar_open_today" => "Check whether the market is open today.".into(),
-        "calendar_on_date" => "Get calendar information for a specific date.".into(),
-        "calendar_year" => "Get calendar information for an entire year.".into(),
-        // Rate
-        "interest_rate_history_eod" => "Fetch end-of-day interest rate history.".into(),
-        // Fallback: auto-generate from method name
-        _ => {
-            let words = method.replace('_', " ");
-            let mut chars = words.chars();
-            match chars.next() {
-                Some(c) => {
-                    format!("{}{}.", c.to_uppercase(), chars.as_str())
-                }
-                None => method.to_string(),
-            }
-        }
-    }
 }
