@@ -1332,6 +1332,8 @@ macro_rules! ffi_typed_endpoint_no_params {
     };
 }
 
+include!("generated_endpoint_with_options.rs");
+
 // ═══════════════════════════════════════════════════════════════════════
 //  Stock — List endpoints (2)
 // ═══════════════════════════════════════════════════════════════════════
@@ -1578,123 +1580,6 @@ ffi_typed_endpoint! {
 ffi_typed_endpoint! {
     /// Fetch EOD Greeks history. Returns TdxGreeksTickArray.
     tdx_option_history_greeks_eod => option_history_greeks_eod, TdxGreeksTickArray(symbol, expiration, strike, right, start_date, end_date)
-}
-
-/// Fetch EOD Greeks history with optional builder parameters.
-///
-/// This currently enables non-Rust bindings to surface endpoint builder
-/// parameters without hand-coding Rust builder logic in each language.
-#[no_mangle]
-pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
-    client: *const TdxClient,
-    symbol: *const c_char,
-    expiration: *const c_char,
-    strike: *const c_char,
-    right: *const c_char,
-    start_date: *const c_char,
-    end_date: *const c_char,
-    options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksTickArray {
-    let empty = TdxGreeksTickArray {
-        data: ptr::null(),
-        len: 0,
-    };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
-
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(s) => s,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
-            return empty;
-        }
-    };
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(s) => s,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
-            return empty;
-        }
-    };
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Some(s) => s,
-        None => {
-            set_error("strike is null or invalid UTF-8");
-            return empty;
-        }
-    };
-    let right = match unsafe { cstr_to_str(right) } {
-        Some(s) => s,
-        None => {
-            set_error("right is null or invalid UTF-8");
-            return empty;
-        }
-    };
-    let start_date = match unsafe { cstr_to_str(start_date) } {
-        Some(s) => s,
-        None => {
-            set_error("start_date is null or invalid UTF-8");
-            return empty;
-        }
-    };
-    let end_date = match unsafe { cstr_to_str(end_date) } {
-        Some(s) => s,
-        None => {
-            set_error("end_date is null or invalid UTF-8");
-            return empty;
-        }
-    };
-
-    let mut args = thetadatadx::EndpointArgs::new();
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-    args.insert(
-        "start_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(start_date.to_string()),
-    );
-    args.insert(
-        "end_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(end_date.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_eod", &args)
-            .await
-    }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(ticks)) => TdxGreeksTickArray::from_vec(ticks),
-        Ok(other) => {
-            set_error(&format!(
-                "internal error: unexpected endpoint output for option_history_greeks_eod: {other:?}"
-            ));
-            empty
-        }
-        Err(e) => {
-            set_error(&e.to_string());
-            empty
-        }
-    }
 }
 
 // 36. option_history_greeks_all

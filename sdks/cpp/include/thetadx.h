@@ -623,10 +623,6 @@ TdxOpenInterestTickArray tdx_option_history_open_interest(const TdxClient* clien
 TdxGreeksTickArray tdx_option_history_greeks_eod(const TdxClient* client, const char* symbol, const char* expiration,
                                                   const char* strike, const char* right,
                                                   const char* start_date, const char* end_date);
-TdxGreeksTickArray tdx_option_history_greeks_eod_with_options(const TdxClient* client, const char* symbol, const char* expiration,
-                                                              const char* strike, const char* right,
-                                                              const char* start_date, const char* end_date,
-                                                              const TdxEndpointRequestOptions* options);
 
 TdxGreeksTickArray tdx_option_history_greeks_all(const TdxClient* client, const char* symbol, const char* expiration,
                                                   const char* strike, const char* right,
@@ -746,6 +742,9 @@ TdxCalendarDayArray tdx_calendar_year(const TdxClient* client, const char* year)
 /** 60. Fetch EOD interest rate history. */
 TdxInterestRateTickArray tdx_interest_rate_history_eod(const TdxClient* client, const char* symbol,
                                                        const char* start_date, const char* end_date);
+
+/* Generated option-aware endpoint declarations. */
+#include "generated_endpoint_with_options.h.inc"
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Greeks (standalone)                                                   */

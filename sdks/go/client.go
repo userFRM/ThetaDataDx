@@ -789,41 +789,10 @@ type Client struct {
 	handle *C.TdxClient
 }
 
-// EndpointRequestOptions contains optional builder parameters surfaced through
-// the Go SDK for registry-driven endpoint wrappers.
-//
-// Rust models these as builder setters. Go projects the same surface as an
-// options bag to keep call sites idiomatic and readable.
-type EndpointRequestOptions struct {
-	Venue            *string
-	MinTime          *string
-	StartTime        *string
-	EndTime          *string
-	StartDate        *string
-	EndDate          *string
-	Exclusive        *bool
-	AnnualDividend   *float64
-	RateType         *string
-	RateValue        *float64
-	StockPrice       *float64
-	Version          *string
-	UnderlyerUseNBBO *bool
-	UseMarketValue   *bool
-	MaxDTE           *int32
-	StrikeRange      *int32
-}
-
-// Bool returns a pointer to v for optional request fields.
-func Bool(v bool) *bool { return &v }
-
-// Float64 returns a pointer to v for optional request fields.
-func Float64(v float64) *float64 { return &v }
-
-// Int32 returns a pointer to v for optional request fields.
-func Int32(v int32) *int32 { return &v }
-
-// String returns a pointer to v for optional request fields.
-func String(v string) *string { return &v }
+/*
+// EndpointRequestOptions and EndpointOption helpers are generated in
+// generated_endpoint_options.go.
+*/
 
 func Connect(creds *Credentials, config *Config) (*Client, error) {
 	if creds == nil || creds.handle == nil {
@@ -850,6 +819,7 @@ func (c *Client) Close() {
 //  Stock endpoints
 // ═══════════════════════════════════════════════════════════════
 
+/*
 func (c *Client) StockListSymbols() ([]string, error) {
 	return stringArrayToGo(C.tdx_stock_list_symbols(c.handle))
 }
@@ -1180,6 +1150,130 @@ func endpointRequestOptionsToC(opts *EndpointRequestOptions) (*C.TdxEndpointRequ
 	return cOpts, free
 }
 
+*/
+
+func (c *Client) optArgs4(s, e, k, r string) (*C.char, *C.char, *C.char, *C.char, func()) {
+	cS := C.CString(s)
+	cE := C.CString(e)
+	cK := C.CString(k)
+	cR := C.CString(r)
+	return cS, cE, cK, cR, func() {
+		C.free(unsafe.Pointer(cS))
+		C.free(unsafe.Pointer(cE))
+		C.free(unsafe.Pointer(cK))
+		C.free(unsafe.Pointer(cR))
+	}
+}
+
+func endpointRequestOptionsToC(opts *EndpointRequestOptions) (*C.TdxEndpointRequestOptions, func()) {
+	if opts == nil {
+		return nil, func() {}
+	}
+
+	cOpts := &C.TdxEndpointRequestOptions{}
+	cOpts.max_dte = -1
+	cOpts.strike_range = -1
+	cOpts.venue = nil
+	cOpts.min_time = nil
+	cOpts.start_time = nil
+	cOpts.end_time = nil
+	cOpts.start_date = nil
+	cOpts.end_date = nil
+	cOpts.annual_dividend = C.double(math.NaN())
+	cOpts.rate_value = C.double(math.NaN())
+	cOpts.stock_price = C.double(math.NaN())
+	cOpts.exclusive = -1
+	cOpts.underlyer_use_nbbo = -1
+	cOpts.use_market_value = -1
+
+	var allocations []unsafe.Pointer
+	free := func() {
+		for _, allocation := range allocations {
+			C.free(allocation)
+		}
+	}
+
+	if opts.AnnualDividend != nil {
+		cOpts.annual_dividend = C.double(*opts.AnnualDividend)
+	}
+	if opts.Venue != nil {
+		venue := C.CString(*opts.Venue)
+		cOpts.venue = venue
+		allocations = append(allocations, unsafe.Pointer(venue))
+	}
+	if opts.MinTime != nil {
+		minTime := C.CString(*opts.MinTime)
+		cOpts.min_time = minTime
+		allocations = append(allocations, unsafe.Pointer(minTime))
+	}
+	if opts.StartTime != nil {
+		startTime := C.CString(*opts.StartTime)
+		cOpts.start_time = startTime
+		allocations = append(allocations, unsafe.Pointer(startTime))
+	}
+	if opts.EndTime != nil {
+		endTime := C.CString(*opts.EndTime)
+		cOpts.end_time = endTime
+		allocations = append(allocations, unsafe.Pointer(endTime))
+	}
+	if opts.StartDate != nil {
+		startDate := C.CString(*opts.StartDate)
+		cOpts.start_date = startDate
+		allocations = append(allocations, unsafe.Pointer(startDate))
+	}
+	if opts.EndDate != nil {
+		endDate := C.CString(*opts.EndDate)
+		cOpts.end_date = endDate
+		allocations = append(allocations, unsafe.Pointer(endDate))
+	}
+	if opts.Exclusive != nil {
+		if *opts.Exclusive {
+			cOpts.exclusive = 1
+		} else {
+			cOpts.exclusive = 0
+		}
+	}
+	if opts.RateType != nil {
+		rateType := C.CString(*opts.RateType)
+		cOpts.rate_type = rateType
+		allocations = append(allocations, unsafe.Pointer(rateType))
+	}
+	if opts.RateValue != nil {
+		cOpts.rate_value = C.double(*opts.RateValue)
+	}
+	if opts.StockPrice != nil {
+		cOpts.stock_price = C.double(*opts.StockPrice)
+	}
+	if opts.Version != nil {
+		version := C.CString(*opts.Version)
+		cOpts.version = version
+		allocations = append(allocations, unsafe.Pointer(version))
+	}
+	if opts.UnderlyerUseNBBO != nil {
+		if *opts.UnderlyerUseNBBO {
+			cOpts.underlyer_use_nbbo = 1
+		} else {
+			cOpts.underlyer_use_nbbo = 0
+		}
+	}
+	if opts.UseMarketValue != nil {
+		if *opts.UseMarketValue {
+			cOpts.use_market_value = 1
+		} else {
+			cOpts.use_market_value = 0
+		}
+	}
+	if opts.MaxDTE != nil {
+		cOpts.max_dte = C.int32_t(*opts.MaxDTE)
+	}
+	if opts.StrikeRange != nil {
+		cOpts.strike_range = C.int32_t(*opts.StrikeRange)
+	}
+
+	return cOpts, free
+}
+
+/*
 func (c *Client) OptionSnapshotOHLC(s, e, k, r string) ([]OhlcTick, error) {
 	cS, cE, cK, cR, free := c.optArgs4(s, e, k, r)
 	defer free()
@@ -1620,6 +1714,7 @@ func (c *Client) InterestRateHistoryEOD(symbol, startDate, endDate string) ([]In
 	C.tdx_interest_rate_tick_array_free(arr)
 	return result, nil
 }
+*/
 
 // ═══════════════════════════════════════════════════════════════
 //  Greeks (standalone — typed struct, no JSON)

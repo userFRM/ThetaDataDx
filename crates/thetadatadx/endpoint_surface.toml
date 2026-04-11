@@ -143,34 +143,6 @@ param_type = "Str"
 required = false
 binding = "builder"
 
-[param_groups.start_date_required_alias]
-
-[[param_groups.start_date_required_alias.params]]
-name = "start_date"
-description = "Start date YYYYMMDD"
-param_type = "Date"
-required = true
-binding = "method"
-arg_name = "start"
-
-[param_groups.end_date_required_alias]
-
-[[param_groups.end_date_required_alias.params]]
-name = "end_date"
-description = "End date YYYYMMDD"
-param_type = "Date"
-required = true
-binding = "method"
-arg_name = "end"
-
-[param_groups.date_range_required_aliases]
-
-[[param_groups.date_range_required_aliases.params]]
-use = "start_date_required_alias"
-
-[[param_groups.date_range_required_aliases.params]]
-use = "end_date_required_alias"
-
 [param_groups.start_date_required]
 
 [[param_groups.start_date_required.params]]
@@ -400,7 +372,7 @@ subcategory = "history"
 use = "stock_symbol"
 
 [[templates.stock_history_eod.params]]
-use = "date_range_required_aliases"
+use = "date_range_required"
 
 [templates.stock_history_intraday_interval]
 extends = "stock_parsed"
@@ -575,7 +547,7 @@ subcategory = "history"
 use = "contract_identity"
 
 [[templates.option_history_eod.params]]
-use = "date_range_required_aliases"
+use = "date_range_required"
 
 [[templates.option_history_eod.params]]
 use = "max_dte_filter"
@@ -817,7 +789,7 @@ subcategory = "history"
 use = "stock_symbol"
 
 [[templates.index_history_eod.params]]
-use = "date_range_required_aliases"
+use = "date_range_required"
 
 [templates.index_history_ohlc]
 extends = "index_parsed"
@@ -840,10 +812,10 @@ extends = "index_parsed"
 subcategory = "history"
 
 [[templates.index_history_price.params]]
-use = "required_date"
+use = "stock_symbol"
 
 [[templates.index_history_price.params]]
-use = "stock_symbol"
+use = "required_date"
 
 [[templates.index_history_price.params]]
 use = "interval"

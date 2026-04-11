@@ -171,91 +171,9 @@ Client Client::connect(const Credentials& creds, const Config& config) {
 //  Stock — List endpoints
 // ═══════════════════════════════════════════════════════════════
 
-std::vector<std::string> Client::stock_list_symbols() const {
-    return detail::check_string_array(tdx_stock_list_symbols(handle_.get()));
-}
+#include "generated_historical.cpp.inc"
 
-std::vector<std::string> Client::stock_list_dates(const std::string& request_type,
-                                                   const std::string& symbol) const {
-    return detail::check_string_array(tdx_stock_list_dates(handle_.get(), request_type.c_str(), symbol.c_str()));
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  Stock — Snapshot endpoints
-// ═══════════════════════════════════════════════════════════════
-
-std::vector<OhlcTick> Client::stock_snapshot_ohlc(const std::vector<std::string>& symbols) const {
-    TDX_SNAPSHOT(TdxOhlcTickArray, OhlcTick, tdx_ohlc_tick_array_free, tdx_stock_snapshot_ohlc);
-}
-
-std::vector<TradeTick> Client::stock_snapshot_trade(const std::vector<std::string>& symbols) const {
-    TDX_SNAPSHOT(TdxTradeTickArray, TradeTick, tdx_trade_tick_array_free, tdx_stock_snapshot_trade);
-}
-
-std::vector<QuoteTick> Client::stock_snapshot_quote(const std::vector<std::string>& symbols) const {
-    TDX_SNAPSHOT(TdxQuoteTickArray, QuoteTick, tdx_quote_tick_array_free, tdx_stock_snapshot_quote);
-}
-
-std::vector<MarketValueTick> Client::stock_snapshot_market_value(const std::vector<std::string>& symbols) const {
-    TDX_SNAPSHOT(TdxMarketValueTickArray, MarketValueTick, tdx_market_value_tick_array_free, tdx_stock_snapshot_market_value);
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  Stock — History endpoints
-// ═══════════════════════════════════════════════════════════════
-
-std::vector<EodTick> Client::stock_history_eod(const std::string& symbol, const std::string& start_date, const std::string& end_date) const {
-    TDX_TYPED_ARRAY(TdxEodTickArray, EodTick, tdx_eod_tick_array_free,
-        tdx_stock_history_eod(handle_.get(), symbol.c_str(), start_date.c_str(), end_date.c_str()));
-}
-
-std::vector<OhlcTick> Client::stock_history_ohlc(const std::string& symbol, const std::string& date, const std::string& interval) const {
-    TDX_TYPED_ARRAY(TdxOhlcTickArray, OhlcTick, tdx_ohlc_tick_array_free,
-        tdx_stock_history_ohlc(handle_.get(), symbol.c_str(), date.c_str(), interval.c_str()));
-}
-
-std::vector<OhlcTick> Client::stock_history_ohlc_range(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& interval) const {
-    TDX_TYPED_ARRAY(TdxOhlcTickArray, OhlcTick, tdx_ohlc_tick_array_free,
-        tdx_stock_history_ohlc_range(handle_.get(), symbol.c_str(), start_date.c_str(), end_date.c_str(), interval.c_str()));
-}
-
-std::vector<TradeTick> Client::stock_history_trade(const std::string& symbol, const std::string& date) const {
-    TDX_TYPED_ARRAY(TdxTradeTickArray, TradeTick, tdx_trade_tick_array_free,
-        tdx_stock_history_trade(handle_.get(), symbol.c_str(), date.c_str()));
-}
-
-std::vector<QuoteTick> Client::stock_history_quote(const std::string& symbol, const std::string& date, const std::string& interval) const {
-    TDX_TYPED_ARRAY(TdxQuoteTickArray, QuoteTick, tdx_quote_tick_array_free,
-        tdx_stock_history_quote(handle_.get(), symbol.c_str(), date.c_str(), interval.c_str()));
-}
-
-std::vector<TradeQuoteTick> Client::stock_history_trade_quote(const std::string& symbol, const std::string& date) const {
-    TDX_TYPED_ARRAY(TdxTradeQuoteTickArray, TradeQuoteTick, tdx_trade_quote_tick_array_free,
-        tdx_stock_history_trade_quote(handle_.get(), symbol.c_str(), date.c_str()));
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  Stock — At-Time endpoints
-// ═══════════════════════════════════════════════════════════════
-
-std::vector<TradeTick> Client::stock_at_time_trade(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day) const {
-    TDX_TYPED_ARRAY(TdxTradeTickArray, TradeTick, tdx_trade_tick_array_free,
-        tdx_stock_at_time_trade(handle_.get(), symbol.c_str(), start_date.c_str(), end_date.c_str(), time_of_day.c_str()));
-}
-
-std::vector<QuoteTick> Client::stock_at_time_quote(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day) const {
-    TDX_TYPED_ARRAY(TdxQuoteTickArray, QuoteTick, tdx_quote_tick_array_free,
-        tdx_stock_at_time_quote(handle_.get(), symbol.c_str(), start_date.c_str(), end_date.c_str(), time_of_day.c_str()));
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  Option — List endpoints
-// ═══════════════════════════════════════════════════════════════
-
-std::vector<std::string> Client::option_list_symbols() const {
-    return detail::check_string_array(tdx_option_list_symbols(handle_.get()));
-}
-
+/*
 std::vector<std::string> Client::option_list_dates(const std::string& request_type, const std::string& symbol,
                                                     const std::string& expiration, const std::string& strike,
                                                     const std::string& right) const {
@@ -515,8 +433,7 @@ std::vector<CalendarDay> Client::calendar_year(const std::string& year) const {
 std::vector<InterestRateTick> Client::interest_rate_history_eod(const std::string& symbol, const std::string& start_date, const std::string& end_date) const {
     TDX_TYPED_ARRAY(TdxInterestRateTickArray, InterestRateTick, tdx_interest_rate_tick_array_free,
         tdx_interest_rate_history_eod(handle_.get(), symbol.c_str(), start_date.c_str(), end_date.c_str()));
-}
-
+*/
 #undef TDX_TYPED_ARRAY
 #undef TDX_SNAPSHOT
 

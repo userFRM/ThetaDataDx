@@ -1132,30 +1132,7 @@ impl ThetaDataDx {
         self.tdx.stop_streaming();
     }
 
-    // ── Historical methods (delegate through Deref to DirectClient) ──
-
-    // Stock — List (2)
-
-    fn stock_list_symbols(&self, py: Python<'_>) -> PyResult<Vec<String>> {
-        py.detach(|| {
-            runtime()
-                .block_on(async { self.tdx.stock_list_symbols().await })
-                .map_err(to_py_err)
-        })
-    }
-    fn stock_list_dates(
-        &self,
-        py: Python<'_>,
-        request_type: &str,
-        symbol: &str,
-    ) -> PyResult<Vec<String>> {
-        py.detach(|| {
-            runtime()
-                .block_on(async { self.tdx.stock_list_dates(request_type, symbol).await })
-                .map_err(to_py_err)
-        })
-    }
-
+    /*
     // Stock — Snapshot (4)
 
     fn stock_snapshot_ohlc(
@@ -2289,6 +2266,7 @@ impl ThetaDataDx {
             .collect())
     }
 
+    */
     // ── DataFrame convenience wrappers ──
     //
     // These call the underlying method and wrap the result in a pandas DataFrame.
@@ -2314,7 +2292,8 @@ impl ThetaDataDx {
         date: &str,
         interval: &str,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = self.stock_history_ohlc(py, symbol, date, interval)?;
+        let ticks =
+            self.stock_history_ohlc(py, symbol, date, interval, None, None, None, None, None)?;
         dicts_to_dataframe(py, ticks)
     }
 
@@ -2325,7 +2304,7 @@ impl ThetaDataDx {
         symbol: &str,
         date: &str,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = self.stock_history_trade(py, symbol, date)?;
+        let ticks = self.stock_history_trade(py, symbol, date, None, None, None, None, None)?;
         dicts_to_dataframe(py, ticks)
     }
 
@@ -2337,7 +2316,8 @@ impl ThetaDataDx {
         date: &str,
         interval: &str,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = self.stock_history_quote(py, symbol, date, interval)?;
+        let ticks =
+            self.stock_history_quote(py, symbol, date, interval, None, None, None, None, None)?;
         dicts_to_dataframe(py, ticks)
     }
 
@@ -2350,6 +2330,8 @@ impl ThetaDataDx {
         format!("ThetaDataDx(historical=connected, {streaming})")
     }
 }
+
+include!("generated_historical_methods.rs");
 
 // ── pandas DataFrame helpers ──
 

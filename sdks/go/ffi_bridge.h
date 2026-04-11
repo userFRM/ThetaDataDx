@@ -118,7 +118,6 @@ extern TdxTickArray tdx_option_history_quote(const TdxClient* client, const char
 extern TdxTickArray tdx_option_history_trade_quote(const TdxClient* client, const char* symbol, const char* expiration, const char* strike, const char* right, const char* date);
 extern TdxTickArray tdx_option_history_open_interest(const TdxClient* client, const char* symbol, const char* expiration, const char* strike, const char* right, const char* date);
 extern TdxTickArray tdx_option_history_greeks_eod(const TdxClient* client, const char* symbol, const char* expiration, const char* strike, const char* right, const char* start_date, const char* end_date);
-extern TdxTickArray tdx_option_history_greeks_eod_with_options(const TdxClient* client, const char* symbol, const char* expiration, const char* strike, const char* right, const char* start_date, const char* end_date, const TdxEndpointRequestOptions* options);
 extern TdxTickArray tdx_option_history_greeks_all(const TdxClient* client, const char* symbol, const char* expiration, const char* strike, const char* right, const char* date, const char* interval);
 extern TdxTickArray tdx_option_history_trade_greeks_all(const TdxClient* client, const char* symbol, const char* expiration, const char* strike, const char* right, const char* date);
 extern TdxTickArray tdx_option_history_greeks_first_order(const TdxClient* client, const char* symbol, const char* expiration, const char* strike, const char* right, const char* date, const char* interval);
@@ -144,6 +143,8 @@ extern TdxTickArray tdx_calendar_open_today(const TdxClient* client);
 extern TdxTickArray tdx_calendar_on_date(const TdxClient* client, const char* date);
 extern TdxTickArray tdx_calendar_year(const TdxClient* client, const char* year);
 extern TdxTickArray tdx_interest_rate_history_eod(const TdxClient* client, const char* symbol, const char* start_date, const char* end_date);
+/* Generated option-aware endpoint declarations. */
+#include "generated_endpoint_with_options.h.inc"
 
 /* Greeks */
 typedef struct {

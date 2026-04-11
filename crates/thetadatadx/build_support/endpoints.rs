@@ -11,6 +11,8 @@
 //! *build time* on the TOML surface spec and proto schema — a fundamentally
 //! different domain — so they are intentionally separate.
 
+#![allow(dead_code)]
+
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
 use std::path::Path;
@@ -1729,4 +1731,1004 @@ fn derive_return_type(method: &str) -> String {
     }
 
     panic!("unhandled return type mapping for endpoint {method}");
+}
+
+struct GeneratedSourceFile {
+    relative_path: &'static str,
+    contents: String,
+}
+
+/// Write the checked-in SDK surface artifacts generated from `endpoint_surface.toml`.
+pub fn write_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    for file in render_sdk_generated_files()? {
+        let path = repo_root.join(file.relative_path);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(path, file.contents)?;
+    }
+    Ok(())
+}
+
+/// Verify the checked-in SDK surface artifacts match the generated output.
+pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    for file in render_sdk_generated_files()? {
+        let path = repo_root.join(file.relative_path);
+        let actual = std::fs::read_to_string(&path)?;
+        if actual != file.contents {
+            return Err(format!(
+                "generated SDK surface '{}' is stale; run `cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces`",
+                file.relative_path
+            )
+            .into());
+        }
+    }
+    Ok(())
+}
+
+fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std::error::Error>> {
+    let parsed = load_endpoint_specs()?;
+    let builder_params = collect_builder_params(&parsed.endpoints);
+
+    Ok(vec![
+        GeneratedSourceFile {
+            relative_path: "ffi/src/generated_endpoint_with_options.rs",
+            contents: render_ffi_with_options(&parsed.endpoints),
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/go/generated_endpoint_options.go",
+            contents: render_go_options(&builder_params),
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/go/generated_historical.go",
+            contents: render_go_historical(&parsed.endpoints),
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/go/generated_endpoint_with_options.h.inc",
+            contents: render_go_endpoint_with_options_decls(&parsed.endpoints),
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/cpp/include/generated_endpoint_options.hpp.inc",
+            contents: render_cpp_options(&builder_params),
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/cpp/include/generated_historical.hpp.inc",
+            contents: render_cpp_historical_decls(&parsed.endpoints),
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/cpp/include/generated_endpoint_with_options.h.inc",
+            contents: render_c_endpoint_with_options_decls(&parsed.endpoints),
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/cpp/src/generated_historical.cpp.inc",
+            contents: render_cpp_historical_defs(&parsed.endpoints),
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/python/src/generated_historical_methods.rs",
+            contents: render_python_historical_methods(&parsed.endpoints),
+        },
+    ])
+}
+
+fn method_params(endpoint: &GeneratedEndpoint) -> Vec<&GeneratedParam> {
+    endpoint
+        .params
+        .iter()
+        .filter(|param| is_method_call_param(param))
+        .collect()
+}
+
+fn builder_params(endpoint: &GeneratedEndpoint) -> Vec<&GeneratedParam> {
+    endpoint
+        .params
+        .iter()
+        .filter(|param| !is_method_call_param(param))
+        .collect()
+}
+
+fn has_builder_params(endpoint: &GeneratedEndpoint) -> bool {
+    endpoint.params.iter().any(|param| !is_method_call_param(param))
+}
+
+fn collect_builder_params(endpoints: &[GeneratedEndpoint]) -> Vec<GeneratedParam> {
+    let mut seen = HashSet::new();
+    let mut params = Vec::new();
+    for endpoint in endpoints {
+        for param in builder_params(endpoint) {
+            if seen.insert(param.name.clone()) {
+                params.push(param.clone());
+            }
+        }
+    }
+    params
+}
+
+fn go_segment_pascal(segment: &str) -> String {
+    match segment {
+        "eod" => "EOD".into(),
+        "ohlc" => "OHLC".into(),
+        "iv" => "IV".into(),
+        "dte" => "DTE".into(),
+        "nbbo" => "NBBO".into(),
+        other => {
+            let mut chars = other.chars();
+            match chars.next() {
+                Some(first) => first.to_uppercase().to_string() + chars.as_str(),
+                None => String::new(),
+            }
+        }
+    }
+}
+
+fn to_go_exported_name(value: &str) -> String {
+    value
+        .split('_')
+        .filter(|segment| !segment.is_empty())
+        .map(go_segment_pascal)
+        .collect::<String>()
+}
+
+fn to_camel_case(value: &str) -> String {
+    let pascal = to_go_exported_name(value);
+    let mut chars = pascal.chars();
+    match chars.next() {
+        Some(first) => first.to_lowercase().to_string() + chars.as_str(),
+        None => String::new(),
+    }
+}
+
+fn python_optional_type(param: &GeneratedParam) -> &'static str {
+    match param.param_type.as_str() {
+        "Int" => "Option<i32>",
+        "Float" => "Option<f64>",
+        "Bool" => "Option<bool>",
+        _ => "Option<&str>",
+    }
+}
+
+fn go_result_type(return_type: &str) -> &'static str {
+    match return_type {
+        "StringList" => "[]string",
+        "EodTicks" => "[]EodTick",
+        "OhlcTicks" => "[]OhlcTick",
+        "TradeTicks" => "[]TradeTick",
+        "QuoteTicks" => "[]QuoteTick",
+        "TradeQuoteTicks" => "[]TradeQuoteTick",
+        "OpenInterestTicks" => "[]OpenInterestTick",
+        "MarketValueTicks" => "[]MarketValueTick",
+        "GreeksTicks" => "[]GreeksTick",
+        "IvTicks" => "[]IVTick",
+        "PriceTicks" => "[]PriceTick",
+        "CalendarDays" => "[]CalendarDay",
+        "InterestRateTicks" => "[]InterestRateTick",
+        "OptionContracts" => "[]OptionContract",
+        other => panic!("unsupported Go result type: {other}"),
+    }
+}
+
+fn go_converter_name(return_type: &str) -> &'static str {
+    match return_type {
+        "EodTicks" => "convertEodTicks",
+        "OhlcTicks" => "convertOhlcTicks",
+        "TradeTicks" => "convertTradeTicks",
+        "QuoteTicks" => "convertQuoteTicks",
+        "TradeQuoteTicks" => "convertTradeQuoteTicks",
+        "OpenInterestTicks" => "convertOpenInterestTicks",
+        "MarketValueTicks" => "convertMarketValueTicks",
+        "GreeksTicks" => "convertGreeksTicks",
+        "IvTicks" => "convertIvTicks",
+        "PriceTicks" => "convertPriceTicks",
+        "CalendarDays" => "convertCalendarDays",
+        "InterestRateTicks" => "convertInterestRateTicks",
+        "OptionContracts" => "convertOptionContracts",
+        other => panic!("unsupported Go converter type: {other}"),
+    }
+}
+
+fn ffi_array_type(return_type: &str) -> &'static str {
+    match return_type {
+        "StringList" => "TdxStringArray",
+        "EodTicks" => "TdxEodTickArray",
+        "OhlcTicks" => "TdxOhlcTickArray",
+        "TradeTicks" => "TdxTradeTickArray",
+        "QuoteTicks" => "TdxQuoteTickArray",
+        "TradeQuoteTicks" => "TdxTradeQuoteTickArray",
+        "OpenInterestTicks" => "TdxOpenInterestTickArray",
+        "MarketValueTicks" => "TdxMarketValueTickArray",
+        "GreeksTicks" => "TdxGreeksTickArray",
+        "IvTicks" => "TdxIvTickArray",
+        "PriceTicks" => "TdxPriceTickArray",
+        "CalendarDays" => "TdxCalendarDayArray",
+        "InterestRateTicks" => "TdxInterestRateTickArray",
+        "OptionContracts" => "TdxOptionContractArray",
+        other => panic!("unsupported FFI array type: {other}"),
+    }
+}
+
+fn ffi_array_empty_expr(return_type: &str) -> &'static str {
+    match return_type {
+        "OptionContracts" => "TdxOptionContractArray {\n        data: ptr::null(),\n        len: 0,\n    }",
+        _ => "ARRAY_EMPTY",
+    }
+}
+
+fn ffi_output_variant(return_type: &str) -> &'static str {
+    match return_type {
+        "StringList" => "StringList",
+        "EodTicks" => "EodTicks",
+        "OhlcTicks" => "OhlcTicks",
+        "TradeTicks" => "TradeTicks",
+        "QuoteTicks" => "QuoteTicks",
+        "TradeQuoteTicks" => "TradeQuoteTicks",
+        "OpenInterestTicks" => "OpenInterestTicks",
+        "MarketValueTicks" => "MarketValueTicks",
+        "GreeksTicks" => "GreeksTicks",
+        "IvTicks" => "IvTicks",
+        "PriceTicks" => "PriceTicks",
+        "CalendarDays" => "CalendarDays",
+        "InterestRateTicks" => "InterestRateTicks",
+        "OptionContracts" => "OptionContracts",
+        other => panic!("unsupported endpoint output variant: {other}"),
+    }
+}
+
+fn ffi_from_vec_expr(return_type: &str) -> &'static str {
+    match return_type {
+        "StringList" => "TdxStringArray::from_vec(values)",
+        "EodTicks" => "TdxEodTickArray::from_vec(values)",
+        "OhlcTicks" => "TdxOhlcTickArray::from_vec(values)",
+        "TradeTicks" => "TdxTradeTickArray::from_vec(values)",
+        "QuoteTicks" => "TdxQuoteTickArray::from_vec(values)",
+        "TradeQuoteTicks" => "TdxTradeQuoteTickArray::from_vec(values)",
+        "OpenInterestTicks" => "TdxOpenInterestTickArray::from_vec(values)",
+        "MarketValueTicks" => "TdxMarketValueTickArray::from_vec(values)",
+        "GreeksTicks" => "TdxGreeksTickArray::from_vec(values)",
+        "IvTicks" => "TdxIvTickArray::from_vec(values)",
+        "PriceTicks" => "TdxPriceTickArray::from_vec(values)",
+        "CalendarDays" => "TdxCalendarDayArray::from_vec(values)",
+        "InterestRateTicks" => "TdxInterestRateTickArray::from_vec(values)",
+        "OptionContracts" => "TdxOptionContractArray::from_vec(values)",
+        other => panic!("unsupported FFI from_vec return type: {other}"),
+    }
+}
+
+fn ffi_header_return_type(return_type: &str) -> &'static str {
+    match return_type {
+        "OptionContracts" => "TdxOptionContractArray",
+        "StringList" | "EodTicks" | "OhlcTicks" | "TradeTicks" | "QuoteTicks"
+        | "TradeQuoteTicks" | "OpenInterestTicks" | "MarketValueTicks" | "GreeksTicks"
+        | "IvTicks" | "PriceTicks" | "CalendarDays" | "InterestRateTicks" => "TdxTickArray",
+        other => panic!("unsupported Go/C header return type: {other}"),
+    }
+}
+
+fn ffi_free_fn(return_type: &str) -> &'static str {
+    match return_type {
+        "EodTicks" => "C.tdx_eod_tick_array_free",
+        "OhlcTicks" => "C.tdx_ohlc_tick_array_free",
+        "TradeTicks" => "C.tdx_trade_tick_array_free",
+        "QuoteTicks" => "C.tdx_quote_tick_array_free",
+        "TradeQuoteTicks" => "C.tdx_trade_quote_tick_array_free",
+        "OpenInterestTicks" => "C.tdx_open_interest_tick_array_free",
+        "MarketValueTicks" => "C.tdx_market_value_tick_array_free",
+        "GreeksTicks" => "C.tdx_greeks_tick_array_free",
+        "IvTicks" => "C.tdx_iv_tick_array_free",
+        "PriceTicks" => "C.tdx_price_tick_array_free",
+        "CalendarDays" => "C.tdx_calendar_day_array_free",
+        "InterestRateTicks" => "C.tdx_interest_rate_tick_array_free",
+        "OptionContracts" => "C.tdx_option_contract_array_free",
+        other => panic!("unsupported FFI free fn for Go: {other}"),
+    }
+}
+
+fn cpp_value_type(return_type: &str) -> &'static str {
+    match return_type {
+        "StringList" => "std::string",
+        "EodTicks" => "EodTick",
+        "OhlcTicks" => "OhlcTick",
+        "TradeTicks" => "TradeTick",
+        "QuoteTicks" => "QuoteTick",
+        "TradeQuoteTicks" => "TradeQuoteTick",
+        "OpenInterestTicks" => "OpenInterestTick",
+        "MarketValueTicks" => "MarketValueTick",
+        "GreeksTicks" => "GreeksTick",
+        "IvTicks" => "IvTick",
+        "PriceTicks" => "PriceTick",
+        "CalendarDays" => "CalendarDay",
+        "InterestRateTicks" => "InterestRateTick",
+        "OptionContracts" => "OptionContract",
+        other => panic!("unsupported C++ value type: {other}"),
+    }
+}
+
+fn cpp_converter_expr(return_type: &str) -> String {
+    match return_type {
+        "StringList" => "return detail::check_string_array(arr);".into(),
+        "OptionContracts" => "return detail::option_contract_array_to_vector(arr);".into(),
+        other => format!(
+            "auto result = detail::to_vector(arr.data, arr.len);\n    {}(arr);\n    return result;",
+            ffi_free_fn(other).trim_start_matches("C.")
+        ),
+    }
+}
+
+fn python_converter(return_type: &str) -> &'static str {
+    match return_type {
+        "EodTicks" => "eod_tick_to_dict",
+        "OhlcTicks" => "ohlc_tick_to_dict",
+        "TradeTicks" => "trade_tick_to_dict",
+        "QuoteTicks" => "quote_tick_to_dict",
+        "TradeQuoteTicks" => "trade_quote_tick_to_dict",
+        "OpenInterestTicks" => "open_interest_tick_to_dict",
+        "MarketValueTicks" => "market_value_tick_to_dict",
+        "GreeksTicks" => "greeks_tick_to_dict",
+        "IvTicks" => "iv_tick_to_dict",
+        "PriceTicks" => "price_tick_to_dict",
+        "CalendarDays" => "calendar_day_to_dict",
+        "InterestRateTicks" => "interest_rate_tick_to_dict",
+        "OptionContracts" => "option_contract_to_dict",
+        other => panic!("unsupported Python converter: {other}"),
+    }
+}
+
+fn builder_value_type_name(param: &GeneratedParam) -> &'static str {
+    match param.param_type.as_str() {
+        "Int" => "int32_t",
+        "Float" => "double",
+        "Bool" => "bool",
+        _ => "std::string",
+    }
+}
+
+fn builder_copy_expr(param: &GeneratedParam, source: &str) -> String {
+    match param.param_type.as_str() {
+        "Int" => format!("{} = {}", param.name, source),
+        "Float" => format!("{} = {}", param.name, source),
+        "Bool" => format!("{} = {}", param.name, source),
+        _ => format!("{} = std::move({})", param.name, source),
+    }
+}
+
+fn sdk_method_arg_name(param: &GeneratedParam) -> String {
+    if param.param_type == "Symbols" {
+        "symbols".into()
+    } else {
+        param.name.clone()
+    }
+}
+
+fn go_method_arg_decl(param: &GeneratedParam) -> String {
+    let name = to_camel_case(&sdk_method_arg_name(param));
+    if param.param_type == "Symbols" {
+        format!("{name} []string")
+    } else {
+        format!("{name} string")
+    }
+}
+
+fn python_method_arg_decl(param: &GeneratedParam) -> String {
+    let name = sdk_method_arg_name(param);
+    if param.param_type == "Symbols" {
+        format!("{name}: Vec<String>")
+    } else {
+        format!("{name}: &str")
+    }
+}
+
+fn cpp_method_arg_decl(param: &GeneratedParam) -> String {
+    let name = sdk_method_arg_name(param);
+    if param.param_type == "Symbols" {
+        format!("const std::vector<std::string>& {name}")
+    } else {
+        format!("const std::string& {name}")
+    }
+}
+
+fn go_c_var_name(param: &GeneratedParam) -> String {
+    format!("c{}", to_go_exported_name(&sdk_method_arg_name(param)))
+}
+
+fn render_go_options(params: &[GeneratedParam]) -> String {
+    let mut out = String::new();
+    out.push_str("// Code generated by `cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces`; DO NOT EDIT.\n\n");
+    out.push_str("package thetadatadx\n\n");
+    out.push_str("// EndpointRequestOptions contains the shared optional request fields projected from endpoint_surface.toml.\n");
+    out.push_str("type EndpointRequestOptions struct {\n");
+    for param in params {
+        let field_name = to_go_exported_name(&param.name);
+        let field_type = match param.param_type.as_str() {
+            "Int" => "*int32",
+            "Float" => "*float64",
+            "Bool" => "*bool",
+            _ => "*string",
+        };
+        writeln!(out, "\t// {}", param.description).unwrap();
+        writeln!(out, "\t{} {}", field_name, field_type).unwrap();
+    }
+    out.push_str("}\n\n");
+
+    out.push_str("// EndpointOption applies one optional request field to an endpoint request.\n");
+    out.push_str("type EndpointOption func(*EndpointRequestOptions)\n\n");
+    out.push_str("func collectEndpointRequestOptions(opts []EndpointOption) *EndpointRequestOptions {\n");
+    out.push_str("\tif len(opts) == 0 {\n\t\treturn nil\n\t}\n");
+    out.push_str("\toptions := &EndpointRequestOptions{}\n");
+    out.push_str("\tfor _, opt := range opts {\n\t\tif opt != nil {\n\t\t\topt(options)\n\t\t}\n\t}\n");
+    out.push_str("\treturn options\n}\n\n");
+
+    for param in params {
+        let helper_name = format!("With{}", to_go_exported_name(&param.name));
+        let field_name = to_go_exported_name(&param.name);
+        let arg_type = match param.param_type.as_str() {
+            "Int" => "int32",
+            "Float" => "float64",
+            "Bool" => "bool",
+            _ => "string",
+        };
+        writeln!(out, "// {} sets {}.", helper_name, param.name).unwrap();
+        writeln!(out, "func {}(value {}) EndpointOption {{", helper_name, arg_type).unwrap();
+        out.push_str("\treturn func(options *EndpointRequestOptions) {\n");
+        out.push_str("\t\tvalueCopy := value\n");
+        writeln!(out, "\t\toptions.{} = &valueCopy", field_name).unwrap();
+        out.push_str("\t}\n");
+        out.push_str("}\n\n");
+    }
+
+    out
+}
+
+fn render_go_endpoint_with_options_decls(endpoints: &[GeneratedEndpoint]) -> String {
+    let mut out = String::new();
+    out.push_str("/* Generated by `cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces`; DO NOT EDIT. */\n");
+    for endpoint in endpoints.iter().filter(|endpoint| has_builder_params(endpoint)) {
+        let ffi_name = format!("tdx_{}_with_options", endpoint.name);
+        let return_type = ffi_header_return_type(&endpoint.return_type);
+        let params = method_params(endpoint);
+        write!(out, "extern {} {}(const TdxClient* client", return_type, ffi_name).unwrap();
+        for param in &params {
+            if param.param_type == "Symbols" {
+                write!(out, ", const char* const* symbols, size_t symbols_len").unwrap();
+            } else {
+                write!(out, ", const char* {}", param.name).unwrap();
+            }
+        }
+        out.push_str(", const TdxEndpointRequestOptions* options);\n");
+    }
+    out
+}
+
+fn render_c_endpoint_with_options_decls(endpoints: &[GeneratedEndpoint]) -> String {
+    let mut out = String::new();
+    out.push_str("/* Generated by `cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces`; DO NOT EDIT. */\n");
+    for endpoint in endpoints.iter().filter(|endpoint| has_builder_params(endpoint)) {
+        let ffi_name = format!("tdx_{}_with_options", endpoint.name);
+        let return_type = ffi_array_type(&endpoint.return_type);
+        let params = method_params(endpoint);
+        write!(out, "extern {} {}(const TdxClient* client", return_type, ffi_name).unwrap();
+        for param in &params {
+            if param.param_type == "Symbols" {
+                write!(out, ", const char* const* symbols, size_t symbols_len").unwrap();
+            } else {
+                write!(out, ", const char* {}", param.name).unwrap();
+            }
+        }
+        out.push_str(", const TdxEndpointRequestOptions* options);\n");
+    }
+    out
+}
+
+fn render_go_historical(endpoints: &[GeneratedEndpoint]) -> String {
+    let mut out = String::new();
+    out.push_str("// Code generated by `cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces`; DO NOT EDIT.\n\n");
+    out.push_str("package thetadatadx\n\n");
+    out.push_str("/*\n#include \"ffi_bridge.h\"\n*/\nimport \"C\"\n\n");
+    out.push_str("import \"unsafe\"\n\n");
+
+    for endpoint in endpoints {
+        out.push_str(&render_go_endpoint_method(endpoint));
+        out.push('\n');
+    }
+
+    out
+}
+
+fn render_go_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
+    let method_name = to_go_exported_name(&endpoint.name);
+    let method_params = method_params(endpoint);
+    let builder_params = builder_params(endpoint);
+    let mut out = String::new();
+
+    let mut signature_parts = method_params
+        .iter()
+        .map(|param| go_method_arg_decl(param))
+        .collect::<Vec<_>>();
+    if !builder_params.is_empty() {
+        signature_parts.push("opts ...EndpointOption".into());
+    }
+    writeln!(
+        out,
+        "func (c *Client) {}({}) ({}, error) {{",
+        method_name,
+        signature_parts.join(", "),
+        go_result_type(&endpoint.return_type)
+    )
+    .unwrap();
+
+    let has_symbols = method_params.iter().any(|param| param.param_type == "Symbols");
+    if has_symbols {
+        out.push_str("\tcSymbols, cSymbolsLen := symbolsToCArray(symbols)\n");
+        out.push_str("\tdefer freeSymbolArray(cSymbols, cSymbolsLen)\n");
+    }
+
+    for param in method_params.iter().filter(|param| param.param_type != "Symbols") {
+        let var_name = go_c_var_name(param);
+        let arg_name = to_camel_case(&sdk_method_arg_name(param));
+        writeln!(out, "\t{} := C.CString({})", var_name, arg_name).unwrap();
+        writeln!(out, "\tdefer C.free(unsafe.Pointer({}))", var_name).unwrap();
+    }
+
+    if !builder_params.is_empty() {
+        out.push_str("\tcOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))\n");
+        out.push_str("\tdefer freeOpts()\n");
+    }
+
+    write!(
+        out,
+        "\tarr := C.{}(c.handle",
+        if builder_params.is_empty() {
+            format!("tdx_{}", endpoint.name)
+        } else {
+            format!("tdx_{}_with_options", endpoint.name)
+        }
+    )
+    .unwrap();
+    for param in &method_params {
+        if param.param_type == "Symbols" {
+            out.push_str(", cSymbols, cSymbolsLen");
+        } else {
+            write!(out, ", {}", go_c_var_name(param)).unwrap();
+        }
+    }
+    if !builder_params.is_empty() {
+        out.push_str(", cOpts");
+    }
+    out.push_str(")\n");
+
+    if endpoint.return_type == "StringList" {
+        out.push_str("\treturn stringArrayToGo(arr)\n");
+        out.push_str("}\n");
+        return out;
+    }
+
+    writeln!(
+        out,
+        "\tresult := {}(arr)",
+        go_converter_name(&endpoint.return_type)
+    )
+    .unwrap();
+    writeln!(out, "\t{}(arr)", ffi_free_fn(&endpoint.return_type)).unwrap();
+    out.push_str("\treturn result, nil\n");
+    out.push_str("}\n");
+    out
+}
+
+fn render_python_historical_methods(endpoints: &[GeneratedEndpoint]) -> String {
+    let mut out = String::new();
+    out.push_str("// Code generated by `cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces`; DO NOT EDIT.\n\n");
+    out.push_str("#[pymethods]\n");
+    out.push_str("impl ThetaDataDx {\n");
+    for endpoint in endpoints {
+        out.push_str(&render_python_endpoint_method(endpoint));
+        out.push('\n');
+    }
+    out.push_str("}\n");
+    out
+}
+
+fn render_python_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
+    let method_params = method_params(endpoint);
+    let builder_params = builder_params(endpoint);
+    let mut out = String::new();
+
+    writeln!(out, "    /// {}", endpoint.description).unwrap();
+    if !builder_params.is_empty() {
+        let mut signature_parts = method_params
+            .iter()
+            .map(|param| sdk_method_arg_name(param))
+            .collect::<Vec<_>>();
+        signature_parts.push("*".into());
+        signature_parts.extend(
+            builder_params
+                .iter()
+                .map(|param| format!("{}=None", param.name)),
+        );
+        writeln!(
+            out,
+            "    #[pyo3(signature = ({}))]",
+            signature_parts.join(", ")
+        )
+        .unwrap();
+    }
+
+    writeln!(out, "    fn {}(", endpoint.name).unwrap();
+    out.push_str("        &self,\n");
+    out.push_str("        py: Python<'_>,\n");
+    for param in &method_params {
+        writeln!(out, "        {},", python_method_arg_decl(param)).unwrap();
+    }
+    for param in &builder_params {
+        writeln!(
+            out,
+            "        {}: {},",
+            param.name,
+            python_optional_type(param)
+        )
+        .unwrap();
+    }
+    out.push_str("    ) -> PyResult<");
+    if endpoint.return_type == "StringList" {
+        out.push_str("Vec<String>> {\n");
+    } else {
+        out.push_str("Vec<Py<PyAny>>> {\n");
+    }
+
+    let has_symbols = method_params.iter().any(|param| param.param_type == "Symbols");
+    if has_symbols {
+        out.push_str("        let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();\n");
+    }
+
+    out.push_str("        ");
+    if endpoint.return_type == "StringList" {
+        out.push_str("py.detach(|| {\n");
+    } else {
+        out.push_str("let ticks = py.detach(|| {\n");
+    }
+    if builder_params.is_empty() {
+        out.push_str("            runtime()\n");
+        out.push_str("                .block_on(async {\n");
+        write!(out, "                    self.tdx.{}(", endpoint.name).unwrap();
+        out.push_str(
+            &method_params
+                .iter()
+                .map(|param| {
+                    if param.param_type == "Symbols" {
+                        "&refs".into()
+                    } else {
+                        sdk_method_arg_name(param)
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+        out.push_str(").await\n");
+        out.push_str("                })\n");
+        out.push_str("                .map_err(to_py_err)\n");
+    } else {
+        write!(out, "            let mut request = self.tdx.{}(", endpoint.name).unwrap();
+        out.push_str(
+            &method_params
+                .iter()
+                .map(|param| {
+                    if param.param_type == "Symbols" {
+                        "&refs".into()
+                    } else {
+                        sdk_method_arg_name(param)
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+        out.push_str(");\n");
+        for param in &builder_params {
+            writeln!(out, "            if let Some(value) = {} {{", param.name).unwrap();
+            writeln!(out, "                request = request.{}(value);", param.name).unwrap();
+            out.push_str("            }\n");
+        }
+        out.push_str("            runtime()\n");
+        out.push_str("                .block_on(async { request.await })\n");
+        out.push_str("                .map_err(to_py_err)\n");
+    }
+    if endpoint.return_type == "StringList" {
+        out.push_str("        })\n");
+        out.push_str("    }\n");
+        return out;
+    }
+
+    out.push_str("        })?;\n");
+    writeln!(
+        out,
+        "        Ok(ticks.iter().map(|t| {}(py, t)).collect())",
+        python_converter(&endpoint.return_type)
+    )
+    .unwrap();
+    out.push_str("    }\n");
+    out
+}
+
+fn render_cpp_options(params: &[GeneratedParam]) -> String {
+    let mut out = String::new();
+    out.push_str("// Code generated by `cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces`; DO NOT EDIT.\n");
+    out.push_str("/// Optional builder parameters for registry-driven endpoint wrappers.\n");
+    out.push_str("struct EndpointRequestOptions {\n");
+    for param in params {
+        let ty = match param.param_type.as_str() {
+            "Int" => "std::optional<int32_t>",
+            "Float" => "std::optional<double>",
+            "Bool" => "std::optional<bool>",
+            _ => "std::optional<std::string>",
+        };
+        writeln!(out, "    /// {}", param.description).unwrap();
+        writeln!(out, "    {} {};", ty, param.name).unwrap();
+    }
+    out.push('\n');
+    for param in params {
+        let arg_ty = builder_value_type_name(param);
+        writeln!(
+            out,
+            "    EndpointRequestOptions& with_{}({} value) {{",
+            param.name, arg_ty
+        )
+        .unwrap();
+        writeln!(out, "        {};", builder_copy_expr(param, "value")).unwrap();
+        out.push_str("        return *this;\n");
+        out.push_str("    }\n");
+    }
+    out.push_str("};\n");
+    out
+}
+
+fn render_cpp_historical_decls(endpoints: &[GeneratedEndpoint]) -> String {
+    let mut out = String::new();
+    out.push_str("    // Generated historical endpoint surface\n\n");
+    for endpoint in endpoints {
+        writeln!(out, "    /** {} */", endpoint.description).unwrap();
+        let mut params = method_params(endpoint)
+            .iter()
+            .map(|param| cpp_method_arg_decl(param))
+            .collect::<Vec<_>>();
+        if has_builder_params(endpoint) {
+            params.push("const EndpointRequestOptions& options = {}".into());
+        }
+        writeln!(
+            out,
+            "    std::vector<{}> {}({}) const;\n",
+            cpp_value_type(&endpoint.return_type),
+            endpoint.name,
+            params.join(", ")
+        )
+        .unwrap();
+    }
+    out
+}
+
+fn render_cpp_historical_defs(endpoints: &[GeneratedEndpoint]) -> String {
+    let mut out = String::new();
+    out.push_str("// Code generated by `cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces`; DO NOT EDIT.\n\n");
+    for endpoint in endpoints {
+        out.push_str(&render_cpp_endpoint_def(endpoint));
+        out.push('\n');
+    }
+    out
+}
+
+fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint) -> String {
+    let method_params = method_params(endpoint);
+    let mut signature_parts = method_params
+        .iter()
+        .map(|param| cpp_method_arg_decl(param))
+        .collect::<Vec<_>>();
+    if has_builder_params(endpoint) {
+        signature_parts.push("const EndpointRequestOptions& options".into());
+    }
+
+    let mut out = String::new();
+    writeln!(
+        out,
+        "std::vector<{}> Client::{}({}) const {{",
+        cpp_value_type(&endpoint.return_type),
+        endpoint.name,
+        signature_parts.join(", ")
+    )
+    .unwrap();
+
+    let has_symbols = method_params.iter().any(|param| param.param_type == "Symbols");
+    if has_symbols {
+        out.push_str("    auto symbol_ptrs = detail::string_ptrs(symbols);\n");
+    }
+    if has_builder_params(endpoint) {
+        out.push_str("    detail::FfiEndpointRequestOptions ffi_options(options);\n");
+    }
+
+    if endpoint.return_type == "StringList" {
+        write!(out, "    return detail::check_string_array(tdx_{}", endpoint.name).unwrap();
+        if has_builder_params(endpoint) {
+            out.push_str("_with_options");
+        }
+        out.push_str("(handle_.get()");
+        for param in &method_params {
+            if param.param_type == "Symbols" {
+                out.push_str(", symbol_ptrs.data(), symbol_ptrs.size()");
+            } else {
+                write!(out, ", {}.c_str()", sdk_method_arg_name(param)).unwrap();
+            }
+        }
+        if has_builder_params(endpoint) {
+            out.push_str(", &ffi_options.raw");
+        }
+        out.push_str("));\n");
+        out.push_str("}\n");
+        return out;
+    }
+
+    if endpoint.return_type == "OptionContracts" {
+        write!(out, "    TdxOptionContractArray arr = tdx_{}", endpoint.name).unwrap();
+        if has_builder_params(endpoint) {
+            out.push_str("_with_options");
+        }
+        out.push_str("(handle_.get()");
+        for param in &method_params {
+            if param.param_type == "Symbols" {
+                out.push_str(", symbol_ptrs.data(), symbol_ptrs.size()");
+            } else {
+                write!(out, ", {}.c_str()", sdk_method_arg_name(param)).unwrap();
+            }
+        }
+        if has_builder_params(endpoint) {
+            out.push_str(", &ffi_options.raw");
+        }
+        out.push_str(");\n");
+        out.push_str("    std::vector<OptionContract> result;\n");
+        out.push_str("    result.reserve(arr.len);\n");
+        out.push_str("    for (size_t i = 0; i < arr.len; ++i) {\n");
+        out.push_str("        OptionContract c;\n");
+        out.push_str("        c.root = arr.data[i].root ? std::string(arr.data[i].root) : \"\";\n");
+        out.push_str("        c.expiration = arr.data[i].expiration;\n");
+        out.push_str("        c.strike = arr.data[i].strike;\n");
+        out.push_str("        c.right = arr.data[i].right;\n");
+        out.push_str("        result.push_back(std::move(c));\n");
+        out.push_str("    }\n");
+        out.push_str("    tdx_option_contract_array_free(arr);\n");
+        out.push_str("    return result;\n");
+        out.push_str("}\n");
+        return out;
+    }
+
+    write!(out, "    auto arr = tdx_{}", endpoint.name).unwrap();
+    if has_builder_params(endpoint) {
+        out.push_str("_with_options");
+    }
+    out.push_str("(handle_.get()");
+    for param in &method_params {
+        if param.param_type == "Symbols" {
+            out.push_str(", symbol_ptrs.data(), symbol_ptrs.size()");
+        } else {
+            write!(out, ", {}.c_str()", sdk_method_arg_name(param)).unwrap();
+        }
+    }
+    if has_builder_params(endpoint) {
+        out.push_str(", &ffi_options.raw");
+    }
+    out.push_str(");\n");
+    writeln!(out, "    {}", cpp_converter_expr(&endpoint.return_type)).unwrap();
+    out.push_str("}\n");
+    out
+}
+
+fn render_ffi_with_options(endpoints: &[GeneratedEndpoint]) -> String {
+    let mut out = String::new();
+    out.push_str("// Code generated by `cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces`; DO NOT EDIT.\n\n");
+    for endpoint in endpoints.iter().filter(|endpoint| has_builder_params(endpoint)) {
+        out.push_str(&render_ffi_with_options_endpoint(endpoint));
+        out.push('\n');
+    }
+    out
+}
+
+fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
+    let method_params = method_params(endpoint);
+    let array_type = ffi_array_type(&endpoint.return_type);
+    let output_variant = ffi_output_variant(&endpoint.return_type);
+    let from_vec_expr = ffi_from_vec_expr(&endpoint.return_type);
+    let mut out = String::new();
+
+    writeln!(out, "/// {} with optional builder parameters.", endpoint.description).unwrap();
+    out.push_str("#[no_mangle]\n");
+    write!(
+        out,
+        "pub unsafe extern \"C\" fn tdx_{}_with_options(\n    client: *const TdxClient",
+        endpoint.name
+    )
+    .unwrap();
+    for param in &method_params {
+        if param.param_type == "Symbols" {
+            out.push_str(",\n    symbols: *const *const c_char,\n    symbols_len: usize");
+        } else {
+            writeln!(out, ",\n    {}: *const c_char", param.name).unwrap();
+        }
+    }
+    out.push_str(",\n    options: *const TdxEndpointRequestOptions,\n");
+    writeln!(out, ") -> {} {{", array_type).unwrap();
+    writeln!(
+        out,
+        "    let empty = {} {{ data: ptr::null(), len: 0 }};",
+        array_type
+    )
+    .unwrap();
+    out.push_str("    if client.is_null() {\n");
+    out.push_str("        set_error(\"client handle is null\");\n");
+    out.push_str("        return empty;\n");
+    out.push_str("    }\n\n");
+    out.push_str("    let mut args = thetadatadx::EndpointArgs::new();\n");
+
+    for param in &method_params {
+        if param.param_type == "Symbols" {
+            out.push_str("    let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {\n");
+            out.push_str("        Some(values) => values,\n");
+            out.push_str("        None => return empty,\n");
+            out.push_str("    };\n");
+            out.push_str("    args.insert(\n");
+            out.push_str("        \"symbol\".to_string(),\n");
+            out.push_str("        thetadatadx::EndpointArgValue::Str(symbols.join(\",\")),\n");
+            out.push_str("    );\n");
+        } else {
+            writeln!(
+                out,
+                "    let {} = match unsafe {{ cstr_to_str({}) }} {{",
+                param.name, param.name
+            )
+            .unwrap();
+            out.push_str("        Some(value) => value,\n");
+            writeln!(
+                out,
+                "        None => {{\n            set_error(\"{} is null or invalid UTF-8\");\n            return empty;\n        }}",
+                param.name
+            )
+            .unwrap();
+            out.push_str("    };\n");
+            out.push_str("    args.insert(\n");
+            writeln!(out, "        {:?}.to_string(),", param.name).unwrap();
+            writeln!(
+                out,
+                "        thetadatadx::EndpointArgValue::Str({}.to_string()),",
+                param.name
+            )
+            .unwrap();
+            out.push_str("    );\n");
+        }
+    }
+
+    out.push_str("\n    if let Err(message) = apply_endpoint_request_options(&mut args, options) {\n");
+    out.push_str("        set_error(&message);\n");
+    out.push_str("        return empty;\n");
+    out.push_str("    }\n\n");
+    out.push_str("    let client = unsafe { &*client };\n");
+    out.push_str("    match runtime().block_on(async {\n");
+    writeln!(
+        out,
+        "        thetadatadx::endpoint::invoke_endpoint(&client.inner, {:?}, &args).await",
+        endpoint.name
+    )
+    .unwrap();
+    out.push_str("    }) {\n");
+    writeln!(
+        out,
+        "        Ok(thetadatadx::EndpointOutput::{}(values)) => {},",
+        output_variant, from_vec_expr
+    )
+    .unwrap();
+    out.push_str("        Ok(other) => {\n");
+    writeln!(
+        out,
+        "            set_error(&format!(\"internal error: unexpected endpoint output for {}: {{other:?}}\"));",
+        endpoint.name
+    )
+    .unwrap();
+    out.push_str("            empty\n");
+    out.push_str("        }\n");
+    out.push_str("        Err(error) => {\n");
+    out.push_str("            set_error(&error.to_string());\n");
+    out.push_str("            empty\n");
+    out.push_str("        }\n");
+    out.push_str("    }\n");
+    out.push_str("}\n");
+    out
 }
