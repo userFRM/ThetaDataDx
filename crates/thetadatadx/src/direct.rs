@@ -4,7 +4,7 @@
 //! to the MDDS server, and exposes typed methods for every data endpoint.
 //! Macro-driven builder patterns (`list_endpoint!`, `parsed_endpoint!`,
 //! `streaming_endpoint!`) live in [`crate::macros`] and are applied here
-//! by both generated code (`include!`) and handwritten streaming endpoints.
+//! via generated code (`include!`) from `endpoint_surface.toml`.
 //!
 //! # Architecture
 //!
@@ -49,9 +49,10 @@ const CLIENT_TYPE: &str = "rust-thetadatadx";
 /// Version string sent in `QueryInfo.terminal_version`.
 const TERMINAL_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-// Macros (`list_endpoint!`, `parsed_endpoint!`, `streaming_endpoint!`, and
-// the helper type-mapping macros) live in `crate::macros` and are brought
-// into scope by `#[macro_use]` in lib.rs.
+// Macros (`list_endpoint!`, `parsed_endpoint!`, `streaming_endpoint!`, and the
+// helper type-mapping macros) live in `crate::macros` and are brought into
+// scope by `#[macro_use]` in lib.rs. All invocations are now generated from
+// `endpoint_surface.toml` at build time.
 
 /// Normalize the `right` parameter for the v3 MDDS server.
 ///
@@ -404,121 +405,11 @@ include!(concat!(
     "/direct_parsed_endpoints_generated.rs"
 ));
 
-// Streaming convenience methods remain handwritten because they expose
-// chunk-by-chunk iteration semantics rather than the registry's
-// collect-then-return model.
-
-streaming_endpoint! {
-    /// Stream all trades for a stock on a given date, chunk-by-chunk.
-    builder StockHistoryTradeStreamBuilder;
-    fn stock_history_trade_stream(symbol: str, date: str) -> TradeTick;
-    grpc: get_stock_history_trade;
-    request: StockHistoryTradeRequest;
-    query: StockHistoryTradeRequestQuery {
-        symbol: symbol.clone(),
-        date: Some(date.clone()),
-        start_time: Some(start_time.clone()),
-        end_time: Some(end_time.clone()),
-        venue: venue.clone().or_else(|| Some("nqb".to_string())),
-        start_date: start_date.clone(),
-        end_date: end_date.clone(),
-    };
-    parse: decode::parse_trade_ticks;
-    dates: date;
-    optional {
-        start_time: string = "09:30:00".to_string(),
-        end_time: string = "16:00:00".to_string(),
-        venue: opt_str = None,
-        start_date: opt_str = None,
-        end_date: opt_str = None,
-    }
-}
-
-streaming_endpoint! {
-    /// Stream NBBO quotes for a stock on a given date, chunk-by-chunk.
-    builder StockHistoryQuoteStreamBuilder;
-    fn stock_history_quote_stream(symbol: str, date: str, interval: str) -> QuoteTick;
-    grpc: get_stock_history_quote;
-    request: StockHistoryQuoteRequest;
-    query: StockHistoryQuoteRequestQuery {
-        symbol: symbol.clone(),
-        date: Some(date.clone()),
-        interval: normalize_interval(&interval),
-        start_time: Some(start_time.clone()),
-        end_time: Some(end_time.clone()),
-        venue: venue.clone().or_else(|| Some("nqb".to_string())),
-        start_date: start_date.clone(),
-        end_date: end_date.clone(),
-    };
-    parse: decode::parse_quote_ticks;
-    dates: date;
-    optional {
-        start_time: string = "09:30:00".to_string(),
-        end_time: string = "16:00:00".to_string(),
-        venue: opt_str = None,
-        start_date: opt_str = None,
-        end_date: opt_str = None,
-    }
-}
-
-streaming_endpoint! {
-    /// Stream all trades for an option contract, chunk-by-chunk.
-    builder OptionHistoryTradeStreamBuilder;
-    fn option_history_trade_stream(symbol: str, expiration: str, strike: str, right: str, date: str) -> TradeTick;
-    grpc: get_option_history_trade;
-    request: OptionHistoryTradeRequest;
-    query: OptionHistoryTradeRequestQuery {
-        contract_spec: contract_spec!(symbol, expiration, strike, right),
-        date: Some(date.clone()),
-        expiration: expiration.clone(),
-        start_time: Some(start_time.clone()),
-        end_time: Some(end_time.clone()),
-        max_dte: max_dte,
-        strike_range: strike_range,
-        start_date: start_date.clone(),
-        end_date: end_date.clone(),
-    };
-    parse: decode::parse_trade_ticks;
-    dates: date;
-    optional {
-        start_time: string = "09:30:00".to_string(),
-        end_time: string = "16:00:00".to_string(),
-        max_dte: opt_i32 = None,
-        strike_range: opt_i32 = None,
-        start_date: opt_str = None,
-        end_date: opt_str = None,
-    }
-}
-
-streaming_endpoint! {
-    /// Stream NBBO quotes for an option contract, chunk-by-chunk.
-    builder OptionHistoryQuoteStreamBuilder;
-    fn option_history_quote_stream(symbol: str, expiration: str, strike: str, right: str, date: str, interval: str) -> QuoteTick;
-    grpc: get_option_history_quote;
-    request: OptionHistoryQuoteRequest;
-    query: OptionHistoryQuoteRequestQuery {
-        contract_spec: contract_spec!(symbol, expiration, strike, right),
-        date: Some(date.clone()),
-        expiration: expiration.clone(),
-        start_time: Some(start_time.clone()),
-        end_time: Some(end_time.clone()),
-        interval: normalize_interval(&interval),
-        max_dte: max_dte,
-        strike_range: strike_range,
-        start_date: start_date.clone(),
-        end_date: end_date.clone(),
-    };
-    parse: decode::parse_quote_ticks;
-    dates: date;
-    optional {
-        start_time: string = "09:30:00".to_string(),
-        end_time: string = "16:00:00".to_string(),
-        max_dte: opt_i32 = None,
-        strike_range: opt_i32 = None,
-        start_date: opt_str = None,
-        end_date: opt_str = None,
-    }
-}
+// Shared build-time source of truth for streaming builder endpoints.
+include!(concat!(
+    env!("OUT_DIR"),
+    "/direct_streaming_endpoints_generated.rs"
+));
 
 // ═══════════════════════════════════════════════════════════════════════
 //  Private helpers
