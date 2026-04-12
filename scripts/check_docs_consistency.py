@@ -86,14 +86,7 @@ def check_static_docs() -> None:
         ROOT / "docs-site/docs/tools/mcp.md",
         f"{len(ENDPOINTS)} data endpoints + ping + all_greeks + implied_volatility = {EXPECTED_TOOL_COUNT} tools.",
     )
-    expect_contains(
-        ROOT / "docs-site/docs/.vitepress/config.ts",
-        "{ text: 'Migration from REST & WS', link: '/getting-started/migration-from-rest-ws' }",
-    )
-    expect_contains(
-        ROOT / "docs-site/docs/getting-started/index.md",
-        "[Migration from REST & WebSocket](./migration-from-rest-ws)",
-    )
+    # Migration guide removed in v7 (L14). No longer enforced.
     expect_contains(
         ROOT / "docs-site/docs/tools/mcp.md",
         'Use `"strike":"0"` when you want a bulk chain-style response',
@@ -249,7 +242,6 @@ def check_endpoint_option_surface() -> None:
         ROOT / "sdks/cpp/src/thetadx.cpp",
         ROOT / "sdks/go/README.md",
         ROOT / "sdks/cpp/README.md",
-        ROOT / "docs-site/docs/getting-started/migration-from-rest-ws.md",
         ROOT / "docs-site/docs/historical/option/history/greeks-eod.md",
     ]:
         expect_not_contains(path, "OptionRequestOptions")
