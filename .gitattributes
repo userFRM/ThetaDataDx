@@ -1,0 +1,9 @@
+# Force LF line endings on generated SDK surfaces so that
+# `generate_sdk_surfaces --check` doesn't false-positive on Windows.
+ffi/src/generated_*.rs           text eol=lf
+sdks/go/generated_*.go           text eol=lf
+sdks/go/generated_*.h.inc        text eol=lf
+sdks/cpp/include/generated_*.hpp.inc  text eol=lf
+sdks/cpp/include/generated_*.h.inc    text eol=lf
+sdks/cpp/src/generated_*.cpp.inc text eol=lf
+sdks/python/src/generated_*.rs   text eol=lf

@@ -1908,7 +1908,9 @@ pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
     for file in render_sdk_generated_files()? {
         let path = repo_root.join(file.relative_path);
         let actual = std::fs::read_to_string(&path)?;
-        if actual != file.contents {
+        // Normalize \r\n → \n so Windows checkouts don't false-positive.
+        let actual_normalized = actual.replace("\r\n", "\n");
+        if actual_normalized != file.contents {
             return Err(format!(
                 "generated SDK surface '{}' is stale; run `cargo run -p thetadatadx --bin generate_sdk_surfaces` to refresh",
                 file.relative_path
