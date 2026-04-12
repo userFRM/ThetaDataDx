@@ -214,7 +214,7 @@ def check_endpoint_option_surface() -> None:
             )
 
     go_fields = extract_struct_fields(
-        ROOT / "sdks/go/client.go",
+        ROOT / "sdks/go/generated_endpoint_options.go",
         r"type EndpointRequestOptions struct \{(.*?)\n\}",
         r"^\s*([A-Z][A-Za-z0-9]+)\s+\*",
     )
@@ -223,12 +223,12 @@ def check_endpoint_option_surface() -> None:
         missing = sorted(expected_go_fields - go_fields)
         extra = sorted(go_fields - expected_go_fields)
         fail(
-            "sdks/go/client.go EndpointRequestOptions fields drifted from endpoint_surface.toml. "
+            "sdks/go/generated_endpoint_options.go EndpointRequestOptions fields drifted from endpoint_surface.toml. "
             f"missing={missing or '[]'} extra={extra or '[]'}"
         )
 
     cpp_fields = extract_struct_fields(
-        ROOT / "sdks/cpp/include/thetadx.hpp",
+        ROOT / "sdks/cpp/include/generated_endpoint_options.hpp.inc",
         r"struct EndpointRequestOptions \{(.*?)\n\};",
         r"^\s*std::optional<[^>]+>\s+([a-z_]+);",
     )
@@ -236,7 +236,7 @@ def check_endpoint_option_surface() -> None:
         missing = sorted(BUILDER_PARAMS - cpp_fields)
         extra = sorted(cpp_fields - BUILDER_PARAMS)
         fail(
-            "sdks/cpp/include/thetadx.hpp EndpointRequestOptions fields drifted from endpoint_surface.toml. "
+            "sdks/cpp/include/generated_endpoint_options.hpp.inc EndpointRequestOptions fields drifted from endpoint_surface.toml. "
             f"missing={missing or '[]'} extra={extra or '[]'}"
         )
 
