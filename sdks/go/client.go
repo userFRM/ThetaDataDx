@@ -7,7 +7,6 @@ import "C"
 
 import (
 	"fmt"
-	"math"
 	"unsafe"
 )
 
@@ -834,20 +833,6 @@ func endpointRequestOptionsToC(opts *EndpointRequestOptions) (*C.TdxEndpointRequ
 	}
 
 	cOpts := &C.TdxEndpointRequestOptions{}
-	cOpts.max_dte = -1
-	cOpts.strike_range = -1
-	cOpts.venue = nil
-	cOpts.min_time = nil
-	cOpts.start_time = nil
-	cOpts.end_time = nil
-	cOpts.start_date = nil
-	cOpts.end_date = nil
-	cOpts.annual_dividend = C.double(math.NaN())
-	cOpts.rate_value = C.double(math.NaN())
-	cOpts.stock_price = C.double(math.NaN())
-	cOpts.exclusive = -1
-	cOpts.underlyer_use_nbbo = -1
-	cOpts.use_market_value = -1
 
 	var allocations []unsafe.Pointer
 	free := func() {
@@ -856,8 +841,13 @@ func endpointRequestOptionsToC(opts *EndpointRequestOptions) (*C.TdxEndpointRequ
 		}
 	}
 
-	if opts.AnnualDividend != nil {
-		cOpts.annual_dividend = C.double(*opts.AnnualDividend)
+	if opts.MaxDTE != nil {
+		cOpts.max_dte = C.int32_t(*opts.MaxDTE)
+		cOpts.has_max_dte = C.bool(true)
+	}
+	if opts.StrikeRange != nil {
+		cOpts.strike_range = C.int32_t(*opts.StrikeRange)
+		cOpts.has_strike_range = C.bool(true)
 	}
 	if opts.Venue != nil {
 		venue := C.CString(*opts.Venue)
@@ -895,6 +885,11 @@ func endpointRequestOptionsToC(opts *EndpointRequestOptions) (*C.TdxEndpointRequ
 		} else {
 			cOpts.exclusive = 0
 		}
+		cOpts.has_exclusive = C.bool(true)
+	}
+	if opts.AnnualDividend != nil {
+		cOpts.annual_dividend = C.double(*opts.AnnualDividend)
+		cOpts.has_annual_dividend = C.bool(true)
 	}
 	if opts.RateType != nil {
 		rateType := C.CString(*opts.RateType)
@@ -903,9 +898,11 @@ func endpointRequestOptionsToC(opts *EndpointRequestOptions) (*C.TdxEndpointRequ
 	}
 	if opts.RateValue != nil {
 		cOpts.rate_value = C.double(*opts.RateValue)
+		cOpts.has_rate_value = C.bool(true)
 	}
 	if opts.StockPrice != nil {
 		cOpts.stock_price = C.double(*opts.StockPrice)
+		cOpts.has_stock_price = C.bool(true)
 	}
 	if opts.Version != nil {
 		version := C.CString(*opts.Version)
@@ -918,6 +915,7 @@ func endpointRequestOptionsToC(opts *EndpointRequestOptions) (*C.TdxEndpointRequ
 		} else {
 			cOpts.underlyer_use_nbbo = 0
 		}
+		cOpts.has_underlyer_use_nbbo = C.bool(true)
 	}
 	if opts.UseMarketValue != nil {
 		if *opts.UseMarketValue {
@@ -925,12 +923,7 @@ func endpointRequestOptionsToC(opts *EndpointRequestOptions) (*C.TdxEndpointRequ
 		} else {
 			cOpts.use_market_value = 0
 		}
-	}
-	if opts.MaxDTE != nil {
-		cOpts.max_dte = C.int32_t(*opts.MaxDTE)
-	}
-	if opts.StrikeRange != nil {
-		cOpts.strike_range = C.int32_t(*opts.StrikeRange)
+		cOpts.has_use_market_value = C.bool(true)
 	}
 
 	return cOpts, free

@@ -122,14 +122,14 @@ pub struct TdxFpssHandle {
 ///
 /// Fields use simple C-friendly sentinels:
 ///
-/// - integer filters: `-1` means unset
-/// - boolean flags: `-1` means unset, `0` false, `1` true
-/// - floating-point values: `NaN` means unset
+/// - integer/boolean/float fields: check the companion `has_*` flag
 /// - string pointers: null means unset
 #[repr(C)]
 pub struct TdxEndpointRequestOptions {
     pub max_dte: i32,
+    pub has_max_dte: bool,
     pub strike_range: i32,
+    pub has_strike_range: bool,
     pub venue: *const c_char,
     pub min_time: *const c_char,
     pub start_time: *const c_char,
@@ -137,13 +137,19 @@ pub struct TdxEndpointRequestOptions {
     pub start_date: *const c_char,
     pub end_date: *const c_char,
     pub exclusive: i32,
+    pub has_exclusive: bool,
     pub annual_dividend: f64,
+    pub has_annual_dividend: bool,
     pub rate_type: *const c_char,
     pub rate_value: f64,
+    pub has_rate_value: bool,
     pub stock_price: f64,
+    pub has_stock_price: bool,
     pub version: *const c_char,
     pub underlyer_use_nbbo: i32,
+    pub has_underlyer_use_nbbo: bool,
     pub use_market_value: i32,
+    pub has_use_market_value: bool,
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -644,22 +650,19 @@ fn insert_optional_str_arg(
     Ok(())
 }
 
-fn insert_optional_int_arg(args: &mut thetadatadx::EndpointArgs, key: &str, value: i32) {
-    if value >= 0 {
-        args.insert(
-            key.to_string(),
-            thetadatadx::EndpointArgValue::Int(i64::from(value)),
-        );
-    }
+fn insert_int_arg(args: &mut thetadatadx::EndpointArgs, key: &str, value: i32) {
+    args.insert(
+        key.to_string(),
+        thetadatadx::EndpointArgValue::Int(i64::from(value)),
+    );
 }
 
-fn insert_optional_bool_arg(
+fn insert_bool_arg(
     args: &mut thetadatadx::EndpointArgs,
     key: &str,
     value: i32,
 ) -> Result<(), String> {
     match value {
-        -1 => Ok(()),
         0 => {
             args.insert(key.to_string(), thetadatadx::EndpointArgValue::Bool(false));
             Ok(())
@@ -668,16 +671,12 @@ fn insert_optional_bool_arg(
             args.insert(key.to_string(), thetadatadx::EndpointArgValue::Bool(true));
             Ok(())
         }
-        other => Err(format!(
-            "{key} must be -1 (unset), 0 (false), or 1 (true), got {other}"
-        )),
+        other => Err(format!("{key} must be 0 (false) or 1 (true), got {other}")),
     }
 }
 
-fn insert_optional_float_arg(args: &mut thetadatadx::EndpointArgs, key: &str, value: f64) {
-    if !value.is_nan() {
-        args.insert(key.to_string(), thetadatadx::EndpointArgValue::Float(value));
-    }
+fn insert_float_arg(args: &mut thetadatadx::EndpointArgs, key: &str, value: f64) {
+    args.insert(key.to_string(), thetadatadx::EndpointArgValue::Float(value));
 }
 
 fn apply_endpoint_request_options(
@@ -689,22 +688,38 @@ fn apply_endpoint_request_options(
     }
 
     let options = unsafe { &*options };
-    insert_optional_int_arg(args, "max_dte", options.max_dte);
-    insert_optional_int_arg(args, "strike_range", options.strike_range);
+    if options.has_max_dte {
+        insert_int_arg(args, "max_dte", options.max_dte);
+    }
+    if options.has_strike_range {
+        insert_int_arg(args, "strike_range", options.strike_range);
+    }
     insert_optional_str_arg(args, "venue", options.venue)?;
     insert_optional_str_arg(args, "min_time", options.min_time)?;
     insert_optional_str_arg(args, "start_time", options.start_time)?;
     insert_optional_str_arg(args, "end_time", options.end_time)?;
     insert_optional_str_arg(args, "start_date", options.start_date)?;
     insert_optional_str_arg(args, "end_date", options.end_date)?;
-    insert_optional_bool_arg(args, "exclusive", options.exclusive)?;
-    insert_optional_float_arg(args, "annual_dividend", options.annual_dividend);
+    if options.has_exclusive {
+        insert_bool_arg(args, "exclusive", options.exclusive)?;
+    }
+    if options.has_annual_dividend {
+        insert_float_arg(args, "annual_dividend", options.annual_dividend);
+    }
     insert_optional_str_arg(args, "rate_type", options.rate_type)?;
-    insert_optional_float_arg(args, "rate_value", options.rate_value);
-    insert_optional_float_arg(args, "stock_price", options.stock_price);
+    if options.has_rate_value {
+        insert_float_arg(args, "rate_value", options.rate_value);
+    }
+    if options.has_stock_price {
+        insert_float_arg(args, "stock_price", options.stock_price);
+    }
     insert_optional_str_arg(args, "version", options.version)?;
-    insert_optional_bool_arg(args, "underlyer_use_nbbo", options.underlyer_use_nbbo)?;
-    insert_optional_bool_arg(args, "use_market_value", options.use_market_value)?;
+    if options.has_underlyer_use_nbbo {
+        insert_bool_arg(args, "underlyer_use_nbbo", options.underlyer_use_nbbo)?;
+    }
+    if options.has_use_market_value {
+        insert_bool_arg(args, "use_market_value", options.use_market_value)?;
+    }
     Ok(())
 }
 

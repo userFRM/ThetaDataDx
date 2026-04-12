@@ -8,7 +8,7 @@
 
 #include "thetadx.hpp"
 
-#include <limits>
+#include <cstring>
 #include <stdexcept>
 #include <sstream>
 
@@ -38,23 +38,16 @@ struct FfiEndpointRequestOptions {
     std::string version_storage;
 
     explicit FfiEndpointRequestOptions(const EndpointRequestOptions& options) {
-        raw.max_dte = -1;
-        raw.strike_range = -1;
-        raw.venue = nullptr;
-        raw.min_time = nullptr;
-        raw.start_time = nullptr;
-        raw.end_time = nullptr;
-        raw.start_date = nullptr;
-        raw.end_date = nullptr;
-        raw.exclusive = -1;
-        raw.annual_dividend = std::numeric_limits<double>::quiet_NaN();
-        raw.rate_type = nullptr;
-        raw.rate_value = std::numeric_limits<double>::quiet_NaN();
-        raw.stock_price = std::numeric_limits<double>::quiet_NaN();
-        raw.version = nullptr;
-        raw.underlyer_use_nbbo = -1;
-        raw.use_market_value = -1;
+        std::memset(&raw, 0, sizeof(raw));
 
+        if (options.max_dte) {
+            raw.max_dte = *options.max_dte;
+            raw.has_max_dte = true;
+        }
+        if (options.strike_range) {
+            raw.strike_range = *options.strike_range;
+            raw.has_strike_range = true;
+        }
         if (options.venue) {
             venue_storage = *options.venue;
             raw.venue = venue_storage.c_str();
@@ -81,9 +74,11 @@ struct FfiEndpointRequestOptions {
         }
         if (options.exclusive) {
             raw.exclusive = *options.exclusive ? 1 : 0;
+            raw.has_exclusive = true;
         }
         if (options.annual_dividend) {
             raw.annual_dividend = *options.annual_dividend;
+            raw.has_annual_dividend = true;
         }
         if (options.rate_type) {
             rate_type_storage = *options.rate_type;
@@ -91,9 +86,11 @@ struct FfiEndpointRequestOptions {
         }
         if (options.rate_value) {
             raw.rate_value = *options.rate_value;
+            raw.has_rate_value = true;
         }
         if (options.stock_price) {
             raw.stock_price = *options.stock_price;
+            raw.has_stock_price = true;
         }
         if (options.version) {
             version_storage = *options.version;
@@ -101,15 +98,11 @@ struct FfiEndpointRequestOptions {
         }
         if (options.underlyer_use_nbbo) {
             raw.underlyer_use_nbbo = *options.underlyer_use_nbbo ? 1 : 0;
+            raw.has_underlyer_use_nbbo = true;
         }
         if (options.use_market_value) {
             raw.use_market_value = *options.use_market_value ? 1 : 0;
-        }
-        if (options.max_dte) {
-            raw.max_dte = *options.max_dte;
-        }
-        if (options.strike_range) {
-            raw.strike_range = *options.strike_range;
+            raw.has_use_market_value = true;
         }
     }
 };

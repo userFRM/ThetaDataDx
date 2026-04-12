@@ -1,6 +1,7 @@
 #ifndef THETADATADX_GO_FFI_BRIDGE_H
 #define THETADATADX_GO_FFI_BRIDGE_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -18,15 +19,15 @@ typedef struct { const void* data; size_t len; } TdxStringArray;
 typedef struct { const void* data; size_t len; } TdxOptionContractArray;
 
 /* Optional builder parameters for registry-driven endpoint requests.
- * Sentinels:
- * - integers: -1 means unset
- * - booleans: -1 unset, 0 false, 1 true
- * - doubles: NaN means unset
- * - strings: NULL means unset
+ * Each int/float/bool field has a companion has_* flag.
+ * When has_* is false the value field is ignored.
+ * String pointers: NULL means unset (no flag needed).
  */
 typedef struct {
     int32_t max_dte;
+    bool has_max_dte;
     int32_t strike_range;
+    bool has_strike_range;
     const char* venue;
     const char* min_time;
     const char* start_time;
@@ -34,13 +35,19 @@ typedef struct {
     const char* start_date;
     const char* end_date;
     int32_t exclusive;
+    bool has_exclusive;
     double annual_dividend;
+    bool has_annual_dividend;
     const char* rate_type;
     double rate_value;
+    bool has_rate_value;
     double stock_price;
+    bool has_stock_price;
     const char* version;
     int32_t underlyer_use_nbbo;
+    bool has_underlyer_use_nbbo;
     int32_t use_market_value;
+    bool has_use_market_value;
 } TdxEndpointRequestOptions;
 
 /* Error */
