@@ -142,7 +142,6 @@ All endpoints return fully typed native structs in every language. Zero raw JSON
 |----------|-------------|
 | [API Reference](docs/api-reference.md) | All 61 methods, 14 tick types, configuration options |
 | [Architecture](docs/architecture.md) | System design, wire protocols, TOML codegen pipeline |
-| [Public API Redesign](docs/public-api-redesign.md) | Migration plan for the ergonomic facade layered over the exact endpoint surface |
 | [JVM Deviations](docs/jvm-deviations.md) | Intentional differences from the Java terminal |
 | [Reverse-Engineering Guide](docs/reverse-engineering.md) | Historical archive of the original reverse-engineering process before the official proto handoff |
 | [Endpoint Schema](docs/endpoint-schema.md) | TOML codegen format for adding new types/columns |
