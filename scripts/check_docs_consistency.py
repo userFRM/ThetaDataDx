@@ -21,15 +21,35 @@ import tomllib
 ROOT = Path(__file__).resolve().parents[1]
 SURFACE = tomllib.loads((ROOT / "crates/thetadatadx/endpoint_surface.toml").read_text())
 ENDPOINTS = SURFACE["endpoints"]
+TEMPLATES = SURFACE["templates"]
 ENDPOINT_NAMES = {ep["name"] for ep in ENDPOINTS}
 REST_PATHS = {ep["rest_path"].removeprefix("/v3") for ep in ENDPOINTS}
-EXPECTED_TOOL_COUNT = len(ENDPOINTS) + 3
 BUILDER_PARAMS = {
     param["name"]
     for group in SURFACE["param_groups"].values()
     for param in group.get("params", [])
     if param.get("binding") == "builder"
 }
+
+
+def endpoint_kind(endpoint: dict) -> str:
+    kind = endpoint.get("kind")
+    template_name = endpoint.get("template")
+    seen: set[str] = set()
+    while kind is None and template_name is not None:
+        if template_name in seen:
+            fail(f"template cycle while resolving kind for endpoint {endpoint['name']}")
+        seen.add(template_name)
+        template = TEMPLATES.get(template_name)
+        if template is None:
+            fail(f"endpoint {endpoint['name']} references unknown template {template_name!r}")
+        kind = template.get("kind")
+        template_name = template.get("extends")
+    return kind or "parsed"
+
+
+REGISTRY_ENDPOINTS = [ep for ep in ENDPOINTS if endpoint_kind(ep) != "stream"]
+EXPECTED_TOOL_COUNT = len(REGISTRY_ENDPOINTS) + 3
 
 
 def lower_camel(snake: str) -> str:
@@ -75,7 +95,7 @@ def check_static_docs() -> None:
     )
     expect_contains(
         ROOT / "tools/mcp/README.md",
-        f"{len(ENDPOINTS)} registry endpoints + 3 offline tools (ping, all_greeks, implied_volatility) = {EXPECTED_TOOL_COUNT} total.",
+        f"{len(REGISTRY_ENDPOINTS)} registry endpoints + 3 offline tools (ping, all_greeks, implied_volatility) = {EXPECTED_TOOL_COUNT} total.",
     )
 
     expect_contains(
@@ -84,16 +104,9 @@ def check_static_docs() -> None:
     )
     expect_contains(
         ROOT / "docs-site/docs/tools/mcp.md",
-        f"{len(ENDPOINTS)} data endpoints + ping + all_greeks + implied_volatility = {EXPECTED_TOOL_COUNT} tools.",
+        f"{len(REGISTRY_ENDPOINTS)} data endpoints + ping + all_greeks + implied_volatility = {EXPECTED_TOOL_COUNT} tools.",
     )
-    expect_contains(
-        ROOT / "docs-site/docs/.vitepress/config.ts",
-        "{ text: 'Migration from REST & WS', link: '/getting-started/migration-from-rest-ws' }",
-    )
-    expect_contains(
-        ROOT / "docs-site/docs/getting-started/index.md",
-        "[Migration from REST & WebSocket](./migration-from-rest-ws)",
-    )
+    # Migration guide removed in v7 (L14). No longer enforced.
     expect_contains(
         ROOT / "docs-site/docs/tools/mcp.md",
         'Use `"strike":"0"` when you want a bulk chain-style response',
@@ -123,6 +136,7 @@ def check_static_docs() -> None:
     sdk_overview = ROOT / "sdks/README.md"
     expect_contains(sdk_overview, "`TdxUnified` / `TdxFpssHandle`")
     expect_contains(sdk_overview, "| **Unified** | `tdx_unified_connect`, `tdx_unified_historical`, `tdx_unified_*`, `tdx_unified_free` |")
+    expect_contains(sdk_overview, "18 functions: `tdx_fpss_connect`")
 
     option_docs = list((ROOT / "docs-site/docs/historical/option").rglob("*.md"))
     strike_docs = option_docs + [
@@ -137,6 +151,10 @@ def check_static_docs() -> None:
     for path in strike_docs:
         expect_not_contains(path, "scaled integer")
         expect_not_contains(path, "500000")
+
+    # Streaming section guards — catch stale FPSS counts and wrong return types
+    expect_not_contains(ROOT / "docs/architecture.md", "7 FFI FPSS functions")
+    expect_contains(ROOT / "docs-site/docs/api-reference.md", "FpssEventPtr")
 
 
 def check_api_reference() -> None:
@@ -164,7 +182,7 @@ def check_openapi() -> None:
     actual_ops = {
         match.group(1) for match in re.finditer(r"^\s*operationId:\s*(\S+)", text, re.MULTILINE)
     }
-    expected_ops = {lower_camel(ep["name"]) for ep in ENDPOINTS}
+    expected_ops = {lower_camel(ep["name"]) for ep in REGISTRY_ENDPOINTS}
     if actual_ops != expected_ops:
         missing = sorted(expected_ops - actual_ops)
         extra = sorted(actual_ops - expected_ops)
@@ -184,21 +202,23 @@ def extract_struct_fields(path: Path, struct_pattern: str, field_pattern: str) -
 
 def check_endpoint_option_surface() -> None:
     rust_fields = extract_struct_fields(
-        ROOT / "ffi/src/lib.rs",
+        ROOT / "ffi/src/endpoint_request_options.rs",
         r"pub struct TdxEndpointRequestOptions \{(.*?)\n\}",
         r"^\s*pub\s+([a-z_]+)\s*:",
     )
+    # Exclude has_* sentinel flags (FFI implementation detail, not builder params)
+    rust_fields = {f for f in rust_fields if not f.startswith("has_")}
     if rust_fields != BUILDER_PARAMS:
         missing = sorted(BUILDER_PARAMS - rust_fields)
         extra = sorted(rust_fields - BUILDER_PARAMS)
         fail(
-            "ffi/src/lib.rs endpoint option fields drifted from endpoint_surface.toml. "
+            "ffi/src/endpoint_request_options.rs endpoint option fields drifted from endpoint_surface.toml. "
             f"missing={missing or '[]'} extra={extra or '[]'}"
         )
 
     for path in [
-        ROOT / "sdks/go/ffi_bridge.h",
-        ROOT / "sdks/cpp/include/thetadx.h",
+        ROOT / "sdks/go/endpoint_request_options.h.inc",
+        ROOT / "sdks/cpp/include/endpoint_request_options.h.inc",
     ]:
         c_fields = extract_struct_fields(
             path,
@@ -214,7 +234,7 @@ def check_endpoint_option_surface() -> None:
             )
 
     go_fields = extract_struct_fields(
-        ROOT / "sdks/go/client.go",
+        ROOT / "sdks/go/endpoint_options.go",
         r"type EndpointRequestOptions struct \{(.*?)\n\}",
         r"^\s*([A-Z][A-Za-z0-9]+)\s+\*",
     )
@@ -223,12 +243,12 @@ def check_endpoint_option_surface() -> None:
         missing = sorted(expected_go_fields - go_fields)
         extra = sorted(go_fields - expected_go_fields)
         fail(
-            "sdks/go/client.go EndpointRequestOptions fields drifted from endpoint_surface.toml. "
+            "sdks/go/endpoint_options.go EndpointRequestOptions fields drifted from endpoint_surface.toml. "
             f"missing={missing or '[]'} extra={extra or '[]'}"
         )
 
     cpp_fields = extract_struct_fields(
-        ROOT / "sdks/cpp/include/thetadx.hpp",
+        ROOT / "sdks/cpp/include/endpoint_options.hpp.inc",
         r"struct EndpointRequestOptions \{(.*?)\n\};",
         r"^\s*std::optional<[^>]+>\s+([a-z_]+);",
     )
@@ -236,7 +256,7 @@ def check_endpoint_option_surface() -> None:
         missing = sorted(BUILDER_PARAMS - cpp_fields)
         extra = sorted(cpp_fields - BUILDER_PARAMS)
         fail(
-            "sdks/cpp/include/thetadx.hpp EndpointRequestOptions fields drifted from endpoint_surface.toml. "
+            "sdks/cpp/include/endpoint_options.hpp.inc EndpointRequestOptions fields drifted from endpoint_surface.toml. "
             f"missing={missing or '[]'} extra={extra or '[]'}"
         )
 
@@ -249,7 +269,6 @@ def check_endpoint_option_surface() -> None:
         ROOT / "sdks/cpp/src/thetadx.cpp",
         ROOT / "sdks/go/README.md",
         ROOT / "sdks/cpp/README.md",
-        ROOT / "docs-site/docs/getting-started/migration-from-rest-ws.md",
         ROOT / "docs-site/docs/historical/option/history/greeks-eod.md",
     ]:
         expect_not_contains(path, "OptionRequestOptions")

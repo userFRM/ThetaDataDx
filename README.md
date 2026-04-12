@@ -26,7 +26,7 @@ No-JVM ThetaData Terminal - native Rust SDK for direct market data access.
 | [`sdks/go/`](sdks/go/) | Go SDK (CGo FFI) |
 | [`sdks/cpp/`](sdks/cpp/) | C++ SDK (RAII wrappers over C FFI) |
 | [`ffi/`](ffi/) | C FFI layer - shared library consumed by Go and C++ |
-| [`tools/cli/`](tools/cli/) | `tdx` CLI - all 61 endpoints from the command line |
+| [`tools/cli/`](tools/cli/) | `tdx` CLI - all 61 registry endpoints from the command line |
 | [`tools/mcp/`](tools/mcp/) | MCP server - gives LLMs access to 64 tools over JSON-RPC |
 | [`tools/server/`](tools/server/) | REST+WS server - drop-in replacement for the Java terminal |
 | [`docs/`](docs/) | Architecture, API reference, JVM deviations, and historical reverse-engineering notes |
@@ -44,7 +44,7 @@ No-JVM ThetaData Terminal - native Rust SDK for direct market data access.
 
 ```toml
 [dependencies]
-thetadatadx = "6.0"
+thetadatadx = "7.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
@@ -122,7 +122,7 @@ All prices (`bid`, `ask`, `price`, `open`, `high`, `low`, `close`) are `f64` -- 
 
 ## API Coverage
 
-61 typed endpoints covering all ThetaData MDDS data, plus FPSS real-time streaming and a full Black-Scholes Greeks calculator.
+61 registry/REST endpoints, plus 4 SDK-only historical stream variants, FPSS real-time streaming, and a full Black-Scholes Greeks calculator.
 
 | Category | Endpoints | Examples |
 |----------|-----------|---------|
@@ -134,15 +134,14 @@ All prices (`bid`, `ask`, `price`, `open`, `high`, `low`, `close`) are `f64` -- 
 | Streaming | 7 | Quotes, trades, OI, full-trades (per-contract or firehose) |
 | Greeks | 14 | All 22 Greeks + IV solver, individually or batched |
 
-All endpoints return fully typed native structs in every language. Zero raw JSON or protobuf in the public API. See the [API Reference](docs/api-reference.md) for the complete method list.
+All endpoints return fully typed data in every language. Rust, Go, and C++ return native structs; Python returns dictionaries with the same field names. Zero raw JSON or protobuf in the public API. See the [API Reference](docs/api-reference.md) for the complete method list.
 
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
-| [API Reference](docs/api-reference.md) | All 61 methods, 14 tick types, configuration options |
+| [API Reference](docs/api-reference.md) | All 65 methods, 13 tick types, configuration options |
 | [Architecture](docs/architecture.md) | System design, wire protocols, TOML codegen pipeline |
-| [Public API Redesign](docs/public-api-redesign.md) | Migration plan for the ergonomic facade layered over the exact endpoint surface |
 | [JVM Deviations](docs/jvm-deviations.md) | Intentional differences from the Java terminal |
 | [Reverse-Engineering Guide](docs/reverse-engineering.md) | Historical archive of the original reverse-engineering process before the official proto handoff |
 | [Endpoint Schema](docs/endpoint-schema.md) | TOML codegen format for adding new types/columns |

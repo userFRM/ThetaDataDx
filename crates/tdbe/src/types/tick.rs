@@ -186,23 +186,6 @@ pub struct QuoteTick {
     pub midpoint: f64,
 }
 
-/// Snapshot trade tick. Abbreviated trade for snapshots.
-///
-/// Price is decoded to `f64` during parsing.
-#[derive(Debug, Clone, Copy)]
-#[repr(C, align(64))]
-pub struct SnapshotTradeTick {
-    pub ms_of_day: i32,
-    pub sequence: i32,
-    pub size: i32,
-    pub condition: i32,
-    pub price: f64,
-    pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: i32,
-}
-
 /// Combined trade + quote tick.
 ///
 /// All price fields are decoded to `f64` during parsing.
@@ -295,7 +278,6 @@ impl_contract_id!(QuoteTick);
 impl_contract_id!(OhlcTick);
 impl_contract_id!(EodTick);
 impl_contract_id!(OpenInterestTick);
-impl_contract_id!(SnapshotTradeTick);
 impl_contract_id!(TradeQuoteTick);
 impl_contract_id!(MarketValueTick);
 impl_contract_id!(GreeksTick);

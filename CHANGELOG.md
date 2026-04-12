@@ -7,9 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Documentation
+## [7.0.0] - 2026-04-11
 
-- **`FpssControl::LoginSuccess { permissions }`** -- documented as opaque diagnostic metadata. The Java terminal does not parse this string; it is the server's "Bundle" label, used for logs and an `isVerified()` null sentinel only. For feature gating, use `auth::AuthUser` subscription tier integers (the same surface the Java terminal uses to compute concurrency limits). Resolves #194.
+### Breaking Changes
+
+- **`SnapshotTradeTick` deleted from all layers** -- removed from Rust core, FFI, Python, Go, and C++ SDKs. Dead type that was never returned by any endpoint.
+- **FFI options use explicit `has_*` flags** -- replaced NaN/`-1` sentinel-based optional fields with `has_bid`, `has_ask`, etc. C, Go, and C++ consumers must check the flag before reading the value.
+- **`generate_sdk_surfaces` restored as the checked-in surface authority** -- the standalone codegen binary is required again and is the canonical way to regenerate and verify generated SDK/FFI/tool surfaces from TOML.
+- **Streaming endpoints generated from TOML** -- hand-written streaming endpoint blocks in `direct.rs` replaced by TOML-driven codegen. Method signatures unchanged but internal dispatch is generated.
+- **Endpoint, utility, FPSS wrapper, and tick projection surfaces are spec-driven** -- Rust, FFI, Python, Go, C++, CLI, and MCP now project their generated public surfaces from `endpoint_surface.toml`, `sdk_surface.toml`, and `tick_schema.toml`.
+
+### Removed
+
+- `public-api-redesign.md` and README reference.
+- `migration-from-rest-ws.md` and navigation/index references.
+- 1,134 lines of commented-out legacy Python methods.
+- obsolete claim that `generate_sdk_surfaces` had been removed.
+
+### Changed
+
+- Workspace version bumped from 6.0.0 to 7.0.0.
+- Docs consistency checker now points at correct generated files.
+- `FpssControl::LoginSuccess { permissions }` documented as opaque diagnostic metadata (moved from Unreleased).
+
+### Fixed
+
+- Docs consistency checker no longer references deleted `migration-from-rest-ws.md`.
+- `cargo fmt` applied to `build_support/endpoints.rs`.
 
 ## [6.0.0] - 2026-04-06
 

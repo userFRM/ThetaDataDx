@@ -3,9 +3,12 @@ openapi: 3.1.0
 info:
   title: ThetaDataDx SDK
   description: |
-    Multi-language SDK for ThetaData market data. Provides typed access to 61 historical
-    data endpoints via MDDS/gRPC and real-time streaming via FPSS/TCP. Native bindings for
-    Rust, Python (PyO3), Go (CGo), and C++ (C FFI).
+    Canonical checked-in REST contract for the 61 registry endpoints exposed by
+    ThetaDataDx's server surface. SDK-only callback-based `*_stream` history
+    builders are documented in the API reference rather than this OpenAPI file.
+
+    ThetaDataDx also ships native Rust, Python (PyO3), Go (CGo), and C++
+    bindings backed by the same Rust core.
 
     All dates use YYYYMMDD format. Times use milliseconds since midnight ET.
     Intervals accept milliseconds ("60000") or shorthand ("1m"). Valid presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.
@@ -989,7 +992,6 @@ paths:
           label: C++
           source: |
             auto trades = client.stock_history_trade("AAPL", "20240315");
-
   /stock/history/quote:
     x-min-subscription: value
     get:
@@ -1037,7 +1039,6 @@ paths:
           label: C++
           source: |
             auto quotes = client.stock_history_quote("AAPL", "20240315", "60000");
-
   /stock/history/trade_quote:
     x-min-subscription: standard
     get:
@@ -1888,7 +1889,6 @@ paths:
           label: C++
           source: |
             auto trades = client.option_history_trade("SPY", "20240419", "500", "C", "20240315");
-
   /option/history/quote:
     x-min-subscription: value
     get:
@@ -1940,7 +1940,6 @@ paths:
           label: C++
           source: |
             auto quotes = client.option_history_quote("SPY", "20240419", "500", "C", "20240315", "60000");
-
   /option/history/trade_quote:
     x-min-subscription: standard
     get:

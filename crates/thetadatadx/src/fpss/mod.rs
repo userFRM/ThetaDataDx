@@ -328,7 +328,10 @@ pub struct FpssClient {
     server_addr: String,
 }
 
-// SAFETY: All fields are either Send+Sync or behind Mutex/Atomic.
+// SAFETY: `Sender<IoCommand>` is `Send` but not `Sync`; however `Sender::send(&self)`
+// is internally synchronized and safe to call from multiple threads. `JoinHandle`
+// fields are only consumed in `Drop::drop(&mut self)` which requires exclusive access.
+// All other fields are `Send+Sync` or behind `Mutex`/`Atomic`.
 unsafe impl Sync for FpssClient {}
 
 impl FpssClient {
@@ -2213,9 +2216,8 @@ fn ping_loop(
 /// On `ACCOUNT_ALREADY_CONNECTED`: do NOT reconnect (permanent error).
 ///
 /// Source: `FPSSClient.java` reconnection logic in the main loop.
-#[allow(clippy::too_many_arguments)]
-// Reason: missing errors doc for internal function.
-#[allow(clippy::missing_errors_doc)]
+#[allow(clippy::too_many_arguments)] // Reason: reconnection requires all FPSS state (subs, config, credentials) in one call.
+#[allow(clippy::missing_errors_doc)] // Reason: internal function, doc is on the module-level reconnect docs above.
 pub fn reconnect<F>(
     creds: &Credentials,
     hosts: &[(String, u16)],

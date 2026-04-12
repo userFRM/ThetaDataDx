@@ -1,0 +1,117 @@
+# Declarative non-endpoint SDK/tool surface specification.
+#
+# endpoint_surface.toml remains the source of truth for validated request/response
+# endpoints backed by the upstream proto. This file covers the remaining
+# non-endpoint projections that still need checked-in generation:
+#   - offline utilities
+#   - CLI/MCP utility commands and tools
+#   - FPSS / unified wrapper methods exposed by public SDKs
+#   - small C++ lifecycle wrapper implementations
+#
+# Scope: method names and language targets are defined here. Signatures,
+# docstrings, and implementations are hardcoded in build_support/sdk_surface.rs.
+# Full SSOT for non-endpoint surfaces (where TOML also declares parameter types
+# and return types) is tracked as future work.
+
+version = 1
+
+# Python uses PyO3 to call the Rust SDK directly, so it has access to
+# option-level subscription (subscribe_option_*) and contract_map -- features
+# that require constructing a Contract::option(...) value. The C FFI only
+# exposes symbol-level (stock) subscription because the wire format for option
+# contract identifiers is not yet stabilized in the FFI layer. Go and C++ call
+# through the C FFI, so they only support symbol-level subscription.
+python_unified = [
+  "start_streaming",
+  "is_streaming",
+  "subscribe_quotes",
+  "subscribe_trades",
+  "subscribe_open_interest",
+  "subscribe_option_quotes",
+  "subscribe_option_trades",
+  "subscribe_option_open_interest",
+  "subscribe_full_trades",
+  "subscribe_full_open_interest",
+  "unsubscribe_full_trades",
+  "unsubscribe_full_open_interest",
+  "unsubscribe_quotes",
+  "unsubscribe_trades",
+  "unsubscribe_open_interest",
+  "unsubscribe_option_quotes",
+  "unsubscribe_option_trades",
+  "unsubscribe_option_open_interest",
+  "contract_map",
+  "contract_lookup",
+  "active_subscriptions",
+  "next_event",
+  "stop_streaming",
+  "shutdown",
+]
+
+# Go FPSS uses C FFI -- symbol-level subscription only (no option-level).
+# See python_unified comment above for rationale.
+go_fpss = [
+  "subscribe_quotes",
+  "subscribe_trades",
+  "subscribe_open_interest",
+  "subscribe_full_trades",
+  "subscribe_full_open_interest",
+  "unsubscribe_quotes",
+  "unsubscribe_trades",
+  "unsubscribe_open_interest",
+  "unsubscribe_full_trades",
+  "unsubscribe_full_open_interest",
+  "is_authenticated",
+  "contract_lookup",
+  "active_subscriptions",
+  "next_event",
+  "shutdown",
+]
+
+# C++ FPSS uses C FFI -- symbol-level subscription only (no option-level).
+# See python_unified comment above for rationale.
+cpp_fpss = [
+  "connect",
+  "subscribe_quotes",
+  "subscribe_trades",
+  "subscribe_open_interest",
+  "subscribe_full_trades",
+  "subscribe_full_open_interest",
+  "unsubscribe_quotes",
+  "unsubscribe_trades",
+  "unsubscribe_open_interest",
+  "unsubscribe_full_trades",
+  "unsubscribe_full_open_interest",
+  "is_authenticated",
+  "contract_lookup",
+  "active_subscriptions",
+  "next_event",
+  "shutdown",
+]
+
+cpp_lifecycle = [
+  "credentials_from_file",
+  "credentials_from_email",
+  "config_production",
+  "config_dev",
+  "config_stage",
+  "client_connect",
+]
+
+[[utilities]]
+name = "auth"
+targets = ["cli"]
+
+[[utilities]]
+name = "ping"
+targets = ["mcp"]
+
+[[utilities]]
+name = "all_greeks"
+cli_name = "greeks"
+targets = ["python", "go", "cpp", "mcp", "cli"]
+
+[[utilities]]
+name = "implied_volatility"
+cli_name = "iv"
+targets = ["python", "go", "cpp", "mcp", "cli"]

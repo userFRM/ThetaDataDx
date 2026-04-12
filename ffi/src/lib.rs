@@ -118,33 +118,7 @@ pub struct TdxFpssHandle {
     rx: Arc<Mutex<std::sync::mpsc::Receiver<FfiBufferedEvent>>>,
 }
 
-/// Optional builder parameters for registry-driven endpoint requests over FFI.
-///
-/// Fields use simple C-friendly sentinels:
-///
-/// - integer filters: `-1` means unset
-/// - boolean flags: `-1` means unset, `0` false, `1` true
-/// - floating-point values: `NaN` means unset
-/// - string pointers: null means unset
-#[repr(C)]
-pub struct TdxEndpointRequestOptions {
-    pub max_dte: i32,
-    pub strike_range: i32,
-    pub venue: *const c_char,
-    pub min_time: *const c_char,
-    pub start_time: *const c_char,
-    pub end_time: *const c_char,
-    pub start_date: *const c_char,
-    pub end_date: *const c_char,
-    pub exclusive: i32,
-    pub annual_dividend: f64,
-    pub rate_type: *const c_char,
-    pub rate_value: f64,
-    pub stock_price: f64,
-    pub version: *const c_char,
-    pub underlyer_use_nbbo: i32,
-    pub use_market_value: i32,
-}
+include!("endpoint_request_options.rs");
 
 // ═══════════════════════════════════════════════════════════════════════
 //  #[repr(C)] FPSS streaming event types — zero-copy across FFI
@@ -644,22 +618,19 @@ fn insert_optional_str_arg(
     Ok(())
 }
 
-fn insert_optional_int_arg(args: &mut thetadatadx::EndpointArgs, key: &str, value: i32) {
-    if value >= 0 {
-        args.insert(
-            key.to_string(),
-            thetadatadx::EndpointArgValue::Int(i64::from(value)),
-        );
-    }
+fn insert_int_arg(args: &mut thetadatadx::EndpointArgs, key: &str, value: i32) {
+    args.insert(
+        key.to_string(),
+        thetadatadx::EndpointArgValue::Int(i64::from(value)),
+    );
 }
 
-fn insert_optional_bool_arg(
+fn insert_bool_arg(
     args: &mut thetadatadx::EndpointArgs,
     key: &str,
     value: i32,
 ) -> Result<(), String> {
     match value {
-        -1 => Ok(()),
         0 => {
             args.insert(key.to_string(), thetadatadx::EndpointArgValue::Bool(false));
             Ok(())
@@ -668,44 +639,12 @@ fn insert_optional_bool_arg(
             args.insert(key.to_string(), thetadatadx::EndpointArgValue::Bool(true));
             Ok(())
         }
-        other => Err(format!(
-            "{key} must be -1 (unset), 0 (false), or 1 (true), got {other}"
-        )),
+        other => Err(format!("{key} must be 0 (false) or 1 (true), got {other}")),
     }
 }
 
-fn insert_optional_float_arg(args: &mut thetadatadx::EndpointArgs, key: &str, value: f64) {
-    if !value.is_nan() {
-        args.insert(key.to_string(), thetadatadx::EndpointArgValue::Float(value));
-    }
-}
-
-fn apply_endpoint_request_options(
-    args: &mut thetadatadx::EndpointArgs,
-    options: *const TdxEndpointRequestOptions,
-) -> Result<(), String> {
-    if options.is_null() {
-        return Ok(());
-    }
-
-    let options = unsafe { &*options };
-    insert_optional_int_arg(args, "max_dte", options.max_dte);
-    insert_optional_int_arg(args, "strike_range", options.strike_range);
-    insert_optional_str_arg(args, "venue", options.venue)?;
-    insert_optional_str_arg(args, "min_time", options.min_time)?;
-    insert_optional_str_arg(args, "start_time", options.start_time)?;
-    insert_optional_str_arg(args, "end_time", options.end_time)?;
-    insert_optional_str_arg(args, "start_date", options.start_date)?;
-    insert_optional_str_arg(args, "end_date", options.end_date)?;
-    insert_optional_bool_arg(args, "exclusive", options.exclusive)?;
-    insert_optional_float_arg(args, "annual_dividend", options.annual_dividend);
-    insert_optional_str_arg(args, "rate_type", options.rate_type)?;
-    insert_optional_float_arg(args, "rate_value", options.rate_value);
-    insert_optional_float_arg(args, "stock_price", options.stock_price);
-    insert_optional_str_arg(args, "version", options.version)?;
-    insert_optional_bool_arg(args, "underlyer_use_nbbo", options.underlyer_use_nbbo)?;
-    insert_optional_bool_arg(args, "use_market_value", options.use_market_value)?;
-    Ok(())
+fn insert_float_arg(args: &mut thetadatadx::EndpointArgs, key: &str, value: f64) {
+    args.insert(key.to_string(), thetadatadx::EndpointArgValue::Float(value));
 }
 
 // ── Credentials ──
@@ -1332,7 +1271,7 @@ macro_rules! ffi_typed_endpoint_no_params {
     };
 }
 
-include!("generated_endpoint_with_options.rs");
+include!("endpoint_with_options.rs");
 
 // ═══════════════════════════════════════════════════════════════════════
 //  Stock — List endpoints (2)
@@ -2405,7 +2344,12 @@ pub unsafe extern "C" fn tdx_unified_contract_lookup(
             Ok(s) => s.into_raw(),
             Err(_) => ptr::null_mut(),
         },
-        Ok(None) => ptr::null_mut(),
+        Ok(None) => {
+            // Clear last error so callers can distinguish "not found" (empty error)
+            // from a real error (non-empty error) when they receive NULL.
+            set_error("");
+            ptr::null_mut()
+        }
         Err(e) => {
             set_error(&e.to_string());
             ptr::null_mut()
@@ -3070,7 +3014,12 @@ pub unsafe extern "C" fn tdx_fpss_contract_lookup(
                 Err(_) => ptr::null_mut(),
             }
         }
-        None => ptr::null_mut(),
+        None => {
+            // Clear last error so callers can distinguish "not found" (empty error)
+            // from a real error (non-empty error) when they receive NULL.
+            set_error("");
+            ptr::null_mut()
+        }
     }
 }
 

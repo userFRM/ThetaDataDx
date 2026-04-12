@@ -17,7 +17,7 @@ macro_rules! list_endpoint {
         request: $req:ident;
         query: $query:ident { $($field:ident : $val:expr),* $(,)? };
     ) => {
-        #[allow(clippy::too_many_arguments)]
+        #[allow(clippy::too_many_arguments)] // Reason: ThetaData endpoints require many parameters (symbol, date, strike, exp, right, etc.).
         $(#[$meta])*
         /// # Errors
         ///
@@ -227,112 +227,6 @@ macro_rules! opt_setter {
         pub fn $opt_name(mut self, v: &str) -> Self {
             self.$opt_name = v.to_string();
             self
-        }
-    };
-}
-
-/// Generate a streaming endpoint that yields parsed ticks per-chunk via a callback.
-///
-/// Returns a builder. Call `.stream(handler)` to execute the streaming request.
-///
-/// # Example
-///
-/// ```rust,ignore
-/// client.stock_history_trade_stream("AAPL", "20260401")
-///     .start_time("04:00:00")
-///     .stream(|ticks| {
-///         println!("got {} ticks", ticks.len());
-///     })
-///     .await?;
-/// ```
-macro_rules! streaming_endpoint {
-    (
-        $(#[$meta:meta])*
-        builder $builder_name:ident;
-        fn $name:ident(
-            $($req_arg:ident : $req_kind:tt),*
-        ) -> $tick_ty:ty;
-        grpc: $grpc:ident;
-        request: $req:ident;
-        query: $query:ident { $($field:ident : $val:expr),* $(,)? };
-        parse: $parser:expr;
-        $(dates: $($date_arg:ident),+ ;)?
-        optional { $($opt_name:ident : $opt_kind:tt = $opt_default:expr),* $(,)? }
-    ) => {
-        /// Builder for the [`DirectClient::$name`] streaming endpoint.
-        pub struct $builder_name<'a> {
-            client: &'a DirectClient,
-            $(pub(crate) $req_arg: req_field_type!($req_kind),)*
-            $(pub(crate) $opt_name: opt_field_type!($opt_kind),)*
-        }
-
-        impl<'a> $builder_name<'a> {
-            $(
-                opt_setter!($opt_name, $opt_kind);
-            )*
-
-            /// Execute the streaming request, calling `handler` for each chunk.
-            ///
-            /// # Errors
-            ///
-            /// Returns [`Error`] if the gRPC call fails or response parsing fails.
-            pub async fn stream<F>(self, mut handler: F) -> Result<(), Error>
-            where
-                F: FnMut(&[$tick_ty]),
-            {
-                let $builder_name {
-                    client,
-                    $($req_arg,)*
-                    $($opt_name,)*
-                } = self;
-                let _ = &client;
-                $($(validate_date(&$date_arg)?;)+)?
-                tracing::debug!(endpoint = stringify!($name), "gRPC streaming request");
-                metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
-                let _metrics_start = std::time::Instant::now();
-                let _permit = client.request_semaphore.acquire().await
-                    .map_err(|_| Error::Config("request semaphore closed".into()))?;
-                let request = proto::$req {
-                    query_info: Some(client.query_info()),
-                    params: Some(proto::$query { $($field : $val),* }),
-                };
-                let stream = match client.stub().$grpc(request).await {
-                    Ok(resp) => resp.into_inner(),
-                    Err(e) => {
-                        metrics::counter!("thetadatadx.grpc.errors", "endpoint" => stringify!($name)).increment(1);
-                        return Err(e.into());
-                    }
-                };
-                let result = client.for_each_chunk(stream, |_headers, rows| {
-                    let table = proto::DataTable {
-                        headers: _headers.to_vec(),
-                        data_table: rows.to_vec(),
-                    };
-                    let ticks = $parser(&table);
-                    handler(&ticks);
-                }).await;
-                match &result {
-                    Ok(()) => {
-                        metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
-                            .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
-                    }
-                    Err(_) => {
-                        metrics::counter!("thetadatadx.grpc.errors", "endpoint" => stringify!($name)).increment(1);
-                    }
-                }
-                result
-            }
-        }
-
-        impl DirectClient {
-            $(#[$meta])*
-            pub fn $name(&self, $($req_arg: req_param_type!($req_kind)),*) -> $builder_name<'_> {
-                $builder_name {
-                    client: self,
-                    $($req_arg: req_convert!($req_kind, $req_arg),)*
-                    $($opt_name: $opt_default,)*
-                }
-            }
         }
     };
 }

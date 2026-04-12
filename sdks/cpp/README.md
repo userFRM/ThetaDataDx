@@ -254,7 +254,6 @@ All endpoints return fully typed C++ structs. No raw JSON.
 | `IvTick` | ms_of_day, implied_volatility, iv_error, date, **expiration, strike, right** | IV-only endpoints |
 | `PriceTick` | ms_of_day, price, date | Index price endpoints |
 | `MarketValueTick` | ms_of_day, market_cap, shares_outstanding, enterprise_value, book_value, free_float, date, **expiration, strike, right** | Market value endpoints |
-| `SnapshotTradeTick` | ms_of_day, sequence, size, condition, price, date, **expiration, strike, right** | Snapshot trade endpoints |
 | `OptionContract` | root, expiration, strike, right | option_list_contracts |
 | `CalendarDay` | date, is_open, open_time, close_time, status | Calendar endpoints |
 | `InterestRateTick` | ms_of_day, rate, date | Interest rate endpoints |

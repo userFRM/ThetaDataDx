@@ -17,6 +17,7 @@
 #ifndef THETADX_H
 #define THETADX_H
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
 
@@ -39,31 +40,8 @@ typedef struct TdxConfig TdxConfig;
 typedef struct TdxFpssHandle TdxFpssHandle;
 typedef struct TdxUnified TdxUnified;
 
-/* Optional builder parameters for registry-driven endpoint requests.
- * Sentinels:
- * - integers: -1 means unset
- * - booleans: -1 unset, 0 false, 1 true
- * - doubles: NaN means unset
- * - strings: NULL means unset
- */
-typedef struct {
-    int32_t max_dte;
-    int32_t strike_range;
-    const char* venue;
-    const char* min_time;
-    const char* start_time;
-    const char* end_time;
-    const char* start_date;
-    const char* end_date;
-    int32_t exclusive;
-    double annual_dividend;
-    const char* rate_type;
-    double rate_value;
-    double stock_price;
-    const char* version;
-    int32_t underlyer_use_nbbo;
-    int32_t use_market_value;
-} TdxEndpointRequestOptions;
+/* Generated request-options bridge shared with Rust FFI. */
+#include "endpoint_request_options.h.inc"
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  #[repr(C)] tick types — layout-compatible with Rust tdbe structs      */
@@ -219,18 +197,6 @@ TDX_ALIGN64_BEGIN typedef struct {
     /* 4 bytes padding before f64 */
     double midpoint;
 } TdxQuoteTick TDX_ALIGN64_END;
-
-TDX_ALIGN64_BEGIN typedef struct {
-    int32_t ms_of_day;
-    int32_t sequence;
-    int32_t size;
-    int32_t condition;
-    double price;
-    int32_t date;
-    int32_t expiration;
-    double strike;
-    int32_t right;
-} TdxSnapshotTradeTick TDX_ALIGN64_END;
 
 TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
@@ -744,7 +710,7 @@ TdxInterestRateTickArray tdx_interest_rate_history_eod(const TdxClient* client, 
                                                        const char* start_date, const char* end_date);
 
 /* Generated option-aware endpoint declarations. */
-#include "generated_endpoint_with_options.h.inc"
+#include "endpoint_with_options.h.inc"
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Greeks (standalone)                                                   */
@@ -901,7 +867,9 @@ int tdx_fpss_unsubscribe_open_interest(const TdxFpssHandle* h, const char* symbo
 /** Check if authenticated. Returns 1 if true, 0 if false. */
 int tdx_fpss_is_authenticated(const TdxFpssHandle* h);
 
-/** Look up a contract by server-assigned ID. Returns string or NULL. Caller must free with tdx_string_free. */
+/** Look up a contract by server-assigned ID. Returns string or NULL.
+ *  NULL with empty tdx_last_error() means "not found". NULL with non-empty
+ *  tdx_last_error() means a real error occurred. Caller must free with tdx_string_free. */
 char* tdx_fpss_contract_lookup(const TdxFpssHandle* h, int id);
 
 /** Get active subscriptions as typed array. Caller must free with tdx_subscription_array_free. */
@@ -964,7 +932,9 @@ int tdx_unified_unsubscribe_full_open_interest(const TdxUnified* handle, const c
 /** Check if streaming is active. Returns 1 if streaming, 0 otherwise. */
 int tdx_unified_is_streaming(const TdxUnified* handle);
 
-/** Look up a contract by ID. Returns string or NULL. Caller must free with tdx_string_free. */
+/** Look up a contract by ID. Returns string or NULL.
+ *  NULL with empty tdx_last_error() means "not found". NULL with non-empty
+ *  tdx_last_error() means a real error occurred. Caller must free with tdx_string_free. */
 char* tdx_unified_contract_lookup(const TdxUnified* handle, int id);
 
 /** Get active subscriptions as typed array. Caller must free with tdx_subscription_array_free. */

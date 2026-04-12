@@ -1,6 +1,7 @@
 #ifndef THETADATADX_GO_FFI_BRIDGE_H
 #define THETADATADX_GO_FFI_BRIDGE_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -17,31 +18,8 @@ typedef struct { const void* data; size_t len; } TdxTickArray;
 typedef struct { const void* data; size_t len; } TdxStringArray;
 typedef struct { const void* data; size_t len; } TdxOptionContractArray;
 
-/* Optional builder parameters for registry-driven endpoint requests.
- * Sentinels:
- * - integers: -1 means unset
- * - booleans: -1 unset, 0 false, 1 true
- * - doubles: NaN means unset
- * - strings: NULL means unset
- */
-typedef struct {
-    int32_t max_dte;
-    int32_t strike_range;
-    const char* venue;
-    const char* min_time;
-    const char* start_time;
-    const char* end_time;
-    const char* start_date;
-    const char* end_date;
-    int32_t exclusive;
-    double annual_dividend;
-    const char* rate_type;
-    double rate_value;
-    double stock_price;
-    const char* version;
-    int32_t underlyer_use_nbbo;
-    int32_t use_market_value;
-} TdxEndpointRequestOptions;
+/* Generated request-options bridge shared with Rust FFI. */
+#include "endpoint_request_options.h.inc"
 
 /* Error */
 extern const char* tdx_last_error(void);
@@ -144,7 +122,7 @@ extern TdxTickArray tdx_calendar_on_date(const TdxClient* client, const char* da
 extern TdxTickArray tdx_calendar_year(const TdxClient* client, const char* year);
 extern TdxTickArray tdx_interest_rate_history_eod(const TdxClient* client, const char* symbol, const char* start_date, const char* end_date);
 /* Generated option-aware endpoint declarations. */
-#include "generated_endpoint_with_options.h.inc"
+#include "endpoint_with_options.h.inc"
 
 /* Greeks */
 typedef struct {
@@ -290,6 +268,9 @@ extern int tdx_fpss_unsubscribe_open_interest(const TdxFpssHandle* h, const char
 extern int tdx_fpss_unsubscribe_full_trades(const TdxFpssHandle* h, const char* sec_type);
 extern int tdx_fpss_unsubscribe_full_open_interest(const TdxFpssHandle* h, const char* sec_type);
 extern int tdx_fpss_is_authenticated(const TdxFpssHandle* h);
+/* Look up a contract by server-assigned ID. Returns string or NULL.
+ * NULL with empty tdx_last_error() means "not found". NULL with non-empty
+ * tdx_last_error() means a real error occurred. Caller must free with tdx_string_free. */
 extern char* tdx_fpss_contract_lookup(const TdxFpssHandle* h, int id);
 extern TdxSubscriptionArray* tdx_fpss_active_subscriptions(const TdxFpssHandle* h);
 extern TdxFpssEvent* tdx_fpss_next_event(const TdxFpssHandle* h, uint64_t timeout_ms);
@@ -311,6 +292,9 @@ extern int tdx_unified_subscribe_full_open_interest(const TdxUnified* handle, co
 extern int tdx_unified_unsubscribe_full_trades(const TdxUnified* handle, const char* sec_type);
 extern int tdx_unified_unsubscribe_full_open_interest(const TdxUnified* handle, const char* sec_type);
 extern int tdx_unified_is_streaming(const TdxUnified* handle);
+/* Look up a contract by ID. Returns string or NULL.
+ * NULL with empty tdx_last_error() means "not found". NULL with non-empty
+ * tdx_last_error() means a real error occurred. Caller must free with tdx_string_free. */
 extern char* tdx_unified_contract_lookup(const TdxUnified* handle, int id);
 extern TdxSubscriptionArray* tdx_unified_active_subscriptions(const TdxUnified* handle);
 extern TdxFpssEvent* tdx_unified_next_event(const TdxUnified* handle, uint64_t timeout_ms);
