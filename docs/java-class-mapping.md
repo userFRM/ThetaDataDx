@@ -48,7 +48,6 @@ Complete enumeration of all 588 Java classes in ThetaTerminal v202603181 and the
 | `types/tick/QuoteTick.java` | `tdbe::QuoteTick` |
 | `types/tick/OhlcTick.java` | `tdbe::OhlcTick` |
 | `types/tick/EodTick.java` | `tdbe::EodTick` |
-| `types/tick/SnapshotTradeTick.java` | `tdbe::SnapshotTradeTick` |
 | `types/tick/TradeQuoteTick.java` | `tdbe::TradeQuoteTick` |
 | `types/tick/OpenInterestTick.java` | `tdbe::OpenInterestTick` |
 | `types/tick/MarketValueTick.java` | `tdbe::MarketValueTick` |

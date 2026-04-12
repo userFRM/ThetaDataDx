@@ -256,7 +256,6 @@ defer client.Close()
 | `MarketValueTick` | MsOfDay, MarketCap, SharesOut, EntValue, BookValue, FreeFloat, Date, **Expiration, Strike (float64), Right (string)** | Market value data |
 | `GreeksTick` | MsOfDay, ImpliedVolatility, Delta, Gamma, Theta, Vega, Rho, IVError, Vanna, Charm, Vomma, Veta, Speed, Zomma, Color, Ultima, D1, D2, DualDelta, DualGamma, Epsilon, Lambda, Vera, Date, **Expiration, Strike (float64), Right (string)** | Greeks time series |
 | `IVTick` | MsOfDay, ImpliedVolatility, IVError, Date, **Expiration, Strike (float64), Right (string)** | Implied volatility data point |
-| `SnapshotTradeTick` | MsOfDay, Sequence, Size, Condition, Price (float64), Date, **Expiration, Strike (float64), Right (string)** | Snapshot trade |
 | `PriceTick` | MsOfDay, Price (float64), Date | Price data point (indices) |
 | `CalendarDay` | Date, IsOpen, OpenTime, CloseTime, Status | Market calendar day |
 | `InterestRate` | Date, Rate | Interest rate data point |

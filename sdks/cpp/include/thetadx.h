@@ -223,18 +223,6 @@ TDX_ALIGN64_BEGIN typedef struct {
 TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
-    int32_t size;
-    int32_t condition;
-    double price;
-    int32_t date;
-    int32_t expiration;
-    double strike;
-    int32_t right;
-} TdxSnapshotTradeTick TDX_ALIGN64_END;
-
-TDX_ALIGN64_BEGIN typedef struct {
-    int32_t ms_of_day;
-    int32_t sequence;
     int32_t ext_condition1;
     int32_t ext_condition2;
     int32_t ext_condition3;

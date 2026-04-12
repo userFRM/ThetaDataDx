@@ -4,8 +4,7 @@ use crate::error::Error;
 use crate::proto;
 use tdbe::types::tick::{
     CalendarDay, EodTick, GreeksTick, InterestRateTick, IvTick, MarketValueTick, OhlcTick,
-    OpenInterestTick, OptionContract, PriceTick, QuoteTick, SnapshotTradeTick, TradeQuoteTick,
-    TradeTick,
+    OpenInterestTick, OptionContract, PriceTick, QuoteTick, TradeQuoteTick, TradeTick,
 };
 
 /// Header aliases: v3 MDDS uses different column names than the tick schema.

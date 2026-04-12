@@ -964,7 +964,7 @@ Helper methods on all 10 tick types:
 | `is_put()` | `bool` | `right == 80` |
 | `has_contract_id()` | `bool` | `expiration != 0` |
 
-Tick types with contract ID: `TradeTick`, `QuoteTick`, `OhlcTick`, `EodTick`, `OpenInterestTick`, `SnapshotTradeTick`, `TradeQuoteTick`, `MarketValueTick`, `GreeksTick`, `IvTick`.
+Tick types with contract ID: `TradeTick`, `QuoteTick`, `OhlcTick`, `EodTick`, `OpenInterestTick`, `TradeQuoteTick`, `MarketValueTick`, `GreeksTick`, `IvTick`.
 
 **Not** on: `CalendarDay`, `InterestRateTick`, `PriceTick`, `OptionContract`. (Note: `OptionContract` contains `expiration`/`strike`/`right` as inherent fields describing the contract itself, but does not have the `strike_price()`/`is_call()`/`is_put()`/`has_contract_id()` helper methods.)
 
@@ -1112,24 +1112,6 @@ pub struct OpenInterestTick {
     pub right: i32,
 }
 ```
-
-### SnapshotTradeTick
-
-```rust
-pub struct SnapshotTradeTick {
-    pub ms_of_day: i32,
-    pub sequence: i32,
-    pub size: i32,
-    pub condition: i32,
-    pub price: f64,
-    pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: i32,
-}
-```
-
-Methods: `is_call()`, `is_put()`, `has_contract_id()`, plus contract ID helpers.
 
 ### TradeQuoteTick
 

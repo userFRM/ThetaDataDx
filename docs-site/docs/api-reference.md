@@ -2338,7 +2338,7 @@ tdx.option_history_quote_stream("SPY", "20241220", "500", "C", "20240315", "0")
 Helper methods (all 10 types): `is_call()`, `is_put()`, `has_contract_id()`.
 Go helper: `RightStr(code int32) string` converts raw right codes to `"C"`/`"P"`/`""`.
 
-Types with contract ID: TradeTick, QuoteTick, OhlcTick, EodTick, OpenInterestTick, SnapshotTradeTick, TradeQuoteTick, MarketValueTick, GreeksTick, IvTick.
+Types with contract ID: TradeTick, QuoteTick, OhlcTick, EodTick, OpenInterestTick, TradeQuoteTick, MarketValueTick, GreeksTick, IvTick.
 
 ### TradeTick
 

@@ -135,21 +135,6 @@ columns = [
     { name = "date",          field = "date",          type = "i32" },
 ]
 
-[types.SnapshotTradeTick]
-doc = "Snapshot trade tick -- 5 fields. Abbreviated trade for snapshots."
-copy = true
-contract_id = true
-parser = "parse_snapshot_trade_ticks"
-required = ["ms_of_day", "price"]
-columns = [
-    { name = "ms_of_day",  field = "ms_of_day",  type = "i32" },
-    { name = "sequence",   field = "sequence",   type = "i32" },
-    { name = "size",       field = "size",       type = "i32" },
-    { name = "condition",  field = "condition",  type = "i32" },
-    { name = "price",      field = "price",      type = "price" },
-    { name = "date",       field = "date",       type = "i32" },
-]
-
 [types.TradeQuoteTick]
 doc = "Combined trade + quote tick -- 24 fields."
 copy = true

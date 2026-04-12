@@ -190,7 +190,7 @@ flowchart LR
     DIRECT_GEN --> DIRECT
 ```
 
-The 14 tick layouts are: `TradeTick`, `QuoteTick`, `OhlcTick`, `EodTick`, `OpenInterestTick`, `SnapshotTradeTick`, `TradeQuoteTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`. 10 of these (all except `CalendarDay`, `InterestRateTick`, `PriceTick`, `OptionContract`) carry contract identification fields (`expiration`, `strike`, `right`) populated by the server on wildcard queries.
+The 13 tick layouts are: `TradeTick`, `QuoteTick`, `OhlcTick`, `EodTick`, `OpenInterestTick`, `TradeQuoteTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`. 9 of these (all except `CalendarDay`, `InterestRateTick`, `PriceTick`, `OptionContract`) carry contract identification fields (`expiration`, `strike`, `right`) populated by the server on wildcard queries.
 
 Adding a new endpoint now means updating the explicit endpoint surface spec rather than hand-wiring matches across multiple transports. See `crates/thetadatadx/proto/MAINTENANCE.md` for the current maintenance flow.
 
@@ -503,7 +503,7 @@ graph TD
         subgraph tdbe_types["types/"]
             T_ENUM["enums.rs<br/><i>91 DataType codes</i>"]
             T_PRICE["price.rs<br/><i>fixed-point Price</i>"]
-            T_TICK["tick.rs<br/><i>14 tick types (generated)<br/>TradeTick, QuoteTick, OhlcTick,<br/>EodTick, OpenInterestTick,<br/>SnapshotTradeTick, TradeQuoteTick,<br/>MarketValueTick, GreeksTick,<br/>IvTick, PriceTick, CalendarDay,<br/>InterestRateTick,<br/>OptionContract</i>"]
+            T_TICK["tick.rs<br/><i>13 tick types (generated)<br/>TradeTick, QuoteTick, OhlcTick,<br/>EodTick, OpenInterestTick,<br/>TradeQuoteTick,<br/>MarketValueTick, GreeksTick,<br/>IvTick, PriceTick, CalendarDay,<br/>InterestRateTick,<br/>OptionContract</i>"]
         end
 
         TDBE_GREEKS["greeks.rs<br/><i>22 Greeks + IV</i>"]
