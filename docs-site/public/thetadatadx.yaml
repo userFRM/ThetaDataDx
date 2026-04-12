@@ -3,7 +3,7 @@ openapi: 3.1.0
 info:
   title: ThetaDataDx SDK
   description: |
-    Multi-language SDK for ThetaData market data. Provides typed access to 61 historical
+    Multi-language SDK for ThetaData market data. Provides typed access to 65 historical
     data endpoints via MDDS/gRPC and real-time streaming via FPSS/TCP. Native bindings for
     Rust, Python (PyO3), Go (CGo), and C++ (C FFI).
 
@@ -989,6 +989,22 @@ paths:
           label: C++
           source: |
             auto trades = client.stock_history_trade("AAPL", "20240315");
+    post:
+      operationId: stockHistoryTradeStream
+      summary: Stream stock trade history chunk-by-chunk
+      description: |
+        Streaming variant of stock_history_trade. Yields parsed TradeTick chunks
+        via a callback instead of returning a single Vec.
+        gRPC: GetStockHistoryTrade (streaming)
+      tags: [Stock / History]
+      parameters:
+        - *symbol-param
+        - *date-optional-param
+        - *start_time-param
+        - *end_time-param
+        - *venue-param
+      responses:
+        '200': *trade-response
 
   /stock/history/quote:
     x-min-subscription: value
@@ -1037,6 +1053,23 @@ paths:
           label: C++
           source: |
             auto quotes = client.stock_history_quote("AAPL", "20240315", "60000");
+    post:
+      operationId: stockHistoryQuoteStream
+      summary: Stream stock quote history chunk-by-chunk
+      description: |
+        Streaming variant of stock_history_quote. Yields parsed QuoteTick chunks
+        via a callback instead of returning a single Vec.
+        gRPC: GetStockHistoryQuote (streaming)
+      tags: [Stock / History]
+      parameters:
+        - *symbol-param
+        - *date-optional-param
+        - *interval-param
+        - *start_time-param
+        - *end_time-param
+        - *venue-param
+      responses:
+        '200': *quote-response
 
   /stock/history/trade_quote:
     x-min-subscription: standard
@@ -1888,6 +1921,26 @@ paths:
           label: C++
           source: |
             auto trades = client.option_history_trade("SPY", "20240419", "500", "C", "20240315");
+    post:
+      operationId: optionHistoryTradeStream
+      summary: Stream option trade history chunk-by-chunk
+      description: |
+        Streaming variant of option_history_trade. Yields parsed TradeTick chunks
+        via a callback instead of returning a single Vec.
+        gRPC: GetOptionHistoryTrade (streaming)
+      tags: [Option / History]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *start_time-param
+        - *end_time-param
+        - *max_dte-param
+        - *strike_range-param
+      responses:
+        '200': *trade-response
 
   /option/history/quote:
     x-min-subscription: value
@@ -1940,6 +1993,27 @@ paths:
           label: C++
           source: |
             auto quotes = client.option_history_quote("SPY", "20240419", "500", "C", "20240315", "60000");
+    post:
+      operationId: optionHistoryQuoteStream
+      summary: Stream option quote history chunk-by-chunk
+      description: |
+        Streaming variant of option_history_quote. Yields parsed QuoteTick chunks
+        via a callback instead of returning a single Vec.
+        gRPC: GetOptionHistoryQuote (streaming)
+      tags: [Option / History]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *interval-param
+        - *start_time-param
+        - *end_time-param
+        - *max_dte-param
+        - *strike_range-param
+      responses:
+        '200': *quote-response
 
   /option/history/trade_quote:
     x-min-subscription: standard

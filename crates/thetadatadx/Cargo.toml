@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx"
-version = "6.0.0"
+version = "7.0.0"
 edition = "2021"
 rust-version = "1.85"
 authors = ["userFRM"]
@@ -94,7 +94,3 @@ harness = false
 name = "bench_auth"
 harness = false
 
-[[bin]]
-name = "generate_sdk_surfaces"
-path = "src/bin/generate_sdk_surfaces.rs"
-required-features = ["config-file"]

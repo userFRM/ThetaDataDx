@@ -2598,9 +2598,19 @@ fn render_python_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
             .unwrap();
             out.push_str("            }\n");
         }
-        out.push_str("            runtime()\n");
-        out.push_str("                .block_on(async { request.await })\n");
-        out.push_str("                .map_err(to_py_err)\n");
+        if endpoint.kind == "stream" {
+            out.push_str("            let mut collected = Vec::new();\n");
+            out.push_str("            runtime()\n");
+            out.push_str(
+                "                .block_on(request.stream(|chunk| collected.extend_from_slice(chunk)))\n",
+            );
+            out.push_str("                .map_err(to_py_err)?;\n");
+            out.push_str("            pyo3::PyResult::Ok(collected)\n");
+        } else {
+            out.push_str("            runtime()\n");
+            out.push_str("                .block_on(async { request.await })\n");
+            out.push_str("                .map_err(to_py_err)\n");
+        }
     }
     if endpoint.return_type == "StringList" {
         out.push_str("        })\n");

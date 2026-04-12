@@ -67,7 +67,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/install-protoc
       - run: python3 scripts/check_docs_consistency.py
-      - run: cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces --locked -- --check
+      - run: cargo build -p thetadatadx --locked
+      - name: Check SDK surface drift
+        run: git diff --exit-code -- 'sdks/**/generated_*' 'ffi/src/generated_*'
       - run: cargo clippy --manifest-path tools/mcp/Cargo.toml --locked -- -D warnings
       - run: cargo test --manifest-path tools/mcp/Cargo.toml --locked
       - run: cargo clippy --manifest-path tools/server/Cargo.toml --locked -- -D warnings

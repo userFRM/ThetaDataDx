@@ -181,6 +181,8 @@ def check_endpoint_option_surface() -> None:
         r"pub struct TdxEndpointRequestOptions \{(.*?)\n\}",
         r"^\s*pub\s+([a-z_]+)\s*:",
     )
+    # Exclude has_* sentinel flags (FFI implementation detail, not builder params)
+    rust_fields = {f for f in rust_fields if not f.startswith("has_")}
     if rust_fields != BUILDER_PARAMS:
         missing = sorted(BUILDER_PARAMS - rust_fields)
         extra = sorted(rust_fields - BUILDER_PARAMS)
