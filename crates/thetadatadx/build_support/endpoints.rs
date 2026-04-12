@@ -861,6 +861,7 @@ pub fn generate_all() -> Result<(), Box<dyn std::error::Error>> {
     generate_endpoint_registry(&parsed)?;
     generate_endpoint_runtime(&parsed)?;
     generate_direct_endpoints(&parsed)?;
+    println!("cargo:rerun-if-changed=endpoint_surface.toml");
     println!("cargo:rerun-if-changed=proto/external.proto");
     Ok(())
 }
@@ -952,11 +953,6 @@ fn generate_endpoint_runtime(parsed: &ParsedEndpoints) -> Result<(), Box<dyn std
     code.push_str("    match name {\n");
 
     for endpoint in &parsed.endpoints {
-        // Streaming endpoints use chunk-by-chunk callback semantics and cannot
-        // be dispatched through the standard collect-then-return runtime.
-        if is_streaming_endpoint(endpoint) {
-            continue;
-        }
         generate_endpoint_dispatch_arm(&mut code, endpoint);
     }
 
@@ -1534,6 +1530,45 @@ fn generate_endpoint_dispatch_arm(out: &mut String, endpoint: &GeneratedEndpoint
         .collect::<Vec<_>>()
         .join(", ");
 
+    if is_streaming_endpoint(endpoint) {
+        writeln!(
+            out,
+            "            let mut builder = client.{}({call_args});",
+            endpoint.name
+        )
+        .unwrap();
+
+        for param in builder_params {
+            let getter = optional_getter_name(&param.param_type);
+            writeln!(
+                out,
+                "            if let Some(value) = args.{getter}(\"{}\")? {{",
+                param.name
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "                builder = builder.{}(value);",
+                param.name
+            )
+            .unwrap();
+            out.push_str("            }\n");
+        }
+
+        out.push_str("            let mut result = Vec::new();\n");
+        out.push_str("            builder\n");
+        out.push_str("                .stream(|chunk| result.extend_from_slice(chunk))\n");
+        out.push_str("                .await?;\n");
+        writeln!(
+            out,
+            "            Ok(EndpointOutput::{}(result))",
+            endpoint.return_type
+        )
+        .unwrap();
+        out.push_str("        }\n");
+        return;
+    }
+
     if builder_params.is_empty() {
         writeln!(
             out,
@@ -1875,7 +1910,7 @@ pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
         let actual = std::fs::read_to_string(&path)?;
         if actual != file.contents {
             return Err(format!(
-                "generated SDK surface '{}' is stale; run `cargo build -p thetadatadx` to refresh",
+                "generated SDK surface '{}' is stale; run `cargo run -p thetadatadx --bin generate_sdk_surfaces` to refresh",
                 file.relative_path
             )
             .into());

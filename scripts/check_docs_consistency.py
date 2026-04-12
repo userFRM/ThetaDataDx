@@ -21,15 +21,35 @@ import tomllib
 ROOT = Path(__file__).resolve().parents[1]
 SURFACE = tomllib.loads((ROOT / "crates/thetadatadx/endpoint_surface.toml").read_text())
 ENDPOINTS = SURFACE["endpoints"]
+TEMPLATES = SURFACE["templates"]
 ENDPOINT_NAMES = {ep["name"] for ep in ENDPOINTS}
 REST_PATHS = {ep["rest_path"].removeprefix("/v3") for ep in ENDPOINTS}
-EXPECTED_TOOL_COUNT = len(ENDPOINTS) + 3
 BUILDER_PARAMS = {
     param["name"]
     for group in SURFACE["param_groups"].values()
     for param in group.get("params", [])
     if param.get("binding") == "builder"
 }
+
+
+def endpoint_kind(endpoint: dict) -> str:
+    kind = endpoint.get("kind")
+    template_name = endpoint.get("template")
+    seen: set[str] = set()
+    while kind is None and template_name is not None:
+        if template_name in seen:
+            fail(f"template cycle while resolving kind for endpoint {endpoint['name']}")
+        seen.add(template_name)
+        template = TEMPLATES.get(template_name)
+        if template is None:
+            fail(f"endpoint {endpoint['name']} references unknown template {template_name!r}")
+        kind = template.get("kind")
+        template_name = template.get("extends")
+    return kind or "parsed"
+
+
+REGISTRY_ENDPOINTS = [ep for ep in ENDPOINTS if endpoint_kind(ep) != "stream"]
+EXPECTED_TOOL_COUNT = len(REGISTRY_ENDPOINTS) + 3
 
 
 def lower_camel(snake: str) -> str:
@@ -75,7 +95,7 @@ def check_static_docs() -> None:
     )
     expect_contains(
         ROOT / "tools/mcp/README.md",
-        f"{len(ENDPOINTS)} registry endpoints + 3 offline tools (ping, all_greeks, implied_volatility) = {EXPECTED_TOOL_COUNT} total.",
+        f"{len(REGISTRY_ENDPOINTS)} registry endpoints + 3 offline tools (ping, all_greeks, implied_volatility) = {EXPECTED_TOOL_COUNT} total.",
     )
 
     expect_contains(
@@ -84,7 +104,7 @@ def check_static_docs() -> None:
     )
     expect_contains(
         ROOT / "docs-site/docs/tools/mcp.md",
-        f"{len(ENDPOINTS)} data endpoints + ping + all_greeks + implied_volatility = {EXPECTED_TOOL_COUNT} tools.",
+        f"{len(REGISTRY_ENDPOINTS)} data endpoints + ping + all_greeks + implied_volatility = {EXPECTED_TOOL_COUNT} tools.",
     )
     # Migration guide removed in v7 (L14). No longer enforced.
     expect_contains(
@@ -157,7 +177,7 @@ def check_openapi() -> None:
     actual_ops = {
         match.group(1) for match in re.finditer(r"^\s*operationId:\s*(\S+)", text, re.MULTILINE)
     }
-    expected_ops = {lower_camel(ep["name"]) for ep in ENDPOINTS}
+    expected_ops = {lower_camel(ep["name"]) for ep in REGISTRY_ENDPOINTS}
     if actual_ops != expected_ops:
         missing = sorted(expected_ops - actual_ops)
         extra = sorted(actual_ops - expected_ops)

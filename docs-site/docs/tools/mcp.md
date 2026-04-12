@@ -55,9 +55,9 @@ Add to `.cursor/mcp.json`:
 Store credentials in environment variables or a secrets manager rather than committing them to config files in version control.
 :::
 
-## Available Tools (68)
+## Available Tools (64)
 
-65 data endpoints + ping + all_greeks + implied_volatility = 68 tools.
+61 data endpoints + ping + all_greeks + implied_volatility = 64 tools.
 
 | Category | Count |
 |----------|-------|

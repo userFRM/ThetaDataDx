@@ -26,8 +26,8 @@ No-JVM ThetaData Terminal - native Rust SDK for direct market data access.
 | [`sdks/go/`](sdks/go/) | Go SDK (CGo FFI) |
 | [`sdks/cpp/`](sdks/cpp/) | C++ SDK (RAII wrappers over C FFI) |
 | [`ffi/`](ffi/) | C FFI layer - shared library consumed by Go and C++ |
-| [`tools/cli/`](tools/cli/) | `tdx` CLI - all 65 endpoints from the command line |
-| [`tools/mcp/`](tools/mcp/) | MCP server - gives LLMs access to 68 tools over JSON-RPC |
+| [`tools/cli/`](tools/cli/) | `tdx` CLI - all 61 registry endpoints from the command line |
+| [`tools/mcp/`](tools/mcp/) | MCP server - gives LLMs access to 64 tools over JSON-RPC |
 | [`tools/server/`](tools/server/) | REST+WS server - drop-in replacement for the Java terminal |
 | [`docs/`](docs/) | Architecture, API reference, JVM deviations, and historical reverse-engineering notes |
 | [`docs-site/`](docs-site/) | VitePress documentation site (deployed to GitHub Pages) |
@@ -122,7 +122,7 @@ All prices (`bid`, `ask`, `price`, `open`, `high`, `low`, `close`) are `f64` -- 
 
 ## API Coverage
 
-65 typed endpoints covering all ThetaData MDDS data, plus FPSS real-time streaming and a full Black-Scholes Greeks calculator.
+61 registry/REST endpoints, plus 4 SDK-only historical stream variants, FPSS real-time streaming, and a full Black-Scholes Greeks calculator.
 
 | Category | Endpoints | Examples |
 |----------|-----------|---------|
@@ -140,7 +140,7 @@ All endpoints return fully typed native structs in every language. Zero raw JSON
 
 | Document | Description |
 |----------|-------------|
-| [API Reference](docs/api-reference.md) | All 65 methods, 14 tick types, configuration options |
+| [API Reference](docs/api-reference.md) | All 65 methods, 13 tick types, configuration options |
 | [Architecture](docs/architecture.md) | System design, wire protocols, TOML codegen pipeline |
 | [JVM Deviations](docs/jvm-deviations.md) | Intentional differences from the Java terminal |
 | [Reverse-Engineering Guide](docs/reverse-engineering.md) | Historical archive of the original reverse-engineering process before the official proto handoff |

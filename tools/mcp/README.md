@@ -103,9 +103,9 @@ The server speaks standard MCP over stdio:
 - **stdout**: one JSON-RPC 2.0 response per line
 - **stderr**: structured logs (configurable via `RUST_LOG` env var)
 
-## Available Tools (68 total)
+## Available Tools (64 total)
 
-65 registry endpoints + 3 offline tools (ping, all_greeks, implied_volatility) = 68 total.
+61 registry endpoints + 3 offline tools (ping, all_greeks, implied_volatility) = 64 total.
 
 ### Meta (1)
 - `ping` - server status (works offline)

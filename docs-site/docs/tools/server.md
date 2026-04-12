@@ -47,7 +47,7 @@ This starts:
 
 ## REST API
 
-All 61 registry endpoints are exposed as HTTP routes following the current v3 path scheme. The canonical checked-in contract lives in the [OpenAPI file](/thetadatadx.yaml).
+All 61 registry endpoints are exposed as HTTP routes following the current v3 path scheme. The canonical checked-in contract lives in the [OpenAPI file](/thetadatadx.yaml). SDK-only callback-based `*_stream` builders are documented separately in the API reference and are not exposed as HTTP routes.
 
 ```bash
 # Stock EOD
