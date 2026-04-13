@@ -22,13 +22,32 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  THETADATA_EMAIL: ${{ secrets.THETADATA_EMAIL }}
-  THETADATA_PASSWORD: ${{ secrets.THETADATA_PASSWORD }}
 
 jobs:
+  preflight:
+    name: Live Secrets Preflight
+    runs-on: ubuntu-latest
+    outputs:
+      has_live_secrets: ${{ steps.check.outputs.has_live_secrets }}
+    steps:
+      - id: check
+        shell: bash
+        env:
+          THETADATA_EMAIL: ${{ secrets.THETADATA_EMAIL }}
+          THETADATA_PASSWORD: ${{ secrets.THETADATA_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -n "${THETADATA_EMAIL}" ] && [ -n "${THETADATA_PASSWORD}" ]; then
+            echo "has_live_secrets=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_live_secrets=false" >> "$GITHUB_OUTPUT"
+            echo "ThetaData live secrets are not configured; live jobs will be skipped."
+          fi
+
   smoke:
     name: Live Smoke (${{ matrix.os }})
-    if: ${{ env.THETADATA_EMAIL != '' && env.THETADATA_PASSWORD != '' }}
+    needs: preflight
+    if: ${{ needs.preflight.outputs.has_live_secrets == 'true' }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -104,7 +123,8 @@ jobs:
 
   release-validation:
     name: Full Release Validation
-    if: ${{ env.THETADATA_EMAIL != '' && env.THETADATA_PASSWORD != '' }}
+    needs: preflight
+    if: ${{ needs.preflight.outputs.has_live_secrets == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -131,7 +151,8 @@ jobs:
 
   fpss-soak:
     name: FPSS Reconnect Soak
-    if: ${{ env.THETADATA_EMAIL != '' && env.THETADATA_PASSWORD != '' }}
+    needs: preflight
+    if: ${{ needs.preflight.outputs.has_live_secrets == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
