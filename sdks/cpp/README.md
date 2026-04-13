@@ -319,6 +319,9 @@ All prices in streaming events are `double` (f64) -- decoded during parsing. Acc
 | `subscribe_quotes(symbol)` | `int` | Subscribe to quote data for a stock symbol |
 | `subscribe_trades(symbol)` | `int` | Subscribe to trade data for a stock symbol |
 | `subscribe_open_interest(symbol)` | `int` | Subscribe to open interest data for a stock symbol |
+| `subscribe_option_quotes(symbol, expiration, strike, right)` | `int` | Subscribe to option quote data |
+| `subscribe_option_trades(symbol, expiration, strike, right)` | `int` | Subscribe to option trade data |
+| `subscribe_option_open_interest(symbol, expiration, strike, right)` | `int` | Subscribe to option open interest data |
 | `subscribe_full_trades(sec_type)` | `int` | Subscribe to all trades for a security type (`"STOCK"`, `"OPTION"`, `"INDEX"`) |
 | `subscribe_full_open_interest(sec_type)` | `int` | Subscribe to all OI for a security type |
 | `unsubscribe_full_trades(sec_type)` | `int` | Unsubscribe from all trades for a security type |
@@ -326,10 +329,15 @@ All prices in streaming events are `double` (f64) -- decoded during parsing. Acc
 | `unsubscribe_quotes(symbol)` | `int` | Unsubscribe from quote data |
 | `unsubscribe_trades(symbol)` | `int` | Unsubscribe from trade data |
 | `unsubscribe_open_interest(symbol)` | `int` | Unsubscribe from open interest data |
+| `unsubscribe_option_quotes(symbol, expiration, strike, right)` | `int` | Unsubscribe from option quote data |
+| `unsubscribe_option_trades(symbol, expiration, strike, right)` | `int` | Unsubscribe from option trade data |
+| `unsubscribe_option_open_interest(symbol, expiration, strike, right)` | `int` | Unsubscribe from option open interest data |
 | `is_authenticated()` | `bool` | Check if the client is currently authenticated |
 | `contract_lookup(id)` | `optional<string>` | Look up a contract by server-assigned ID |
+| `contract_map()` | `map<int32_t, string>` | Get the full contract ID mapping |
 | `active_subscriptions()` | `vector<Subscription>` | Get active subscriptions as typed structs |
 | `next_event(timeout_ms)` | `FpssEventPtr` | Poll for the next event (nullptr on timeout) |
+| `reconnect()` | `void` | Reconnect streaming and restore subscriptions |
 | `shutdown()` | `void` | Shut down the FPSS client |
 
 ### FPSS Event Types

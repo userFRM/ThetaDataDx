@@ -347,10 +347,10 @@ This matches the Java terminal's behavior: OHLCVC bars are never emitted purely 
 
 FPSS streaming uses separate `FpssClient` wrappers in Go/C++ (not the historical `Client`):
 - **Rust**: `tdx.start_streaming(callback)` launches a disruptor-backed event receiver
-- **Python**: `tdx.start_streaming()`, `tdx.subscribe_quotes()`, `tdx.next_event()`, `tdx.stop_streaming()` — also supports option-level `subscribe_option_*` and `contract_map()` (Python only)
-- **Go**: `FpssClient` struct wrapping 18 FFI FPSS functions (symbol-level subscribe/unsubscribe only)
-- **C++**: `FpssClient` RAII class wrapping 18 FFI FPSS functions (symbol-level subscribe/unsubscribe only)
-- **C FFI**: 18 `extern "C"` functions (`tdx_fpss_connect`, `tdx_fpss_subscribe_*`, `tdx_fpss_unsubscribe_*`, `tdx_fpss_next_event`, `tdx_fpss_shutdown`, `tdx_fpss_free`, etc.)
+- **Python**: `tdx.start_streaming()`, `tdx.subscribe_quotes()`, `tdx.subscribe_option_*()`, `tdx.contract_map()`, `tdx.reconnect()`, `tdx.next_event()`, `tdx.stop_streaming()`
+- **Go**: `FpssClient` wrapping 26 FFI FPSS functions, including option-level subscribe/unsubscribe, `ContractMap()`, and `Reconnect()`
+- **C++**: `FpssClient` RAII class wrapping 26 FFI FPSS functions, including option-level subscribe/unsubscribe, `contract_map()`, and `reconnect()`
+- **C FFI**: 26 `extern "C"` functions (`tdx_fpss_connect`, `tdx_fpss_subscribe_*`, `tdx_fpss_unsubscribe_*`, `tdx_fpss_contract_map`, `tdx_fpss_reconnect`, `tdx_fpss_next_event`, `tdx_fpss_shutdown`, `tdx_fpss_free`, etc.)
 
 ### Reconnection
 

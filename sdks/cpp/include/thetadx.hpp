@@ -14,6 +14,7 @@
 #include "thetadx.h"
 
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>

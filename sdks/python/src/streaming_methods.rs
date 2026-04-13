@@ -48,11 +48,11 @@ impl ThetaDataDx {
     fn subscribe_option_quotes(
         &self,
         symbol: &str,
-        exp_date: &str,
-        right: &str,
+        expiration: &str,
         strike: &str,
+        right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, exp_date, strike, right);
+        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
         self.tdx.subscribe_quotes(&contract).map_err(to_py_err)
     }
 
@@ -60,11 +60,11 @@ impl ThetaDataDx {
     fn subscribe_option_trades(
         &self,
         symbol: &str,
-        exp_date: &str,
-        right: &str,
+        expiration: &str,
         strike: &str,
+        right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, exp_date, strike, right);
+        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
         self.tdx.subscribe_trades(&contract).map_err(to_py_err)
     }
 
@@ -72,11 +72,11 @@ impl ThetaDataDx {
     fn subscribe_option_open_interest(
         &self,
         symbol: &str,
-        exp_date: &str,
-        right: &str,
+        expiration: &str,
         strike: &str,
+        right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, exp_date, strike, right);
+        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
         self.tdx
             .subscribe_open_interest(&contract)
             .map_err(to_py_err)
@@ -132,11 +132,11 @@ impl ThetaDataDx {
     fn unsubscribe_option_quotes(
         &self,
         symbol: &str,
-        exp_date: &str,
-        right: &str,
+        expiration: &str,
         strike: &str,
+        right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, exp_date, strike, right);
+        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
         self.tdx.unsubscribe_quotes(&contract).map_err(to_py_err)
     }
 
@@ -144,11 +144,11 @@ impl ThetaDataDx {
     fn unsubscribe_option_trades(
         &self,
         symbol: &str,
-        exp_date: &str,
-        right: &str,
+        expiration: &str,
         strike: &str,
+        right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, exp_date, strike, right);
+        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
         self.tdx.unsubscribe_trades(&contract).map_err(to_py_err)
     }
 
@@ -156,11 +156,11 @@ impl ThetaDataDx {
     fn unsubscribe_option_open_interest(
         &self,
         symbol: &str,
-        exp_date: &str,
-        right: &str,
+        expiration: &str,
         strike: &str,
+        right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, exp_date, strike, right);
+        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
         self.tdx
             .unsubscribe_open_interest(&contract)
             .map_err(to_py_err)
@@ -227,6 +227,20 @@ impl ThetaDataDx {
             Some(event) => Ok(Some(buffered_event_to_py(py, &event))),
             None => Ok(None),
         }
+        }
+
+    /// Reconnect streaming and re-subscribe all previous subscriptions.
+    fn reconnect(&self) -> PyResult<()> {
+        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();
+        self.tdx
+            .reconnect_streaming(move |event: &fpss::FpssEvent| {
+                let _ = tx.send(BufferedEvent::from_event(event));
+            })
+            .map_err(to_py_err)?;
+        if let Ok(mut guard) = self.rx.lock() {
+            *guard = Some(Arc::new(Mutex::new(rx)));
+        }
+        Ok(())
     }
 
     /// Stop streaming (historical remains active).

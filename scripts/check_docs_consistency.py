@@ -136,7 +136,7 @@ def check_static_docs() -> None:
     sdk_overview = ROOT / "sdks/README.md"
     expect_contains(sdk_overview, "`TdxUnified` / `TdxFpssHandle`")
     expect_contains(sdk_overview, "| **Unified** | `tdx_unified_connect`, `tdx_unified_historical`, `tdx_unified_*`, `tdx_unified_free` |")
-    expect_contains(sdk_overview, "30 functions: `tdx_fpss_connect`")
+    expect_contains(sdk_overview, "26 functions: `tdx_fpss_connect`")
 
     option_docs = list((ROOT / "docs-site/docs/historical/option").rglob("*.md"))
     strike_docs = option_docs + [
@@ -154,7 +154,50 @@ def check_static_docs() -> None:
 
     # Streaming section guards — catch stale FPSS counts and wrong return types
     expect_not_contains(ROOT / "docs/architecture.md", "7 FFI FPSS functions")
+    expect_not_contains(ROOT / "docs/architecture.md", "18 FFI FPSS functions")
+    expect_not_contains(ROOT / "docs/architecture.md", "symbol-level subscribe/unsubscribe only")
     expect_contains(ROOT / "docs-site/docs/api-reference.md", "FpssEventPtr")
+    expect_not_contains(
+        ROOT / "docs-site/docs/api-reference.md",
+        "Python only (uses Rust SDK directly)",
+    )
+    expect_not_contains(
+        ROOT / "docs-site/docs/api-reference.md",
+        "Python only (FFI only supports symbol-level)",
+    )
+    expect_contains(
+        ROOT / "sdks/python/README.md",
+        "`subscribe_option_quotes(symbol, expiration, strike, right)`",
+    )
+    expect_not_contains(
+        ROOT / "docs-site/docs/streaming.md",
+        "Python does not expose reconnect_streaming() directly.",
+    )
+    expect_not_contains(
+        ROOT / "docs-site/docs/streaming.md",
+        "Go does not expose reconnect_streaming() directly.",
+    )
+    expect_not_contains(
+        ROOT / "docs-site/docs/streaming.md",
+        "C++ does not expose reconnect_streaming() directly.",
+    )
+    expect_contains(ROOT / "docs-site/docs/streaming.md", "| `Reconnect` | `() error` |")
+    expect_contains(
+        ROOT / "docs-site/docs/streaming.md",
+        "| `contract_map` | `() -> std::map<int32_t, std::string>` |",
+    )
+    expect_not_contains(
+        ROOT / "docs-site/docs/streaming.md",
+        "| `active_subscriptions` | `() -> std::string` |",
+    )
+    expect_contains(
+        ROOT / "docs-site/docs/streaming/events.md",
+        "| `SubscribeOptionQuotes` | `(symbol, expiration, strike, right string) (int, error)` |",
+    )
+    expect_contains(
+        ROOT / "docs-site/docs/streaming/reconnection.md",
+        "Python, Go, and C++ expose `reconnect()` on their public streaming clients.",
+    )
 
 
 def check_api_reference() -> None:

@@ -2245,11 +2245,12 @@ fpss.shutdown();
 
 | Method | Returns | SDK availability | Description |
 |--------|---------|------------------|-------------|
-| `is_streaming` | bool | All SDKs | Check if the streaming connection is live |
-| `contract_map` | map | Python only (uses Rust SDK directly) | Get full dict mapping contract IDs to descriptions |
+| `is_streaming` | bool | Rust/Python only | Check if the unified streaming connection is live |
+| `contract_map` | map | All SDKs | Get full contract ID -> description mapping |
 | `contract_lookup` | string/optional | All SDKs (FFI-based, returns NULL/"" for not-found) | Look up a single contract by server-assigned ID |
 | `active_subscriptions` | list/typed structs | All SDKs | Get list of active subscriptions |
-| `subscribe_option_*` / `unsubscribe_option_*` | int | Python only (FFI only supports symbol-level) | Option-level subscribe/unsubscribe by (symbol, exp, right, strike) |
+| `subscribe_option_*` / `unsubscribe_option_*` | int | All SDKs | Option-level subscribe/unsubscribe by `(symbol, expiration, strike, right)` |
+| `reconnect` | void / result | All SDKs | Reconnect streaming and re-subscribe the previous subscription set |
 
 ### FpssEvent Types
 

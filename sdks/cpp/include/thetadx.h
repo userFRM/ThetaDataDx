@@ -329,6 +329,16 @@ typedef struct {
     size_t len;
 } TdxSubscriptionArray;
 
+typedef struct {
+    int32_t id;
+    const char* contract;
+} TdxContractMapEntry;
+
+typedef struct {
+    const TdxContractMapEntry* data;
+    size_t len;
+} TdxContractMapArray;
+
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Free functions for typed arrays                                       */
 /* ═══════════════════════════════════════════════════════════════════════ */
@@ -349,6 +359,7 @@ void tdx_option_contract_array_free(TdxOptionContractArray arr);
 void tdx_string_array_free(TdxStringArray arr);
 void tdx_greeks_result_free(TdxGreeksResult* result);
 void tdx_subscription_array_free(TdxSubscriptionArray* arr);
+void tdx_contract_map_array_free(TdxContractMapArray* arr);
 
 /* ── Error ── */
 
@@ -873,12 +884,6 @@ int tdx_fpss_subscribe_option_trades(const TdxFpssHandle* h, const char* symbol,
 /** Subscribe to open interest for an option contract. Returns 0 or -1. */
 int tdx_fpss_subscribe_option_open_interest(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
 
-/** Subscribe to all trades for an option contract. Returns 0 or -1. */
-int tdx_fpss_subscribe_option_full_trades(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
-
-/** Subscribe to all open interest for an option contract. Returns 0 or -1. */
-int tdx_fpss_subscribe_option_full_open_interest(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
-
 /** Unsubscribe from quote data for an option contract. Returns 0 or -1. */
 int tdx_fpss_unsubscribe_option_quotes(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
 
@@ -888,12 +893,6 @@ int tdx_fpss_unsubscribe_option_trades(const TdxFpssHandle* h, const char* symbo
 /** Unsubscribe from open interest for an option contract. Returns 0 or -1. */
 int tdx_fpss_unsubscribe_option_open_interest(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
 
-/** Unsubscribe from all trades for an option contract. Returns 0 or -1. */
-int tdx_fpss_unsubscribe_option_full_trades(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
-
-/** Unsubscribe from all open interest for an option contract. Returns 0 or -1. */
-int tdx_fpss_unsubscribe_option_full_open_interest(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
-
 /** Check if authenticated. Returns 1 if true, 0 if false. */
 int tdx_fpss_is_authenticated(const TdxFpssHandle* h);
 
@@ -902,8 +901,8 @@ int tdx_fpss_is_authenticated(const TdxFpssHandle* h);
  *  tdx_last_error() means a real error occurred. Caller must free with tdx_string_free. */
 char* tdx_fpss_contract_lookup(const TdxFpssHandle* h, int id);
 
-/** Get the full contract map as a JSON string. Caller must free with tdx_string_free. */
-char* tdx_fpss_contract_map_json(const TdxFpssHandle* h);
+/** Get the full contract map as typed entries. Caller must free with tdx_contract_map_array_free. */
+TdxContractMapArray* tdx_fpss_contract_map(const TdxFpssHandle* h);
 
 /** Get active subscriptions as typed array. Caller must free with tdx_subscription_array_free. */
 TdxSubscriptionArray* tdx_fpss_active_subscriptions(const TdxFpssHandle* h);
@@ -974,12 +973,6 @@ int tdx_unified_subscribe_option_trades(const TdxUnified* handle, const char* sy
 /** Subscribe to open interest for an option contract. Returns 0 or -1. */
 int tdx_unified_subscribe_option_open_interest(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
 
-/** Subscribe to all trades for an option contract. Returns 0 or -1. */
-int tdx_unified_subscribe_option_full_trades(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
-
-/** Subscribe to all open interest for an option contract. Returns 0 or -1. */
-int tdx_unified_subscribe_option_full_open_interest(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
-
 /** Unsubscribe from quote data for an option contract. Returns 0 or -1. */
 int tdx_unified_unsubscribe_option_quotes(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
 
@@ -989,14 +982,8 @@ int tdx_unified_unsubscribe_option_trades(const TdxUnified* handle, const char* 
 /** Unsubscribe from open interest for an option contract. Returns 0 or -1. */
 int tdx_unified_unsubscribe_option_open_interest(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
 
-/** Unsubscribe from all trades for an option contract. Returns 0 or -1. */
-int tdx_unified_unsubscribe_option_full_trades(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
-
-/** Unsubscribe from all open interest for an option contract. Returns 0 or -1. */
-int tdx_unified_unsubscribe_option_full_open_interest(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
-
-/** Get the full contract map as a JSON string. Caller must free with tdx_string_free. */
-char* tdx_unified_contract_map_json(const TdxUnified* handle);
+/** Get the full contract map as typed entries. Caller must free with tdx_contract_map_array_free. */
+TdxContractMapArray* tdx_unified_contract_map(const TdxUnified* handle);
 
 /** Reconnect unified streaming, re-subscribing all previous subscriptions. Returns 0 or -1. */
 int tdx_unified_reconnect(const TdxUnified* handle);

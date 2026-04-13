@@ -86,32 +86,6 @@ func (f *FpssClient) SubscribeFullOpenInterest(secType string) (int, error) {
     return f.fpssCall(C.tdx_fpss_subscribe_full_open_interest(f.handle, cs))
 }
 
-// SubscribeOptionFullTrades subscribes to all trades for an option contract.
-func (f *FpssClient) SubscribeOptionFullTrades(symbol, expiration, strike, right string) (int, error) {
-    cs := C.CString(symbol)
-    ce := C.CString(expiration)
-    ck := C.CString(strike)
-    cr := C.CString(right)
-    defer C.free(unsafe.Pointer(cs))
-    defer C.free(unsafe.Pointer(ce))
-    defer C.free(unsafe.Pointer(ck))
-    defer C.free(unsafe.Pointer(cr))
-    return f.fpssCall(C.tdx_fpss_subscribe_option_full_trades(f.handle, cs, ce, ck, cr))
-}
-
-// SubscribeOptionFullOpenInterest subscribes to all open interest for an option contract.
-func (f *FpssClient) SubscribeOptionFullOpenInterest(symbol, expiration, strike, right string) (int, error) {
-    cs := C.CString(symbol)
-    ce := C.CString(expiration)
-    ck := C.CString(strike)
-    cr := C.CString(right)
-    defer C.free(unsafe.Pointer(cs))
-    defer C.free(unsafe.Pointer(ce))
-    defer C.free(unsafe.Pointer(ck))
-    defer C.free(unsafe.Pointer(cr))
-    return f.fpssCall(C.tdx_fpss_subscribe_option_full_open_interest(f.handle, cs, ce, ck, cr))
-}
-
 // UnsubscribeQuotes unsubscribes from quote data for a stock symbol.
 func (f *FpssClient) UnsubscribeQuotes(symbol string) (int, error) {
     cs := C.CString(symbol)
@@ -186,32 +160,6 @@ func (f *FpssClient) UnsubscribeFullOpenInterest(secType string) (int, error) {
     return f.fpssCall(C.tdx_fpss_unsubscribe_full_open_interest(f.handle, cs))
 }
 
-// UnsubscribeOptionFullTrades unsubscribes from all trades for an option contract.
-func (f *FpssClient) UnsubscribeOptionFullTrades(symbol, expiration, strike, right string) (int, error) {
-    cs := C.CString(symbol)
-    ce := C.CString(expiration)
-    ck := C.CString(strike)
-    cr := C.CString(right)
-    defer C.free(unsafe.Pointer(cs))
-    defer C.free(unsafe.Pointer(ce))
-    defer C.free(unsafe.Pointer(ck))
-    defer C.free(unsafe.Pointer(cr))
-    return f.fpssCall(C.tdx_fpss_unsubscribe_option_full_trades(f.handle, cs, ce, ck, cr))
-}
-
-// UnsubscribeOptionFullOpenInterest unsubscribes from all open interest for an option contract.
-func (f *FpssClient) UnsubscribeOptionFullOpenInterest(symbol, expiration, strike, right string) (int, error) {
-    cs := C.CString(symbol)
-    ce := C.CString(expiration)
-    ck := C.CString(strike)
-    cr := C.CString(right)
-    defer C.free(unsafe.Pointer(cs))
-    defer C.free(unsafe.Pointer(ce))
-    defer C.free(unsafe.Pointer(ck))
-    defer C.free(unsafe.Pointer(cr))
-    return f.fpssCall(C.tdx_fpss_unsubscribe_option_full_open_interest(f.handle, cs, ce, ck, cr))
-}
-
 // IsAuthenticated returns true if the FPSS client is currently authenticated.
 func (f *FpssClient) IsAuthenticated() bool {
     return C.tdx_fpss_is_authenticated(f.handle) != 0
@@ -233,15 +181,26 @@ func (f *FpssClient) ContractLookup(id int) (string, error) {
     return goStr, nil
 }
 
-// ContractMapJSON returns the full contract map as a JSON string.
-func (f *FpssClient) ContractMapJSON() (string, error) {
-    cstr := C.tdx_fpss_contract_map_json(f.handle)
-    if cstr == nil {
-        return "", fmt.Errorf("thetadatadx: %s", lastError())
+// ContractMap returns the current contract ID mapping.
+func (f *FpssClient) ContractMap() (map[int32]string, error) {
+    arr := C.tdx_fpss_contract_map(f.handle)
+    if arr == nil {
+        return nil, fmt.Errorf("thetadatadx: %s", lastError())
     }
-    goStr := C.GoString(cstr)
-    C.tdx_string_free(cstr)
-    return goStr, nil
+    defer C.tdx_contract_map_array_free(arr)
+    result := make(map[int32]string, int(arr.len))
+    if arr.data == nil || arr.len == 0 {
+        return result, nil
+    }
+    entries := unsafe.Slice(arr.data, int(arr.len))
+    for _, entry := range entries {
+        value := ""
+        if entry.contract != nil {
+            value = C.GoString(entry.contract)
+        }
+        result[int32(entry.id)] = value
+    }
+    return result, nil
 }
 
 // ActiveSubscriptions returns the currently active subscriptions as typed structs.

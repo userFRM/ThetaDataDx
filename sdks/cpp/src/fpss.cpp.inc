@@ -22,10 +22,6 @@ int FpssClient::subscribe_full_trades(const std::string& sec_type) { return tdx_
 
 int FpssClient::subscribe_full_open_interest(const std::string& sec_type) { return tdx_fpss_subscribe_full_open_interest(handle_.get(), sec_type.c_str()); }
 
-int FpssClient::subscribe_option_full_trades(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right) { return tdx_fpss_subscribe_option_full_trades(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str()); }
-
-int FpssClient::subscribe_option_full_open_interest(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right) { return tdx_fpss_subscribe_option_full_open_interest(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str()); }
-
 int FpssClient::unsubscribe_quotes(const std::string& symbol) { return tdx_fpss_unsubscribe_quotes(handle_.get(), symbol.c_str()); }
 
 int FpssClient::unsubscribe_trades(const std::string& symbol) { return tdx_fpss_unsubscribe_trades(handle_.get(), symbol.c_str()); }
@@ -42,10 +38,6 @@ int FpssClient::unsubscribe_full_trades(const std::string& sec_type) { return td
 
 int FpssClient::unsubscribe_full_open_interest(const std::string& sec_type) { return tdx_fpss_unsubscribe_full_open_interest(handle_.get(), sec_type.c_str()); }
 
-int FpssClient::unsubscribe_option_full_trades(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right) { return tdx_fpss_unsubscribe_option_full_trades(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str()); }
-
-int FpssClient::unsubscribe_option_full_open_interest(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right) { return tdx_fpss_unsubscribe_option_full_open_interest(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str()); }
-
 bool FpssClient::is_authenticated() const { return tdx_fpss_is_authenticated(handle_.get()) != 0; }
 
 std::optional<std::string> FpssClient::contract_lookup(int id) const {
@@ -60,10 +52,17 @@ std::optional<std::string> FpssClient::contract_lookup(int id) const {
     return result.str();
 }
 
-std::string FpssClient::contract_map_json() const {
-    detail::FfiString result(tdx_fpss_contract_map_json(handle_.get()));
-    if (!result.ok()) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
-    return result.str();
+std::map<int32_t, std::string> FpssClient::contract_map() const {
+    auto* arr = tdx_fpss_contract_map(handle_.get());
+    if (!arr) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+    std::map<int32_t, std::string> result;
+    if (arr->data != nullptr && arr->len > 0) {
+        for (size_t i = 0; i < arr->len; ++i) {
+            result.emplace(arr->data[i].id, arr->data[i].contract ? std::string(arr->data[i].contract) : std::string());
+        }
+    }
+    tdx_contract_map_array_free(arr);
+    return result;
 }
 
 std::vector<Subscription> FpssClient::active_subscriptions() const {

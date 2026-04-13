@@ -167,6 +167,7 @@ fn validate_spec(spec: &SdkSurfaceSpec) -> Result<(), Box<dyn std::error::Error>
             "contract_lookup",
             "active_subscriptions",
             "next_event",
+            "reconnect",
             "stop_streaming",
             "shutdown",
         ],
@@ -183,8 +184,6 @@ fn validate_spec(spec: &SdkSurfaceSpec) -> Result<(), Box<dyn std::error::Error>
             "subscribe_option_open_interest",
             "subscribe_full_trades",
             "subscribe_full_open_interest",
-            "subscribe_option_full_trades",
-            "subscribe_option_full_open_interest",
             "unsubscribe_quotes",
             "unsubscribe_trades",
             "unsubscribe_open_interest",
@@ -193,11 +192,9 @@ fn validate_spec(spec: &SdkSurfaceSpec) -> Result<(), Box<dyn std::error::Error>
             "unsubscribe_option_open_interest",
             "unsubscribe_full_trades",
             "unsubscribe_full_open_interest",
-            "unsubscribe_option_full_trades",
-            "unsubscribe_option_full_open_interest",
             "is_authenticated",
             "contract_lookup",
-            "contract_map_json",
+            "contract_map",
             "active_subscriptions",
             "next_event",
             "reconnect",
@@ -217,8 +214,6 @@ fn validate_spec(spec: &SdkSurfaceSpec) -> Result<(), Box<dyn std::error::Error>
             "subscribe_option_open_interest",
             "subscribe_full_trades",
             "subscribe_full_open_interest",
-            "subscribe_option_full_trades",
-            "subscribe_option_full_open_interest",
             "unsubscribe_quotes",
             "unsubscribe_trades",
             "unsubscribe_open_interest",
@@ -227,11 +222,9 @@ fn validate_spec(spec: &SdkSurfaceSpec) -> Result<(), Box<dyn std::error::Error>
             "unsubscribe_option_open_interest",
             "unsubscribe_full_trades",
             "unsubscribe_full_open_interest",
-            "unsubscribe_option_full_trades",
-            "unsubscribe_option_full_open_interest",
             "is_authenticated",
             "contract_lookup",
-            "contract_map_json",
+            "contract_map",
             "active_subscriptions",
             "next_event",
             "reconnect",
@@ -535,11 +528,11 @@ fn python_streaming_method(name: &str) -> &'static str {
     fn subscribe_option_quotes(
         &self,
         symbol: &str,
-        exp_date: &str,
-        right: &str,
+        expiration: &str,
         strike: &str,
+        right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, exp_date, strike, right);
+        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
         self.tdx.subscribe_quotes(&contract).map_err(to_py_err)
     }
 "#
@@ -549,11 +542,11 @@ fn python_streaming_method(name: &str) -> &'static str {
     fn subscribe_option_trades(
         &self,
         symbol: &str,
-        exp_date: &str,
-        right: &str,
+        expiration: &str,
         strike: &str,
+        right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, exp_date, strike, right);
+        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
         self.tdx.subscribe_trades(&contract).map_err(to_py_err)
     }
 "#
@@ -563,11 +556,11 @@ fn python_streaming_method(name: &str) -> &'static str {
     fn subscribe_option_open_interest(
         &self,
         symbol: &str,
-        exp_date: &str,
-        right: &str,
+        expiration: &str,
         strike: &str,
+        right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, exp_date, strike, right);
+        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
         self.tdx
             .subscribe_open_interest(&contract)
             .map_err(to_py_err)
@@ -639,11 +632,11 @@ fn python_streaming_method(name: &str) -> &'static str {
     fn unsubscribe_option_quotes(
         &self,
         symbol: &str,
-        exp_date: &str,
-        right: &str,
+        expiration: &str,
         strike: &str,
+        right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, exp_date, strike, right);
+        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
         self.tdx.unsubscribe_quotes(&contract).map_err(to_py_err)
     }
 "#
@@ -653,11 +646,11 @@ fn python_streaming_method(name: &str) -> &'static str {
     fn unsubscribe_option_trades(
         &self,
         symbol: &str,
-        exp_date: &str,
-        right: &str,
+        expiration: &str,
         strike: &str,
+        right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, exp_date, strike, right);
+        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
         self.tdx.unsubscribe_trades(&contract).map_err(to_py_err)
     }
 "#
@@ -667,11 +660,11 @@ fn python_streaming_method(name: &str) -> &'static str {
     fn unsubscribe_option_open_interest(
         &self,
         symbol: &str,
-        exp_date: &str,
-        right: &str,
+        expiration: &str,
         strike: &str,
+        right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, exp_date, strike, right);
+        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
         self.tdx
             .unsubscribe_open_interest(&contract)
             .map_err(to_py_err)
@@ -746,6 +739,22 @@ fn python_streaming_method(name: &str) -> &'static str {
             Some(event) => Ok(Some(buffered_event_to_py(py, &event))),
             None => Ok(None),
         }
+        }
+"#
+        }
+        "reconnect" => {
+            r#"    /// Reconnect streaming and re-subscribe all previous subscriptions.
+    fn reconnect(&self) -> PyResult<()> {
+        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();
+        self.tdx
+            .reconnect_streaming(move |event: &fpss::FpssEvent| {
+                let _ = tx.send(BufferedEvent::from_event(event));
+            })
+            .map_err(to_py_err)?;
+        if let Ok(mut guard) = self.rx.lock() {
+            *guard = Some(Arc::new(Mutex::new(rx)));
+        }
+        Ok(())
     }
 "#
         }
@@ -1127,36 +1136,6 @@ func (f *FpssClient) SubscribeOptionOpenInterest(symbol, expiration, strike, rig
 }
 "#
         }
-        "subscribe_option_full_trades" => {
-            r#"// SubscribeOptionFullTrades subscribes to all trades for an option contract.
-func (f *FpssClient) SubscribeOptionFullTrades(symbol, expiration, strike, right string) (int, error) {
-    cs := C.CString(symbol)
-    ce := C.CString(expiration)
-    ck := C.CString(strike)
-    cr := C.CString(right)
-    defer C.free(unsafe.Pointer(cs))
-    defer C.free(unsafe.Pointer(ce))
-    defer C.free(unsafe.Pointer(ck))
-    defer C.free(unsafe.Pointer(cr))
-    return f.fpssCall(C.tdx_fpss_subscribe_option_full_trades(f.handle, cs, ce, ck, cr))
-}
-"#
-        }
-        "subscribe_option_full_open_interest" => {
-            r#"// SubscribeOptionFullOpenInterest subscribes to all open interest for an option contract.
-func (f *FpssClient) SubscribeOptionFullOpenInterest(symbol, expiration, strike, right string) (int, error) {
-    cs := C.CString(symbol)
-    ce := C.CString(expiration)
-    ck := C.CString(strike)
-    cr := C.CString(right)
-    defer C.free(unsafe.Pointer(cs))
-    defer C.free(unsafe.Pointer(ce))
-    defer C.free(unsafe.Pointer(ck))
-    defer C.free(unsafe.Pointer(cr))
-    return f.fpssCall(C.tdx_fpss_subscribe_option_full_open_interest(f.handle, cs, ce, ck, cr))
-}
-"#
-        }
         "unsubscribe_option_quotes" => {
             r#"// UnsubscribeOptionQuotes unsubscribes from quote data for an option contract.
 func (f *FpssClient) UnsubscribeOptionQuotes(symbol, expiration, strike, right string) (int, error) {
@@ -1202,46 +1181,27 @@ func (f *FpssClient) UnsubscribeOptionOpenInterest(symbol, expiration, strike, r
 }
 "#
         }
-        "unsubscribe_option_full_trades" => {
-            r#"// UnsubscribeOptionFullTrades unsubscribes from all trades for an option contract.
-func (f *FpssClient) UnsubscribeOptionFullTrades(symbol, expiration, strike, right string) (int, error) {
-    cs := C.CString(symbol)
-    ce := C.CString(expiration)
-    ck := C.CString(strike)
-    cr := C.CString(right)
-    defer C.free(unsafe.Pointer(cs))
-    defer C.free(unsafe.Pointer(ce))
-    defer C.free(unsafe.Pointer(ck))
-    defer C.free(unsafe.Pointer(cr))
-    return f.fpssCall(C.tdx_fpss_unsubscribe_option_full_trades(f.handle, cs, ce, ck, cr))
-}
-"#
-        }
-        "unsubscribe_option_full_open_interest" => {
-            r#"// UnsubscribeOptionFullOpenInterest unsubscribes from all open interest for an option contract.
-func (f *FpssClient) UnsubscribeOptionFullOpenInterest(symbol, expiration, strike, right string) (int, error) {
-    cs := C.CString(symbol)
-    ce := C.CString(expiration)
-    ck := C.CString(strike)
-    cr := C.CString(right)
-    defer C.free(unsafe.Pointer(cs))
-    defer C.free(unsafe.Pointer(ce))
-    defer C.free(unsafe.Pointer(ck))
-    defer C.free(unsafe.Pointer(cr))
-    return f.fpssCall(C.tdx_fpss_unsubscribe_option_full_open_interest(f.handle, cs, ce, ck, cr))
-}
-"#
-        }
-        "contract_map_json" => {
-            r#"// ContractMapJSON returns the full contract map as a JSON string.
-func (f *FpssClient) ContractMapJSON() (string, error) {
-    cstr := C.tdx_fpss_contract_map_json(f.handle)
-    if cstr == nil {
-        return "", fmt.Errorf("thetadatadx: %s", lastError())
+        "contract_map" => {
+            r#"// ContractMap returns the current contract ID mapping.
+func (f *FpssClient) ContractMap() (map[int32]string, error) {
+    arr := C.tdx_fpss_contract_map(f.handle)
+    if arr == nil {
+        return nil, fmt.Errorf("thetadatadx: %s", lastError())
     }
-    goStr := C.GoString(cstr)
-    C.tdx_string_free(cstr)
-    return goStr, nil
+    defer C.tdx_contract_map_array_free(arr)
+    result := make(map[int32]string, int(arr.len))
+    if arr.data == nil || arr.len == 0 {
+        return result, nil
+    }
+    entries := unsafe.Slice(arr.data, int(arr.len))
+    for _, entry := range entries {
+        value := ""
+        if entry.contract != nil {
+            value = C.GoString(entry.contract)
+        }
+        result[int32(entry.id)] = value
+    }
+    return result, nil
 }
 "#
         }
@@ -1346,16 +1306,12 @@ fn cpp_fpss_decl(name: &str) -> &'static str {
         "subscribe_option_quotes" => "    int subscribe_option_quotes(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);\n",
         "subscribe_option_trades" => "    int subscribe_option_trades(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);\n",
         "subscribe_option_open_interest" => "    int subscribe_option_open_interest(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);\n",
-        "subscribe_option_full_trades" => "    int subscribe_option_full_trades(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);\n",
-        "subscribe_option_full_open_interest" => "    int subscribe_option_full_open_interest(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);\n",
         "unsubscribe_option_quotes" => "    int unsubscribe_option_quotes(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);\n",
         "unsubscribe_option_trades" => "    int unsubscribe_option_trades(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);\n",
         "unsubscribe_option_open_interest" => "    int unsubscribe_option_open_interest(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);\n",
-        "unsubscribe_option_full_trades" => "    int unsubscribe_option_full_trades(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);\n",
-        "unsubscribe_option_full_open_interest" => "    int unsubscribe_option_full_open_interest(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);\n",
         "is_authenticated" => "    bool is_authenticated() const;\n",
         "contract_lookup" => "    std::optional<std::string> contract_lookup(int id) const;\n",
-        "contract_map_json" => "    /** Get the full contract map as a JSON string. */\n    std::string contract_map_json() const;\n",
+        "contract_map" => "    /** Get the full contract map keyed by server-assigned contract ID. */\n    std::map<int32_t, std::string> contract_map() const;\n",
         "active_subscriptions" => "    std::vector<Subscription> active_subscriptions() const;\n",
         "next_event" => "    /** Poll for the next event as a typed struct. Returns nullptr on timeout. */\n    FpssEventPtr next_event(uint64_t timeout_ms);\n",
         "reconnect" => "    /** Reconnect, re-subscribing all previous subscriptions. Throws on failure. */\n    void reconnect();\n",
@@ -1426,14 +1382,6 @@ fn cpp_fpss_def(name: &str) -> &'static str {
             r#"int FpssClient::subscribe_option_open_interest(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right) { return tdx_fpss_subscribe_option_open_interest(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str()); }
 "#
         }
-        "subscribe_option_full_trades" => {
-            r#"int FpssClient::subscribe_option_full_trades(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right) { return tdx_fpss_subscribe_option_full_trades(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str()); }
-"#
-        }
-        "subscribe_option_full_open_interest" => {
-            r#"int FpssClient::subscribe_option_full_open_interest(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right) { return tdx_fpss_subscribe_option_full_open_interest(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str()); }
-"#
-        }
         "unsubscribe_option_quotes" => {
             r#"int FpssClient::unsubscribe_option_quotes(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right) { return tdx_fpss_unsubscribe_option_quotes(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str()); }
 "#
@@ -1444,14 +1392,6 @@ fn cpp_fpss_def(name: &str) -> &'static str {
         }
         "unsubscribe_option_open_interest" => {
             r#"int FpssClient::unsubscribe_option_open_interest(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right) { return tdx_fpss_unsubscribe_option_open_interest(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str()); }
-"#
-        }
-        "unsubscribe_option_full_trades" => {
-            r#"int FpssClient::unsubscribe_option_full_trades(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right) { return tdx_fpss_unsubscribe_option_full_trades(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str()); }
-"#
-        }
-        "unsubscribe_option_full_open_interest" => {
-            r#"int FpssClient::unsubscribe_option_full_open_interest(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right) { return tdx_fpss_unsubscribe_option_full_open_interest(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str()); }
 "#
         }
         "is_authenticated" => {
@@ -1472,11 +1412,18 @@ fn cpp_fpss_def(name: &str) -> &'static str {
 }
 "#
         }
-        "contract_map_json" => {
-            r#"std::string FpssClient::contract_map_json() const {
-    detail::FfiString result(tdx_fpss_contract_map_json(handle_.get()));
-    if (!result.ok()) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
-    return result.str();
+        "contract_map" => {
+            r#"std::map<int32_t, std::string> FpssClient::contract_map() const {
+    auto* arr = tdx_fpss_contract_map(handle_.get());
+    if (!arr) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+    std::map<int32_t, std::string> result;
+    if (arr->data != nullptr && arr->len > 0) {
+        for (size_t i = 0; i < arr->len; ++i) {
+            result.emplace(arr->data[i].id, arr->data[i].contract ? std::string(arr->data[i].contract) : std::string());
+        }
+    }
+    tdx_contract_map_array_free(arr);
+    return result;
 }
 "#
         }

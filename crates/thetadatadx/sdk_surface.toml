@@ -16,9 +16,11 @@
 version = 1
 
 # Python uses PyO3 to call the Rust SDK directly. Go and C++ call through
-# the C FFI. All three SDKs have full parity: stock-level subscription,
-# option-level subscription, contract_map, and reconnect. Streaming callback
-# endpoints (*_stream) remain Rust-only (callbacks across FFI are unsafe).
+# the C FFI. All three SDKs expose the same public FPSS operations:
+# stock-level subscription, option-level subscription, full-type
+# subscription, contract_map, contract_lookup, reconnect, active
+# subscriptions, and event polling. Historical callback endpoints
+# (*_stream) remain Rust-only because they rely on per-chunk callbacks.
 python_unified = [
   "start_streaming",
   "is_streaming",
@@ -42,11 +44,12 @@ python_unified = [
   "contract_lookup",
   "active_subscriptions",
   "next_event",
+  "reconnect",
   "stop_streaming",
   "shutdown",
 ]
 
-# Go FPSS uses C FFI -- full parity with Python (option-level + contract_map + reconnect).
+# Go FPSS uses C FFI with the same public FPSS method set as Python.
 go_fpss = [
   "subscribe_quotes",
   "subscribe_trades",
@@ -56,8 +59,6 @@ go_fpss = [
   "subscribe_option_open_interest",
   "subscribe_full_trades",
   "subscribe_full_open_interest",
-  "subscribe_option_full_trades",
-  "subscribe_option_full_open_interest",
   "unsubscribe_quotes",
   "unsubscribe_trades",
   "unsubscribe_open_interest",
@@ -66,18 +67,16 @@ go_fpss = [
   "unsubscribe_option_open_interest",
   "unsubscribe_full_trades",
   "unsubscribe_full_open_interest",
-  "unsubscribe_option_full_trades",
-  "unsubscribe_option_full_open_interest",
   "is_authenticated",
   "contract_lookup",
-  "contract_map_json",
+  "contract_map",
   "active_subscriptions",
   "next_event",
   "reconnect",
   "shutdown",
 ]
 
-# C++ FPSS uses C FFI -- full parity with Python (option-level + contract_map + reconnect).
+# C++ FPSS uses C FFI with the same public FPSS method set as Python.
 cpp_fpss = [
   "connect",
   "subscribe_quotes",
@@ -88,8 +87,6 @@ cpp_fpss = [
   "subscribe_option_open_interest",
   "subscribe_full_trades",
   "subscribe_full_open_interest",
-  "subscribe_option_full_trades",
-  "subscribe_option_full_open_interest",
   "unsubscribe_quotes",
   "unsubscribe_trades",
   "unsubscribe_open_interest",
@@ -98,11 +95,9 @@ cpp_fpss = [
   "unsubscribe_option_open_interest",
   "unsubscribe_full_trades",
   "unsubscribe_full_open_interest",
-  "unsubscribe_option_full_trades",
-  "unsubscribe_option_full_open_interest",
   "is_authenticated",
   "contract_lookup",
-  "contract_map_json",
+  "contract_map",
   "active_subscriptions",
   "next_event",
   "reconnect",
