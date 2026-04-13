@@ -3145,11 +3145,7 @@ fn cli_command_tokens(endpoint: &GeneratedEndpoint) -> Vec<String> {
         cli_command_name(endpoint),
     ];
     for param in method_params(endpoint) {
-        if param.param_type == "Symbols" {
-            tokens.push(validation_dummy_str(endpoint, param));
-        } else {
-            tokens.push(validation_dummy_str(endpoint, param));
-        }
+        tokens.push(validation_dummy_str(endpoint, param));
     }
     tokens
 }
@@ -3208,7 +3204,7 @@ fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("    else:\n");
     out.push_str("        print(f\"  {name:45s} FAIL  {proc.stdout.strip()}\")\n");
     out.push_str("        fail_count += 1\n");
-    out.push_str("\n");
+    out.push('\n');
     out.push_str("print(f\"\\nCLI: {pass_count} PASS, {skip_count} SKIP, {fail_count} FAIL\")\n");
     out.push_str("print(f\"COUNTS:{pass_count}:{skip_count}:{fail_count}\")\n");
     out.push_str("sys.exit(1 if fail_count > 0 else 0)\n");

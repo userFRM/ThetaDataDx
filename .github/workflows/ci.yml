@@ -90,7 +90,7 @@ jobs:
           - os: macos-latest
             go_enabled: true
           - os: windows-latest
-            go_enabled: false  # cgo requires gcc/MSVC toolchain not available in CI runner
+            go_enabled: true
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
@@ -110,8 +110,10 @@ jobs:
           set -euo pipefail
           if [ "${{ runner.os }}" = "Linux" ]; then
             export LD_LIBRARY_PATH="${{ github.workspace }}/target/release"
-          else
+          elif [ "${{ runner.os }}" = "macOS" ]; then
             export DYLD_LIBRARY_PATH="${{ github.workspace }}/target/release"
+          else
+            export PATH="${{ github.workspace }}/target/release:$PATH"
           fi
           go test ./...
 

@@ -60,7 +60,7 @@ jobs:
           - os: macos-latest
             go_enabled: true
           - os: windows-latest
-            go_enabled: false
+            go_enabled: true
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
@@ -152,6 +152,22 @@ jobs:
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/target/release
           CGO_LDFLAGS: -L${{ github.workspace }}/target/release
         run: cd sdks/go && go run ./cmd/fpss_smoke ../../creds.txt
+      - if: matrix.go_enabled && runner.os == 'Windows'
+        shell: pwsh
+        env:
+          CGO_LDFLAGS: -L${{ github.workspace }}\target\release
+        run: |
+          $env:PATH = "${{ github.workspace }}\target\release;$env:PATH"
+          cd sdks/go
+          go run ./cmd/live_smoke ${{ github.workspace }}\creds.txt
+      - if: matrix.go_enabled && runner.os == 'Windows'
+        shell: pwsh
+        env:
+          CGO_LDFLAGS: -L${{ github.workspace }}\target\release
+        run: |
+          $env:PATH = "${{ github.workspace }}\target\release;$env:PATH"
+          cd sdks/go
+          go run ./cmd/fpss_smoke ${{ github.workspace }}\creds.txt
 
   endpoint-validation:
     name: Full Endpoint Validation (${{ matrix.os }})
@@ -169,7 +185,7 @@ jobs:
           - os: macos-latest
             go_enabled: true
           - os: windows-latest
-            go_enabled: false
+            go_enabled: true
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
@@ -232,6 +248,14 @@ jobs:
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/target/release
           CGO_LDFLAGS: -L${{ github.workspace }}/target/release
         run: cd sdks/go && go run ./cmd/validate ../../creds.txt
+      - if: matrix.go_enabled && runner.os == 'Windows'
+        shell: pwsh
+        env:
+          CGO_LDFLAGS: -L${{ github.workspace }}\target\release
+        run: |
+          $env:PATH = "${{ github.workspace }}\target\release;$env:PATH"
+          cd sdks/go
+          go run ./cmd/validate ${{ github.workspace }}\creds.txt
 
   release-validation:
     name: Full Release Validation
