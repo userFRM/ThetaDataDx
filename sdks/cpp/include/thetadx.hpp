@@ -40,6 +40,33 @@ using MarketValueTick = TdxMarketValueTick;
 using CalendarDay = TdxCalendarDay;
 using InterestRateTick = TdxInterestRateTick;
 using TradeQuoteTick = TdxTradeQuoteTick;
+
+// Catch C header / Rust layout drift at compile time before it can corrupt arrays at runtime.
+static_assert(sizeof(CalendarDay) == 64 && alignof(CalendarDay) == 64,
+              "TdxCalendarDay layout drifted from Rust");
+static_assert(sizeof(EodTick) == 128 && alignof(EodTick) == 64,
+              "TdxEodTick layout drifted from Rust");
+static_assert(sizeof(GreeksTick) == 256 && alignof(GreeksTick) == 64,
+              "TdxGreeksTick layout drifted from Rust");
+static_assert(sizeof(InterestRateTick) == 64 && alignof(InterestRateTick) == 64,
+              "TdxInterestRateTick layout drifted from Rust");
+static_assert(sizeof(IvTick) == 64 && alignof(IvTick) == 64,
+              "TdxIvTick layout drifted from Rust");
+static_assert(sizeof(MarketValueTick) == 64 && alignof(MarketValueTick) == 64,
+              "TdxMarketValueTick layout drifted from Rust");
+static_assert(sizeof(OhlcTick) == 128 && alignof(OhlcTick) == 64,
+              "TdxOhlcTick layout drifted from Rust");
+static_assert(sizeof(OpenInterestTick) == 64 && alignof(OpenInterestTick) == 64,
+              "TdxOpenInterestTick layout drifted from Rust");
+static_assert(sizeof(PriceTick) == 64 && alignof(PriceTick) == 64,
+              "TdxPriceTick layout drifted from Rust");
+static_assert(sizeof(QuoteTick) == 128 && alignof(QuoteTick) == 64,
+              "TdxQuoteTick layout drifted from Rust");
+static_assert(sizeof(TradeQuoteTick) == 192 && alignof(TradeQuoteTick) == 64,
+              "TdxTradeQuoteTick layout drifted from Rust");
+static_assert(sizeof(TradeTick) == 128 && alignof(TradeTick) == 64,
+              "TdxTradeTick layout drifted from Rust");
+
 // OptionContract uses std::string for root to avoid use-after-free.
 // The C FFI TdxOptionContract uses a raw char* that is freed with the array,
 // so we deep-copy the string during conversion.

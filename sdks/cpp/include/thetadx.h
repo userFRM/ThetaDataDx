@@ -47,7 +47,8 @@ typedef struct TdxUnified TdxUnified;
 /* ═══════════════════════════════════════════════════════════════════════ */
 
 /* All tick structs are 64-byte aligned to match Rust's #[repr(C, align(64))].
- * Price fields are f64 (double) -- decoded during parsing. No price_type. */
+ * Explicit tail padding is part of that ABI contract so C/C++ array stepping
+ * stays byte-for-byte compatible with Rust. Price fields are f64 (double). */
 
 TDX_ALIGN64_BEGIN typedef struct {
     int32_t date;
@@ -55,6 +56,7 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t open_time;
     int32_t close_time;
     int32_t status;
+    uint8_t _tail_padding[44];
 } TdxCalendarDay TDX_ALIGN64_END;
 
 TDX_ALIGN64_BEGIN typedef struct {
@@ -80,6 +82,7 @@ TDX_ALIGN64_BEGIN typedef struct {
     /* 4 bytes padding */
     double strike;
     int32_t right;
+    uint8_t _tail_padding[8];
 } TdxEodTick TDX_ALIGN64_END;
 
 TDX_ALIGN64_BEGIN typedef struct {
@@ -111,6 +114,7 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t expiration;
     double strike;
     int32_t right;
+    uint8_t _tail_padding[48];
 } TdxGreeksTick TDX_ALIGN64_END;
 
 TDX_ALIGN64_BEGIN typedef struct {
@@ -118,6 +122,7 @@ TDX_ALIGN64_BEGIN typedef struct {
     /* 4 bytes padding before f64 */
     double rate;
     int32_t date;
+    uint8_t _tail_padding[40];
 } TdxInterestRateTick TDX_ALIGN64_END;
 
 TDX_ALIGN64_BEGIN typedef struct {
@@ -129,6 +134,7 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t expiration;
     double strike;
     int32_t right;
+    uint8_t _tail_padding[16];
 } TdxIvTick TDX_ALIGN64_END;
 
 TDX_ALIGN64_BEGIN typedef struct {
@@ -141,6 +147,7 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t expiration;
     double strike;
     int32_t right;
+    uint8_t _tail_padding[8];
 } TdxMarketValueTick TDX_ALIGN64_END;
 
 TDX_ALIGN64_BEGIN typedef struct {
@@ -156,6 +163,7 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t expiration;
     double strike;
     int32_t right;
+    uint8_t _tail_padding[56];
 } TdxOhlcTick TDX_ALIGN64_END;
 
 TDX_ALIGN64_BEGIN typedef struct {
@@ -165,6 +173,7 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t expiration;
     double strike;
     int32_t right;
+    uint8_t _tail_padding[32];
 } TdxOpenInterestTick TDX_ALIGN64_END;
 
 TDX_ALIGN64_BEGIN typedef struct {
@@ -172,6 +181,7 @@ TDX_ALIGN64_BEGIN typedef struct {
     /* 4 bytes padding before f64 */
     double price;
     int32_t date;
+    uint8_t _tail_padding[40];
 } TdxPriceTick TDX_ALIGN64_END;
 
 TDX_ALIGN64_BEGIN typedef struct {
@@ -193,6 +203,7 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t right;
     /* 4 bytes padding before f64 */
     double midpoint;
+    uint8_t _tail_padding[40];
 } TdxQuoteTick TDX_ALIGN64_END;
 
 TDX_ALIGN64_BEGIN typedef struct {
@@ -227,6 +238,7 @@ TDX_ALIGN64_BEGIN typedef struct {
     /* 4 bytes padding before f64 */
     double strike;
     int32_t right;
+    uint8_t _tail_padding[48];
 } TdxTradeQuoteTick TDX_ALIGN64_END;
 
 TDX_ALIGN64_BEGIN typedef struct {
@@ -249,6 +261,7 @@ TDX_ALIGN64_BEGIN typedef struct {
     int32_t expiration;
     double strike;
     int32_t right;
+    uint8_t _tail_padding[40];
 } TdxTradeTick TDX_ALIGN64_END;
 
 /* ═══════════════════════════════════════════════════════════════════════ */
