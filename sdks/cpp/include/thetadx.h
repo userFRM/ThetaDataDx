@@ -133,12 +133,10 @@ TDX_ALIGN64_BEGIN typedef struct {
 
 TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
-    /* 4 bytes padding before i64 */
-    int64_t market_cap;
-    int64_t shares_outstanding;
-    int64_t enterprise_value;
-    int64_t book_value;
-    int64_t free_float;
+    /* 4 bytes padding before f64 */
+    double market_bid;
+    double market_ask;
+    double market_price;
     int32_t date;
     int32_t expiration;
     double strike;

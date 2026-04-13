@@ -23,7 +23,7 @@ func TestFFIStructSizes(t *testing.T) {
 		{"cInterestRateTick", unsafe.Sizeof(cInterestRateTick{}), 64},
 		{"cIvTick", unsafe.Sizeof(cIvTick{}), 64},
 		{"cPriceTick", unsafe.Sizeof(cPriceTick{}), 64},
-		{"cMarketValueTick", unsafe.Sizeof(cMarketValueTick{}), 128},
+		{"cMarketValueTick", unsafe.Sizeof(cMarketValueTick{}), 64},
 		{"cGreeksTick", unsafe.Sizeof(cGreeksTick{}), 256},
 		{"cTradeQuoteTick", unsafe.Sizeof(cTradeQuoteTick{}), 192},
 	}

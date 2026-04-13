@@ -151,11 +151,9 @@ func convertMarketValueTicks(arr C.TdxTickArray) []MarketValueTick {
     for i, t := range src {
         result[i] = MarketValueTick{
             MsOfDay: int(t.MsOfDay),
-            MarketCap: t.MarketCap,
-            SharesOut: t.SharesOutstanding,
-            EntValue: t.EnterpriseValue,
-            BookValue: t.BookValue,
-            FreeFloat: t.FreeFloat,
+            MarketBid: t.MarketBid,
+            MarketAsk: t.MarketAsk,
+            MarketPrice: t.MarketPrice,
             Date: int(t.Date),
             Expiration: t.Expiration,
             Strike: t.Strike,

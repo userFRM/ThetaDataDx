@@ -253,11 +253,9 @@ pub fn market_value_ticks_to_json(ticks: &[MarketValueTick]) -> Vec<sonic_rs::Va
         .map(|t| {
             let mut row = sonic_rs::json!({
                 "ms_of_day": t.ms_of_day,
-                "market_cap": t.market_cap,
-                "shares_outstanding": t.shares_outstanding,
-                "enterprise_value": t.enterprise_value,
-                "book_value": t.book_value,
-                "free_float": t.free_float,
+                "market_bid": t.market_bid,
+                "market_ask": t.market_ask,
+                "market_price": t.market_price,
                 "date": t.date
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);

@@ -169,20 +169,18 @@ columns = [
 ]
 
 [types.MarketValueTick]
-doc = "Market value tick -- 7 fields. Market capitalization and related data."
+doc = "Market value tick -- quoted bid/ask/price for a symbol."
 copy = true
 align = 64
 contract_id = true
 parser = "parse_market_value_ticks"
 required = ["ms_of_day"]
 columns = [
-    { name = "ms_of_day",          field = "ms_of_day",          type = "i32" },
-    { name = "market_cap",         field = "market_cap",         type = "i64" },
-    { name = "shares_outstanding", field = "shares_outstanding", type = "i64" },
-    { name = "enterprise_value",   field = "enterprise_value",   type = "i64" },
-    { name = "book_value",         field = "book_value",         type = "i64" },
-    { name = "free_float",         field = "free_float",         type = "i64" },
-    { name = "date",               field = "date",               type = "i32" },
+    { name = "ms_of_day",     field = "ms_of_day",     type = "i32" },
+    { name = "market_bid",    field = "market_bid",    type = "price" },
+    { name = "market_ask",    field = "market_ask",    type = "price" },
+    { name = "market_price",  field = "market_price",  type = "price" },
+    { name = "date",          field = "date",          type = "i32" },
 ]
 
 [types.GreeksTick]

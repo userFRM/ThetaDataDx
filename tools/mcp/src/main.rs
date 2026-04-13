@@ -577,9 +577,8 @@ fn serialize_market_value_ticks(ticks: &[tdbe::types::tick::MarketValueTick]) ->
         .map(|t| {
             let mut row = json!({
                 "date": t.date, "ms_of_day": t.ms_of_day,
-                "market_cap": t.market_cap, "shares_outstanding": t.shares_outstanding,
-                "enterprise_value": t.enterprise_value, "book_value": t.book_value,
-                "free_float": t.free_float,
+                "market_bid": t.market_bid, "market_ask": t.market_ask,
+                "market_price": t.market_price,
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row

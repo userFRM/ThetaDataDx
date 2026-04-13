@@ -87,14 +87,12 @@ type IVTick struct {
 	Right          string   `json:"right,omitempty"`
 }
 
-// MarketValueTick — Market value tick -- 7 fields. Market capitalization and related data.
+// MarketValueTick — Market value tick -- quoted bid/ask/price for a symbol.
 type MarketValueTick struct {
 	MsOfDay        int      `json:"ms_of_day"`
-	MarketCap      int64    `json:"market_cap"`
-	SharesOut      int64    `json:"shares_outstanding"`
-	EntValue       int64    `json:"enterprise_value"`
-	BookValue      int64    `json:"book_value"`
-	FreeFloat      int64    `json:"free_float"`
+	MarketBid      float64  `json:"market_bid"`
+	MarketAsk      float64  `json:"market_ask"`
+	MarketPrice    float64  `json:"market_price"`
 	Date           int      `json:"date"`
 	Expiration     int32    `json:"expiration,omitempty"`
 	Strike         float64  `json:"strike,omitempty"`

@@ -941,7 +941,7 @@ let (contract, consumed) = Contract::from_bytes(&bytes)?;  // deserialize
 
 ## Tick Types
 
-All 14 tick types are `Clone + Debug` structs generated from `tick_schema.toml`. Most are also `Copy` (except `OptionContract`, which contains a `String` field). Fields are typically `i32`, with `i64` for large values (e.g., `MarketValueTick.market_cap`), `f64` for Greeks/IV, and `String` for identifiers. All price fields are `f64` -- decoded during parsing. No `price_type` in the public API.
+All 14 tick types are `Clone + Debug` structs generated from `tick_schema.toml`. Most are also `Copy` (except `OptionContract`, which contains a `String` field). Fields are typically `i32`, `f64` for prices/Greeks/IV, and `String` for identifiers. All price fields are `f64` -- decoded during parsing. No `price_type` in the public API.
 
 ### Contract Identification Fields
 
@@ -1159,11 +1159,9 @@ Methods: `is_call()`, `is_put()`, `has_contract_id()`, plus contract ID helpers.
 ```rust
 pub struct MarketValueTick {
     pub ms_of_day: i32,
-    pub market_cap: i64,
-    pub shares_outstanding: i64,
-    pub enterprise_value: i64,
-    pub book_value: i64,
-    pub free_float: i64,
+    pub market_bid: f64,
+    pub market_ask: f64,
+    pub market_price: f64,
     pub date: i32,
     pub expiration: i32,
     pub strike: f64,
