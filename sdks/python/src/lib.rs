@@ -162,31 +162,7 @@ impl Config {
     }
 }
 
-// ── Tick types as Python dicts ──
-
-macro_rules! set_contract_id {
-    ($dict:expr, $tick:expr) => {
-        if $tick.expiration != 0 {
-            // PyO3: set_item is infallible for primitive types
-            $dict.set_item("expiration", $tick.expiration).unwrap();
-            $dict.set_item("strike", $tick.strike).unwrap();
-            $dict
-                .set_item(
-                    "right",
-                    if $tick.is_call() {
-                        "C"
-                    } else if $tick.is_put() {
-                        "P"
-                    } else {
-                        ""
-                    },
-                )
-                .unwrap();
-        }
-    };
-}
-
-include!("tick_dicts.rs");
+// ── Tick columnar converters (generated from tick_schema.toml) ──
 
 include!("tick_columnar.rs");
 

@@ -22,7 +22,7 @@ sdks/cpp/src/lifecycle.cpp.inc       text eol=lf linguist-generated=true
 sdks/cpp/src/utilities.cpp.inc       text eol=lf linguist-generated=true
 sdks/python/src/historical_methods.rs text eol=lf linguist-generated=true
 sdks/python/src/streaming_methods.rs text eol=lf linguist-generated=true
-sdks/python/src/tick_dicts.rs        text eol=lf linguist-generated=true
+sdks/python/src/tick_columnar.rs     text eol=lf linguist-generated=true
 sdks/python/src/utility_functions.rs text eol=lf linguist-generated=true
 tools/cli/src/utilities.rs           text eol=lf linguist-generated=true
 tools/mcp/src/utilities.rs           text eol=lf linguist-generated=true
