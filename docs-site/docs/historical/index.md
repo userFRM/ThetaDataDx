@@ -80,11 +80,11 @@ Requires `pip install thetadatadx[pandas]`.
 
 ## Time Reference
 
-| Time (ET) | Milliseconds |
-|-----------|-------------|
-| 9:30 AM | `34200000` |
-| 12:00 PM | `43200000` |
-| 4:00 PM | `57600000` |
+| Time (ET) | `time_of_day` |
+|-----------|---------------|
+| 9:30 AM | `09:30:00.000` |
+| 12:00 PM | `12:00:00.000` |
+| 4:00 PM | `16:00:00.000` |
 
 ## Empty Responses
 

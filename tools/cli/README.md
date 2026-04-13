@@ -43,8 +43,8 @@ tdx stock snapshot_ohlc AAPL,MSFT,GOOGL
 tdx stock snapshot_trade AAPL,MSFT,GOOGL
 tdx stock snapshot_quote AAPL,MSFT,GOOGL
 tdx stock snapshot_market_value AAPL,MSFT
-tdx stock at_time_trade AAPL 20240101 20240301 34200000   # 9:30 AM
-tdx stock at_time_quote AAPL 20240101 20240301 34200000
+tdx stock at_time_trade AAPL 20240101 20240301 09:30:00.000   # 9:30 AM ET
+tdx stock at_time_quote AAPL 20240101 20240301 09:30:00.000
 
 # Options
 tdx option list_symbols
@@ -85,8 +85,8 @@ tdx option history_greeks_implied_volatility SPY 20240419 500 C 20240315 1m
 tdx option history_trade_greeks_implied_volatility SPY 20240419 500 C 20240315
 
 # Option at-time queries
-tdx option at_time_trade SPY 20240419 500 C 20240101 20240301 34200000
-tdx option at_time_quote SPY 20240419 500 C 20240101 20240301 34200000
+tdx option at_time_trade SPY 20240419 500 C 20240101 20240301 09:30:00.000
+tdx option at_time_quote SPY 20240419 500 C 20240101 20240301 09:30:00.000
 
 # Indices
 tdx index list_symbols
@@ -97,7 +97,7 @@ tdx index history_price SPX 20240315 1m
 tdx index snapshot_ohlc SPX,NDX,RUT
 tdx index snapshot_price SPX,NDX,RUT
 tdx index snapshot_market_value SPX,NDX,RUT
-tdx index at_time_price SPX 20240101 20240301 34200000
+tdx index at_time_price SPX 20240101 20240301 09:30:00.000
 
 # Interest rates
 tdx rate history_eod SOFR 20240101 20240301

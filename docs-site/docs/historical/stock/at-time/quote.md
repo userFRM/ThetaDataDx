@@ -7,7 +7,7 @@ description: Retrieve the NBBO quote at a specific time of day across a date ran
 
 Retrieve the NBBO quote at a specific time of day across a date range. Returns one quote per date, representing the prevailing best bid/ask at the specified time.
 
-The `time_of_day` parameter is milliseconds from midnight ET (e.g., `34200000` = 9:30 AM).
+The `time_of_day` parameter uses ET wall-clock format `HH:MM:SS.SSS` (for example `09:30:00.000`). Legacy millisecond strings such as `34200000` are also accepted.
 
 <TierBadge tier="value" />
 
@@ -15,27 +15,27 @@ The `time_of_day` parameter is milliseconds from midnight ET (e.g., `34200000` =
 
 ::: code-group
 ```rust [Rust]
-let data = tdx.stock_at_time_quote("SPY", "20260101", "20260301", "34200000").await?;
+let data = tdx.stock_at_time_quote("SPY", "20260101", "20260301", "09:30:00.000").await?;
 for t in &data {
     println!("date={} ms_of_day={} bid={:.2} ask={:.2} midpoint={:.2}",
         t.date, t.ms_of_day, t.bid, t.ask, t.midpoint);
 }
 ```
 ```python [Python]
-data = tdx.stock_at_time_quote("SPY", "20260101", "20260301", "34200000")
+data = tdx.stock_at_time_quote("SPY", "20260101", "20260301", "09:30:00.000")
 for t in data:
     print(f"date={t['date']} ms_of_day={t['ms_of_day']} "
           f"bid={t['bid']:.2f} ask={t['ask']:.2f} midpoint={t['midpoint']:.2f}")
 ```
 ```go [Go]
-data, _ := client.StockAtTimeQuote("SPY", "20260101", "20260301", "34200000")
+data, _ := client.StockAtTimeQuote("SPY", "20260101", "20260301", "09:30:00.000")
 for _, t := range data {
     fmt.Printf("date=%d ms_of_day=%d bid=%.2f ask=%.2f midpoint=%.2f\n",
         t.Date, t.MsOfDay, t.Bid, t.Ask, t.Midpoint)
 }
 ```
 ```cpp [C++]
-auto data = client.stock_at_time_quote("SPY", "20260101", "20260301", "34200000");
+auto data = client.stock_at_time_quote("SPY", "20260101", "20260301", "09:30:00.000");
 for (const auto& t : data) {
     printf("date=%d ms_of_day=%d bid=%.2f ask=%.2f midpoint=%.2f\n",
         t.date, t.ms_of_day, t.bid, t.ask, t.midpoint);
@@ -60,7 +60,7 @@ for (const auto& t : data) {
 </div>
 <div class="param">
 <div class="param-header"><code>time_of_day</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">Milliseconds from midnight ET (e.g. <code>"34200000"</code> = 9:30 AM)</div>
+<div class="param-desc">ET wall-clock time in <code>HH:MM:SS.SSS</code> (e.g. <code>"09:30:00.000"</code>; legacy <code>"34200000"</code> is also accepted)</div>
 </div>
 <div class="param">
 <div class="param-header"><code>venue</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
@@ -102,13 +102,13 @@ for (const auto& t : data) {
 
 ## Common Time Values
 
-| Time (ET) | Milliseconds |
-|-----------|-------------|
-| 9:30 AM (market open) | `"34200000"` |
-| 10:00 AM | `"36000000"` |
-| 12:00 PM (noon) | `"43200000"` |
-| 3:00 PM | `"54000000"` |
-| 4:00 PM (market close) | `"57600000"` |
+| Time (ET) | `time_of_day` |
+|-----------|---------------|
+| 9:30 AM (market open) | `"09:30:00.000"` |
+| 10:00 AM | `"10:00:00.000"` |
+| 12:00 PM (noon) | `"12:00:00.000"` |
+| 3:00 PM | `"15:00:00.000"` |
+| 4:00 PM (market close) | `"16:00:00.000"` |
 
 
 ### Sample Response

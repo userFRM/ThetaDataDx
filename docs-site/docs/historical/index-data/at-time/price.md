@@ -13,24 +13,24 @@ Retrieve the index price at a specific time of day for every trading day in a da
 
 ::: code-group
 ```rust [Rust]
-let data = tdx.index_at_time_price("SPX", "20260101", "20260301", "34200000").await?;
+let data = tdx.index_at_time_price("SPX", "20260101", "20260301", "09:30:00.000").await?;
 for t in &data {
     println!("date={} ms_of_day={} price={:.2}", t.date, t.ms_of_day, t.price);
 }
 ```
 ```python [Python]
-data = tdx.index_at_time_price("SPX", "20260101", "20260301", "34200000")
+data = tdx.index_at_time_price("SPX", "20260101", "20260301", "09:30:00.000")
 for t in data:
     print(f"date={t['date']} ms_of_day={t['ms_of_day']} price={t['price']:.2f}")
 ```
 ```go [Go]
-data, _ := client.IndexAtTimePrice("SPX", "20260101", "20260301", "34200000")
+data, _ := client.IndexAtTimePrice("SPX", "20260101", "20260301", "09:30:00.000")
 for _, t := range data {
     fmt.Printf("date=%d ms_of_day=%d price=%.2f\n", t.Date, t.MsOfDay, t.Price)
 }
 ```
 ```cpp [C++]
-auto data = client.index_at_time_price("SPX", "20260101", "20260301", "34200000");
+auto data = client.index_at_time_price("SPX", "20260101", "20260301", "09:30:00.000");
 for (const auto& t : data) {
     printf("date=%d ms_of_day=%d price=%.2f\n", t.date, t.ms_of_day, t.price);
 }
@@ -54,7 +54,7 @@ for (const auto& t : data) {
 </div>
 <div class="param">
 <div class="param-header"><code>time_of_day</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">Milliseconds from midnight ET (e.g. <code>"34200000"</code> for 9:30 AM)</div>
+<div class="param-desc">ET wall-clock time in <code>HH:MM:SS.SSS</code> (e.g. <code>"09:30:00.000"</code>; legacy <code>"34200000"</code> is also accepted)</div>
 </div>
 </div>
 
@@ -79,11 +79,11 @@ Returns an array of PriceTick records with one entry per trading day:
 
 ## Time Reference
 
-| Time (ET) | Milliseconds |
-|-----------|-------------|
-| 9:30 AM | `34200000` |
-| 12:00 PM | `43200000` |
-| 4:00 PM | `57600000` |
+| Time (ET) | `time_of_day` |
+|-----------|---------------|
+| 9:30 AM | `09:30:00.000` |
+| 12:00 PM | `12:00:00.000` |
+| 4:00 PM | `16:00:00.000` |
 
 
 ### Sample Response

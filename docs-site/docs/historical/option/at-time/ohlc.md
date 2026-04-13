@@ -13,27 +13,27 @@ Retrieve the NBBO quote at a specific time of day across a date range for an opt
 
 ::: code-group
 ```rust [Rust]
-let data = tdx.option_at_time_quote("SPY", "20260417", "550", "C", "20260101", "20260301", "34200000").await?;
+let data = tdx.option_at_time_quote("SPY", "20260417", "550", "C", "20260101", "20260301", "09:30:00.000").await?;
 for t in &data {
     println!("date={} ms_of_day={} bid={:.2} ask={:.2} bid_size={} ask_size={}",
         t.date, t.ms_of_day, t.bid, t.ask, t.bid_size, t.ask_size);
 }
 ```
 ```python [Python]
-data = tdx.option_at_time_quote("SPY", "20260417", "550", "C", "20260101", "20260301", "34200000")
+data = tdx.option_at_time_quote("SPY", "20260417", "550", "C", "20260101", "20260301", "09:30:00.000")
 for t in data:
     print(f"date={t['date']} ms_of_day={t['ms_of_day']} bid={t['bid']:.2f} "
           f"ask={t['ask']:.2f} bid_size={t['bid_size']} ask_size={t['ask_size']}")
 ```
 ```go [Go]
-data, _ := client.OptionAtTimeQuote("SPY", "20260417", "550", "C", "20260101", "20260301", "34200000")
+data, _ := client.OptionAtTimeQuote("SPY", "20260417", "550", "C", "20260101", "20260301", "09:30:00.000")
 for _, t := range data {
     fmt.Printf("date=%d ms_of_day=%d bid=%.2f ask=%.2f bid_size=%d ask_size=%d\n",
         t.Date, t.MsOfDay, t.Bid, t.Ask, t.BidSize, t.AskSize)
 }
 ```
 ```cpp [C++]
-auto data = client.option_at_time_quote("SPY", "20260417", "550", "C", "20260101", "20260301", "34200000");
+auto data = client.option_at_time_quote("SPY", "20260417", "550", "C", "20260101", "20260301", "09:30:00.000");
 for (const auto& t : data) {
     printf("date=%d ms_of_day=%d bid=%.2f ask=%.2f bid_size=%d ask_size=%d\n",
         t.date, t.ms_of_day, t.bid, t.ask, t.bid_size, t.ask_size);
@@ -70,7 +70,7 @@ for (const auto& t : data) {
 </div>
 <div class="param">
 <div class="param-header"><code>time_of_day</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">Milliseconds from midnight ET (e.g. <code>"34200000"</code> = 9:30 AM)</div>
+<div class="param-desc">ET wall-clock time in <code>HH:MM:SS.SSS</code> (e.g. <code>"09:30:00.000"</code>; legacy <code>"34200000"</code> is also accepted)</div>
 </div>
 <div class="param">
 <div class="param-header"><code>max_dte</code><span class="param-type">int</span><span class="param-badge optional">optional</span></div>
@@ -134,5 +134,5 @@ for (const auto& t : data) {
 
 ## Notes
 
-- Common time values: `"34200000"` (9:30 AM), `"46800000"` (1:00 PM), `"57600000"` (4:00 PM).
+- Common time values: `"09:30:00.000"` (9:30 AM), `"13:00:00.000"` (1:00 PM), `"16:00:00.000"` (4:00 PM).
 - Useful for building daily spread or mid-price time series at a consistent intraday timestamp.

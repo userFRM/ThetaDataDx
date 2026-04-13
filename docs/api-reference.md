@@ -157,7 +157,7 @@ pub async fn stock_at_time_trade(
 ) -> Result<Vec<TradeTick>, Error>
 ```
 
-Trade at a specific time of day across a date range. `time_of_day` is milliseconds from midnight (e.g. `"34200000"` for 9:30 AM ET). gRPC: `GetStockAtTimeTrade`
+Trade at a specific time of day across a date range. `time_of_day` uses `HH:MM:SS.SSS` ET wall-clock format (e.g. `"09:30:00.000"`). Legacy millisecond strings such as `"34200000"` are also accepted. gRPC: `GetStockAtTimeTrade`
 
 ```rust
 pub async fn stock_at_time_quote(
@@ -449,7 +449,7 @@ pub async fn option_at_time_trade(
 ) -> Result<Vec<TradeTick>, Error>
 ```
 
-Trade at a specific time of day across a date range for an option. gRPC: `GetOptionAtTimeTrade`
+Trade at a specific time of day across a date range for an option. `time_of_day` uses `HH:MM:SS.SSS` ET wall-clock format (e.g. `"09:30:00.000"`). Legacy millisecond strings such as `"34200000"` are also accepted. gRPC: `GetOptionAtTimeTrade`
 
 ```rust
 pub async fn option_at_time_quote(
@@ -528,7 +528,7 @@ pub async fn index_at_time_price(
 ) -> Result<Vec<PriceTick>, Error>
 ```
 
-Index price at a specific time of day across a date range. gRPC: `GetIndexAtTimePrice`
+Index price at a specific time of day across a date range. `time_of_day` uses `HH:MM:SS.SSS` ET wall-clock format (e.g. `"09:30:00.000"`). Legacy millisecond strings such as `"34200000"` are also accepted. gRPC: `GetIndexAtTimePrice`
 
 ### Interest Rate (1)
 

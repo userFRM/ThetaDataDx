@@ -1,7 +1,7 @@
 # ThetaDataDx -- Live Endpoint Test Results
 
-Date: 2026-04-08 20:41 UTC
-Version: tdx 6.0.0
+Date: 2026-04-13 14:31 UTC
+Version: tdx 7.0.0
 
 ## 1. stock list_symbols
 ```
@@ -22,7 +22,7 @@ $ tdx stock list_symbols
 │ AABA         │
 │ AAC          │
 ```
-**Latency: 1156ms**
+**Latency: 1116ms**
 **PASS** (13 rows)
 
 ## 2. stock list_dates
@@ -44,20 +44,20 @@ $ tdx stock list_dates TRADE AAPL
 │ 2012-06-15 │
 │ 2012-06-18 │
 ```
-**Latency: 625ms**
+**Latency: 660ms**
 **PASS** (13 rows)
 
 ## 3. stock snapshot_ohlc
 ```
 $ tdx stock snapshot_ohlc AAPL
-┌────────────┬──────────────┬────────┬──────────┬────────┬────────┬──────────┬────────┐
-│ date       ┆ time         ┆ open   ┆ high     ┆ low    ┆ close  ┆ volume   ┆ count  │
-╞════════════╪══════════════╪════════╪══════════╪════════╪════════╪══════════╪════════╡
-│ 2026-04-08 ┆ 16:41:56.443 ┆ 258.51 ┆ 259.7499 ┆ 256.53 ┆ 258.90 ┆ 30224295 ┆ 500456 │
-└────────────┴──────────────┴────────┴──────────┴────────┴────────┴──────────┴────────┘
+┌────────────┬──────────────┬────────┬────────┬────────┬──────────┬─────────┬────────┐
+│ date       ┆ time         ┆ open   ┆ high   ┆ low    ┆ close    ┆ volume  ┆ count  │
+╞════════════╪══════════════╪════════╪════════╪════════╪══════════╪═════════╪════════╡
+│ 2026-04-13 ┆ 10:31:05.444 ┆ 259.86 ┆ 260.18 ┆ 256.66 ┆ 257.4199 ┆ 4592465 ┆ 139480 │
+└────────────┴──────────────┴────────┴────────┴────────┴──────────┴─────────┴────────┘
 1 rows
 ```
-**Latency: 612ms**
+**Latency: 644ms**
 **PASS** (2 rows)
 
 ## 4. stock snapshot_trade
@@ -66,11 +66,11 @@ $ tdx stock snapshot_trade AAPL
 ┌────────────┬──────────────┬──────────┬──────┬──────────┬───────────┬──────────┐
 │ date       ┆ time         ┆ price    ┆ size ┆ exchange ┆ condition ┆ sequence │
 ╞════════════╪══════════════╪══════════╪══════╪══════════╪═══════════╪══════════╡
-│ 2026-04-08 ┆ 16:41:56.443 ┆ 258.8945 ┆ 1    ┆ 0        ┆ 1         ┆ 85332617 │
+│ 2026-04-13 ┆ 10:31:05.959 ┆ 257.4072 ┆ 1    ┆ 0        ┆ 115       ┆ 16199165 │
 └────────────┴──────────────┴──────────┴──────┴──────────┴───────────┴──────────┘
 1 rows
 ```
-**Latency: 605ms**
+**Latency: 632ms**
 **PASS** (2 rows)
 
 ## 5. stock snapshot_quote
@@ -79,11 +79,11 @@ $ tdx stock snapshot_quote AAPL
 ┌────────────┬──────────────┬──────────┬──────────────┬────────┬───────────────┬──────────┬──────────────┬────────┬───────────────┐
 │ date       ┆ ms_of_day    ┆ bid_size ┆ bid_exchange ┆ bid    ┆ bid_condition ┆ ask_size ┆ ask_exchange ┆ ask    ┆ ask_condition │
 ╞════════════╪══════════════╪══════════╪══════════════╪════════╪═══════════════╪══════════╪══════════════╪════════╪═══════════════╡
-│ 2026-04-08 ┆ 16:41:41.498 ┆ 20       ┆ 29           ┆ 258.79 ┆ 0             ┆ 317      ┆ 29           ┆ 258.90 ┆ 0             │
+│ 2026-04-13 ┆ 10:31:06.462 ┆ 63       ┆ 29           ┆ 257.39 ┆ 0             ┆ 464      ┆ 29           ┆ 257.41 ┆ 0             │
 └────────────┴──────────────┴──────────┴──────────────┴────────┴───────────────┴──────────┴──────────────┴────────┴───────────────┘
 1 rows
 ```
-**Latency: 623ms**
+**Latency: 631ms**
 **PASS** (2 rows)
 
 ## 6. stock snapshot_market_value
@@ -92,11 +92,11 @@ $ tdx stock snapshot_market_value AAPL
 ┌────────────┬──────────────┬────────────┬────────────┬──────────────┐
 │ date       ┆ ms_of_day    ┆ market_bid ┆ market_ask ┆ market_price │
 ╞════════════╪══════════════╪════════════╪════════════╪══════════════╡
-│ 2026-04-08 ┆ 16:41:41.498 ┆ 0.0000     ┆ 0.0000     ┆ 0.0000       │
+│ 2026-04-13 ┆ 10:31:07.389 ┆ 257.3800   ┆ 257.4200   ┆ 257.4000     │
 └────────────┴──────────────┴────────────┴────────────┴──────────────┘
 1 rows
 ```
-**Latency: 619ms**
+**Latency: 646ms**
 **PASS** (2 rows)
 
 ## 7. stock history_eod
@@ -105,12 +105,12 @@ $ tdx stock history_eod AAPL 20260401 20260404
 ┌────────────┬──────────────┬──────────────┬────────┬────────┬────────┬────────┬──────────┬────────┬──────────┬──────────────┬────────┬───────────────┬──────────┬──────────────┬────────┬───────────────┐
 │ date       ┆ ms_of_day    ┆ ms_of_day2   ┆ open   ┆ high   ┆ low    ┆ close  ┆ volume   ┆ count  ┆ bid_size ┆ bid_exchange ┆ bid    ┆ bid_condition ┆ ask_size ┆ ask_exchange ┆ ask    ┆ ask_condition │
 ╞════════════╪══════════════╪══════════════╪════════╪════════╪════════╪════════╪══════════╪════════╪══════════╪══════════════╪════════╪═══════════════╪══════════╪══════════════╪════════╪═══════════════╡
-│ 2026-04-01 ┆ 05:37:40.401 ┆ 05:37:40.401 ┆ 254.13 ┆ 256.18 ┆ 253.33 ┆ 255.63 ┆ 39980299 ┆ 614661 ┆ 300      ┆ 1            ┆ 255.27 ┆ 0             ┆ 300      ┆ 7            ┆ 255.50 ┆ 0             │
-│ 2026-04-02 ┆ 05:37:40.402 ┆ 05:37:40.402 ┆ 254.18 ┆ 256.13 ┆ 250.65 ┆ 255.92 ┆ 31154222 ┆ 531963 ┆ 1000     ┆ 1            ┆ 255.43 ┆ 0             ┆ 200      ┆ 1            ┆ 255.45 ┆ 0             │
+│ 2026-04-01 ┆ 17:15:01.007 ┆ 17:14:49.068 ┆ 254.13 ┆ 256.18 ┆ 253.33 ┆ 255.63 ┆ 39980299 ┆ 614661 ┆ 300      ┆ 1            ┆ 255.27 ┆ 0             ┆ 300      ┆ 7            ┆ 255.50 ┆ 0             │
+│ 2026-04-02 ┆ 17:15:49.545 ┆ 17:15:43.712 ┆ 254.18 ┆ 256.13 ┆ 250.65 ┆ 255.92 ┆ 31154222 ┆ 531963 ┆ 1000     ┆ 1            ┆ 255.43 ┆ 0             ┆ 200      ┆ 1            ┆ 255.45 ┆ 0             │
 └────────────┴──────────────┴──────────────┴────────┴────────┴────────┴────────┴──────────┴────────┴──────────┴──────────────┴────────┴───────────────┴──────────┴──────────────┴────────┴───────────────┘
 2 rows
 ```
-**Latency: 865ms**
+**Latency: 681ms**
 **PASS** (3 rows)
 
 ## 8. stock history_ohlc
@@ -132,7 +132,7 @@ $ tdx stock history_ohlc AAPL 20260402 60000
 │ 2026-04-02 ┆ 09:40:00.000 ┆ 250.88   ┆ 251.085    ┆ 250.67     ┆ 250.82     ┆ 167595 ┆ 2707  │
 │ 2026-04-02 ┆ 09:41:00.000 ┆ 250.81   ┆ 251.5795   ┆ 250.79     ┆ 251.5795   ┆ 171724 ┆ 2986  │
 ```
-**Latency: 1086ms**
+**Latency: 1630ms**
 **PASS** (13 rows)
 
 ## 9. stock history_ohlc_range
@@ -154,7 +154,7 @@ $ tdx stock history_ohlc_range AAPL 20260401 20260402 60000
 │ 2026-04-01 ┆ 09:40:00.000 ┆ 255.05   ┆ 255.44     ┆ 255.03     ┆ 255.27     ┆ 158100  ┆ 2847  │
 │ 2026-04-01 ┆ 09:41:00.000 ┆ 255.27   ┆ 255.59     ┆ 255.22     ┆ 255.40     ┆ 129005  ┆ 2189  │
 ```
-**Latency: 1613ms**
+**Latency: 1725ms**
 **PASS** (13 rows)
 
 ## 10. stock history_trade
@@ -176,7 +176,7 @@ $ tdx stock history_trade AAPL 20260402
 │ 2026-04-02 ┆ 09:30:00.107 ┆ 254.13     ┆ 1      ┆ 7        ┆ 115       ┆ 3254229  │
 │ 2026-04-02 ┆ 09:30:00.107 ┆ 254.20     ┆ 225    ┆ 7        ┆ 95        ┆ 3254238  │
 ```
-**Latency: 11060ms**
+**Latency: 10604ms**
 **PASS** (13 rows)
 
 ## 11. stock history_quote
@@ -198,7 +198,7 @@ $ tdx stock history_quote AAPL 20260402 60000
 │ 2026-04-02 ┆ 09:40:00.000 ┆ 200      ┆ 1            ┆ 250.85 ┆ 0             ┆ 100      ┆ 7            ┆ 250.88 ┆ 0             │
 │ 2026-04-02 ┆ 09:41:00.000 ┆ 100      ┆ 68           ┆ 250.80 ┆ 0             ┆ 100      ┆ 65           ┆ 250.82 ┆ 0             │
 ```
-**Latency: 657ms**
+**Latency: 631ms**
 **PASS** (13 rows)
 
 ## 12. stock history_trade_quote
@@ -206,12 +206,12 @@ $ tdx stock history_quote AAPL 20260402 60000
 $ tdx stock history_trade_quote AAPL 20260402
 0 rows
 ```
-**Latency: 12717ms**
+**Latency: 12987ms**
 **PASS** (0 rows)
 
 ## 13. stock at_time_trade
 ```
-$ tdx stock at_time_trade AAPL 20260401 20260402 34200000
+$ tdx stock at_time_trade AAPL 20260401 20260402 09:30:00.000
 ┌────────────┬──────────────┬────────┬──────┬──────────┬───────────┬──────────┐
 │ date       ┆ time         ┆ price  ┆ size ┆ exchange ┆ condition ┆ sequence │
 ╞════════════╪══════════════╪════════╪══════╪══════════╪═══════════╪══════════╡
@@ -220,12 +220,12 @@ $ tdx stock at_time_trade AAPL 20260401 20260402 34200000
 └────────────┴──────────────┴────────┴──────┴──────────┴───────────┴──────────┘
 2 rows
 ```
-**Latency: 1149ms**
+**Latency: 4635ms**
 **PASS** (3 rows)
 
 ## 14. stock at_time_quote
 ```
-$ tdx stock at_time_quote AAPL 20260401 20260402 34200000
+$ tdx stock at_time_quote AAPL 20260401 20260402 09:30:00.000
 ┌────────────┬──────────────┬──────────┬──────────────┬────────┬───────────────┬──────────┬──────────────┬────────┬───────────────┐
 │ date       ┆ ms_of_day    ┆ bid_size ┆ bid_exchange ┆ bid    ┆ bid_condition ┆ ask_size ┆ ask_exchange ┆ ask    ┆ ask_condition │
 ╞════════════╪══════════════╪══════════╪══════════════╪════════╪═══════════════╪══════════╪══════════════╪════════╪═══════════════╡
@@ -234,7 +234,7 @@ $ tdx stock at_time_quote AAPL 20260401 20260402 34200000
 └────────────┴──────────────┴──────────┴──────────────┴────────┴───────────────┴──────────┴──────────────┴────────┴───────────────┘
 2 rows
 ```
-**Latency: 662ms**
+**Latency: 650ms**
 **PASS** (3 rows)
 
 ## 15. option list_symbols
@@ -256,7 +256,7 @@ $ tdx option list_symbols
 │ 9AE    │
 │ 9BC    │
 ```
-**Latency: 805ms**
+**Latency: 806ms**
 **PASS** (13 rows)
 
 ## 16. option list_dates
@@ -278,7 +278,7 @@ $ tdx option list_dates TRADE SPY 20260417 550 C
 │ 2026-02-02 │
 │ 2026-02-05 │
 ```
-**Latency: 677ms**
+**Latency: 662ms**
 **PASS** (13 rows)
 
 ## 17. option list_expirations
@@ -300,7 +300,7 @@ $ tdx option list_expirations SPY
 │ 2012-08-10 │
 │ 2012-08-18 │
 ```
-**Latency: 618ms**
+**Latency: 634ms**
 **PASS** (13 rows)
 
 ## 18. option list_strikes
@@ -322,7 +322,7 @@ $ tdx option list_strikes SPY 20260417
 │ 703    │
 │ 895    │
 ```
-**Latency: 614ms**
+**Latency: 635ms**
 **PASS** (13 rows)
 
 ## 19. option list_contracts
@@ -344,7 +344,7 @@ $ tdx option list_contracts TRADE SPY 20260402
 │ SPY  ┆ 20260501   ┆ 670.00  ┆ 80    │
 │ SPY  ┆ 20260630   ┆ 538.00  ┆ 80    │
 ```
-**Latency: 821ms**
+**Latency: 851ms**
 **PASS** (13 rows)
 
 ## 20. option snapshot_ohlc
@@ -353,24 +353,24 @@ $ tdx option snapshot_ohlc SPY 20260417 550 C
 ┌────────────┬──────────────┬────────┬────────┬────────┬────────┬────────┬───────┐
 │ date       ┆ time         ┆ open   ┆ high   ┆ low    ┆ close  ┆ volume ┆ count │
 ╞════════════╪══════════════╪════════╪════════╪════════╪════════╪════════╪═══════╡
-│ 2026-04-08 ┆ 09:53:18.259 ┆ 125.30 ┆ 125.30 ┆ 125.30 ┆ 125.30 ┆ 1      ┆ 1     │
+│ 2026-04-10 ┆ 15:26:21.675 ┆ 129.22 ┆ 130.21 ┆ 129.22 ┆ 129.98 ┆ 13     ┆ 8     │
 └────────────┴──────────────┴────────┴────────┴────────┴────────┴────────┴───────┘
 1 rows
 ```
-**Latency: 608ms**
+**Latency: 636ms**
 **PASS** (2 rows)
 
 ## 21. option snapshot_trade
 ```
 $ tdx option snapshot_trade SPY 20260417 550 C
-┌────────────┬──────────────┬────────┬──────┬──────────┬───────────┬─────────────┐
-│ date       ┆ time         ┆ price  ┆ size ┆ exchange ┆ condition ┆ sequence    │
-╞════════════╪══════════════╪════════╪══════╪══════════╪═══════════╪═════════════╡
-│ 2026-04-08 ┆ 09:53:18.259 ┆ 125.30 ┆ 1    ┆ 0        ┆ 131       ┆ -1589641033 │
-└────────────┴──────────────┴────────┴──────┴──────────┴───────────┴─────────────┘
+┌────────────┬──────────────┬────────┬──────┬──────────┬───────────┬────────────┐
+│ date       ┆ time         ┆ price  ┆ size ┆ exchange ┆ condition ┆ sequence   │
+╞════════════╪══════════════╪════════╪══════╪══════════╪═══════════╪════════════╡
+│ 2026-04-10 ┆ 15:26:21.675 ┆ 129.98 ┆ 4    ┆ 0        ┆ 130       ┆ 1792080122 │
+└────────────┴──────────────┴────────┴──────┴──────────┴───────────┴────────────┘
 1 rows
 ```
-**Latency: 606ms**
+**Latency: 623ms**
 **PASS** (2 rows)
 
 ## 22. option snapshot_quote
@@ -379,11 +379,11 @@ $ tdx option snapshot_quote SPY 20260417 550 C
 ┌────────────┬──────────────┬──────────┬──────────────┬────────┬───────────────┬──────────┬──────────────┬────────┬───────────────┐
 │ date       ┆ ms_of_day    ┆ bid_size ┆ bid_exchange ┆ bid    ┆ bid_condition ┆ ask_size ┆ ask_exchange ┆ ask    ┆ ask_condition │
 ╞════════════╪══════════════╪══════════╪══════════════╪════════╪═══════════════╪══════════╪══════════════╪════════╪═══════════════╡
-│ 2026-04-08 ┆ 16:14:59.742 ┆ 6        ┆ 76           ┆ 124.75 ┆ 50            ┆ 41       ┆ 42           ┆ 127.57 ┆ 50            │
+│ 2026-04-13 ┆ 10:31:45.481 ┆ 10       ┆ 46           ┆ 128.21 ┆ 50            ┆ 23       ┆ 31           ┆ 131.34 ┆ 50            │
 └────────────┴──────────────┴──────────┴──────────────┴────────┴───────────────┴──────────┴──────────────┴────────┴───────────────┘
 1 rows
 ```
-**Latency: 613ms**
+**Latency: 624ms**
 **PASS** (2 rows)
 
 ## 23. option snapshot_open_interest
@@ -392,11 +392,11 @@ $ tdx option snapshot_open_interest SPY 20260417 550 C
 ┌────────────┬──────────────┬───────────────┐
 │ date       ┆ ms_of_day    ┆ open_interest │
 ╞════════════╪══════════════╪═══════════════╡
-│ 2026-04-08 ┆ 06:30:01.885 ┆ 32            │
+│ 2026-04-13 ┆ 06:30:00.739 ┆ 37            │
 └────────────┴──────────────┴───────────────┘
 1 rows
 ```
-**Latency: 624ms**
+**Latency: 681ms**
 **PASS** (2 rows)
 
 ## 24. option snapshot_market_value
@@ -405,11 +405,11 @@ $ tdx option snapshot_market_value SPY 20260417 550 C
 ┌────────────┬──────────────┬────────────┬────────────┬──────────────┐
 │ date       ┆ ms_of_day    ┆ market_bid ┆ market_ask ┆ market_price │
 ╞════════════╪══════════════╪════════════╪════════════╪══════════════╡
-│ 2026-04-08 ┆ 16:14:59.742 ┆ 0.0000     ┆ 0.0000     ┆ 0.0000       │
+│ 2026-04-13 ┆ 10:31:45.481 ┆ 128.2000   ┆ 131.3500   ┆ 129.7700     │
 └────────────┴──────────────┴────────────┴────────────┴──────────────┘
 1 rows
 ```
-**Latency: 628ms**
+**Latency: 659ms**
 **PASS** (2 rows)
 
 ## 25. option snapshot_greeks_iv
@@ -418,11 +418,11 @@ $ tdx option snapshot_greeks_implied_volatility SPY 20260417 550 C
 ┌────────────┬──────────────┬────────────────────┬──────────┐
 │ date       ┆ ms_of_day    ┆ implied_volatility ┆ iv_error │
 ╞════════════╪══════════════╪════════════════════╪══════════╡
-│ 2026-04-08 ┆ 16:14:59.742 ┆ 0.634700           ┆ 0.000000 │
+│ 2026-04-13 ┆ 10:31:45.481 ┆ 0.000000           ┆ 0.000800 │
 └────────────┴──────────────┴────────────────────┴──────────┘
 1 rows
 ```
-**Latency: 607ms**
+**Latency: 647ms**
 **PASS** (2 rows)
 
 ## 26. option snapshot_greeks_all
@@ -430,20 +430,20 @@ $ tdx option snapshot_greeks_implied_volatility SPY 20260417 550 C
 $ tdx option snapshot_greeks_all SPY 20260417 550 C
 error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
-**Latency: 615ms**
+**Latency: 635ms**
 **SKIP** -- requires professional subscription
 
 ## 27. option snapshot_greeks_first_order
 ```
 $ tdx option snapshot_greeks_first_order SPY 20260417 550 C
-┌────────────┬──────────────┬──────────┬──────────┬──────────┬───────────┬──────────┬───────────┐
-│ date       ┆ ms_of_day    ┆ iv       ┆ delta    ┆ gamma    ┆ theta     ┆ vega     ┆ rho       │
-╞════════════╪══════════════╪══════════╪══════════╪══════════╪═══════════╪══════════╪═══════════╡
-│ 2026-04-08 ┆ 16:14:59.742 ┆ 0.634700 ┆ 0.982800 ┆ 0.000000 ┆ -0.211900 ┆ 4.499600 ┆ 13.253700 │
-└────────────┴──────────────┴──────────┴──────────┴──────────┴───────────┴──────────┴───────────┘
+┌────────────┬──────────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬────────────┬────────────┬──────────┬──────────┬──────────┐
+│ date       ┆ ms_of_day    ┆ iv       ┆ delta    ┆ gamma    ┆ theta    ┆ vega     ┆ rho      ┆ iv_error ┆ vanna    ┆ charm    ┆ vomma    ┆ veta     ┆ speed    ┆ zomma    ┆ color    ┆ ultima   ┆ d1       ┆ d2       ┆ dual_delta ┆ dual_gamma ┆ epsilon  ┆ lambda   ┆ vera     │
+╞════════════╪══════════════╪══════════╪══════════╪══════════╪══════════╪══════════╪══════════╪══════════╪══════════╪══════════╪══════════╪══════════╪══════════╪══════════╪══════════╪══════════╪══════════╪══════════╪════════════╪════════════╪══════════╪══════════╪══════════╡
+│ 2026-04-13 ┆ 10:31:45.481 ┆ 0.000000 ┆ 1.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000600 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000   ┆ 0.000000   ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 │
+└────────────┴──────────────┴──────────┴──────────┴──────────┴──────────┴──────────┴──────────┴──────────┴──────────┴──────────┴──────────┴──────────┴──────────┴──────────┴──────────┴──────────┴──────────┴──────────┴────────────┴────────────┴──────────┴──────────┴──────────┘
 1 rows
 ```
-**Latency: 612ms**
+**Latency: 677ms**
 **PASS** (2 rows)
 
 ## 28. option snapshot_greeks_second_order
@@ -451,7 +451,7 @@ $ tdx option snapshot_greeks_first_order SPY 20260417 550 C
 $ tdx option snapshot_greeks_second_order SPY 20260417 550 C
 error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
-**Latency: 621ms**
+**Latency: 654ms**
 **SKIP** -- requires professional subscription
 
 ## 29. option snapshot_greeks_third_order
@@ -459,7 +459,7 @@ error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring 
 $ tdx option snapshot_greeks_third_order SPY 20260417 550 C
 error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
-**Latency: 621ms**
+**Latency: 646ms**
 **SKIP** -- requires professional subscription
 
 ## 30. option history_eod
@@ -468,12 +468,12 @@ $ tdx option history_eod SPY 20260417 550 C 20260401 20260402
 ┌────────────┬──────────────┬──────────────┬────────┬────────┬────────┬────────┬────────┬───────┬──────────┬──────────────┬────────┬───────────────┬──────────┬──────────────┬────────┬───────────────┐
 │ date       ┆ ms_of_day    ┆ ms_of_day2   ┆ open   ┆ high   ┆ low    ┆ close  ┆ volume ┆ count ┆ bid_size ┆ bid_exchange ┆ bid    ┆ bid_condition ┆ ask_size ┆ ask_exchange ┆ ask    ┆ ask_condition │
 ╞════════════╪══════════════╪══════════════╪════════╪════════╪════════╪════════╪════════╪═══════╪══════════╪══════════════╪════════╪═══════════════╪══════════╪══════════════╪════════╪═══════════════╡
-│ 2026-04-01 ┆ 05:37:40.401 ┆ 05:37:40.401 ┆ 110.00 ┆ 110.00 ┆ 110.00 ┆ 110.00 ┆ 1      ┆ 1     ┆ 20       ┆ 42           ┆ 105.63 ┆ 50            ┆ 40       ┆ 42           ┆ 108.44 ┆ 50            │
-│ 2026-04-02 ┆ 05:37:40.402 ┆ 05:37:40.402 ┆ 98.59  ┆ 98.59  ┆ 98.59  ┆ 98.59  ┆ 1      ┆ 1     ┆ 2        ┆ 76           ┆ 105.73 ┆ 50            ┆ 10       ┆ 31           ┆ 108.52 ┆ 50            │
+│ 2026-04-01 ┆ 17:22:34.087 ┆ 13:06:06.332 ┆ 110.00 ┆ 110.00 ┆ 110.00 ┆ 110.00 ┆ 1      ┆ 1     ┆ 20       ┆ 42           ┆ 105.63 ┆ 50            ┆ 40       ┆ 42           ┆ 108.44 ┆ 50            │
+│ 2026-04-02 ┆ 17:21:49.560 ┆ 09:30:03.497 ┆ 98.59  ┆ 98.59  ┆ 98.59  ┆ 98.59  ┆ 1      ┆ 1     ┆ 2        ┆ 76           ┆ 105.73 ┆ 50            ┆ 10       ┆ 31           ┆ 108.52 ┆ 50            │
 └────────────┴──────────────┴──────────────┴────────┴────────┴────────┴────────┴────────┴───────┴──────────┴──────────────┴────────┴───────────────┴──────────┴──────────────┴────────┴───────────────┘
 2 rows
 ```
-**Latency: 653ms**
+**Latency: 709ms**
 **PASS** (3 rows)
 
 ## 31. option history_ohlc
@@ -495,7 +495,7 @@ $ tdx option history_ohlc SPY 20260417 550 C 20260402 60000
 │ 2026-04-02 ┆ 09:40:00.000 ┆ 0.00  ┆ 0.00  ┆ 0.00  ┆ 0.00  ┆ 0      ┆ 0     │
 │ 2026-04-02 ┆ 09:41:00.000 ┆ 0.00  ┆ 0.00  ┆ 0.00  ┆ 0.00  ┆ 0      ┆ 0     │
 ```
-**Latency: 881ms**
+**Latency: 666ms**
 **PASS** (13 rows)
 
 ## 32. option history_trade
@@ -508,7 +508,7 @@ $ tdx option history_trade SPY 20260417 550 C 20260402
 └────────────┴──────────────┴───────┴──────┴──────────┴───────────┴─────────────┘
 1 rows
 ```
-**Latency: 610ms**
+**Latency: 649ms**
 **PASS** (2 rows)
 
 ## 33. option history_quote
@@ -530,7 +530,7 @@ $ tdx option history_quote SPY 20260417 550 C 20260402 60000
 │ 2026-04-02 ┆ 09:40:00.000 ┆ 2        ┆ 76           ┆ 95.79  ┆ 50            ┆ 11       ┆ 4            ┆ 98.77  ┆ 50            │
 │ 2026-04-02 ┆ 09:41:00.000 ┆ 4        ┆ 5            ┆ 95.33  ┆ 50            ┆ 1        ┆ 5            ┆ 98.58  ┆ 50            │
 ```
-**Latency: 637ms**
+**Latency: 670ms**
 **PASS** (13 rows)
 
 ## 34. option history_trade_quote
@@ -538,7 +538,7 @@ $ tdx option history_quote SPY 20260417 550 C 20260402 60000
 $ tdx option history_trade_quote SPY 20260417 550 C 20260402
 0 rows
 ```
-**Latency: 679ms**
+**Latency: 665ms**
 **PASS** (0 rows)
 
 ## 35. option history_open_interest
@@ -551,21 +551,21 @@ $ tdx option history_open_interest SPY 20260417 550 C 20260402
 └────────────┴──────────────┴───────────────┘
 1 rows
 ```
-**Latency: 658ms**
+**Latency: 663ms**
 **PASS** (2 rows)
 
 ## 36. option history_greeks_eod
 ```
 $ tdx option history_greeks_eod SPY 20260417 550 C 20260401 20260402
-┌────────────┬──────────────┬──────────┬──────────┬──────────┬───────────┬───────────┬───────────┐
-│ date       ┆ ms_of_day    ┆ iv       ┆ delta    ┆ gamma    ┆ theta     ┆ vega      ┆ rho       │
-╞════════════╪══════════════╪══════════╪══════════╪══════════╪═══════════╪═══════════╪═══════════╡
-│ 2026-04-01 ┆ 13:06:06.332 ┆ 0.475800 ┆ 0.965800 ┆ 0.001100 ┆ -0.206900 ┆ 10.383100 ┆ 23.050800 │
-│ 2026-04-02 ┆ 09:30:03.497 ┆ 0.439400 ┆ 0.979100 ┆ 0.000800 ┆ -0.151200 ┆ 6.663600  ┆ 21.988200 │
-└────────────┴──────────────┴──────────┴──────────┴──────────┴───────────┴───────────┴───────────┘
+┌────────────┬──────────────┬──────────┬──────────┬──────────┬───────────┬───────────┬───────────┬──────────┬───────────┬──────────┬───────────┬────────────┬──────────┬──────────┬──────────┬────────────┬──────────┬──────────┬────────────┬────────────┬────────────┬──────────┬───────────┐
+│ date       ┆ ms_of_day    ┆ iv       ┆ delta    ┆ gamma    ┆ theta     ┆ vega      ┆ rho       ┆ iv_error ┆ vanna     ┆ charm    ┆ vomma     ┆ veta       ┆ speed    ┆ zomma    ┆ color    ┆ ultima     ┆ d1       ┆ d2       ┆ dual_delta ┆ dual_gamma ┆ epsilon    ┆ lambda   ┆ vera      │
+╞════════════╪══════════════╪══════════╪══════════╪══════════╪═══════════╪═══════════╪═══════════╪══════════╪═══════════╪══════════╪═══════════╪════════════╪══════════╪══════════╪══════════╪════════════╪══════════╪══════════╪════════════╪════════════╪════════════╪══════════╪═══════════╡
+│ 2026-04-01 ┆ 13:06:06.332 ┆ 0.475800 ┆ 0.965800 ┆ 0.001100 ┆ -0.206900 ┆ 10.383100 ┆ 23.050800 ┆ 0.000000 ┆ -0.274100 ┆ 1.460300 ┆ 68.579400 ┆ 483.707400 ┆ 0.000000 ┆ 0.005200 ┆ 0.027500 ┆ 20.126700  ┆ 1.823300 ┆ 1.723600 ┆ -0.956000  ┆ 0.001600   ┆ -27.742500 ┆ 5.913000 ┆ -8.330100 │
+│ 2026-04-02 ┆ 09:30:03.497 ┆ 0.439400 ┆ 0.979100 ┆ 0.000800 ┆ -0.151200 ┆ 6.663600  ┆ 21.988200 ┆ 0.000000 ┆ -0.222100 ┆ 1.167100 ┆ 60.157800 ┆ 397.142800 ┆ 0.000000 ┆ 0.005700 ┆ 0.030200 ┆ 132.141800 ┆ 2.036800 ┆ 1.947700 ┆ -0.972800  ┆ 0.001200   ┆ -26.390400 ┆ 5.994800 ┆ -6.261100 │
+└────────────┴──────────────┴──────────┴──────────┴──────────┴───────────┴───────────┴───────────┴──────────┴───────────┴──────────┴───────────┴────────────┴──────────┴──────────┴──────────┴────────────┴──────────┴──────────┴────────────┴────────────┴────────────┴──────────┴───────────┘
 2 rows
 ```
-**Latency: 726ms**
+**Latency: 675ms**
 **PASS** (3 rows)
 
 ## 37. option history_greeks_all
@@ -573,29 +573,29 @@ $ tdx option history_greeks_eod SPY 20260417 550 C 20260401 20260402
 $ tdx option history_greeks_all SPY 20260417 550 C 20260402 60000
 error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
-**Latency: 661ms**
+**Latency: 652ms**
 **SKIP** -- requires professional subscription
 
 ## 38. option history_greeks_first_order
 ```
 $ tdx option history_greeks_first_order SPY 20260417 550 C 20260402 60000
-┌────────────┬──────────────┬──────────┬──────────┬──────────┬───────────┬───────────┬───────────┐
-│ date       ┆ ms_of_day    ┆ iv       ┆ delta    ┆ gamma    ┆ theta     ┆ vega      ┆ rho       │
-╞════════════╪══════════════╪══════════╪══════════╪══════════╪═══════════╪═══════════╪═══════════╡
-│ 2026-04-02 ┆ 09:30:00.000 ┆ 0.000000 ┆ 1.000000 ┆ 0.000000 ┆ 0.000000  ┆ 0.000000  ┆ 0.000000  │
-│ 2026-04-02 ┆ 09:31:00.000 ┆ 0.444300 ┆ 0.968700 ┆ 0.000000 ┆ -0.189700 ┆ 9.232200  ┆ 21.707600 │
-│ 2026-04-02 ┆ 09:32:00.000 ┆ 0.434800 ┆ 0.971900 ┆ 0.000000 ┆ -0.175500 ┆ 8.445900  ┆ 21.796300 │
-│ 2026-04-02 ┆ 09:33:00.000 ┆ 0.455000 ┆ 0.965300 ┆ 0.000000 ┆ -0.205000 ┆ 10.037800 ┆ 21.614100 │
-│ 2026-04-02 ┆ 09:34:00.000 ┆ 0.437900 ┆ 0.970500 ┆ 0.000000 ┆ -0.181200 ┆ 8.778500  ┆ 21.759000 │
-│ 2026-04-02 ┆ 09:35:00.000 ┆ 0.429100 ┆ 0.973100 ┆ 0.000000 ┆ -0.169500 ┆ 8.131200  ┆ 21.831100 │
-│ 2026-04-02 ┆ 09:36:00.000 ┆ 0.472100 ┆ 0.959700 ┆ 0.000000 ┆ -0.230900 ┆ 11.350000 ┆ 21.456500 │
-│ 2026-04-02 ┆ 09:37:00.000 ┆ 0.477100 ┆ 0.958000 ┆ 0.000000 ┆ -0.238600 ┆ 11.721600 ┆ 21.410600 │
-│ 2026-04-02 ┆ 09:38:00.000 ┆ 0.457000 ┆ 0.964400 ┆ 0.000000 ┆ -0.208900 ┆ 10.257600 ┆ 21.588200 │
-│ 2026-04-02 ┆ 09:39:00.000 ┆ 0.478000 ┆ 0.957500 ┆ 0.000000 ┆ -0.241000 ┆ 11.851400 ┆ 21.394500 │
-│ 2026-04-02 ┆ 09:40:00.000 ┆ 0.474300 ┆ 0.957800 ┆ 0.000000 ┆ -0.238200 ┆ 11.763100 ┆ 21.405500 │
-│ 2026-04-02 ┆ 09:41:00.000 ┆ 0.438400 ┆ 0.968600 ┆ 0.000000 ┆ -0.188000 ┆ 9.241000  ┆ 21.706500 │
+┌────────────┬──────────────┬──────────┬──────────┬──────────┬───────────┬───────────┬───────────┬────────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬────────────┬────────────┬────────────┬──────────┬──────────┐
+│ date       ┆ ms_of_day    ┆ iv       ┆ delta    ┆ gamma    ┆ theta     ┆ vega      ┆ rho       ┆ iv_error   ┆ vanna    ┆ charm    ┆ vomma    ┆ veta     ┆ speed    ┆ zomma    ┆ color    ┆ ultima   ┆ d1       ┆ d2       ┆ dual_delta ┆ dual_gamma ┆ epsilon    ┆ lambda   ┆ vera     │
+╞════════════╪══════════════╪══════════╪══════════╪══════════╪═══════════╪═══════════╪═══════════╪════════════╪══════════╪══════════╪══════════╪══════════╪══════════╪══════════╪══════════╪══════════╪══════════╪══════════╪════════════╪════════════╪════════════╪══════════╪══════════╡
+│ 2026-04-02 ┆ 09:30:00.000 ┆ 0.000000 ┆ 1.000000 ┆ 0.000000 ┆ 0.000000  ┆ 0.000000  ┆ 0.000000  ┆ 100.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000   ┆ 0.000000   ┆ 0.000000   ┆ 0.000000 ┆ 0.000000 │
+│ 2026-04-02 ┆ 09:31:00.000 ┆ 0.444300 ┆ 0.968700 ┆ 0.000000 ┆ -0.189700 ┆ 9.232200  ┆ 21.707600 ┆ 0.000000   ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000   ┆ 0.000000   ┆ -25.752200 ┆ 6.367000 ┆ 0.000000 │
+│ 2026-04-02 ┆ 09:32:00.000 ┆ 0.434800 ┆ 0.971900 ┆ 0.000000 ┆ -0.175500 ┆ 8.445900  ┆ 21.796300 ┆ 0.000000   ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000   ┆ 0.000000   ┆ -25.857400 ┆ 6.367000 ┆ 0.000000 │
+│ 2026-04-02 ┆ 09:33:00.000 ┆ 0.455000 ┆ 0.965300 ┆ 0.000000 ┆ -0.205000 ┆ 10.037800 ┆ 21.614100 ┆ 0.000000   ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000   ┆ 0.000000   ┆ -25.653900 ┆ 6.350300 ┆ 0.000000 │
+│ 2026-04-02 ┆ 09:34:00.000 ┆ 0.437900 ┆ 0.970500 ┆ 0.000000 ┆ -0.181200 ┆ 8.778500  ┆ 21.759000 ┆ 0.000000   ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000   ┆ 0.000000   ┆ -25.804100 ┆ 6.379100 ┆ 0.000000 │
+│ 2026-04-02 ┆ 09:35:00.000 ┆ 0.429100 ┆ 0.973100 ┆ 0.000000 ┆ -0.169500 ┆ 8.131200  ┆ 21.831100 ┆ 0.000000   ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000   ┆ 0.000000   ┆ -25.880700 ┆ 6.390900 ┆ 0.000000 │
+│ 2026-04-02 ┆ 09:36:00.000 ┆ 0.472100 ┆ 0.959700 ┆ 0.000000 ┆ -0.230900 ┆ 11.350000 ┆ 21.456500 ┆ 0.000000   ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000   ┆ 0.000000   ┆ -25.486700 ┆ 6.323800 ┆ 0.000000 │
+│ 2026-04-02 ┆ 09:37:00.000 ┆ 0.477100 ┆ 0.958000 ┆ 0.000000 ┆ -0.238600 ┆ 11.721600 ┆ 21.410600 ┆ 0.000000   ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000   ┆ 0.000000   ┆ -25.440100 ┆ 6.313500 ┆ 0.000000 │
+│ 2026-04-02 ┆ 09:38:00.000 ┆ 0.457000 ┆ 0.964400 ┆ 0.000000 ┆ -0.208900 ┆ 10.257600 ┆ 21.588200 ┆ 0.000000   ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000   ┆ 0.000000   ┆ -25.617300 ┆ 6.358100 ┆ 0.000000 │
+│ 2026-04-02 ┆ 09:39:00.000 ┆ 0.478000 ┆ 0.957500 ┆ 0.000000 ┆ -0.241000 ┆ 11.851400 ┆ 21.394500 ┆ 0.000000   ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000   ┆ 0.000000   ┆ -25.415300 ┆ 6.320900 ┆ 0.000000 │
+│ 2026-04-02 ┆ 09:40:00.000 ┆ 0.474300 ┆ 0.957800 ┆ 0.000000 ┆ -0.238200 ┆ 11.763100 ┆ 21.405500 ┆ 0.000000   ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000   ┆ 0.000000   ┆ -25.403300 ┆ 6.354300 ┆ 0.000000 │
+│ 2026-04-02 ┆ 09:41:00.000 ┆ 0.438400 ┆ 0.968600 ┆ 0.000000 ┆ -0.188000 ┆ 9.241000  ┆ 21.706500 ┆ 0.000000   ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000 ┆ 0.000000   ┆ 0.000000   ┆ -25.690800 ┆ 6.448000 ┆ 0.000000 │
 ```
-**Latency: 708ms**
+**Latency: 809ms**
 **PASS** (13 rows)
 
 ## 39. option history_greeks_second_order
@@ -603,7 +603,7 @@ $ tdx option history_greeks_first_order SPY 20260417 550 C 20260402 60000
 $ tdx option history_greeks_second_order SPY 20260417 550 C 20260402 60000
 error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
-**Latency: 617ms**
+**Latency: 655ms**
 **SKIP** -- requires professional subscription
 
 ## 40. option history_greeks_third_order
@@ -611,7 +611,7 @@ error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring 
 $ tdx option history_greeks_third_order SPY 20260417 550 C 20260402 60000
 error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
-**Latency: 613ms**
+**Latency: 637ms**
 **SKIP** -- requires professional subscription
 
 ## 41. option history_greeks_iv
@@ -633,7 +633,7 @@ $ tdx option history_greeks_implied_volatility SPY 20260417 550 C 20260402 60000
 │ 2026-04-02 ┆ 09:40:00.000 ┆ 0.474300           ┆ 0.001300   │
 │ 2026-04-02 ┆ 09:41:00.000 ┆ 0.438400           ┆ 0.003100   │
 ```
-**Latency: 662ms**
+**Latency: 692ms**
 **PASS** (13 rows)
 
 ## 42. option history_trade_greeks_all
@@ -641,7 +641,7 @@ $ tdx option history_greeks_implied_volatility SPY 20260417 550 C 20260402 60000
 $ tdx option history_trade_greeks_all SPY 20260417 550 C 20260402
 error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
-**Latency: 615ms**
+**Latency: 622ms**
 **SKIP** -- requires professional subscription
 
 ## 43. option history_trade_greeks_first
@@ -649,7 +649,7 @@ error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring 
 $ tdx option history_trade_greeks_first_order SPY 20260417 550 C 20260402
 error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
-**Latency: 603ms**
+**Latency: 757ms**
 **SKIP** -- requires professional subscription
 
 ## 44. option history_trade_greeks_second
@@ -657,7 +657,7 @@ error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring 
 $ tdx option history_trade_greeks_second_order SPY 20260417 550 C 20260402
 error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
-**Latency: 618ms**
+**Latency: 629ms**
 **SKIP** -- requires professional subscription
 
 ## 45. option history_trade_greeks_third
@@ -665,7 +665,7 @@ error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring 
 $ tdx option history_trade_greeks_third_order SPY 20260417 550 C 20260402
 error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
-**Latency: 613ms**
+**Latency: 678ms**
 **SKIP** -- requires professional subscription
 
 ## 46. option history_trade_greeks_iv
@@ -673,20 +673,20 @@ error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring 
 $ tdx option history_trade_greeks_implied_volatility SPY 20260417 550 C 20260402
 error: gRPC status: PermissionDenied -- Requesting an option endpoint requiring a professional subscription, but you only have a STANDARD subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
-**Latency: 624ms**
+**Latency: 664ms**
 **SKIP** -- requires professional subscription
 
 ## 47. option at_time_trade
 ```
-$ tdx option at_time_trade SPY 20260417 550 C 20260401 20260402 34200000
+$ tdx option at_time_trade SPY 20260417 550 C 20260401 20260402 09:30:00.000
 error: gRPC status: NotFound -- No data found for your request
 ```
-**Latency: 609ms**
+**Latency: 632ms**
 **OK** -- no data for query (valid response)
 
 ## 48. option at_time_quote
 ```
-$ tdx option at_time_quote SPY 20260417 550 C 20260401 20260402 34200000
+$ tdx option at_time_quote SPY 20260417 550 C 20260401 20260402 09:30:00.000
 ┌────────────┬──────────────┬──────────┬──────────────┬──────┬───────────────┬──────────┬──────────────┬──────┬───────────────┐
 │ date       ┆ ms_of_day    ┆ bid_size ┆ bid_exchange ┆ bid  ┆ bid_condition ┆ ask_size ┆ ask_exchange ┆ ask  ┆ ask_condition │
 ╞════════════╪══════════════╪══════════╪══════════════╪══════╪═══════════════╪══════════╪══════════════╪══════╪═══════════════╡
@@ -695,7 +695,7 @@ $ tdx option at_time_quote SPY 20260417 550 C 20260401 20260402 34200000
 └────────────┴──────────────┴──────────┴──────────────┴──────┴───────────────┴──────────┴──────────────┴──────┴───────────────┘
 2 rows
 ```
-**Latency: 625ms**
+**Latency: 694ms**
 **PASS** (3 rows)
 
 ## 49. index list_symbols
@@ -717,7 +717,7 @@ $ tdx index list_symbols
 │ 500KRWT                       │
 │ 500VNTR                       │
 ```
-**Latency: 807ms**
+**Latency: 832ms**
 **PASS** (13 rows)
 
 ## 50. index list_dates
@@ -739,7 +739,7 @@ $ tdx index list_dates SPX
 │ 2017-01-18 │
 │ 2017-01-19 │
 ```
-**Latency: 652ms**
+**Latency: 662ms**
 **PASS** (13 rows)
 
 ## 51. index snapshot_ohlc
@@ -747,7 +747,7 @@ $ tdx index list_dates SPX
 $ tdx index snapshot_ohlc SPX
 error: gRPC status: PermissionDenied -- Requesting an index endpoint requiring a standard subscription, but you only have a FREE subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
-**Latency: 645ms**
+**Latency: 636ms**
 **SKIP** -- requires standard subscription
 
 ## 52. index snapshot_price
@@ -755,7 +755,7 @@ error: gRPC status: PermissionDenied -- Requesting an index endpoint requiring a
 $ tdx index snapshot_price SPX
 error: gRPC status: PermissionDenied -- Requesting an index endpoint requiring a standard subscription, but you only have a FREE subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
-**Latency: 626ms**
+**Latency: 637ms**
 **SKIP** -- requires standard subscription
 
 ## 53. index snapshot_market_value
@@ -763,7 +763,7 @@ error: gRPC status: PermissionDenied -- Requesting an index endpoint requiring a
 $ tdx index snapshot_market_value SPX
 error: gRPC status: PermissionDenied -- Requesting an index endpoint requiring a standard subscription, but you only have a FREE subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
-**Latency: 636ms**
+**Latency: 656ms**
 **SKIP** -- requires standard subscription
 
 ## 54. index history_eod
@@ -772,12 +772,12 @@ $ tdx index history_eod SPX 20260401 20260402
 ┌────────────┬──────────────┬──────────────┬─────────┬─────────┬─────────┬─────────┬────────┬───────┬──────────┬──────────────┬──────┬───────────────┬──────────┬──────────────┬──────┬───────────────┐
 │ date       ┆ ms_of_day    ┆ ms_of_day2   ┆ open    ┆ high    ┆ low     ┆ close   ┆ volume ┆ count ┆ bid_size ┆ bid_exchange ┆ bid  ┆ bid_condition ┆ ask_size ┆ ask_exchange ┆ ask  ┆ ask_condition │
 ╞════════════╪══════════════╪══════════════╪═════════╪═════════╪═════════╪═════════╪════════╪═══════╪══════════╪══════════════╪══════╪═══════════════╪══════════╪══════════════╪══════╪═══════════════╡
-│ 2026-04-01 ┆ 05:37:40.401 ┆ 05:37:40.401 ┆ 6556.56 ┆ 6609.67 ┆ 6554.29 ┆ 6575.32 ┆ 0      ┆ 0     ┆ 0        ┆ 0            ┆ 0.00 ┆ 0             ┆ 0        ┆ 0            ┆ 0.00 ┆ 0             │
-│ 2026-04-02 ┆ 05:37:40.402 ┆ 05:37:40.402 ┆ 6512.61 ┆ 6601.91 ┆ 6474.94 ┆ 6582.69 ┆ 0      ┆ 0     ┆ 0        ┆ 0            ┆ 0.00 ┆ 0             ┆ 0        ┆ 0            ┆ 0.00 ┆ 0             │
+│ 2026-04-01 ┆ 17:15:01.089 ┆ 16:04:00.000 ┆ 6556.56 ┆ 6609.67 ┆ 6554.29 ┆ 6575.32 ┆ 0      ┆ 0     ┆ 0        ┆ 0            ┆ 0.00 ┆ 0             ┆ 0        ┆ 0            ┆ 0.00 ┆ 0             │
+│ 2026-04-02 ┆ 17:21:47.923 ┆ 16:02:59.000 ┆ 6512.61 ┆ 6601.91 ┆ 6474.94 ┆ 6582.69 ┆ 0      ┆ 0     ┆ 0        ┆ 0            ┆ 0.00 ┆ 0             ┆ 0        ┆ 0            ┆ 0.00 ┆ 0             │
 └────────────┴──────────────┴──────────────┴─────────┴─────────┴─────────┴─────────┴────────┴───────┴──────────┴──────────────┴──────┴───────────────┴──────────┴──────────────┴──────┴───────────────┘
 2 rows
 ```
-**Latency: 664ms**
+**Latency: 626ms**
 **PASS** (3 rows)
 
 ## 55. index history_ohlc
@@ -785,23 +785,23 @@ $ tdx index history_eod SPX 20260401 20260402
 $ tdx index history_ohlc SPX 20260401 20260402 60000
 error: gRPC status: PermissionDenied -- Requesting an index endpoint requiring a standard subscription, but you only have a FREE subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
-**Latency: 635ms**
+**Latency: 654ms**
 **SKIP** -- requires standard subscription
 
 ## 56. index history_price
 ```
-$ tdx index history_price 20260402 SPX 60000
+$ tdx index history_price SPX 20260402 60000
 error: gRPC status: PermissionDenied -- Requesting an index endpoint requiring a value subscription, but you only have a FREE subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
-**Latency: 619ms**
+**Latency: 656ms**
 **SKIP** -- requires value subscription
 
 ## 57. index at_time_price
 ```
-$ tdx index at_time_price SPX 20260401 20260402 34200000
+$ tdx index at_time_price SPX 20260401 20260402 09:30:00.000
 error: gRPC status: PermissionDenied -- Requesting an index endpoint requiring a value subscription, but you only have a FREE subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
-**Latency: 620ms**
+**Latency: 629ms**
 **SKIP** -- requires value subscription
 
 ## 58. calendar open_today
@@ -814,7 +814,7 @@ $ tdx calendar open_today
 └──────┴─────────┴──────────────┴──────────────┴────────┘
 1 rows
 ```
-**Latency: 648ms**
+**Latency: 675ms**
 **PASS** (2 rows)
 
 ## 59. calendar on_date
@@ -827,7 +827,7 @@ $ tdx calendar on_date 20260406
 └──────┴─────────┴──────────────┴──────────────┴────────┘
 1 rows
 ```
-**Latency: 629ms**
+**Latency: 655ms**
 **PASS** (2 rows)
 
 ## 60. calendar year
@@ -849,7 +849,7 @@ $ tdx calendar year 2026
 │ 2026-12-24 ┆ 1       ┆ 09:30:00.000 ┆ 13:00:00.000 ┆ 1      │
 │ 2026-12-25 ┆ 0       ┆ 00:00:00.000 ┆ 00:00:00.000 ┆ 2      │
 ```
-**Latency: 629ms**
+**Latency: 672ms**
 **PASS** (13 rows)
 
 ## 61. rate history_eod
@@ -857,7 +857,7 @@ $ tdx calendar year 2026
 $ tdx rate history_eod SOFR 20260401 20260402
 error: gRPC status: PermissionDenied -- Requesting an interest rate endpoint requiring a value subscription, but you only have a FREE subscription. Please consider upgrading! ( https://www.thetadata.net/subscribe )
 ```
-**Latency: 630ms**
+**Latency: 644ms**
 **SKIP** -- requires value subscription
 
 ---

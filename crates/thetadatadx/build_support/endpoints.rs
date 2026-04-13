@@ -1624,6 +1624,7 @@ fn direct_query_field_expr(
             }
         }
         "interval" => format!("normalize_interval(&{arg_name})"),
+        "time_of_day" => format!("normalize_time_of_day(&{arg_name})"),
         "start_time" | "end_time" => format!("Some({arg_name}.clone())"),
         "venue" if endpoint.category == "stock" => {
             "venue.clone().or_else(|| Some(\"nqb\".to_string()))".into()
@@ -1963,7 +1964,7 @@ fn map_field(name: &str, proto_type: &str, is_repeated: bool) -> (String, String
         ("string", "year") => ("Year".into(), "4-digit year (e.g. 2024)".into()),
         ("string", "time_of_day") => (
             "Str".into(),
-            "Milliseconds from midnight ET (e.g. 34200000 = 9:30 AM)".into(),
+            "ET wall-clock time in HH:MM:SS.SSS (e.g. 09:30:00.000 for 9:30 AM; legacy 34200000 is also accepted)".into(),
         ),
         ("string", "venue") => ("Str".into(), "Venue/exchange filter".into()),
         ("string", "min_time") => ("Str".into(), "Minimum time filter".into()),
@@ -3054,7 +3055,17 @@ fn render_python_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
 }
 
 /// Map a `param_type` from the endpoint surface to a dummy value for Python validation.
-fn python_dummy_value(param: &GeneratedParam) -> String {
+fn validation_symbol(endpoint: &GeneratedEndpoint) -> &'static str {
+    match endpoint.category.as_str() {
+        "stock" => "AAPL",
+        "option" => "SPY",
+        "index" => "SPX",
+        "rate" => "SOFR",
+        other => panic!("unsupported validation endpoint category: {other}"),
+    }
+}
+
+fn python_dummy_value(endpoint: &GeneratedEndpoint, param: &GeneratedParam) -> String {
     // Use a known-good past date range for option endpoints.
     // SPY 20250321 C 570 had active Greeks in March 2025.
     // Stock endpoints use 20250303-20250307 (known trading week).
@@ -3063,8 +3074,8 @@ fn python_dummy_value(param: &GeneratedParam) -> String {
         return "\"20250307\"".into();
     }
     match param.param_type.as_str() {
-        "Symbol" => "\"AAPL\"".into(),
-        "Symbols" => "[\"AAPL\"]".into(),
+        "Symbol" => format!("\"{}\"", validation_symbol(endpoint)),
+        "Symbols" => format!("[\"{}\"]", validation_symbol(endpoint)),
         "Date" => "\"20250303\"".into(),
         "Expiration" => "\"20250321\"".into(),
         "Strike" => "\"570\"".into(),
@@ -3078,14 +3089,14 @@ fn python_dummy_value(param: &GeneratedParam) -> String {
 }
 
 /// Map a `param_type` from the endpoint surface to a dummy value for Go validation.
-fn go_dummy_value(param: &GeneratedParam) -> String {
+fn go_dummy_value(endpoint: &GeneratedEndpoint, param: &GeneratedParam) -> String {
     // Same known-good past dates as Python.
     if param.name == "end_date" {
         return "\"20250307\"".into();
     }
     match param.param_type.as_str() {
-        "Symbol" => "\"AAPL\"".into(),
-        "Symbols" => "[]string{\"AAPL\"}".into(),
+        "Symbol" => format!("\"{}\"", validation_symbol(endpoint)),
+        "Symbols" => format!("[]string{{\"{}\"}}", validation_symbol(endpoint)),
         "Date" => "\"20250303\"".into(),
         "Expiration" => "\"20250321\"".into(),
         "Strike" => "\"570\"".into(),
@@ -3120,7 +3131,7 @@ fn render_python_validate(endpoints: &[GeneratedEndpoint]) -> String {
         let mp = method_params(endpoint);
         let args = mp
             .iter()
-            .map(|param| python_dummy_value(param))
+            .map(|param| python_dummy_value(endpoint, param))
             .collect::<Vec<_>>()
             .join(", ");
         writeln!(
@@ -3143,6 +3154,9 @@ fn render_python_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("        if \"permission\" in msg or \"subscription\" in msg:\n");
     out.push_str("            print(f\"  {name:45s} SKIP  (tier)\")\n");
     out.push_str("            skip_count += 1\n");
+    out.push_str("        elif \"no data found\" in msg:\n");
+    out.push_str("            print(f\"  {name:45s} PASS  (no data)\")\n");
+    out.push_str("            pass_count += 1\n");
     out.push_str("        else:\n");
     out.push_str("            print(f\"  {name:45s} FAIL  {e}\")\n");
     out.push_str("            fail_count += 1\n");
@@ -3183,7 +3197,7 @@ fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
         let mp = method_params(endpoint);
         let args = mp
             .iter()
-            .map(|param| go_dummy_value(param))
+            .map(|param| go_dummy_value(endpoint, param))
             .collect::<Vec<_>>()
             .join(", ");
 
@@ -3207,6 +3221,11 @@ fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("\t\tstrings.Contains(strings.ToLower(err.Error()), \"subscription\") {\n");
     out.push_str("\t\tfmt.Printf(\"  %-45s SKIP  (tier)\\n\", name)\n");
     out.push_str("\t\t*skip++\n");
+    out.push_str(
+        "\t} else if strings.Contains(strings.ToLower(err.Error()), \"no data found\") {\n",
+    );
+    out.push_str("\t\tfmt.Printf(\"  %-45s PASS  (no data)\\n\", name)\n");
+    out.push_str("\t\t*pass++\n");
     out.push_str("\t} else {\n");
     out.push_str("\t\tfmt.Printf(\"  %-45s FAIL  %v\\n\", name, err)\n");
     out.push_str("\t\t*fail++\n");

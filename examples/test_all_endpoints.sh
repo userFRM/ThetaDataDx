@@ -110,8 +110,8 @@ run "stock history_trade_quote"              stock history_trade_quote AAPL 2026
 
 # ── Stock At-Time (2) ──────────────────────────────────────────
 echo "Stock At-Time:"
-run "stock at_time_trade"                    stock at_time_trade AAPL 20260401 20260402 34200000
-run "stock at_time_quote"                    stock at_time_quote AAPL 20260401 20260402 34200000
+run "stock at_time_trade"                    stock at_time_trade AAPL 20260401 20260402 09:30:00.000
+run "stock at_time_quote"                    stock at_time_quote AAPL 20260401 20260402 09:30:00.000
 
 # ── Option List (5) ─────────────────────────────────────────────
 echo "Option List:"
@@ -165,8 +165,8 @@ run "option history_trade_greeks_iv"         option history_trade_greeks_implied
 
 # ── Option At-Time (2) ──────────────────────────────────────────
 echo "Option At-Time:"
-run "option at_time_trade"                   option at_time_trade SPY 20260417 550 C 20260401 20260402 34200000
-run "option at_time_quote"                   option at_time_quote SPY 20260417 550 C 20260401 20260402 34200000
+run "option at_time_trade"                   option at_time_trade SPY 20260417 550 C 20260401 20260402 09:30:00.000
+run "option at_time_quote"                   option at_time_quote SPY 20260417 550 C 20260401 20260402 09:30:00.000
 
 # ── Index List (2) ──────────────────────────────────────────────
 echo "Index List:"
@@ -183,11 +183,11 @@ run "index snapshot_market_value"            index snapshot_market_value SPX
 echo "Index History:"
 run "index history_eod"                      index history_eod SPX 20260401 20260402
 run "index history_ohlc"                     index history_ohlc SPX 20260401 20260402 60000
-run "index history_price"                    index history_price 20260402 SPX 60000
+run "index history_price"                    index history_price SPX 20260402 60000
 
 # ── Index At-Time (1) ──────────────────────────────────────────
 echo "Index At-Time:"
-run "index at_time_price"                    index at_time_price SPX 20260401 20260402 34200000
+run "index at_time_price"                    index at_time_price SPX 20260401 20260402 09:30:00.000
 
 # ── Calendar (3) ────────────────────────────────────────────────
 echo "Calendar:"

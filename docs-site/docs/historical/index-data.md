@@ -86,16 +86,16 @@ auto price_hist = client.index_history_price("SPX", "20240315", "60000");
 ::: code-group
 ```rust [Rust]
 let ticks = tdx.index_at_time_price(
-    "SPX", "20240101", "20240301", "34200000"
+    "SPX", "20240101", "20240301", "09:30:00.000"
 ).await?;
 ```
 ```python [Python]
-result = tdx.index_at_time_price("SPX", "20240101", "20240301", "34200000")
+result = tdx.index_at_time_price("SPX", "20240101", "20240301", "09:30:00.000")
 ```
 ```go [Go]
-atTime, _ := client.IndexAtTimePrice("SPX", "20240101", "20240301", "34200000")
+atTime, _ := client.IndexAtTimePrice("SPX", "20240101", "20240301", "09:30:00.000")
 ```
 ```cpp [C++]
-auto at_time = client.index_at_time_price("SPX", "20240101", "20240301", "34200000");
+auto at_time = client.index_at_time_price("SPX", "20240101", "20240301", "09:30:00.000");
 ```
 :::

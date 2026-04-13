@@ -458,6 +458,80 @@ fn normalize_interval(interval: &str) -> String {
     }
 }
 
+/// Convert `time_of_day` values into the canonical `HH:MM:SS.SSS` format.
+///
+/// ThetaData's v3 at-time endpoints expect a formatted ET wall-clock time such
+/// as `"09:30:00.000"`. Older ThetaDataDx docs and examples used millisecond
+/// strings like `"34200000"`. To preserve compatibility while aligning the
+/// public contract, this helper accepts either form and normalizes to
+/// `HH:MM:SS.SSS`.
+///
+/// Accepted inputs:
+/// - Milliseconds from midnight as a decimal string: `"34200000"`
+/// - Formatted times: `"09:30"`, `"09:30:00"`, `"09:30:00.000"`
+///
+/// Invalid or out-of-range values are passed through unchanged so the server
+/// can return the canonical validation error.
+fn normalize_time_of_day(time_of_day: &str) -> String {
+    if time_of_day.bytes().all(|b| b.is_ascii_digit()) {
+        if let Ok(total_ms) = time_of_day.parse::<u64>() {
+            if total_ms < 86_400_000 {
+                let hours = total_ms / 3_600_000;
+                let minutes = (total_ms % 3_600_000) / 60_000;
+                let seconds = (total_ms % 60_000) / 1_000;
+                let millis = total_ms % 1_000;
+                return format!("{hours:02}:{minutes:02}:{seconds:02}.{millis:03}");
+            }
+        }
+        return time_of_day.to_string();
+    }
+
+    let mut parts = time_of_day.split(':');
+    let Some(hours) = parts.next().and_then(|part| part.parse::<u64>().ok()) else {
+        return time_of_day.to_string();
+    };
+    let Some(minutes) = parts.next().and_then(|part| part.parse::<u64>().ok()) else {
+        return time_of_day.to_string();
+    };
+    let seconds_part = parts.next();
+    if parts.next().is_some() {
+        return time_of_day.to_string();
+    }
+
+    let (seconds, millis) = match seconds_part {
+        None => (0, 0),
+        Some(part) => match part.split_once('.') {
+            Some((sec, frac)) => {
+                let Some(seconds) = sec.parse::<u64>().ok() else {
+                    return time_of_day.to_string();
+                };
+                let millis = match frac.len() {
+                    1 => frac.parse::<u64>().ok().map(|value| value * 100),
+                    2 => frac.parse::<u64>().ok().map(|value| value * 10),
+                    3 => frac.parse::<u64>().ok(),
+                    _ => None,
+                };
+                let Some(millis) = millis else {
+                    return time_of_day.to_string();
+                };
+                (seconds, millis)
+            }
+            None => {
+                let Some(seconds) = part.parse::<u64>().ok() else {
+                    return time_of_day.to_string();
+                };
+                (seconds, 0)
+            }
+        },
+    };
+
+    if hours >= 24 || minutes >= 60 || seconds >= 60 || millis >= 1_000 {
+        return time_of_day.to_string();
+    }
+
+    format!("{hours:02}:{minutes:02}:{seconds:02}.{millis:03}")
+}
+
 /// Validate a date string via the canonical [`crate::validate`] module.
 ///
 /// This wrapper adapts the two-arg canonical signature to the single-arg
@@ -490,6 +564,25 @@ mod tests {
         assert!(validate_date("").is_err());
         // Whitespace
         assert!(validate_date("2024 101").is_err());
+    }
+
+    #[test]
+    fn normalize_time_of_day_accepts_legacy_milliseconds() {
+        assert_eq!(normalize_time_of_day("34200000"), "09:30:00.000");
+    }
+
+    #[test]
+    fn normalize_time_of_day_accepts_short_formatted_values() {
+        assert_eq!(normalize_time_of_day("09:30"), "09:30:00.000");
+        assert_eq!(normalize_time_of_day("09:30:00"), "09:30:00.000");
+        assert_eq!(normalize_time_of_day("09:30:00.5"), "09:30:00.500");
+    }
+
+    #[test]
+    fn normalize_time_of_day_preserves_invalid_values_for_server_rejection() {
+        assert_eq!(normalize_time_of_day("86400000"), "86400000");
+        assert_eq!(normalize_time_of_day("09:61"), "09:61");
+        assert_eq!(normalize_time_of_day("not-a-time"), "not-a-time");
     }
 
     #[test]

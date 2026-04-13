@@ -169,6 +169,43 @@ def check_static_docs() -> None:
         expect_not_contains(path, "scaled integer")
         expect_not_contains(path, "500000")
 
+    expect_contains(
+        ROOT / "crates/thetadatadx/endpoint_surface.toml",
+        'description = "ET wall-clock time in HH:MM:SS.SSS (e.g. 09:30:00.000 for 9:30 AM ET; legacy 34200000 is also accepted)"',
+    )
+    expect_contains(
+        ROOT / "tools/cli/README.md",
+        "tdx stock at_time_trade AAPL 20240101 20240301 09:30:00.000",
+    )
+    expect_contains(
+        ROOT / "docs/api-reference.md",
+        '`time_of_day` uses `HH:MM:SS.SSS` ET wall-clock format (e.g. `"09:30:00.000"`). Legacy millisecond strings such as `"34200000"` are also accepted.',
+    )
+    expect_contains(
+        ROOT / "docs-site/docs/api-reference.md",
+        '| `time_of_day` | string | Yes | ET wall-clock time in `HH:MM:SS.SSS`',
+    )
+    expect_contains(
+        ROOT / "docs-site/public/thetadatadx.yaml",
+        'description: ET wall-clock time in HH:MM:SS.SSS (e.g. "09:30:00.000" for 9:30 AM ET; legacy "34200000" is also accepted)',
+    )
+    expect_contains(
+        ROOT / "examples/test_all_endpoints.sh",
+        'stock at_time_trade AAPL 20260401 20260402 09:30:00.000',
+    )
+    expect_contains(
+        ROOT / "examples/test_all_endpoints.sh",
+        'index history_price SPX 20260402 60000',
+    )
+    expect_not_contains(
+        ROOT / "docs-site/docs/api-reference.md",
+        'Ms from midnight ET',
+    )
+    expect_not_contains(
+        ROOT / "tools/cli/README.md",
+        '34200000   # 9:30 AM',
+    )
+
     # Streaming section guards — catch stale FPSS counts and wrong return types
     expect_not_contains(ROOT / "docs/architecture.md", "7 FFI FPSS functions")
     expect_not_contains(ROOT / "docs/architecture.md", "18 FFI FPSS functions")

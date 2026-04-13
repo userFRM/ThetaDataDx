@@ -269,40 +269,40 @@ auto tq = client.stock_history_trade_quote("AAPL", "20240315");
 
 ### At-Time
 
-Retrieve the trade or quote at a specific time of day across a date range. The `time_of_day` parameter is milliseconds from midnight ET (e.g., `34200000` = 9:30 AM).
+Retrieve the trade or quote at a specific time of day across a date range. The `time_of_day` parameter uses ET wall-clock format `HH:MM:SS.SSS` (for example `09:30:00.000`). Legacy millisecond strings such as `34200000` are also accepted.
 
 ::: code-group
 ```rust [Rust]
 // Trade at a specific time of day across a date range
 let trades = client.stock_at_time_trade(
-    "AAPL", "20240101", "20240301", "34200000"
+    "AAPL", "20240101", "20240301", "09:30:00.000"
 ).await?;
 
 // Quote at a specific time of day across a date range
 let quotes = client.stock_at_time_quote(
-    "AAPL", "20240101", "20240301", "34200000"
+    "AAPL", "20240101", "20240301", "09:30:00.000"
 ).await?;
 ```
 ```python [Python]
 # Trade at a specific time of day across a date range
-trades = client.stock_at_time_trade("AAPL", "20240101", "20240301", "34200000")
+trades = client.stock_at_time_trade("AAPL", "20240101", "20240301", "09:30:00.000")
 
 # Quote at a specific time of day
-quotes = client.stock_at_time_quote("AAPL", "20240101", "20240301", "34200000")
+quotes = client.stock_at_time_quote("AAPL", "20240101", "20240301", "09:30:00.000")
 ```
 ```go [Go]
 // Trade at 9:30 AM across a date range
-trades, _ := client.StockAtTimeTrade("AAPL", "20240101", "20240301", "34200000")
+trades, _ := client.StockAtTimeTrade("AAPL", "20240101", "20240301", "09:30:00.000")
 
 // Quote at 9:30 AM
-quotes, _ := client.StockAtTimeQuote("AAPL", "20240101", "20240301", "34200000")
+quotes, _ := client.StockAtTimeQuote("AAPL", "20240101", "20240301", "09:30:00.000")
 ```
 ```cpp [C++]
 // Trade at 9:30 AM across a date range
-auto trades = client.stock_at_time_trade("AAPL", "20240101", "20240301", "34200000");
+auto trades = client.stock_at_time_trade("AAPL", "20240101", "20240301", "09:30:00.000");
 
 // Quote at 9:30 AM
-auto quotes = client.stock_at_time_quote("AAPL", "20240101", "20240301", "34200000");
+auto quotes = client.stock_at_time_quote("AAPL", "20240101", "20240301", "09:30:00.000");
 ```
 :::
 
@@ -639,31 +639,31 @@ auto tg_iv = client.option_history_trade_greeks_implied_volatility("SPY", "20240
 ```rust [Rust]
 let trades = client.option_at_time_trade(
     "SPY", "20240419", "500", "C",
-    "20240101", "20240301", "34200000"  // 9:30 AM ET
+    "20240101", "20240301", "09:30:00.000"  // 9:30 AM ET
 ).await?;
 
 let quotes = client.option_at_time_quote(
     "SPY", "20240419", "500", "C",
-    "20240101", "20240301", "34200000"
+    "20240101", "20240301", "09:30:00.000"
 ).await?;
 ```
 ```python [Python]
 trades = client.option_at_time_trade("SPY", "20240419", "500", "C",
-                                     "20240101", "20240301", "34200000")
+                                     "20240101", "20240301", "09:30:00.000")
 quotes = client.option_at_time_quote("SPY", "20240419", "500", "C",
-                                     "20240101", "20240301", "34200000")
+                                     "20240101", "20240301", "09:30:00.000")
 ```
 ```go [Go]
 trades, _ := client.OptionAtTimeTrade("SPY", "20240419", "500", "C",
-    "20240101", "20240301", "34200000")
+    "20240101", "20240301", "09:30:00.000")
 quotes, _ := client.OptionAtTimeQuote("SPY", "20240419", "500", "C",
-    "20240101", "20240301", "34200000")
+    "20240101", "20240301", "09:30:00.000")
 ```
 ```cpp [C++]
 auto trades = client.option_at_time_trade("SPY", "20240419", "500", "C",
-                                           "20240101", "20240301", "34200000");
+                                           "20240101", "20240301", "09:30:00.000");
 auto quotes = client.option_at_time_quote("SPY", "20240419", "500", "C",
-                                           "20240101", "20240301", "34200000");
+                                           "20240101", "20240301", "09:30:00.000");
 ```
 :::
 
@@ -766,17 +766,17 @@ auto price_hist = client.index_history_price("SPX", "20240315", "60000");
 ::: code-group
 ```rust [Rust]
 let ticks = client.index_at_time_price(
-    "SPX", "20240101", "20240301", "34200000"
+    "SPX", "20240101", "20240301", "09:30:00.000"
 ).await?;
 ```
 ```python [Python]
-result = client.index_at_time_price("SPX", "20240101", "20240301", "34200000")
+result = client.index_at_time_price("SPX", "20240101", "20240301", "09:30:00.000")
 ```
 ```go [Go]
-atTime, _ := client.IndexAtTimePrice("SPX", "20240101", "20240301", "34200000")
+atTime, _ := client.IndexAtTimePrice("SPX", "20240101", "20240301", "09:30:00.000")
 ```
 ```cpp [C++]
-auto at_time = client.index_at_time_price("SPX", "20240101", "20240301", "34200000");
+auto at_time = client.index_at_time_price("SPX", "20240101", "20240301", "09:30:00.000");
 ```
 :::
 
@@ -834,11 +834,11 @@ auto year_info = client.calendar_year("2024");
 
 ## Time Reference
 
-| Time (ET) | Milliseconds |
-|-----------|-------------|
-| 9:30 AM | `34200000` |
-| 12:00 PM | `43200000` |
-| 4:00 PM | `57600000` |
+| Time (ET) | `time_of_day` |
+|-----------|---------------|
+| 9:30 AM | `09:30:00.000` |
+| 12:00 PM | `12:00:00.000` |
+| 4:00 PM | `16:00:00.000` |
 
 ## Empty Responses
 

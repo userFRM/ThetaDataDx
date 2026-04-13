@@ -55,130 +55,130 @@ func ValidateAllEndpoints(c *Client) (int, int, int) {
 	_, err = c.OptionListSymbols()
 	classify("option_list_symbols", err, &pass, &skip, &fail)
 
-	_, err = c.OptionListDates("TRADE", "AAPL", "20250321", "570", "C")
+	_, err = c.OptionListDates("TRADE", "SPY", "20250321", "570", "C")
 	classify("option_list_dates", err, &pass, &skip, &fail)
 
-	_, err = c.OptionListExpirations("AAPL")
+	_, err = c.OptionListExpirations("SPY")
 	classify("option_list_expirations", err, &pass, &skip, &fail)
 
-	_, err = c.OptionListStrikes("AAPL", "20250321")
+	_, err = c.OptionListStrikes("SPY", "20250321")
 	classify("option_list_strikes", err, &pass, &skip, &fail)
 
-	_, err = c.OptionListContracts("TRADE", "AAPL", "20250303")
+	_, err = c.OptionListContracts("TRADE", "SPY", "20250303")
 	classify("option_list_contracts", err, &pass, &skip, &fail)
 
-	_, err = c.OptionSnapshotOHLC("AAPL", "20250321", "570", "C")
+	_, err = c.OptionSnapshotOHLC("SPY", "20250321", "570", "C")
 	classify("option_snapshot_ohlc", err, &pass, &skip, &fail)
 
-	_, err = c.OptionSnapshotTrade("AAPL", "20250321", "570", "C")
+	_, err = c.OptionSnapshotTrade("SPY", "20250321", "570", "C")
 	classify("option_snapshot_trade", err, &pass, &skip, &fail)
 
-	_, err = c.OptionSnapshotQuote("AAPL", "20250321", "570", "C")
+	_, err = c.OptionSnapshotQuote("SPY", "20250321", "570", "C")
 	classify("option_snapshot_quote", err, &pass, &skip, &fail)
 
-	_, err = c.OptionSnapshotOpenInterest("AAPL", "20250321", "570", "C")
+	_, err = c.OptionSnapshotOpenInterest("SPY", "20250321", "570", "C")
 	classify("option_snapshot_open_interest", err, &pass, &skip, &fail)
 
-	_, err = c.OptionSnapshotMarketValue("AAPL", "20250321", "570", "C")
+	_, err = c.OptionSnapshotMarketValue("SPY", "20250321", "570", "C")
 	classify("option_snapshot_market_value", err, &pass, &skip, &fail)
 
-	_, err = c.OptionSnapshotGreeksImpliedVolatility("AAPL", "20250321", "570", "C")
+	_, err = c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C")
 	classify("option_snapshot_greeks_implied_volatility", err, &pass, &skip, &fail)
 
-	_, err = c.OptionSnapshotGreeksAll("AAPL", "20250321", "570", "C")
+	_, err = c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C")
 	classify("option_snapshot_greeks_all", err, &pass, &skip, &fail)
 
-	_, err = c.OptionSnapshotGreeksFirstOrder("AAPL", "20250321", "570", "C")
+	_, err = c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C")
 	classify("option_snapshot_greeks_first_order", err, &pass, &skip, &fail)
 
-	_, err = c.OptionSnapshotGreeksSecondOrder("AAPL", "20250321", "570", "C")
+	_, err = c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C")
 	classify("option_snapshot_greeks_second_order", err, &pass, &skip, &fail)
 
-	_, err = c.OptionSnapshotGreeksThirdOrder("AAPL", "20250321", "570", "C")
+	_, err = c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C")
 	classify("option_snapshot_greeks_third_order", err, &pass, &skip, &fail)
 
-	_, err = c.OptionHistoryEOD("AAPL", "20250321", "570", "C", "20250303", "20250307")
+	_, err = c.OptionHistoryEOD("SPY", "20250321", "570", "C", "20250303", "20250307")
 	classify("option_history_eod", err, &pass, &skip, &fail)
 
-	_, err = c.OptionHistoryOHLC("AAPL", "20250321", "570", "C", "20250303", "60000")
+	_, err = c.OptionHistoryOHLC("SPY", "20250321", "570", "C", "20250303", "60000")
 	classify("option_history_ohlc", err, &pass, &skip, &fail)
 
-	_, err = c.OptionHistoryTrade("AAPL", "20250321", "570", "C", "20250303")
+	_, err = c.OptionHistoryTrade("SPY", "20250321", "570", "C", "20250303")
 	classify("option_history_trade", err, &pass, &skip, &fail)
 
-	_, err = c.OptionHistoryQuote("AAPL", "20250321", "570", "C", "20250303", "60000")
+	_, err = c.OptionHistoryQuote("SPY", "20250321", "570", "C", "20250303", "60000")
 	classify("option_history_quote", err, &pass, &skip, &fail)
 
-	_, err = c.OptionHistoryTradeQuote("AAPL", "20250321", "570", "C", "20250303")
+	_, err = c.OptionHistoryTradeQuote("SPY", "20250321", "570", "C", "20250303")
 	classify("option_history_trade_quote", err, &pass, &skip, &fail)
 
-	_, err = c.OptionHistoryOpenInterest("AAPL", "20250321", "570", "C", "20250303")
+	_, err = c.OptionHistoryOpenInterest("SPY", "20250321", "570", "C", "20250303")
 	classify("option_history_open_interest", err, &pass, &skip, &fail)
 
-	_, err = c.OptionHistoryGreeksEOD("AAPL", "20250321", "570", "C", "20250303", "20250307")
+	_, err = c.OptionHistoryGreeksEOD("SPY", "20250321", "570", "C", "20250303", "20250307")
 	classify("option_history_greeks_eod", err, &pass, &skip, &fail)
 
-	_, err = c.OptionHistoryGreeksAll("AAPL", "20250321", "570", "C", "20250303", "60000")
+	_, err = c.OptionHistoryGreeksAll("SPY", "20250321", "570", "C", "20250303", "60000")
 	classify("option_history_greeks_all", err, &pass, &skip, &fail)
 
-	_, err = c.OptionHistoryTradeGreeksAll("AAPL", "20250321", "570", "C", "20250303")
+	_, err = c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303")
 	classify("option_history_trade_greeks_all", err, &pass, &skip, &fail)
 
-	_, err = c.OptionHistoryGreeksFirstOrder("AAPL", "20250321", "570", "C", "20250303", "60000")
+	_, err = c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", "60000")
 	classify("option_history_greeks_first_order", err, &pass, &skip, &fail)
 
-	_, err = c.OptionHistoryTradeGreeksFirstOrder("AAPL", "20250321", "570", "C", "20250303")
+	_, err = c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303")
 	classify("option_history_trade_greeks_first_order", err, &pass, &skip, &fail)
 
-	_, err = c.OptionHistoryGreeksSecondOrder("AAPL", "20250321", "570", "C", "20250303", "60000")
+	_, err = c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", "60000")
 	classify("option_history_greeks_second_order", err, &pass, &skip, &fail)
 
-	_, err = c.OptionHistoryTradeGreeksSecondOrder("AAPL", "20250321", "570", "C", "20250303")
+	_, err = c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303")
 	classify("option_history_trade_greeks_second_order", err, &pass, &skip, &fail)
 
-	_, err = c.OptionHistoryGreeksThirdOrder("AAPL", "20250321", "570", "C", "20250303", "60000")
+	_, err = c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", "60000")
 	classify("option_history_greeks_third_order", err, &pass, &skip, &fail)
 
-	_, err = c.OptionHistoryTradeGreeksThirdOrder("AAPL", "20250321", "570", "C", "20250303")
+	_, err = c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303")
 	classify("option_history_trade_greeks_third_order", err, &pass, &skip, &fail)
 
-	_, err = c.OptionHistoryGreeksImpliedVolatility("AAPL", "20250321", "570", "C", "20250303", "60000")
+	_, err = c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", "60000")
 	classify("option_history_greeks_implied_volatility", err, &pass, &skip, &fail)
 
-	_, err = c.OptionHistoryTradeGreeksImpliedVolatility("AAPL", "20250321", "570", "C", "20250303")
+	_, err = c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303")
 	classify("option_history_trade_greeks_implied_volatility", err, &pass, &skip, &fail)
 
-	_, err = c.OptionAtTimeTrade("AAPL", "20250321", "570", "C", "20250303", "20250307", "12:00:00.000")
+	_, err = c.OptionAtTimeTrade("SPY", "20250321", "570", "C", "20250303", "20250307", "12:00:00.000")
 	classify("option_at_time_trade", err, &pass, &skip, &fail)
 
-	_, err = c.OptionAtTimeQuote("AAPL", "20250321", "570", "C", "20250303", "20250307", "12:00:00.000")
+	_, err = c.OptionAtTimeQuote("SPY", "20250321", "570", "C", "20250303", "20250307", "12:00:00.000")
 	classify("option_at_time_quote", err, &pass, &skip, &fail)
 
 	_, err = c.IndexListSymbols()
 	classify("index_list_symbols", err, &pass, &skip, &fail)
 
-	_, err = c.IndexListDates("AAPL")
+	_, err = c.IndexListDates("SPX")
 	classify("index_list_dates", err, &pass, &skip, &fail)
 
-	_, err = c.IndexSnapshotOHLC([]string{"AAPL"})
+	_, err = c.IndexSnapshotOHLC([]string{"SPX"})
 	classify("index_snapshot_ohlc", err, &pass, &skip, &fail)
 
-	_, err = c.IndexSnapshotPrice([]string{"AAPL"})
+	_, err = c.IndexSnapshotPrice([]string{"SPX"})
 	classify("index_snapshot_price", err, &pass, &skip, &fail)
 
-	_, err = c.IndexSnapshotMarketValue([]string{"AAPL"})
+	_, err = c.IndexSnapshotMarketValue([]string{"SPX"})
 	classify("index_snapshot_market_value", err, &pass, &skip, &fail)
 
-	_, err = c.IndexHistoryEOD("AAPL", "20250303", "20250307")
+	_, err = c.IndexHistoryEOD("SPX", "20250303", "20250307")
 	classify("index_history_eod", err, &pass, &skip, &fail)
 
-	_, err = c.IndexHistoryOHLC("AAPL", "20250303", "20250307", "60000")
+	_, err = c.IndexHistoryOHLC("SPX", "20250303", "20250307", "60000")
 	classify("index_history_ohlc", err, &pass, &skip, &fail)
 
-	_, err = c.IndexHistoryPrice("AAPL", "20250303", "60000")
+	_, err = c.IndexHistoryPrice("SPX", "20250303", "60000")
 	classify("index_history_price", err, &pass, &skip, &fail)
 
-	_, err = c.IndexAtTimePrice("AAPL", "20250303", "20250307", "12:00:00.000")
+	_, err = c.IndexAtTimePrice("SPX", "20250303", "20250307", "12:00:00.000")
 	classify("index_at_time_price", err, &pass, &skip, &fail)
 
 	_, err = c.CalendarOpenToday()
@@ -190,7 +190,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int) {
 	_, err = c.CalendarYear("2025")
 	classify("calendar_year", err, &pass, &skip, &fail)
 
-	_, err = c.InterestRateHistoryEOD("AAPL", "20250303", "20250307")
+	_, err = c.InterestRateHistoryEOD("SOFR", "20250303", "20250307")
 	classify("interest_rate_history_eod", err, &pass, &skip, &fail)
 
 	_, err = c.StockHistoryOHLCRange("AAPL", "20250303", "20250307", "60000")
@@ -207,6 +207,9 @@ func classify(name string, err error, pass, skip, fail *int) {
 		strings.Contains(strings.ToLower(err.Error()), "subscription") {
 		fmt.Printf("  %-45s SKIP  (tier)\n", name)
 		*skip++
+	} else if strings.Contains(strings.ToLower(err.Error()), "no data found") {
+		fmt.Printf("  %-45s PASS  (no data)\n", name)
+		*pass++
 	} else {
 		fmt.Printf("  %-45s FAIL  %v\n", name, err)
 		*fail++

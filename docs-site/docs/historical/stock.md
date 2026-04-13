@@ -206,40 +206,40 @@ auto tq = client.stock_history_trade_quote("AAPL", "20240315");
 
 ## At-Time
 
-Retrieve the trade or quote at a specific time of day across a date range. The `time_of_day` parameter is milliseconds from midnight ET (e.g., `34200000` = 9:30 AM).
+Retrieve the trade or quote at a specific time of day across a date range. The `time_of_day` parameter uses ET wall-clock format `HH:MM:SS.SSS` (for example `09:30:00.000`). Legacy millisecond strings such as `34200000` are also accepted.
 
 ::: code-group
 ```rust [Rust]
 // Trade at a specific time of day across a date range
 let trades = tdx.stock_at_time_trade(
-    "AAPL", "20240101", "20240301", "34200000"
+    "AAPL", "20240101", "20240301", "09:30:00.000"
 ).await?;
 
 // Quote at a specific time of day across a date range
 let quotes = tdx.stock_at_time_quote(
-    "AAPL", "20240101", "20240301", "34200000"
+    "AAPL", "20240101", "20240301", "09:30:00.000"
 ).await?;
 ```
 ```python [Python]
 # Trade at a specific time of day across a date range
-trades = tdx.stock_at_time_trade("AAPL", "20240101", "20240301", "34200000")
+trades = tdx.stock_at_time_trade("AAPL", "20240101", "20240301", "09:30:00.000")
 
 # Quote at a specific time of day
-quotes = tdx.stock_at_time_quote("AAPL", "20240101", "20240301", "34200000")
+quotes = tdx.stock_at_time_quote("AAPL", "20240101", "20240301", "09:30:00.000")
 ```
 ```go [Go]
 // Trade at 9:30 AM across a date range
-trades, _ := client.StockAtTimeTrade("AAPL", "20240101", "20240301", "34200000")
+trades, _ := client.StockAtTimeTrade("AAPL", "20240101", "20240301", "09:30:00.000")
 
 // Quote at 9:30 AM
-quotes, _ := client.StockAtTimeQuote("AAPL", "20240101", "20240301", "34200000")
+quotes, _ := client.StockAtTimeQuote("AAPL", "20240101", "20240301", "09:30:00.000")
 ```
 ```cpp [C++]
 // Trade at 9:30 AM across a date range
-auto trades = client.stock_at_time_trade("AAPL", "20240101", "20240301", "34200000");
+auto trades = client.stock_at_time_trade("AAPL", "20240101", "20240301", "09:30:00.000");
 
 // Quote at 9:30 AM
-auto quotes = client.stock_at_time_quote("AAPL", "20240101", "20240301", "34200000");
+auto quotes = client.stock_at_time_quote("AAPL", "20240101", "20240301", "09:30:00.000");
 ```
 :::
 

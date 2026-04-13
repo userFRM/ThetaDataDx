@@ -199,7 +199,7 @@ use = "end_date_optional"
 
 [[param_groups.time_of_day.params]]
 name = "time_of_day"
-description = "Milliseconds from midnight ET (e.g. 34200000 = 9:30 AM)"
+description = "ET wall-clock time in HH:MM:SS.SSS (e.g. 09:30:00.000 for 9:30 AM ET; legacy 34200000 is also accepted)"
 param_type = "Str"
 required = true
 binding = "method"

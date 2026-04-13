@@ -411,16 +411,16 @@ Trade at a specific time of day across a date range.
 
 ::: code-group
 ```rust [Rust]
-let trades = tdx.stock_at_time_trade("AAPL", "20240101", "20240301", "34200000").await?;
+let trades = tdx.stock_at_time_trade("AAPL", "20240101", "20240301", "09:30:00.000").await?;
 ```
 ```python [Python]
-trades = tdx.stock_at_time_trade("AAPL", "20240101", "20240301", "34200000")
+trades = tdx.stock_at_time_trade("AAPL", "20240101", "20240301", "09:30:00.000")
 ```
 ```go [Go]
-trades, err := client.StockAtTimeTrade("AAPL", "20240101", "20240301", "34200000")
+trades, err := client.StockAtTimeTrade("AAPL", "20240101", "20240301", "09:30:00.000")
 ```
 ```cpp [C++]
-auto trades = client.stock_at_time_trade("AAPL", "20240101", "20240301", "34200000");
+auto trades = client.stock_at_time_trade("AAPL", "20240101", "20240301", "09:30:00.000");
 ```
 :::
 
@@ -429,7 +429,7 @@ auto trades = client.stock_at_time_trade("AAPL", "20240101", "20240301", "342000
 | `symbol` | string | Yes | Ticker symbol |
 | `start_date` | string | Yes | Start date (`YYYYMMDD`) |
 | `end_date` | string | Yes | End date (`YYYYMMDD`) |
-| `time_of_day` | string | Yes | Ms from midnight ET (e.g. `"34200000"` = 9:30 AM) |
+| `time_of_day` | string | Yes | ET wall-clock time in `HH:MM:SS.SSS` (e.g. `"09:30:00.000"`; legacy `"34200000"` also accepted) |
 | `venue` | string | No | Data venue filter |
 
 **Returns:** List of [TradeTick](#tradetick), one per date.
@@ -442,16 +442,16 @@ Quote at a specific time of day across a date range.
 
 ::: code-group
 ```rust [Rust]
-let quotes = tdx.stock_at_time_quote("AAPL", "20240101", "20240301", "34200000").await?;
+let quotes = tdx.stock_at_time_quote("AAPL", "20240101", "20240301", "09:30:00.000").await?;
 ```
 ```python [Python]
-quotes = tdx.stock_at_time_quote("AAPL", "20240101", "20240301", "34200000")
+quotes = tdx.stock_at_time_quote("AAPL", "20240101", "20240301", "09:30:00.000")
 ```
 ```go [Go]
-quotes, err := client.StockAtTimeQuote("AAPL", "20240101", "20240301", "34200000")
+quotes, err := client.StockAtTimeQuote("AAPL", "20240101", "20240301", "09:30:00.000")
 ```
 ```cpp [C++]
-auto quotes = client.stock_at_time_quote("AAPL", "20240101", "20240301", "34200000");
+auto quotes = client.stock_at_time_quote("AAPL", "20240101", "20240301", "09:30:00.000");
 ```
 :::
 
@@ -460,7 +460,7 @@ auto quotes = client.stock_at_time_quote("AAPL", "20240101", "20240301", "342000
 | `symbol` | string | Yes | Ticker symbol |
 | `start_date` | string | Yes | Start date (`YYYYMMDD`) |
 | `end_date` | string | Yes | End date (`YYYYMMDD`) |
-| `time_of_day` | string | Yes | Ms from midnight ET |
+| `time_of_day` | string | Yes | ET wall-clock time in `HH:MM:SS.SSS` |
 | `venue` | string | No | Data venue filter |
 
 **Returns:** List of [QuoteTick](#quotetick), one per date.
@@ -1527,17 +1527,17 @@ Trade at a specific time of day across a date range for an option contract.
 ::: code-group
 ```rust [Rust]
 let trades = tdx.option_at_time_trade(
-    "SPY", "20241220", "500", "C", "20240101", "20240301", "34200000"
+    "SPY", "20241220", "500", "C", "20240101", "20240301", "09:30:00.000"
 ).await?;
 ```
 ```python [Python]
-trades = tdx.option_at_time_trade("SPY", "20241220", "500", "C", "20240101", "20240301", "34200000")
+trades = tdx.option_at_time_trade("SPY", "20241220", "500", "C", "20240101", "20240301", "09:30:00.000")
 ```
 ```go [Go]
-trades, err := client.OptionAtTimeTrade("SPY", "20241220", "500", "C", "20240101", "20240301", "34200000")
+trades, err := client.OptionAtTimeTrade("SPY", "20241220", "500", "C", "20240101", "20240301", "09:30:00.000")
 ```
 ```cpp [C++]
-auto trades = client.option_at_time_trade("SPY", "20241220", "500", "C", "20240101", "20240301", "34200000");
+auto trades = client.option_at_time_trade("SPY", "20241220", "500", "C", "20240101", "20240301", "09:30:00.000");
 ```
 :::
 
@@ -1549,7 +1549,7 @@ auto trades = client.option_at_time_trade("SPY", "20241220", "500", "C", "202401
 | `right` | string | Yes | `"C"` or `"P"` |
 | `start_date` | string | Yes | Start date (`YYYYMMDD`) |
 | `end_date` | string | Yes | End date (`YYYYMMDD`) |
-| `time_of_day` | string | Yes | Ms from midnight ET |
+| `time_of_day` | string | Yes | ET wall-clock time in `HH:MM:SS.SSS` |
 | `max_dte` | int | No | Maximum days to expiration |
 | `strike_range` | int | No | Strike range filter |
 
@@ -1564,17 +1564,17 @@ Quote at a specific time of day across a date range for an option contract.
 ::: code-group
 ```rust [Rust]
 let quotes = tdx.option_at_time_quote(
-    "SPY", "20241220", "500", "C", "20240101", "20240301", "34200000"
+    "SPY", "20241220", "500", "C", "20240101", "20240301", "09:30:00.000"
 ).await?;
 ```
 ```python [Python]
-quotes = tdx.option_at_time_quote("SPY", "20241220", "500", "C", "20240101", "20240301", "34200000")
+quotes = tdx.option_at_time_quote("SPY", "20241220", "500", "C", "20240101", "20240301", "09:30:00.000")
 ```
 ```go [Go]
-quotes, err := client.OptionAtTimeQuote("SPY", "20241220", "500", "C", "20240101", "20240301", "34200000")
+quotes, err := client.OptionAtTimeQuote("SPY", "20241220", "500", "C", "20240101", "20240301", "09:30:00.000")
 ```
 ```cpp [C++]
-auto quotes = client.option_at_time_quote("SPY", "20241220", "500", "C", "20240101", "20240301", "34200000");
+auto quotes = client.option_at_time_quote("SPY", "20241220", "500", "C", "20240101", "20240301", "09:30:00.000");
 ```
 :::
 
@@ -1586,7 +1586,7 @@ auto quotes = client.option_at_time_quote("SPY", "20241220", "500", "C", "202401
 | `right` | string | Yes | `"C"` or `"P"` |
 | `start_date` | string | Yes | Start date (`YYYYMMDD`) |
 | `end_date` | string | Yes | End date (`YYYYMMDD`) |
-| `time_of_day` | string | Yes | Ms from midnight ET |
+| `time_of_day` | string | Yes | ET wall-clock time in `HH:MM:SS.SSS` |
 | `max_dte` | int | No | Maximum days to expiration |
 | `strike_range` | int | No | Strike range filter |
 
@@ -1830,16 +1830,16 @@ Index price at a specific time of day across a date range.
 
 ::: code-group
 ```rust [Rust]
-let prices = tdx.index_at_time_price("SPX", "20240101", "20240301", "34200000").await?;
+let prices = tdx.index_at_time_price("SPX", "20240101", "20240301", "09:30:00.000").await?;
 ```
 ```python [Python]
-prices = tdx.index_at_time_price("SPX", "20240101", "20240301", "34200000")
+prices = tdx.index_at_time_price("SPX", "20240101", "20240301", "09:30:00.000")
 ```
 ```go [Go]
-prices, err := client.IndexAtTimePrice("SPX", "20240101", "20240301", "34200000")
+prices, err := client.IndexAtTimePrice("SPX", "20240101", "20240301", "09:30:00.000")
 ```
 ```cpp [C++]
-auto prices = client.index_at_time_price("SPX", "20240101", "20240301", "34200000");
+auto prices = client.index_at_time_price("SPX", "20240101", "20240301", "09:30:00.000");
 ```
 :::
 
@@ -1848,7 +1848,7 @@ auto prices = client.index_at_time_price("SPX", "20240101", "20240301", "3420000
 | `symbol` | string | Yes | Index symbol |
 | `start_date` | string | Yes | Start date (`YYYYMMDD`) |
 | `end_date` | string | Yes | End date (`YYYYMMDD`) |
-| `time_of_day` | string | Yes | Ms from midnight ET |
+| `time_of_day` | string | Yes | ET wall-clock time in `HH:MM:SS.SSS` |
 
 **Returns:** Array of PriceTick records with one price per date.
 

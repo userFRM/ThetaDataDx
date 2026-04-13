@@ -12,8 +12,11 @@
 #   ./scripts/validate_release.sh /path/to/creds.txt
 #
 # Prerequisites:
-#   cargo build --release -p thetadatadx-cli -p thetadatadx-ffi
-#   (cd sdks/python && maturin develop --release)
+#   Rust, Go, Python, and a working compiler toolchain
+#
+# The script will build missing local artifacts as needed. If the Python SDK is
+# not installed into the current interpreter, it bootstraps a local virtualenv
+# under `.venv-release-validate` and installs the PyO3 extension there.
 
 set -uo pipefail
 
@@ -46,6 +49,31 @@ record() {
     SECTION_RESULTS+=("$(printf "  %-12s %3d PASS  %3d SKIP  %3d FAIL" "$surface" "$pass" "$skip" "$fail")")
 }
 
+ensure_python_sdk() {
+    local py_bin="${PYTHON_BIN:-python3}"
+    if "$py_bin" -c "import thetadatadx" >/dev/null 2>&1; then
+        PYTHON_BIN="$py_bin"
+        return 0
+    fi
+
+    local venv_dir="$REPO/.venv-release-validate"
+    echo "  Python SDK not installed; bootstrapping $venv_dir"
+
+    if [ ! -x "$venv_dir/bin/python" ]; then
+        python3 -m venv "$venv_dir" || return 1
+    fi
+
+    "$venv_dir/bin/python" -m pip install --upgrade pip maturin >/dev/null || return 1
+    (
+        export VIRTUAL_ENV="$venv_dir"
+        export PATH="$venv_dir/bin:$PATH"
+        cd "$REPO/sdks/python" &&
+        "$venv_dir/bin/maturin" develop --release >/dev/null
+    ) || return 1
+
+    PYTHON_BIN="$venv_dir/bin/python"
+}
+
 # ── 1. CLI (all 61 endpoints) ──────────────────────────────────────────────
 
 section "1/3  CLI — all 61 endpoints"
@@ -74,18 +102,18 @@ section "2/3  Python SDK — all 61 endpoints"
 py_pass=0
 py_skip=0
 py_fail=0
+PYTHON_BIN="${PYTHON_BIN:-python3}"
 
-if python3 -c "import thetadatadx" 2>/dev/null; then
-    py_result=$(python3 "$REPO/scripts/validate_python.py" "$CREDS" 2>&1)
+if ensure_python_sdk; then
+    py_result=$("$PYTHON_BIN" "$REPO/scripts/validate_python.py" "$CREDS" 2>&1)
     echo "$py_result"
     py_counts=$(echo "$py_result" | grep -oP 'COUNTS:\K.*')
     py_pass=$(echo "$py_counts" | cut -d: -f1)
     py_skip=$(echo "$py_counts" | cut -d: -f2)
     py_fail=$(echo "$py_counts" | cut -d: -f3)
 else
-    echo "  Python SDK not installed (run: cd sdks/python && maturin develop --release)"
-    echo "  Skipping Python checks."
-    py_skip=61
+    echo "  Python SDK bootstrap failed."
+    py_fail=61
 fi
 record "Python" "$py_pass" "$py_skip" "$py_fail"
 
@@ -98,6 +126,11 @@ go_skip=0
 go_fail=0
 
 FFI_LIB="$REPO/target/release"
+if [ ! -f "$FFI_LIB/libthetadatadx_ffi.so" ] && [ ! -f "$FFI_LIB/libthetadatadx_ffi.dylib" ]; then
+    echo "Building FFI library..."
+    cargo build --release -p thetadatadx-ffi --manifest-path "$REPO/Cargo.toml"
+fi
+
 if [ -f "$FFI_LIB/libthetadatadx_ffi.so" ] || [ -f "$FFI_LIB/libthetadatadx_ffi.dylib" ]; then
     go_result=$(cd "$REPO/sdks/go" && CGO_LDFLAGS="-L$FFI_LIB" LD_LIBRARY_PATH="$FFI_LIB" \
         go run ./cmd/validate "$CREDS" 2>&1)
@@ -107,9 +140,8 @@ if [ -f "$FFI_LIB/libthetadatadx_ffi.so" ] || [ -f "$FFI_LIB/libthetadatadx_ffi.
     go_skip=$(echo "$go_counts" | cut -d: -f2)
     go_fail=$(echo "$go_counts" | cut -d: -f3)
 else
-    echo "  FFI library not built (run: cargo build --release -p thetadatadx-ffi)"
-    echo "  Skipping Go checks."
-    go_skip=61
+    echo "  FFI library build failed."
+    go_fail=61
 fi
 record "Go" "$go_pass" "$go_skip" "$go_fail"
 

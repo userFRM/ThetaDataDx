@@ -137,7 +137,7 @@ x-anchors:
     required: true
     schema:
       type: string
-    description: Milliseconds from midnight ET (e.g. "34200000" for 9:30 AM ET)
+    description: ET wall-clock time in HH:MM:SS.SSS (e.g. "09:30:00.000" for 9:30 AM ET; legacy "34200000" is also accepted)
 
   venue-param: &venue-param
     name: venue
@@ -1099,7 +1099,7 @@ paths:
       summary: Stock trade at specific time
       description: |
         Trade at a specific time of day across a date range.
-        time_of_day is milliseconds from midnight ET (e.g. "34200000" for 9:30 AM ET).
+        time_of_day uses ET wall-clock format HH:MM:SS.SSS (e.g. "09:30:00.000" for 9:30 AM ET). Legacy millisecond strings such as "34200000" are also accepted.
         gRPC: GetStockAtTimeTrade
       tags: [Stock / AtTime]
       parameters:
@@ -1114,19 +1114,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let trades = tdx.stock_at_time_trade("AAPL", "20240101", "20240301", "34200000").await?;
+            let trades = tdx.stock_at_time_trade("AAPL", "20240101", "20240301", "09:30:00.000").await?;
         - lang: python
           label: Python
           source: |
-            trades = tdx.stock_at_time_trade("AAPL", "20240101", "20240301", "34200000")
+            trades = tdx.stock_at_time_trade("AAPL", "20240101", "20240301", "09:30:00.000")
         - lang: go
           label: Go
           source: |
-            trades, err := client.StockAtTimeTrade("AAPL", "20240101", "20240301", "34200000")
+            trades, err := client.StockAtTimeTrade("AAPL", "20240101", "20240301", "09:30:00.000")
         - lang: cpp
           label: C++
           source: |
-            auto trades = client.stock_at_time_trade("AAPL", "20240101", "20240301", "34200000");
+            auto trades = client.stock_at_time_trade("AAPL", "20240101", "20240301", "09:30:00.000");
 
   /stock/at_time/quote:
     x-min-subscription: value
@@ -1149,19 +1149,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let quotes = tdx.stock_at_time_quote("AAPL", "20240101", "20240301", "34200000").await?;
+            let quotes = tdx.stock_at_time_quote("AAPL", "20240101", "20240301", "09:30:00.000").await?;
         - lang: python
           label: Python
           source: |
-            quotes = tdx.stock_at_time_quote("AAPL", "20240101", "20240301", "34200000")
+            quotes = tdx.stock_at_time_quote("AAPL", "20240101", "20240301", "09:30:00.000")
         - lang: go
           label: Go
           source: |
-            quotes, err := client.StockAtTimeQuote("AAPL", "20240101", "20240301", "34200000")
+            quotes, err := client.StockAtTimeQuote("AAPL", "20240101", "20240301", "09:30:00.000")
         - lang: cpp
           label: C++
           source: |
-            auto quotes = client.stock_at_time_quote("AAPL", "20240101", "20240301", "34200000");
+            auto quotes = client.stock_at_time_quote("AAPL", "20240101", "20240301", "09:30:00.000");
 
   # =========================================================================
   # OPTION / LIST
@@ -2671,19 +2671,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let trades = tdx.option_at_time_trade("SPY", "20240419", "500", "C", "20240101", "20240301", "34200000").await?;
+            let trades = tdx.option_at_time_trade("SPY", "20240419", "500", "C", "20240101", "20240301", "09:30:00.000").await?;
         - lang: python
           label: Python
           source: |
-            trades = tdx.option_at_time_trade("SPY", "20240419", "500", "C", "20240101", "20240301", "34200000")
+            trades = tdx.option_at_time_trade("SPY", "20240419", "500", "C", "20240101", "20240301", "09:30:00.000")
         - lang: go
           label: Go
           source: |
-            trades, err := client.OptionAtTimeTrade("SPY", "20240419", "500", "C", "20240101", "20240301", "34200000")
+            trades, err := client.OptionAtTimeTrade("SPY", "20240419", "500", "C", "20240101", "20240301", "09:30:00.000")
         - lang: cpp
           label: C++
           source: |
-            auto trades = client.option_at_time_trade("SPY", "20240419", "500", "C", "20240101", "20240301", "34200000");
+            auto trades = client.option_at_time_trade("SPY", "20240419", "500", "C", "20240101", "20240301", "09:30:00.000");
 
   /option/at_time/quote:
     x-min-subscription: value
@@ -2710,19 +2710,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let quotes = tdx.option_at_time_quote("SPY", "20240419", "500", "C", "20240101", "20240301", "34200000").await?;
+            let quotes = tdx.option_at_time_quote("SPY", "20240419", "500", "C", "20240101", "20240301", "09:30:00.000").await?;
         - lang: python
           label: Python
           source: |
-            quotes = tdx.option_at_time_quote("SPY", "20240419", "500", "C", "20240101", "20240301", "34200000")
+            quotes = tdx.option_at_time_quote("SPY", "20240419", "500", "C", "20240101", "20240301", "09:30:00.000")
         - lang: go
           label: Go
           source: |
-            quotes, err := client.OptionAtTimeQuote("SPY", "20240419", "500", "C", "20240101", "20240301", "34200000")
+            quotes, err := client.OptionAtTimeQuote("SPY", "20240419", "500", "C", "20240101", "20240301", "09:30:00.000")
         - lang: cpp
           label: C++
           source: |
-            auto quotes = client.option_at_time_quote("SPY", "20240419", "500", "C", "20240101", "20240301", "34200000");
+            auto quotes = client.option_at_time_quote("SPY", "20240419", "500", "C", "20240101", "20240301", "09:30:00.000");
 
   # =========================================================================
   # INDEX / LIST
@@ -3033,19 +3033,19 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let prices = tdx.index_at_time_price("SPX", "20240101", "20240301", "34200000").await?;
+            let prices = tdx.index_at_time_price("SPX", "20240101", "20240301", "09:30:00.000").await?;
         - lang: python
           label: Python
           source: |
-            prices = tdx.index_at_time_price("SPX", "20240101", "20240301", "34200000")
+            prices = tdx.index_at_time_price("SPX", "20240101", "20240301", "09:30:00.000")
         - lang: go
           label: Go
           source: |
-            prices, err := client.IndexAtTimePrice("SPX", "20240101", "20240301", "34200000")
+            prices, err := client.IndexAtTimePrice("SPX", "20240101", "20240301", "09:30:00.000")
         - lang: cpp
           label: C++
           source: |
-            auto prices = client.index_at_time_price("SPX", "20240101", "20240301", "34200000");
+            auto prices = client.index_at_time_price("SPX", "20240101", "20240301", "09:30:00.000");
 
   # =========================================================================
   # CALENDAR
