@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-mcp"
-version = "6.0.0"
+version = "7.0.0"
 edition = "2021"
 description = "MCP server for ThetaDataDx — gives LLMs instant access to ThetaData market data"
 license = "GPL-3.0-or-later"

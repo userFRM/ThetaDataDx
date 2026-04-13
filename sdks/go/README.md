@@ -256,7 +256,6 @@ defer client.Close()
 | `MarketValueTick` | MsOfDay, MarketCap, SharesOut, EntValue, BookValue, FreeFloat, Date, **Expiration, Strike (float64), Right (string)** | Market value data |
 | `GreeksTick` | MsOfDay, ImpliedVolatility, Delta, Gamma, Theta, Vega, Rho, IVError, Vanna, Charm, Vomma, Veta, Speed, Zomma, Color, Ultima, D1, D2, DualDelta, DualGamma, Epsilon, Lambda, Vera, Date, **Expiration, Strike (float64), Right (string)** | Greeks time series |
 | `IVTick` | MsOfDay, ImpliedVolatility, IVError, Date, **Expiration, Strike (float64), Right (string)** | Implied volatility data point |
-| `SnapshotTradeTick` | MsOfDay, Sequence, Size, Condition, Price (float64), Date, **Expiration, Strike (float64), Right (string)** | Snapshot trade |
 | `PriceTick` | MsOfDay, Price (float64), Date | Price data point (indices) |
 | `CalendarDay` | Date, IsOpen, OpenTime, CloseTime, Status | Market calendar day |
 | `InterestRate` | Date, Rate | Interest rate data point |
@@ -341,17 +340,25 @@ All prices in streaming events are `float64` -- decoded during parsing. No `Pric
 | `SubscribeQuotes(symbol)` | `(int, error)` | Subscribe to quotes |
 | `SubscribeTrades(symbol)` | `(int, error)` | Subscribe to trades |
 | `SubscribeOpenInterest(symbol)` | `(int, error)` | Subscribe to open interest |
+| `SubscribeOptionQuotes(symbol, expiration, strike, right)` | `(int, error)` | Subscribe to option quotes |
+| `SubscribeOptionTrades(symbol, expiration, strike, right)` | `(int, error)` | Subscribe to option trades |
+| `SubscribeOptionOpenInterest(symbol, expiration, strike, right)` | `(int, error)` | Subscribe to option open interest |
 | `SubscribeFullTrades(secType)` | `(int, error)` | Subscribe to all trades for a security type |
+| `SubscribeFullOpenInterest(secType)` | `(int, error)` | Subscribe to all OI for a security type |
 | `UnsubscribeQuotes(symbol)` | `(int, error)` | Unsubscribe from quotes |
 | `UnsubscribeTrades(symbol)` | `(int, error)` | Unsubscribe from trades |
 | `UnsubscribeOpenInterest(symbol)` | `(int, error)` | Unsubscribe from open interest |
-| `SubscribeFullOpenInterest(secType)` | `(int, error)` | Subscribe to all OI for a security type |
+| `UnsubscribeOptionQuotes(symbol, expiration, strike, right)` | `(int, error)` | Unsubscribe from option quotes |
+| `UnsubscribeOptionTrades(symbol, expiration, strike, right)` | `(int, error)` | Unsubscribe from option trades |
+| `UnsubscribeOptionOpenInterest(symbol, expiration, strike, right)` | `(int, error)` | Unsubscribe from option open interest |
 | `UnsubscribeFullTrades(secType)` | `(int, error)` | Unsubscribe from all trades for a security type |
 | `UnsubscribeFullOpenInterest(secType)` | `(int, error)` | Unsubscribe from all OI for a security type |
 | `IsAuthenticated()` | `bool` | Check if FPSS client is authenticated |
 | `ContractLookup(id)` | `(string, error)` | Look up contract by server-assigned ID |
+| `ContractMap()` | `(map[int32]string, error)` | Get the full contract ID mapping |
 | `ActiveSubscriptions()` | `([]Subscription, error)` | List currently active subscriptions |
 | `NextEvent(timeoutMs)` | `(*FpssEvent, error)` | Poll next event as typed struct (nil on timeout) |
+| `Reconnect()` | `error` | Reconnect streaming and restore subscriptions |
 | `Shutdown()` | | Graceful shutdown of streaming |
 | `Close()` | | Free the FPSS handle (call after Shutdown) |
 

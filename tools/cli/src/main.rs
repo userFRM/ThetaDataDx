@@ -14,8 +14,6 @@ use thetadatadx::registry::{self, EndpointMeta};
 /// Structure: `tdx [global opts] <category> <endpoint-subcmd> [args...]`
 ///
 /// Categories (stock, option, index, rate, calendar) are auto-populated.
-/// The `auth`, `greeks`, and `iv` commands remain hand-written since they
-/// don't map to `DirectClient` endpoints.
 // Reason: CLI builder registers all subcommands in a single function; splitting would lose cohesion.
 #[allow(clippy::too_many_lines)]
 fn build_cli() -> Command {
@@ -50,60 +48,7 @@ fn build_cli() -> Command {
                 .help("Output format"),
         );
 
-    // Hand-written: auth
-    app = app.subcommand(Command::new("auth").about("Test authentication and print session info"));
-
-    // Hand-written: greeks (offline)
-    app = app.subcommand(
-        Command::new("greeks")
-            .about("Compute Black-Scholes Greeks (offline, no server needed)")
-            .arg(Arg::new("spot").required(true).help("Spot price"))
-            .arg(Arg::new("strike").required(true).help("Strike price"))
-            .arg(
-                Arg::new("rate")
-                    .required(true)
-                    .help("Risk-free rate (e.g. 0.05)"),
-            )
-            .arg(
-                Arg::new("dividend")
-                    .required(true)
-                    .help("Dividend yield (e.g. 0.015)"),
-            )
-            .arg(
-                Arg::new("time")
-                    .required(true)
-                    .help("Time to expiration in years (e.g. 0.082 for ~30 days)"),
-            )
-            .arg(Arg::new("option_price").required(true).help("Option price"))
-            .arg(
-                Arg::new("right")
-                    .required(true)
-                    .value_parser(["call", "put"])
-                    .help("Option type: call or put"),
-            ),
-    );
-
-    // Hand-written: iv (offline)
-    app = app.subcommand(
-        Command::new("iv")
-            .about("Compute implied volatility only (offline, no server needed)")
-            .arg(Arg::new("spot").required(true).help("Spot price"))
-            .arg(Arg::new("strike").required(true).help("Strike price"))
-            .arg(Arg::new("rate").required(true).help("Risk-free rate"))
-            .arg(Arg::new("dividend").required(true).help("Dividend yield"))
-            .arg(
-                Arg::new("time")
-                    .required(true)
-                    .help("Time to expiration in years"),
-            )
-            .arg(Arg::new("option_price").required(true).help("Option price"))
-            .arg(
-                Arg::new("right")
-                    .required(true)
-                    .value_parser(["call", "put"])
-                    .help("Option type: call or put"),
-            ),
-    );
+    app = add_generated_utility_commands(app);
 
     // Dynamic: build category subcommands from ENDPOINTS
     for &cat in registry::CATEGORIES {
@@ -182,6 +127,8 @@ fn build_endpoint_args(
     Ok(args)
 }
 
+include!("utilities.rs");
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  Output format enum
 // ═══════════════════════════════════════════════════════════════════════════
@@ -227,7 +174,10 @@ fn format_price_f64(value: f64) -> String {
     }
     let s = format!("{value:.6}");
     // Trim trailing zeros but keep at least 2 decimal places.
-    let dot = s.find('.').unwrap();
+    // Safety: format!("{:.6}") always produces a decimal point.
+    let dot = s
+        .find('.')
+        .expect("format!(\"{value:.6}\") must contain '.'");
     let min_len = dot + 3;
     let trimmed = s.trim_end_matches('0');
     if trimmed.len() < min_len {
@@ -756,7 +706,7 @@ async fn main() {
     }
 }
 
-// Reason: top-level CLI dispatch across auth, greeks, IV, streaming, and endpoint commands.
+// Reason: top-level CLI dispatch across generated utilities and endpoint commands.
 #[allow(clippy::too_many_lines)]
 async fn run(matches: ArgMatches) -> Result<(), thetadatadx::Error> {
     let fmt = OutputFormat::from_str(
@@ -771,137 +721,11 @@ async fn run(matches: ArgMatches) -> Result<(), thetadatadx::Error> {
         .get_one::<String>("config")
         .map_or("production", std::string::String::as_str);
 
+    if try_run_generated_utility(matches.subcommand(), &fmt, creds_path).await? {
+        return Ok(());
+    }
+
     match matches.subcommand() {
-        // ── Auth (hand-written) ─────────────────────────────────────
-        Some(("auth", _)) => {
-            let creds = thetadatadx::Credentials::from_file(creds_path)?;
-            let resp = thetadatadx::auth::authenticate(&creds).await?;
-            let mut td = TabularData::new(vec![
-                "session_id",
-                "email",
-                "stock_tier",
-                "options_tier",
-                "indices_tier",
-                "rate_tier",
-                "created",
-            ]);
-            let user = resp.user.as_ref();
-            let redacted_session = if resp.session_id.len() >= 8 {
-                format!("{}...", &resp.session_id[..8])
-            } else {
-                resp.session_id.clone()
-            };
-            td.push(vec![
-                redacted_session,
-                user.and_then(|u| u.email.clone()).unwrap_or_default(),
-                user.and_then(|u| u.stock_subscription)
-                    .map(|t| format!("{t}"))
-                    .unwrap_or_default(),
-                user.and_then(|u| u.options_subscription)
-                    .map(|t| format!("{t}"))
-                    .unwrap_or_default(),
-                user.and_then(|u| u.indices_subscription)
-                    .map(|t| format!("{t}"))
-                    .unwrap_or_default(),
-                user.and_then(|u| u.interest_rate_subscription)
-                    .map(|t| format!("{t}"))
-                    .unwrap_or_default(),
-                resp.session_created.unwrap_or_default(),
-            ]);
-            td.render(&fmt);
-        }
-
-        // ── Greeks (offline, hand-written) ──────────────────────────
-        Some(("greeks", sub_m)) => {
-            let spot: f64 = get_arg(sub_m, "spot")
-                .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid spot price: {e}")))?;
-            let strike: f64 = get_arg(sub_m, "strike")
-                .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid strike price: {e}")))?;
-            let rate: f64 = get_arg(sub_m, "rate")
-                .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid rate: {e}")))?;
-            let dividend: f64 = get_arg(sub_m, "dividend")
-                .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid dividend: {e}")))?;
-            let time: f64 = get_arg(sub_m, "time")
-                .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid time: {e}")))?;
-            let option_price: f64 = get_arg(sub_m, "option_price")
-                .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid option_price: {e}")))?;
-            let is_call = get_arg(sub_m, "right") == "call";
-
-            let g =
-                tdbe::greeks::all_greeks(spot, strike, rate, dividend, time, option_price, is_call);
-            let mut td = TabularData::new(vec!["greek", "value"]);
-            let rows = [
-                ("value", g.value),
-                ("iv", g.iv),
-                ("iv_error", g.iv_error),
-                ("delta", g.delta),
-                ("gamma", g.gamma),
-                ("theta", g.theta),
-                ("vega", g.vega),
-                ("rho", g.rho),
-                ("d1", g.d1),
-                ("d2", g.d2),
-                ("vanna", g.vanna),
-                ("charm", g.charm),
-                ("vomma", g.vomma),
-                ("veta", g.veta),
-                ("speed", g.speed),
-                ("zomma", g.zomma),
-                ("color", g.color),
-                ("ultima", g.ultima),
-                ("dual_delta", g.dual_delta),
-                ("dual_gamma", g.dual_gamma),
-                ("epsilon", g.epsilon),
-                ("lambda", g.lambda),
-            ];
-            for (name, val) in rows {
-                td.push(vec![name.to_string(), format!("{val:.8}")]);
-            }
-            td.render(&fmt);
-        }
-
-        // ── IV (offline, hand-written) ──────────────────────────────
-        Some(("iv", sub_m)) => {
-            let spot: f64 = get_arg(sub_m, "spot")
-                .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid spot price: {e}")))?;
-            let strike: f64 = get_arg(sub_m, "strike")
-                .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid strike price: {e}")))?;
-            let rate: f64 = get_arg(sub_m, "rate")
-                .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid rate: {e}")))?;
-            let dividend: f64 = get_arg(sub_m, "dividend")
-                .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid dividend: {e}")))?;
-            let time: f64 = get_arg(sub_m, "time")
-                .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid time: {e}")))?;
-            let option_price: f64 = get_arg(sub_m, "option_price")
-                .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid option_price: {e}")))?;
-            let is_call = get_arg(sub_m, "right") == "call";
-
-            let (iv, iv_error) = tdbe::greeks::implied_volatility(
-                spot,
-                strike,
-                rate,
-                dividend,
-                time,
-                option_price,
-                is_call,
-            );
-            let mut td = TabularData::new(vec!["iv", "iv_error"]);
-            td.push(vec![format!("{iv:.8}"), format!("{iv_error:.8}")]);
-            td.render(&fmt);
-        }
-
         // ── Dynamic category dispatch (registry-driven) ────────────
         Some((cat, cat_m)) => {
             // Find which endpoint sub-command was invoked

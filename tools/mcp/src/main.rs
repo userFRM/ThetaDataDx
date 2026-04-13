@@ -306,22 +306,11 @@ fn is_hex_token_at(bytes: &[u8], pos: usize) -> bool {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  Tool definitions — generated from endpoint registry + hand-written offline tools
+//  Tool definitions — generated from endpoint registry + generated utilities
 // ═══════════════════════════════════════════════════════════════════════════
 
 fn tool_definitions() -> Vec<Value> {
     let mut tools = Vec::with_capacity(ENDPOINTS.len() + 3);
-
-    // Hand-written: ping
-    tools.push(json!({
-        "name": "ping",
-        "description": "Check MCP server status. Returns uptime and connection info without hitting ThetaData servers.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {},
-            "required": []
-        }
-    }));
 
     // Registry-driven: all 61 DirectClient endpoints
     for ep in ENDPOINTS {
@@ -350,42 +339,7 @@ fn tool_definitions() -> Vec<Value> {
         }));
     }
 
-    // Hand-written: offline Greeks
-    tools.push(json!({
-        "name": "all_greeks",
-        "description": "Compute all 22 Black-Scholes Greeks OFFLINE (no ThetaData server needed). Returns value, delta, gamma, theta, vega, rho, IV, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "spot": { "type": "number", "description": "Spot price (underlying)" },
-                "strike": { "type": "number", "description": "Strike price" },
-                "rate": { "type": "number", "description": "Risk-free rate (e.g. 0.05 for 5%)" },
-                "dividend_yield": { "type": "number", "description": "Dividend yield (e.g. 0.02 for 2%)" },
-                "time_to_expiry": { "type": "number", "description": "Time to expiration in years (e.g. 0.25 for 3 months)" },
-                "option_price": { "type": "number", "description": "Market price of the option" },
-                "is_call": { "type": "boolean", "description": "true for call, false for put" }
-            },
-            "required": ["spot", "strike", "rate", "dividend_yield", "time_to_expiry", "option_price", "is_call"]
-        }
-    }));
-
-    tools.push(json!({
-        "name": "implied_volatility",
-        "description": "Compute implied volatility OFFLINE using bisection (no ThetaData server needed). Returns IV and error.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "spot": { "type": "number", "description": "Spot price (underlying)" },
-                "strike": { "type": "number", "description": "Strike price" },
-                "rate": { "type": "number", "description": "Risk-free rate (e.g. 0.05)" },
-                "dividend_yield": { "type": "number", "description": "Dividend yield (e.g. 0.02)" },
-                "time_to_expiry": { "type": "number", "description": "Time to expiration in years" },
-                "option_price": { "type": "number", "description": "Market price of the option" },
-                "is_call": { "type": "boolean", "description": "true for call, false for put" }
-            },
-            "required": ["spot", "strike", "rate", "dividend_yield", "time_to_expiry", "option_price", "is_call"]
-        }
-    }));
+    push_generated_utility_tool_definitions(&mut tools);
 
     tools
 }
@@ -812,79 +766,16 @@ macro_rules! param {
     };
 }
 
+include!("utilities.rs");
+
 async fn execute_tool(
     client: &Option<ThetaDataDx>,
     name: &str,
     args: &Value,
     start_time: std::time::Instant,
 ) -> Result<Value, ToolError> {
-    // ── Offline tools (no client needed) ────────────────────────────
-    match name {
-        "ping" => {
-            let uptime = start_time.elapsed();
-            return Ok(json!({
-                "status": "ok",
-                "server": "thetadatadx-mcp",
-                "version": VERSION,
-                "uptime_secs": uptime.as_secs(),
-                "connected": client.is_some(),
-            }));
-        }
-        // (client is already dereferenced above via the RwLock read guard)
-
-        "all_greeks" => {
-            let s = param!(arg_f64(args, "spot"));
-            let x = param!(arg_f64(args, "strike"));
-            let r = param!(arg_f64(args, "rate"));
-            let q = param!(arg_f64(args, "dividend_yield"));
-            let t = param!(arg_f64(args, "time_to_expiry"));
-            let price = param!(arg_f64(args, "option_price"));
-            let is_call = param!(arg_bool(args, "is_call"));
-
-            let g = tdbe::greeks::all_greeks(s, x, r, q, t, price, is_call);
-            return Ok(json!({
-                "value": g.value,
-                "iv": g.iv,
-                "iv_error": g.iv_error,
-                "delta": g.delta,
-                "gamma": g.gamma,
-                "theta": g.theta,
-                "vega": g.vega,
-                "rho": g.rho,
-                "vanna": g.vanna,
-                "charm": g.charm,
-                "vomma": g.vomma,
-                "veta": g.veta,
-                "speed": g.speed,
-                "zomma": g.zomma,
-                "color": g.color,
-                "ultima": g.ultima,
-                "d1": g.d1,
-                "d2": g.d2,
-                "dual_delta": g.dual_delta,
-                "dual_gamma": g.dual_gamma,
-                "epsilon": g.epsilon,
-                "lambda": g.lambda,
-            }));
-        }
-
-        "implied_volatility" => {
-            let s = param!(arg_f64(args, "spot"));
-            let x = param!(arg_f64(args, "strike"));
-            let r = param!(arg_f64(args, "rate"));
-            let q = param!(arg_f64(args, "dividend_yield"));
-            let t = param!(arg_f64(args, "time_to_expiry"));
-            let price = param!(arg_f64(args, "option_price"));
-            let is_call = param!(arg_bool(args, "is_call"));
-
-            let (iv, err) = tdbe::greeks::implied_volatility(s, x, r, q, t, price, is_call);
-            return Ok(json!({
-                "implied_volatility": iv,
-                "error": err,
-            }));
-        }
-
-        _ => {}
+    if let Some(result) = try_execute_generated_utility(client, name, args, start_time).await {
+        return result;
     }
 
     // ── Online tools (require connected client) ─────────────────────

@@ -328,7 +328,10 @@ pub struct FpssClient {
     server_addr: String,
 }
 
-// SAFETY: All fields are either Send+Sync or behind Mutex/Atomic.
+// SAFETY: `Sender<IoCommand>` is `Send` but not `Sync`; however `Sender::send(&self)`
+// is internally synchronized and safe to call from multiple threads. `JoinHandle`
+// fields are only consumed in `Drop::drop(&mut self)` which requires exclusive access.
+// All other fields are `Send+Sync` or behind `Mutex`/`Atomic`.
 unsafe impl Sync for FpssClient {}
 
 impl FpssClient {
@@ -465,9 +468,6 @@ impl FpssClient {
         let shutdown = Arc::new(AtomicBool::new(false));
         let authenticated = Arc::new(AtomicBool::new(true));
         let contract_map = Arc::new(Mutex::new(HashMap::new()));
-        // Pre-rendered symbol strings keyed by contract ID. Populated on
-        // ContractAssigned so resolve_symbol() is zero-alloc on the hot path.
-        let symbol_cache: Arc<Mutex<HashMap<i32, Arc<str>>>> = Arc::new(Mutex::new(HashMap::new()));
 
         // Command channel: FpssClient -> I/O thread
         let (cmd_tx, cmd_rx) = std_mpsc::channel::<IoCommand>();
@@ -479,7 +479,6 @@ impl FpssClient {
         let io_shutdown = Arc::clone(&shutdown);
         let io_authenticated = Arc::clone(&authenticated);
         let io_contract_map = Arc::clone(&contract_map);
-        let io_symbol_cache = Arc::clone(&symbol_cache);
         let io_server_addr = server_addr.clone();
         let io_creds = creds.clone();
         let io_hosts = hosts.to_vec();
@@ -495,7 +494,6 @@ impl FpssClient {
                     io_shutdown,
                     io_authenticated,
                     io_contract_map,
-                    io_symbol_cache,
                     permissions,
                     io_server_addr,
                     derive_ohlcvc,
@@ -1067,7 +1065,6 @@ fn io_loop<F>(
     shutdown: Arc<AtomicBool>,
     authenticated: Arc<AtomicBool>,
     contract_map: Arc<Mutex<HashMap<i32, Contract>>>,
-    symbol_cache: Arc<Mutex<HashMap<i32, Arc<str>>>>,
     permissions: String,
     _server_addr: String,
     derive_ohlcvc: bool,
@@ -1110,6 +1107,13 @@ fn io_loop<F>(
     // Per-contract delta state for FIT decompression.
     let mut delta_state: DeltaState = DeltaState::new();
 
+    // Thread-local symbol cache: contract_id -> pre-rendered symbol string.
+    // Populated on ContractAssigned events, used by resolve_symbol() and
+    // warn_unknown_contract() on every tick -- zero Mutex locks on the hot path.
+    // The shared contract_map (Mutex-backed) is still updated for external callers
+    // (contract_map(), contract_lookup() public APIs).
+    let mut local_symbols: HashMap<i32, Arc<str>> = HashMap::new();
+
     // Reusable frame payload buffer.
     let mut frame_buf: Vec<u8> = Vec::with_capacity(framing::MAX_PAYLOAD_LEN);
 
@@ -1141,7 +1145,7 @@ fn io_loop<F>(
                         &frame_buf[..payload_len],
                         &authenticated,
                         &contract_map,
-                        &symbol_cache,
+                        &mut local_symbols,
                         &shutdown,
                         &mut delta_state,
                         derive_ohlcvc,
@@ -1360,6 +1364,7 @@ fn io_loop<F>(
 
         // Clear delta state -- fresh connection means fresh deltas.
         delta_state.clear();
+        local_symbols.clear();
         contract_map
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -1738,7 +1743,7 @@ fn decode_frame(
     payload: &[u8],
     authenticated: &AtomicBool,
     contract_map: &Mutex<HashMap<i32, Contract>>,
-    symbol_cache: &Mutex<HashMap<i32, Arc<str>>>,
+    local_symbols: &mut HashMap<i32, Arc<str>>,
     shutdown: &AtomicBool,
     delta_state: &mut DeltaState,
     derive_ohlcvc: bool,
@@ -1749,31 +1754,27 @@ fn decode_frame(
         .unwrap_or_default()
         .as_nanos() as u64;
 
-    // Resolve contract_id to a symbol string from the pre-rendered cache.
+    // Resolve contract_id to a symbol string from the thread-local cache.
     // Returns Arc::clone of the cached symbol, or the empty-string sentinel.
-    // Zero allocation on the hot path -- the Arc<str> was built once in
-    // the ContractAssigned handler below.
-    let resolve_symbol = |contract_id: i32| -> Arc<str> {
-        symbol_cache
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .get(&contract_id)
+    // Zero allocation, zero Mutex locks on the hot path -- the Arc<str> was
+    // built once in the ContractAssigned handler below and inserted into the
+    // local HashMap owned by the I/O thread.
+    let resolve_symbol = |contract_id: i32, syms: &HashMap<i32, Arc<str>>| -> Arc<str> {
+        syms.get(&contract_id)
             .map(Arc::clone)
             .unwrap_or_else(|| Arc::clone(&EMPTY_SYMBOL))
     };
 
-    // Log a warning when ticks arrive for contract IDs not in the map,
-    // but suppress for 5 seconds after STOP (market close) since stale
-    // ticks are expected during teardown. Matches Java terminal behavior.
-    let warn_unknown_contract = |contract_id: i32, kind: &str, delta_state: &DeltaState| {
-        let known = contract_map
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .contains_key(&contract_id);
-        if !known && !delta_state.is_in_stop_suppression_window() {
-            tracing::warn!(contract_id, kind, "no contract for ID");
-        }
-    };
+    // Log a warning when ticks arrive for contract IDs not in the local
+    // symbol cache. Suppress for 5 seconds after STOP (market close) since
+    // stale ticks are expected during teardown. Matches Java terminal behavior.
+    // Uses the thread-local cache instead of locking the shared contract_map.
+    let warn_unknown_contract =
+        |contract_id: i32, kind: &str, delta_state: &DeltaState, syms: &HashMap<i32, Arc<str>>| {
+            if !syms.contains_key(&contract_id) && !delta_state.is_in_stop_suppression_window() {
+                tracing::warn!(contract_id, kind, "no contract for ID");
+            }
+        };
 
     match code {
         StreamMsgType::Metadata => {
@@ -1797,10 +1798,10 @@ fn decode_frame(
                 // Pre-render the symbol string once and cache as Arc<str>
                 // so resolve_symbol() on the hot path is just Arc::clone.
                 let symbol_str: Arc<str> = Arc::from(contract.to_string().as_str());
-                symbol_cache
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .insert(id, symbol_str);
+                // Insert into thread-local cache (zero-lock hot-path lookups).
+                local_symbols.insert(id, symbol_str);
+                // Also update shared map for external callers (contract_map(),
+                // contract_lookup() public APIs on FpssClient).
                 contract_map
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -1828,13 +1829,13 @@ fn decode_frame(
             let msg_code = code as u8;
             match delta_state.decode_tick(msg_code, payload, QUOTE_FIELDS) {
                 Some((contract_id, f, _n)) => {
-                    warn_unknown_contract(contract_id, "quote", delta_state);
+                    warn_unknown_contract(contract_id, "quote", delta_state, local_symbols);
                     metrics::counter!("thetadatadx.fpss.events", "kind" => "quote").increment(1);
                     let pt = f[9];
                     (
                         Some(FpssEvent::Data(FpssData::Quote {
                             contract_id,
-                            symbol: resolve_symbol(contract_id),
+                            symbol: resolve_symbol(contract_id, local_symbols),
                             ms_of_day: f[0],
                             bid_size: f[1],
                             bid_exchange: f[2],
@@ -1867,7 +1868,7 @@ fn decode_frame(
             let msg_code = code as u8;
             match delta_state.decode_tick(msg_code, payload, TRADE_FIELDS) {
                 Some((contract_id, f, n_data)) => {
-                    warn_unknown_contract(contract_id, "trade", delta_state);
+                    warn_unknown_contract(contract_id, "trade", delta_state, local_symbols);
                     metrics::counter!("thetadatadx.fpss.events", "kind" => "trade").increment(1);
 
                     if n_data != 8 && n_data != TRADE_FIELDS {
@@ -1880,7 +1881,7 @@ fn decode_frame(
 
                     // 8-field: [ms_of_day, sequence, size, condition, price, exchange, price_type, date]
                     // 16-field: [ms_of_day, sequence, ext1..ext4, condition, size, exchange, price, cond_flags, price_flags, vol_type, records_back, price_type, date]
-                    let sym = resolve_symbol(contract_id);
+                    let sym = resolve_symbol(contract_id, local_symbols);
                     let trade_event = if n_data <= 8 {
                         let pt = f[6];
                         FpssEvent::Data(FpssData::Trade {
@@ -1982,13 +1983,13 @@ fn decode_frame(
             let msg_code = code as u8;
             match delta_state.decode_tick(msg_code, payload, OI_FIELDS) {
                 Some((contract_id, f, _n)) => {
-                    warn_unknown_contract(contract_id, "open_interest", delta_state);
+                    warn_unknown_contract(contract_id, "open_interest", delta_state, local_symbols);
                     metrics::counter!("thetadatadx.fpss.events", "kind" => "open_interest")
                         .increment(1);
                     (
                         Some(FpssEvent::Data(FpssData::OpenInterest {
                             contract_id,
-                            symbol: resolve_symbol(contract_id),
+                            symbol: resolve_symbol(contract_id, local_symbols),
                             ms_of_day: f[0],
                             open_interest: f[1],
                             date: f[2],
@@ -2012,7 +2013,7 @@ fn decode_frame(
             let msg_code = code as u8;
             match delta_state.decode_tick(msg_code, payload, OHLCVC_FIELDS) {
                 Some((contract_id, f, _n)) => {
-                    warn_unknown_contract(contract_id, "ohlcvc", delta_state);
+                    warn_unknown_contract(contract_id, "ohlcvc", delta_state, local_symbols);
                     metrics::counter!("thetadatadx.fpss.events", "kind" => "ohlcvc").increment(1);
                     let acc = delta_state
                         .ohlcvc
@@ -2023,7 +2024,7 @@ fn decode_frame(
                     (
                         Some(FpssEvent::Data(FpssData::Ohlcvc {
                             contract_id,
-                            symbol: resolve_symbol(contract_id),
+                            symbol: resolve_symbol(contract_id, local_symbols),
                             ms_of_day: f[0],
                             open: Price::new(f[1], pt).to_f64(),
                             high: Price::new(f[2], pt).to_f64(),
@@ -2073,6 +2074,7 @@ fn decode_frame(
         StreamMsgType::Start => {
             tracing::info!("market open signal received");
             delta_state.clear();
+            local_symbols.clear();
             contract_map
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -2084,6 +2086,7 @@ fn decode_frame(
             tracing::info!("market close signal received");
             delta_state.last_stop = Some(Instant::now());
             delta_state.clear();
+            local_symbols.clear();
             contract_map
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -2213,9 +2216,8 @@ fn ping_loop(
 /// On `ACCOUNT_ALREADY_CONNECTED`: do NOT reconnect (permanent error).
 ///
 /// Source: `FPSSClient.java` reconnection logic in the main loop.
-#[allow(clippy::too_many_arguments)]
-// Reason: missing errors doc for internal function.
-#[allow(clippy::missing_errors_doc)]
+#[allow(clippy::too_many_arguments)] // Reason: reconnection requires all FPSS state (subs, config, credentials) in one call.
+#[allow(clippy::missing_errors_doc)] // Reason: internal function, doc is on the module-level reconnect docs above.
 pub fn reconnect<F>(
     creds: &Credentials,
     hosts: &[(String, u16)],

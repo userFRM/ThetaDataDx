@@ -161,11 +161,12 @@ The build expands that metadata into the registry, shared endpoint runtime, and
    - Most endpoint additions should not require hand-editing `direct.rs`
    - Only change `build_support/endpoints.rs` or the macro layer if the new endpoint shape cannot be expressed by the existing surface spec
 
-5. **Expose in downstream SDKs**
-   - FFI: add `extern "C"` function in `ffi/src/lib.rs`
-   - Python: add PyO3 method in `sdks/python/src/lib.rs`
-   - Go: add method in `sdks/go/client.go`
-   - C++: add method in `sdks/cpp/include/thetadx.hpp` and `sdks/cpp/src/thetadx.cpp`
+5. **Regenerate downstream SDK/tool surfaces**
+   - Endpoint wrappers project from `crates/thetadatadx/endpoint_surface.toml`
+   - Non-endpoint SDK/tool surfaces project from `crates/thetadatadx/sdk_surface.toml`
+   - Tick projection helpers project from `crates/thetadatadx/tick_schema.toml`
+   - Run `cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces`
+   - Only hand-edit SDK runtime plumbing when the change is intentionally outside the generated surface
 
 6. **Update CHANGELOG.md** under `[Unreleased]`
 

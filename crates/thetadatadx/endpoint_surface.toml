@@ -871,6 +871,98 @@ use = "stock_symbol"
 [[templates.rate_history_eod.params]]
 use = "date_range_required"
 
+[templates.stock_history_trade_stream]
+extends = "stock_base"
+kind = "stream"
+subcategory = "history"
+
+[[templates.stock_history_trade_stream.params]]
+use = "stock_symbol"
+
+[[templates.stock_history_trade_stream.params]]
+use = "required_date"
+
+[[templates.stock_history_trade_stream.params]]
+use = "history_time_filters"
+
+[[templates.stock_history_trade_stream.params]]
+use = "stock_venue_filter"
+
+[[templates.stock_history_trade_stream.params]]
+use = "date_range_optional"
+
+[templates.stock_history_quote_stream]
+extends = "stock_base"
+kind = "stream"
+subcategory = "history"
+
+[[templates.stock_history_quote_stream.params]]
+use = "stock_symbol"
+
+[[templates.stock_history_quote_stream.params]]
+use = "required_date"
+
+[[templates.stock_history_quote_stream.params]]
+use = "interval"
+
+[[templates.stock_history_quote_stream.params]]
+use = "history_time_filters"
+
+[[templates.stock_history_quote_stream.params]]
+use = "stock_venue_filter"
+
+[[templates.stock_history_quote_stream.params]]
+use = "date_range_optional"
+
+[templates.option_history_trade_stream]
+extends = "option_base"
+kind = "stream"
+subcategory = "history"
+
+[[templates.option_history_trade_stream.params]]
+use = "contract_identity"
+
+[[templates.option_history_trade_stream.params]]
+use = "required_date"
+
+[[templates.option_history_trade_stream.params]]
+use = "history_time_filters"
+
+[[templates.option_history_trade_stream.params]]
+use = "max_dte_filter"
+
+[[templates.option_history_trade_stream.params]]
+use = "strike_range_filter"
+
+[[templates.option_history_trade_stream.params]]
+use = "date_range_optional"
+
+[templates.option_history_quote_stream]
+extends = "option_base"
+kind = "stream"
+subcategory = "history"
+
+[[templates.option_history_quote_stream.params]]
+use = "contract_identity"
+
+[[templates.option_history_quote_stream.params]]
+use = "required_date"
+
+[[templates.option_history_quote_stream.params]]
+use = "interval"
+
+[[templates.option_history_quote_stream.params]]
+use = "history_time_filters"
+
+[[templates.option_history_quote_stream.params]]
+use = "max_dte_filter"
+
+[[templates.option_history_quote_stream.params]]
+use = "strike_range_filter"
+
+[[templates.option_history_quote_stream.params]]
+use = "date_range_optional"
+
 # Concrete endpoint declarations.
 
 [[endpoints]]
@@ -1342,3 +1434,35 @@ wire_name = "stock_history_ohlc"
 description = "Fetch intraday OHLC bars across a date range."
 rest_path = "/v3/stock/history/ohlc_range"
 returns = "OhlcTicks"
+
+[[endpoints]]
+name = "stock_history_trade_stream"
+template = "stock_history_trade_stream"
+wire_name = "stock_history_trade"
+description = "Stream all trades for a stock on a given date, chunk-by-chunk."
+rest_path = "/v3/stock/history/trade"
+returns = "TradeTicks"
+
+[[endpoints]]
+name = "stock_history_quote_stream"
+template = "stock_history_quote_stream"
+wire_name = "stock_history_quote"
+description = "Stream NBBO quotes for a stock on a given date, chunk-by-chunk."
+rest_path = "/v3/stock/history/quote"
+returns = "QuoteTicks"
+
+[[endpoints]]
+name = "option_history_trade_stream"
+template = "option_history_trade_stream"
+wire_name = "option_history_trade"
+description = "Stream all trades for an option contract, chunk-by-chunk."
+rest_path = "/v3/option/history/trade"
+returns = "TradeTicks"
+
+[[endpoints]]
+name = "option_history_quote_stream"
+template = "option_history_quote_stream"
+wire_name = "option_history_quote"
+description = "Stream NBBO quotes for an option contract, chunk-by-chunk."
+rest_path = "/v3/option/history/quote"
+returns = "QuoteTicks"

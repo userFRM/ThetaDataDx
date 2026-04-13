@@ -15,5 +15,6 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     endpoints::generate_all()?;
     ticks::generate()?;
+
     Ok(())
 }

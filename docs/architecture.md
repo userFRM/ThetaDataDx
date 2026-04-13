@@ -190,7 +190,7 @@ flowchart LR
     DIRECT_GEN --> DIRECT
 ```
 
-The 14 tick layouts are: `TradeTick`, `QuoteTick`, `OhlcTick`, `EodTick`, `OpenInterestTick`, `SnapshotTradeTick`, `TradeQuoteTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`. 10 of these (all except `CalendarDay`, `InterestRateTick`, `PriceTick`, `OptionContract`) carry contract identification fields (`expiration`, `strike`, `right`) populated by the server on wildcard queries.
+The 13 tick layouts are: `TradeTick`, `QuoteTick`, `OhlcTick`, `EodTick`, `OpenInterestTick`, `TradeQuoteTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`. 9 of these (all except `CalendarDay`, `InterestRateTick`, `PriceTick`, `OptionContract`) carry contract identification fields (`expiration`, `strike`, `right`) populated by the server on wildcard queries.
 
 Adding a new endpoint now means updating the explicit endpoint surface spec rather than hand-wiring matches across multiple transports. See `crates/thetadatadx/proto/MAINTENANCE.md` for the current maintenance flow.
 
@@ -345,12 +345,12 @@ The `OhlcvcAccumulator` derives OHLCVC bars from trade ticks in real time. Behav
 
 This matches the Java terminal's behavior: OHLCVC bars are never emitted purely from trades without a server-provided seed.
 
-FPSS streaming is available in all SDKs through the unified `ThetaDataDx` client:
+FPSS streaming uses separate `FpssClient` wrappers in Go/C++ (not the historical `Client`):
 - **Rust**: `tdx.start_streaming(callback)` launches a disruptor-backed event receiver
-- **Python**: `tdx.start_streaming()`, `tdx.subscribe_quotes()`, `tdx.next_event()`, `tdx.stop_streaming()`
-- **Go**: streaming methods on the `Client` struct wrapping 7 FFI FPSS functions
-- **C++**: streaming methods on the `Client` RAII class wrapping 7 FFI FPSS functions
-- **C FFI**: 7 `extern "C"` functions (`fpss_connect`, `fpss_subscribe_*`, `fpss_next_event`, `fpss_shutdown`, `fpss_free_event`)
+- **Python**: `tdx.start_streaming()`, `tdx.subscribe_quotes()`, `tdx.subscribe_option_*()`, `tdx.contract_map()`, `tdx.reconnect()`, `tdx.next_event()`, `tdx.stop_streaming()`
+- **Go**: `FpssClient` wrapping 26 FFI FPSS functions, including option-level subscribe/unsubscribe, `ContractMap()`, and `Reconnect()`
+- **C++**: `FpssClient` RAII class wrapping 26 FFI FPSS functions, including option-level subscribe/unsubscribe, `contract_map()`, and `reconnect()`
+- **C FFI**: 26 `extern "C"` functions (`tdx_fpss_connect`, `tdx_fpss_subscribe_*`, `tdx_fpss_unsubscribe_*`, `tdx_fpss_contract_map`, `tdx_fpss_reconnect`, `tdx_fpss_next_event`, `tdx_fpss_shutdown`, `tdx_fpss_free`, etc.)
 
 ### Reconnection
 
@@ -503,7 +503,7 @@ graph TD
         subgraph tdbe_types["types/"]
             T_ENUM["enums.rs<br/><i>91 DataType codes</i>"]
             T_PRICE["price.rs<br/><i>fixed-point Price</i>"]
-            T_TICK["tick.rs<br/><i>14 tick types (generated)<br/>TradeTick, QuoteTick, OhlcTick,<br/>EodTick, OpenInterestTick,<br/>SnapshotTradeTick, TradeQuoteTick,<br/>MarketValueTick, GreeksTick,<br/>IvTick, PriceTick, CalendarDay,<br/>InterestRateTick,<br/>OptionContract</i>"]
+            T_TICK["tick.rs<br/><i>13 tick types (generated)<br/>TradeTick, QuoteTick, OhlcTick,<br/>EodTick, OpenInterestTick,<br/>TradeQuoteTick,<br/>MarketValueTick, GreeksTick,<br/>IvTick, PriceTick, CalendarDay,<br/>InterestRateTick,<br/>OptionContract</i>"]
         end
 
         TDBE_GREEKS["greeks.rs<br/><i>22 Greeks + IV</i>"]

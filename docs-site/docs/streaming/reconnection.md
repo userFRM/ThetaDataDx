@@ -1,11 +1,16 @@
 ---
 title: Reconnection & Error Handling
-description: Handle FPSS disconnects, implement reconnection logic with reconnect_streaming(), and manage streaming errors.
+description: Handle FPSS disconnects, implement reconnection logic with reconnect_streaming() or reconnect(), and manage streaming errors.
 ---
 
 # Reconnection & Error Handling
 
-## Reconnection with `reconnect_streaming()` (Recommended)
+## Reconnection APIs
+
+Rust exposes `reconnect_streaming(handler)` on the unified `ThetaDataDx` client.
+Python, Go, and C++ expose `reconnect()` on their public streaming clients.
+
+## Reconnection with `reconnect_streaming()` (Rust)
 
 The unified `ThetaDataDx` client provides `reconnect_streaming()` which handles the full reconnection cycle automatically:
 
@@ -45,7 +50,69 @@ match thetadatadx::fpss::reconnect_delay(reason) {
 `reconnect_streaming()` uses the same `DirectConfig` (including `fpss_hosts`) that was passed at `ThetaDataDx::connect()` time. If hosts change, create a new `ThetaDataDx` instance.
 :::
 
-## Manual Reconnection (Low-Level)
+## Reconnection with `reconnect()` (Python, Go, C++)
+
+::: code-group
+```python [Python]
+from thetadatadx import Credentials, Config, ThetaDataDx
+
+creds = Credentials.from_file("creds.txt")
+tdx = ThetaDataDx(creds, Config.production())
+
+tdx.start_streaming()
+tdx.subscribe_quotes("AAPL")
+tdx.subscribe_option_quotes("SPY", "20260116", "600", "C")
+
+# reconnect() restores the existing subscription set
+tdx.reconnect()
+```
+```go [Go]
+package main
+
+import (
+    "log"
+
+    thetadatadx "github.com/userFRM/thetadatadx/sdks/go"
+)
+
+func main() {
+    creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
+    defer creds.Close()
+
+    config := thetadatadx.ProductionConfig()
+    defer config.Close()
+
+    fpss, err := thetadatadx.NewFpssClient(creds, config)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer fpss.Close()
+
+    fpss.SubscribeQuotes("AAPL")
+    fpss.SubscribeOptionQuotes("SPY", "20260116", "600", "C")
+
+    if err := fpss.Reconnect(); err != nil {
+        log.Fatal(err)
+    }
+}
+```
+```cpp [C++]
+#include "thetadx.hpp"
+
+int main() {
+    auto creds = tdx::Credentials::from_file("creds.txt");
+    auto config = tdx::Config::production();
+
+    tdx::FpssClient fpss(creds, config);
+    fpss.subscribe_quotes("AAPL");
+    fpss.subscribe_option_quotes("SPY", "20260116", "600", "C");
+
+    fpss.reconnect();
+}
+```
+:::
+
+## Manual Reconnection (Low-Level Rust)
 
 For fine-grained control, use the low-level `fpss::reconnect()` function directly:
 

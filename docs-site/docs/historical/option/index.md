@@ -77,7 +77,7 @@ Data at a specific time of day across a date range.
 
 ## Streaming (Rust only)
 
-For endpoints returning millions of rows, the Rust SDK provides `_stream` variants:
+Streaming variants (`*_stream`) use per-chunk callbacks and are available in the Rust SDK only. Other languages use the non-streaming equivalents which return complete result sets.
 
 ```rust
 tdx.option_history_trade_stream(

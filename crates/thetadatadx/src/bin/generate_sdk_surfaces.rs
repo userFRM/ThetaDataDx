@@ -1,12 +1,24 @@
+// Reason: build_support modules are string-heavy code generators; pedantic lints are noise here.
 #![allow(clippy::pedantic)]
 
-//! Generate checked-in SDK wrapper surfaces from `endpoint_surface.toml`.
+//! Regenerate checked-in SDK wrapper surfaces from `endpoint_surface.toml`.
+//!
+//! Normal crate builds only emit `OUT_DIR` artifacts. This helper keeps the
+//! checked-in FFI/SDK projections explicit so CI can verify drift without
+//! mutating files as a side effect of `cargo build`.
 
 use std::path::PathBuf;
 
+// Reason: modules shared with build.rs via #[path]; many helpers are only called from build.rs.
 #[allow(dead_code)]
 #[path = "../../build_support/endpoints.rs"]
 mod endpoints;
+#[allow(dead_code)]
+#[path = "../../build_support/sdk_surface.rs"]
+mod sdk_surface;
+#[allow(dead_code)]
+#[path = "../../build_support/ticks.rs"]
+mod ticks;
 
 fn repo_root() -> PathBuf {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -27,8 +39,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if check_only {
         endpoints::check_sdk_generated_files(&repo_root())?;
+        sdk_surface::check_sdk_generated_files(&repo_root())?;
+        ticks::check_sdk_generated_files(&repo_root())?;
     } else {
         endpoints::write_sdk_generated_files(&repo_root())?;
+        sdk_surface::write_sdk_generated_files(&repo_root())?;
+        ticks::write_sdk_generated_files(&repo_root())?;
     }
     Ok(())
 }

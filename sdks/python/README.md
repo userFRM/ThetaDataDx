@@ -190,11 +190,12 @@ Real-time streaming is accessed through the same `ThetaDataDx` instance.
 
 | Method | Description |
 |--------|-------------|
-| `subscribe_option_quotes(symbol, exp_date, right, strike)` | Subscribe to option quote data. `right`: `"C"` or `"P"`. `strike`: dollar string e.g. `"550"`. |
-| `subscribe_option_trades(symbol, exp_date, right, strike)` | Subscribe to option trade data |
-| `subscribe_option_open_interest(symbol, exp_date, right, strike)` | Subscribe to option OI data |
-| `unsubscribe_option_quotes(symbol, exp_date, right, strike)` | Unsubscribe from option quotes |
-| `unsubscribe_option_trades(symbol, exp_date, right, strike)` | Unsubscribe from option trades |
+| `subscribe_option_quotes(symbol, expiration, strike, right)` | Subscribe to option quote data. `right`: `"C"` or `"P"`. `strike`: dollar string e.g. `"550"`. |
+| `subscribe_option_trades(symbol, expiration, strike, right)` | Subscribe to option trade data |
+| `subscribe_option_open_interest(symbol, expiration, strike, right)` | Subscribe to option OI data |
+| `unsubscribe_option_quotes(symbol, expiration, strike, right)` | Unsubscribe from option quotes |
+| `unsubscribe_option_trades(symbol, expiration, strike, right)` | Unsubscribe from option trades |
+| `unsubscribe_option_open_interest(symbol, expiration, strike, right)` | Unsubscribe from option OI |
 
 #### Full-type subscriptions
 
@@ -253,6 +254,7 @@ You can also subscribe to per-contract streams if you only need specific symbols
 | `contract_lookup(id)` | Look up a single contract by ID (returns str or None) |
 | `active_subscriptions()` | Get list of active subscriptions (list of dicts with "kind" and "contract") |
 | `next_event(timeout_ms=5000)` | Poll for the next event (returns dict or None on timeout) |
+| `reconnect()` | Reconnect streaming and restore subscriptions |
 | `shutdown()` | Graceful shutdown |
 
 ### `to_dataframe(data)`

@@ -395,7 +395,9 @@ if (contract.has_value()) {
 }
 
 auto subs = fpss.active_subscriptions();
-std::cout << "Active: " << subs << std::endl;
+for (const auto& sub : subs) {
+    std::cout << "  " << sub.kind << ": " << sub.contract << std::endl;
+}
 ```
 :::
 
@@ -471,36 +473,21 @@ match thetadatadx::fpss::reconnect_delay(reason) {
 }
 ```
 ```python [Python]
-# Python does not expose reconnect_streaming() directly.
-# Reconnect by creating a new ThetaDataDx instance and re-subscribing:
-tdx.stop_streaming()
-
-tdx = ThetaDataDx(creds, Config.production())
-tdx.start_streaming()
-tdx.subscribe_quotes("AAPL")
-tdx.subscribe_trades("MSFT")
+# Python exposes reconnect() on the unified client.
+# It reconnects the FPSS session and restores previous subscriptions.
+tdx.reconnect()
 ```
 ```go [Go]
-// Go does not expose reconnect_streaming() directly.
-// Reconnect by creating a new FpssClient and re-subscribing:
-fpss.Shutdown()
-fpss.Close()
-
-config := thetadatadx.ProductionConfig()
-defer config.Close()
-fpss, _ = thetadatadx.NewFpssClient(creds, config)
-fpss.SubscribeQuotes("AAPL")
-fpss.SubscribeTrades("MSFT")
+// Go exposes Reconnect() on FpssClient.
+// It reconnects the FPSS session and restores previous subscriptions.
+if err := fpss.Reconnect(); err != nil {
+    log.Fatal(err)
+}
 ```
 ```cpp [C++]
-// C++ does not expose reconnect_streaming() directly.
-// Reconnect by creating a new FpssClient and re-subscribing:
-fpss.shutdown();
-
-auto config = tdx::Config::production();
-tdx::FpssClient fpss(creds, config);
-fpss.subscribe_quotes("AAPL");
-fpss.subscribe_trades("MSFT");
+// C++ exposes reconnect() on FpssClient.
+// It reconnects the FPSS session and restores previous subscriptions.
+fpss.reconnect();
 ```
 :::
 
@@ -575,14 +562,25 @@ Undecoded fallback for corrupt or unrecognized frames. Fields: `code` (u8), `pay
 | `subscribe_quotes(symbol)` | Subscribe to quote data |
 | `subscribe_trades(symbol)` | Subscribe to trade data |
 | `subscribe_open_interest(symbol)` | Subscribe to open interest |
+| `subscribe_option_quotes(symbol, expiration, strike, right)` | Subscribe to option quote data |
+| `subscribe_option_trades(symbol, expiration, strike, right)` | Subscribe to option trade data |
+| `subscribe_option_open_interest(symbol, expiration, strike, right)` | Subscribe to option OI data |
 | `subscribe_full_trades(sec_type)` | Subscribe to all trades for a security type |
 | `subscribe_full_open_interest(sec_type)` | Subscribe to all OI for a security type |
 | `unsubscribe_quotes(symbol)` | Unsubscribe from quotes |
 | `unsubscribe_trades(symbol)` | Unsubscribe from trades |
 | `unsubscribe_open_interest(symbol)` | Unsubscribe from OI |
+| `unsubscribe_option_quotes(symbol, expiration, strike, right)` | Unsubscribe from option quote data |
+| `unsubscribe_option_trades(symbol, expiration, strike, right)` | Unsubscribe from option trade data |
+| `unsubscribe_option_open_interest(symbol, expiration, strike, right)` | Unsubscribe from option OI data |
 | `unsubscribe_full_trades(sec_type)` | Unsubscribe from all trades |
 | `unsubscribe_full_open_interest(sec_type)` | Unsubscribe from all OI |
+| `is_authenticated()` | Check FPSS auth status |
+| `contract_lookup(id)` | Look up contract by server-assigned ID |
+| `contract_map()` | Get current contract ID mapping |
+| `active_subscriptions()` | Get active subscriptions |
 | `next_event(timeout_ms=5000)` | Poll next event (returns dict or `None`) |
+| `reconnect()` | Reconnect streaming and re-subscribe previous subscriptions |
 | `stop_streaming()` | Graceful shutdown of streaming |
 
 ### Go (`FpssClient`)
@@ -592,17 +590,25 @@ Undecoded fallback for corrupt or unrecognized frames. Fields: `code` (u8), `pay
 | `SubscribeQuotes` | `(symbol string) (int, error)` | Subscribe to quotes |
 | `SubscribeTrades` | `(symbol string) (int, error)` | Subscribe to trades |
 | `SubscribeOpenInterest` | `(symbol string) (int, error)` | Subscribe to OI |
+| `SubscribeOptionQuotes` | `(symbol, expiration, strike, right string) (int, error)` | Subscribe to option quotes |
+| `SubscribeOptionTrades` | `(symbol, expiration, strike, right string) (int, error)` | Subscribe to option trades |
+| `SubscribeOptionOpenInterest` | `(symbol, expiration, strike, right string) (int, error)` | Subscribe to option OI |
 | `SubscribeFullTrades` | `(secType string) (int, error)` | Subscribe to all trades for a security type |
 | `SubscribeFullOpenInterest` | `(secType string) (int, error)` | Subscribe to all OI for a security type |
 | `UnsubscribeQuotes` | `(symbol string) (int, error)` | Unsubscribe from quotes |
 | `UnsubscribeTrades` | `(symbol string) (int, error)` | Unsubscribe from trades |
 | `UnsubscribeOpenInterest` | `(symbol string) (int, error)` | Unsubscribe from OI |
+| `UnsubscribeOptionQuotes` | `(symbol, expiration, strike, right string) (int, error)` | Unsubscribe from option quotes |
+| `UnsubscribeOptionTrades` | `(symbol, expiration, strike, right string) (int, error)` | Unsubscribe from option trades |
+| `UnsubscribeOptionOpenInterest` | `(symbol, expiration, strike, right string) (int, error)` | Unsubscribe from option OI |
 | `UnsubscribeFullTrades` | `(secType string) (int, error)` | Unsubscribe from all trades |
 | `UnsubscribeFullOpenInterest` | `(secType string) (int, error)` | Unsubscribe from all OI |
 | `NextEvent` | `(timeoutMs uint64) (*FpssEvent, error)` | Poll next event as typed struct (nil on timeout) |
 | `IsAuthenticated` | `() bool` | Check FPSS auth status |
 | `ContractLookup` | `(id int) (string, error)` | Look up contract by server-assigned ID |
+| `ContractMap` | `() (map[int32]string, error)` | Get full contract ID mapping |
 | `ActiveSubscriptions` | `() ([]Subscription, error)` | Get active subscriptions as typed structs |
+| `Reconnect` | `() error` | Reconnect streaming and re-subscribe previous subscriptions |
 | `Shutdown` | `()` | Graceful shutdown |
 | `Close` | `()` | Free the FPSS handle |
 
@@ -615,17 +621,25 @@ All price fields are `float64` -- access them directly.
 | `subscribe_quotes` | `(symbol) -> int` | Subscribe to quotes |
 | `subscribe_trades` | `(symbol) -> int` | Subscribe to trades |
 | `subscribe_open_interest` | `(symbol) -> int` | Subscribe to OI |
+| `subscribe_option_quotes` | `(symbol, expiration, strike, right) -> int` | Subscribe to option quotes |
+| `subscribe_option_trades` | `(symbol, expiration, strike, right) -> int` | Subscribe to option trades |
+| `subscribe_option_open_interest` | `(symbol, expiration, strike, right) -> int` | Subscribe to option OI |
 | `subscribe_full_trades` | `(sec_type) -> int` | Subscribe to all trades for a security type |
 | `subscribe_full_open_interest` | `(sec_type) -> int` | Subscribe to all OI for a security type |
 | `unsubscribe_quotes` | `(symbol) -> int` | Unsubscribe from quotes |
 | `unsubscribe_trades` | `(symbol) -> int` | Unsubscribe from trades |
 | `unsubscribe_open_interest` | `(symbol) -> int` | Unsubscribe from OI |
+| `unsubscribe_option_quotes` | `(symbol, expiration, strike, right) -> int` | Unsubscribe from option quotes |
+| `unsubscribe_option_trades` | `(symbol, expiration, strike, right) -> int` | Unsubscribe from option trades |
+| `unsubscribe_option_open_interest` | `(symbol, expiration, strike, right) -> int` | Unsubscribe from option OI |
 | `unsubscribe_full_trades` | `(sec_type) -> int` | Unsubscribe from all trades |
 | `unsubscribe_full_open_interest` | `(sec_type) -> int` | Unsubscribe from all OI |
 | `next_event` | `(timeout_ms) -> FpssEventPtr` | Poll next event (nullptr on timeout). RAII: auto-freed. |
 | `is_authenticated` | `() -> bool` | Check FPSS auth status |
 | `contract_lookup` | `(id) -> std::optional<std::string>` | Look up contract by server-assigned ID |
-| `active_subscriptions` | `() -> std::string` | Get active subscriptions |
+| `contract_map` | `() -> std::map<int32_t, std::string>` | Get full contract ID mapping |
+| `active_subscriptions` | `() -> std::vector<Subscription>` | Get active subscriptions |
+| `reconnect` | `() -> void` | Reconnect streaming and re-subscribe previous subscriptions |
 | `shutdown` | `() -> void` | Graceful shutdown |
 
 All price fields are `double` (f64) -- access them directly.
@@ -635,4 +649,4 @@ All price fields are `double` (f64) -- access them directly.
 - [Connecting & Subscribing](./streaming/connection) -- server environments, flush mode, custom hosts, subscription management
 - [Handling Events](./streaming/events) -- complete field reference tables for all event types, SDK-specific representations
 - [Latency Measurement](./streaming/latency) -- `received_at_ns`, `tdbe::latency::latency_ns()`, lowest-latency configuration
-- [Reconnection & Error Handling](./streaming/reconnection) -- `reconnect_streaming()`, disconnect categories, complete examples
+- [Reconnection & Error Handling](./streaming/reconnection) -- `reconnect_streaming()` / `reconnect()`, disconnect categories, complete examples

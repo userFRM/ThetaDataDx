@@ -375,7 +375,9 @@ if (contract.has_value()) {
 
 // List all active subscriptions
 auto subs = fpss.active_subscriptions();
-std::cout << "Active: " << subs << std::endl;
+for (const auto& sub : subs) {
+    std::cout << "  " << sub.kind << ": " << sub.contract << std::endl;
+}
 ```
 :::
 

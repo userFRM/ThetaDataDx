@@ -157,44 +157,33 @@ Run `cargo build`. The generator validates `endpoint_surface.toml` against
 You only need to edit the macro layer or `build_support/endpoints.rs` if the
 new endpoint cannot be expressed by the existing surface specification model.
 
-### 5. Expose in SDKs
+### 5. Regenerate the checked-in SDK surfaces
 
-- **FFI**: add `extern "C"` wrapper in `ffi/src/lib.rs` (see FFI macros below)
-- **Python**: add PyO3 method in `sdks/python/src/lib.rs`
-- **Go**: add method in `sdks/go/client.go`
-- **C++**: add in `sdks/cpp/include/thetadx.hpp` and `sdks/cpp/src/thetadx.cpp`
+Run:
+
+```bash
+cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces
+```
+
+For registry-driven endpoints, the SDK/FFI surface is generated from
+`endpoint_surface.toml`. For non-endpoint SDK utilities and FPSS wrappers, use
+`crates/thetadatadx/sdk_surface.toml`. For tick projection helpers, use
+`tick_schema.toml`.
+
+You only edit `ffi/src/lib.rs`, `sdks/python/src/lib.rs`, `sdks/go/*.go`, or
+`sdks/cpp/*` directly when changing runtime plumbing that is intentionally
+outside the checked-in generated surface.
 
 ### 6. Update CHANGELOG.md
 
 Add to `[Unreleased]`.
 
-## `streaming_endpoint!` -- chunked streaming
+## Direct streaming builders
 
-`streaming_endpoint!` is nearly identical to `parsed_endpoint!` but instead of
-`IntoFuture` (which collects the entire response), it generates a `.stream(handler)`
-method that calls the handler with each chunk of ticks as they arrive.
-
-Key difference: the builder has no `IntoFuture` impl. Instead:
-
-```rust
-impl<'a> StockHistoryTradeStreamBuilder<'a> {
-    pub async fn stream<F>(self, mut handler: F) -> Result<(), Error>
-    where
-        F: FnMut(&[TradeTick]),
-    { ... }
-}
-```
-
-Usage:
-
-```rust
-client.stock_history_trade_stream("AAPL", "20260401")
-    .start_time("04:00:00")
-    .stream(|ticks| {
-        println!("got {} ticks", ticks.len());
-    })
-    .await?;
-```
+Direct streaming endpoint builders are now emitted directly from
+`endpoint_surface.toml`; there is no separate `streaming_endpoint!` macro
+surface to maintain. If you need a new direct streaming endpoint, add the
+surface entry and regenerate.
 
 ## Helper macros for endpoint families
 

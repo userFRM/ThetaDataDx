@@ -14,6 +14,7 @@
 #include "thetadx.h"
 
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -38,7 +39,6 @@ using OpenInterestTick = TdxOpenInterestTick;
 using MarketValueTick = TdxMarketValueTick;
 using CalendarDay = TdxCalendarDay;
 using InterestRateTick = TdxInterestRateTick;
-using SnapshotTradeTick = TdxSnapshotTradeTick;
 using TradeQuoteTick = TdxTradeQuoteTick;
 // OptionContract uses std::string for root to avoid use-after-free.
 // The C FFI TdxOptionContract uses a raw char* that is freed with the array,
@@ -83,8 +83,8 @@ struct Greeks {
     double lambda;
 };
 
-/* Generated in generated_endpoint_options.hpp.inc. */
-#include "generated_endpoint_options.hpp.inc"
+/* Generated in endpoint_options.hpp.inc. */
+#include "endpoint_options.hpp.inc"
 
 // ── RAII typed array wrappers ──
 
@@ -223,7 +223,7 @@ public:
     /** Connect to ThetaData servers. Throws on failure. */
     static Client connect(const Credentials& creds, const Config& config);
 
-    #include "generated_historical.hpp.inc"
+    #include "historical.hpp.inc"
 private:
     explicit Client(TdxClient* h) : handle_(h) {}
     std::unique_ptr<TdxClient, ClientDeleter> handle_;
@@ -251,28 +251,7 @@ using FpssEventPtr = std::unique_ptr<TdxFpssEvent, FpssEventDeleter>;
 
 class FpssClient {
 public:
-    /** Connect to FPSS streaming servers. Throws on failure. */
-    FpssClient(const Credentials& creds, const Config& config);
-
-    int subscribe_quotes(const std::string& symbol);
-    int subscribe_trades(const std::string& symbol);
-    int subscribe_open_interest(const std::string& symbol);
-    int subscribe_full_trades(const std::string& sec_type);
-    int subscribe_full_open_interest(const std::string& sec_type);
-    int unsubscribe_quotes(const std::string& symbol);
-    int unsubscribe_open_interest(const std::string& symbol);
-    int unsubscribe_trades(const std::string& symbol);
-    int unsubscribe_full_trades(const std::string& sec_type);
-    int unsubscribe_full_open_interest(const std::string& sec_type);
-
-    bool is_authenticated() const;
-    std::optional<std::string> contract_lookup(int id) const;
-    std::vector<Subscription> active_subscriptions() const;
-
-    /** Poll for the next event as a typed struct. Returns nullptr on timeout. */
-    FpssEventPtr next_event(uint64_t timeout_ms);
-
-    void shutdown();
+    #include "fpss.hpp.inc"
     ~FpssClient();
 
     FpssClient(const FpssClient&) = delete;
@@ -289,15 +268,7 @@ private:
 
 // ── Standalone Greeks functions ──
 
-/** Compute all 22 Greeks + IV. Throws on failure. */
-Greeks all_greeks(double spot, double strike, double rate, double div_yield,
-                  double tte, double option_price, bool is_call);
-
-/** Compute implied volatility. Returns (iv, error). Throws on failure. */
-std::pair<double, double> implied_volatility(double spot, double strike,
-                                              double rate, double div_yield,
-                                              double tte, double option_price,
-                                              bool is_call);
+#include "utilities.hpp.inc"
 
 } // namespace tdx
 

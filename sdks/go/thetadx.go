@@ -42,6 +42,7 @@ func stringArrayToGo(arr C.TdxStringArray) ([]string, error) {
 }
 
 // ── Credentials ──
+// Lifecycle: intentionally hand-written (language-specific constructor semantics).
 
 // Credentials holds ThetaData authentication credentials.
 type Credentials struct {
@@ -83,6 +84,7 @@ func (c *Credentials) Close() {
 }
 
 // ── Config ──
+// Lifecycle: intentionally hand-written (language-specific constructor semantics).
 
 // Config holds connection configuration.
 type Config struct {

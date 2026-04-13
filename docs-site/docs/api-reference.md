@@ -2220,7 +2220,7 @@ if event:
 event, err := fpss.NextEvent(5000)  // returns *FpssEvent or nil
 ```
 ```cpp [C++]
-std::string event = fpss.next_event(5000);  // empty string on timeout
+FpssEventPtr event = fpss.next_event(5000);  // nullptr on timeout
 ```
 :::
 
@@ -2243,11 +2243,14 @@ fpss.shutdown();
 
 ### Streaming State
 
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `is_streaming` | bool | Check if the streaming connection is live |
-| `contract_map` / `contract_lookup` | map/string | Look up server-assigned contract IDs |
-| `active_subscriptions` | list/typed structs | Get list of active subscriptions |
+| Method | Returns | SDK availability | Description |
+|--------|---------|------------------|-------------|
+| `is_streaming` | bool | Rust/Python only | Check if the unified streaming connection is live |
+| `contract_map` | `HashMap<i32, Contract>` (Rust), `dict[int, Contract]` (Python), `map[int32]string` (Go), `map<int32_t, string>` (C++) | All SDKs | Get full contract ID mapping |
+| `contract_lookup` | string/optional | All SDKs (FFI-based, returns NULL/"" for not-found) | Look up a single contract by server-assigned ID |
+| `active_subscriptions` | list/typed structs | All SDKs | Get list of active subscriptions |
+| `subscribe_option_*` / `unsubscribe_option_*` | int | All SDKs | Option-level subscribe/unsubscribe by `(symbol, expiration, strike, right)` |
+| `reconnect` | void / result | All SDKs | Reconnect streaming and re-subscribe the previous subscription set |
 
 ### FpssEvent Types
 
@@ -2281,7 +2284,7 @@ The `reconnect_delay` function returns the appropriate wait time based on the di
 
 ## Streaming Endpoint Variants
 
-For historical endpoints that can return millions of rows, `_stream` variants process data chunk-by-chunk without loading everything into memory. Available in Rust only.
+Streaming variants (`*_stream`) use per-chunk callbacks and are available in the Rust SDK only. Other languages use the non-streaming equivalents which return complete result sets.
 
 ### stock_history_trade_stream
 
@@ -2338,7 +2341,7 @@ tdx.option_history_quote_stream("SPY", "20241220", "500", "C", "20240315", "0")
 Helper methods (all 10 types): `is_call()`, `is_put()`, `has_contract_id()`.
 Go helper: `RightStr(code int32) string` converts raw right codes to `"C"`/`"P"`/`""`.
 
-Types with contract ID: TradeTick, QuoteTick, OhlcTick, EodTick, OpenInterestTick, SnapshotTradeTick, TradeQuoteTick, MarketValueTick, GreeksTick, IvTick.
+Types with contract ID: TradeTick, QuoteTick, OhlcTick, EodTick, OpenInterestTick, TradeQuoteTick, MarketValueTick, GreeksTick, IvTick.
 
 ### TradeTick
 

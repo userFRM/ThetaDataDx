@@ -4,8 +4,7 @@ use crate::error::Error;
 use crate::proto;
 use tdbe::types::tick::{
     CalendarDay, EodTick, GreeksTick, InterestRateTick, IvTick, MarketValueTick, OhlcTick,
-    OpenInterestTick, OptionContract, PriceTick, QuoteTick, SnapshotTradeTick, TradeQuoteTick,
-    TradeTick,
+    OpenInterestTick, OptionContract, PriceTick, QuoteTick, TradeQuoteTick, TradeTick,
 };
 
 /// Header aliases: v3 MDDS uses different column names than the tick schema.
@@ -508,7 +507,7 @@ pub(crate) fn row_number_i64(row: &proto::DataValueList, idx: usize) -> i64 {
 }
 
 // Generated code -- parser functions from tick_schema.toml by build.rs.
-#[allow(clippy::pedantic)]
+#[allow(clippy::pedantic)] // Reason: auto-generated parser code, not under our control.
 mod decode_generated {
     use super::*;
     include!(concat!(env!("OUT_DIR"), "/decode_generated.rs"));

@@ -39,31 +39,8 @@ typedef struct TdxConfig TdxConfig;
 typedef struct TdxFpssHandle TdxFpssHandle;
 typedef struct TdxUnified TdxUnified;
 
-/* Optional builder parameters for registry-driven endpoint requests.
- * Sentinels:
- * - integers: -1 means unset
- * - booleans: -1 unset, 0 false, 1 true
- * - doubles: NaN means unset
- * - strings: NULL means unset
- */
-typedef struct {
-    int32_t max_dte;
-    int32_t strike_range;
-    const char* venue;
-    const char* min_time;
-    const char* start_time;
-    const char* end_time;
-    const char* start_date;
-    const char* end_date;
-    int32_t exclusive;
-    double annual_dividend;
-    const char* rate_type;
-    double rate_value;
-    double stock_price;
-    const char* version;
-    int32_t underlyer_use_nbbo;
-    int32_t use_market_value;
-} TdxEndpointRequestOptions;
+/* Generated request-options bridge shared with Rust FFI. */
+#include "endpoint_request_options.h.inc"
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  #[repr(C)] tick types — layout-compatible with Rust tdbe structs      */
@@ -223,18 +200,6 @@ TDX_ALIGN64_BEGIN typedef struct {
 TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
-    int32_t size;
-    int32_t condition;
-    double price;
-    int32_t date;
-    int32_t expiration;
-    double strike;
-    int32_t right;
-} TdxSnapshotTradeTick TDX_ALIGN64_END;
-
-TDX_ALIGN64_BEGIN typedef struct {
-    int32_t ms_of_day;
-    int32_t sequence;
     int32_t ext_condition1;
     int32_t ext_condition2;
     int32_t ext_condition3;
@@ -363,6 +328,16 @@ typedef struct {
     size_t len;
 } TdxSubscriptionArray;
 
+typedef struct {
+    int32_t id;
+    const char* contract;
+} TdxContractMapEntry;
+
+typedef struct {
+    const TdxContractMapEntry* data;
+    size_t len;
+} TdxContractMapArray;
+
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Free functions for typed arrays                                       */
 /* ═══════════════════════════════════════════════════════════════════════ */
@@ -383,6 +358,7 @@ void tdx_option_contract_array_free(TdxOptionContractArray arr);
 void tdx_string_array_free(TdxStringArray arr);
 void tdx_greeks_result_free(TdxGreeksResult* result);
 void tdx_subscription_array_free(TdxSubscriptionArray* arr);
+void tdx_contract_map_array_free(TdxContractMapArray* arr);
 
 /* ── Error ── */
 
@@ -744,7 +720,7 @@ TdxInterestRateTickArray tdx_interest_rate_history_eod(const TdxClient* client, 
                                                        const char* start_date, const char* end_date);
 
 /* Generated option-aware endpoint declarations. */
-#include "generated_endpoint_with_options.h.inc"
+#include "endpoint_with_options.h.inc"
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Greeks (standalone)                                                   */
@@ -898,11 +874,34 @@ int tdx_fpss_unsubscribe_trades(const TdxFpssHandle* h, const char* symbol);
 /** Unsubscribe from open interest data. Returns request ID or -1 on error. */
 int tdx_fpss_unsubscribe_open_interest(const TdxFpssHandle* h, const char* symbol);
 
+/** Subscribe to quote data for an option contract. Returns 0 or -1. */
+int tdx_fpss_subscribe_option_quotes(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Subscribe to trade data for an option contract. Returns 0 or -1. */
+int tdx_fpss_subscribe_option_trades(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Subscribe to open interest for an option contract. Returns 0 or -1. */
+int tdx_fpss_subscribe_option_open_interest(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Unsubscribe from quote data for an option contract. Returns 0 or -1. */
+int tdx_fpss_unsubscribe_option_quotes(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Unsubscribe from trade data for an option contract. Returns 0 or -1. */
+int tdx_fpss_unsubscribe_option_trades(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Unsubscribe from open interest for an option contract. Returns 0 or -1. */
+int tdx_fpss_unsubscribe_option_open_interest(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+
 /** Check if authenticated. Returns 1 if true, 0 if false. */
 int tdx_fpss_is_authenticated(const TdxFpssHandle* h);
 
-/** Look up a contract by server-assigned ID. Returns string or NULL. Caller must free with tdx_string_free. */
+/** Look up a contract by server-assigned ID. Returns string or NULL.
+ *  NULL with empty tdx_last_error() means "not found". NULL with non-empty
+ *  tdx_last_error() means a real error occurred. Caller must free with tdx_string_free. */
 char* tdx_fpss_contract_lookup(const TdxFpssHandle* h, int id);
+
+/** Get the full contract map as typed entries. Caller must free with tdx_contract_map_array_free. */
+TdxContractMapArray* tdx_fpss_contract_map(const TdxFpssHandle* h);
 
 /** Get active subscriptions as typed array. Caller must free with tdx_subscription_array_free. */
 TdxSubscriptionArray* tdx_fpss_active_subscriptions(const TdxFpssHandle* h);
@@ -913,6 +912,9 @@ TdxFpssEvent* tdx_fpss_next_event(const TdxFpssHandle* h, uint64_t timeout_ms);
 
 /** Free a TdxFpssEvent returned by tdx_fpss_next_event. */
 void tdx_fpss_event_free(TdxFpssEvent* event);
+
+/** Reconnect FPSS, re-subscribing all previous subscriptions. Returns 0 or -1. */
+int tdx_fpss_reconnect(const TdxFpssHandle* h);
 
 /** Shut down the FPSS client. */
 void tdx_fpss_shutdown(const TdxFpssHandle* h);
@@ -961,10 +963,36 @@ int tdx_unified_unsubscribe_full_trades(const TdxUnified* handle, const char* se
 /** Unsubscribe from all open interest for a security type. Returns 0 or -1. */
 int tdx_unified_unsubscribe_full_open_interest(const TdxUnified* handle, const char* sec_type);
 
+/** Subscribe to quote data for an option contract. Returns 0 or -1. */
+int tdx_unified_subscribe_option_quotes(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Subscribe to trade data for an option contract. Returns 0 or -1. */
+int tdx_unified_subscribe_option_trades(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Subscribe to open interest for an option contract. Returns 0 or -1. */
+int tdx_unified_subscribe_option_open_interest(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Unsubscribe from quote data for an option contract. Returns 0 or -1. */
+int tdx_unified_unsubscribe_option_quotes(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Unsubscribe from trade data for an option contract. Returns 0 or -1. */
+int tdx_unified_unsubscribe_option_trades(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Unsubscribe from open interest for an option contract. Returns 0 or -1. */
+int tdx_unified_unsubscribe_option_open_interest(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Get the full contract map as typed entries. Caller must free with tdx_contract_map_array_free. */
+TdxContractMapArray* tdx_unified_contract_map(const TdxUnified* handle);
+
+/** Reconnect unified streaming, re-subscribing all previous subscriptions. Returns 0 or -1. */
+int tdx_unified_reconnect(const TdxUnified* handle);
+
 /** Check if streaming is active. Returns 1 if streaming, 0 otherwise. */
 int tdx_unified_is_streaming(const TdxUnified* handle);
 
-/** Look up a contract by ID. Returns string or NULL. Caller must free with tdx_string_free. */
+/** Look up a contract by ID. Returns string or NULL.
+ *  NULL with empty tdx_last_error() means "not found". NULL with non-empty
+ *  tdx_last_error() means a real error occurred. Caller must free with tdx_string_free. */
 char* tdx_unified_contract_lookup(const TdxUnified* handle, int id);
 
 /** Get active subscriptions as typed array. Caller must free with tdx_subscription_array_free. */
