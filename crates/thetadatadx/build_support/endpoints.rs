@@ -3055,16 +3055,23 @@ fn render_python_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
 
 /// Map a `param_type` from the endpoint surface to a dummy value for Python validation.
 fn python_dummy_value(param: &GeneratedParam) -> String {
+    // Use a known-good past date range for option endpoints.
+    // SPY 20250321 C 570 had active Greeks in March 2025.
+    // Stock endpoints use 20250303-20250307 (known trading week).
+    // end_date is offset from start_date so date ranges return multiple rows.
+    if param.name == "end_date" {
+        return "\"20250307\"".into();
+    }
     match param.param_type.as_str() {
         "Symbol" => "\"AAPL\"".into(),
         "Symbols" => "[\"AAPL\"]".into(),
-        "Date" => "\"20260401\"".into(),
-        "Expiration" => "\"20260620\"".into(),
-        "Strike" => "\"500\"".into(),
+        "Date" => "\"20250303\"".into(),
+        "Expiration" => "\"20250321\"".into(),
+        "Strike" => "\"570\"".into(),
         "Right" => "\"C\"".into(),
         "Interval" => "\"60000\"".into(),
         "RequestType" => "\"TRADE\"".into(),
-        "Year" => "\"2026\"".into(),
+        "Year" => "\"2025\"".into(),
         "Str" => "\"12:00:00.000\"".into(),
         _ => "\"\"".into(),
     }
@@ -3072,16 +3079,20 @@ fn python_dummy_value(param: &GeneratedParam) -> String {
 
 /// Map a `param_type` from the endpoint surface to a dummy value for Go validation.
 fn go_dummy_value(param: &GeneratedParam) -> String {
+    // Same known-good past dates as Python.
+    if param.name == "end_date" {
+        return "\"20250307\"".into();
+    }
     match param.param_type.as_str() {
         "Symbol" => "\"AAPL\"".into(),
         "Symbols" => "[]string{\"AAPL\"}".into(),
-        "Date" => "\"20260401\"".into(),
-        "Expiration" => "\"20260620\"".into(),
-        "Strike" => "\"500\"".into(),
+        "Date" => "\"20250303\"".into(),
+        "Expiration" => "\"20250321\"".into(),
+        "Strike" => "\"570\"".into(),
         "Right" => "\"C\"".into(),
         "Interval" => "\"60000\"".into(),
         "RequestType" => "\"TRADE\"".into(),
-        "Year" => "\"2026\"".into(),
+        "Year" => "\"2025\"".into(),
         "Str" => "\"12:00:00.000\"".into(),
         _ => "\"\"".into(),
     }
