@@ -3,7 +3,7 @@
 # ThetaDataDx Release Validation
 #
 # Single script that validates every delivery surface:
-#   1. CLI     — all 61 endpoints via test_all_endpoints.sh (Rust core)
+#   1. CLI     — all 61 endpoints via generated validate_cli.py (Rust core)
 #   2. Python  — all 61 endpoints via generated validate_python.py (PyO3 bridge)
 #   3. Go      — all 61 endpoints via generated validate.go (CGo FFI bridge)
 #
@@ -28,6 +28,8 @@ if [ ! -f "$CREDS" ]; then
     echo "Create creds.txt with email on line 1, password on line 2."
     exit 1
 fi
+
+CREDS="$(cd "$(dirname "$CREDS")" && pwd)/$(basename "$CREDS")"
 
 TOTAL_PASS=0
 TOTAL_SKIP=0
@@ -83,16 +85,13 @@ if [ ! -f "$REPO/target/release/tdx" ]; then
     cargo build --release -p thetadatadx-cli --manifest-path "$REPO/Cargo.toml"
 fi
 
-cli_output=$(bash "$REPO/examples/test_all_endpoints.sh" "$CREDS" 2>&1)
+cli_output=$(python3 "$REPO/scripts/validate_cli.py" "$CREDS" 2>&1)
 echo "$cli_output"
 
-# Parse the summary line from test_all_endpoints.sh
-cli_pass=$(echo "$cli_output" | grep -oP 'PASS:\s+\K\d+' || echo 0)
-cli_skip=$(echo "$cli_output" | grep -oP 'SKIP:\s+\K\d+' || echo 0)
-cli_nodata=$(echo "$cli_output" | grep -oP 'NODATA:\s+\K\d+' || echo 0)
-cli_fail=$(echo "$cli_output" | grep -oP 'FAIL:\s+\K\d+' || echo 0)
-# NODATA counts as PASS (valid empty response)
-cli_pass=$((cli_pass + cli_nodata))
+cli_counts=$(echo "$cli_output" | grep -oP 'COUNTS:\K.*')
+cli_pass=$(echo "$cli_counts" | cut -d: -f1)
+cli_skip=$(echo "$cli_counts" | cut -d: -f2)
+cli_fail=$(echo "$cli_counts" | cut -d: -f3)
 record "CLI" "$cli_pass" "$cli_skip" "$cli_fail"
 
 # ── 2. Python SDK (all 61 endpoints) ─────────────────────────────────────

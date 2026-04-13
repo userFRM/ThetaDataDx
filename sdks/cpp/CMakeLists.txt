@@ -60,3 +60,11 @@ endif()
 
 add_executable(thetadatadx_example examples/main.cpp)
 target_link_libraries(thetadatadx_example PRIVATE thetadatadx_cpp)
+
+# ── Validation and smoke executables ──
+
+add_executable(thetadatadx_validate examples/validate.cpp)
+target_link_libraries(thetadatadx_validate PRIVATE thetadatadx_cpp)
+
+add_executable(thetadatadx_fpss_smoke examples/fpss_smoke.cpp)
+target_link_libraries(thetadatadx_fpss_smoke PRIVATE thetadatadx_cpp)

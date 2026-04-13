@@ -2155,12 +2155,20 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
             contents: render_python_historical_methods(&parsed.endpoints),
         },
         GeneratedSourceFile {
+            relative_path: "scripts/validate_cli.py",
+            contents: render_cli_validate(&parsed.endpoints),
+        },
+        GeneratedSourceFile {
             relative_path: "scripts/validate_python.py",
             contents: render_python_validate(&parsed.endpoints),
         },
         GeneratedSourceFile {
             relative_path: "sdks/go/validate.go",
             contents: render_go_validate(&parsed.endpoints),
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/cpp/examples/validate.cpp",
+            contents: render_cpp_validate(&parsed.endpoints),
         },
     ])
 }
@@ -3065,48 +3073,146 @@ fn validation_symbol(endpoint: &GeneratedEndpoint) -> &'static str {
     }
 }
 
+fn validation_dummy_str(endpoint: &GeneratedEndpoint, param: &GeneratedParam) -> String {
+    if param.name == "end_date" {
+        return "20250307".into();
+    }
+    match param.param_type.as_str() {
+        "Symbol" | "Symbols" => validation_symbol(endpoint).into(),
+        "Date" => "20250303".into(),
+        "Expiration" => "20250321".into(),
+        "Strike" => "570".into(),
+        "Right" => "C".into(),
+        "Interval" => "60000".into(),
+        "RequestType" => "TRADE".into(),
+        "Year" => "2025".into(),
+        "Str" => "12:00:00.000".into(),
+        _ => String::new(),
+    }
+}
+
 fn python_dummy_value(endpoint: &GeneratedEndpoint, param: &GeneratedParam) -> String {
     // Use a known-good past date range for option endpoints.
     // SPY 20250321 C 570 had active Greeks in March 2025.
     // Stock endpoints use 20250303-20250307 (known trading week).
     // end_date is offset from start_date so date ranges return multiple rows.
-    if param.name == "end_date" {
-        return "\"20250307\"".into();
-    }
     match param.param_type.as_str() {
-        "Symbol" => format!("\"{}\"", validation_symbol(endpoint)),
-        "Symbols" => format!("[\"{}\"]", validation_symbol(endpoint)),
-        "Date" => "\"20250303\"".into(),
-        "Expiration" => "\"20250321\"".into(),
-        "Strike" => "\"570\"".into(),
-        "Right" => "\"C\"".into(),
-        "Interval" => "\"60000\"".into(),
-        "RequestType" => "\"TRADE\"".into(),
-        "Year" => "\"2025\"".into(),
-        "Str" => "\"12:00:00.000\"".into(),
-        _ => "\"\"".into(),
+        "Symbols" => format!("[\"{}\"]", validation_dummy_str(endpoint, param)),
+        _ => format!("\"{}\"", validation_dummy_str(endpoint, param)),
     }
 }
 
 /// Map a `param_type` from the endpoint surface to a dummy value for Go validation.
 fn go_dummy_value(endpoint: &GeneratedEndpoint, param: &GeneratedParam) -> String {
     // Same known-good past dates as Python.
-    if param.name == "end_date" {
-        return "\"20250307\"".into();
-    }
     match param.param_type.as_str() {
-        "Symbol" => format!("\"{}\"", validation_symbol(endpoint)),
-        "Symbols" => format!("[]string{{\"{}\"}}", validation_symbol(endpoint)),
-        "Date" => "\"20250303\"".into(),
-        "Expiration" => "\"20250321\"".into(),
-        "Strike" => "\"570\"".into(),
-        "Right" => "\"C\"".into(),
-        "Interval" => "\"60000\"".into(),
-        "RequestType" => "\"TRADE\"".into(),
-        "Year" => "\"2025\"".into(),
-        "Str" => "\"12:00:00.000\"".into(),
-        _ => "\"\"".into(),
+        "Symbols" => format!("[]string{{\"{}\"}}", validation_dummy_str(endpoint, param)),
+        _ => format!("\"{}\"", validation_dummy_str(endpoint, param)),
     }
+}
+
+fn cpp_dummy_value(endpoint: &GeneratedEndpoint, param: &GeneratedParam) -> String {
+    let value = validation_dummy_str(endpoint, param);
+    if param.param_type == "Symbols" {
+        format!("std::vector<std::string>{{\"{value}\"}}")
+    } else {
+        format!("\"{value}\"")
+    }
+}
+
+fn cli_command_name(endpoint: &GeneratedEndpoint) -> String {
+    match endpoint.category.as_str() {
+        "stock" | "option" | "index" | "calendar" => endpoint
+            .name
+            .strip_prefix(&format!("{}_", endpoint.category))
+            .expect("endpoint name should match category prefix")
+            .into(),
+        "rate" => endpoint
+            .name
+            .strip_prefix("interest_rate_")
+            .expect("rate endpoint should use interest_rate_ prefix")
+            .into(),
+        other => panic!("unsupported CLI endpoint category: {other}"),
+    }
+}
+
+fn cli_command_tokens(endpoint: &GeneratedEndpoint) -> Vec<String> {
+    let mut tokens = vec![
+        match endpoint.category.as_str() {
+            "rate" => "rate".into(),
+            other => other.into(),
+        },
+        cli_command_name(endpoint),
+    ];
+    for param in method_params(endpoint) {
+        if param.param_type == "Symbols" {
+            tokens.push(validation_dummy_str(endpoint, param));
+        } else {
+            tokens.push(validation_dummy_str(endpoint, param));
+        }
+    }
+    tokens
+}
+
+fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
+    let mut out = String::new();
+    out.push_str("#!/usr/bin/env python3\n");
+    out.push_str(
+        "# @generated DO NOT EDIT — regenerated by generate_sdk_surfaces from endpoint_surface.toml\n",
+    );
+    out.push_str("\"\"\"Validate all non-stream endpoints through the CLI.\"\"\"\n");
+    out.push_str("from __future__ import annotations\n\n");
+    out.push_str("import os\n");
+    out.push_str("import pathlib\n");
+    out.push_str("import subprocess\n");
+    out.push_str("import sys\n\n");
+    out.push_str("REPO = pathlib.Path(__file__).resolve().parents[1]\n");
+    out.push_str("TDX = REPO / \"target\" / \"release\" / (\"tdx.exe\" if os.name == \"nt\" else \"tdx\")\n\n");
+    out.push_str("ENDPOINTS = [\n");
+    for endpoint in endpoints
+        .iter()
+        .filter(|endpoint| !is_streaming_endpoint(endpoint))
+    {
+        let tokens = cli_command_tokens(endpoint)
+            .into_iter()
+            .map(|token| format!("{token:?}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        writeln!(out, "    ({:?}, [{}]),", endpoint.name, tokens).unwrap();
+    }
+    out.push_str("]\n\n");
+    out.push_str("if not TDX.exists():\n");
+    out.push_str("    raise SystemExit(f\"missing CLI binary: {TDX}\")\n\n");
+    out.push_str("creds = sys.argv[1]\n");
+    out.push_str("pass_count = skip_count = fail_count = 0\n");
+    out.push_str("for name, args in ENDPOINTS:\n");
+    out.push_str("    proc = subprocess.run(\n");
+    out.push_str("        [str(TDX), \"--creds\", creds, *args, \"--format\", \"json\"],\n");
+    out.push_str("        cwd=REPO,\n");
+    out.push_str("        stdout=subprocess.PIPE,\n");
+    out.push_str("        stderr=subprocess.STDOUT,\n");
+    out.push_str("        text=True,\n");
+    out.push_str("        check=False,\n");
+    out.push_str("    )\n");
+    out.push_str("    if proc.returncode == 0:\n");
+    out.push_str("        print(f\"  {name:45s} PASS\")\n");
+    out.push_str("        pass_count += 1\n");
+    out.push_str("        continue\n");
+    out.push_str("    msg = proc.stdout.lower()\n");
+    out.push_str("    if \"permission\" in msg or \"subscription\" in msg:\n");
+    out.push_str("        print(f\"  {name:45s} SKIP  (tier)\")\n");
+    out.push_str("        skip_count += 1\n");
+    out.push_str("    elif \"no data found\" in msg:\n");
+    out.push_str("        print(f\"  {name:45s} PASS  (no data)\")\n");
+    out.push_str("        pass_count += 1\n");
+    out.push_str("    else:\n");
+    out.push_str("        print(f\"  {name:45s} FAIL  {proc.stdout.strip()}\")\n");
+    out.push_str("        fail_count += 1\n");
+    out.push_str("\n");
+    out.push_str("print(f\"\\nCLI: {pass_count} PASS, {skip_count} SKIP, {fail_count} FAIL\")\n");
+    out.push_str("print(f\"COUNTS:{pass_count}:{skip_count}:{fail_count}\")\n");
+    out.push_str("sys.exit(1 if fail_count > 0 else 0)\n");
+    out
 }
 
 /// Generate a standalone Python validation script that calls every non-stream endpoint.
@@ -3232,6 +3338,94 @@ fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("\t}\n");
     out.push_str("}\n");
 
+    out
+}
+
+fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
+    let mut out = String::new();
+    out.push_str(
+        "// @generated DO NOT EDIT — regenerated by generate_sdk_surfaces from endpoint_surface.toml\n",
+    );
+    out.push_str("#include <algorithm>\n");
+    out.push_str("#include <cctype>\n");
+    out.push_str("#include <iostream>\n");
+    out.push_str("#include <string>\n");
+    out.push_str("#include <vector>\n");
+    out.push_str("#include \"thetadx.hpp\"\n\n");
+    out.push_str("namespace {\n\n");
+    out.push_str("std::string lower(std::string value) {\n");
+    out.push_str(
+        "    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {\n",
+    );
+    out.push_str("        return static_cast<char>(std::tolower(c));\n");
+    out.push_str("    });\n");
+    out.push_str("    return value;\n");
+    out.push_str("}\n\n");
+    out.push_str("} // namespace\n\n");
+    out.push_str("int main(int argc, char** argv) {\n");
+    out.push_str("    const std::string creds_path = argc > 1 ? argv[1] : \"creds.txt\";\n");
+    out.push_str("    int pass = 0;\n");
+    out.push_str("    int skip = 0;\n");
+    out.push_str("    int fail = 0;\n\n");
+    out.push_str("    try {\n");
+    out.push_str("        auto creds = tdx::Credentials::from_file(creds_path);\n");
+    out.push_str("        auto config = tdx::Config::production();\n");
+    out.push_str("        auto client = tdx::Client::connect(creds, config);\n\n");
+    out.push_str("        auto classify = [&](const char* name, auto&& call) {\n");
+    out.push_str("            try {\n");
+    out.push_str("                (void)call();\n");
+    out.push_str("                std::cout << \"  \" << name << \" PASS\" << std::endl;\n");
+    out.push_str("                ++pass;\n");
+    out.push_str("            } catch (const std::exception& e) {\n");
+    out.push_str("                const std::string msg = lower(e.what());\n");
+    out.push_str("                if (msg.find(\"permission\") != std::string::npos || msg.find(\"subscription\") != std::string::npos) {\n");
+    out.push_str(
+        "                    std::cout << \"  \" << name << \" SKIP  (tier)\" << std::endl;\n",
+    );
+    out.push_str("                    ++skip;\n");
+    out.push_str(
+        "                } else if (msg.find(\"no data found\") != std::string::npos) {\n",
+    );
+    out.push_str(
+        "                    std::cout << \"  \" << name << \" PASS  (no data)\" << std::endl;\n",
+    );
+    out.push_str("                    ++pass;\n");
+    out.push_str("                } else {\n");
+    out.push_str("                    std::cout << \"  \" << name << \" FAIL  \" << e.what() << std::endl;\n");
+    out.push_str("                    ++fail;\n");
+    out.push_str("                }\n");
+    out.push_str("            }\n");
+    out.push_str("        };\n\n");
+
+    for endpoint in endpoints
+        .iter()
+        .filter(|endpoint| !is_streaming_endpoint(endpoint))
+    {
+        let args = method_params(endpoint)
+            .iter()
+            .map(|param| cpp_dummy_value(endpoint, param))
+            .collect::<Vec<_>>()
+            .join(", ");
+        writeln!(
+            out,
+            "        classify(\"{}\", [&] {{ return client.{}({}); }});",
+            endpoint.name, endpoint.name, args
+        )
+        .unwrap();
+    }
+
+    out.push_str("    } catch (const std::exception& e) {\n");
+    out.push_str(
+        "        std::cerr << \"validator bootstrap failure: \" << e.what() << std::endl;\n",
+    );
+    out.push_str("        return 1;\n");
+    out.push_str("    }\n\n");
+    out.push_str("    std::cout << \"\\nC++: \" << pass << \" PASS, \" << skip << \" SKIP, \" << fail << \" FAIL\" << std::endl;\n");
+    out.push_str(
+        "    std::cout << \"COUNTS:\" << pass << \":\" << skip << \":\" << fail << std::endl;\n",
+    );
+    out.push_str("    return fail > 0 ? 1 : 0;\n");
+    out.push_str("}\n");
     out
 }
 

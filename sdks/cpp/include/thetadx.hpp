@@ -235,6 +235,9 @@ public:
     /** Set FPSS flush mode. 0=Batched (default), 1=Immediate. */
     void set_flush_mode(int mode) { tdx_config_set_flush_mode(handle_.get(), mode); }
 
+    /** Set whether to derive OHLCVC bars locally from trades. */
+    void set_derive_ohlcvc(bool enabled) { tdx_config_set_derive_ohlcvc(handle_.get(), enabled ? 1 : 0); }
+
     /** Get the raw handle. */
     TdxConfig* get() const { return handle_.get(); }
 
