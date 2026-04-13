@@ -234,7 +234,7 @@ impl ThetaDataDx {
         let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();
         self.tdx
             .reconnect_streaming(move |event: &fpss::FpssEvent| {
-                let _ = tx.send(BufferedEvent::from_event(event));
+                let _ = tx.send(fpss_event_to_buffered(event));
             })
             .map_err(to_py_err)?;
         if let Ok(mut guard) = self.rx.lock() {
