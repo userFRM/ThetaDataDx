@@ -33,6 +33,45 @@ func (f *FpssClient) SubscribeOpenInterest(symbol string) (int, error) {
     return f.fpssCall(C.tdx_fpss_subscribe_open_interest(f.handle, cs))
 }
 
+// SubscribeOptionQuotes subscribes to quote data for an option contract.
+func (f *FpssClient) SubscribeOptionQuotes(symbol, expiration, strike, right string) (int, error) {
+    cs := C.CString(symbol)
+    ce := C.CString(expiration)
+    ck := C.CString(strike)
+    cr := C.CString(right)
+    defer C.free(unsafe.Pointer(cs))
+    defer C.free(unsafe.Pointer(ce))
+    defer C.free(unsafe.Pointer(ck))
+    defer C.free(unsafe.Pointer(cr))
+    return f.fpssCall(C.tdx_fpss_subscribe_option_quotes(f.handle, cs, ce, ck, cr))
+}
+
+// SubscribeOptionTrades subscribes to trade data for an option contract.
+func (f *FpssClient) SubscribeOptionTrades(symbol, expiration, strike, right string) (int, error) {
+    cs := C.CString(symbol)
+    ce := C.CString(expiration)
+    ck := C.CString(strike)
+    cr := C.CString(right)
+    defer C.free(unsafe.Pointer(cs))
+    defer C.free(unsafe.Pointer(ce))
+    defer C.free(unsafe.Pointer(ck))
+    defer C.free(unsafe.Pointer(cr))
+    return f.fpssCall(C.tdx_fpss_subscribe_option_trades(f.handle, cs, ce, ck, cr))
+}
+
+// SubscribeOptionOpenInterest subscribes to open interest data for an option contract.
+func (f *FpssClient) SubscribeOptionOpenInterest(symbol, expiration, strike, right string) (int, error) {
+    cs := C.CString(symbol)
+    ce := C.CString(expiration)
+    ck := C.CString(strike)
+    cr := C.CString(right)
+    defer C.free(unsafe.Pointer(cs))
+    defer C.free(unsafe.Pointer(ce))
+    defer C.free(unsafe.Pointer(ck))
+    defer C.free(unsafe.Pointer(cr))
+    return f.fpssCall(C.tdx_fpss_subscribe_option_open_interest(f.handle, cs, ce, ck, cr))
+}
+
 // SubscribeFullTrades subscribes to all trades for a security type ("STOCK", "OPTION", "INDEX").
 func (f *FpssClient) SubscribeFullTrades(secType string) (int, error) {
     cs := C.CString(secType)
@@ -45,6 +84,32 @@ func (f *FpssClient) SubscribeFullOpenInterest(secType string) (int, error) {
     cs := C.CString(secType)
     defer C.free(unsafe.Pointer(cs))
     return f.fpssCall(C.tdx_fpss_subscribe_full_open_interest(f.handle, cs))
+}
+
+// SubscribeOptionFullTrades subscribes to all trades for an option contract.
+func (f *FpssClient) SubscribeOptionFullTrades(symbol, expiration, strike, right string) (int, error) {
+    cs := C.CString(symbol)
+    ce := C.CString(expiration)
+    ck := C.CString(strike)
+    cr := C.CString(right)
+    defer C.free(unsafe.Pointer(cs))
+    defer C.free(unsafe.Pointer(ce))
+    defer C.free(unsafe.Pointer(ck))
+    defer C.free(unsafe.Pointer(cr))
+    return f.fpssCall(C.tdx_fpss_subscribe_option_full_trades(f.handle, cs, ce, ck, cr))
+}
+
+// SubscribeOptionFullOpenInterest subscribes to all open interest for an option contract.
+func (f *FpssClient) SubscribeOptionFullOpenInterest(symbol, expiration, strike, right string) (int, error) {
+    cs := C.CString(symbol)
+    ce := C.CString(expiration)
+    ck := C.CString(strike)
+    cr := C.CString(right)
+    defer C.free(unsafe.Pointer(cs))
+    defer C.free(unsafe.Pointer(ce))
+    defer C.free(unsafe.Pointer(ck))
+    defer C.free(unsafe.Pointer(cr))
+    return f.fpssCall(C.tdx_fpss_subscribe_option_full_open_interest(f.handle, cs, ce, ck, cr))
 }
 
 // UnsubscribeQuotes unsubscribes from quote data for a stock symbol.
@@ -68,6 +133,45 @@ func (f *FpssClient) UnsubscribeOpenInterest(symbol string) (int, error) {
     return f.fpssCall(C.tdx_fpss_unsubscribe_open_interest(f.handle, cs))
 }
 
+// UnsubscribeOptionQuotes unsubscribes from quote data for an option contract.
+func (f *FpssClient) UnsubscribeOptionQuotes(symbol, expiration, strike, right string) (int, error) {
+    cs := C.CString(symbol)
+    ce := C.CString(expiration)
+    ck := C.CString(strike)
+    cr := C.CString(right)
+    defer C.free(unsafe.Pointer(cs))
+    defer C.free(unsafe.Pointer(ce))
+    defer C.free(unsafe.Pointer(ck))
+    defer C.free(unsafe.Pointer(cr))
+    return f.fpssCall(C.tdx_fpss_unsubscribe_option_quotes(f.handle, cs, ce, ck, cr))
+}
+
+// UnsubscribeOptionTrades unsubscribes from trade data for an option contract.
+func (f *FpssClient) UnsubscribeOptionTrades(symbol, expiration, strike, right string) (int, error) {
+    cs := C.CString(symbol)
+    ce := C.CString(expiration)
+    ck := C.CString(strike)
+    cr := C.CString(right)
+    defer C.free(unsafe.Pointer(cs))
+    defer C.free(unsafe.Pointer(ce))
+    defer C.free(unsafe.Pointer(ck))
+    defer C.free(unsafe.Pointer(cr))
+    return f.fpssCall(C.tdx_fpss_unsubscribe_option_trades(f.handle, cs, ce, ck, cr))
+}
+
+// UnsubscribeOptionOpenInterest unsubscribes from open interest data for an option contract.
+func (f *FpssClient) UnsubscribeOptionOpenInterest(symbol, expiration, strike, right string) (int, error) {
+    cs := C.CString(symbol)
+    ce := C.CString(expiration)
+    ck := C.CString(strike)
+    cr := C.CString(right)
+    defer C.free(unsafe.Pointer(cs))
+    defer C.free(unsafe.Pointer(ce))
+    defer C.free(unsafe.Pointer(ck))
+    defer C.free(unsafe.Pointer(cr))
+    return f.fpssCall(C.tdx_fpss_unsubscribe_option_open_interest(f.handle, cs, ce, ck, cr))
+}
+
 // UnsubscribeFullTrades unsubscribes from all trades for a security type ("STOCK", "OPTION", "INDEX").
 func (f *FpssClient) UnsubscribeFullTrades(secType string) (int, error) {
     cs := C.CString(secType)
@@ -80,6 +184,32 @@ func (f *FpssClient) UnsubscribeFullOpenInterest(secType string) (int, error) {
     cs := C.CString(secType)
     defer C.free(unsafe.Pointer(cs))
     return f.fpssCall(C.tdx_fpss_unsubscribe_full_open_interest(f.handle, cs))
+}
+
+// UnsubscribeOptionFullTrades unsubscribes from all trades for an option contract.
+func (f *FpssClient) UnsubscribeOptionFullTrades(symbol, expiration, strike, right string) (int, error) {
+    cs := C.CString(symbol)
+    ce := C.CString(expiration)
+    ck := C.CString(strike)
+    cr := C.CString(right)
+    defer C.free(unsafe.Pointer(cs))
+    defer C.free(unsafe.Pointer(ce))
+    defer C.free(unsafe.Pointer(ck))
+    defer C.free(unsafe.Pointer(cr))
+    return f.fpssCall(C.tdx_fpss_unsubscribe_option_full_trades(f.handle, cs, ce, ck, cr))
+}
+
+// UnsubscribeOptionFullOpenInterest unsubscribes from all open interest for an option contract.
+func (f *FpssClient) UnsubscribeOptionFullOpenInterest(symbol, expiration, strike, right string) (int, error) {
+    cs := C.CString(symbol)
+    ce := C.CString(expiration)
+    ck := C.CString(strike)
+    cr := C.CString(right)
+    defer C.free(unsafe.Pointer(cs))
+    defer C.free(unsafe.Pointer(ce))
+    defer C.free(unsafe.Pointer(ck))
+    defer C.free(unsafe.Pointer(cr))
+    return f.fpssCall(C.tdx_fpss_unsubscribe_option_full_open_interest(f.handle, cs, ce, ck, cr))
 }
 
 // IsAuthenticated returns true if the FPSS client is currently authenticated.
@@ -97,6 +227,17 @@ func (f *FpssClient) ContractLookup(id int) (string, error) {
             return "", fmt.Errorf("thetadatadx: %s", msg)
         }
         return "", nil
+    }
+    goStr := C.GoString(cstr)
+    C.tdx_string_free(cstr)
+    return goStr, nil
+}
+
+// ContractMapJSON returns the full contract map as a JSON string.
+func (f *FpssClient) ContractMapJSON() (string, error) {
+    cstr := C.tdx_fpss_contract_map_json(f.handle)
+    if cstr == nil {
+        return "", fmt.Errorf("thetadatadx: %s", lastError())
     }
     goStr := C.GoString(cstr)
     C.tdx_string_free(cstr)
@@ -221,6 +362,15 @@ func (f *FpssClient) NextEvent(timeoutMs uint64) (*FpssEvent, error) {
     }
 
     return event, nil
+}
+
+// Reconnect reconnects the FPSS streaming connection, re-subscribing all previous subscriptions.
+func (f *FpssClient) Reconnect() error {
+    rc := C.tdx_fpss_reconnect(f.handle)
+    if rc < 0 {
+        return fmt.Errorf("thetadatadx: %s", lastError())
+    }
+    return nil
 }
 
 // Shutdown gracefully shuts down the FPSS streaming connection.

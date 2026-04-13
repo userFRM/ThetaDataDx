@@ -864,6 +864,36 @@ int tdx_fpss_unsubscribe_trades(const TdxFpssHandle* h, const char* symbol);
 /** Unsubscribe from open interest data. Returns request ID or -1 on error. */
 int tdx_fpss_unsubscribe_open_interest(const TdxFpssHandle* h, const char* symbol);
 
+/** Subscribe to quote data for an option contract. Returns 0 or -1. */
+int tdx_fpss_subscribe_option_quotes(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Subscribe to trade data for an option contract. Returns 0 or -1. */
+int tdx_fpss_subscribe_option_trades(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Subscribe to open interest for an option contract. Returns 0 or -1. */
+int tdx_fpss_subscribe_option_open_interest(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Subscribe to all trades for an option contract. Returns 0 or -1. */
+int tdx_fpss_subscribe_option_full_trades(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Subscribe to all open interest for an option contract. Returns 0 or -1. */
+int tdx_fpss_subscribe_option_full_open_interest(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Unsubscribe from quote data for an option contract. Returns 0 or -1. */
+int tdx_fpss_unsubscribe_option_quotes(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Unsubscribe from trade data for an option contract. Returns 0 or -1. */
+int tdx_fpss_unsubscribe_option_trades(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Unsubscribe from open interest for an option contract. Returns 0 or -1. */
+int tdx_fpss_unsubscribe_option_open_interest(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Unsubscribe from all trades for an option contract. Returns 0 or -1. */
+int tdx_fpss_unsubscribe_option_full_trades(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Unsubscribe from all open interest for an option contract. Returns 0 or -1. */
+int tdx_fpss_unsubscribe_option_full_open_interest(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+
 /** Check if authenticated. Returns 1 if true, 0 if false. */
 int tdx_fpss_is_authenticated(const TdxFpssHandle* h);
 
@@ -871,6 +901,9 @@ int tdx_fpss_is_authenticated(const TdxFpssHandle* h);
  *  NULL with empty tdx_last_error() means "not found". NULL with non-empty
  *  tdx_last_error() means a real error occurred. Caller must free with tdx_string_free. */
 char* tdx_fpss_contract_lookup(const TdxFpssHandle* h, int id);
+
+/** Get the full contract map as a JSON string. Caller must free with tdx_string_free. */
+char* tdx_fpss_contract_map_json(const TdxFpssHandle* h);
 
 /** Get active subscriptions as typed array. Caller must free with tdx_subscription_array_free. */
 TdxSubscriptionArray* tdx_fpss_active_subscriptions(const TdxFpssHandle* h);
@@ -881,6 +914,9 @@ TdxFpssEvent* tdx_fpss_next_event(const TdxFpssHandle* h, uint64_t timeout_ms);
 
 /** Free a TdxFpssEvent returned by tdx_fpss_next_event. */
 void tdx_fpss_event_free(TdxFpssEvent* event);
+
+/** Reconnect FPSS, re-subscribing all previous subscriptions. Returns 0 or -1. */
+int tdx_fpss_reconnect(const TdxFpssHandle* h);
 
 /** Shut down the FPSS client. */
 void tdx_fpss_shutdown(const TdxFpssHandle* h);
@@ -928,6 +964,42 @@ int tdx_unified_unsubscribe_full_trades(const TdxUnified* handle, const char* se
 
 /** Unsubscribe from all open interest for a security type. Returns 0 or -1. */
 int tdx_unified_unsubscribe_full_open_interest(const TdxUnified* handle, const char* sec_type);
+
+/** Subscribe to quote data for an option contract. Returns 0 or -1. */
+int tdx_unified_subscribe_option_quotes(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Subscribe to trade data for an option contract. Returns 0 or -1. */
+int tdx_unified_subscribe_option_trades(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Subscribe to open interest for an option contract. Returns 0 or -1. */
+int tdx_unified_subscribe_option_open_interest(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Subscribe to all trades for an option contract. Returns 0 or -1. */
+int tdx_unified_subscribe_option_full_trades(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Subscribe to all open interest for an option contract. Returns 0 or -1. */
+int tdx_unified_subscribe_option_full_open_interest(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Unsubscribe from quote data for an option contract. Returns 0 or -1. */
+int tdx_unified_unsubscribe_option_quotes(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Unsubscribe from trade data for an option contract. Returns 0 or -1. */
+int tdx_unified_unsubscribe_option_trades(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Unsubscribe from open interest for an option contract. Returns 0 or -1. */
+int tdx_unified_unsubscribe_option_open_interest(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Unsubscribe from all trades for an option contract. Returns 0 or -1. */
+int tdx_unified_unsubscribe_option_full_trades(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Unsubscribe from all open interest for an option contract. Returns 0 or -1. */
+int tdx_unified_unsubscribe_option_full_open_interest(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+
+/** Get the full contract map as a JSON string. Caller must free with tdx_string_free. */
+char* tdx_unified_contract_map_json(const TdxUnified* handle);
+
+/** Reconnect unified streaming, re-subscribing all previous subscriptions. Returns 0 or -1. */
+int tdx_unified_reconnect(const TdxUnified* handle);
 
 /** Check if streaming is active. Returns 1 if streaming, 0 otherwise. */
 int tdx_unified_is_streaming(const TdxUnified* handle);

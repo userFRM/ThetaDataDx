@@ -5,16 +5,30 @@
     int subscribe_quotes(const std::string& symbol);
     int subscribe_trades(const std::string& symbol);
     int subscribe_open_interest(const std::string& symbol);
+    int subscribe_option_quotes(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);
+    int subscribe_option_trades(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);
+    int subscribe_option_open_interest(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);
     int subscribe_full_trades(const std::string& sec_type);
     int subscribe_full_open_interest(const std::string& sec_type);
+    int subscribe_option_full_trades(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);
+    int subscribe_option_full_open_interest(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);
     int unsubscribe_quotes(const std::string& symbol);
     int unsubscribe_trades(const std::string& symbol);
     int unsubscribe_open_interest(const std::string& symbol);
+    int unsubscribe_option_quotes(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);
+    int unsubscribe_option_trades(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);
+    int unsubscribe_option_open_interest(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);
     int unsubscribe_full_trades(const std::string& sec_type);
     int unsubscribe_full_open_interest(const std::string& sec_type);
+    int unsubscribe_option_full_trades(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);
+    int unsubscribe_option_full_open_interest(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);
     bool is_authenticated() const;
     std::optional<std::string> contract_lookup(int id) const;
+    /** Get the full contract map as a JSON string. */
+    std::string contract_map_json() const;
     std::vector<Subscription> active_subscriptions() const;
     /** Poll for the next event as a typed struct. Returns nullptr on timeout. */
     FpssEventPtr next_event(uint64_t timeout_ms);
+    /** Reconnect, re-subscribing all previous subscriptions. Throws on failure. */
+    void reconnect();
     void shutdown();

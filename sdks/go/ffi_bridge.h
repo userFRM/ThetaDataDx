@@ -267,14 +267,26 @@ extern int tdx_fpss_unsubscribe_trades(const TdxFpssHandle* h, const char* symbo
 extern int tdx_fpss_unsubscribe_open_interest(const TdxFpssHandle* h, const char* symbol);
 extern int tdx_fpss_unsubscribe_full_trades(const TdxFpssHandle* h, const char* sec_type);
 extern int tdx_fpss_unsubscribe_full_open_interest(const TdxFpssHandle* h, const char* sec_type);
+extern int tdx_fpss_subscribe_option_quotes(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+extern int tdx_fpss_subscribe_option_trades(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+extern int tdx_fpss_subscribe_option_open_interest(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+extern int tdx_fpss_subscribe_option_full_trades(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+extern int tdx_fpss_subscribe_option_full_open_interest(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+extern int tdx_fpss_unsubscribe_option_quotes(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+extern int tdx_fpss_unsubscribe_option_trades(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+extern int tdx_fpss_unsubscribe_option_open_interest(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+extern int tdx_fpss_unsubscribe_option_full_trades(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+extern int tdx_fpss_unsubscribe_option_full_open_interest(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
 extern int tdx_fpss_is_authenticated(const TdxFpssHandle* h);
 /* Look up a contract by server-assigned ID. Returns string or NULL.
  * NULL with empty tdx_last_error() means "not found". NULL with non-empty
  * tdx_last_error() means a real error occurred. Caller must free with tdx_string_free. */
 extern char* tdx_fpss_contract_lookup(const TdxFpssHandle* h, int id);
+extern char* tdx_fpss_contract_map_json(const TdxFpssHandle* h);
 extern TdxSubscriptionArray* tdx_fpss_active_subscriptions(const TdxFpssHandle* h);
 extern TdxFpssEvent* tdx_fpss_next_event(const TdxFpssHandle* h, uint64_t timeout_ms);
 extern void tdx_fpss_event_free(TdxFpssEvent* event);
+extern int tdx_fpss_reconnect(const TdxFpssHandle* h);
 extern void tdx_fpss_shutdown(const TdxFpssHandle* h);
 extern void tdx_fpss_free(TdxFpssHandle* h);
 
@@ -291,6 +303,18 @@ extern int tdx_unified_subscribe_full_trades(const TdxUnified* handle, const cha
 extern int tdx_unified_subscribe_full_open_interest(const TdxUnified* handle, const char* sec_type);
 extern int tdx_unified_unsubscribe_full_trades(const TdxUnified* handle, const char* sec_type);
 extern int tdx_unified_unsubscribe_full_open_interest(const TdxUnified* handle, const char* sec_type);
+extern int tdx_unified_subscribe_option_quotes(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+extern int tdx_unified_subscribe_option_trades(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+extern int tdx_unified_subscribe_option_open_interest(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+extern int tdx_unified_subscribe_option_full_trades(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+extern int tdx_unified_subscribe_option_full_open_interest(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+extern int tdx_unified_unsubscribe_option_quotes(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+extern int tdx_unified_unsubscribe_option_trades(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+extern int tdx_unified_unsubscribe_option_open_interest(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+extern int tdx_unified_unsubscribe_option_full_trades(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+extern int tdx_unified_unsubscribe_option_full_open_interest(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+extern char* tdx_unified_contract_map_json(const TdxUnified* handle);
+extern int tdx_unified_reconnect(const TdxUnified* handle);
 extern int tdx_unified_is_streaming(const TdxUnified* handle);
 /* Look up a contract by ID. Returns string or NULL.
  * NULL with empty tdx_last_error() means "not found". NULL with non-empty

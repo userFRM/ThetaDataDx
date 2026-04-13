@@ -136,7 +136,7 @@ def check_static_docs() -> None:
     sdk_overview = ROOT / "sdks/README.md"
     expect_contains(sdk_overview, "`TdxUnified` / `TdxFpssHandle`")
     expect_contains(sdk_overview, "| **Unified** | `tdx_unified_connect`, `tdx_unified_historical`, `tdx_unified_*`, `tdx_unified_free` |")
-    expect_contains(sdk_overview, "18 functions: `tdx_fpss_connect`")
+    expect_contains(sdk_overview, "30 functions: `tdx_fpss_connect`")
 
     option_docs = list((ROOT / "docs-site/docs/historical/option").rglob("*.md"))
     strike_docs = option_docs + [
