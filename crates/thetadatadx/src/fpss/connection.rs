@@ -18,7 +18,7 @@
 //! No tokio, no async -- pure blocking I/O on `std::thread`.
 
 use std::net::{TcpStream, ToSocketAddrs};
-use std::sync::Arc;
+use std::sync::{Arc, Once};
 use std::time::Duration;
 
 use rustls::pki_types::ServerName;
@@ -28,6 +28,17 @@ use super::protocol::{CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS};
 
 /// Type alias for the TLS-wrapped TCP stream (blocking).
 pub type FpssStream = StreamOwned<ClientConnection, TcpStream>;
+
+/// Install the process-global rustls crypto provider exactly once.
+///
+/// Embedded consumers such as the Python SDK or FFI bindings do not always
+/// have a top-level binary `main()` that installs this ahead of time.
+fn ensure_rustls_crypto_provider() {
+    static INSTALL: Once = Once::new();
+    INSTALL.call_once(|| {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    });
+}
 
 /// Establish a TLS connection to the first reachable FPSS server.
 ///
@@ -48,6 +59,7 @@ pub type FpssStream = StreamOwned<ClientConnection, TcpStream>;
 pub fn connect_to_servers(
     servers: &[(&str, u16)],
 ) -> Result<(FpssStream, String), crate::error::Error> {
+    ensure_rustls_crypto_provider();
     let mut last_err = None;
     let connect_timeout = Duration::from_millis(CONNECT_TIMEOUT_MS);
     let read_timeout = Duration::from_millis(READ_TIMEOUT_MS);
@@ -203,6 +215,7 @@ fn try_connect(
 ///
 /// Returns an error on network, authentication, or parsing failure.
 pub fn connect_to(host: &str, port: u16) -> Result<FpssStream, crate::error::Error> {
+    ensure_rustls_crypto_provider();
     let connect_timeout = Duration::from_millis(CONNECT_TIMEOUT_MS);
     let read_timeout = Duration::from_millis(READ_TIMEOUT_MS);
     try_connect(host, port, connect_timeout, read_timeout)
@@ -211,6 +224,12 @@ pub fn connect_to(host: &str, port: u16) -> Result<FpssStream, crate::error::Err
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rustls_crypto_provider_install_is_idempotent() {
+        ensure_rustls_crypto_provider();
+        ensure_rustls_crypto_provider();
+    }
 
     #[test]
     fn production_config_has_four_fpss_hosts() {

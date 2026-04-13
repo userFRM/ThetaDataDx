@@ -1,0 +1,166 @@
+name: Live Validation
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  schedule:
+    - cron: "23 4 * * *"
+  workflow_dispatch:
+    inputs:
+      soak_duration_secs:
+        description: "FPSS reconnect soak duration in seconds"
+        required: false
+        default: "120"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  smoke:
+    name: Live Smoke (${{ matrix.os }})
+    if: ${{ secrets.THETADATA_EMAIL != '' && secrets.THETADATA_PASSWORD != '' }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            go_enabled: true
+          - os: macos-latest
+            go_enabled: true
+          - os: windows-latest
+            go_enabled: false
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - if: matrix.go_enabled
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.23"
+      - uses: Swatinem/rust-cache@v2
+      - uses: ./.github/actions/install-protoc
+      - name: Materialize creds.txt
+        shell: python
+        env:
+          THETADATA_EMAIL: ${{ secrets.THETADATA_EMAIL }}
+          THETADATA_PASSWORD: ${{ secrets.THETADATA_PASSWORD }}
+        run: |
+          from pathlib import Path
+          import os
+          Path("creds.txt").write_text(
+              os.environ["THETADATA_EMAIL"] + "\n" + os.environ["THETADATA_PASSWORD"] + "\n",
+              encoding="utf-8",
+          )
+      - run: cargo build --release -p thetadatadx-cli -p thetadatadx-ffi --locked
+      - run: cargo build --release --manifest-path tools/server/Cargo.toml --locked
+      - run: cargo build --release --manifest-path tools/mcp/Cargo.toml --locked
+      - shell: bash
+        run: python -m pip install --upgrade pip "maturin>=1.9.4,<2.0"
+      - shell: bash
+        run: python -m maturin develop --release -m sdks/python/Cargo.toml
+      - run: python scripts/live_smoke.py creds.txt
+      - run: cmake -S sdks/cpp -B build/cpp
+      - run: cmake --build build/cpp --config Release --target thetadatadx_cpp thetadatadx_example
+      - if: runner.os == 'Linux'
+        shell: bash
+        env:
+          LD_LIBRARY_PATH: ${{ github.workspace }}/target/release
+        run: ./build/cpp/thetadatadx_example
+      - if: runner.os == 'macOS'
+        shell: bash
+        env:
+          DYLD_LIBRARY_PATH: ${{ github.workspace }}/target/release
+        run: ./build/cpp/thetadatadx_example
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:PATH = "${{ github.workspace }}\target\release;$env:PATH"
+          .\build\cpp\Release\thetadatadx_example.exe
+      - if: matrix.go_enabled && runner.os == 'Linux'
+        shell: bash
+        env:
+          LD_LIBRARY_PATH: ${{ github.workspace }}/target/release
+          CGO_LDFLAGS: -L${{ github.workspace }}/target/release
+        run: cd sdks/go && go run ./cmd/live_smoke ../../creds.txt
+      - if: matrix.go_enabled && runner.os == 'macOS'
+        shell: bash
+        env:
+          DYLD_LIBRARY_PATH: ${{ github.workspace }}/target/release
+          CGO_LDFLAGS: -L${{ github.workspace }}/target/release
+        run: cd sdks/go && go run ./cmd/live_smoke ../../creds.txt
+
+  release-validation:
+    name: Full Release Validation
+    if: ${{ secrets.THETADATA_EMAIL != '' && secrets.THETADATA_PASSWORD != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.23"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: Swatinem/rust-cache@v2
+      - uses: ./.github/actions/install-protoc
+      - name: Materialize creds.txt
+        shell: python
+        env:
+          THETADATA_EMAIL: ${{ secrets.THETADATA_EMAIL }}
+          THETADATA_PASSWORD: ${{ secrets.THETADATA_PASSWORD }}
+        run: |
+          from pathlib import Path
+          import os
+          Path("creds.txt").write_text(
+              os.environ["THETADATA_EMAIL"] + "\n" + os.environ["THETADATA_PASSWORD"] + "\n",
+              encoding="utf-8",
+          )
+      - run: bash scripts/validate_release.sh creds.txt
+
+  fpss-soak:
+    name: FPSS Reconnect Soak
+    if: ${{ secrets.THETADATA_EMAIL != '' && secrets.THETADATA_PASSWORD != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: Swatinem/rust-cache@v2
+      - uses: ./.github/actions/install-protoc
+      - name: Materialize creds.txt
+        shell: python
+        env:
+          THETADATA_EMAIL: ${{ secrets.THETADATA_EMAIL }}
+          THETADATA_PASSWORD: ${{ secrets.THETADATA_PASSWORD }}
+        run: |
+          from pathlib import Path
+          import os
+          Path("creds.txt").write_text(
+              os.environ["THETADATA_EMAIL"] + "\n" + os.environ["THETADATA_PASSWORD"] + "\n",
+              encoding="utf-8",
+          )
+      - shell: bash
+        run: python -m pip install --upgrade pip "maturin>=1.9.4,<2.0"
+      - shell: bash
+        run: python -m maturin develop --release -m sdks/python/Cargo.toml
+      - run: >-
+          python scripts/fpss_soak.py creds.txt
+          --duration-secs
+          ${{ github.event_name == 'workflow_dispatch' && inputs.soak_duration_secs || '120' }}
