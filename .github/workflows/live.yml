@@ -22,11 +22,13 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  THETADATA_EMAIL: ${{ secrets.THETADATA_EMAIL }}
+  THETADATA_PASSWORD: ${{ secrets.THETADATA_PASSWORD }}
 
 jobs:
   smoke:
     name: Live Smoke (${{ matrix.os }})
-    if: ${{ secrets.THETADATA_EMAIL != '' && secrets.THETADATA_PASSWORD != '' }}
+    if: ${{ env.THETADATA_EMAIL != '' && env.THETADATA_PASSWORD != '' }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -53,9 +55,6 @@ jobs:
       - uses: ./.github/actions/install-protoc
       - name: Materialize creds.txt
         shell: python
-        env:
-          THETADATA_EMAIL: ${{ secrets.THETADATA_EMAIL }}
-          THETADATA_PASSWORD: ${{ secrets.THETADATA_PASSWORD }}
         run: |
           from pathlib import Path
           import os
@@ -69,7 +68,9 @@ jobs:
       - shell: bash
         run: python -m pip install --upgrade pip "maturin>=1.9.4,<2.0"
       - shell: bash
-        run: python -m maturin develop --release -m sdks/python/Cargo.toml
+        run: python -m maturin build --release -m sdks/python/Cargo.toml -o dist/
+      - shell: bash
+        run: python -m pip install --force-reinstall dist/*.whl
       - run: python scripts/live_smoke.py creds.txt
       - run: cmake -S sdks/cpp -B build/cpp
       - run: cmake --build build/cpp --config Release --target thetadatadx_cpp thetadatadx_example
@@ -103,7 +104,7 @@ jobs:
 
   release-validation:
     name: Full Release Validation
-    if: ${{ secrets.THETADATA_EMAIL != '' && secrets.THETADATA_PASSWORD != '' }}
+    if: ${{ env.THETADATA_EMAIL != '' && env.THETADATA_PASSWORD != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -119,9 +120,6 @@ jobs:
       - uses: ./.github/actions/install-protoc
       - name: Materialize creds.txt
         shell: python
-        env:
-          THETADATA_EMAIL: ${{ secrets.THETADATA_EMAIL }}
-          THETADATA_PASSWORD: ${{ secrets.THETADATA_PASSWORD }}
         run: |
           from pathlib import Path
           import os
@@ -133,7 +131,7 @@ jobs:
 
   fpss-soak:
     name: FPSS Reconnect Soak
-    if: ${{ secrets.THETADATA_EMAIL != '' && secrets.THETADATA_PASSWORD != '' }}
+    if: ${{ env.THETADATA_EMAIL != '' && env.THETADATA_PASSWORD != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -146,9 +144,6 @@ jobs:
       - uses: ./.github/actions/install-protoc
       - name: Materialize creds.txt
         shell: python
-        env:
-          THETADATA_EMAIL: ${{ secrets.THETADATA_EMAIL }}
-          THETADATA_PASSWORD: ${{ secrets.THETADATA_PASSWORD }}
         run: |
           from pathlib import Path
           import os
@@ -159,8 +154,13 @@ jobs:
       - shell: bash
         run: python -m pip install --upgrade pip "maturin>=1.9.4,<2.0"
       - shell: bash
-        run: python -m maturin develop --release -m sdks/python/Cargo.toml
-      - run: >-
-          python scripts/fpss_soak.py creds.txt
-          --duration-secs
-          ${{ github.event_name == 'workflow_dispatch' && inputs.soak_duration_secs || '120' }}
+        run: python -m maturin build --release -m sdks/python/Cargo.toml -o dist/
+      - shell: bash
+        run: python -m pip install --force-reinstall dist/*.whl
+      - shell: bash
+        env:
+          WORKFLOW_INPUT_SOAK_DURATION_SECS: ${{ github.event.inputs.soak_duration_secs }}
+        run: |
+          set -euo pipefail
+          duration="${WORKFLOW_INPUT_SOAK_DURATION_SECS:-120}"
+          python scripts/fpss_soak.py creds.txt --duration-secs "$duration"
