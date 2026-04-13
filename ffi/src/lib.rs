@@ -2638,6 +2638,13 @@ pub unsafe extern "C" fn tdx_unified_contract_map(
 /// version (`reconnect_streaming(handler)`) stays Rust/Python-only.
 ///
 /// Returns 0 on success, or -1 on error (check `tdx_last_error()`).
+///
+/// # Event continuity
+///
+/// Events buffered in the old streaming channel are dropped during reconnect.
+/// There is no gap-free delivery guarantee across reconnections. Callers that
+/// require gap-free streaming should implement their own sequence-number-based
+/// gap detection and replay logic.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_unified_reconnect(handle: *const TdxUnified) -> i32 {
     if handle.is_null() {
@@ -3837,6 +3844,13 @@ pub unsafe extern "C" fn tdx_fpss_contract_map(
 /// and config from the initial connect. The callback-based version stays Rust-only.
 ///
 /// Returns 0 on success, or -1 on error (check `tdx_last_error()`).
+///
+/// # Event continuity
+///
+/// Events buffered in the old streaming channel are dropped during reconnect.
+/// There is no gap-free delivery guarantee across reconnections. Callers that
+/// require gap-free streaming should implement their own sequence-number-based
+/// gap detection and replay logic.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32 {
     if handle.is_null() {

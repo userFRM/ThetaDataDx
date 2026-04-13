@@ -140,19 +140,19 @@ struct FfiEndpointRequestOptions {
         }
         if (options.exclusive) {
             raw.exclusive = *options.exclusive ? 1 : 0;
-            raw.has_exclusive = true;
+            raw.has_exclusive = 1;
         }
         if (options.max_dte) {
             raw.max_dte = *options.max_dte;
-            raw.has_max_dte = true;
+            raw.has_max_dte = 1;
         }
         if (options.strike_range) {
             raw.strike_range = *options.strike_range;
-            raw.has_strike_range = true;
+            raw.has_strike_range = 1;
         }
         if (options.annual_dividend) {
             raw.annual_dividend = *options.annual_dividend;
-            raw.has_annual_dividend = true;
+            raw.has_annual_dividend = 1;
         }
         if (options.rate_type) {
             rate_type_storage = *options.rate_type;
@@ -160,11 +160,11 @@ struct FfiEndpointRequestOptions {
         }
         if (options.rate_value) {
             raw.rate_value = *options.rate_value;
-            raw.has_rate_value = true;
+            raw.has_rate_value = 1;
         }
         if (options.stock_price) {
             raw.stock_price = *options.stock_price;
-            raw.has_stock_price = true;
+            raw.has_stock_price = 1;
         }
         if (options.version) {
             version_storage = *options.version;
@@ -172,11 +172,11 @@ struct FfiEndpointRequestOptions {
         }
         if (options.use_market_value) {
             raw.use_market_value = *options.use_market_value ? 1 : 0;
-            raw.has_use_market_value = true;
+            raw.has_use_market_value = 1;
         }
         if (options.underlyer_use_nbbo) {
             raw.underlyer_use_nbbo = *options.underlyer_use_nbbo ? 1 : 0;
-            raw.has_underlyer_use_nbbo = true;
+            raw.has_underlyer_use_nbbo = 1;
         }
     }
 };

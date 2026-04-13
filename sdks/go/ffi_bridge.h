@@ -1,7 +1,6 @@
 #ifndef THETADATADX_GO_FFI_BRIDGE_H
 #define THETADATADX_GO_FFI_BRIDGE_H
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>

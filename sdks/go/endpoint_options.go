@@ -239,19 +239,19 @@ func endpointRequestOptionsToC(opts *EndpointRequestOptions) (*C.TdxEndpointRequ
 		} else {
 			cOpts.exclusive = 0
 		}
-		cOpts.has_exclusive = C.bool(true)
+		cOpts.has_exclusive = 1
 	}
 	if opts.MaxDTE != nil {
 		cOpts.max_dte = C.int32_t(*opts.MaxDTE)
-		cOpts.has_max_dte = C.bool(true)
+		cOpts.has_max_dte = 1
 	}
 	if opts.StrikeRange != nil {
 		cOpts.strike_range = C.int32_t(*opts.StrikeRange)
-		cOpts.has_strike_range = C.bool(true)
+		cOpts.has_strike_range = 1
 	}
 	if opts.AnnualDividend != nil {
 		cOpts.annual_dividend = C.double(*opts.AnnualDividend)
-		cOpts.has_annual_dividend = C.bool(true)
+		cOpts.has_annual_dividend = 1
 	}
 	if opts.RateType != nil {
 		value := C.CString(*opts.RateType)
@@ -260,11 +260,11 @@ func endpointRequestOptionsToC(opts *EndpointRequestOptions) (*C.TdxEndpointRequ
 	}
 	if opts.RateValue != nil {
 		cOpts.rate_value = C.double(*opts.RateValue)
-		cOpts.has_rate_value = C.bool(true)
+		cOpts.has_rate_value = 1
 	}
 	if opts.StockPrice != nil {
 		cOpts.stock_price = C.double(*opts.StockPrice)
-		cOpts.has_stock_price = C.bool(true)
+		cOpts.has_stock_price = 1
 	}
 	if opts.Version != nil {
 		value := C.CString(*opts.Version)
@@ -277,7 +277,7 @@ func endpointRequestOptionsToC(opts *EndpointRequestOptions) (*C.TdxEndpointRequ
 		} else {
 			cOpts.use_market_value = 0
 		}
-		cOpts.has_use_market_value = C.bool(true)
+		cOpts.has_use_market_value = 1
 	}
 	if opts.UnderlyerUseNBBO != nil {
 		if *opts.UnderlyerUseNBBO {
@@ -285,7 +285,7 @@ func endpointRequestOptionsToC(opts *EndpointRequestOptions) (*C.TdxEndpointRequ
 		} else {
 			cOpts.underlyer_use_nbbo = 0
 		}
-		cOpts.has_underlyer_use_nbbo = C.bool(true)
+		cOpts.has_underlyer_use_nbbo = 1
 	}
 
 	return cOpts, free

@@ -17,7 +17,6 @@
 #ifndef THETADX_H
 #define THETADX_H
 
-#include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
 

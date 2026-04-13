@@ -2507,7 +2507,7 @@ fn render_ffi_endpoint_request_options(params: &[GeneratedParam]) -> String {
         )
         .unwrap();
         if ffi_option_has_flag(param) {
-            writeln!(out, "    pub has_{}: bool,", param.name).unwrap();
+            writeln!(out, "    pub has_{}: i32,", param.name).unwrap();
         }
     }
     out.push_str("}\n\n");
@@ -2522,7 +2522,7 @@ fn render_ffi_endpoint_request_options(params: &[GeneratedParam]) -> String {
             out.push_str(&ffi_option_insert_expr(param));
             out.push('\n');
         } else {
-            writeln!(out, "    if options.has_{} {{", param.name).unwrap();
+            writeln!(out, "    if options.has_{} != 0 {{", param.name).unwrap();
             out.push_str(&ffi_option_insert_expr(param));
             out.push('\n');
             out.push_str("    }\n");
@@ -2542,7 +2542,7 @@ fn render_c_endpoint_request_options(params: &[GeneratedParam]) -> String {
     for param in params {
         writeln!(out, "    {} {};", c_option_value_type(param), param.name).unwrap();
         if ffi_option_has_flag(param) {
-            writeln!(out, "    bool has_{};", param.name).unwrap();
+            writeln!(out, "    int32_t has_{};", param.name).unwrap();
         }
     }
     out.push_str("} TdxEndpointRequestOptions;\n");
@@ -2664,7 +2664,7 @@ fn render_go_options(params: &[GeneratedParam]) -> String {
                     param.name, field_name
                 )
                 .unwrap();
-                writeln!(out, "\t\tcOpts.has_{} = C.bool(true)", param.name).unwrap();
+                writeln!(out, "\t\tcOpts.has_{} = 1", param.name).unwrap();
                 out.push_str("\t}\n");
             }
             "Float" => {
@@ -2675,7 +2675,7 @@ fn render_go_options(params: &[GeneratedParam]) -> String {
                     param.name, field_name
                 )
                 .unwrap();
-                writeln!(out, "\t\tcOpts.has_{} = C.bool(true)", param.name).unwrap();
+                writeln!(out, "\t\tcOpts.has_{} = 1", param.name).unwrap();
                 out.push_str("\t}\n");
             }
             "Bool" => {
@@ -2685,7 +2685,7 @@ fn render_go_options(params: &[GeneratedParam]) -> String {
                 out.push_str("\t\t} else {\n");
                 writeln!(out, "\t\t\tcOpts.{0} = 0", param.name).unwrap();
                 out.push_str("\t\t}\n");
-                writeln!(out, "\t\tcOpts.has_{} = C.bool(true)", param.name).unwrap();
+                writeln!(out, "\t\tcOpts.has_{} = 1", param.name).unwrap();
                 out.push_str("\t}\n");
             }
             _ => {
@@ -3074,13 +3074,13 @@ fn render_cpp_options(params: &[GeneratedParam]) -> String {
             "Int" => {
                 writeln!(out, "        if (options.{0}) {{", param.name).unwrap();
                 writeln!(out, "            raw.{0} = *options.{0};", param.name).unwrap();
-                writeln!(out, "            raw.has_{0} = true;", param.name).unwrap();
+                writeln!(out, "            raw.has_{0} = 1;", param.name).unwrap();
                 out.push_str("        }\n");
             }
             "Float" => {
                 writeln!(out, "        if (options.{0}) {{", param.name).unwrap();
                 writeln!(out, "            raw.{0} = *options.{0};", param.name).unwrap();
-                writeln!(out, "            raw.has_{0} = true;", param.name).unwrap();
+                writeln!(out, "            raw.has_{0} = 1;", param.name).unwrap();
                 out.push_str("        }\n");
             }
             "Bool" => {
@@ -3091,7 +3091,7 @@ fn render_cpp_options(params: &[GeneratedParam]) -> String {
                     param.name
                 )
                 .unwrap();
-                writeln!(out, "            raw.has_{0} = true;", param.name).unwrap();
+                writeln!(out, "            raw.has_{0} = 1;", param.name).unwrap();
                 out.push_str("        }\n");
             }
             _ => {

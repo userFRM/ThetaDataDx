@@ -284,7 +284,16 @@ type cOptionContract struct {
 }
 
 // ── FFI layout assertions ──
-// Panic at init time if Go struct sizes diverge from the Rust repr(C, align(64)) layout.
+//
+// These assertions verify that Go struct layouts match the Rust #[repr(C)]
+// FFI structs. If a Rust struct changes (field added/removed/reordered),
+// these will panic at import time rather than silently reading corrupt data.
+// The expected sizes are validated against the Rust sizeof at PR review time.
+//
+// NOTE: These assertions verify total struct size but not individual field
+// offsets. If fields are reordered in Rust but the total size stays the same,
+// data will be silently corrupt. To catch reordering, add offsetof() checks
+// or use cbindgen to generate the C header directly from Rust.
 func init() {
 	checks := []struct {
 		name string
