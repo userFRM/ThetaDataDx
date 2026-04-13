@@ -74,6 +74,9 @@ jobs:
       - uses: ./.github/actions/install-protoc
       - name: Materialize creds.txt
         shell: python
+        env:
+          THETADATA_EMAIL: ${{ secrets.THETADATA_EMAIL }}
+          THETADATA_PASSWORD: ${{ secrets.THETADATA_PASSWORD }}
         run: |
           from pathlib import Path
           import os
@@ -140,6 +143,9 @@ jobs:
       - uses: ./.github/actions/install-protoc
       - name: Materialize creds.txt
         shell: python
+        env:
+          THETADATA_EMAIL: ${{ secrets.THETADATA_EMAIL }}
+          THETADATA_PASSWORD: ${{ secrets.THETADATA_PASSWORD }}
         run: |
           from pathlib import Path
           import os
@@ -165,6 +171,9 @@ jobs:
       - uses: ./.github/actions/install-protoc
       - name: Materialize creds.txt
         shell: python
+        env:
+          THETADATA_EMAIL: ${{ secrets.THETADATA_EMAIL }}
+          THETADATA_PASSWORD: ${{ secrets.THETADATA_PASSWORD }}
         run: |
           from pathlib import Path
           import os
