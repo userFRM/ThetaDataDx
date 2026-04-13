@@ -11,7 +11,7 @@ description: Install ThetaDataDx, configure credentials, and run your first quer
 ```toml [Rust]
 # Add to your Cargo.toml
 [dependencies]
-thetadatadx = "5.4"
+thetadatadx = "7.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 ```bash [Python]
