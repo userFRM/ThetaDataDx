@@ -20,8 +20,10 @@ sdks/cpp/src/fpss.cpp.inc            text eol=lf linguist-generated=true
 sdks/cpp/src/historical.cpp.inc      text eol=lf linguist-generated=true
 sdks/cpp/src/lifecycle.cpp.inc       text eol=lf linguist-generated=true
 sdks/cpp/src/utilities.cpp.inc       text eol=lf linguist-generated=true
+sdks/go/validate.go                  text eol=lf linguist-generated=true
 sdks/python/src/historical_methods.rs text eol=lf linguist-generated=true
 sdks/python/src/streaming_methods.rs text eol=lf linguist-generated=true
+scripts/validate_python.py           text eol=lf linguist-generated=true
 sdks/python/src/tick_columnar.rs     text eol=lf linguist-generated=true
 sdks/python/src/utility_functions.rs text eol=lf linguist-generated=true
 tools/cli/src/utilities.rs           text eol=lf linguist-generated=true
