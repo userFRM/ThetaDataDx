@@ -188,6 +188,8 @@ macro_rules! set_contract_id {
 
 include!("tick_dicts.rs");
 
+include!("tick_columnar.rs");
+
 include!("utility_functions.rs");
 
 // ── FPSS streaming client ──
@@ -636,8 +638,8 @@ impl ThetaDataDx {
         start_date: &str,
         end_date: &str,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = self.stock_history_eod(py, symbol, start_date, end_date)?;
-        dicts_to_dataframe(py, ticks)
+        let columnar = self.stock_history_eod(py, symbol, start_date, end_date)?;
+        columnar_to_dataframe(py, columnar)
     }
 
     /// Fetch stock OHLC history and return a pandas DataFrame.
@@ -648,9 +650,9 @@ impl ThetaDataDx {
         date: &str,
         interval: &str,
     ) -> PyResult<Py<PyAny>> {
-        let ticks =
+        let columnar =
             self.stock_history_ohlc(py, symbol, date, interval, None, None, None, None, None)?;
-        dicts_to_dataframe(py, ticks)
+        columnar_to_dataframe(py, columnar)
     }
 
     /// Fetch stock trade history and return a pandas DataFrame.
@@ -660,8 +662,8 @@ impl ThetaDataDx {
         symbol: &str,
         date: &str,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = self.stock_history_trade(py, symbol, date, None, None, None, None, None)?;
-        dicts_to_dataframe(py, ticks)
+        let columnar = self.stock_history_trade(py, symbol, date, None, None, None, None, None)?;
+        columnar_to_dataframe(py, columnar)
     }
 
     /// Fetch stock quote history and return a pandas DataFrame.
@@ -672,9 +674,9 @@ impl ThetaDataDx {
         date: &str,
         interval: &str,
     ) -> PyResult<Py<PyAny>> {
-        let ticks =
+        let columnar =
             self.stock_history_quote(py, symbol, date, interval, None, None, None, None, None)?;
-        dicts_to_dataframe(py, ticks)
+        columnar_to_dataframe(py, columnar)
     }
 
     fn __repr__(&self) -> String {
@@ -693,46 +695,52 @@ include!("historical_methods.rs");
 
 // ── pandas DataFrame helpers ──
 
-/// Internal helper: convert a Vec of Python dicts into a pandas DataFrame.
-fn dicts_to_dataframe(py: Python<'_>, dicts: Vec<Py<PyAny>>) -> PyResult<Py<PyAny>> {
+/// Internal helper: convert a columnar dict (dict-of-lists) into a pandas DataFrame.
+///
+/// `pd.DataFrame(dict_of_lists)` is the fastest DataFrame constructor --
+/// it accepts a dict where each key maps to a list of values directly.
+fn columnar_to_dataframe(py: Python<'_>, columnar: Py<PyAny>) -> PyResult<Py<PyAny>> {
     let pandas = py.import("pandas").map_err(|_| {
         PyRuntimeError::new_err(
             "pandas is required for DataFrame conversion. Install with: pip install pandas",
         )
     })?;
-    let df = pandas.call_method1("DataFrame", (dicts,))?;
+    let df = pandas.call_method1("DataFrame", (columnar,))?;
     Ok(df.unbind())
 }
 
-/// Convert a list of tick dicts to a pandas DataFrame.
+/// Convert a columnar dict (dict-of-lists) to a pandas DataFrame.
 ///
 /// Requires pandas to be installed (``pip install pandas``).
+///
+/// Historical endpoints return columnar dicts (one list per field).
+/// This is the fastest input format for ``pd.DataFrame()``.
 ///
 /// Example::
 ///
 ///     ticks = client.stock_history_eod("AAPL", "20240101", "20240301")
 ///     df = thetadatadx.to_dataframe(ticks)
 #[pyfunction]
-fn to_dataframe(py: Python<'_>, ticks: Vec<Py<PyAny>>) -> PyResult<Py<PyAny>> {
-    dicts_to_dataframe(py, ticks)
+fn to_dataframe(py: Python<'_>, ticks: Py<PyAny>) -> PyResult<Py<PyAny>> {
+    columnar_to_dataframe(py, ticks)
 }
 
-/// Convert a list of tick dicts to a polars DataFrame.
+/// Convert a columnar dict (dict-of-lists) to a polars DataFrame.
 ///
-/// Requires polars: `pip install thetadatadx[polars]`
+/// Requires polars: ``pip install thetadatadx[polars]``
 ///
-/// Example:
+/// Example::
 ///
 ///     ticks = client.stock_history_eod("AAPL", "20240101", "20240301")
 ///     df = thetadatadx.to_polars(ticks)
 #[pyfunction]
-fn to_polars(py: Python<'_>, ticks: Vec<Py<PyAny>>) -> PyResult<Py<PyAny>> {
+fn to_polars(py: Python<'_>, ticks: Py<PyAny>) -> PyResult<Py<PyAny>> {
     let polars = py.import("polars").map_err(|_| {
         PyRuntimeError::new_err(
             "polars is not installed. Install it with: pip install thetadatadx[polars]",
         )
     })?;
-    let df = polars.call_method1("from_dicts", (ticks,))?;
+    let df = polars.call_method1("DataFrame", (ticks,))?;
     Ok(df.unbind())
 }
 

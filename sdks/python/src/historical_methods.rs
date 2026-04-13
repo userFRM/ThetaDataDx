@@ -40,7 +40,7 @@ impl ThetaDataDx {
         symbols: Vec<String>,
         venue: Option<&str>,
         min_time: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let ticks = py.detach(|| {
             let mut request = self.tdx.stock_snapshot_ohlc(&refs);
@@ -54,7 +54,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| ohlc_tick_to_dict(py, t)).collect())
+        Ok(ohlc_ticks_to_columnar(py, &ticks))
     }
 
     /// Get the latest trade snapshot for one or more stocks.
@@ -65,7 +65,7 @@ impl ThetaDataDx {
         symbols: Vec<String>,
         venue: Option<&str>,
         min_time: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let ticks = py.detach(|| {
             let mut request = self.tdx.stock_snapshot_trade(&refs);
@@ -79,7 +79,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| trade_tick_to_dict(py, t)).collect())
+        Ok(trade_ticks_to_columnar(py, &ticks))
     }
 
     /// Get the latest NBBO quote snapshot for one or more stocks.
@@ -90,7 +90,7 @@ impl ThetaDataDx {
         symbols: Vec<String>,
         venue: Option<&str>,
         min_time: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let ticks = py.detach(|| {
             let mut request = self.tdx.stock_snapshot_quote(&refs);
@@ -104,7 +104,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| quote_tick_to_dict(py, t)).collect())
+        Ok(quote_ticks_to_columnar(py, &ticks))
     }
 
     /// Get the latest market value snapshot for one or more stocks.
@@ -115,7 +115,7 @@ impl ThetaDataDx {
         symbols: Vec<String>,
         venue: Option<&str>,
         min_time: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let ticks = py.detach(|| {
             let mut request = self.tdx.stock_snapshot_market_value(&refs);
@@ -129,7 +129,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| market_value_tick_to_dict(py, t)).collect())
+        Ok(market_value_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day.
@@ -139,7 +139,7 @@ impl ThetaDataDx {
         symbol: &str,
         start_date: &str,
         end_date: &str,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             runtime()
                 .block_on(async {
@@ -147,7 +147,7 @@ impl ThetaDataDx {
                 })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| eod_tick_to_dict(py, t)).collect())
+        Ok(eod_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch intraday OHLC bars for a stock on a single date.
@@ -163,7 +163,7 @@ impl ThetaDataDx {
         venue: Option<&str>,
         start_date: Option<&str>,
         end_date: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.stock_history_ohlc(symbol, date, interval);
             if let Some(value) = start_time {
@@ -185,7 +185,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| ohlc_tick_to_dict(py, t)).collect())
+        Ok(ohlc_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch all trades for a stock on a given date.
@@ -200,7 +200,7 @@ impl ThetaDataDx {
         venue: Option<&str>,
         start_date: Option<&str>,
         end_date: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.stock_history_trade(symbol, date);
             if let Some(value) = start_time {
@@ -222,7 +222,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| trade_tick_to_dict(py, t)).collect())
+        Ok(trade_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch NBBO quotes for a stock on a given date at a given interval.
@@ -238,7 +238,7 @@ impl ThetaDataDx {
         venue: Option<&str>,
         start_date: Option<&str>,
         end_date: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.stock_history_quote(symbol, date, interval);
             if let Some(value) = start_time {
@@ -260,7 +260,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| quote_tick_to_dict(py, t)).collect())
+        Ok(quote_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
@@ -276,7 +276,7 @@ impl ThetaDataDx {
         venue: Option<&str>,
         start_date: Option<&str>,
         end_date: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.stock_history_trade_quote(symbol, date);
             if let Some(value) = start_time {
@@ -301,7 +301,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| trade_quote_tick_to_dict(py, t)).collect())
+        Ok(trade_quote_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch the trade at a specific time of day across a date range.
@@ -314,7 +314,7 @@ impl ThetaDataDx {
         end_date: &str,
         time_of_day: &str,
         venue: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.stock_at_time_trade(symbol, start_date, end_date, time_of_day);
             if let Some(value) = venue {
@@ -324,7 +324,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| trade_tick_to_dict(py, t)).collect())
+        Ok(trade_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch the quote at a specific time of day across a date range.
@@ -337,7 +337,7 @@ impl ThetaDataDx {
         end_date: &str,
         time_of_day: &str,
         venue: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.stock_at_time_quote(symbol, start_date, end_date, time_of_day);
             if let Some(value) = venue {
@@ -347,7 +347,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| quote_tick_to_dict(py, t)).collect())
+        Ok(quote_ticks_to_columnar(py, &ticks))
     }
 
     /// List all available option underlying symbols.
@@ -423,7 +423,7 @@ impl ThetaDataDx {
         symbol: &str,
         date: &str,
         max_dte: Option<i32>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_list_contracts(request_type, symbol, date);
             if let Some(value) = max_dte {
@@ -433,7 +433,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| option_contract_to_dict(py, t)).collect())
+        Ok(option_contracts_to_columnar(py, &ticks))
     }
 
     /// Get the latest OHLC snapshot for an option contract.
@@ -448,7 +448,7 @@ impl ThetaDataDx {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         min_time: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_snapshot_ohlc(symbol, expiration, strike, right);
             if let Some(value) = max_dte {
@@ -464,7 +464,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| ohlc_tick_to_dict(py, t)).collect())
+        Ok(ohlc_ticks_to_columnar(py, &ticks))
     }
 
     /// Get the latest trade snapshot for an option contract.
@@ -478,7 +478,7 @@ impl ThetaDataDx {
         right: &str,
         strike_range: Option<i32>,
         min_time: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_snapshot_trade(symbol, expiration, strike, right);
             if let Some(value) = strike_range {
@@ -491,7 +491,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| trade_tick_to_dict(py, t)).collect())
+        Ok(trade_ticks_to_columnar(py, &ticks))
     }
 
     /// Get the latest NBBO quote snapshot for an option contract.
@@ -506,7 +506,7 @@ impl ThetaDataDx {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         min_time: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_snapshot_quote(symbol, expiration, strike, right);
             if let Some(value) = max_dte {
@@ -522,7 +522,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| quote_tick_to_dict(py, t)).collect())
+        Ok(quote_ticks_to_columnar(py, &ticks))
     }
 
     /// Get the latest open interest snapshot for an option contract.
@@ -537,7 +537,7 @@ impl ThetaDataDx {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         min_time: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_snapshot_open_interest(symbol, expiration, strike, right);
             if let Some(value) = max_dte {
@@ -553,7 +553,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| open_interest_tick_to_dict(py, t)).collect())
+        Ok(open_interest_ticks_to_columnar(py, &ticks))
     }
 
     /// Get the latest market value snapshot for an option contract.
@@ -568,7 +568,7 @@ impl ThetaDataDx {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         min_time: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_snapshot_market_value(symbol, expiration, strike, right);
             if let Some(value) = max_dte {
@@ -584,7 +584,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| market_value_tick_to_dict(py, t)).collect())
+        Ok(market_value_ticks_to_columnar(py, &ticks))
     }
 
     /// Get implied volatility snapshot for an option contract (from ThetaData server).
@@ -605,7 +605,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         min_time: Option<&str>,
         use_market_value: Option<bool>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_snapshot_greeks_implied_volatility(symbol, expiration, strike, right);
             if let Some(value) = annual_dividend {
@@ -639,7 +639,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| iv_tick_to_dict(py, t)).collect())
+        Ok(iv_ticks_to_columnar(py, &ticks))
     }
 
     /// Get all Greeks snapshot for an option contract (from ThetaData server).
@@ -660,7 +660,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         min_time: Option<&str>,
         use_market_value: Option<bool>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_snapshot_greeks_all(symbol, expiration, strike, right);
             if let Some(value) = annual_dividend {
@@ -694,7 +694,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| greeks_tick_to_dict(py, t)).collect())
+        Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
     /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
@@ -715,7 +715,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         min_time: Option<&str>,
         use_market_value: Option<bool>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_snapshot_greeks_first_order(symbol, expiration, strike, right);
             if let Some(value) = annual_dividend {
@@ -749,7 +749,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| greeks_tick_to_dict(py, t)).collect())
+        Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
     /// Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
@@ -770,7 +770,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         min_time: Option<&str>,
         use_market_value: Option<bool>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_snapshot_greeks_second_order(symbol, expiration, strike, right);
             if let Some(value) = annual_dividend {
@@ -804,7 +804,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| greeks_tick_to_dict(py, t)).collect())
+        Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
     /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
@@ -825,7 +825,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         min_time: Option<&str>,
         use_market_value: Option<bool>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_snapshot_greeks_third_order(symbol, expiration, strike, right);
             if let Some(value) = annual_dividend {
@@ -859,7 +859,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| greeks_tick_to_dict(py, t)).collect())
+        Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch end-of-day option data for a contract over a date range.
@@ -875,7 +875,7 @@ impl ThetaDataDx {
         end_date: &str,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_eod(symbol, expiration, strike, right, start_date, end_date);
             if let Some(value) = max_dte {
@@ -888,7 +888,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| eod_tick_to_dict(py, t)).collect())
+        Ok(eod_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch intraday OHLC bars for an option contract.
@@ -907,7 +907,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_ohlc(symbol, expiration, strike, right, date, interval);
             if let Some(value) = start_time {
@@ -929,7 +929,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| ohlc_tick_to_dict(py, t)).collect())
+        Ok(ohlc_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch all trades for an option contract on a given date.
@@ -948,7 +948,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_trade(symbol, expiration, strike, right, date);
             if let Some(value) = start_time {
@@ -973,7 +973,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| trade_tick_to_dict(py, t)).collect())
+        Ok(trade_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch NBBO quotes for an option contract on a given date.
@@ -993,7 +993,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_quote(symbol, expiration, strike, right, date, interval);
             if let Some(value) = start_time {
@@ -1018,7 +1018,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| quote_tick_to_dict(py, t)).collect())
+        Ok(quote_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch combined trade + quote ticks for an option contract.
@@ -1038,7 +1038,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_trade_quote(symbol, expiration, strike, right, date);
             if let Some(value) = start_time {
@@ -1066,7 +1066,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| trade_quote_tick_to_dict(py, t)).collect())
+        Ok(trade_quote_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch open interest history for an option contract.
@@ -1083,7 +1083,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_open_interest(symbol, expiration, strike, right, date);
             if let Some(value) = max_dte {
@@ -1102,7 +1102,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| open_interest_tick_to_dict(py, t)).collect())
+        Ok(open_interest_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch end-of-day Greeks history for an option contract.
@@ -1123,7 +1123,7 @@ impl ThetaDataDx {
         underlyer_use_nbbo: Option<bool>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_greeks_eod(symbol, expiration, strike, right, start_date, end_date);
             if let Some(value) = annual_dividend {
@@ -1151,7 +1151,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| greeks_tick_to_dict(py, t)).collect())
+        Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
@@ -1174,7 +1174,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_greeks_all(symbol, expiration, strike, right, date, interval);
             if let Some(value) = start_time {
@@ -1208,7 +1208,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| greeks_tick_to_dict(py, t)).collect())
+        Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch all Greeks on each trade for an option contract.
@@ -1231,7 +1231,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_trade_greeks_all(symbol, expiration, strike, right, date);
             if let Some(value) = start_time {
@@ -1268,7 +1268,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| greeks_tick_to_dict(py, t)).collect())
+        Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch first-order Greeks history (intraday, sampled by interval).
@@ -1291,7 +1291,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_greeks_first_order(symbol, expiration, strike, right, date, interval);
             if let Some(value) = start_time {
@@ -1325,7 +1325,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| greeks_tick_to_dict(py, t)).collect())
+        Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch first-order Greeks on each trade for an option contract.
@@ -1348,7 +1348,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_trade_greeks_first_order(symbol, expiration, strike, right, date);
             if let Some(value) = start_time {
@@ -1385,7 +1385,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| greeks_tick_to_dict(py, t)).collect())
+        Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch second-order Greeks history (intraday, sampled by interval).
@@ -1408,7 +1408,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_greeks_second_order(symbol, expiration, strike, right, date, interval);
             if let Some(value) = start_time {
@@ -1442,7 +1442,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| greeks_tick_to_dict(py, t)).collect())
+        Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch second-order Greeks on each trade for an option contract.
@@ -1465,7 +1465,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_trade_greeks_second_order(symbol, expiration, strike, right, date);
             if let Some(value) = start_time {
@@ -1502,7 +1502,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| greeks_tick_to_dict(py, t)).collect())
+        Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch third-order Greeks history (intraday, sampled by interval).
@@ -1525,7 +1525,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_greeks_third_order(symbol, expiration, strike, right, date, interval);
             if let Some(value) = start_time {
@@ -1559,7 +1559,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| greeks_tick_to_dict(py, t)).collect())
+        Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch third-order Greeks on each trade for an option contract.
@@ -1582,7 +1582,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_trade_greeks_third_order(symbol, expiration, strike, right, date);
             if let Some(value) = start_time {
@@ -1619,7 +1619,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| greeks_tick_to_dict(py, t)).collect())
+        Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch implied volatility history (intraday, sampled by interval).
@@ -1642,7 +1642,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_greeks_implied_volatility(symbol, expiration, strike, right, date, interval);
             if let Some(value) = start_time {
@@ -1676,7 +1676,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| iv_tick_to_dict(py, t)).collect())
+        Ok(iv_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch implied volatility on each trade for an option contract.
@@ -1699,7 +1699,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_trade_greeks_implied_volatility(symbol, expiration, strike, right, date);
             if let Some(value) = start_time {
@@ -1736,7 +1736,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| iv_tick_to_dict(py, t)).collect())
+        Ok(iv_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch the trade at a specific time of day across a date range for an option.
@@ -1753,7 +1753,7 @@ impl ThetaDataDx {
         time_of_day: &str,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_at_time_trade(symbol, expiration, strike, right, start_date, end_date, time_of_day);
             if let Some(value) = max_dte {
@@ -1766,7 +1766,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| trade_tick_to_dict(py, t)).collect())
+        Ok(trade_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch the quote at a specific time of day across a date range for an option.
@@ -1783,7 +1783,7 @@ impl ThetaDataDx {
         time_of_day: &str,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_at_time_quote(symbol, expiration, strike, right, start_date, end_date, time_of_day);
             if let Some(value) = max_dte {
@@ -1796,7 +1796,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| quote_tick_to_dict(py, t)).collect())
+        Ok(quote_ticks_to_columnar(py, &ticks))
     }
 
     /// List all available index symbols.
@@ -1835,7 +1835,7 @@ impl ThetaDataDx {
         py: Python<'_>,
         symbols: Vec<String>,
         min_time: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let ticks = py.detach(|| {
             let mut request = self.tdx.index_snapshot_ohlc(&refs);
@@ -1846,7 +1846,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| ohlc_tick_to_dict(py, t)).collect())
+        Ok(ohlc_ticks_to_columnar(py, &ticks))
     }
 
     /// Get the latest price snapshot for one or more indices.
@@ -1856,7 +1856,7 @@ impl ThetaDataDx {
         py: Python<'_>,
         symbols: Vec<String>,
         min_time: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let ticks = py.detach(|| {
             let mut request = self.tdx.index_snapshot_price(&refs);
@@ -1867,7 +1867,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| price_tick_to_dict(py, t)).collect())
+        Ok(price_ticks_to_columnar(py, &ticks))
     }
 
     /// Get the latest market value snapshot for one or more indices.
@@ -1877,7 +1877,7 @@ impl ThetaDataDx {
         py: Python<'_>,
         symbols: Vec<String>,
         min_time: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let ticks = py.detach(|| {
             let mut request = self.tdx.index_snapshot_market_value(&refs);
@@ -1888,7 +1888,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| market_value_tick_to_dict(py, t)).collect())
+        Ok(market_value_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch end-of-day index data for a date range.
@@ -1898,7 +1898,7 @@ impl ThetaDataDx {
         symbol: &str,
         start_date: &str,
         end_date: &str,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             runtime()
                 .block_on(async {
@@ -1906,7 +1906,7 @@ impl ThetaDataDx {
                 })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| eod_tick_to_dict(py, t)).collect())
+        Ok(eod_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch intraday OHLC bars for an index.
@@ -1920,7 +1920,7 @@ impl ThetaDataDx {
         interval: &str,
         start_time: Option<&str>,
         end_time: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.index_history_ohlc(symbol, start_date, end_date, interval);
             if let Some(value) = start_time {
@@ -1933,7 +1933,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| ohlc_tick_to_dict(py, t)).collect())
+        Ok(ohlc_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch intraday price history for an index.
@@ -1948,7 +1948,7 @@ impl ThetaDataDx {
         end_time: Option<&str>,
         start_date: Option<&str>,
         end_date: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.index_history_price(symbol, date, interval);
             if let Some(value) = start_time {
@@ -1967,7 +1967,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| price_tick_to_dict(py, t)).collect())
+        Ok(price_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch the index price at a specific time of day across a date range.
@@ -1978,7 +1978,7 @@ impl ThetaDataDx {
         start_date: &str,
         end_date: &str,
         time_of_day: &str,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             runtime()
                 .block_on(async {
@@ -1986,14 +1986,14 @@ impl ThetaDataDx {
                 })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| price_tick_to_dict(py, t)).collect())
+        Ok(price_ticks_to_columnar(py, &ticks))
     }
 
     /// Check whether the market is open today.
     fn calendar_open_today(
         &self,
         py: Python<'_>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             runtime()
                 .block_on(async {
@@ -2001,7 +2001,7 @@ impl ThetaDataDx {
                 })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| calendar_day_to_dict(py, t)).collect())
+        Ok(calendar_days_to_columnar(py, &ticks))
     }
 
     /// Get calendar information for a specific date.
@@ -2009,7 +2009,7 @@ impl ThetaDataDx {
         &self,
         py: Python<'_>,
         date: &str,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             runtime()
                 .block_on(async {
@@ -2017,7 +2017,7 @@ impl ThetaDataDx {
                 })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| calendar_day_to_dict(py, t)).collect())
+        Ok(calendar_days_to_columnar(py, &ticks))
     }
 
     /// Get calendar information for an entire year.
@@ -2025,7 +2025,7 @@ impl ThetaDataDx {
         &self,
         py: Python<'_>,
         year: &str,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             runtime()
                 .block_on(async {
@@ -2033,7 +2033,7 @@ impl ThetaDataDx {
                 })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| calendar_day_to_dict(py, t)).collect())
+        Ok(calendar_days_to_columnar(py, &ticks))
     }
 
     /// Fetch end-of-day interest rate history.
@@ -2043,7 +2043,7 @@ impl ThetaDataDx {
         symbol: &str,
         start_date: &str,
         end_date: &str,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             runtime()
                 .block_on(async {
@@ -2051,7 +2051,7 @@ impl ThetaDataDx {
                 })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| interest_rate_tick_to_dict(py, t)).collect())
+        Ok(interest_rate_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch intraday OHLC bars across a date range.
@@ -2066,7 +2066,7 @@ impl ThetaDataDx {
         start_time: Option<&str>,
         end_time: Option<&str>,
         venue: Option<&str>,
-    ) -> PyResult<Vec<Py<PyAny>>> {
+    ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.stock_history_ohlc_range(symbol, start_date, end_date, interval);
             if let Some(value) = start_time {
@@ -2082,7 +2082,7 @@ impl ThetaDataDx {
                 .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
-        Ok(ticks.iter().map(|t| ohlc_tick_to_dict(py, t)).collect())
+        Ok(ohlc_ticks_to_columnar(py, &ticks))
     }
 
 }

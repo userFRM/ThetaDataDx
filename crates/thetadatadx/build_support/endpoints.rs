@@ -2422,6 +2422,25 @@ fn python_converter(return_type: &str) -> &'static str {
     }
 }
 
+fn python_columnar_converter(return_type: &str) -> &'static str {
+    match return_type {
+        "EodTicks" => "eod_ticks_to_columnar",
+        "OhlcTicks" => "ohlc_ticks_to_columnar",
+        "TradeTicks" => "trade_ticks_to_columnar",
+        "QuoteTicks" => "quote_ticks_to_columnar",
+        "TradeQuoteTicks" => "trade_quote_ticks_to_columnar",
+        "OpenInterestTicks" => "open_interest_ticks_to_columnar",
+        "MarketValueTicks" => "market_value_ticks_to_columnar",
+        "GreeksTicks" => "greeks_ticks_to_columnar",
+        "IvTicks" => "iv_ticks_to_columnar",
+        "PriceTicks" => "price_ticks_to_columnar",
+        "CalendarDays" => "calendar_days_to_columnar",
+        "InterestRateTicks" => "interest_rate_ticks_to_columnar",
+        "OptionContracts" => "option_contracts_to_columnar",
+        other => panic!("unsupported Python columnar converter: {other}"),
+    }
+}
+
 fn builder_value_type_name(param: &GeneratedParam) -> &'static str {
     match param.param_type.as_str() {
         "Int" => "int32_t",
@@ -2926,7 +2945,7 @@ fn render_python_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
     if endpoint.return_type == "StringList" {
         out.push_str("Vec<String>> {\n");
     } else {
-        out.push_str("Vec<Py<PyAny>>> {\n");
+        out.push_str("Py<PyAny>> {\n");
     }
 
     let has_symbols = method_params
@@ -3018,8 +3037,8 @@ fn render_python_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("        })?;\n");
     writeln!(
         out,
-        "        Ok(ticks.iter().map(|t| {}(py, t)).collect())",
-        python_converter(&endpoint.return_type)
+        "        Ok({}(py, &ticks))",
+        python_columnar_converter(&endpoint.return_type)
     )
     .unwrap();
     out.push_str("    }\n");
