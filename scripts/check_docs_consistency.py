@@ -106,7 +106,15 @@ def check_static_docs() -> None:
         ROOT / "docs-site/docs/tools/mcp.md",
         f"{len(REGISTRY_ENDPOINTS)} data endpoints + ping + all_greeks + implied_volatility = {EXPECTED_TOOL_COUNT} tools.",
     )
-    # Migration guide removed in v7 (L14). No longer enforced.
+    # Version strings in getting-started docs must match the workspace version.
+    expect_contains(
+        ROOT / "docs-site/docs/getting-started.md",
+        'thetadatadx = "7.0"',
+    )
+    expect_contains(
+        ROOT / "docs-site/docs/getting-started/installation.md",
+        'thetadatadx = "7.0"',
+    )
     expect_contains(
         ROOT / "docs-site/docs/tools/mcp.md",
         'Use `"strike":"0"` when you want a bulk chain-style response',
