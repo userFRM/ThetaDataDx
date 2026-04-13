@@ -181,20 +181,18 @@ type cPriceTick struct {
 }
 
 // cMarketValueTick mirrors tdbe::MarketValueTick #[repr(C, align(64))]
-// Layout: ms_of_day(4), pad(4), 5*i64(40), date(4), exp(4), strike(8), right(4), pad(4) = 72
+// Layout: ms_of_day(4), pad(4), 3*f64(24), date(4), exp(4), strike(8), right(4), pad(12) = 64
 type cMarketValueTick struct {
-	MsOfDay           int32
-	_pad1             int32
-	MarketCap         int64
-	SharesOutstanding int64
-	EnterpriseValue   int64
-	BookValue         int64
-	FreeFloat         int64
-	Date              int32
-	Expiration        int32
-	Strike            float64
-	Right             int32
-	_pad2             [128 - 68]byte
+	MsOfDay     int32
+	_pad1       int32
+	MarketBid   float64
+	MarketAsk   float64
+	MarketPrice float64
+	Date        int32
+	Expiration  int32
+	Strike      float64
+	Right       int32
+	_pad2       [64 - 52]byte
 }
 
 // cGreeksTick mirrors tdbe::GreeksTick #[repr(C, align(64))]
@@ -309,7 +307,7 @@ func init() {
 		{"cInterestRateTick", unsafe.Sizeof(cInterestRateTick{}), 64},
 		{"cIvTick", unsafe.Sizeof(cIvTick{}), 64},
 		{"cPriceTick", unsafe.Sizeof(cPriceTick{}), 64},
-		{"cMarketValueTick", unsafe.Sizeof(cMarketValueTick{}), 128},
+		{"cMarketValueTick", unsafe.Sizeof(cMarketValueTick{}), 64},
 		{"cGreeksTick", unsafe.Sizeof(cGreeksTick{}), 256},
 		{"cTradeQuoteTick", unsafe.Sizeof(cTradeQuoteTick{}), 192},
 		{"cOptionContract", unsafe.Sizeof(cOptionContract{}), 32},

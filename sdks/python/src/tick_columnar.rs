@@ -154,22 +154,18 @@ fn iv_ticks_to_columnar(py: Python<'_>, ticks: &[tick::IvTick]) -> Py<PyAny> {
 
 fn market_value_ticks_to_columnar(py: Python<'_>, ticks: &[tick::MarketValueTick]) -> Py<PyAny> {
     let col_ms_of_day: Vec<i32> = ticks.iter().map(|t| t.ms_of_day).collect();
-    let col_market_cap: Vec<i64> = ticks.iter().map(|t| t.market_cap).collect();
-    let col_shares_outstanding: Vec<i64> = ticks.iter().map(|t| t.shares_outstanding).collect();
-    let col_enterprise_value: Vec<i64> = ticks.iter().map(|t| t.enterprise_value).collect();
-    let col_book_value: Vec<i64> = ticks.iter().map(|t| t.book_value).collect();
-    let col_free_float: Vec<i64> = ticks.iter().map(|t| t.free_float).collect();
+    let col_market_bid: Vec<f64> = ticks.iter().map(|t| t.market_bid).collect();
+    let col_market_ask: Vec<f64> = ticks.iter().map(|t| t.market_ask).collect();
+    let col_market_price: Vec<f64> = ticks.iter().map(|t| t.market_price).collect();
     let col_date: Vec<i32> = ticks.iter().map(|t| t.date).collect();
     let col_expiration: Vec<i32> = ticks.iter().map(|t| t.expiration).collect();
     let col_strike: Vec<f64> = ticks.iter().map(|t| t.strike).collect();
     let col_right: Vec<&str> = ticks.iter().map(|t| if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).collect();
     let dict = PyDict::new(py);
     dict.set_item("ms_of_day", col_ms_of_day).unwrap();
-    dict.set_item("market_cap", col_market_cap).unwrap();
-    dict.set_item("shares_outstanding", col_shares_outstanding).unwrap();
-    dict.set_item("enterprise_value", col_enterprise_value).unwrap();
-    dict.set_item("book_value", col_book_value).unwrap();
-    dict.set_item("free_float", col_free_float).unwrap();
+    dict.set_item("market_bid", col_market_bid).unwrap();
+    dict.set_item("market_ask", col_market_ask).unwrap();
+    dict.set_item("market_price", col_market_price).unwrap();
     dict.set_item("date", col_date).unwrap();
     dict.set_item("expiration", col_expiration).unwrap();
     dict.set_item("strike", col_strike).unwrap();

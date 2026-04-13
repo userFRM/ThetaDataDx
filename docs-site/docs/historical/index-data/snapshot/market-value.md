@@ -15,28 +15,28 @@ Get the latest market value snapshot for one or more index symbols.
 ```rust [Rust]
 let data = tdx.index_snapshot_market_value(&["SPX"]).await?;
 for t in &data {
-    println!("date={} market_cap={:.4} shares_outstanding={}",
-        t.date, t.market_cap, t.shares_outstanding);
+    println!("date={} market_bid={:.4} market_ask={:.4} market_price={:.4}",
+        t.date, t.market_bid, t.market_ask, t.market_price);
 }
 ```
 ```python [Python]
 data = tdx.index_snapshot_market_value(["SPX"])
 for t in data:
     print(f"date={t['date']} "
-          f"market_cap={t['market_cap']:.4f} shares_outstanding={t['shares_outstanding']}")
+          f"market_bid={t['market_bid']:.4f} market_ask={t['market_ask']:.4f} market_price={t['market_price']:.4f}")
 ```
 ```go [Go]
 data, _ := client.IndexSnapshotMarketValue([]string{"SPX"})
 for _, t := range data {
-    fmt.Printf("date=%d market_cap=%.4f shares_outstanding=%d\n",
-        t.Date, t.MarketCap, t.SharesOutstanding)
+    fmt.Printf("date=%d market_bid=%.4f market_ask=%.4f market_price=%.4f\n",
+        t.Date, t.MarketBid, t.MarketAsk, t.MarketPrice)
 }
 ```
 ```cpp [C++]
 auto data = client.index_snapshot_market_value({"SPX"});
 for (const auto& t : data) {
-    printf("date=%d market_cap=%.4f shares_outstanding=%d\n",
-        t.date, t.market_cap, t.shares_outstanding);
+    printf("date=%d market_bid=%.4f market_ask=%.4f market_price=%.4f\n",
+        t.date, t.market_bid, t.market_ask, t.market_price);
 }
 ```
 :::
@@ -60,8 +60,16 @@ Returns an array of MarketValueTick records with market value fields:
 
 <div class="param-list">
 <div class="param">
-<div class="param-header"><code>market_value</code><span class="param-type">f64</span></div>
-<div class="param-desc">Market capitalization / value</div>
+<div class="param-header"><code>market_bid</code><span class="param-type">f64</span></div>
+<div class="param-desc">Market bid price</div>
+</div>
+<div class="param">
+<div class="param-header"><code>market_ask</code><span class="param-type">f64</span></div>
+<div class="param-desc">Market ask price</div>
+</div>
+<div class="param">
+<div class="param-header"><code>market_price</code><span class="param-type">f64</span></div>
+<div class="param-desc">Market price</div>
 </div>
 <div class="param">
 <div class="param-header"><code>ms_of_day</code><span class="param-type">u32</span></div>
@@ -78,13 +86,13 @@ Returns an array of MarketValueTick records with market value fields:
 
 ```json
 [
-  {"date": 20260402, "market_cap": 52140000000000, "shares_outstanding": 0}
+  {"date": 20260402, "market_bid": 5214.50, "market_ask": 5215.00, "market_price": 5214.75}
 ]
 ```
 
-> Market value snapshot for SPX. Index-level market cap represents aggregate constituent values.
+> Market value snapshot for SPX.
 
 ## Notes
 
 - Returns an array of MarketValueTick records (typed per SDK).
-- Market value represents the total capitalization of the index constituents.
+- Market bid/ask/price represent the latest quoted values.

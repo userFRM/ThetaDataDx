@@ -253,7 +253,7 @@ All endpoints return fully typed C++ structs. No raw JSON.
 | `GreeksTick` | ms_of_day, implied_volatility, delta, gamma, theta, vega, rho, iv_error, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda, vera, date, **expiration, strike, right** | Greeks snapshot/history |
 | `IvTick` | ms_of_day, implied_volatility, iv_error, date, **expiration, strike, right** | IV-only endpoints |
 | `PriceTick` | ms_of_day, price, date | Index price endpoints |
-| `MarketValueTick` | ms_of_day, market_cap, shares_outstanding, enterprise_value, book_value, free_float, date, **expiration, strike, right** | Market value endpoints |
+| `MarketValueTick` | ms_of_day, market_bid, market_ask, market_price, date, **expiration, strike, right** | Market value endpoints |
 | `OptionContract` | root, expiration, strike, right | option_list_contracts |
 | `CalendarDay` | date, is_open, open_time, close_time, status | Calendar endpoints |
 | `InterestRateTick` | ms_of_day, rate, date | Interest rate endpoints |

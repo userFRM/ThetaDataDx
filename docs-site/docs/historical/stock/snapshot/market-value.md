@@ -15,28 +15,28 @@ Latest market value snapshot for one or more stocks.
 ```rust [Rust]
 let data = tdx.stock_snapshot_market_value(&["SPY"]).await?;
 for t in &data {
-    println!("date={} market_cap={:.4} shares_outstanding={} enterprise_value={:.4}",
-        t.date, t.market_cap, t.shares_outstanding, t.enterprise_value);
+    println!("date={} market_bid={:.4} market_ask={:.4} market_price={:.4}",
+        t.date, t.market_bid, t.market_ask, t.market_price);
 }
 ```
 ```python [Python]
 data = tdx.stock_snapshot_market_value(["SPY"])
 for t in data:
-    print(f"date={t['date']} market_cap={t['market_cap']:.4f} "
-          f"shares_outstanding={t['shares_outstanding']} enterprise_value={t['enterprise_value']:.4f}")
+    print(f"date={t['date']} market_bid={t['market_bid']:.4f} "
+          f"market_ask={t['market_ask']:.4f} market_price={t['market_price']:.4f}")
 ```
 ```go [Go]
 data, _ := client.StockSnapshotMarketValue([]string{"SPY"})
 for _, t := range data {
-    fmt.Printf("date=%d market_cap=%.4f shares_outstanding=%d enterprise_value=%.4f\n",
-        t.Date, t.MarketCap, t.SharesOutstanding, t.EnterpriseValue)
+    fmt.Printf("date=%d market_bid=%.4f market_ask=%.4f market_price=%.4f\n",
+        t.Date, t.MarketBid, t.MarketAsk, t.MarketPrice)
 }
 ```
 ```cpp [C++]
 auto data = client.stock_snapshot_market_value({"SPY"});
 for (const auto& t : data) {
-    printf("date=%d market_cap=%.4f shares_outstanding=%d enterprise_value=%.4f\n",
-        t.date, t.market_cap, t.shares_outstanding, t.enterprise_value);
+    printf("date=%d market_bid=%.4f market_ask=%.4f market_price=%.4f\n",
+        t.date, t.market_bid, t.market_ask, t.market_price);
 }
 ```
 :::
@@ -67,11 +67,11 @@ for (const auto& t : data) {
 
 ```json
 [
-  {"date": 20260402, "market_cap": 3842000000000, "shares_outstanding": 15022100000, "enterprise_value": 3756000000000}
+  {"date": 20260402, "market_bid": 258.50, "market_ask": 258.55, "market_price": 258.52}
 ]
 ```
 
-> Market capitalization, shares outstanding, and enterprise value for each requested symbol.
+> Market bid, ask, and price for each requested symbol.
 
 ## Notes
 

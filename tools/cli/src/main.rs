@@ -514,21 +514,17 @@ fn render_market_value(ticks: &[tdbe::types::tick::MarketValueTick], fmt: &Outpu
     let mut td = TabularData::new(vec![
         "date",
         "ms_of_day",
-        "market_cap",
-        "shares_outstanding",
-        "enterprise_value",
-        "book_value",
-        "free_float",
+        "market_bid",
+        "market_ask",
+        "market_price",
     ]);
     for t in ticks {
         td.push(vec![
             format_date(t.date),
             format_ms(t.ms_of_day),
-            format!("{}", t.market_cap),
-            format!("{}", t.shares_outstanding),
-            format!("{}", t.enterprise_value),
-            format!("{}", t.book_value),
-            format!("{}", t.free_float),
+            format!("{:.4}", t.market_bid),
+            format!("{:.4}", t.market_ask),
+            format!("{:.4}", t.market_price),
         ]);
     }
     td.render(fmt);

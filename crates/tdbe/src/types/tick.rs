@@ -95,16 +95,16 @@ pub struct IvTick {
     pub right: i32,
 }
 
-/// Market value tick.
+/// Market value tick — quoted bid/ask/price for a symbol.
+///
+/// All price fields are decoded to `f64` during parsing.
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
 pub struct MarketValueTick {
     pub ms_of_day: i32,
-    pub market_cap: i64,
-    pub shares_outstanding: i64,
-    pub enterprise_value: i64,
-    pub book_value: i64,
-    pub free_float: i64,
+    pub market_bid: f64,
+    pub market_ask: f64,
+    pub market_price: f64,
     pub date: i32,
     pub expiration: i32,
     pub strike: f64,
