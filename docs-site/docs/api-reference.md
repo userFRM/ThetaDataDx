@@ -2246,7 +2246,7 @@ fpss.shutdown();
 | Method | Returns | SDK availability | Description |
 |--------|---------|------------------|-------------|
 | `is_streaming` | bool | Rust/Python only | Check if the unified streaming connection is live |
-| `contract_map` | map | All SDKs | Get full contract ID -> description mapping |
+| `contract_map` | `HashMap<i32, Contract>` (Rust), `dict[int, Contract]` (Python), `map[int32]string` (Go), `map<int32_t, string>` (C++) | All SDKs | Get full contract ID mapping |
 | `contract_lookup` | string/optional | All SDKs (FFI-based, returns NULL/"" for not-found) | Look up a single contract by server-assigned ID |
 | `active_subscriptions` | list/typed structs | All SDKs | Get list of active subscriptions |
 | `subscribe_option_*` / `unsubscribe_option_*` | int | All SDKs | Option-level subscribe/unsubscribe by `(symbol, expiration, strike, right)` |
