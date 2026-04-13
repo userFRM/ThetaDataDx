@@ -501,6 +501,11 @@ pub(crate) fn row_number_i64(row: &proto::DataValueList, idx: usize) -> i64 {
         .and_then(|dv| dv.data_type.as_ref())
         .and_then(|dt| match dt {
             proto::data_value::DataType::Number(n) => Some(*n),
+            // MDDS sends market_cap, shares_outstanding, enterprise_value,
+            // book_value, and free_float as Price cells, not Number cells.
+            proto::data_value::DataType::Price(p) => {
+                Some(tdbe::Price::new(p.value, p.r#type).to_f64() as i64)
+            }
             _ => None,
         })
         .unwrap_or(0)
@@ -1097,5 +1102,31 @@ mod tests {
         assert_eq!(ticks[0].date, 20260401);
         assert!((ticks[0].open - 15000.0).abs() < 1e-10);
         assert!((ticks[0].close - 15100.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn row_number_i64_decodes_price_cells() {
+        // MDDS sends market_cap etc. as Price cells, not Number cells.
+        // Price encoding: price_type centered at 10.
+        //   type=10 → value as-is, type=13 → value * 10^3, type=7 → value / 10^3
+        // Example: Price { value: 3842, type: 19 } = 3842 * 10^9 = 3_842_000_000_000
+        let row = row_of(vec![dv_price(3842, 19)]);
+        let result = row_number_i64(&row, 0);
+        assert_eq!(
+            result, 3_842_000_000_000_i64,
+            "Price cell should decode to i64 via tdbe::Price"
+        );
+    }
+
+    #[test]
+    fn row_number_i64_still_decodes_number_cells() {
+        let row = row_of(vec![dv_number(999_999_999)]);
+        assert_eq!(row_number_i64(&row, 0), 999_999_999);
+    }
+
+    #[test]
+    fn row_number_i64_returns_0_for_null() {
+        let row = row_of(vec![dv_null()]);
+        assert_eq!(row_number_i64(&row, 0), 0);
     }
 }
