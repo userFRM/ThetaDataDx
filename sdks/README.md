@@ -59,7 +59,7 @@ The Python SDK uses [PyO3](https://pyo3.rs/) with [Maturin](https://www.maturin.
 ## Validation Matrix
 
 - Python: wheel builds and import smoke are validated on Linux, macOS, and Windows. The package now targets the CPython stable ABI (`abi3`) with a minimum version of Python 3.9, so one wheel per platform covers Python 3.9+.
-- Go: validated on Linux and macOS. Windows support is not yet part of the official CI matrix because the Rust-to-CGo linking story still needs a dedicated import-library flow there.
+- Go: validated on Linux and macOS with the default `target/release` FFI build. Windows is validated with the GNU Rust target (`x86_64-pc-windows-gnu`), because CGo links through MinGW rather than the MSVC import library used by the C++ SDK.
 - C++: validated with CMake builds on Linux, macOS, and Windows against the generated FFI library.
 
 ## Python SDK

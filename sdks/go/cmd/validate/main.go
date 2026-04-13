@@ -5,6 +5,13 @@
 //
 //	cd sdks/go && LD_LIBRARY_PATH=../../target/release go run ./cmd/validate
 //
+// On Windows, build the GNU-targeted FFI first and make that directory available
+// to CGo and the runtime loader:
+//
+//	rustup target add x86_64-pc-windows-gnu
+//	cargo build --release --target x86_64-pc-windows-gnu -p thetadatadx-ffi
+//	cd sdks/go && set CGO_LDFLAGS=-L..\\..\\target\\x86_64-pc-windows-gnu\\release && go run ./cmd/validate
+//
 // Expects creds.txt at the repository root (two lines: email, password).
 
 package main

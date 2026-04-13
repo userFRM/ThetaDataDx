@@ -34,6 +34,11 @@ cargo build --release -p thetadatadx-ffi
 # Produces target/release/libthetadatadx_ffi.so (Linux)
 # or libthetadatadx_ffi.dylib (macOS)
 
+# On Windows, the Go SDK links against the GNU Rust target instead:
+rustup target add x86_64-pc-windows-gnu
+cargo build --release --target x86_64-pc-windows-gnu -p thetadatadx-ffi
+# Produces artifacts under target/x86_64-pc-windows-gnu/release/
+
 # Then add the Go module:
 go get github.com/userFRM/thetadatadx/sdks/go
 ```

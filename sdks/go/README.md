@@ -14,7 +14,7 @@ Go SDK for ThetaData market data, powered by the `thetadatadx` Rust crate via CG
 
 - Linux: CI-validated
 - macOS: CI-validated
-- Windows: not yet part of the official CI matrix for the Go binding
+- Windows: CI-validated via a GNU-targeted Rust FFI build (`x86_64-pc-windows-gnu`)
 
 ## Building
 
@@ -25,7 +25,16 @@ First, build the Rust FFI library:
 cargo build --release -p thetadatadx-ffi
 ```
 
-This produces `target/release/libthetadatadx_ffi.so` (Linux), `libthetadatadx_ffi.dylib` (macOS), or `thetadatadx_ffi.dll` plus import library artifacts on Windows.
+This produces `target/release/libthetadatadx_ffi.so` (Linux) or `target/release/libthetadatadx_ffi.dylib` (macOS).
+
+On Windows, build the GNU-targeted FFI for the Go SDK:
+
+```powershell
+rustup target add x86_64-pc-windows-gnu
+cargo build --release --target x86_64-pc-windows-gnu -p thetadatadx-ffi
+```
+
+That produces the Windows Go-linkable artifacts under `target/x86_64-pc-windows-gnu/release/`.
 
 Then build or run your Go code:
 

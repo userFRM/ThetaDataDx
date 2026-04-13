@@ -154,6 +154,11 @@ def check_static_docs() -> None:
     expect_contains(sdk_overview, "`TdxUnified` / `TdxFpssHandle`")
     expect_contains(sdk_overview, "| **Unified** | `tdx_unified_connect`, `tdx_unified_historical`, `tdx_unified_*`, `tdx_unified_free` |")
     expect_contains(sdk_overview, "26 functions: `tdx_fpss_connect`")
+    expect_contains(sdk_overview, "Windows is validated with the GNU Rust target (`x86_64-pc-windows-gnu`)")
+
+    go_readme = ROOT / "sdks/go/README.md"
+    expect_contains(go_readme, "Windows: CI-validated via a GNU-targeted Rust FFI build (`x86_64-pc-windows-gnu`)")
+    expect_contains(go_readme, "cargo build --release --target x86_64-pc-windows-gnu -p thetadatadx-ffi")
 
     option_docs = list((ROOT / "docs-site/docs/historical/option").rglob("*.md"))
     strike_docs = option_docs + [

@@ -3,7 +3,7 @@ package thetadatadx
 /*
 #cgo linux LDFLAGS: -L${SRCDIR}/../../target/release -lthetadatadx_ffi -lm -ldl -lpthread
 #cgo darwin LDFLAGS: -L${SRCDIR}/../../target/release -lthetadatadx_ffi -framework Security -framework SystemConfiguration
-#cgo windows LDFLAGS: -L${SRCDIR}/../../target/release -lthetadatadx_ffi
+#cgo windows LDFLAGS: -L${SRCDIR}/../../target/x86_64-pc-windows-gnu/release -lthetadatadx_ffi
 #include "ffi_bridge.h"
 */
 import "C"

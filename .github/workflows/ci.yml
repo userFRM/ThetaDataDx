@@ -100,7 +100,15 @@ jobs:
           go-version: "1.23"
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/install-protoc
+      - if: runner.os == 'Windows' && matrix.go_enabled
+        shell: bash
+        run: rustup target add x86_64-pc-windows-gnu
       - run: cargo build --release -p thetadatadx-ffi --locked
+      - if: runner.os == 'Windows' && matrix.go_enabled
+        shell: bash
+        env:
+          CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER: gcc
+        run: cargo build --release --target x86_64-pc-windows-gnu -p thetadatadx-ffi --locked
       - run: cmake -S sdks/cpp -B build/cpp
       - run: cmake --build build/cpp --config Release --target thetadatadx_cpp
       - if: matrix.go_enabled
@@ -113,7 +121,8 @@ jobs:
           elif [ "${{ runner.os }}" = "macOS" ]; then
             export DYLD_LIBRARY_PATH="${{ github.workspace }}/target/release"
           else
-            export PATH="${{ github.workspace }}/target/release:$PATH"
+            export PATH="${{ github.workspace }}/target/x86_64-pc-windows-gnu/release:$PATH"
+            export CGO_LDFLAGS="-L${{ github.workspace }}/target/x86_64-pc-windows-gnu/release"
           fi
           go test ./...
 
@@ -135,7 +144,7 @@ jobs:
               target/release/libthetadatadx_ffi.dylib
               target/release/libthetadatadx_ffi.a
           - os: windows-latest
-            artifact-name: ffi-windows-x86_64
+            artifact-name: ffi-windows-msvc-x86_64
             artifact-path: |
               target/release/thetadatadx_ffi.dll
               target/release/thetadatadx_ffi.dll.lib
@@ -147,11 +156,26 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/install-protoc
+      - if: runner.os == 'Windows'
+        shell: bash
+        run: rustup target add x86_64-pc-windows-gnu
       - run: cargo build --release -p thetadatadx-ffi --locked
+      - if: runner.os == 'Windows'
+        shell: bash
+        env:
+          CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER: gcc
+        run: cargo build --release --target x86_64-pc-windows-gnu -p thetadatadx-ffi --locked
       - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact-name }}
           path: ${{ matrix.artifact-path }}
+      - if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ffi-windows-gnu-x86_64
+          path: |
+            target/x86_64-pc-windows-gnu/release/thetadatadx_ffi.dll
+            target/x86_64-pc-windows-gnu/release/libthetadatadx_ffi*.a
 
   publish-crate:
     name: Publish to crates.io
@@ -200,15 +224,26 @@ jobs:
           path: artifacts/macos/
       - uses: actions/download-artifact@v8
         with:
-          name: ffi-windows-x86_64
-          path: artifacts/windows/
+          name: ffi-windows-msvc-x86_64
+          path: artifacts/windows-msvc/
+      - uses: actions/download-artifact@v8
+        with:
+          name: ffi-windows-gnu-x86_64
+          path: artifacts/windows-gnu/
+      - shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          cp artifacts/linux/libthetadatadx_ffi.so release-assets/
+          cp artifacts/linux/libthetadatadx_ffi.a release-assets/
+          cp artifacts/macos/libthetadatadx_ffi.dylib release-assets/
+          cp artifacts/macos/libthetadatadx_ffi.a release-assets/
+          cp artifacts/windows-msvc/thetadatadx_ffi.dll release-assets/thetadatadx_ffi-windows-msvc.dll
+          cp artifacts/windows-msvc/thetadatadx_ffi.dll.lib release-assets/thetadatadx_ffi-windows-msvc.dll.lib
+          cp artifacts/windows-gnu/thetadatadx_ffi.dll release-assets/thetadatadx_ffi-windows-gnu.dll
+          find artifacts/windows-gnu -maxdepth 1 -type f -name 'libthetadatadx_ffi*.a' -exec cp {} release-assets/ \;
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           files: |
-            artifacts/linux/libthetadatadx_ffi.so
-            artifacts/linux/libthetadatadx_ffi.a
-            artifacts/macos/libthetadatadx_ffi.dylib
-            artifacts/macos/libthetadatadx_ffi.a
-            artifacts/windows/thetadatadx_ffi.dll
-            artifacts/windows/thetadatadx_ffi.dll.lib
+            release-assets/*
