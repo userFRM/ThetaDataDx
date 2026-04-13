@@ -124,6 +124,15 @@ def check_static_docs() -> None:
         'Use `"strike":"0"` when you want a bulk chain-style response',
     )
 
+    # Website changelog must match repo root CHANGELOG.md
+    repo_changelog = (ROOT / "CHANGELOG.md").read_text()
+    site_changelog = (ROOT / "docs-site/docs/changelog.md").read_text()
+    if repo_changelog != site_changelog:
+        fail(
+            "docs-site/docs/changelog.md is out of sync with CHANGELOG.md. "
+            "Run: cp CHANGELOG.md docs-site/docs/changelog.md"
+        )
+
     for path in [
         ROOT / "tools/server/README.md",
         ROOT / "docs-site/docs/tools/server.md",
