@@ -5,6 +5,269 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Breaking Changes
+
+- Removed the misleading per-contract `subscribe_option_full_*` / `unsubscribe_option_full_*` FPSS methods from the C FFI, Go SDK, and C++ SDK. Per-contract streams use `subscribe_option_*`; full firehose streams remain `subscribe_full_*` by security type.
+- Python FPSS option subscription helpers now take `(symbol, expiration, strike, right)` to match Rust, Go, and C++ argument order.
+- **Go/C++ `contract_map` API replaced** -- `ContractMapJSON()` / `contract_map_json()` removed; replaced with typed `ContractMap()` / `contract_map()` returning `map[int32]string` / `std::map<int32_t, std::string>`. Callers of the old JSON variant will fail to compile.
+
+### Changed
+- Python now exposes `reconnect()` on the unified streaming client, matching the existing Go/C++ FPSS reconnect capability.
+
+## [7.0.0] - 2026-04-11
+
+### Breaking Changes
+
+- **`SnapshotTradeTick` deleted from all layers** -- removed from Rust core, FFI, Python, Go, and C++ SDKs. Dead type that was never returned by any endpoint.
+- **FFI options use explicit `has_*` flags** -- replaced NaN/`-1` sentinel-based optional fields with `has_exclusive`, `has_max_dte`, `has_strike_range`, `has_annual_dividend`, etc. C, Go, and C++ consumers must check the companion `has_*` i32 flag (0 = unset, 1 = set) before reading the value.
+- **`generate_sdk_surfaces` restored as the checked-in surface authority** -- the standalone codegen binary is required again and is the canonical way to regenerate and verify generated SDK/FFI/tool surfaces from TOML.
+- **Streaming endpoints generated from TOML** -- hand-written streaming endpoint blocks in `direct.rs` replaced by TOML-driven codegen. Method signatures unchanged but internal dispatch is generated.
+- **Endpoint, utility, FPSS wrapper, and tick projection surfaces are spec-driven** -- Rust, FFI, Python, Go, C++, CLI, and MCP now project their generated public surfaces from `endpoint_surface.toml`, `sdk_surface.toml`, and `tick_schema.toml`.
+
+### Removed
+
+- `public-api-redesign.md` and README reference.
+- `migration-from-rest-ws.md` and navigation/index references.
+- 1,134 lines of commented-out legacy Python methods.
+- obsolete claim that `generate_sdk_surfaces` had been removed.
+
+### Changed
+
+- Workspace version bumped from 6.0.0 to 7.0.0.
+- Docs consistency checker now points at correct generated files.
+- `FpssControl::LoginSuccess { permissions }` documented as opaque diagnostic metadata (moved from Unreleased).
+
+### Fixed
+
+- Docs consistency checker no longer references deleted `migration-from-rest-ws.md`.
+- `cargo fmt` applied to `build_support/endpoints.rs`.
+
+## [6.0.0] - 2026-04-06
+
+### Breaking Changes
+
+- **All tick price fields changed from `i32` to `f64`** -- prices are decoded during parsing. Users access `tick.bid`, `tick.price`, `tick.open` directly as `f64`. No more `price_type` or `_f64()` helpers.
+- **`price_type` removed from all public APIs** -- historical ticks, FPSS streaming events, FFI, Python, Go, C++.
+- **`strike_price_type` removed** -- `strike` is now `f64` on all tick structs.
+- **All `_f64()` and `_price()` helper methods removed** -- `bid_f64()`, `get_price()`, `open_price()`, `trade_price()`, `midpoint_price()`, `midpoint_value()`, `strike_price()` no longer exist.
+- **FPSS streaming events: prices are `f64`** -- `FpssData::Quote`, `Trade`, `Ohlcvc` expose `f64` fields directly. No `price_type`. No `_f64` dual fields.
+- **`Contract::option()` takes 4 strings** -- `Contract::option("SPY", "20260417", "550", "C")` instead of `(root, i32, bool, i32)`. Matches the MDDS historical API experience.
+- **Python SDK**: `subscribe_option_*` takes `(symbol, exp_date, right, strike)` as strings. Removed `price_raw`, `bid_raw`, `price_type` from dicts.
+- **Go SDK**: removed `RightRaw`, `StrikePriceType`, `PriceRaw`, `BidRaw`/`AskRaw`/`OpenRaw`/etc., `PriceToF64()`.
+- **C++ SDK**: all price fields are `double`. Removed `tdx::price_to_f64()`, `tdx::bid_f64()`, `tdx::open_f64()`, etc.
+- **CLI**: `price_type` column removed from all table output.
+
+### Added
+
+- **`QuoteTick.midpoint`** -- pre-computed `(bid + ask) / 2.0` at parse time.
+- **`Contract::option_raw()`** -- raw wire-format constructor for the drop-in REST/WS server.
+- **Go FFI layout tests** -- compile-time `unsafe.Sizeof` assertions for all 12 C-mirror structs.
+- **WebSocket zero-copy fan-out** -- per-client `mpsc<Arc<str>>`, JSON serialized once.
+- **Server `--no-ohlcvc` flag** -- disable OHLCVC bar derivation from trades.
+- **CLI price formatting** -- preserves up to 6 meaningful decimals, trims trailing zeros.
+
+### Fixed
+
+- **`tools/server` and `tools/mcp` compilation** -- updated for f64 migration (were excluded from workspace, broke silently).
+- **Go FFI struct padding** -- 8 structs had incorrect tail padding causing memory corruption on multi-element arrays.
+- **`OptionContract` missing `Debug + Clone` derives** -- accidentally removed during refactor.
+- **Server dead match arm** -- removed v2 parameter fallback code.
+
+### Documentation
+
+- All 60+ endpoint pages updated: f64 fields, no `price_type`, no `_f64()` helpers.
+- All SDK READMEs updated (Rust, Python, Go, C++).
+- Streaming docs rewritten for f64 events.
+- OpenAPI spec purged of `price_type`.
+- JVM deviations doc: new sections for FPSS f64 streaming and `Contract::option` clean API.
+- Internal docs (architecture, api-reference, endpoint-schema) updated.
+
+## [5.4.0] - 2026-04-05
+
+### Breaking Changes
+
+- **`start_streaming_no_ohlcvc()` removed** -- use `DirectConfig::derive_ohlcvc(false)` instead. (#129)
+- **Go SDK**: `SnapshotTradeTick` type removed (was dead code after FFI cleanup).
+
+### Added
+
+- **`DirectConfig::derive_ohlcvc(bool)`** -- config-driven OHLCVC opt-out, replaces duplicate method. (#129)
+- **REST server drop-in replacement** -- `--email`/`--password`, `--config`, `--fpss-region` CLI args. `/v3/system/status` endpoint. Startup banner. (#128)
+- **Error suppression 5s after STOP** -- matches Java terminal behavior. (#124)
+- **Auth retry on transient errors** -- 3 attempts, 2s delay, network errors only. (#125)
+- **Config validation** -- clamps queue_depth (16-1M), window_size (64-1024) with warnings. (#126)
+- **Password character warning** -- on INVALID_CREDENTIALS disconnect. (#127)
+- **Clippy pedantic zero warnings** -- `#[must_use]`, inlined format args, numeric separators, `try_from` casts, error docs. No blanket suppression. (#131)
+
+### Fixed
+
+- Zero `#[allow(dead_code)]` in entire project.
+- Go SDK dangling extern for removed `TdxSnapshotTradeTickArray`.
+- Doc comment typo `100_0000` -> `1_000_000`.
+- Test warning on unused `#[must_use]` return.
+- All `#[allow]` annotations have reason comments.
+
+## [5.3.1] - 2026-04-04
+
+### Added
+
+- **FPSS auto-reconnect** with configurable policy: `Auto` (default, matches Java terminal), `Manual`, `Custom(fn)`. New control events: `Reconnecting`, `Reconnected`. (#119)
+- **Trade/quote condition descriptions** with special-case annotations (e.g., `*update last if only trade`).
+
+### Fixed
+
+- **Greeks returned all zeros** on intraday endpoints (`greeks_first_order`, `greeks_iv`, etc.). The v3 server sends Greeks as Price-encoded cells; `row_float()` now decodes them. (#118)
+- **`expiration=0` on wildcard EOD** -- contract ID extraction now handles ISO date text ("2024-01-31" -> 20240131). (#117)
+- **`implied_volatility` -> `implied_vol`** header alias added for v3 server column name.
+- **Raw strike encoding in docs** -- replaced "500000" with "500" (dollar amounts) across 37 files.
+- **`"EOD"` removed from docs** -- v3 uses `"TRADE"` / `"QUOTE"` only.
+- **Options examples** rewritten to use wildcard bulk queries instead of per-strike loops.
+
+## [5.3.0] - 2026-04-04
+
+### Breaking Changes
+
+- **Go SDK**: `EodTick`, `OhlcTick`, `TradeTick`, `QuoteTick`, `TradeQuoteTick`, `PriceTick`, `SnapshotTradeTick` gain additional fields (raw prices, ext_conditions, price_type). `Right` is now `string` ("C"/"P") with `RightRaw int32` for raw access.
+- **Python SDK**: trade dicts gain `ext_condition1..4`. Quote/OHLC/EOD/TradeQuote dicts gain raw price and detail fields.
+- **Rust**: `normalize_right()` maps `"C"` -> `"call"`, `"P"` -> `"put"`, `"*"` -> `"both"` for v3 server.
+
+### Added
+
+- **`tdbe::exchange`** -- 78 exchange codes with O(1) lookup: `exchange_name()`, `exchange_symbol()`. (#112)
+- **`tdbe::conditions`** -- 149 trade conditions + 75 quote conditions with semantic flags (cancel, volume, high, low, last). (#112)
+- **`tdbe::sequences`** -- FPSS sequence tracking with wrapping-aware gap detection. (#112)
+- **`tdbe::errors`** -- 14 ThetaData HTTP error codes mapped to human-readable names. gRPC errors now include the ThetaData error name. (#113)
+- **OHLC price normalization** -- `row_price_value_normalized()` and `change_price_type()` handle mixed price_types across OHLC fields. (#106)
+- **Greeks from Price cells** -- `row_float()` decodes Price-typed cells. `implied_vol` header alias. (#106)
+- **Calendar v3 parser** -- handles text dates, text times, and type codes from v3 server. (#109)
+- **`normalize_right()`** -- maps C/P/* to call/put/both for v3 server. Go `RightStr()` helper. (#111)
+- **Full SDK parity** -- Python and Go SDKs now expose every field from every Rust tick type.
+- **Latency physics documentation** -- speed-of-light calculations, colocation guidance, Mermaid diagrams.
+
+### Fixed
+
+- **37% of OHLC intraday bars had wrong prices** -- mixed price_type per cell caused 10x errors. (#106)
+- **All Greeks returned 0.0** -- server sends Greeks as Price cells, not Number cells. (#106)
+- **`option_list_contracts` returned 0** -- v3 server uses "symbol" not "root", ISO dates, text right. (#97)
+- **Calendar endpoints returned zeros** -- v3 text format mismatch. (#109)
+- **Dev server FPSS crashes** -- binary Error frames and unknown codes handled gracefully. (#85)
+- **`PriceToF64` Go formula wrong** -- was `value / 10^pt`, corrected to `value * 10^(pt-10)`.
+- **Python `greeks_tick_to_dict` missing 15 fields** -- now has all 24.
+
+### Documentation
+
+- 14 documentation fixes across 13 files
+- Mermaid diagrams replacing ASCII art in VitePress docs
+- Latency physics section with speed-of-light calculations per geography
+- 3 new JVM deviations documented
+- v3 migration guide compliance verified
+
+## [5.2.1] - 2026-04-04
+
+### Fixed
+
+- `option_list_contracts` returned 0 contracts. The v3 MDDS server sends `symbol` (not `root`), ISO date strings (not YYYYMMDD integers), and `PUT`/`CALL` text (not integer codes). Added `root` -> `symbol` header alias and a v3-aware parser. (#97)
+- Dev server FPSS replay boundary corruption handled gracefully. Binary Error frames are silently skipped. Unknown message codes are skipped with bounded retry (5 consecutive = framing corruption -> clean disconnect). (#85)
+
+## [5.2.0] - 2026-04-04
+
+### Breaking Changes
+
+- **Go SDK**: price fields on public structs are now `float64` (decoded). Raw `int32` values available as `*Raw` fields. `PriceType` removed from public structs.
+- **Go FPSS events**: `FpssQuote.Bid`/`Ask`, `FpssTrade.Price`, `FpssOhlcvc.Open`/`High`/`Low`/`Close` are now `float64`. Raw values as `*Raw` fields.
+- **Rust FPSS events**: `FpssData::Quote`, `Trade`, `Ohlcvc` gain pre-decoded `*_f64` fields (`bid_f64`, `price_f64`, etc.).
+
+### Added
+
+- **Rust `_f64()` convenience methods** on all tick types: `price_f64()`, `bid_f64()`, `ask_f64()`, `open_f64()`, `high_f64()`, `low_f64()`, `close_f64()`, `midpoint_f64()`. (#95)
+- **Go pre-decoded f64 prices** on all public structs and FPSS events. Users get `tick.Price` as `float64` ready to use. (#95)
+- **C++ `tdx::` price helpers** -- 17 inline functions for f64 price decoding on all tick types.
+- **FFI FPSS events** gain `*_f64` fields (`bid_f64`, `ask_f64`, `price_f64`, `open_f64`, `high_f64`, `low_f64`, `close_f64`) pre-computed during event construction.
+
+### Fixed
+
+- **Go `PriceToF64` formula** was `value / 10^pt` instead of `value * 10^(pt-10)`. All FPSS streaming prices would have been wrong. (#95)
+
+## [5.1.1] - 2026-04-03
+
+### Fixed
+
+- `tdbe` dependency bumped to 0.2.0 for crates.io publish (0.1.x was yanked). No code changes.
+
+## [5.1.0] - 2026-04-03
+
+### Breaking Changes
+
+- **FPSS FFI events now use `#[repr(C)]` typed structs** instead of JSON serialization. `tdx_fpss_next_event` and `tdx_unified_next_event` return `*mut TdxFpssEvent` (a flat tagged struct with quote, trade, open interest, OHLCVC, control, and raw_data variants). Free with `tdx_fpss_event_free`. (#82)
+- C++ SDK: `FpssClient::next_event()` returns `FpssEventPtr` (RAII unique_ptr to `TdxFpssEvent`).
+- Go SDK: `FpssClient.NextEvent()` returns `*FpssEvent` with typed Go structs.
+- Streaming event prices are now raw integers with `price_type` (matching the wire format). Callers decode with `Price::new(value, price_type).to_f64()` or `tdx::price_to_f64(value, price_type)`.
+- `serde_json` removed from FFI crate dependencies -- zero JSON crosses the FFI boundary.
+
+### Added
+
+- **Contract identification on all 10 option tick types** -- `expiration`, `strike`, `right`, `strike_price_type` fields populated by the server on wildcard queries. Helper methods `strike_price()`, `is_call()`, `is_put()`, `has_contract_id()` on all 10 tick types via `impl_contract_id!` macro. (#84)
+- **8-field trade tick support** -- FPSS dev server sends abbreviated 8-field trade ticks; production sends 16-field. `decode_tick()` now auto-detects the field count from the first absolute tick per contract and dispatches to the correct index mapping. (#86)
+- **`#[repr(C)]` FPSS event structs** in all SDKs -- `TdxFpssQuote`, `TdxFpssTrade`, `TdxFpssOpenInterest`, `TdxFpssOhlcvc`, `TdxFpssControl`, `TdxFpssRawData` with tagged `TdxFpssEvent` wrapper. (#82)
+- `FfiBufferedEvent` with owned backing storage for safe cross-thread `Send` of pointer-containing structs.
+- Go SDK: `FpssQuote`, `FpssTrade`, `FpssOpenInterestData`, `FpssOhlcvc`, `FpssControlData` Go structs mirroring Rust `#[repr(C)]` layout.
+- C++ SDK: `FpssClient` class with RAII `FpssEventPtr` for streaming.
+- Python SDK: `greeks_tick_to_dict` now emits all 24 fields (was 8). (#92)
+- `tdbe`: contract ID fields and `impl_contract_id!` macro on all 10 tick types.
+
+### Fixed
+
+- **9 stale JSON references** in FFI doc comments, FFI README, Go README, docs-site API reference, and macro guide -- all now correctly describe typed structs. (#92)
+- Python SDK `greeks_tick_to_dict` missing 16 fields (vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda, vera, date). (#92)
+- Go SDK README documented `ActiveSubscriptions()` return type as `json.RawMessage` -- actually returns `[]Subscription`. (#92)
+- docs-site Go streaming example said "returns json.RawMessage or nil" -- now says "*FpssEvent or nil".
+
+## [5.0.2] - 2026-04-03
+
+### Fixed
+
+- OHLCVC accumulator `volume` and `count` fields widened from `i32` to `i64` to prevent integer overflow on high-volume symbols during dev server replay. (#80)
+
+## [5.0.1] - 2026-04-03
+
+### Fixed
+
+- `FpssClient::connect()` now uses `DirectConfig::fpss_hosts` instead of hardcoded production servers. `dev()` and `stage()` configs now correctly connect to their respective FPSS servers. (#77)
+- Removed dead `SERVERS` constant from `protocol.rs`
+
+## [5.0.0] - 2026-04-02
+
+### Breaking Changes
+
+- **Builder pattern on all 61 endpoints** -- methods return builders with `IntoFuture`. `start_time`/`end_time` are now builder methods, not positional params. All optional proto params exposed as chainable setters.
+- `received_at_ns: u64` added to every `FpssData` variant (Quote, Trade, OpenInterest, Ohlcvc)
+- `DirectConfig::dev()` now uses actual ThetaData dev FPSS servers (port 20200, infinite replay) instead of production with reduced buffers
+
+### Added
+
+- **Builder pattern** -- all endpoints return chainable builders. Zero noise for simple calls, all optional proto params discoverable via autocomplete.
+- **`received_at_ns`** -- nanosecond receive timestamp on every FPSS event for latency measurement
+- **`tdbe::latency::latency_ns()`** -- DST-aware wire-to-application latency computation
+- **`FpssFlushMode`** -- `Batched` (default, matches Java) or `Immediate` (lowest latency)
+- **Metrics** -- `metrics` crate integration. Counters/histograms on all gRPC, FPSS, and auth operations. Zero overhead when no backend installed.
+- **Config file** -- `DirectConfig::from_file()` behind `config-file` feature flag. TOML format matching v3 terminal.
+- **`DirectConfig::stage()`** -- staging FPSS servers (port 20100)
+- **3 FPSS methods** in all SDKs -- `subscribe_full_open_interest`, `unsubscribe_full_trades`, `unsubscribe_full_open_interest`
+- **Cross-platform CI** -- Format, Lint, Test, FFI Build on Ubuntu + macOS + Windows
+- **Macro guide** -- `docs/macro-guide.md` for contributors
+- **DST pre-2007 safety net** -- handles old US DST rules (April-October) for pre-2007 dates
+- **`unsubscribe_option_open_interest`** in Python SDK (was missing)
+- **Go `FpssClient`** -- complete standalone streaming client wrapper (`sdks/go/fpss.go`)
+
+### Fixed
+
+- 30 documentation findings from production audit (version pins, method tables, CHANGELOG, SECURITY)
+- 14 public methods missing doc comments on `ThetaDataDx`
+- Python SDK `lock().unwrap()` changed to poison recovery
+- Legacy `config.default.properties` removed (v2 artifact)
+
 ## [4.5.0] - 2026-04-02
 
 ### Breaking Changes
@@ -40,6 +303,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [4.4.0] - 2026-04-02
 
+v3 MDDS DataTable parsing (Timestamp cells), DST-aware timezone, gRPC flow control, header aliases for EOD. See v4.5.0 for cumulative details.
+
 ## [4.3.0] - 2026-04-02
 
 ### Added
@@ -63,6 +328,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Supported interval presets
 
 `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`
+
+## [4.1.2] - 2026-04-01
+
+Interval format conversion (later superseded by shorthand normalization in v4.2.0).
 
 ## [4.1.1] - 2026-04-01
 
@@ -114,13 +383,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Go SDK `priceToFloat()` was fundamentally wrong -- used a switch statement instead of `value * 10^(type-10)`. Every price in the Go SDK was incorrect.
-- Python docs used `event["type"]` instead of `event["kind"]` in streaming examples
-- `Price::new()` used `assert!` in release builds -- changed to `debug_assert!` + silent clamp. Corrupt frames no longer crash production.
-- C++ `FpssClient` missing `unsubscribe_quotes()` method
-- FFI FPSS functions used `.lock().unwrap()` -- changed to poison recovery
-- WebSocket handler missing `OPEN_INTEREST` and `FULL_TRADES` dispatch
-- `Credentials.password` changed from `pub` to `pub(crate)` with accessor
 - Query builder syntax highlighter regex cross-contamination (visible `class="hl-string"` in rendered code)
 
 ### Changed
@@ -504,7 +766,25 @@ See [TODO.md](TODO.md) for the production readiness checklist and performance ro
 - FIT decoder uses i64 accumulator with i32 saturation (no silent overflow)
 - Price type range enforced with `assert!` in release builds
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v3.2.2...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v5.4.0...HEAD
+[5.4.0]: https://github.com/userFRM/ThetaDataDx/compare/v5.3.1...v5.4.0
+[5.3.1]: https://github.com/userFRM/ThetaDataDx/compare/v5.3.0...v5.3.1
+[5.3.0]: https://github.com/userFRM/ThetaDataDx/compare/v5.2.1...v5.3.0
+[5.2.1]: https://github.com/userFRM/ThetaDataDx/compare/v5.2.0...v5.2.1
+[5.2.0]: https://github.com/userFRM/ThetaDataDx/compare/v5.1.1...v5.2.0
+[5.1.1]: https://github.com/userFRM/ThetaDataDx/compare/v5.1.0...v5.1.1
+[5.1.0]: https://github.com/userFRM/ThetaDataDx/compare/v5.0.2...v5.1.0
+[5.0.2]: https://github.com/userFRM/ThetaDataDx/compare/v5.0.1...v5.0.2
+[5.0.1]: https://github.com/userFRM/ThetaDataDx/compare/v5.0.0...v5.0.1
+[5.0.0]: https://github.com/userFRM/ThetaDataDx/compare/v4.5.0...v5.0.0
+[4.5.0]: https://github.com/userFRM/ThetaDataDx/compare/v4.4.0...v4.5.0
+[4.4.0]: https://github.com/userFRM/ThetaDataDx/compare/v4.3.0...v4.4.0
+[4.3.0]: https://github.com/userFRM/ThetaDataDx/compare/v4.2.0...v4.3.0
+[4.2.0]: https://github.com/userFRM/ThetaDataDx/compare/v4.1.2...v4.2.0
+[4.1.2]: https://github.com/userFRM/ThetaDataDx/compare/v4.1.1...v4.1.2
+[4.1.1]: https://github.com/userFRM/ThetaDataDx/compare/v4.1.0...v4.1.1
+[4.1.0]: https://github.com/userFRM/ThetaDataDx/compare/v4.0.0...v4.1.0
+[4.0.0]: https://github.com/userFRM/ThetaDataDx/compare/v3.2.2...v4.0.0
 [3.2.2]: https://github.com/userFRM/ThetaDataDx/compare/v3.2.0...v3.2.2
 [3.2.0]: https://github.com/userFRM/ThetaDataDx/compare/v3.1.0...v3.2.0
 [3.1.0]: https://github.com/userFRM/ThetaDataDx/compare/v3.0.0...v3.1.0
