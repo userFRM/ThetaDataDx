@@ -10,5 +10,5 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 thetadatadx = { path = "../crates/thetadatadx" }
-tdbe = { version = "0.7.0", path = "../crates/tdbe" }
+tdbe = { version = "0.8.0", path = "../crates/tdbe" }
 tokio = { version = "1.50.0", features = ["rt-multi-thread"] }

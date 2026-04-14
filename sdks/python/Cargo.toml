@@ -16,7 +16,7 @@ crate-type = ["cdylib"]
 [dependencies]
 # The Rust SDK we're wrapping
 thetadatadx = { path = "../../crates/thetadatadx" }
-tdbe = { version = "0.7.0", path = "../../crates/tdbe" }
+tdbe = { version = "0.8.0", path = "../../crates/tdbe" }
 
 # PyO3 bindings. We target the stable ABI so one wheel per platform supports
 # every Python version from 3.9 upward.

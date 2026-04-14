@@ -23,7 +23,7 @@ default = []
 config-file = ["dep:toml"]
 
 [dependencies]
-tdbe = { version = "0.7.0", path = "../tdbe" }
+tdbe = { version = "0.8.0", path = "../tdbe" }
 
 # gRPC + protobuf (tonic 0.14 extracted prost codec into tonic-prost)
 tonic = { version = "=0.14.5", features = ["tls-ring", "tls-native-roots", "channel", "transport"] }
