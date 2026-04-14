@@ -261,7 +261,7 @@ All endpoints return fully typed C++ structs. No raw JSON.
 
 All price fields (`open`, `high`, `low`, `close`, `bid`, `ask`, `price`, `strike`) are `double` (f64) -- decoded during parsing. No `price_type` in the public API.
 
-**Contract identification fields** (bold above): `expiration`, `strike`, `right` are populated by the server on wildcard queries (pass `"0"` for expiration/strike). On single-contract queries these fields are `0`. The `right` parameter accepts `"C"` (call), `"P"` (put), or `"both"` -- not `"0"`.
+**Contract identification fields** (bold above): `expiration`, `strike`, `right` are populated by the server on wildcard queries (pass `"0"` for expiration/strike). On single-contract queries these fields are `0`. The `right` input parameter accepts `"call"`, `"put"`, `"C"`, `"P"` (case-insensitive), plus `"both"`/`"*"` on endpoints that support a wildcard -- not `"0"`. Output values stay `"C"`/`"P"`.
 
 ## FPSS Streaming
 

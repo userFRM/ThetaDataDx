@@ -138,13 +138,26 @@ impl Contract {
     /// - `root`: Underlying ticker (e.g., `"AAPL"`)
     /// - `exp_date`: Expiration as `"YYYYMMDD"` (e.g., `"20260320"`)
     /// - `strike`: Strike price in dollars as string (e.g., `"550"`)
-    /// - `right`: `"C"` for call, `"P"` for put
+    /// - `right`: option right — accepts `"call"`/`"put"`/`"C"`/`"P"`
+    ///   (case-insensitive). FPSS per-contract subscriptions cannot carry
+    ///   the `both` / `*` wildcard, so those values are rejected.
+    ///
+    /// # Panics
+    ///
+    /// Panics with a descriptive message if `exp_date`, `strike`, or
+    /// `right` cannot be parsed. This matches the existing panic-on-
+    /// invalid-input style for strike/expiration. Use
+    /// [`crate::right::parse_right_strict`] upstream for fallible parsing
+    /// of untrusted input.
     pub fn option(root: impl Into<String>, exp_date: &str, strike: &str, right: &str) -> Self {
         let exp: i32 = exp_date
             .replace('-', "")
             .parse()
             .expect("invalid expiration date");
-        let is_call = right.eq_ignore_ascii_case("C") || right.eq_ignore_ascii_case("call");
+        let is_call = crate::right::parse_right_strict(right)
+            .unwrap_or_else(|err| panic!("{err}"))
+            .as_is_call()
+            .expect("parse_right_strict guarantees single-side resolution");
         let strike_dollars: f64 = strike.parse().expect("invalid strike price");
         let strike_raw = (strike_dollars * 1000.0).round() as i32;
         Self {

@@ -46,12 +46,15 @@ pub(crate) fn validate_interval(value: &str, param_name: &str) -> Result<(), End
 }
 
 pub(crate) fn validate_right(value: &str, param_name: &str) -> Result<(), EndpointError> {
-    match value.to_uppercase().as_str() {
-        "C" | "P" | "CALL" | "PUT" => Ok(()),
-        _ => Err(EndpointError::InvalidParams(format!(
-            "'{param_name}' must be C, P, call, or put, got: '{value}'"
-        ))),
-    }
+    // Delegate to the canonical parser so the accepted vocabulary stays in
+    // one place. The endpoint layer does not distinguish Call/Put/Both here
+    // -- per-endpoint logic in the direct client decides whether `both` /
+    // `*` is meaningful -- so we only care about "is this parseable at all".
+    crate::right::parse_right(value).map(|_| ()).map_err(|_| {
+        EndpointError::InvalidParams(format!(
+            "'{param_name}' must be one of: 'call', 'put', 'both', 'C', 'P', '*' (case-insensitive), got: '{value}'"
+        ))
+    })
 }
 
 pub(crate) fn validate_year(value: &str, param_name: &str) -> Result<(), EndpointError> {

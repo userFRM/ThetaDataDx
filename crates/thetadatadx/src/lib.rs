@@ -98,6 +98,7 @@ pub mod endpoint;
 pub mod error;
 pub mod fpss;
 pub mod registry;
+pub mod right;
 pub mod unified;
 pub(crate) mod validate;
 
@@ -128,4 +129,5 @@ pub use config::{DirectConfig, FpssFlushMode, ReconnectPolicy};
 pub use endpoint::{EndpointArgValue, EndpointArgs, EndpointError, EndpointOutput};
 pub use error::{AuthErrorKind, Error, FpssErrorKind};
 pub use registry::{EndpointMeta, ParamMeta, ParamType, ReturnType, ENDPOINTS};
+pub use right::{parse_right, parse_right_strict, ParsedRight};
 pub use unified::{ConnectionStatus, SubscriptionInfo, ThetaDataDx};
