@@ -11,7 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 thetadatadx = { path = "../../crates/thetadatadx" }
-tdbe = { version = "0.7.0", path = "../../crates/tdbe" }
+tdbe = { version = "0.8.0", path = "../../crates/tdbe" }
 clap = { version = "4", features = ["derive"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 sonic-rs = "0.3"
