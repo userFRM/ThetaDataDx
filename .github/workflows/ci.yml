@@ -196,34 +196,14 @@ jobs:
             local version
             local existing=""
 
-            version=$(python3 - "$manifest_path" <<'PY'
-import pathlib
-import sys
-import tomllib
-
-manifest = pathlib.Path(sys.argv[1])
-data = tomllib.loads(manifest.read_text())
-print(data["package"]["version"])
-PY
-)
+            version=$(python3 -c 'import pathlib, sys, tomllib; data = tomllib.loads(pathlib.Path(sys.argv[1]).read_text()); print(data["package"]["version"])' "$manifest_path")
 
             for attempt in {1..10}; do
               if cargo publish -p "$package" --locked; then
                 return 0
               fi
 
-              existing=$(python3 - "$package" <<'PY'
-import json
-import sys
-import urllib.request
-
-package = sys.argv[1]
-url = f"https://crates.io/api/v1/crates/{package}"
-with urllib.request.urlopen(url, timeout=30) as response:
-    data = json.load(response)
-print(data["crate"]["max_version"])
-PY
-)
+              existing=$(python3 -c 'import json, sys, urllib.request; url = f"https://crates.io/api/v1/crates/{sys.argv[1]}"; data = json.load(urllib.request.urlopen(url, timeout=30)); print(data["crate"]["max_version"])' "$package")
 
               if [ "$existing" = "$version" ]; then
                 echo "$package $version already exists on crates.io; skipping publish"
