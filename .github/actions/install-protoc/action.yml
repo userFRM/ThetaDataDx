@@ -25,5 +25,20 @@ runs:
       if: runner.os == 'Windows'
       shell: pwsh
       run: |
-        choco install protoc --yes
-        protoc --version
+        $ErrorActionPreference = 'Stop'
+        $version = '34.1'
+        $zipPath = Join-Path $env:RUNNER_TEMP "protoc-$version-win64.zip"
+        $extractDir = Join-Path $env:RUNNER_TEMP "protoc-$version-win64"
+        $downloadUrl = "https://github.com/protocolbuffers/protobuf/releases/download/v$version/protoc-$version-win64.zip"
+
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath
+
+        if (Test-Path $extractDir) {
+          Remove-Item -Recurse -Force $extractDir
+        }
+
+        Expand-Archive -Path $zipPath -DestinationPath $extractDir
+        $binDir = Join-Path $extractDir 'bin'
+        $protocExe = Join-Path $binDir 'protoc.exe'
+        $binDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        & $protocExe --version
