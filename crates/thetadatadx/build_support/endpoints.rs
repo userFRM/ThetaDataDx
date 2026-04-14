@@ -3187,14 +3187,14 @@ fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("        cwd=REPO,\n");
     out.push_str("        stdout=subprocess.PIPE,\n");
     out.push_str("        stderr=subprocess.STDOUT,\n");
-    out.push_str("        text=True,\n");
     out.push_str("        check=False,\n");
     out.push_str("    )\n");
+    out.push_str("    output = (proc.stdout or b\"\").decode(\"utf-8\", errors=\"replace\")\n");
     out.push_str("    if proc.returncode == 0:\n");
     out.push_str("        print(f\"  {name:45s} PASS\")\n");
     out.push_str("        pass_count += 1\n");
     out.push_str("        continue\n");
-    out.push_str("    msg = proc.stdout.lower()\n");
+    out.push_str("    msg = output.lower()\n");
     out.push_str("    if \"permission\" in msg or \"subscription\" in msg:\n");
     out.push_str("        print(f\"  {name:45s} SKIP  (tier)\")\n");
     out.push_str("        skip_count += 1\n");
@@ -3202,7 +3202,7 @@ fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("        print(f\"  {name:45s} PASS  (no data)\")\n");
     out.push_str("        pass_count += 1\n");
     out.push_str("    else:\n");
-    out.push_str("        print(f\"  {name:45s} FAIL  {proc.stdout.strip()}\")\n");
+    out.push_str("        print(f\"  {name:45s} FAIL  {output.strip()}\")\n");
     out.push_str("        fail_count += 1\n");
     out.push('\n');
     out.push_str("print(f\"\\nCLI: {pass_count} PASS, {skip_count} SKIP, {fail_count} FAIL\")\n");

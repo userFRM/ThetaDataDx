@@ -69,15 +69,15 @@ def _run(cmd: list[str], *, env: dict[str, str] | None = None, timeout: int = 60
         env={**os.environ, **(env or {})},
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        text=True,
         timeout=timeout,
         check=False,
     )
+    output = (proc.stdout or b"").decode("utf-8", errors="replace")
     if proc.returncode != 0:
         raise RuntimeError(
-            f"command failed ({proc.returncode}): {' '.join(cmd)}\n{proc.stdout.strip()}"
+            f"command failed ({proc.returncode}): {' '.join(cmd)}\n{output.strip()}"
         )
-    return proc.stdout
+    return output
 
 
 def _wait_http_json(url: str, *, timeout: float = 30.0) -> Any:

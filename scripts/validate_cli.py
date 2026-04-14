@@ -86,14 +86,14 @@ for name, args in ENDPOINTS:
         cwd=REPO,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        text=True,
         check=False,
     )
+    output = (proc.stdout or b"").decode("utf-8", errors="replace")
     if proc.returncode == 0:
         print(f"  {name:45s} PASS")
         pass_count += 1
         continue
-    msg = proc.stdout.lower()
+    msg = output.lower()
     if "permission" in msg or "subscription" in msg:
         print(f"  {name:45s} SKIP  (tier)")
         skip_count += 1
@@ -101,7 +101,7 @@ for name, args in ENDPOINTS:
         print(f"  {name:45s} PASS  (no data)")
         pass_count += 1
     else:
-        print(f"  {name:45s} FAIL  {proc.stdout.strip()}")
+        print(f"  {name:45s} FAIL  {output.strip()}")
         fail_count += 1
 
 print(f"\nCLI: {pass_count} PASS, {skip_count} SKIP, {fail_count} FAIL")
