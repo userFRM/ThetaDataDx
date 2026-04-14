@@ -1,39 +1,41 @@
 #!/usr/bin/env python3
-"""Validate `<TierBadge tier="..." />` badges in docs-site against upstream truth.
+"""Validate ``<TierBadge tier="..." />`` badges against upstream ThetaData.
 
-The authoritative source is ThetaData's OpenAPI YAML
-(https://docs.thetadata.us/openapiv3.yaml), which encodes the minimum
-subscription tier of every endpoint in a top-level `x-min-subscription:`
-field. We keep a checked-in snapshot of that mapping in
-`scripts/upstream_tiers.json` (refreshed by hand, traceable via
-`_source` / `_captured_at`).
+The authoritative source is ThetaData's OpenAPI spec
+(``https://docs.thetadata.us/openapiv3.yaml``), which encodes the minimum
+subscription tier of every endpoint via a top-level
+``x-min-subscription:`` field. We fetch it at check time -- no snapshot to
+refresh, no drift vector.
 
-This script walks `docs-site/docs/historical/**/*.md`, extracts each page's
-`<TierBadge tier="..." />`, maps the docs path to an upstream endpoint path,
-and fails if any badge disagrees with the snapshot. Also fails if a docs
-page maps to an endpoint absent from the snapshot (so new endpoints surface
-loudly), apart from a small allow-list of endpoints upstream doesn't
-document.
-
-No network calls at CI time -- the snapshot is the contract.
+The script walks ``docs-site/docs/historical/**/*.md``, extracts each
+page's ``<TierBadge tier="..." />``, maps the docs path to an upstream
+endpoint path, and fails if any badge disagrees with upstream. Also fails
+if a docs page maps to an endpoint absent from upstream (so new endpoints
+surface loudly), apart from a small allow-list of endpoints upstream
+doesn't document.
 """
 
 from __future__ import annotations
 
-import json
 import re
 import sys
+import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SNAPSHOT_PATH = ROOT / "scripts/upstream_tiers.json"
 HISTORICAL_ROOT = ROOT / "docs-site/docs/historical"
+
+UPSTREAM_URL = "https://docs.thetadata.us/openapiv3.yaml"
+FETCH_TIMEOUT_SECS = 30
+FETCH_MAX_ATTEMPTS = 4  # ~= 0s, 2s, 4s, 8s backoff cumulative <= 15s
 
 # Docs pages that intentionally have no upstream counterpart. These are
 # endpoints ThetaDataDx exposes (or static informational pages) that the
 # upstream ThetaData OpenAPI schema doesn't cover. Keys are paths relative
-# to `docs-site/docs/`.
+# to ``docs-site/docs/``.
 ALLOWLIST: dict[str, str | None] = {
     "historical/rate/eod.md": None,
 }
@@ -63,7 +65,7 @@ GREEK_LEAF_REWRITES: dict[str, str] = {
 }
 
 # Full-path rewrites for endpoints whose docs path can't be mechanically
-# derived. Keys are docs paths relative to `docs-site/docs/`.
+# derived. Keys are docs paths relative to ``docs-site/docs/``.
 PATH_REWRITES: dict[str, str] = {
     "historical/calendar/open-today.md": "/calendar/today",
     "historical/calendar/year.md": "/calendar/year_holidays",
@@ -73,10 +75,58 @@ PATH_REWRITES: dict[str, str] = {
     "historical/stock/list/dates.md": "/stock/list/dates/{request_type}",
 }
 
+# OpenAPI YAML is large but highly regular: every endpoint starts with
+# two spaces + `/` + path + `:`, and every `x-min-subscription:` line is
+# indented four spaces. Avoid adding a PyYAML dep just to pull two fields
+# out of one file.
+ENDPOINT_LINE_RE = re.compile(r"^  (/\S+?):\s*$")
+TIER_LINE_RE = re.compile(r"^    x-min-subscription:\s+(\S+)")
+
 
 def fail(message: str) -> None:
     print(f"tier badge check error: {message}", file=sys.stderr)
     raise SystemExit(1)
+
+
+def fetch_upstream_yaml() -> str:
+    """Fetch the upstream OpenAPI YAML with retries. Fail-closed on exhaustion."""
+    last_err: Exception | None = None
+    for attempt in range(1, FETCH_MAX_ATTEMPTS + 1):
+        try:
+            with urllib.request.urlopen(UPSTREAM_URL, timeout=FETCH_TIMEOUT_SECS) as resp:  # noqa: S310
+                return resp.read().decode("utf-8")
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
+            last_err = exc
+            if attempt == FETCH_MAX_ATTEMPTS:
+                break
+            sleep_s = 2 ** (attempt - 1)
+            print(
+                f"  upstream fetch attempt {attempt}/{FETCH_MAX_ATTEMPTS} failed "
+                f"({exc}); retrying in {sleep_s}s...",
+                file=sys.stderr,
+            )
+            time.sleep(sleep_s)
+    fail(
+        f"could not fetch {UPSTREAM_URL} after {FETCH_MAX_ATTEMPTS} attempts: {last_err}"
+    )
+    return ""  # unreachable; fail() raises
+
+
+def parse_tier_mapping(yaml_text: str) -> dict[str, str]:
+    """Extract ``path -> x-min-subscription`` from the OpenAPI YAML."""
+    mapping: dict[str, str] = {}
+    current_path: str | None = None
+    for line in yaml_text.splitlines():
+        m = ENDPOINT_LINE_RE.match(line)
+        if m:
+            current_path = m.group(1)
+            continue
+        m = TIER_LINE_RE.match(line)
+        if m and current_path is not None:
+            mapping[current_path] = m.group(1)
+    if not mapping:
+        fail("parsed 0 endpoints from upstream YAML -- schema changed?")
+    return mapping
 
 
 def docs_path_to_endpoint(rel_path: str) -> str | None:
@@ -88,7 +138,6 @@ def docs_path_to_endpoint(rel_path: str) -> str | None:
     if rel_path in PATH_REWRITES:
         return PATH_REWRITES[rel_path]
 
-    # Drop the `historical/` prefix.
     if not rel_path.startswith("historical/"):
         return None
     tail = rel_path[len("historical/") :]
@@ -105,8 +154,6 @@ def docs_path_to_endpoint(rel_path: str) -> str | None:
     leaf = parts[-1]
     parents = parts[:-1]
 
-    # Handle greek leaf special cases (these always live under `snapshot/`
-    # or `history/` parent categories).
     if leaf in GREEK_LEAF_REWRITES:
         leaf_translated = GREEK_LEAF_REWRITES[leaf]
     else:
@@ -114,8 +161,7 @@ def docs_path_to_endpoint(rel_path: str) -> str | None:
 
     parents_translated = [SEGMENT_REWRITES.get(p, p).replace("-", "_") for p in parents]
 
-    endpoint = "/" + "/".join(parents_translated + [leaf_translated])
-    return endpoint
+    return "/" + "/".join(parents_translated + [leaf_translated])
 
 
 def find_tier_badge(text: str) -> str | None:
@@ -125,21 +171,14 @@ def find_tier_badge(text: str) -> str | None:
     return match.group(1)
 
 
-def load_snapshot() -> dict[str, str]:
-    if not SNAPSHOT_PATH.exists():
-        fail(f"{SNAPSHOT_PATH.relative_to(ROOT)} missing")
-    data = json.loads(SNAPSHOT_PATH.read_text())
-    endpoints = data.get("endpoints")
-    if not isinstance(endpoints, dict):
-        fail(f"{SNAPSHOT_PATH.relative_to(ROOT)} has no `endpoints` object")
-    return endpoints
-
-
 def main() -> int:
-    snapshot = load_snapshot()
+    print(f"fetching {UPSTREAM_URL} ...", flush=True)
+    yaml_text = fetch_upstream_yaml()
+    upstream = parse_tier_mapping(yaml_text)
+    print(f"  parsed {len(upstream)} upstream endpoints", flush=True)
 
-    mismatches: list[tuple[str, str, str, str]] = []  # (rel, endpoint, docs_tier, upstream_tier)
-    unmapped: list[tuple[str, str]] = []  # (rel, guessed_endpoint)
+    mismatches: list[tuple[str, str, str, str]] = []
+    unmapped: list[tuple[str, str]] = []
     missing_badge: list[str] = []
 
     for md_path in sorted(HISTORICAL_ROOT.rglob("*.md")):
@@ -149,27 +188,24 @@ def main() -> int:
 
         endpoint = docs_path_to_endpoint(rel)
         if endpoint is None:
-            # Section index pages -- no endpoint, shouldn't have a badge.
             if badge is not None:
                 fail(f"{rel} has a TierBadge but isn't an endpoint page")
             continue
 
         if rel in ALLOWLIST:
-            # Allow-listed: no upstream tier to compare against, but if a
-            # badge is present we just trust it. Skip further checks.
             continue
 
         if badge is None:
             missing_badge.append(rel)
             continue
 
-        upstream = snapshot.get(endpoint)
-        if upstream is None:
+        upstream_tier = upstream.get(endpoint)
+        if upstream_tier is None:
             unmapped.append((rel, endpoint))
             continue
 
-        if badge != upstream:
-            mismatches.append((rel, endpoint, badge, upstream))
+        if badge != upstream_tier:
+            mismatches.append((rel, endpoint, badge, upstream_tier))
 
     ok = True
 
@@ -182,8 +218,8 @@ def main() -> int:
     if unmapped:
         ok = False
         print(
-            "Docs pages whose mapped endpoint is not in scripts/upstream_tiers.json "
-            "(either refresh the snapshot, add to ALLOWLIST, or fix the mapping):",
+            "Docs pages whose mapped endpoint is not in upstream openapiv3.yaml "
+            "(add to ALLOWLIST if upstream doesn't document it, or fix the mapping):",
             file=sys.stderr,
         )
         for rel, endpoint in unmapped:

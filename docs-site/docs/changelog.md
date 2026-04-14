@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`scripts/check_tier_badges.py` now live-fetches ThetaData's \`openapiv3.yaml\`** (#280) -- removes \`scripts/upstream_tiers.json\` (a data file that didn't belong under \`scripts/\` anyway) and pulls the authoritative \`x-min-subscription\` map at check time, with 4 retries + exponential backoff and fail-closed on exhaustion. Eliminates the manual snapshot-refresh drift vector. The \`Extended Surfaces\` CI job already has outbound access, so no workflow changes required.
+
 ## [7.1.0] - 2026-04-14
 
 ### Breaking Changes
