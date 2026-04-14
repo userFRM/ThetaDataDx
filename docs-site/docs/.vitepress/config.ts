@@ -55,6 +55,7 @@ export default withMermaid(defineConfig({
       },
       {
         text: 'Historical Data',
+        link: '/historical/',
         collapsed: true,
         items: [
           {
@@ -254,6 +255,7 @@ export default withMermaid(defineConfig({
       },
       {
         text: 'Tools',
+        link: '/tools/',
         collapsed: true,
         items: [
           { text: 'CLI', link: '/tools/cli' },
