@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Silent put-default on invalid `right` in `Contract::option`** (#270) -- previously `Contract::option(..., "xyz")` silently constructed a put contract because the parser only checked for call forms. Now panics with a descriptive message, consistent with the existing strike/expiration panic style.
 
+### Docs
+
+- **Deleted orphan docs-site pages** (#272) -- removed top-level single-page versions (`getting-started.md`, `historical.md`, `historical/{stock,option,index-data,calendar}.md`, `streaming.md`, `tools/index.md`) superseded by the subdirectory navigation. Added a `## Client Model` section to `docs-site/docs/streaming/index.md` that makes the per-SDK split (Rust/Python unified `ThetaDataDx`, Go/C++ standalone `FpssClient`) unmistakable. Removed `ignoreDeadLinks: true` from `docs-site/docs/.vitepress/config.ts` so future link rot fails the VitePress build.
+
 ## [7.0.0] - 2026-04-14
 
 ### Breaking Changes
@@ -661,7 +665,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 - **Streaming `_stream` endpoints** — process gRPC responses chunk-by-chunk without
   materializing the full DataTable in memory.
 
-See [TODO.md](TODO.md) for the production readiness checklist and performance roadmap.
+See `TODO.md` (as of the 1.2.0 release) for the production readiness checklist and performance roadmap.
 
 ## [1.1.1] - 2026-03-26
 

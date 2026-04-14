@@ -108,10 +108,6 @@ def check_static_docs() -> None:
     )
     # Version strings in getting-started docs must match the workspace version.
     expect_contains(
-        ROOT / "docs-site/docs/getting-started.md",
-        'thetadatadx = "7.0"',
-    )
-    expect_contains(
         ROOT / "docs-site/docs/getting-started/installation.md",
         'thetadatadx = "7.0"',
     )
@@ -228,26 +224,23 @@ def check_static_docs() -> None:
         ROOT / "sdks/python/README.md",
         "`subscribe_option_quotes(symbol, expiration, strike, right)`",
     )
-    expect_not_contains(
-        ROOT / "docs-site/docs/streaming.md",
-        "Python does not expose reconnect_streaming() directly.",
-    )
-    expect_not_contains(
-        ROOT / "docs-site/docs/streaming.md",
-        "Go does not expose reconnect_streaming() directly.",
-    )
-    expect_not_contains(
-        ROOT / "docs-site/docs/streaming.md",
-        "C++ does not expose reconnect_streaming() directly.",
-    )
-    expect_contains(ROOT / "docs-site/docs/streaming.md", "| `Reconnect` | `() error` |")
+    # Streaming method-reference guards (retargeted after the top-level
+    # streaming.md orphan was deleted in favor of the streaming/*.md subdirectory).
+    for streaming_page in [
+        ROOT / "docs-site/docs/streaming/index.md",
+        ROOT / "docs-site/docs/streaming/connection.md",
+        ROOT / "docs-site/docs/streaming/events.md",
+        ROOT / "docs-site/docs/streaming/reconnection.md",
+        ROOT / "docs-site/docs/streaming/latency.md",
+    ]:
+        expect_not_contains(streaming_page, "Python does not expose reconnect_streaming() directly.")
+        expect_not_contains(streaming_page, "Go does not expose reconnect_streaming() directly.")
+        expect_not_contains(streaming_page, "C++ does not expose reconnect_streaming() directly.")
+        expect_not_contains(streaming_page, "| `active_subscriptions` | `() -> std::string` |")
+    expect_contains(ROOT / "docs-site/docs/streaming/events.md", "| `Reconnect` | `() error` |")
     expect_contains(
-        ROOT / "docs-site/docs/streaming.md",
+        ROOT / "docs-site/docs/streaming/events.md",
         "| `contract_map` | `() -> std::map<int32_t, std::string>` |",
-    )
-    expect_not_contains(
-        ROOT / "docs-site/docs/streaming.md",
-        "| `active_subscriptions` | `() -> std::string` |",
     )
     expect_contains(
         ROOT / "docs-site/docs/streaming/events.md",
