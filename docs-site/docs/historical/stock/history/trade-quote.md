@@ -7,7 +7,7 @@ description: Combined trade and prevailing NBBO quote ticks for a stock on a giv
 
 Combined trade + quote ticks for a stock on a given date. Each row contains the full trade data plus the prevailing NBBO quote at the time of the trade.
 
-<TierBadge tier="professional" />
+<TierBadge tier="standard" />
 
 ## Code Example
 

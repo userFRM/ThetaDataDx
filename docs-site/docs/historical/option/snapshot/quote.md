@@ -5,7 +5,7 @@ description: Latest NBBO quote snapshot for an option contract.
 
 # option_snapshot_quote
 
-<TierBadge tier="free" />
+<TierBadge tier="value" />
 
 Get the latest NBBO (National Best Bid and Offer) quote snapshot for an option contract.
 

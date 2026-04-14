@@ -5,7 +5,7 @@ description: List all option contracts for a symbol on a given date.
 
 # option_list_contracts
 
-<TierBadge tier="free" />
+<TierBadge tier="value" />
 
 List all option contracts available for a given underlying symbol on a specific date. Returns the full matrix of expirations, strikes, and sides.
 

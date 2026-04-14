@@ -5,7 +5,7 @@ description: Latest trade snapshot for an option contract.
 
 # option_snapshot_trade
 
-<TierBadge tier="free" />
+<TierBadge tier="standard" />
 
 Get the latest trade snapshot for an option contract.
 

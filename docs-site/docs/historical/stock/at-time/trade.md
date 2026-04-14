@@ -9,7 +9,7 @@ Retrieve the trade at a specific time of day across a date range. Returns one tr
 
 The `time_of_day` parameter uses ET wall-clock format `HH:MM:SS.SSS` (for example `09:30:00.000`). Legacy millisecond strings such as `34200000` are also accepted.
 
-<TierBadge tier="value" />
+<TierBadge tier="standard" />
 
 ## Code Example
 

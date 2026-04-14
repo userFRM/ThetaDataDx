@@ -5,7 +5,7 @@ description: Open interest history for an option contract.
 
 # option_history_open_interest
 
-<TierBadge tier="free" />
+<TierBadge tier="value" />
 
 Retrieve open interest history for an option contract.
 

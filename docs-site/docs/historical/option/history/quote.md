@@ -5,7 +5,7 @@ description: NBBO quotes for an option contract at a given interval.
 
 # option_history_quote
 
-<TierBadge tier="standard" />
+<TierBadge tier="value" />
 
 Retrieve NBBO quotes for an option contract, sampled at a specified interval.
 

@@ -5,7 +5,7 @@ description: First-order Greeks history at a given interval.
 
 # option_history_greeks_first_order
 
-<TierBadge tier="professional" />
+<TierBadge tier="standard" />
 
 Retrieve first-order Greeks (delta, theta, vega, rho, epsilon, lambda) sampled at a given interval throughout a trading day.
 

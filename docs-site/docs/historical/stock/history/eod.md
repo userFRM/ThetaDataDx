@@ -7,7 +7,7 @@ description: End-of-day stock data (OHLC + closing quote) across a date range.
 
 End-of-day stock data across a date range. Each row contains the full daily OHLC bar plus closing bid/ask quote data (18 fields total).
 
-<TierBadge tier="value" />
+<TierBadge tier="free" />
 
 ## Code Example
 

@@ -5,7 +5,7 @@ description: End-of-day Greeks history for an option contract.
 
 # option_history_greeks_eod
 
-<TierBadge tier="professional" />
+<TierBadge tier="standard" />
 
 Retrieve end-of-day Greeks history for an option contract across a date range.
 

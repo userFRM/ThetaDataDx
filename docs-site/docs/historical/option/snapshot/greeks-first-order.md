@@ -5,7 +5,7 @@ description: First-order Greeks snapshot for an option contract.
 
 # option_snapshot_greeks_first_order
 
-<TierBadge tier="professional" />
+<TierBadge tier="standard" />
 
 Get a snapshot of first-order Greeks for an option contract: delta, theta, vega, rho, epsilon, and lambda.
 

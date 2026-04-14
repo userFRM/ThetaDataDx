@@ -5,7 +5,7 @@ description: Intraday OHLC bars for an option contract.
 
 # option_history_ohlc
 
-<TierBadge tier="free" />
+<TierBadge tier="value" />
 
 Retrieve intraday OHLC bars for an option contract on a given date at a specified interval.
 

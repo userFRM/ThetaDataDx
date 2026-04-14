@@ -5,7 +5,7 @@ description: Get the trading schedule for a specific date.
 
 # calendar_on_date
 
-<TierBadge tier="free" />
+<TierBadge tier="value" />
 
 Retrieve the trading schedule for a specific date, including whether it is a regular trading day, early close, or holiday.
 

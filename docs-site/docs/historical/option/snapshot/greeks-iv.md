@@ -5,7 +5,7 @@ description: Implied volatility snapshot for an option contract.
 
 # option_snapshot_greeks_iv
 
-<TierBadge tier="professional" />
+<TierBadge tier="standard" />
 
 Get the latest implied volatility (IV) snapshot for an option contract.
 

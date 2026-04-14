@@ -5,7 +5,7 @@ description: Latest open interest snapshot for an option contract.
 
 # option_snapshot_open_interest
 
-<TierBadge tier="free" />
+<TierBadge tier="value" />
 
 Get the latest open interest snapshot for an option contract.
 

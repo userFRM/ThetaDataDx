@@ -5,7 +5,7 @@ description: Trade at a specific time of day across a date range for an option c
 
 # option_at_time_trade
 
-<TierBadge tier="free" />
+<TierBadge tier="standard" />
 
 Retrieve the trade at a specific time of day across a date range for an option contract. Returns one trade per date, the most recent trade at or before the specified time.
 

@@ -7,7 +7,7 @@ description: Latest trade snapshot for one or more stocks.
 
 Latest trade snapshot for one or more stocks. Returns the most recent trade execution for each symbol.
 
-<TierBadge tier="value" />
+<TierBadge tier="standard" />
 
 ## Code Example
 

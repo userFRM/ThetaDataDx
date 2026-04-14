@@ -5,7 +5,7 @@ description: Get the full trading calendar for a year.
 
 # calendar_year
 
-<TierBadge tier="free" />
+<TierBadge tier="value" />
 
 Retrieve the complete trading calendar for an entire year, including every trading day, holiday, and early close day.
 
