@@ -60,7 +60,7 @@ jobs:
           import thetadatadx
           from thetadatadx import implied_volatility
 
-          iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0 / 365.0, 8.50, True)
+          iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0 / 365.0, 8.50, "C")
           print(thetadatadx.__file__)
           print(round(iv, 6), round(err, 6))
           PY

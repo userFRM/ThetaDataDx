@@ -37,7 +37,7 @@ func main() {
 	}
 
 	// Greeks calculator (no server connection needed)
-	greeks, err := thetadatadx.AllGreeks(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, true)
+	greeks, err := thetadatadx.AllGreeks(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, "C")
 	if err != nil {
 		log.Fatalf("Failed to compute greeks: %v", err)
 	}
@@ -45,7 +45,7 @@ func main() {
 		greeks.IV, greeks.Delta, greeks.Gamma, greeks.Theta)
 
 	// Implied volatility
-	iv, ivErr, err := thetadatadx.ImpliedVolatility(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, true)
+	iv, ivErr, err := thetadatadx.ImpliedVolatility(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, "C")
 	if err != nil {
 		log.Fatalf("Failed to compute IV: %v", err)
 	}
