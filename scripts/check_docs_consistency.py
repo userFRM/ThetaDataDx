@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
+import subprocess
 import sys
 import tomllib
 
@@ -372,11 +373,26 @@ def check_endpoint_option_surface() -> None:
         expect_not_contains(path, "TdxOptionRequestOptions")
 
 
+def check_tier_badges() -> None:
+    """Delegate to scripts/check_tier_badges.py so CI catches tier drift."""
+    checker = ROOT / "scripts/check_tier_badges.py"
+    if not checker.exists():
+        fail(f"{checker.relative_to(ROOT)} missing")
+    result = subprocess.run(
+        [sys.executable, str(checker)],
+        cwd=ROOT,
+        check=False,
+    )
+    if result.returncode != 0:
+        fail("tier badge check failed (see scripts/check_tier_badges.py output above)")
+
+
 def main() -> None:
     check_static_docs()
     check_api_reference()
     check_openapi()
     check_endpoint_option_surface()
+    check_tier_badges()
     print("docs consistency: ok")
 
 
