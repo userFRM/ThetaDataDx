@@ -6,7 +6,6 @@ export default withMermaid(defineConfig({
   description: 'Direct-wire SDK for ThetaData market data',
   base: '/ThetaDataDx/',
   cleanUrls: true,
-  ignoreDeadLinks: true,
 
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
