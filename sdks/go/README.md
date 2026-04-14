@@ -272,7 +272,7 @@ defer client.Close()
 
 **Contract identification fields** (bold above): `Expiration`, `Strike` (float64), `Right` (string) are populated by the server on wildcard queries (pass `"0"` for expiration/strike). On single-contract queries these fields are zero/empty.
 
-**Right field**: In the Go SDK, `Right` is a human-readable `string` (`"C"` for call, `"P"` for put, `""` if not set).
+**Right field**: In the Go SDK, `Right` is a human-readable `string` (`"C"` for call, `"P"` for put, `""` if not set). On **input**, `right` parameters accept `"call"`, `"put"`, `"C"`, `"P"` (case-insensitive); the server output stays `"C"`/`"P"`.
 
 ## FPSS Streaming
 

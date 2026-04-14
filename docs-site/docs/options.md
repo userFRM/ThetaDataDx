@@ -139,7 +139,7 @@ When you pass `"0"` for `expiration` or `strike`, the server returns data across
 If you are comparing against the v3 REST API, the same wildcard behavior is expressed with `strike=*` / `expiration=*` instead of `"0"`.
 
 ::: warning
-The `right` parameter does **not** accept `"0"` as a wildcard. Use `"C"` (call), `"P"` (put), or `"both"` (calls and puts). Only `expiration` and `strike` accept `"0"` as a wildcard.
+The `right` parameter does **not** accept `"0"` as a wildcard. Use `"C"` / `"call"` for calls, `"P"` / `"put"` for puts, or `"both"` / `"*"` for both (case-insensitive — e.g. `"CALL"`, `"Put"`, `"c"` all work). Only `expiration` and `strike` accept `"0"` as a wildcard.
 :::
 
 ::: code-group

@@ -56,15 +56,21 @@ const TERMINAL_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Normalize the `right` parameter for the v3 MDDS server.
 ///
-/// Accepts: `"C"`, `"P"`, `"call"`, `"put"`, `"both"`, `"*"`.
-/// Maps `"C"` -> `"call"`, `"P"` -> `"put"`, `"*"` -> `"both"`.
+/// Delegates to [`crate::right::parse_right`] — the single source of truth
+/// for accepted `right` forms. Maps `C`/`call` -> `"call"`, `P`/`put` ->
+/// `"put"`, `both`/`*` -> `"both"`, case-insensitive.
+///
+/// # Panics
+///
+/// Panics with a descriptive message on unrecognised input. Endpoint-layer
+/// callers already run `validate_right` before reaching the direct client,
+/// so this path is defence-in-depth; use [`crate::right::parse_right`]
+/// directly for fallible parsing from untrusted input.
 fn normalize_right(right: &str) -> String {
-    match right {
-        "C" | "c" => "call".to_string(),
-        "P" | "p" => "put".to_string(),
-        "*" => "both".to_string(),
-        other => other.to_lowercase(),
-    }
+    crate::right::parse_right(right)
+        .unwrap_or_else(|err| panic!("{err}"))
+        .as_mdds_str()
+        .to_string()
 }
 
 /// Helper: build a `proto::ContractSpec` from the four standard option params.
