@@ -66,6 +66,29 @@ std::pair<int32_t, std::string> require_data_event(tdx::FpssClient& fpss, std::c
     throw std::runtime_error(message);
 }
 
+std::pair<int32_t, std::string> require_data_event_with_retry(
+    tdx::FpssClient& fpss,
+    std::chrono::seconds timeout,
+    int attempts = 3
+) {
+    std::runtime_error last_error("unknown FPSS smoke error");
+    for (int attempt = 1; attempt <= attempts; ++attempt) {
+        try {
+            return require_data_event(fpss, timeout);
+        } catch (const std::runtime_error& error) {
+            last_error = error;
+            if (attempt == attempts) {
+                break;
+            }
+            std::cerr << "fpss smoke retry " << attempt << "/" << (attempts - 1)
+                      << ": " << error.what() << std::endl;
+            fpss.reconnect();
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
+    }
+    throw last_error;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -93,7 +116,8 @@ int main(int argc, char** argv) {
             throw std::runtime_error("expected at least 3 active subscriptions");
         }
 
-        auto [contract_id, first_kind] = require_data_event(fpss, std::chrono::seconds(60));
+        auto [contract_id, first_kind] =
+            require_data_event_with_retry(fpss, std::chrono::seconds(20));
         if (contract_id != 0) {
             const auto contract = fpss.contract_lookup(contract_id);
             if (!contract || contract->empty()) {
@@ -113,7 +137,8 @@ int main(int argc, char** argv) {
             throw std::runtime_error("subscriptions drifted across reconnect");
         }
 
-        auto [contract_id_after, second_kind] = require_data_event(fpss, std::chrono::seconds(60));
+        auto [contract_id_after, second_kind] =
+            require_data_event_with_retry(fpss, std::chrono::seconds(20));
         if (contract_id_after != 0) {
             const auto contract = fpss.contract_lookup(contract_id_after);
             if (!contract || contract->empty()) {

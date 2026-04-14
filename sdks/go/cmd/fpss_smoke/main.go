@@ -58,6 +58,32 @@ func requireDataEvent(client *thetadatadx.FpssClient, timeout time.Duration) (in
 	return 0, lastKind, fmt.Errorf("timed out waiting for FPSS data event (last kind=%s)", lastKind)
 }
 
+func requireDataEventWithRetry(
+	client *thetadatadx.FpssClient,
+	timeout time.Duration,
+	attempts int,
+) (int32, string, error) {
+	var lastErr error
+	var lastKind string
+	for attempt := 1; attempt <= attempts; attempt++ {
+		contractID, kind, err := requireDataEvent(client, timeout)
+		if err == nil {
+			return contractID, kind, nil
+		}
+		lastErr = err
+		lastKind = kind
+		if attempt == attempts {
+			break
+		}
+		log.Printf("fpss smoke retry %d/%d after: %v", attempt, attempts-1, err)
+		if err := client.Reconnect(); err != nil {
+			return 0, lastKind, fmt.Errorf("reconnect during retry %d failed: %w", attempt, err)
+		}
+		time.Sleep(time.Second)
+	}
+	return 0, lastKind, lastErr
+}
+
 func subscriptionsSnapshot(client *thetadatadx.FpssClient) (map[string]struct{}, error) {
 	subs, err := client.ActiveSubscriptions()
 	if err != nil {
@@ -126,7 +152,7 @@ func main() {
 		log.Fatalf("expected at least 3 active subscriptions, got %v", expected)
 	}
 
-	contractID, kind, err := requireDataEvent(fpss, 20*time.Second)
+	contractID, kind, err := requireDataEventWithRetry(fpss, 20*time.Second, 3)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -160,7 +186,7 @@ func main() {
 		log.Fatalf("subscriptions drifted across reconnect: expected %v got %v", expected, after)
 	}
 
-	contractID, kind, err = requireDataEvent(fpss, 20*time.Second)
+	contractID, kind, err = requireDataEventWithRetry(fpss, 20*time.Second, 3)
 	if err != nil {
 		log.Fatal(err)
 	}

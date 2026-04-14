@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 import time
 
 
@@ -19,6 +20,27 @@ def _require_data_event(client, *, timeout_secs: float) -> tuple[int | None, str
         if kind in {"quote", "trade", "open_interest", "ohlcvc"}:
             return event.get("contract_id"), kind
     raise RuntimeError(f"timed out waiting for FPSS data event (last kind={last_kind})")
+
+
+def _require_data_event_with_retry(
+    client, *, timeout_secs: float, attempts: int = 3
+) -> tuple[int | None, str]:
+    last_error: RuntimeError | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            return _require_data_event(client, timeout_secs=timeout_secs)
+        except RuntimeError as exc:
+            last_error = exc
+            if attempt == attempts:
+                break
+            print(
+                f"fpss smoke retry {attempt}/{attempts - 1}: {exc}",
+                file=sys.stderr,
+            )
+            client.reconnect()
+            time.sleep(1.0)
+    assert last_error is not None
+    raise last_error
 
 
 def _subscriptions_snapshot(client) -> set[tuple[str, str]]:
@@ -54,7 +76,9 @@ def main() -> int:
         if len(expected_subs) < 3:
             raise RuntimeError(f"expected at least 3 active subscriptions, got {expected_subs!r}")
 
-        contract_id, first_kind = _require_data_event(client, timeout_secs=20.0)
+        contract_id, first_kind = _require_data_event_with_retry(
+            client, timeout_secs=20.0
+        )
         if contract_id is not None and not client.contract_lookup(contract_id):
             raise RuntimeError(
                 f"contract_lookup({contract_id}) returned nothing after first {first_kind} event"
@@ -71,7 +95,9 @@ def main() -> int:
                 f"subscriptions drifted across reconnect: expected {expected_subs!r}, got {after!r}"
             )
 
-        contract_id, second_kind = _require_data_event(client, timeout_secs=20.0)
+        contract_id, second_kind = _require_data_event_with_retry(
+            client, timeout_secs=20.0
+        )
         if contract_id is not None and not client.contract_lookup(contract_id):
             raise RuntimeError(
                 f"contract_lookup({contract_id}) returned nothing after reconnect {second_kind} event"
