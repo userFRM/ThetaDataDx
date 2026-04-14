@@ -316,7 +316,6 @@ def build_chain(tkr: str, exp_str: str, spot_price: float, n_strikes: int) -> pd
                 row[f"{prefix}oi"] = 0
 
             # Compute Greeks from mid price
-            is_call = right == "C"
             mid_price = row.get(f"{prefix}mid", np.nan)
             if pd.notna(mid_price) and mid_price > 0.01:
                 try:
@@ -327,7 +326,7 @@ def build_chain(tkr: str, exp_str: str, spot_price: float, n_strikes: int) -> pd
                         div_yield=div_yield,
                         tte=tte,
                         option_price=mid_price,
-                        is_call=is_call,
+                        right=right,
                     )
                     if g["iv_error"] < 0.05:
                         row[f"{prefix}iv"] = g["iv"]

@@ -63,12 +63,12 @@ from thetadatadx import all_greeks, implied_volatility
 # All Greeks at once
 g = all_greeks(
     spot=450.0, strike=455.0, rate=0.05, div_yield=0.015,
-    tte=30/365, option_price=8.50, is_call=True
+    tte=30/365, option_price=8.50, right="C"
 )
 print(f"IV={g['iv']:.4f} Delta={g['delta']:.4f} Gamma={g['gamma']:.6f}")
 
 # Just IV
-iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30/365, 8.50, True)
+iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30/365, 8.50, "C")
 ```
 
 ## API
@@ -264,11 +264,11 @@ Convert a list of tick dicts to a pandas DataFrame. Requires `pip install thetad
 All 61 `ThetaDataDx` data methods have `_df` variants that return DataFrames directly:
 `stock_history_eod_df()`, `stock_history_ohlc_df()`, `option_list_expirations_df()`, `index_history_eod_df()`, etc.
 
-### `all_greeks(spot, strike, rate, div_yield, tte, option_price, is_call)`
-Returns dict with 22 Greeks: delta, gamma, theta, vega, rho, iv, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda.
+### `all_greeks(spot, strike, rate, div_yield, tte, option_price, right)`
+`right` accepts `"C"`/`"P"` or `"call"`/`"put"` case-insensitively. Returns dict with 22 Greeks: delta, gamma, theta, vega, rho, iv, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda.
 
-### `implied_volatility(spot, strike, rate, div_yield, tte, option_price, is_call)`
-Returns `(iv, error)` tuple.
+### `implied_volatility(spot, strike, rate, div_yield, tte, option_price, right)`
+`right` accepts `"C"`/`"P"` or `"call"`/`"put"` case-insensitively. Returns `(iv, error)` tuple.
 
 ## Architecture
 

@@ -12,7 +12,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use sonic_rs::prelude::*;
 
-use thetadatadx::endpoint::{EndpointArgs, EndpointError, invoke_endpoint};
+use thetadatadx::endpoint::{invoke_endpoint, EndpointArgs, EndpointError};
 use thetadatadx::registry::EndpointMeta;
 
 use crate::format;

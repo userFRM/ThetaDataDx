@@ -1744,27 +1744,35 @@ pub struct TdxGreeksResult {
 
 /// Compute all 22 Black-Scholes Greeks + IV.
 ///
-/// Returns a heap-allocated `TdxGreeksResult` (null on error).
-/// Caller must free the result with `tdx_greeks_result_free`.
+/// `right` accepts `"C"`/`"P"` or `"call"`/`"put"` case-insensitively (see
+/// the `tdbe::right::parse_right` canonical parser). Returns a heap-allocated
+/// `TdxGreeksResult`, or null on error (invalid UTF-8 / unrecognised right /
+/// resolves to `both`). Caller must free the result with
+/// `tdx_greeks_result_free`.
+///
+/// # Safety
+///
+/// `right` must be a valid NUL-terminated C string pointer (or null, which
+/// returns null with an error set).
 #[no_mangle]
-pub extern "C" fn tdx_all_greeks(
+pub unsafe extern "C" fn tdx_all_greeks(
     spot: f64,
     strike: f64,
     rate: f64,
     div_yield: f64,
     tte: f64,
     option_price: f64,
-    is_call: i32,
+    right: *const c_char,
 ) -> *mut TdxGreeksResult {
-    let g = tdbe::greeks::all_greeks(
-        spot,
-        strike,
-        rate,
-        div_yield,
-        tte,
-        option_price,
-        is_call != 0,
-    );
+    let Some(right_str) = (unsafe { cstr_to_str(right) }) else {
+        set_error("right is null or invalid UTF-8");
+        return std::ptr::null_mut();
+    };
+    if let Err(e) = thetadatadx::parse_right_strict(right_str) {
+        set_error(&e.to_string());
+        return std::ptr::null_mut();
+    }
+    let g = tdbe::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, right_str);
     let result = TdxGreeksResult {
         value: g.value,
         delta: g.delta,
@@ -1802,8 +1810,15 @@ pub unsafe extern "C" fn tdx_greeks_result_free(ptr: *mut TdxGreeksResult) {
 
 /// Compute implied volatility via bisection.
 ///
-/// Returns IV in `*out_iv` and error in `*out_error`.
-/// Returns 0 on success, -1 on failure.
+/// `right` accepts `"C"`/`"P"` or `"call"`/`"put"` case-insensitively (see
+/// the `tdbe::right::parse_right` canonical parser). Returns IV in `*out_iv`
+/// and error in `*out_error`. Returns 0 on success, -1 on failure (null
+/// pointers / invalid UTF-8 / unrecognised right / resolves to `both`).
+///
+/// # Safety
+///
+/// `right` must be a valid NUL-terminated C string pointer. `out_iv` and
+/// `out_error` must be valid, writable `double` pointers.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_implied_volatility(
     spot: f64,
@@ -1812,12 +1827,20 @@ pub unsafe extern "C" fn tdx_implied_volatility(
     div_yield: f64,
     tte: f64,
     option_price: f64,
-    is_call: i32,
+    right: *const c_char,
     out_iv: *mut f64,
     out_error: *mut f64,
 ) -> i32 {
     if out_iv.is_null() || out_error.is_null() {
         set_error("output pointers must not be null");
+        return -1;
+    }
+    let Some(right_str) = (unsafe { cstr_to_str(right) }) else {
+        set_error("right is null or invalid UTF-8");
+        return -1;
+    };
+    if let Err(e) = thetadatadx::parse_right_strict(right_str) {
+        set_error(&e.to_string());
         return -1;
     }
     let (iv, err) = tdbe::greeks::implied_volatility(
@@ -1827,7 +1850,7 @@ pub unsafe extern "C" fn tdx_implied_volatility(
         div_yield,
         tte,
         option_price,
-        is_call != 0,
+        right_str,
     );
     unsafe {
         *out_iv = iv;

@@ -16,7 +16,7 @@ fn bench_all_greeks(c: &mut Criterion) {
             let q = black_box(0.015);
             let t = black_box(45.0 / 365.0);
             let price = greeks::value(s, x, 0.22, r, q, t, true);
-            black_box(greeks::all_greeks(s, x, r, q, t, price, true));
+            black_box(greeks::all_greeks(s, x, r, q, t, price, "C"));
         });
     });
 }
@@ -83,7 +83,7 @@ fn bench_greeks_iv_solver(c: &mut Criterion) {
                 black_box(0.015),
                 black_box(45.0 / 365.0),
                 black_box(option_price),
-                black_box(true),
+                black_box("C"),
             ));
         });
     });

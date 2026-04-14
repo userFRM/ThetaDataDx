@@ -92,7 +92,7 @@ eod = tdx.stock_history_eod("AAPL", "20240101", "20240315")
 
 # Greeks
 g = all_greeks(spot=150.0, strike=155.0, rate=0.05,
-               div_yield=0.015, tte=45/365, option_price=3.50, is_call=True)
+               div_yield=0.015, tte=45/365, option_price=3.50, right="C")
 ```
 
 Requires Python 3.9+. Binary wheels target the CPython stable ABI, so one wheel works across supported Python 3.9+ interpreters on the same platform. See [sdks/python/README.md](python/README.md) for full documentation.

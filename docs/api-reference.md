@@ -1463,7 +1463,12 @@ All functions take the same base parameters:
 - `r: f64` - Risk-free rate
 - `q: f64` - Dividend yield
 - `t: f64` - Time to expiration (years)
-- `is_call: bool` - true for call, false for put
+- `is_call: bool` - true for call, false for put (low-level per-Greek primitives)
+
+The user-facing aggregates `all_greeks` and `implied_volatility` take
+`right: &str` instead of `is_call: bool`, parsing through the canonical
+`tdbe::right::parse_right_strict`. Accepts `"C"`/`"P"` or `"call"`/`"put"`
+case-insensitively.
 
 ### Individual Greeks
 
@@ -1495,22 +1500,27 @@ All functions take the same base parameters:
 ```rust
 pub fn implied_volatility(
     s: f64, x: f64, r: f64, q: f64, t: f64,
-    option_price: f64, is_call: bool,
+    option_price: f64, right: &str,
 ) -> (f64, f64)  // (iv, error)
 ```
 
-Bisection solver with up to 128 iterations. Returns `(iv, error)` where error is the relative difference `(theoretical - market) / market`.
+Bisection solver with up to 128 iterations. `right` accepts `"C"`/`"P"` or
+`"call"`/`"put"` case-insensitively; panics with a descriptive message on
+unrecognised input or `both`/`*` (mirrors `Contract::option`). Returns
+`(iv, error)` where error is the relative difference
+`(theoretical - market) / market`.
 
 ### All Greeks at Once
 
 ```rust
 pub fn all_greeks(
     s: f64, x: f64, r: f64, q: f64, t: f64,
-    option_price: f64, is_call: bool,
+    option_price: f64, right: &str,
 ) -> GreeksResult
 ```
 
-Computes IV first, then all 22 Greeks using the solved IV.
+Computes IV first, then all 22 Greeks using the solved IV. `right` accepts
+the same permissive set as `implied_volatility`.
 
 ```rust
 pub struct GreeksResult {
@@ -1542,17 +1552,17 @@ pub struct GreeksResult {
 Example:
 
 ```rust
-use tdbe::greeks;
+use thetadatadx::all_greeks;
 
 // SPY $450 call, strike $455, 30 DTE
-let result = greeks::all_greeks(
+let result = all_greeks(
     450.0,            // spot
     455.0,            // strike
     0.05,             // risk-free rate
     0.015,            // dividend yield
     30.0 / 365.0,     // time to expiration (years)
     8.50,             // market price
-    true,             // is_call
+    "C",              // right ("C"/"P" or "call"/"put", case-insensitive)
 );
 println!("IV: {:.4}, Delta: {:.4}, Gamma: {:.6}, Theta: {:.4}",
     result.iv, result.delta, result.gamma, result.theta);

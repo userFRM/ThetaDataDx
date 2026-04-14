@@ -39,7 +39,7 @@ let result = greeks::all_greeks(
     0.015,        // dividend yield
     30.0 / 365.0, // time to expiry (years)
     8.50,         // option market price
-    true,         // is_call
+    "C",          // right ("C"/"P" or "call"/"put", case-insensitive)
 );
 println!("IV: {:.4}, Delta: {:.4}", result.iv, result.delta);
 ```

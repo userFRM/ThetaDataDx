@@ -183,16 +183,16 @@ The most common usage: compute IV from the market price, then derive all 22 Gree
 
 ::: code-group
 ```rust [Rust]
-use tdbe::greeks;
+use thetadatadx::all_greeks;
 
-let result = greeks::all_greeks(
+let result = all_greeks(
     450.0,            // spot price
     455.0,            // strike price
     0.05,             // risk-free rate
     0.015,            // dividend yield
     30.0 / 365.0,     // time to expiration (years)
     8.50,             // market option price
-    true,             // is_call
+    "C",              // right ("C"/"P" or "call"/"put", case-insensitive)
 );
 
 println!("Implied Volatility: {:.4}", result.iv);
@@ -214,7 +214,7 @@ from thetadatadx import all_greeks
 
 g = all_greeks(
     spot=450.0, strike=455.0, rate=0.05,
-    div_yield=0.015, tte=30/365, option_price=8.50, is_call=True
+    div_yield=0.015, tte=30/365, option_price=8.50, right="C"
 )
 
 print(f"IV:    {g['iv']:.4f}")
@@ -234,21 +234,23 @@ The result contains 22 keys: `value`, `delta`, `gamma`, `theta`, `vega`, `rho`, 
 
 ::: code-group
 ```rust [Rust]
-let (iv, error) = greeks::implied_volatility(
-    450.0,   // spot
-    455.0,   // strike
-    0.05,    // rate
-    0.015,   // dividend yield
+use thetadatadx::implied_volatility;
+
+let (iv, error) = implied_volatility(
+    450.0,        // spot
+    455.0,        // strike
+    0.05,         // rate
+    0.015,        // dividend yield
     30.0 / 365.0, // time to expiry
-    8.50,    // market price
-    true,    // is_call
+    8.50,         // market price
+    "C",          // right ("C"/"P" or "call"/"put", case-insensitive)
 );
 println!("IV: {:.4}, Error: {:.6}", iv, error);
 ```
 ```python [Python]
 from thetadatadx import implied_volatility
 
-iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30/365, 8.50, True)
+iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30/365, 8.50, "C")
 print(f"IV: {iv:.4f}, Error: {err:.6f}")
 ```
 :::

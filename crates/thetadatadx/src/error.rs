@@ -111,6 +111,20 @@ pub enum Error {
     Tls(#[from] rustls::Error),
 }
 
+impl From<tdbe::error::Error> for Error {
+    fn from(err: tdbe::error::Error) -> Self {
+        // The pure-data crate carries a small error enum; fold its variants
+        // into the closest `thetadatadx::Error` variant so callers can use
+        // `?` when invoking `tdbe` APIs (e.g. `tdbe::right::parse_right`)
+        // from a `Result<_, thetadatadx::Error>` context.
+        match err {
+            tdbe::error::Error::Config(msg) => Self::Config(msg),
+            tdbe::error::Error::Io(e) => Self::Io(e),
+            other => Self::Config(other.to_string()),
+        }
+    }
+}
+
 impl From<tonic::Status> for Error {
     fn from(s: tonic::Status) -> Self {
         // Extract http_status_code from gRPC metadata and enrich the error

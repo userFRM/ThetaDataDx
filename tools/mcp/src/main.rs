@@ -717,10 +717,11 @@ fn arg_f64(args: &Value, key: &str) -> Result<f64, String> {
         .ok_or_else(|| format!("missing required number argument: {key}"))
 }
 
-fn arg_bool(args: &Value, key: &str) -> Result<bool, String> {
+fn arg_str(args: &Value, key: &str) -> Result<String, String> {
     args.get(key)
-        .and_then(|v: &Value| v.as_bool())
-        .ok_or_else(|| format!("missing required boolean argument: {key}"))
+        .and_then(|v: &Value| v.as_str())
+        .map(ToString::to_string)
+        .ok_or_else(|| format!("missing required string argument: {key}"))
 }
 
 fn convert_endpoint_args(args: &Value) -> Result<EndpointArgs, String> {
@@ -1002,7 +1003,10 @@ async fn main() {
     }
 
     // ── Main JSON-RPC loop over stdin ───────────────────────────────
-    tracing::info!(version = VERSION, "thetadatadx-mcp ready, reading JSON-RPC from stdin");
+    tracing::info!(
+        version = VERSION,
+        "thetadatadx-mcp ready, reading JSON-RPC from stdin"
+    );
 
     let stdin = tokio::io::stdin();
     let reader = BufReader::new(stdin);
@@ -1103,14 +1107,8 @@ mod tests {
 
     #[test]
     fn negotiate_protocol_version_uses_requested_supported_version() {
-        assert_eq!(
-            negotiate_protocol_version(Some("2025-11-25")),
-            "2025-11-25"
-        );
-        assert_eq!(
-            negotiate_protocol_version(Some("2024-11-05")),
-            "2024-11-05"
-        );
+        assert_eq!(negotiate_protocol_version(Some("2025-11-25")), "2025-11-25");
+        assert_eq!(negotiate_protocol_version(Some("2024-11-05")), "2024-11-05");
     }
 
     #[test]
@@ -1155,8 +1153,7 @@ mod tests {
         let tool = tool_definitions()
             .into_iter()
             .find(|tool| {
-                tool.get("name")
-                    .and_then(|value: &Value| value.as_str())
+                tool.get("name").and_then(|value: &Value| value.as_str())
                     == Some("option_history_greeks_eod")
             })
             .expect("option_history_greeks_eod tool should exist");
@@ -1257,7 +1254,8 @@ mod tests {
             "expected date format validation error"
         );
         assert_eq!(
-            args.optional_date("end_date").expect("end_date should validate"),
+            args.optional_date("end_date")
+                .expect("end_date should validate"),
             Some("20260409")
         );
     }
@@ -1272,7 +1270,8 @@ mod tests {
             .expect("serialized tick row should exist");
 
         assert_eq!(
-            tick.get("expiration").and_then(|value: &Value| value.as_i64()),
+            tick.get("expiration")
+                .and_then(|value: &Value| value.as_i64()),
             Some(20230120)
         );
         assert_eq!(
@@ -1295,11 +1294,13 @@ mod tests {
             .expect("serialized tick row should exist");
 
         assert_eq!(
-            tick.get("ms_of_day").and_then(|value: &Value| value.as_i64()),
+            tick.get("ms_of_day")
+                .and_then(|value: &Value| value.as_i64()),
             Some(34_200_000)
         );
         assert_eq!(
-            tick.get("ms_of_day2").and_then(|value: &Value| value.as_i64()),
+            tick.get("ms_of_day2")
+                .and_then(|value: &Value| value.as_i64()),
             Some(57_600_000)
         );
         assert_eq!(

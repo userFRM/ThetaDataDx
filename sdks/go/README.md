@@ -242,8 +242,8 @@ defer client.Close()
 | `InterestRateHistoryEOD(symbol, start, end)` | `([]InterestRate, error)` | Interest rate EOD history |
 
 ### Greeks (Standalone Functions)
-- `AllGreeks(spot, strike, rate, divYield, tte, price, isCall)` - returns `(*Greeks, error)` with 22 fields
-- `ImpliedVolatility(spot, strike, rate, divYield, tte, price, isCall)` - returns `(iv, errorBound, err)`
+- `AllGreeks(spot, strike, rate, divYield, tte, price, right)` - returns `(*Greeks, error)` with 22 fields. `right` accepts `"C"`/`"P"` or `"call"`/`"put"` case-insensitively.
+- `ImpliedVolatility(spot, strike, rate, divYield, tte, price, right)` - returns `(iv, errorBound, err)`. Same `right` vocabulary.
 
 ### Types
 

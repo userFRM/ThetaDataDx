@@ -1976,31 +1976,31 @@ Compute all 22 Greeks at once. Solves for IV first, then computes all Greeks usi
 
 ::: code-group
 ```rust [Rust]
-use tdbe::greeks;
+use thetadatadx::all_greeks;
 
-let g = greeks::all_greeks(
+let g = all_greeks(
     450.0,          // spot
     455.0,          // strike
     0.05,           // risk-free rate
     0.015,          // dividend yield
     30.0 / 365.0,   // time to expiration (years)
     8.50,           // market price of option
-    true,           // is_call
+    "C",            // right ("C"/"P" or "call"/"put", case-insensitive)
 );
 println!("IV: {:.4}, Delta: {:.4}", g.iv, g.delta);
 ```
 ```python [Python]
 from thetadatadx import all_greeks
 
-g = all_greeks(450.0, 455.0, 0.05, 0.015, 30.0 / 365.0, 8.50, True)
+g = all_greeks(450.0, 455.0, 0.05, 0.015, 30.0 / 365.0, 8.50, "C")
 print(f"IV: {g['iv']:.4f}, Delta: {g['delta']:.4f}")
 ```
 ```go [Go]
-g, err := thetadatadx.AllGreeks(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, true)
+g, err := thetadatadx.AllGreeks(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, "C")
 fmt.Printf("IV: %.4f, Delta: %.4f\n", g.IV, g.Delta)
 ```
 ```cpp [C++]
-auto g = tdx::all_greeks(450.0, 455.0, 0.05, 0.015, 30.0 / 365.0, 8.50, true);
+auto g = tdx::all_greeks(450.0, 455.0, 0.05, 0.015, 30.0 / 365.0, 8.50, "C");
 std::cout << "IV: " << g.iv << ", Delta: " << g.delta << std::endl;
 ```
 :::
@@ -2013,7 +2013,7 @@ std::cout << "IV: " << g.iv << ", Delta: " << g.delta << std::endl;
 | `div_yield` | float | Yes | Continuous dividend yield (annualized) |
 | `tte` | float | Yes | Time to expiration in years |
 | `option_price` | float | Yes | Market price of the option |
-| `is_call` | bool | Yes | `true` for call, `false` for put |
+| `right` | string | Yes | Option side: `"C"`/`"P"` or `"call"`/`"put"` (case-insensitive) |
 
 **Returns:** [GreeksResult](#greeksresult) containing all 22 fields.
 
@@ -2025,18 +2025,20 @@ Solve for implied volatility using bisection (up to 128 iterations).
 
 ::: code-group
 ```rust [Rust]
-let (iv, err) = greeks::implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, true);
+use thetadatadx::implied_volatility;
+
+let (iv, err) = implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, "C");
 ```
 ```python [Python]
 from thetadatadx import implied_volatility
 
-iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, True)
+iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, "C")
 ```
 ```go [Go]
-iv, ivErr, err := thetadatadx.ImpliedVolatility(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, true)
+iv, ivErr, err := thetadatadx.ImpliedVolatility(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, "C")
 ```
 ```cpp [C++]
-auto [iv, err] = tdx::implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, true);
+auto [iv, err] = tdx::implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, "C");
 ```
 :::
 
@@ -2048,7 +2050,7 @@ auto [iv, err] = tdx::implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 
 | `div_yield` | float | Yes | Dividend yield |
 | `tte` | float | Yes | Time to expiration in years |
 | `option_price` | float | Yes | Market price of the option |
-| `is_call` | bool | Yes | `true` for call, `false` for put |
+| `right` | string | Yes | Option side: `"C"`/`"P"` or `"call"`/`"put"` (case-insensitive) |
 
 **Returns:** Tuple of `(iv, error)` where `error` is the relative difference `(theoretical - market) / market`.
 

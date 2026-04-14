@@ -230,12 +230,12 @@ auto client = tdx::Client::connect(creds, tdx::Config::production());
 ### Standalone Functions
 
 ```cpp
-// All 22 Greeks + IV
-auto g = tdx::all_greeks(spot, strike, rate, div_yield, tte, price, is_call);
+// All 22 Greeks + IV. `right` accepts "C"/"P" or "call"/"put" (case-insensitive).
+auto g = tdx::all_greeks(spot, strike, rate, div_yield, tte, price, "C");
 // g.iv, g.delta, g.gamma, g.theta, g.vega, g.rho, g.vanna, g.charm, etc.
 
 // Just IV
-auto [iv, err] = tdx::implied_volatility(spot, strike, rate, div_yield, tte, price, is_call);
+auto [iv, err] = tdx::implied_volatility(spot, strike, rate, div_yield, tte, price, "C");
 ```
 
 ### Tick Types

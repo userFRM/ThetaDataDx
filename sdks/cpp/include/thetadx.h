@@ -737,13 +737,15 @@ TdxInterestRateTickArray tdx_interest_rate_history_eod(const TdxClient* client, 
 /*  Greeks (standalone)                                                   */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/** Compute all 22 Greeks + IV. Returns heap-allocated TdxGreeksResult. Caller must free with tdx_greeks_result_free. */
+/** Compute all 22 Greeks + IV. `right` accepts "C"/"P" or "call"/"put" (case-insensitive).
+ *  Returns heap-allocated TdxGreeksResult (or NULL on error). Caller must free with tdx_greeks_result_free. */
 TdxGreeksResult* tdx_all_greeks(double spot, double strike, double rate, double div_yield,
-                                double tte, double option_price, int is_call);
+                                double tte, double option_price, const char* right);
 
-/** Compute implied volatility. Returns 0 on success, -1 on failure. */
+/** Compute implied volatility. `right` accepts "C"/"P" or "call"/"put" (case-insensitive).
+ *  Returns 0 on success, -1 on failure. */
 int tdx_implied_volatility(double spot, double strike, double rate, double div_yield,
-                           double tte, double option_price, int is_call,
+                           double tte, double option_price, const char* right,
                            double* out_iv, double* out_error);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
