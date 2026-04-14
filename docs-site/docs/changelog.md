@@ -7,16 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Breaking Changes
+- No unreleased changes yet.
 
-- Removed the misleading per-contract `subscribe_option_full_*` / `unsubscribe_option_full_*` FPSS methods from the C FFI, Go SDK, and C++ SDK. Per-contract streams use `subscribe_option_*`; full firehose streams remain `subscribe_full_*` by security type.
-- Python FPSS option subscription helpers now take `(symbol, expiration, strike, right)` to match Rust, Go, and C++ argument order.
-- **Go/C++ `contract_map` API replaced** -- `ContractMapJSON()` / `contract_map_json()` removed; replaced with typed `ContractMap()` / `contract_map()` returning `map[int32]string` / `std::map<int32_t, std::string>`. Callers of the old JSON variant will fail to compile.
-
-### Changed
-- Python now exposes `reconnect()` on the unified streaming client, matching the existing Go/C++ FPSS reconnect capability.
-
-## [7.0.0] - 2026-04-11
+## [7.0.0] - 2026-04-14
 
 ### Breaking Changes
 
@@ -25,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`generate_sdk_surfaces` restored as the checked-in surface authority** -- the standalone codegen binary is required again and is the canonical way to regenerate and verify generated SDK/FFI/tool surfaces from TOML.
 - **Streaming endpoints generated from TOML** -- hand-written streaming endpoint blocks in `direct.rs` replaced by TOML-driven codegen. Method signatures unchanged but internal dispatch is generated.
 - **Endpoint, utility, FPSS wrapper, and tick projection surfaces are spec-driven** -- Rust, FFI, Python, Go, C++, CLI, and MCP now project their generated public surfaces from `endpoint_surface.toml`, `sdk_surface.toml`, and `tick_schema.toml`.
+- Removed the misleading per-contract `subscribe_option_full_*` / `unsubscribe_option_full_*` FPSS methods from the C FFI, Go SDK, and C++ SDK. Per-contract streams use `subscribe_option_*`; full firehose streams remain `subscribe_full_*` by security type.
+- Python FPSS option subscription helpers now take `(symbol, expiration, strike, right)` to match Rust, Go, and C++ argument order.
+- **Go/C++ `contract_map` API replaced** -- `ContractMapJSON()` / `contract_map_json()` removed; replaced with typed `ContractMap()` / `contract_map()` returning `map[int32]string` / `std::map<int32_t, std::string>`. Callers of the old JSON variant will fail to compile.
 
 ### Removed
 
@@ -37,14 +33,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Workspace version bumped from 6.0.0 to 7.0.0.
 - Docs consistency checker now points at correct generated files.
-- `FpssControl::LoginSuccess { permissions }` documented as opaque diagnostic metadata (moved from Unreleased).
+- `FpssControl::LoginSuccess { permissions }` documented as opaque diagnostic metadata.
+- Public endpoint and utility surfaces now project optional request parameters consistently across Rust, Python, Go, C++, CLI, MCP, and REST from the checked-in specs.
+- Python now exposes `reconnect()` on the unified streaming client, matching the existing Go/C++ FPSS reconnect capability.
+- `time_of_day` accepts both legacy millisecond strings and formatted wall-clock inputs such as `9:30`, `09:30:00`, and `09:30:00.000`, then normalizes to canonical `HH:MM:SS.SSS`.
+- Release validation and live smoke harnesses were added and the GitHub live workflow was narrowed to manual dispatch so routine CI stays deterministic.
 
 ### Fixed
 
+- `market_value` endpoints now decode `Price` cells correctly instead of returning zeroed prices.
+- Release validation, generated Python/Go validators, and cross-platform CLI validation now use valid fixtures and treat legitimate empty responses correctly.
+- C++ tick ABI layout now matches the aligned Rust FFI structs, fixing multi-element array stepping bugs.
+- Windows Go FFI builds now use the correct GNU-targeted Rust artifacts when building with CGo on GitHub runners.
+- Docs and OpenAPI now reflect the real at-time contract and strike wildcard semantics.
 - Docs consistency checker no longer references deleted `migration-from-rest-ws.md`.
 - `cargo fmt` applied to `build_support/endpoints.rs`.
 
-## [6.0.0] - 2026-04-06
+## [6.0.1] - 2026-04-06
 
 ### Breaking Changes
 
@@ -83,6 +88,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - OpenAPI spec purged of `price_type`.
 - JVM deviations doc: new sections for FPSS f64 streaming and `Contract::option` clean API.
 - Internal docs (architecture, api-reference, endpoint-schema) updated.
+- README now explicitly warns that FPSS is not yet production-ready due to the upstream framing issue tracked in `#192`.
 
 ## [5.4.0] - 2026-04-05
 
@@ -766,7 +772,9 @@ See [TODO.md](TODO.md) for the production readiness checklist and performance ro
 - FIT decoder uses i64 accumulator with i32 saturation (no silent overflow)
 - Price type range enforced with `assert!` in release builds
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v5.4.0...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v7.0.0...HEAD
+[7.0.0]: https://github.com/userFRM/ThetaDataDx/compare/v6.0.1...v7.0.0
+[6.0.1]: https://github.com/userFRM/ThetaDataDx/compare/v5.4.0...v6.0.1
 [5.4.0]: https://github.com/userFRM/ThetaDataDx/compare/v5.3.1...v5.4.0
 [5.3.1]: https://github.com/userFRM/ThetaDataDx/compare/v5.3.0...v5.3.1
 [5.3.0]: https://github.com/userFRM/ThetaDataDx/compare/v5.2.1...v5.3.0

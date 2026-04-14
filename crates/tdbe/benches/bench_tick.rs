@@ -6,7 +6,7 @@ use tdbe::types::tick::{OhlcTick, QuoteTick, TradeTick};
 // ═══════════════════════════════════════════════════════════════════════════
 //  Tick operation benchmarks
 //
-//  Post-f64 migration (v6.0.0+): price fields are `f64`, decoded at parse time.
+//  Post-f64 migration (v6.0.1+): price fields are `f64`, decoded at parse time.
 //  These benches measure direct field access and simple arithmetic rather than
 //  the old helper-method decoding path.
 // ═══════════════════════════════════════════════════════════════════════════
