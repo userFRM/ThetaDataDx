@@ -34,14 +34,14 @@ async fn main() -> Result<(), thetadatadx::Error> {
     println!("SPY expirations: {:?}", &exps[..5.min(exps.len())]);
 
     // Compute Greeks (offline, no server call)
-    let greeks = tdbe::greeks::all_greeks(
+    let greeks = thetadatadx::all_greeks(
         450.0,        // spot
         455.0,        // strike
         0.05,         // risk-free rate
         0.015,        // dividend yield
         30.0 / 365.0, // time to expiry (years)
         8.50,         // option market price
-        true,         // is_call
+        "C",          // right ("C"/"P" or "call"/"put", case-insensitive)
     );
     println!("IV: {:.4}, Delta: {:.4}, Gamma: {:.6}",
         greeks.iv, greeks.delta, greeks.gamma);
@@ -71,7 +71,7 @@ from thetadatadx import all_greeks
 
 g = all_greeks(
     spot=450.0, strike=455.0, rate=0.05,
-    div_yield=0.015, tte=30/365, option_price=8.50, is_call=True
+    div_yield=0.015, tte=30/365, option_price=8.50, right="C"
 )
 print(f"IV={g['iv']:.4f} Delta={g['delta']:.4f} Gamma={g['gamma']:.6f}")
 ```
@@ -114,7 +114,7 @@ func main() {
     }
 
     // Compute Greeks (offline, no server call)
-    g, err := thetadatadx.AllGreeks(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, true)
+    g, err := thetadatadx.AllGreeks(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, "C")
     if err != nil {
         log.Fatal(err)
     }
@@ -142,7 +142,7 @@ int main() {
     }
 
     // Compute Greeks (no server connection needed)
-    auto g = tdx::all_greeks(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, true);
+    auto g = tdx::all_greeks(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, "C");
     std::cout << "IV=" << g.iv << " Delta=" << g.delta
               << " Gamma=" << g.gamma << std::endl;
 }

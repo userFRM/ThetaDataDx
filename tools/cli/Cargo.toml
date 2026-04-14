@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-cli"
-version = "7.0.0"
+version = "7.1.0"
 edition = "2021"
 description = "CLI for ThetaDataDx — query ThetaData from your terminal"
 license = "GPL-3.0-or-later"
@@ -11,7 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 thetadatadx = { path = "../../crates/thetadatadx" }
-tdbe = { version = "0.8.0", path = "../../crates/tdbe" }
+tdbe = { version = "0.9.0", path = "../../crates/tdbe" }
 clap = { version = "4", features = ["derive"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 sonic-rs = "0.3"

@@ -17,6 +17,11 @@ pub enum Error {
     #[error("conversion error: {0}")]
     Conversion(String),
 
+    /// Configuration / input validation error (e.g., unrecognised `right`
+    /// string supplied to [`crate::right::parse_right`]).
+    #[error("Configuration error: {0}")]
+    Config(String),
+
     /// I/O error during read/write operations.
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),

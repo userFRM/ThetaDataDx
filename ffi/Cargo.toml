@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-ffi"
-version = "7.0.0"
+version = "7.1.0"
 edition = "2021"
 description = "C FFI layer for thetadatadx — used by Go and C++ SDKs"
 license = "GPL-3.0-or-later"
@@ -10,5 +10,5 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 thetadatadx = { path = "../crates/thetadatadx" }
-tdbe = { version = "0.8.0", path = "../crates/tdbe" }
+tdbe = { version = "0.9.0", path = "../crates/tdbe" }
 tokio = { version = "1.50.0", features = ["rt-multi-thread"] }

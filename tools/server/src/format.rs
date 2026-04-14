@@ -87,10 +87,20 @@ fn right_label(right: i32) -> sonic_rs::Value {
 }
 
 fn insert_contract_id_fields(row: &mut sonic_rs::Value, expiration: i32, strike: f64, right: i32) {
-    if expiration == 0 { return; }
-    let object = row.as_object_mut().expect("serialized tick rows must always be JSON objects");
-    object.insert("expiration", sonic_rs::to_value(&expiration).expect("i32 should serialize"));
-    object.insert("strike", sonic_rs::to_value(&strike).expect("f64 should serialize"));
+    if expiration == 0 {
+        return;
+    }
+    let object = row
+        .as_object_mut()
+        .expect("serialized tick rows must always be JSON objects");
+    object.insert(
+        "expiration",
+        sonic_rs::to_value(&expiration).expect("i32 should serialize"),
+    );
+    object.insert(
+        "strike",
+        sonic_rs::to_value(&strike).expect("f64 should serialize"),
+    );
     object.insert("right", right_label(right));
 }
 
@@ -493,27 +503,177 @@ mod tests {
 
     #[test]
     fn quote_ticks_includes_midpoint() {
-        let t = QuoteTick { ms_of_day: 0, bid_size: 1, bid_exchange: 2, bid: 3.0, bid_condition: 4, ask_size: 5, ask_exchange: 6, ask: 7.0, ask_condition: 8, date: 20260410, expiration: 20260417, strike: 150.0, right: 67, midpoint: 5.0 };
-        let r = quote_ticks_to_json(&[t]); let r = r.first().unwrap();
-        assert!(r.get("midpoint").is_some()); assert_eq!(r.get("expiration").and_then(|v: &sonic_rs::Value| v.as_i64()), Some(20260417));
+        let t = QuoteTick {
+            ms_of_day: 0,
+            bid_size: 1,
+            bid_exchange: 2,
+            bid: 3.0,
+            bid_condition: 4,
+            ask_size: 5,
+            ask_exchange: 6,
+            ask: 7.0,
+            ask_condition: 8,
+            date: 20260410,
+            expiration: 20260417,
+            strike: 150.0,
+            right: 67,
+            midpoint: 5.0,
+        };
+        let r = quote_ticks_to_json(&[t]);
+        let r = r.first().unwrap();
+        assert!(r.get("midpoint").is_some());
+        assert_eq!(
+            r.get("expiration")
+                .and_then(|v: &sonic_rs::Value| v.as_i64()),
+            Some(20260417)
+        );
     }
     #[test]
     fn trade_quote_ticks_has_extended_fields() {
-        let t = TradeQuoteTick { ms_of_day: 0, sequence: 1, ext_condition1: 10, ext_condition2: 20, ext_condition3: 30, ext_condition4: 40, condition: 1, size: 100, exchange: 11, price: 150.0, condition_flags: 3, price_flags: 7, volume_type: 1, records_back: 5, quote_ms_of_day: 0, bid_size: 100, bid_exchange: 11, bid: 149.0, bid_condition: 1, ask_size: 200, ask_exchange: 12, ask: 151.0, ask_condition: 2, date: 20260410, expiration: 0, strike: 0.0, right: 0 };
-        let r = trade_quote_ticks_to_json(&[t]); let r = r.first().unwrap();
-        for k in ["ext_condition1","ext_condition2","ext_condition3","ext_condition4","condition_flags","price_flags","volume_type","records_back"] { assert!(r.get(k).is_some(), "missing: {k}"); }
+        let t = TradeQuoteTick {
+            ms_of_day: 0,
+            sequence: 1,
+            ext_condition1: 10,
+            ext_condition2: 20,
+            ext_condition3: 30,
+            ext_condition4: 40,
+            condition: 1,
+            size: 100,
+            exchange: 11,
+            price: 150.0,
+            condition_flags: 3,
+            price_flags: 7,
+            volume_type: 1,
+            records_back: 5,
+            quote_ms_of_day: 0,
+            bid_size: 100,
+            bid_exchange: 11,
+            bid: 149.0,
+            bid_condition: 1,
+            ask_size: 200,
+            ask_exchange: 12,
+            ask: 151.0,
+            ask_condition: 2,
+            date: 20260410,
+            expiration: 0,
+            strike: 0.0,
+            right: 0,
+        };
+        let r = trade_quote_ticks_to_json(&[t]);
+        let r = r.first().unwrap();
+        for k in [
+            "ext_condition1",
+            "ext_condition2",
+            "ext_condition3",
+            "ext_condition4",
+            "condition_flags",
+            "price_flags",
+            "volume_type",
+            "records_back",
+        ] {
+            assert!(r.get(k).is_some(), "missing: {k}");
+        }
     }
     #[test]
     fn greeks_ticks_has_all_greeks() {
-        let t = GreeksTick { ms_of_day: 0, implied_volatility: 0.25, delta: 0.5, gamma: 0.1, theta: -0.01, vega: 0.2, rho: 0.05, iv_error: 0.0, vanna: 0.0, charm: 0.0, vomma: 0.0, veta: 0.0, speed: 0.0, zomma: 0.0, color: 0.0, ultima: 0.0, d1: 0.0, d2: 0.0, dual_delta: 0.0, dual_gamma: 0.0, epsilon: 0.0, lambda: 0.0, vera: 0.0, date: 20260410, expiration: 20260417, strike: 150.0, right: 67 };
-        let r = greeks_ticks_to_json(&[t]); let r = r.first().unwrap();
-        for k in ["implied_volatility","delta","gamma","theta","vega","rho","iv_error","vanna","charm","vomma","veta","speed","zomma","color","ultima","d1","d2","dual_delta","dual_gamma","epsilon","lambda","vera"] { assert!(r.get(k).is_some(), "missing: {k}"); }
-        assert_eq!(r.get("expiration").and_then(|v: &sonic_rs::Value| v.as_i64()), Some(20260417));
+        let t = GreeksTick {
+            ms_of_day: 0,
+            implied_volatility: 0.25,
+            delta: 0.5,
+            gamma: 0.1,
+            theta: -0.01,
+            vega: 0.2,
+            rho: 0.05,
+            iv_error: 0.0,
+            vanna: 0.0,
+            charm: 0.0,
+            vomma: 0.0,
+            veta: 0.0,
+            speed: 0.0,
+            zomma: 0.0,
+            color: 0.0,
+            ultima: 0.0,
+            d1: 0.0,
+            d2: 0.0,
+            dual_delta: 0.0,
+            dual_gamma: 0.0,
+            epsilon: 0.0,
+            lambda: 0.0,
+            vera: 0.0,
+            date: 20260410,
+            expiration: 20260417,
+            strike: 150.0,
+            right: 67,
+        };
+        let r = greeks_ticks_to_json(&[t]);
+        let r = r.first().unwrap();
+        for k in [
+            "implied_volatility",
+            "delta",
+            "gamma",
+            "theta",
+            "vega",
+            "rho",
+            "iv_error",
+            "vanna",
+            "charm",
+            "vomma",
+            "veta",
+            "speed",
+            "zomma",
+            "color",
+            "ultima",
+            "d1",
+            "d2",
+            "dual_delta",
+            "dual_gamma",
+            "epsilon",
+            "lambda",
+            "vera",
+        ] {
+            assert!(r.get(k).is_some(), "missing: {k}");
+        }
+        assert_eq!(
+            r.get("expiration")
+                .and_then(|v: &sonic_rs::Value| v.as_i64()),
+            Some(20260417)
+        );
     }
     #[test]
     fn greeks_ticks_omits_ids_single_contract() {
-        let t = GreeksTick { ms_of_day: 0, implied_volatility: 0.0, delta: 0.0, gamma: 0.0, theta: 0.0, vega: 0.0, rho: 0.0, iv_error: 0.0, vanna: 0.0, charm: 0.0, vomma: 0.0, veta: 0.0, speed: 0.0, zomma: 0.0, color: 0.0, ultima: 0.0, d1: 0.0, d2: 0.0, dual_delta: 0.0, dual_gamma: 0.0, epsilon: 0.0, lambda: 0.0, vera: 0.0, date: 20260410, expiration: 0, strike: 0.0, right: 0 };
-        let r = greeks_ticks_to_json(&[t]); let r = r.first().unwrap();
-        assert!(r.get("expiration").is_none()); assert!(r.get("strike").is_none()); assert!(r.get("right").is_none());
+        let t = GreeksTick {
+            ms_of_day: 0,
+            implied_volatility: 0.0,
+            delta: 0.0,
+            gamma: 0.0,
+            theta: 0.0,
+            vega: 0.0,
+            rho: 0.0,
+            iv_error: 0.0,
+            vanna: 0.0,
+            charm: 0.0,
+            vomma: 0.0,
+            veta: 0.0,
+            speed: 0.0,
+            zomma: 0.0,
+            color: 0.0,
+            ultima: 0.0,
+            d1: 0.0,
+            d2: 0.0,
+            dual_delta: 0.0,
+            dual_gamma: 0.0,
+            epsilon: 0.0,
+            lambda: 0.0,
+            vera: 0.0,
+            date: 20260410,
+            expiration: 0,
+            strike: 0.0,
+            right: 0,
+        };
+        let r = greeks_ticks_to_json(&[t]);
+        let r = r.first().unwrap();
+        assert!(r.get("expiration").is_none());
+        assert!(r.get("strike").is_none());
+        assert!(r.get("right").is_none());
     }
 }

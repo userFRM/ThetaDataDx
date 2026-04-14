@@ -131,3 +131,10 @@ pub use error::{AuthErrorKind, Error, FpssErrorKind};
 pub use registry::{EndpointMeta, ParamMeta, ParamType, ReturnType, ENDPOINTS};
 pub use right::{parse_right, parse_right_strict, ParsedRight};
 pub use unified::{ConnectionStatus, SubscriptionInfo, ThetaDataDx};
+
+// Offline Black-Scholes utilities re-exported from `tdbe`. Prefer these at
+// the `thetadatadx` top level so SDK users do not need a separate `tdbe`
+// dependency for the common "compute Greeks from a quoted option price"
+// path. See [`tdbe::greeks`] for the full surface (per-Greek helpers,
+// `GreeksResult` struct, etc.).
+pub use tdbe::greeks::{all_greeks, implied_volatility, GreeksResult};

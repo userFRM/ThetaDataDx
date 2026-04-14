@@ -26,8 +26,7 @@ fn add_generated_utility_commands(mut app: Command) -> Command {
             .arg(
                 Arg::new("right")
                     .required(true)
-                    .value_parser(["call", "put"])
-                    .help("Option type: call or put"),
+                    .help("Option side: \"C\"/\"P\" or \"call\"/\"put\" (case-insensitive)"),
             ),
     );
     app = app.subcommand(
@@ -46,8 +45,7 @@ fn add_generated_utility_commands(mut app: Command) -> Command {
             .arg(
                 Arg::new("right")
                     .required(true)
-                    .value_parser(["call", "put"])
-                    .help("Option type: call or put"),
+                    .help("Option side: \"C\"/\"P\" or \"call\"/\"put\" (case-insensitive)"),
             ),
     );
     app
@@ -116,9 +114,10 @@ async fn try_run_generated_utility(
             let option_price: f64 = get_arg(sub_m, "option_price")
                 .parse()
                 .map_err(|e| thetadatadx::Error::Config(format!("invalid option_price: {e}")))?;
-            let is_call = get_arg(sub_m, "right") == "call";
+            let right = get_arg(sub_m, "right");
+            thetadatadx::parse_right_strict(right)?;
 
-            let g = tdbe::greeks::all_greeks(spot, strike, rate, dividend, time, option_price, is_call);
+            let g = tdbe::greeks::all_greeks(spot, strike, rate, dividend, time, option_price, right);
             let mut td = TabularData::new(vec!["greek", "value"]);
             let rows = [
                 ("value", g.value),
@@ -169,7 +168,8 @@ async fn try_run_generated_utility(
             let option_price: f64 = get_arg(sub_m, "option_price")
                 .parse()
                 .map_err(|e| thetadatadx::Error::Config(format!("invalid option_price: {e}")))?;
-            let is_call = get_arg(sub_m, "right") == "call";
+            let right = get_arg(sub_m, "right");
+            thetadatadx::parse_right_strict(right)?;
 
             let (iv, iv_error) = tdbe::greeks::implied_volatility(
                 spot,
@@ -178,7 +178,7 @@ async fn try_run_generated_utility(
                 dividend,
                 time,
                 option_price,
-                is_call,
+                right,
             );
             let mut td = TabularData::new(vec!["iv", "iv_error"]);
             td.push(vec![format!("{iv:.8}"), format!("{iv_error:.8}")]);

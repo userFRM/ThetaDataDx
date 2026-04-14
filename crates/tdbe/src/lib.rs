@@ -21,6 +21,7 @@ pub mod exchange;
 pub mod flags;
 pub mod greeks;
 pub mod latency;
+pub mod right;
 pub mod sequences;
 pub mod types;
 

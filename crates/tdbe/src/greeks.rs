@@ -7,7 +7,15 @@
 //! - `r`: Risk-free rate
 //! - `q`: Dividend yield
 //! - `t`: Time to expiration (years)
-//! - `is_call`: true for call, false for put
+//! - `right`: option side as a permissive string -- `"C"`/`"P"`,
+//!   `"call"`/`"put"`, `"CALL"`/`"PUT"` all accepted (see
+//!   [`crate::right::parse_right`])
+//!
+//! Every public function -- the aggregates [`all_greeks`] /
+//! [`implied_volatility`] and the per-Greek primitives (`value`, `delta`,
+//! `theta`, ...) -- takes `right: &str` so every SDK-level `right` surface
+//! funnels through the same parser. This keeps the user experience uniform
+//! across the full Black-Scholes API with no `is_call: bool` leaking out.
 //!
 //! # Edge-case guards
 //!
@@ -38,6 +46,21 @@ fn realize(x: f64) -> f64 {
 #[inline]
 fn is_degenerate(v: f64, t: f64) -> bool {
     t <= 0.0 || v <= 0.0
+}
+
+/// Parse the `right` parameter into a `bool` for the Black-Scholes primitives.
+///
+/// Panics with a descriptive message on invalid input or on `both`/`*`
+/// (which are meaningless for a directional Greek). Matches the
+/// panic-on-bad-right convention used by `thetadatadx::fpss::Contract::option`.
+/// For fallible parsing of untrusted input, call
+/// [`crate::right::parse_right_strict`] upstream.
+#[inline]
+fn right_to_is_call(right: &str) -> bool {
+    crate::right::parse_right_strict(right)
+        .unwrap_or_else(|e| panic!("invalid option right: {e}"))
+        .as_is_call()
+        .expect("parse_right_strict rejects Both")
 }
 
 /// Standard normal CDF approximation (Zelen & Severo, 1964).
@@ -101,7 +124,13 @@ fn e1_from_d1(d1_val: f64) -> f64 {
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names)]
 #[must_use]
-pub fn value(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64 {
+pub fn value(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, right: &str) -> f64 {
+    value_raw(s, x, v, r, q, t, right_to_is_call(right))
+}
+
+#[allow(clippy::many_single_char_names)]
+#[must_use]
+pub(crate) fn value_raw(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64 {
     if is_degenerate(v, t) {
         // At expiry / zero vol, value is intrinsic value.
         let intrinsic = if is_call {
@@ -123,7 +152,13 @@ pub fn value(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 #[must_use]
-pub fn delta(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64 {
+pub fn delta(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, right: &str) -> f64 {
+    delta_raw(s, x, v, r, q, t, right_to_is_call(right))
+}
+
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[must_use]
+pub(crate) fn delta_raw(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
     }
@@ -138,7 +173,13 @@ pub fn delta(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 #[must_use]
-pub fn theta(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64 {
+pub fn theta(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, right: &str) -> f64 {
+    theta_raw(s, x, v, r, q, t, right_to_is_call(right))
+}
+
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[must_use]
+pub(crate) fn theta_raw(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
     }
@@ -170,7 +211,13 @@ pub fn vega(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 #[must_use]
-pub fn rho(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64 {
+pub fn rho(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, right: &str) -> f64 {
+    rho_raw(s, x, v, r, q, t, right_to_is_call(right))
+}
+
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[must_use]
+pub(crate) fn rho_raw(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
     }
@@ -185,7 +232,13 @@ pub fn rho(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 #[must_use]
-pub fn epsilon(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64 {
+pub fn epsilon(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, right: &str) -> f64 {
+    epsilon_raw(s, x, v, r, q, t, right_to_is_call(right))
+}
+
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[must_use]
+pub(crate) fn epsilon_raw(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
     }
@@ -200,11 +253,17 @@ pub fn epsilon(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) ->
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 #[must_use]
-pub fn lambda(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64 {
+pub fn lambda(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, right: &str) -> f64 {
+    lambda_raw(s, x, v, r, q, t, right_to_is_call(right))
+}
+
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[must_use]
+pub(crate) fn lambda_raw(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
     }
-    realize(delta(s, x, v, r, q, t, is_call) * s / value(s, x, v, r, q, t, is_call))
+    realize(delta_raw(s, x, v, r, q, t, is_call) * s / value_raw(s, x, v, r, q, t, is_call))
 }
 
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
@@ -233,7 +292,13 @@ pub fn vanna(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 #[must_use]
-pub fn charm(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64 {
+pub fn charm(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, right: &str) -> f64 {
+    charm_raw(s, x, v, r, q, t, right_to_is_call(right))
+}
+
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[must_use]
+pub(crate) fn charm_raw(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
     }
@@ -329,7 +394,13 @@ pub fn ultima(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 #[must_use]
-pub fn dual_delta(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64 {
+pub fn dual_delta(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, right: &str) -> f64 {
+    dual_delta_raw(s, x, v, r, q, t, right_to_is_call(right))
+}
+
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[must_use]
+pub(crate) fn dual_delta_raw(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
     }
@@ -353,6 +424,16 @@ pub fn dual_gamma(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
 }
 
 /// Implied volatility solver using bisection. Returns `(iv, error)`.
+///
+/// `right` accepts `"C"`/`"P"`/`"call"`/`"put"` case-insensitively (see
+/// [`crate::right::parse_right_strict`]).
+///
+/// # Panics
+///
+/// Panics with a descriptive message if `right` is not one of the accepted
+/// forms or resolves to `both`/`*`. This mirrors the panic-on-bad-right
+/// behavior of `thetadatadx::fpss::Contract::option`. For fallible parsing
+/// of untrusted input, call [`crate::right::parse_right_strict`] upstream.
 // Reason: s, x, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names)]
 #[must_use]
@@ -363,8 +444,12 @@ pub fn implied_volatility(
     q: f64,
     t: f64,
     option_price: f64,
-    is_call: bool,
+    right: &str,
 ) -> (f64, f64) {
+    let is_call = crate::right::parse_right_strict(right)
+        .unwrap_or_else(|err| panic!("{err}"))
+        .as_is_call()
+        .expect("parse_right_strict guarantees single-side resolution");
     if t <= 0.0 || option_price <= 0.0 {
         return (0.0, 0.0);
     }
@@ -381,9 +466,9 @@ pub fn implied_volatility(
 )]
 fn iv_bisection(s: f64, x: f64, r: f64, q: f64, t: f64, o: f64, is_call: bool, out: &mut [f64; 2]) {
     // Check intrinsic value boundary
-    if value(s, x, 0.0, r, q, t, is_call) > o {
+    if value_raw(s, x, 0.0, r, q, t, is_call) > o {
         out[0] = 0.0;
-        out[1] = ((value(s, x, 0.0, r, q, t, is_call) - o) / o).clamp(-100.0, 100.0);
+        out[1] = ((value_raw(s, x, 0.0, r, q, t, is_call) - o) / o).clamp(-100.0, 100.0);
         return;
     }
 
@@ -395,13 +480,13 @@ fn iv_bisection(s: f64, x: f64, r: f64, q: f64, t: f64, o: f64, is_call: bool, o
     // Find upper bound
     for _ in 0..32 {
         end += changer;
-        if value(s, x, end, r, q, t, is_call) > o {
+        if value_raw(s, x, end, r, q, t, is_call) > o {
             break;
         }
         changer *= 2.0;
     }
     for _ in 0..MAX_TRIES {
-        let v = value(s, x, guess, r, q, t, is_call);
+        let v = value_raw(s, x, guess, r, q, t, is_call);
         if (v - o).abs() < 0.001 {
             out[0] = guess;
             out[1] = ((v - o) / o).clamp(-100.0, 100.0);
@@ -416,7 +501,7 @@ fn iv_bisection(s: f64, x: f64, r: f64, q: f64, t: f64, o: f64, is_call: bool, o
         }
     }
 
-    let v = value(s, x, guess, r, q, t, is_call);
+    let v = value_raw(s, x, guess, r, q, t, is_call);
     out[0] = guess;
     out[1] = ((v - o) / o).clamp(-100.0, 100.0);
 }
@@ -474,6 +559,16 @@ pub struct GreeksResult {
 ///
 /// This avoids ~20 redundant `d1`/`d2` recalculations and ~40 redundant
 /// `exp()`/`norm_cdf()` calls compared to calling each Greek individually.
+///
+/// `right` accepts `"C"`/`"P"`/`"call"`/`"put"` case-insensitively (see
+/// [`crate::right::parse_right_strict`]).
+///
+/// # Panics
+///
+/// Panics with a descriptive message if `right` is not one of the accepted
+/// forms or resolves to `both`/`*`. This mirrors the panic-on-bad-right
+/// behavior of `thetadatadx::fpss::Contract::option`. For fallible parsing
+/// of untrusted input, call [`crate::right::parse_right_strict`] upstream.
 // Reason: s, x, r, q, t are standard Black-Scholes parameter names.
 // Reason: 22-Greek computation cannot be meaningfully split without duplicating intermediates.
 #[allow(
@@ -489,15 +584,28 @@ pub fn all_greeks(
     q: f64,
     t: f64,
     option_price: f64,
-    is_call: bool,
+    right: &str,
 ) -> GreeksResult {
-    let (iv_val, iv_err) = implied_volatility(s, x, r, q, t, option_price, is_call);
+    let is_call = crate::right::parse_right_strict(right)
+        .unwrap_or_else(|err| panic!("{err}"))
+        .as_is_call()
+        .expect("parse_right_strict guarantees single-side resolution");
+
+    // Inline the IV solver to keep the `right` parse at this layer (avoids
+    // a second parse that `implied_volatility(&str)` would otherwise do).
+    let (iv_val, iv_err) = if t <= 0.0 || option_price <= 0.0 {
+        (0.0, 0.0)
+    } else {
+        let mut out = [0.0f64; 2];
+        iv_bisection(s, x, r, q, t, option_price, is_call, &mut out);
+        (out[0], out[1])
+    };
     let v = iv_val;
 
     // Guard: if vol or time is degenerate, return all zeros (except value = intrinsic).
     if is_degenerate(v, t) {
         return GreeksResult {
-            value: value(s, x, v, r, q, t, is_call),
+            value: value_raw(s, x, v, r, q, t, is_call),
             delta: 0.0,
             gamma: 0.0,
             theta: 0.0,
@@ -661,7 +769,7 @@ mod tests {
     #[test]
     fn test_call_value() {
         // SPY ~$450, strike $450, vol 20%, r=5%, q=1.5%, 30 days
-        let v = value(450.0, 450.0, 0.20, 0.05, 0.015, 30.0 / 365.0, true);
+        let v = value(450.0, 450.0, 0.20, 0.05, 0.015, 30.0 / 365.0, "C");
         assert!(v > 5.0 && v < 15.0, "ATM call value: {v}");
     }
 
@@ -674,8 +782,8 @@ mod tests {
         let q = 0.02;
         let t = 0.5;
 
-        let call = value(s, x, v, r, q, t, true);
-        let put = value(s, x, v, r, q, t, false);
+        let call = value(s, x, v, r, q, t, "C");
+        let put = value(s, x, v, r, q, t, "P");
         let parity = s * (-q * t).exp() - x * (-r * t).exp();
         assert!(
             (call - put - parity).abs() < 1e-10,
@@ -692,12 +800,59 @@ mod tests {
         let t = 45.0 / 365.0;
         let true_vol = 0.22;
 
-        let price = value(s, x, true_vol, r, q, t, true);
-        let (iv, err) = implied_volatility(s, x, r, q, t, price, true);
+        let price = value(s, x, true_vol, r, q, t, "C");
+        let (iv, err) = implied_volatility(s, x, r, q, t, price, "C");
         assert!(
             (iv - true_vol).abs() < 0.005,
             "IV roundtrip: expected {true_vol}, got {iv}, err={err}"
         );
+    }
+
+    #[test]
+    fn greeks_api_accepts_permissive_right() {
+        let s = 100.0;
+        let x = 100.0;
+        let r = 0.05;
+        let q = 0.01;
+        let t = 30.0 / 365.0;
+        let price = value(s, x, 0.2, r, q, t, "C");
+
+        // Every accepted `right` form must agree with the call-side result.
+        let call_ref = all_greeks(s, x, r, q, t, price, "C");
+        for form in ["call", "CALL", "Call", "c"] {
+            let g = all_greeks(s, x, r, q, t, price, form);
+            assert!((g.delta - call_ref.delta).abs() < 1e-12, "form={form}");
+        }
+
+        let put_price = value(s, x, 0.2, r, q, t, "P");
+        let put_ref = all_greeks(s, x, r, q, t, put_price, "P");
+        for form in ["put", "PUT", "Put", "p"] {
+            let g = all_greeks(s, x, r, q, t, put_price, form);
+            assert!((g.delta - put_ref.delta).abs() < 1e-12, "form={form}");
+        }
+
+        // Same for `implied_volatility`.
+        let (iv_c, _) = implied_volatility(s, x, r, q, t, price, "call");
+        let (iv_short, _) = implied_volatility(s, x, r, q, t, price, "C");
+        assert!((iv_c - iv_short).abs() < 1e-12);
+    }
+
+    #[test]
+    #[should_panic(expected = "invalid option right")]
+    fn all_greeks_panics_on_garbage_right() {
+        all_greeks(100.0, 100.0, 0.05, 0.01, 0.25, 5.0, "xyz");
+    }
+
+    #[test]
+    #[should_panic(expected = "resolves to 'both'")]
+    fn all_greeks_panics_on_both() {
+        all_greeks(100.0, 100.0, 0.05, 0.01, 0.25, 5.0, "both");
+    }
+
+    #[test]
+    #[should_panic(expected = "invalid option right")]
+    fn implied_volatility_panics_on_garbage_right() {
+        let _ = implied_volatility(100.0, 100.0, 0.05, 0.01, 0.25, 5.0, "xyz");
     }
 
     // -- Edge-case tests (Fix #10 + Fix #16) --
@@ -714,25 +869,25 @@ mod tests {
         // All public Greeks must return finite values.
         assert_finite(d1(s, x, v, r, q, t), "d1(t=0)");
         assert_finite(d2(s, x, v, r, q, t), "d2(t=0)");
-        assert_finite(value(s, x, v, r, q, t, true), "value(t=0, call)");
-        assert_finite(value(s, x, v, r, q, t, false), "value(t=0, put)");
-        assert_finite(delta(s, x, v, r, q, t, true), "delta(t=0)");
-        assert_finite(theta(s, x, v, r, q, t, true), "theta(t=0)");
+        assert_finite(value(s, x, v, r, q, t, "C"), "value(t=0, call)");
+        assert_finite(value(s, x, v, r, q, t, "P"), "value(t=0, put)");
+        assert_finite(delta(s, x, v, r, q, t, "C"), "delta(t=0)");
+        assert_finite(theta(s, x, v, r, q, t, "C"), "theta(t=0)");
         assert_finite(vega(s, x, v, r, q, t), "vega(t=0)");
-        assert_finite(rho(s, x, v, r, q, t, true), "rho(t=0)");
+        assert_finite(rho(s, x, v, r, q, t, "C"), "rho(t=0)");
         assert_finite(gamma(s, x, v, r, q, t), "gamma(t=0)");
         assert_finite(vanna(s, x, v, r, q, t), "vanna(t=0)");
-        assert_finite(charm(s, x, v, r, q, t, true), "charm(t=0)");
+        assert_finite(charm(s, x, v, r, q, t, "C"), "charm(t=0)");
         assert_finite(vomma(s, x, v, r, q, t), "vomma(t=0)");
         assert_finite(veta(s, x, v, r, q, t), "veta(t=0)");
         assert_finite(speed(s, x, v, r, q, t), "speed(t=0)");
         assert_finite(zomma(s, x, v, r, q, t), "zomma(t=0)");
         assert_finite(color(s, x, v, r, q, t), "color(t=0)");
         assert_finite(ultima(s, x, v, r, q, t), "ultima(t=0)");
-        assert_finite(dual_delta(s, x, v, r, q, t, true), "dual_delta(t=0)");
+        assert_finite(dual_delta(s, x, v, r, q, t, "C"), "dual_delta(t=0)");
         assert_finite(dual_gamma(s, x, v, r, q, t), "dual_gamma(t=0)");
-        assert_finite(epsilon(s, x, v, r, q, t, true), "epsilon(t=0)");
-        assert_finite(lambda(s, x, v, r, q, t, true), "lambda(t=0)");
+        assert_finite(epsilon(s, x, v, r, q, t, "C"), "epsilon(t=0)");
+        assert_finite(lambda(s, x, v, r, q, t, "C"), "lambda(t=0)");
     }
 
     #[test]
@@ -746,10 +901,10 @@ mod tests {
 
         assert_finite(d1(s, x, v, r, q, t), "d1(v=0)");
         assert_finite(d2(s, x, v, r, q, t), "d2(v=0)");
-        assert_finite(value(s, x, v, r, q, t, true), "value(v=0, call)");
-        assert_finite(value(s, x, v, r, q, t, false), "value(v=0, put)");
-        assert_finite(delta(s, x, v, r, q, t, true), "delta(v=0)");
-        assert_finite(theta(s, x, v, r, q, t, true), "theta(v=0)");
+        assert_finite(value(s, x, v, r, q, t, "C"), "value(v=0, call)");
+        assert_finite(value(s, x, v, r, q, t, "P"), "value(v=0, put)");
+        assert_finite(delta(s, x, v, r, q, t, "C"), "delta(v=0)");
+        assert_finite(theta(s, x, v, r, q, t, "C"), "theta(v=0)");
         assert_finite(gamma(s, x, v, r, q, t), "gamma(v=0)");
         assert_finite(vega(s, x, v, r, q, t), "vega(v=0)");
     }
@@ -762,12 +917,12 @@ mod tests {
         let q = 0.01;
         let t = 0.5;
 
-        let (iv, err) = implied_volatility(s, x, r, q, t, 0.0, true);
+        let (iv, err) = implied_volatility(s, x, r, q, t, 0.0, "C");
         assert_finite(iv, "iv(option_price=0)");
         assert_finite(err, "iv_err(option_price=0)");
         assert_eq!(iv, 0.0);
 
-        let g = all_greeks(s, x, r, q, t, 0.0, true);
+        let g = all_greeks(s, x, r, q, t, 0.0, "C");
         assert_finite(g.value, "all_greeks(option_price=0).value");
         assert_finite(g.delta, "all_greeks(option_price=0).delta");
         assert_finite(g.gamma, "all_greeks(option_price=0).gamma");
@@ -783,7 +938,7 @@ mod tests {
         let q = 0.01;
         let t = 0.0;
 
-        let g = all_greeks(s, x, r, q, t, 5.0, true);
+        let g = all_greeks(s, x, r, q, t, 5.0, "C");
         assert_finite(g.value, "all_greeks(ATM, t=0).value");
         assert_finite(g.delta, "all_greeks(ATM, t=0).delta");
         assert_finite(g.gamma, "all_greeks(ATM, t=0).gamma");
@@ -807,18 +962,18 @@ mod tests {
         let r = 0.05;
         let q = 0.015;
         let t = 45.0 / 365.0;
-        let price = value(s, x, 0.22, r, q, t, true);
+        let price = value(s, x, 0.22, r, q, t, "C");
 
-        let g = all_greeks(s, x, r, q, t, price, true);
+        let g = all_greeks(s, x, r, q, t, price, "C");
         let v = g.iv;
 
         let eps = 1e-10;
         assert!(
-            (g.value - value(s, x, v, r, q, t, true)).abs() < eps,
+            (g.value - value(s, x, v, r, q, t, "C")).abs() < eps,
             "value mismatch"
         );
         assert!(
-            (g.delta - delta(s, x, v, r, q, t, true)).abs() < eps,
+            (g.delta - delta(s, x, v, r, q, t, "C")).abs() < eps,
             "delta mismatch"
         );
         assert!(
@@ -826,7 +981,7 @@ mod tests {
             "gamma mismatch"
         );
         assert!(
-            (g.theta - theta(s, x, v, r, q, t, true)).abs() < eps,
+            (g.theta - theta(s, x, v, r, q, t, "C")).abs() < eps,
             "theta mismatch"
         );
         assert!(
@@ -834,7 +989,7 @@ mod tests {
             "vega mismatch"
         );
         assert!(
-            (g.rho - rho(s, x, v, r, q, t, true)).abs() < eps,
+            (g.rho - rho(s, x, v, r, q, t, "C")).abs() < eps,
             "rho mismatch"
         );
         assert!((g.d1 - d1(s, x, v, r, q, t)).abs() < eps, "d1 mismatch");

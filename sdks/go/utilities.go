@@ -3,19 +3,25 @@
 package thetadatadx
 
 /*
+#include <stdlib.h>
 #include "ffi_bridge.h"
 */
 import "C"
 
-import "fmt"
+import (
+	"fmt"
+	"unsafe"
+)
 
 // AllGreeks computes all Black-Scholes Greeks + IV locally.
-func AllGreeks(spot, strike, rate, divYield, tte, optionPrice float64, isCall bool) (*Greeks, error) {
-    call := C.int(0)
-    if isCall {
-        call = 1
-    }
-    ptr := C.tdx_all_greeks(C.double(spot), C.double(strike), C.double(rate), C.double(divYield), C.double(tte), C.double(optionPrice), call)
+//
+// right accepts "C"/"P" or "call"/"put" case-insensitively. Returns an error
+// if the underlying FFI call fails; invalid right strings cause the native
+// tdbe layer to panic, which the FFI wrapper surfaces as a null result.
+func AllGreeks(spot, strike, rate, divYield, tte, optionPrice float64, right string) (*Greeks, error) {
+    cRight := C.CString(right)
+    defer C.free(unsafe.Pointer(cRight))
+    ptr := C.tdx_all_greeks(C.double(spot), C.double(strike), C.double(rate), C.double(divYield), C.double(tte), C.double(optionPrice), cRight)
     if ptr == nil {
         return nil, fmt.Errorf("thetadatadx: %s", lastError())
     }
@@ -47,13 +53,13 @@ func AllGreeks(spot, strike, rate, divYield, tte, optionPrice float64, isCall bo
 }
 
 // ImpliedVolatility computes implied volatility locally.
-func ImpliedVolatility(spot, strike, rate, divYield, tte, optionPrice float64, isCall bool) (float64, float64, error) {
-    call := C.int(0)
-    if isCall {
-        call = 1
-    }
+//
+// right accepts "C"/"P" or "call"/"put" case-insensitively.
+func ImpliedVolatility(spot, strike, rate, divYield, tte, optionPrice float64, right string) (float64, float64, error) {
+    cRight := C.CString(right)
+    defer C.free(unsafe.Pointer(cRight))
     var iv, ivErr C.double
-    rc := C.tdx_implied_volatility(C.double(spot), C.double(strike), C.double(rate), C.double(divYield), C.double(tte), C.double(optionPrice), call, &iv, &ivErr)
+    rc := C.tdx_implied_volatility(C.double(spot), C.double(strike), C.double(rate), C.double(divYield), C.double(tte), C.double(optionPrice), cRight, &iv, &ivErr)
     if rc != 0 {
         return 0, 0, fmt.Errorf("thetadatadx: %s", lastError())
     }

@@ -9,7 +9,7 @@ g = all_greeks(
     div_yield=0.015,
     tte=30.0 / 365.0,
     option_price=8.50,
-    is_call=True,
+    right="C",
 )
 
 print("=== SPY 450C 30 DTE Greeks ===")
@@ -29,5 +29,5 @@ print(f"  Color:     {g['color']:.8f}")
 print(f"  Ultima:    {g['ultima']:.6f}")
 
 # Just IV
-iv, err = implied_volatility(450.0, 450.0, 0.05, 0.015, 30.0 / 365.0, 8.50, True)
+iv, err = implied_volatility(450.0, 450.0, 0.05, 0.015, 30.0 / 365.0, 8.50, "C")
 print(f"\n  IV only:   {iv:.4f} (error: {err:.6f})")

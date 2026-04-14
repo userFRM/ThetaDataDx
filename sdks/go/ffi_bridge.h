@@ -149,9 +149,9 @@ typedef struct {
     double dual_gamma;
 } TdxGreeksResult;
 
-extern TdxGreeksResult* tdx_all_greeks(double spot, double strike, double rate, double div_yield, double tte, double option_price, int is_call);
+extern TdxGreeksResult* tdx_all_greeks(double spot, double strike, double rate, double div_yield, double tte, double option_price, const char* right);
 extern void tdx_greeks_result_free(TdxGreeksResult* result);
-extern int tdx_implied_volatility(double spot, double strike, double rate, double div_yield, double tte, double option_price, int is_call, double* out_iv, double* out_error);
+extern int tdx_implied_volatility(double spot, double strike, double rate, double div_yield, double tte, double option_price, const char* right, double* out_iv, double* out_error);
 
 /* FPSS subscription metadata */
 typedef struct {

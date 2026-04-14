@@ -22,9 +22,9 @@ fn push_generated_utility_tool_definitions(tools: &mut Vec<Value>) {
                 "dividend_yield": { "type": "number", "description": "Dividend yield (e.g. 0.02 for 2%)" },
                 "time_to_expiry": { "type": "number", "description": "Time to expiration in years (e.g. 0.25 for 3 months)" },
                 "option_price": { "type": "number", "description": "Market price of the option" },
-                "is_call": { "type": "boolean", "description": "true for call, false for put" }
+                "right": { "type": "string", "description": "Option side: \"C\"/\"P\" or \"call\"/\"put\" (case-insensitive)", "enum": ["C", "P", "c", "p", "call", "put", "CALL", "PUT", "Call", "Put"] }
             },
-            "required": ["spot", "strike", "rate", "dividend_yield", "time_to_expiry", "option_price", "is_call"]
+            "required": ["spot", "strike", "rate", "dividend_yield", "time_to_expiry", "option_price", "right"]
         }
     }));
     tools.push(json!({
@@ -39,9 +39,9 @@ fn push_generated_utility_tool_definitions(tools: &mut Vec<Value>) {
                 "dividend_yield": { "type": "number", "description": "Dividend yield (e.g. 0.02)" },
                 "time_to_expiry": { "type": "number", "description": "Time to expiration in years" },
                 "option_price": { "type": "number", "description": "Market price of the option" },
-                "is_call": { "type": "boolean", "description": "true for call, false for put" }
+                "right": { "type": "string", "description": "Option side: \"C\"/\"P\" or \"call\"/\"put\" (case-insensitive)", "enum": ["C", "P", "c", "p", "call", "put", "CALL", "PUT", "Call", "Put"] }
             },
-            "required": ["spot", "strike", "rate", "dividend_yield", "time_to_expiry", "option_price", "is_call"]
+            "required": ["spot", "strike", "rate", "dividend_yield", "time_to_expiry", "option_price", "right"]
         }
     }));
 }
@@ -79,9 +79,10 @@ async fn try_execute_generated_utility(
             let q = param_or_return!(arg_f64(args, "dividend_yield"));
             let t = param_or_return!(arg_f64(args, "time_to_expiry"));
             let price = param_or_return!(arg_f64(args, "option_price"));
-            let is_call = param_or_return!(arg_bool(args, "is_call"));
+            let right = param_or_return!(arg_str(args, "right"));
+            param_or_return!(thetadatadx::parse_right_strict(&right).map_err(|e| e.to_string()));
 
-            let g = tdbe::greeks::all_greeks(s, x, r, q, t, price, is_call);
+            let g = tdbe::greeks::all_greeks(s, x, r, q, t, price, &right);
             Some(Ok(json!({
                 "value": g.value,
                 "iv": g.iv,
@@ -114,9 +115,10 @@ async fn try_execute_generated_utility(
             let q = param_or_return!(arg_f64(args, "dividend_yield"));
             let t = param_or_return!(arg_f64(args, "time_to_expiry"));
             let price = param_or_return!(arg_f64(args, "option_price"));
-            let is_call = param_or_return!(arg_bool(args, "is_call"));
+            let right = param_or_return!(arg_str(args, "right"));
+            param_or_return!(thetadatadx::parse_right_strict(&right).map_err(|e| e.to_string()));
 
-            let (iv, err) = tdbe::greeks::implied_volatility(s, x, r, q, t, price, is_call);
+            let (iv, err) = tdbe::greeks::implied_volatility(s, x, r, q, t, price, &right);
             Some(Ok(json!({
                 "implied_volatility": iv,
                 "error": err,
