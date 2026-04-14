@@ -272,15 +272,15 @@ let q = 0.015;  // dividend yield
 let t = 30.0 / 365.0;  // time (years)
 
 // First order
-let delta = greeks::delta(s, x, v, r, q, t, true);
-let theta = greeks::theta(s, x, v, r, q, t, true);  // daily (divided by 365)
+let delta = greeks::delta(s, x, v, r, q, t, "C");
+let theta = greeks::theta(s, x, v, r, q, t, "C");  // daily (divided by 365)
 let vega  = greeks::vega(s, x, v, r, q, t);
-let rho   = greeks::rho(s, x, v, r, q, t, true);
+let rho   = greeks::rho(s, x, v, r, q, t, "C");
 
 // Second order
 let gamma = greeks::gamma(s, x, v, r, q, t);
 let vanna = greeks::vanna(s, x, v, r, q, t);
-let charm = greeks::charm(s, x, v, r, q, t, true);
+let charm = greeks::charm(s, x, v, r, q, t, "C");
 let vomma = greeks::vomma(s, x, v, r, q, t);
 
 // Third order

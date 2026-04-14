@@ -2058,7 +2058,7 @@ auto [iv, err] = tdx::implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 
 
 ### Individual Greek Functions
 
-All individual functions share these parameters. Not all functions take `is_call` - symmetric Greeks omit it.
+All individual functions share these parameters. Not all functions take `right` - symmetric Greeks omit it.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -2068,19 +2068,19 @@ All individual functions share these parameters. Not all functions take `is_call
 | `r` | float | Risk-free rate |
 | `q` | float | Dividend yield |
 | `t` | float | Time to expiration (years) |
-| `is_call` | bool | Call (true) or put (false) - only for directional Greeks |
+| `right` | str | `"C"` / `"call"` / `"P"` / `"put"` (case-insensitive) - only for directional Greeks |
 
 #### First-Order Greeks
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `value` | `(s, x, v, r, q, t, is_call) -> f64` | Black-Scholes theoretical option value |
-| `delta` | `(s, x, v, r, q, t, is_call) -> f64` | Rate of change of value w.r.t. spot price |
-| `theta` | `(s, x, v, r, q, t, is_call) -> f64` | Time decay (daily, divided by 365) |
+| `value` | `(s, x, v, r, q, t, right) -> f64` | Black-Scholes theoretical option value |
+| `delta` | `(s, x, v, r, q, t, right) -> f64` | Rate of change of value w.r.t. spot price |
+| `theta` | `(s, x, v, r, q, t, right) -> f64` | Time decay (daily, divided by 365) |
 | `vega` | `(s, x, v, r, q, t) -> f64` | Sensitivity to volatility |
-| `rho` | `(s, x, v, r, q, t, is_call) -> f64` | Sensitivity to interest rate |
-| `epsilon` | `(s, x, v, r, q, t, is_call) -> f64` | Sensitivity to dividend yield |
-| `lambda` | `(s, x, v, r, q, t, is_call) -> f64` | Leverage ratio (elasticity) |
+| `rho` | `(s, x, v, r, q, t, right) -> f64` | Sensitivity to interest rate |
+| `epsilon` | `(s, x, v, r, q, t, right) -> f64` | Sensitivity to dividend yield |
+| `lambda` | `(s, x, v, r, q, t, right) -> f64` | Leverage ratio (elasticity) |
 
 #### Second-Order Greeks
 
@@ -2088,7 +2088,7 @@ All individual functions share these parameters. Not all functions take `is_call
 |----------|-----------|-------------|
 | `gamma` | `(s, x, v, r, q, t) -> f64` | Rate of change of delta w.r.t. spot |
 | `vanna` | `(s, x, v, r, q, t) -> f64` | Cross-sensitivity of delta to volatility |
-| `charm` | `(s, x, v, r, q, t, is_call) -> f64` | Rate of change of delta w.r.t. time (delta decay) |
+| `charm` | `(s, x, v, r, q, t, right) -> f64` | Rate of change of delta w.r.t. time (delta decay) |
 | `vomma` | `(s, x, v, r, q, t) -> f64` | Rate of change of vega w.r.t. volatility |
 | `veta` | `(s, x, v, r, q, t) -> f64` | Rate of change of vega w.r.t. time |
 
@@ -2105,7 +2105,7 @@ All individual functions share these parameters. Not all functions take `is_call
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `dual_delta` | `(s, x, v, r, q, t, is_call) -> f64` | Sensitivity of value w.r.t. strike |
+| `dual_delta` | `(s, x, v, r, q, t, right) -> f64` | Sensitivity of value w.r.t. strike |
 | `dual_gamma` | `(s, x, v, r, q, t) -> f64` | Second derivative w.r.t. strike |
 | `d1` | `(s, x, v, r, q, t) -> f64` | Black-Scholes d1 term |
 | `d2` | `(s, x, v, r, q, t) -> f64` | Black-Scholes d2 term |

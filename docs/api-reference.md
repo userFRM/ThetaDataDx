@@ -1463,34 +1463,37 @@ All functions take the same base parameters:
 - `r: f64` - Risk-free rate
 - `q: f64` - Dividend yield
 - `t: f64` - Time to expiration (years)
-- `is_call: bool` - true for call, false for put (low-level per-Greek primitives)
+- `right: &str` - `"C"`/`"P"` or `"call"`/`"put"` (case-insensitive), parsed through `tdbe::right::parse_right_strict` on every public Greek function
 
-The user-facing aggregates `all_greeks` and `implied_volatility` take
-`right: &str` instead of `is_call: bool`, parsing through the canonical
-`tdbe::right::parse_right_strict`. Accepts `"C"`/`"P"` or `"call"`/`"put"`
-case-insensitively.
+Every public function in `tdbe::greeks` -- the aggregates `all_greeks` /
+`implied_volatility` and the individual primitives (`value`, `delta`,
+`theta`, ...) -- takes `right: &str`. There is no `is_call: bool` on the
+public API. Internal hot paths (the IV bisection solver, the inlined
+`all_greeks` compute) parse the string once and dispatch through
+crate-private `*_raw(..., is_call: bool)` helpers so per-iteration cost
+stays zero-alloc.
 
 ### Individual Greeks
 
 | Function | Signature | Order |
 |----------|-----------|-------|
-| `value` | `(s, x, v, r, q, t, is_call) -> f64` | - |
-| `delta` | `(s, x, v, r, q, t, is_call) -> f64` | 1st |
-| `theta` | `(s, x, v, r, q, t, is_call) -> f64` | 1st (daily, /365) |
+| `value` | `(s, x, v, r, q, t, right) -> f64` | - |
+| `delta` | `(s, x, v, r, q, t, right) -> f64` | 1st |
+| `theta` | `(s, x, v, r, q, t, right) -> f64` | 1st (daily, /365) |
 | `vega` | `(s, x, v, r, q, t) -> f64` | 1st |
-| `rho` | `(s, x, v, r, q, t, is_call) -> f64` | 1st |
-| `epsilon` | `(s, x, v, r, q, t, is_call) -> f64` | 1st |
-| `lambda` | `(s, x, v, r, q, t, is_call) -> f64` | 1st |
+| `rho` | `(s, x, v, r, q, t, right) -> f64` | 1st |
+| `epsilon` | `(s, x, v, r, q, t, right) -> f64` | 1st |
+| `lambda` | `(s, x, v, r, q, t, right) -> f64` | 1st |
 | `gamma` | `(s, x, v, r, q, t) -> f64` | 2nd |
 | `vanna` | `(s, x, v, r, q, t) -> f64` | 2nd |
-| `charm` | `(s, x, v, r, q, t, is_call) -> f64` | 2nd |
+| `charm` | `(s, x, v, r, q, t, right) -> f64` | 2nd |
 | `vomma` | `(s, x, v, r, q, t) -> f64` | 2nd |
 | `veta` | `(s, x, v, r, q, t) -> f64` | 2nd |
 | `speed` | `(s, x, v, r, q, t) -> f64` | 3rd |
 | `zomma` | `(s, x, v, r, q, t) -> f64` | 3rd |
 | `color` | `(s, x, v, r, q, t) -> f64` | 3rd |
 | `ultima` | `(s, x, v, r, q, t) -> f64` | 3rd (clamped [-100, 100]) |
-| `dual_delta` | `(s, x, v, r, q, t, is_call) -> f64` | Aux |
+| `dual_delta` | `(s, x, v, r, q, t, right) -> f64` | Aux |
 | `dual_gamma` | `(s, x, v, r, q, t) -> f64` | Aux |
 | `d1` | `(s, x, v, r, q, t) -> f64` | Internal |
 | `d2` | `(s, x, v, r, q, t) -> f64` | Internal |
