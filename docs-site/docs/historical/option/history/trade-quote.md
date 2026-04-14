@@ -5,7 +5,7 @@ description: Combined trade and quote ticks for an option contract.
 
 # option_history_trade_quote
 
-<TierBadge tier="professional" />
+<TierBadge tier="standard" />
 
 Retrieve combined trade + quote ticks for an option contract on a given date. Each row contains both the trade data and the prevailing quote at the time of the trade.
 

@@ -5,7 +5,7 @@ description: Intraday price history for an index.
 
 # index_history_price
 
-<TierBadge tier="standard" />
+<TierBadge tier="value" />
 
 Retrieve intraday price history for an index on a single date at a specified interval.
 

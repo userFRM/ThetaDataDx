@@ -161,7 +161,7 @@ export default withMermaid(defineConfig({
                 collapsed: true,
                 items: [
                   { text: 'Trade', link: '/historical/option/at-time/trade' },
-                  { text: 'Quote', link: '/historical/option/at-time/ohlc' },
+                  { text: 'Quote', link: '/historical/option/at-time/quote' },
                 ],
               },
             ],

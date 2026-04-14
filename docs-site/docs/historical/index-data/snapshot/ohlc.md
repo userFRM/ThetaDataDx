@@ -5,7 +5,7 @@ description: Latest OHLC snapshot for one or more indices.
 
 # index_snapshot_ohlc
 
-<TierBadge tier="value" />
+<TierBadge tier="standard" />
 
 Get the latest OHLC (open, high, low, close) snapshot for one or more index symbols. Returns the most recent bar data.
 

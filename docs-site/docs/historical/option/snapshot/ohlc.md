@@ -5,7 +5,7 @@ description: Latest OHLC snapshot for an option contract.
 
 # option_snapshot_ohlc
 
-<TierBadge tier="free" />
+<TierBadge tier="value" />
 
 Get the latest OHLC (open, high, low, close) snapshot for an option contract.
 

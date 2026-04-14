@@ -7,7 +7,7 @@ description: Retrieve available dates for a stock by request type (Trade, Quote,
 
 List available dates for a stock filtered by request type. Use this to discover what date range is available before requesting historical data.
 
-<TierBadge tier="value" />
+<TierBadge tier="free" />
 
 ## Code Example
 

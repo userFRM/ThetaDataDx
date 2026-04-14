@@ -7,7 +7,7 @@ description: Latest market value snapshot for one or more stocks.
 
 Latest market value snapshot for one or more stocks.
 
-<TierBadge tier="value" />
+<TierBadge tier="standard" />
 
 ## Code Example
 

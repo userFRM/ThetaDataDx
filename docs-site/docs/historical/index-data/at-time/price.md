@@ -5,7 +5,7 @@ description: Index price at a specific time of day across a date range.
 
 # index_at_time_price
 
-<TierBadge tier="standard" />
+<TierBadge tier="value" />
 
 Retrieve the index price at a specific time of day for every trading day in a date range. Returns one data point per date, useful for consistent daily sampling.
 

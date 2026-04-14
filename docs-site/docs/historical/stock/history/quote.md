@@ -7,7 +7,7 @@ description: NBBO quotes for a stock at a configurable sampling interval.
 
 NBBO quotes for a stock on a given date, sampled at a configurable interval. Use `"0"` as the interval to get every quote change.
 
-<TierBadge tier="standard" />
+<TierBadge tier="value" />
 
 ## Code Example
 

@@ -5,7 +5,7 @@ description: Latest price snapshot for one or more indices.
 
 # index_snapshot_price
 
-<TierBadge tier="value" />
+<TierBadge tier="standard" />
 
 Get the latest price snapshot for one or more index symbols.
 

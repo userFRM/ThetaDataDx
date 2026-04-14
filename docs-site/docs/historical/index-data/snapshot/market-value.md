@@ -5,7 +5,7 @@ description: Latest market value snapshot for one or more indices.
 
 # index_snapshot_market_value
 
-<TierBadge tier="value" />
+<TierBadge tier="standard" />
 
 Get the latest market value snapshot for one or more index symbols.
 

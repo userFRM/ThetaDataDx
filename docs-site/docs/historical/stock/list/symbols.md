@@ -7,7 +7,7 @@ description: Retrieve all available stock ticker symbols from ThetaData.
 
 List all available stock ticker symbols.
 
-<TierBadge tier="value" />
+<TierBadge tier="free" />
 
 ## Code Example
 

@@ -5,7 +5,7 @@ description: Implied volatility history at a given interval.
 
 # option_history_greeks_iv
 
-<TierBadge tier="professional" />
+<TierBadge tier="standard" />
 
 Retrieve implied volatility history sampled at a given interval throughout a trading day.
 
