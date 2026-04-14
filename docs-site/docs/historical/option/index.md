@@ -73,7 +73,7 @@ Historical time series data for a contract.
 Data at a specific time of day across a date range.
 
 - [At-Time Trade](./at-time/trade)
-- [At-Time Quote](./at-time/ohlc)
+- [At-Time Quote](./at-time/quote)
 
 ## Streaming (Rust only)
 

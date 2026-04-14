@@ -5,7 +5,7 @@ description: Quote at a specific time of day across a date range for an option c
 
 # option_at_time_quote
 
-<TierBadge tier="free" />
+<TierBadge tier="value" />
 
 Retrieve the NBBO quote at a specific time of day across a date range for an option contract. Returns one quote per date, the prevailing quote at the specified time.
 
