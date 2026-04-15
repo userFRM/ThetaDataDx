@@ -448,47 +448,90 @@ creds = sys.argv[1]
 pass_count = skip_count = fail_count = 0
 records: list[dict] = []  # one record per cell for the agreement check
 
-def _json_row_count(output: str) -> int:
-    """Count top-level rows from the CLI's --format json response.
-
-    The CLI emits pretty-printed JSON (multi-line), so we parse the
-    whole stdout rather than just the last line. For list responses
-    returns len(list). For dict responses that look columnar (values
-    are lists), returns len of any column. For dict responses that
-    are a single object (e.g. calendar_open_today), returns 1.
-    Non-JSON output returns 0.
+def _parse_json(output: str):
+    """Parse the CLI's --format json-raw output, returning None on parse
+    failure. The CLI pretty-prints multi-line JSON so we can't slice off
+    the last line; walk the stripped output looking for the first `[`
+    or `{` and parse from there. Any preceding warning / progress lines
+    (e.g. tier-badge mismatches) are skipped over.
     """
     stripped = output.strip()
     if not stripped:
-        return 0
-    # The CLI may prefix with a warning / progress line before the JSON.
-    # Walk backwards through possible JSON start tokens to find the
-    # first that parses.
+        return None
     for start_token in ("[", "{"):
         idx = stripped.find(start_token)
         if idx == -1:
             continue
         try:
-            parsed = json.loads(stripped[idx:])
+            return json.loads(stripped[idx:])
         except json.JSONDecodeError:
             continue
-        if isinstance(parsed, list):
-            return len(parsed)
-        if isinstance(parsed, dict):
-            # Columnar dict: treat any list-valued column as the row
-            # vector. Keeps agreement with the Python SDK.
-            for v in parsed.values():
-                if isinstance(v, list):
-                    return len(v)
-            return 1
+    return None
+
+def _json_row_count(parsed) -> int:
+    """Row count from a parsed JSON value. Lists -> len. Columnar
+    dicts (any value is a list) -> len of any column (matches Python
+    SDK convention). Single-object dicts (e.g. calendar_open_today)
+    -> 1. Non-JSON / None -> 0.
+    """
+    if isinstance(parsed, list):
+        return len(parsed)
+    if isinstance(parsed, dict):
+        for v in parsed.values():
+            if isinstance(v, list):
+                return len(v)
+        return 1
     return 0
+
+def _canonicalize(value):
+    """Light producer-side canonicalization for first_row values:
+    lowercase dict keys, round floats to 6 decimals, recurse into dicts
+    and lists. The validator consumer (scripts/validate_agreement.py)
+    is the authoritative enforcer, so this is defense in depth; the
+    consumer also handles sentinels (date==0, ms<0, strike==0, right="")
+    and NaN/Inf, plus omit-equivalence stripping.
+    """
+    if isinstance(value, dict):
+        return {str(k).lower(): _canonicalize(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_canonicalize(v) for v in value]
+    if isinstance(value, float):
+        return round(value, 6)
+    return value
+
+def _extract_first_row(parsed):
+    """Return a canonicalized dict for the first row of the response,
+    or None if there's nothing to compare.
+
+      list of dicts -> first dict
+      columnar dict  -> one dict built from column[0] of each list column
+                        (matches how the Python SDK surfaces a single row)
+      single-object dict (calendar_open_today, etc.) -> the dict itself
+      anything else  -> None
+    """
+    if isinstance(parsed, list):
+        if not parsed:
+            return None
+        first = parsed[0]
+        return _canonicalize(first) if isinstance(first, dict) else None
+    if isinstance(parsed, dict):
+        columnar = {k: v for k, v in parsed.items() if isinstance(v, list)}
+        if columnar and all(len(v) > 0 for v in columnar.values()):
+            return _canonicalize({k: v[0] for k, v in columnar.items()})
+        if columnar:
+            return None
+        return _canonicalize(parsed)
+    return None
 
 for endpoint, mode, min_tier, rationale, argv in CELLS:
     label = f"{endpoint}::{mode}"
     t0 = time.monotonic()
     try:
         proc = subprocess.run(
-            [str(TDX), "--creds", creds, *argv, "--format", "json"],
+            # --format json-raw keeps dates as YYYYMMDD ints and ms_of_day as raw
+            # i32 ms so first_row matches the raw form Python/Go/C++ SDKs expose.
+            # See scripts/validate_agreement.py for the canonical contract.
+            [str(TDX), "--creds", creds, *argv, "--format", "json-raw"],
             cwd=REPO,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -509,10 +552,13 @@ for endpoint, mode, min_tier, rationale, argv in CELLS:
     output = (proc.stdout or b"").decode("utf-8", errors="replace")
     msg = output.lower()
     row_count = 0
+    first_row = None
     status: str
     detail: str = ""
     if proc.returncode == 0:
-        row_count = _json_row_count(output)
+        parsed = _parse_json(output)
+        row_count = _json_row_count(parsed)
+        first_row = _extract_first_row(parsed)
         status = "PASS"
         print(f"  {label:60s} PASS")
         pass_count += 1
@@ -534,11 +580,14 @@ for endpoint, mode, min_tier, rationale, argv in CELLS:
         detail = output.strip().replace("\n", "\\n").replace("\r", "\\r")[:200]
         print(f"  {label:60s} FAIL  {output.strip()}")
         fail_count += 1
-    records.append({
+    record = {
         "endpoint": endpoint, "mode": mode, "rationale": rationale,
         "status": status,
         "row_count": row_count, "duration_ms": duration_ms, "detail": detail,
-    })
+    }
+    if first_row is not None:
+        record["first_row"] = first_row
+    records.append(record)
 
 print(f"\nCLI: {pass_count} PASS, {skip_count} SKIP, {fail_count} FAIL")
 print(f"COUNTS:{pass_count}:{skip_count}:{fail_count}")
