@@ -1,0 +1,6 @@
+	if !hadTimeout {{
+		r = runWithTimeout(func() (int, error) {{ v, e := c.{go_method_name}({args}); return goRowCount(v), e }})
+		records = classify({endpoint:?}, {mode:?}, {min_tier:?}, r, &pass, &skip, &fail, &hadTimeout, records)
+	}} else {{
+		records = recordAborted({endpoint:?}, {mode:?}, &skip, records)
+	}}

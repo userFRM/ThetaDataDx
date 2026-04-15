@@ -1,0 +1,105 @@
+]
+
+if not TDX.exists():
+    raise SystemExit(f"missing CLI binary: {TDX}")
+
+creds = sys.argv[1]
+pass_count = skip_count = fail_count = 0
+records: list[dict] = []  # one record per cell for the agreement check
+
+def _json_row_count(output: str) -> int:
+    """Count top-level rows from the CLI's --format json response.
+
+    The CLI emits pretty-printed JSON (multi-line), so we parse the
+    whole stdout rather than just the last line. For list responses
+    returns len(list). For dict responses that look columnar (values
+    are lists), returns len of any column. For dict responses that
+    are a single object (e.g. calendar_open_today), returns 1.
+    Non-JSON output returns 0.
+    """
+    stripped = output.strip()
+    if not stripped:
+        return 0
+    # The CLI may prefix with a warning / progress line before the JSON.
+    # Walk backwards through possible JSON start tokens to find the
+    # first that parses.
+    for start_token in ("[", "{"):
+        idx = stripped.find(start_token)
+        if idx == -1:
+            continue
+        try:
+            parsed = json.loads(stripped[idx:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, list):
+            return len(parsed)
+        if isinstance(parsed, dict):
+            # Columnar dict: treat any list-valued column as the row
+            # vector. Keeps agreement with the Python SDK.
+            for v in parsed.values():
+                if isinstance(v, list):
+                    return len(v)
+            return 1
+    return 0
+
+for endpoint, mode, min_tier, argv in CELLS:
+    label = f"{endpoint}::{mode}"
+    t0 = time.monotonic()
+    try:
+        proc = subprocess.run(
+            [str(TDX), "--creds", creds, *argv, "--format", "json"],
+            cwd=REPO,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+            timeout=PER_CELL_TIMEOUT_SECS,
+        )
+    except subprocess.TimeoutExpired:
+        duration_ms = int((time.monotonic() - t0) * 1000)
+        print(f"  {label:60s} FAIL  timeout after {PER_CELL_TIMEOUT_SECS}s")
+        fail_count += 1
+        records.append({
+            "endpoint": endpoint, "mode": mode, "status": "FAIL",
+            "row_count": 0, "duration_ms": duration_ms, "detail": "timeout after 60s",
+        })
+        continue
+    duration_ms = int((time.monotonic() - t0) * 1000)
+    output = (proc.stdout or b"").decode("utf-8", errors="replace")
+    msg = output.lower()
+    row_count = 0
+    status: str
+    detail: str = ""
+    if proc.returncode == 0:
+        row_count = _json_row_count(output)
+        status = "PASS"
+        print(f"  {label:60s} PASS")
+        pass_count += 1
+    elif "permission" in msg or "subscription" in msg:
+        status = "SKIP"
+        detail = "tier-permission"
+        print(f"  {label:60s} SKIP: tier-permission (declared min_tier={min_tier})")
+        skip_count += 1
+    elif "no data found" in msg:
+        status = "PASS"
+        detail = "no data"
+        print(f"  {label:60s} PASS  (no data)")
+        pass_count += 1
+    else:
+        status = "FAIL"
+        detail = output.strip()[:200]
+        print(f"  {label:60s} FAIL  {output.strip()}")
+        fail_count += 1
+    records.append({
+        "endpoint": endpoint, "mode": mode, "status": status,
+        "row_count": row_count, "duration_ms": duration_ms, "detail": detail,
+    })
+
+print(f"\nCLI: {pass_count} PASS, {skip_count} SKIP, {fail_count} FAIL")
+print(f"COUNTS:{pass_count}:{skip_count}:{fail_count}")
+ARTIFACT_PATH.parent.mkdir(parents=True, exist_ok=True)
+ARTIFACT_PATH.write_text(json.dumps({
+    "lang": "cli",
+    "records": records,
+}, indent=2, sort_keys=True))
+print(f"artifact: {ARTIFACT_PATH}")
+sys.exit(1 if fail_count > 0 else 0)

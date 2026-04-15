@@ -1,0 +1,39 @@
+    } catch (const std::exception& e) {
+        std::cerr << "validator bootstrap failure: " << e.what() << std::endl;
+        return 1;
+    }
+
+    std::cout << "\nC++: " << pass << " PASS, " << skip << " SKIP, " << fail << " FAIL" << std::endl;
+    std::cout << "COUNTS:" << pass << ":" << skip << ":" << fail << std::endl;
+    try {
+        const char* artifact_dir = "artifacts";
+        mkdir(artifact_dir, 0755);
+        std::ofstream artifact("artifacts/validator_cpp.json");
+        artifact << "{\n  \"lang\": \"cpp\",\n  \"records\": [\n";
+        for (size_t i = 0; i < records.size(); ++i) {
+            const auto& r = records[i];
+            artifact << "    {\"endpoint\": \"" << json_escape(r.endpoint) << "\", ";
+            artifact << "\"mode\": \"" << json_escape(r.mode) << "\", ";
+            artifact << "\"status\": \"" << json_escape(r.status) << "\", ";
+            artifact << "\"row_count\": " << r.row_count << ", ";
+            artifact << "\"duration_ms\": " << r.duration_ms << ", ";
+            artifact << "\"detail\": \"" << json_escape(r.detail) << "\"}";
+            if (i + 1 < records.size()) { artifact << ","; }
+            artifact << "\n";
+        }
+        artifact << "  ]\n}\n";
+        artifact.close();
+        std::cout << "artifact: artifacts/validator_cpp.json" << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "artifact write failure: " << e.what() << std::endl;
+    }
+    std::cout.flush();
+    std::cerr.flush();
+    if (any_timeout) {
+        // Skip destructors -- leaked worker thread may still be reading
+        // Client/Config/Credentials FFI handles. _Exit terminates the
+        // process without unwinding.
+        std::_Exit(fail > 0 ? 1 : 0);
+    }
+    return fail > 0 ? 1 : 0;
+}

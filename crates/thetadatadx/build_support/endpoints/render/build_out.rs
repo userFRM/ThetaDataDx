@@ -26,8 +26,31 @@ pub fn generate_all() -> Result<(), Box<dyn std::error::Error>> {
     generate_direct_endpoints(&parsed)?;
     println!("cargo:rerun-if-changed=endpoint_surface.toml");
     println!("cargo:rerun-if-changed=proto/external.proto");
+    // Validator body templates consumed via `include_str!` by the
+    // `render_*_validate` emitters. `include_str!` already registers these
+    // as compilation-time dependencies, but we also emit rerun-if-changed
+    // so `cargo build` re-triggers the generator when a template is
+    // edited.
+    for template in VALIDATOR_TEMPLATES {
+        println!("cargo:rerun-if-changed=build_support/endpoints/render/templates/{template}");
+    }
     Ok(())
 }
+
+const VALIDATOR_TEMPLATES: &[&str] = &[
+    "validate_python/preamble.py.tmpl",
+    "validate_python/cell.py.tmpl",
+    "validate_python/postamble.py.tmpl",
+    "validate_cli/preamble.py.tmpl",
+    "validate_cli/cell.py.tmpl",
+    "validate_cli/postamble.py.tmpl",
+    "validate_go/preamble.go.tmpl",
+    "validate_go/cell.go.tmpl",
+    "validate_go/postamble.go.tmpl",
+    "validate_cpp/preamble.cpp.tmpl",
+    "validate_cpp/cell.cpp.tmpl",
+    "validate_cpp/postamble.cpp.tmpl",
+];
 
 fn generate_endpoint_registry(parsed: &ParsedEndpoints) -> Result<(), Box<dyn std::error::Error>> {
     // ── Generate Rust code ──────────────────────────────────────────────────
