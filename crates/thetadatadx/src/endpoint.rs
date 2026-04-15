@@ -30,9 +30,15 @@ pub enum EndpointArgValue {
 /// Typed argument bag consumed by generated endpoint dispatch.
 ///
 /// Callers insert normalized values, then generated adapters use typed
-/// accessors on this type to enforce endpoint parameter semantics.
+/// accessors on this type to enforce endpoint parameter semantics. A
+/// per-call deadline can be attached via [`Self::with_timeout_ms`]; the
+/// generated dispatch applies it as `with_deadline` on the matching
+/// builder.
 #[derive(Debug, Clone, Default, PartialEq)]
-pub struct EndpointArgs(BTreeMap<String, EndpointArgValue>);
+pub struct EndpointArgs {
+    args: BTreeMap<String, EndpointArgValue>,
+    timeout_ms: Option<u64>,
+}
 
 impl EndpointArgs {
     /// Create an empty endpoint argument bag.
@@ -41,9 +47,48 @@ impl EndpointArgs {
         Self::default()
     }
 
+    /// Attach a per-call deadline expressed in milliseconds.
+    ///
+    /// The generated dispatch hands this to the endpoint builder via
+    /// `with_deadline(Duration::from_millis(ms))`. On expiry the in-flight
+    /// gRPC call is cancelled (the future is dropped, freeing its
+    /// `request_semaphore` permit and the tonic stream) and the call
+    /// returns [`crate::Error::Timeout`].
+    ///
+    /// `ms == 0` is normalized to "no deadline" (i.e. `None`). The
+    /// alternative — wrapping in `tokio::time::timeout(Duration::ZERO, ...)` —
+    /// would fire immediately on the first poll and never let the call
+    /// complete, which is almost certainly not what a caller passing 0
+    /// intended. The invariant is: `EndpointArgs::timeout_ms()` is `None` or
+    /// `Some(n)` with `n > 0`.
+    #[must_use]
+    pub fn with_timeout_ms(mut self, ms: u64) -> Self {
+        self.timeout_ms = if ms == 0 { None } else { Some(ms) };
+        self
+    }
+
+    /// In-place equivalent of [`Self::with_timeout_ms`] for `&mut self` callers
+    /// (FFI dispatch shims that already hold a `&mut EndpointArgs`).
+    ///
+    /// `ms == 0` is normalized to "no deadline" — see [`Self::with_timeout_ms`].
+    pub fn set_timeout_ms(&mut self, ms: u64) {
+        self.timeout_ms = if ms == 0 { None } else { Some(ms) };
+    }
+
+    /// Configured per-call deadline in milliseconds, if any.
+    #[must_use]
+    pub fn timeout_ms(&self) -> Option<u64> {
+        self.timeout_ms
+    }
+
+    /// Drop the per-call deadline.
+    pub fn clear_timeout(&mut self) {
+        self.timeout_ms = None;
+    }
+
     /// Insert or replace a normalized endpoint argument value.
     pub fn insert(&mut self, key: String, value: EndpointArgValue) -> Option<EndpointArgValue> {
-        self.0.insert(key, value)
+        self.args.insert(key, value)
     }
 
     /// Parse a raw string according to registry metadata and insert it.
@@ -59,13 +104,13 @@ impl EndpointArgs {
     }
 
     fn required_value(&self, key: &str) -> Result<&EndpointArgValue, EndpointError> {
-        self.0.get(key).ok_or_else(|| {
+        self.args.get(key).ok_or_else(|| {
             EndpointError::InvalidParams(format!("missing required argument: {key}"))
         })
     }
 
     fn optional_value(&self, key: &str) -> Option<&EndpointArgValue> {
-        self.0.get(key)
+        self.args.get(key)
     }
 
     /// Read a required string argument.
@@ -358,12 +403,29 @@ pub enum EndpointOutput {
 /// Delegates to the generated dispatch function. This indirection exists
 /// as a hook point for cross-cutting concerns (auth retry, metrics,
 /// rate limiting) without modifying generated code.
+///
+/// When `args.timeout_ms()` is set, the entire dispatch future (and all
+/// futures it spawns: builder, gRPC call, `collect_stream`) is wrapped in
+/// [`tokio::time::timeout`]. On expiry the future is dropped — its locals
+/// (`_permit`, `tonic::Streaming`) drop with it, releasing the request
+/// semaphore and cancelling the in-flight gRPC stream — and the call
+/// returns `EndpointError::Server(Error::Timeout { duration_ms })`.
+/// Subsequent calls on the same `DirectClient` succeed.
 pub async fn invoke_endpoint(
     client: &crate::direct::DirectClient,
     name: &str,
     args: &EndpointArgs,
 ) -> Result<EndpointOutput, EndpointError> {
-    invoke_generated_endpoint(client, name, args).await
+    let dispatch = invoke_generated_endpoint(client, name, args);
+    match args.timeout_ms() {
+        None => dispatch.await,
+        Some(ms) => {
+            match tokio::time::timeout(std::time::Duration::from_millis(ms), dispatch).await {
+                Ok(inner) => inner,
+                Err(_) => Err(EndpointError::Server(Error::Timeout { duration_ms: ms })),
+            }
+        }
+    }
 }
 
 /// Parse a raw string value according to registry metadata into a typed endpoint arg.
@@ -411,6 +473,50 @@ include!(concat!(env!("OUT_DIR"), "/endpoint_generated.rs"));
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn endpoint_args_default_has_no_timeout() {
+        let args = EndpointArgs::new();
+        assert_eq!(args.timeout_ms(), None);
+    }
+
+    #[test]
+    fn with_timeout_ms_attaches_deadline() {
+        let args = EndpointArgs::new().with_timeout_ms(60_000);
+        assert_eq!(args.timeout_ms(), Some(60_000));
+    }
+
+    #[test]
+    fn clear_timeout_drops_deadline() {
+        let mut args = EndpointArgs::new().with_timeout_ms(60_000);
+        args.clear_timeout();
+        assert_eq!(args.timeout_ms(), None);
+    }
+
+    /// `timeout_ms == 0` is sentinel for "no deadline" (W3 round-2 fix).
+    /// Storing `Some(0)` would wrap the dispatch in
+    /// `tokio::time::timeout(Duration::ZERO, ...)`, which fires on the first
+    /// poll and prevents any call from completing.
+    #[test]
+    fn with_timeout_ms_zero_means_no_deadline() {
+        let args = EndpointArgs::new().with_timeout_ms(0);
+        assert_eq!(args.timeout_ms(), None);
+    }
+
+    /// `set_timeout_ms(0)` matches the same normalization as `with_timeout_ms`.
+    #[test]
+    fn set_timeout_ms_zero_means_no_deadline() {
+        let mut args = EndpointArgs::new().with_timeout_ms(60_000);
+        args.set_timeout_ms(0);
+        assert_eq!(args.timeout_ms(), None);
+    }
+
+    /// Positive timeout values pass through unchanged.
+    #[test]
+    fn with_timeout_ms_positive_value_stored() {
+        let args = EndpointArgs::new().with_timeout_ms(1);
+        assert_eq!(args.timeout_ms(), Some(1));
+    }
 
     #[test]
     fn required_symbols_trim_and_reject_empty_entries() {

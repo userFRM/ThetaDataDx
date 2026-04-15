@@ -10,6 +10,7 @@ import "C"
 
 import (
 	"fmt"
+	"runtime"
 	"unsafe"
 )
 
@@ -19,6 +20,8 @@ import (
 // if the underlying FFI call fails; invalid right strings cause the native
 // tdbe layer to panic, which the FFI wrapper surfaces as a null result.
 func AllGreeks(spot, strike, rate, divYield, tte, optionPrice float64, right string) (*Greeks, error) {
+    runtime.LockOSThread()
+    defer runtime.UnlockOSThread()
     cRight := C.CString(right)
     defer C.free(unsafe.Pointer(cRight))
     ptr := C.tdx_all_greeks(C.double(spot), C.double(strike), C.double(rate), C.double(divYield), C.double(tte), C.double(optionPrice), cRight)
@@ -56,6 +59,8 @@ func AllGreeks(spot, strike, rate, divYield, tte, optionPrice float64, right str
 //
 // right accepts "C"/"P" or "call"/"put" case-insensitively.
 func ImpliedVolatility(spot, strike, rate, divYield, tte, optionPrice float64, right string) (float64, float64, error) {
+    runtime.LockOSThread()
+    defer runtime.UnlockOSThread()
     cRight := C.CString(right)
     defer C.free(unsafe.Pointer(cRight))
     var iv, ivErr C.double

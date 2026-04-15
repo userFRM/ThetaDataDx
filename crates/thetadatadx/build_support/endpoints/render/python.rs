@@ -2,6 +2,11 @@
 //!
 //! Renders `sdks/python/src/historical_methods.rs` — the `ThetaDataDx` impl
 //! block that PyO3 compiles into the Python extension.
+//!
+//! Every method takes a `timeout_ms: Optional[int]` kwarg (W3). When set the
+//! call is given a deadline; on expiry a `RuntimeError` carrying the
+//! `Error::Timeout` message is raised and the underlying gRPC stream is
+//! cancelled. The `ThetaDataDx` handle remains usable for subsequent calls.
 
 use std::fmt::Write as _;
 
@@ -32,27 +37,30 @@ pub(super) fn render_python_historical_methods(endpoints: &[GeneratedEndpoint]) 
 fn render_python_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
     let method_params = method_params(endpoint);
     let builder_params = builder_params(endpoint);
+    let is_string_list = endpoint.return_type == "StringList";
+    let is_streaming_kind = endpoint.kind == "stream";
     let mut out = String::new();
 
     writeln!(out, "    /// {}", endpoint.description).unwrap();
-    if !builder_params.is_empty() {
-        let mut signature_parts = method_params
+    // Every endpoint now takes `timeout_ms` as a keyword-only kwarg, so a
+    // `#[pyo3(signature = ...)]` attribute is always emitted.
+    let mut signature_parts = method_params
+        .iter()
+        .map(|param| sdk_method_arg_name(param))
+        .collect::<Vec<_>>();
+    signature_parts.push("*".into());
+    signature_parts.extend(
+        builder_params
             .iter()
-            .map(|param| sdk_method_arg_name(param))
-            .collect::<Vec<_>>();
-        signature_parts.push("*".into());
-        signature_parts.extend(
-            builder_params
-                .iter()
-                .map(|param| format!("{}=None", param.name)),
-        );
-        writeln!(
-            out,
-            "    #[pyo3(signature = ({}))]",
-            signature_parts.join(", ")
-        )
-        .unwrap();
-    }
+            .map(|param| format!("{}=None", param.name)),
+    );
+    signature_parts.push("timeout_ms=None".into());
+    writeln!(
+        out,
+        "    #[pyo3(signature = ({}))]",
+        signature_parts.join(", ")
+    )
+    .unwrap();
 
     writeln!(out, "    fn {}(", endpoint.name).unwrap();
     out.push_str("        &self,\n");
@@ -69,8 +77,9 @@ fn render_python_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
         )
         .unwrap();
     }
+    out.push_str("        timeout_ms: Option<u64>,\n");
     out.push_str("    ) -> PyResult<");
-    if endpoint.return_type == "StringList" {
+    if is_string_list {
         out.push_str("Vec<String>> {\n");
     } else {
         out.push_str("Py<PyAny>> {\n");
@@ -86,52 +95,72 @@ fn render_python_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
     }
 
     out.push_str("        ");
-    if endpoint.return_type == "StringList" {
+    if is_string_list {
         out.push_str("py.detach(|| {\n");
     } else {
         out.push_str("let ticks = py.detach(|| {\n");
     }
-    if builder_params.is_empty() {
+
+    if is_string_list {
+        // List endpoints: parallel `<name>_with_deadline(d, ...)` async fn.
+        // The deadline-less variant stays for backwards compat; we only
+        // call it when timeout_ms is None.
+        let positional_args = method_params
+            .iter()
+            .map(|param| {
+                if param.param_type == "Symbols" {
+                    "&refs".into()
+                } else {
+                    sdk_method_arg_name(param)
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
         out.push_str("            runtime()\n");
         out.push_str("                .block_on(async {\n");
-        write!(out, "                    self.tdx.{}(", endpoint.name).unwrap();
-        out.push_str(
-            &method_params
-                .iter()
-                .map(|param| {
-                    if param.param_type == "Symbols" {
-                        "&refs".into()
-                    } else {
-                        sdk_method_arg_name(param)
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join(", "),
-        );
-        out.push_str(").await\n");
+        out.push_str("                    if let Some(ms) = timeout_ms {\n");
+        write!(
+            out,
+            "                        self.tdx.{}_with_deadline(std::time::Duration::from_millis(ms){})",
+            endpoint.name,
+            if positional_args.is_empty() {
+                String::new()
+            } else {
+                format!(", {positional_args}")
+            }
+        )
+        .unwrap();
+        out.push_str(".await\n");
+        out.push_str("                    } else {\n");
+        write!(
+            out,
+            "                        self.tdx.{}({})",
+            endpoint.name, positional_args
+        )
+        .unwrap();
+        out.push_str(".await\n");
+        out.push_str("                    }\n");
         out.push_str("                })\n");
         out.push_str("                .map_err(to_py_err)\n");
     } else {
-        write!(
+        // Builder-backed endpoints: chain optional setters + with_deadline.
+        let positional_args = method_params
+            .iter()
+            .map(|param| {
+                if param.param_type == "Symbols" {
+                    "&refs".into()
+                } else {
+                    sdk_method_arg_name(param)
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        writeln!(
             out,
-            "            let mut request = self.tdx.{}(",
-            endpoint.name
+            "            let mut request = self.tdx.{}({});",
+            endpoint.name, positional_args
         )
         .unwrap();
-        out.push_str(
-            &method_params
-                .iter()
-                .map(|param| {
-                    if param.param_type == "Symbols" {
-                        "&refs".into()
-                    } else {
-                        sdk_method_arg_name(param)
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join(", "),
-        );
-        out.push_str(");\n");
         for param in &builder_params {
             writeln!(out, "            if let Some(value) = {} {{", param.name).unwrap();
             writeln!(
@@ -142,7 +171,12 @@ fn render_python_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
             .unwrap();
             out.push_str("            }\n");
         }
-        if endpoint.kind == "stream" {
+        out.push_str("            if let Some(ms) = timeout_ms {\n");
+        out.push_str(
+            "                request = request.with_deadline(std::time::Duration::from_millis(ms));\n",
+        );
+        out.push_str("            }\n");
+        if is_streaming_kind {
             out.push_str("            let mut collected = Vec::new();\n");
             out.push_str("            runtime()\n");
             out.push_str(
@@ -156,7 +190,7 @@ fn render_python_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
             out.push_str("                .map_err(to_py_err)\n");
         }
     }
-    if endpoint.return_type == "StringList" {
+    if is_string_list {
         out.push_str("        })\n");
         out.push_str("    }\n");
         return out;

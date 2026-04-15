@@ -90,21 +90,32 @@ for endpoint, mode, min_tier, rationale, argv in CELLS:
             # --format json-raw keeps dates as YYYYMMDD ints and ms_of_day as raw
             # i32 ms so first_row matches the raw form Python/Go/C++ SDKs expose.
             # See scripts/validate_agreement.py for the canonical contract.
-            [str(TDX), "--creds", creds, *argv, "--format", "json-raw"],
+            # --timeout-ms forwards the SDK-enforced deadline (W3) so the
+            # subprocess exits cleanly with "Request deadline exceeded"
+            # instead of being SIGKILLed by the subprocess kill-switch below.
+            [
+                str(TDX), "--creds", creds,
+                "--timeout-ms", str(PER_CELL_TIMEOUT_MS),
+                *argv, "--format", "json-raw",
+            ],
             cwd=REPO,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             check=False,
-            timeout=PER_CELL_TIMEOUT_SECS,
+            timeout=SUBPROCESS_KILL_SECS,
         )
     except subprocess.TimeoutExpired:
+        # Subprocess kill-switch: the SDK should have returned a
+        # "Request deadline exceeded" error before this fires. If we
+        # land here the SDK itself wedged; flag it.
         duration_ms = int((time.monotonic() - t0) * 1000)
-        print(f"  {label:60s} FAIL  timeout after {PER_CELL_TIMEOUT_SECS}s")
+        print(f"  {label:60s} FAIL  subprocess kill after {SUBPROCESS_KILL_SECS}s (SDK didn't honor --timeout-ms)")
         fail_count += 1
         records.append({
             "endpoint": endpoint, "mode": mode, "rationale": rationale,
             "status": "FAIL",
-            "row_count": 0, "duration_ms": duration_ms, "detail": "timeout after 60s",
+            "row_count": 0, "duration_ms": duration_ms,
+            "detail": "subprocess kill (SDK wedged)",
         })
         continue
     duration_ms = int((time.monotonic() - t0) * 1000)

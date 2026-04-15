@@ -54,6 +54,18 @@ fn runtime() -> &'static tokio::runtime::Runtime {
 }
 
 // ── Thread-local error string ──
+//
+// Contract: the error slot is scoped to the OS thread that set it. Higher-
+// level languages whose runtime can migrate a logical execution unit
+// across OS threads (notably Go, where a goroutine can park on one thread
+// and resume on another) MUST pin the execution unit for the duration of
+// a clear/call/check sequence. The generated Go wrappers do this via
+// `runtime.LockOSThread` + deferred unlock (see
+// `crates/thetadatadx/build_support/endpoints/render/go.rs` —
+// `render_go_endpoint_method`). C++ and Python never migrate threads
+// implicitly, so no pinning is needed there. See
+// `docs/dev/w3-async-cancellation-design.md` "cgo thread-local
+// correctness" for the full rationale.
 
 thread_local! {
     static LAST_ERROR: std::cell::RefCell<Option<CString>> = const { std::cell::RefCell::new(None) };
@@ -78,6 +90,21 @@ pub extern "C" fn tdx_last_error() -> *const c_char {
             None => ptr::null(),
         }
     })
+}
+
+/// Clear the thread-local error string.
+///
+/// Wrappers in higher-level languages (Go, C++, Python) should call this
+/// before issuing an FFI call so they can distinguish "the call set a new
+/// error" from "the previous call left a stale error in the slot". Critical
+/// for endpoints that return an empty value sentinel on both success
+/// (no rows) and failure (e.g. timeout) — without clearing first, the
+/// caller can't tell the two apart from the array alone.
+#[no_mangle]
+pub extern "C" fn tdx_clear_error() {
+    LAST_ERROR.with(|e| {
+        *e.borrow_mut() = None;
+    });
 }
 
 // ── Opaque handle types ──

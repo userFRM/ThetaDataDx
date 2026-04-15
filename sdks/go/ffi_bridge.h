@@ -22,6 +22,7 @@ typedef struct { const void* data; size_t len; } TdxOptionContractArray;
 
 /* Error */
 extern const char* tdx_last_error(void);
+extern void tdx_clear_error(void);
 extern void tdx_string_free(char* s);
 
 /* Credentials */

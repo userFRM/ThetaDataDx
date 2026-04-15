@@ -311,9 +311,10 @@ func init() {
 		{"cGreeksTick", unsafe.Sizeof(cGreeksTick{}), 256},
 		{"cTradeQuoteTick", unsafe.Sizeof(cTradeQuoteTick{}), 192},
 		{"cOptionContract", unsafe.Sizeof(cOptionContract{}), 32},
-		// TdxEndpointRequestOptions: 27 fields in endpoint_request_options.h.inc
-		// Size = 152 bytes on all supported platforms (verified by the C struct definition).
-		{"TdxEndpointRequestOptions", unsafe.Sizeof(C.TdxEndpointRequestOptions{}), 152},
+		// TdxEndpointRequestOptions: 27 builder-param fields + cross-cutting
+		// timeout_ms (uint64) + has_timeout_ms (int32) + tail-padding to align
+		// to the uint64 = 168 bytes on x86_64 / aarch64.
+		{"TdxEndpointRequestOptions", unsafe.Sizeof(C.TdxEndpointRequestOptions{}), 168},
 	}
 	for _, c := range checks {
 		if c.got != c.want {

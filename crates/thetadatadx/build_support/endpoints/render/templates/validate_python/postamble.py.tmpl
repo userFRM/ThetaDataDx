@@ -2,29 +2,6 @@
 
 pass_count = skip_count = fail_count = 0
 records: list[dict] = []  # one record per cell for the agreement check
-aborted = False  # flips True on the first timeout; all later cells SKIP
-
-def _run_with_timeout(call, timeout):
-    """Run `call()` on a daemon thread; return (kind, value).
-
-    kind is 'ok' (value is the return), 'err' (value is the exception),
-    or 'timeout' (value is None). A stuck call leaks the daemon thread
-    until process exit, which os._exit() at end-of-script kills cleanly.
-    """
-    q: "queue.Queue[tuple[str, object]]" = queue.Queue(maxsize=1)
-
-    def _worker():
-        try:
-            q.put(("ok", call()))
-        except BaseException as exc:  # noqa: BLE001
-            q.put(("err", exc))
-
-    t = threading.Thread(target=_worker, daemon=True)
-    t.start()
-    try:
-        return q.get(timeout=timeout)
-    except queue.Empty:
-        return ("timeout", None)
 
 def _row_count(result):
     """Return a row count for the agreement check.
@@ -50,66 +27,63 @@ def _row_count(result):
 
 for endpoint, mode, min_tier, rationale, call in CELLS:
     label = f"{endpoint}::{mode}"
-    # Once a cell has timed out, its daemon worker is still running the
-    # blocking PyO3/FFI call on the shared client. The underlying FFI is
-    # not thread-safe on the same handle, so we refuse to issue more
-    # calls on the client and record the rest as SKIP:
-    # aborted-after-timeout. This keeps the artifact's cell list
-    # complete for the cross-language agreement check.
-    if aborted:
-        print(f"  {label:60s} SKIP: aborted-after-timeout", flush=True)
-        skip_count += 1
-        records.append({
-            "endpoint": endpoint, "mode": mode, "rationale": rationale,
-            "status": "SKIP",
-            "row_count": 0, "duration_ms": 0, "detail": "aborted-after-timeout",
-        })
-        continue
     t0 = time.monotonic()
-    kind, value = _run_with_timeout(call, PER_CELL_TIMEOUT_SECS)
-    duration_ms = int((time.monotonic() - t0) * 1000)
-    row_count: int = 0
-    status: str
-    detail: str = ""
-    if kind == "ok":
-        row_count = _row_count(value)
-        status = "PASS"
-        print(f"  {label:60s} PASS", flush=True)
-        pass_count += 1
-    elif kind == "timeout":
-        status = "FAIL"
-        detail = f"timeout after {PER_CELL_TIMEOUT_SECS}s"
-        print(f"  {label:60s} FAIL  timeout after {PER_CELL_TIMEOUT_SECS}s", flush=True)
-        fail_count += 1
-        aborted = True
-    else:  # 'err'
-        msg = str(value).lower()
+    try:
+        value = call()
+    except BaseException as exc:  # noqa: BLE001
+        duration_ms = int((time.monotonic() - t0) * 1000)
+        msg = str(exc).lower()
+        # Per-call deadline elapsed: SDK cancelled the in-flight gRPC
+        # stream and raised RuntimeError carrying our timeout sentinel.
+        # No daemon threads to clean up — the next cell runs immediately.
+        if "request deadline exceeded" in msg:
+            print(f"  {label:60s} FAIL  timeout after {PER_CELL_TIMEOUT_MS//1000}s", flush=True)
+            fail_count += 1
+            records.append({
+                "endpoint": endpoint, "mode": mode, "rationale": rationale,
+                "status": "FAIL",
+                "row_count": 0, "duration_ms": duration_ms,
+                "detail": f"timeout after {PER_CELL_TIMEOUT_MS//1000}s",
+            })
+            continue
         if "permission" in msg or "subscription" in msg:
-            status = "SKIP"
-            detail = "tier-permission"
             print(f"  {label:60s} SKIP: tier-permission (declared min_tier={min_tier})", flush=True)
             skip_count += 1
-        elif "no data found" in msg:
-            status = "PASS"
-            detail = "no data"
+            records.append({
+                "endpoint": endpoint, "mode": mode, "rationale": rationale,
+                "status": "SKIP",
+                "row_count": 0, "duration_ms": duration_ms, "detail": "tier-permission",
+            })
+            continue
+        if "no data found" in msg:
             print(f"  {label:60s} PASS  (no data)", flush=True)
             pass_count += 1
-        else:
-            status = "FAIL"
-            # Exception messages can span multiple lines; escape them at the
-            # producer so the agreement-table row stays on one line. See
-            # scripts/validate_agreement.py disagreement output.
-            detail = str(value).replace("\n", "\\n").replace("\r", "\\r")[:200]
-            print(f"  {label:60s} FAIL  {value}", flush=True)
-            fail_count += 1
+            records.append({
+                "endpoint": endpoint, "mode": mode, "rationale": rationale,
+                "status": "PASS",
+                "row_count": 0, "duration_ms": duration_ms, "detail": "no data",
+            })
+            continue
+        # Exception messages can span multiple lines; escape them at the
+        # producer so the agreement-table row stays on one line. See
+        # scripts/validate_agreement.py disagreement output.
+        detail = str(exc).replace("\n", "\\n").replace("\r", "\\r")[:200]
+        print(f"  {label:60s} FAIL  {exc}", flush=True)
+        fail_count += 1
+        records.append({
+            "endpoint": endpoint, "mode": mode, "rationale": rationale,
+            "status": "FAIL",
+            "row_count": 0, "duration_ms": duration_ms, "detail": detail,
+        })
+        continue
+    duration_ms = int((time.monotonic() - t0) * 1000)
+    row_count = _row_count(value)
+    print(f"  {label:60s} PASS", flush=True)
+    pass_count += 1
     records.append({
-        "endpoint": endpoint,
-        "mode": mode,
-        "rationale": rationale,
-        "status": status,
-        "row_count": row_count,
-        "duration_ms": duration_ms,
-        "detail": detail,
+        "endpoint": endpoint, "mode": mode, "rationale": rationale,
+        "status": "PASS",
+        "row_count": row_count, "duration_ms": duration_ms, "detail": "",
     })
 
 print(f"\nPython: {pass_count} PASS, {skip_count} SKIP, {fail_count} FAIL", flush=True)
@@ -120,6 +94,4 @@ ARTIFACT_PATH.write_text(json.dumps({
     "records": records,
 }, indent=2, sort_keys=True))
 print(f"artifact: {ARTIFACT_PATH}", flush=True)
-sys.stdout.flush()
-sys.stderr.flush()
-os._exit(1 if fail_count > 0 else 0)
+sys.exit(1 if fail_count > 0 else 0)

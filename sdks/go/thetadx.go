@@ -10,6 +10,7 @@ import "C"
 
 import (
 	"fmt"
+	"runtime"
 	"unsafe"
 )
 
@@ -22,8 +23,45 @@ func lastError() string {
 	return C.GoString(p)
 }
 
-// stringArrayToGo converts a TdxStringArray to a Go []string and frees the C memory.
+// lastErrorRaw returns the FFI error string verbatim, with empty-string
+// indicating "no error set since the last tdx_clear_error". Used by
+// stringArrayToGo to disambiguate a successful empty result from a
+// failure-with-empty-sentinel (e.g. timeout on a list endpoint).
+func lastErrorRaw() string {
+	p := C.tdx_last_error()
+	if p == nil {
+		return ""
+	}
+	return C.GoString(p)
+}
+
+// stringArrayToGo converts a TdxStringArray to a Go []string and frees the
+// C memory. It consults `tdx_last_error` directly because a successful
+// empty result and a timeout/failure both return `{data: null, len: 0}` —
+// they can only be distinguished by the error slot. Generated
+// `*_with_options` wrappers MUST call `tdx_clear_error` before the FFI
+// call so we don't pick up a stale error left by a prior call (W3
+// round-2 fix).
+//
+// The FFI error slot is a Rust `thread_local!`, so the clear / call /
+// check sequence MUST run on a single OS thread. Generated wrappers
+// pin the goroutine via `runtime.LockOSThread()` + deferred unlock
+// before entering this helper (W3 round-3 fix). Without the pin, Go's
+// runtime can migrate the goroutine mid-sequence and the post-call
+// `lastErrorRaw()` below would read a stale/empty slot on the wrong
+// OS thread.
+//
+// We also pin here defensively — Lock/UnlockOSThread nest safely, so
+// if a future caller forgets to pin, this helper remains correct.
+// The static audit in `timeout_pin_test.go` enforces the same
+// invariant statically.
 func stringArrayToGo(arr C.TdxStringArray) ([]string, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	if e := lastErrorRaw(); e != "" {
+		C.tdx_string_array_free(arr)
+		return nil, fmt.Errorf("thetadatadx: %s", e)
+	}
 	if arr.data == nil || arr.len == 0 {
 		C.tdx_string_array_free(arr)
 		return nil, nil
@@ -50,7 +88,14 @@ type Credentials struct {
 }
 
 // NewCredentials creates credentials from email and password.
+//
+// Pins the goroutine to one OS thread across the cgo call + TLS error
+// read because the FFI's last-error slot is a Rust thread_local. See
+// `docs/dev/w3-async-cancellation-design.md` "cgo thread-local
+// correctness".
 func NewCredentials(email, password string) (*Credentials, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cEmail := C.CString(email)
 	cPassword := C.CString(password)
 	defer C.free(unsafe.Pointer(cEmail))
@@ -64,7 +109,14 @@ func NewCredentials(email, password string) (*Credentials, error) {
 }
 
 // CredentialsFromFile loads credentials from a file (line 1 = email, line 2 = password).
+//
+// Pins the goroutine to one OS thread across the cgo call + TLS error
+// read because the FFI's last-error slot is a Rust thread_local. See
+// `docs/dev/w3-async-cancellation-design.md` "cgo thread-local
+// correctness".
 func CredentialsFromFile(path string) (*Credentials, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 

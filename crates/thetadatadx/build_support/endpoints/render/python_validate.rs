@@ -35,6 +35,10 @@ pub(super) fn render_python_validate(
                     args_parts.push(kwarg);
                 }
             }
+            // Cross-cutting per-call deadline (W3): SDK cancels the in-flight
+            // gRPC stream on expiry and raises a RuntimeError; no daemon
+            // thread / os._exit gymnastics needed any more.
+            args_parts.push("timeout_ms=PER_CELL_TIMEOUT_MS".into());
             let args = args_parts.join(", ");
             write!(
                 out,

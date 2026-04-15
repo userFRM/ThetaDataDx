@@ -44,7 +44,7 @@ func main() {
 		log.Fatalf("connect: %v", err)
 	}
 
-	pass, skip, fail, hadTimeout, records := thetadatadx.ValidateAllEndpoints(client)
+	pass, skip, fail, records := thetadatadx.ValidateAllEndpoints(client)
 	fmt.Printf("\nGo: %d PASS, %d SKIP, %d FAIL\n", pass, skip, fail)
 	fmt.Printf("COUNTS:%d:%d:%d\n", pass, skip, fail)
 
@@ -68,17 +68,11 @@ func main() {
 		fmt.Printf("artifact: %s\n", artifactPath)
 	}
 
-	// When any cell timed out, a background goroutine is still running a CGo
-	// call holding a pointer to the client handle. Closing the handle now
-	// would race with that goroutine (use-after-free). Skip the deferred
-	// Close and let the OS reclaim memory + descriptors via os.Exit. When no
-	// timeout fired, run Close explicitly so this binary matches normal
-	// library-user hygiene. See issue #290.
-	if !hadTimeout {
-		client.Close()
-		cfg.Close()
-		c.Close()
-	}
+	// W3: every timeout is now cancelled by the SDK before returning, so there
+	// are no leaked goroutines holding the client handle. Close unconditionally.
+	client.Close()
+	cfg.Close()
+	c.Close()
 	if fail > 0 {
 		os.Exit(1)
 	}
