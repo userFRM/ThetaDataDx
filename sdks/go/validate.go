@@ -20,8 +20,8 @@ var errCellTimeout = errors.New("cell timeout after 60s")
 
 // CellRecord is one row of the validator's per-cell JSON artifact used
 // by the cross-language agreement check. `Status` is PASS|SKIP|FAIL.
-// `Rationale` is the one-sentence description from the generator (see
-// rationale_for_mode in build_support/endpoints/modes.rs); it surfaces
+// `Rationale` is the one-sentence description from the generator
+// (rationale_for_mode in build_support/endpoints/modes.rs); it surfaces
 // in scripts/validate_agreement.py disagreement output so a FAIL line
 // carries the feature description, not just the mode name.
 type CellRecord struct {
@@ -113,135 +113,71 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// stock_snapshot_ohlc::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotOHLC([]string{"AAPL"}); return goRowCount(v), e })
-		records = classify("stock_snapshot_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("stock_snapshot_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: with_venue)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("stock_snapshot_ohlc", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// stock_snapshot_ohlc::with_venue
-	//   rationale: venue=nqb optional venue selector wiring
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotOHLC([]string{"AAPL"}, WithVenue("nqb")); return goRowCount(v), e })
-		records = classify("stock_snapshot_ohlc", "with_venue", "value", "venue=nqb optional venue selector wiring", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("stock_snapshot_ohlc", "with_venue", "venue=nqb optional venue selector wiring", &skip, records)
+		records = recordAborted("stock_snapshot_ohlc", "concrete", "required params set, no optionals — baseline wire path (also covers: with_venue)", &skip, records)
 	}
 	// stock_snapshot_ohlc::with_min_time
-	//   rationale: min_time=09:45:00 optional filter wiring
+	//   rationale: min_time=09:45:00 optional filter wiring (also covers: all_optionals)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotOHLC([]string{"AAPL"}, WithMinTime("09:45:00")); return goRowCount(v), e })
-		records = classify("stock_snapshot_ohlc", "with_min_time", "value", "min_time=09:45:00 optional filter wiring", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("stock_snapshot_ohlc", "with_min_time", "value", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("stock_snapshot_ohlc", "with_min_time", "min_time=09:45:00 optional filter wiring", &skip, records)
-	}
-	// stock_snapshot_ohlc::all_optionals
-	//   rationale: every applicable optional set at once — proves multi-optional wiring
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotOHLC([]string{"AAPL"}, WithVenue("nqb"), WithMinTime("09:45:00")); return goRowCount(v), e })
-		records = classify("stock_snapshot_ohlc", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("stock_snapshot_ohlc", "all_optionals", "every applicable optional set at once — proves multi-optional wiring", &skip, records)
+		records = recordAborted("stock_snapshot_ohlc", "with_min_time", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", &skip, records)
 	}
 
 	// stock_snapshot_trade::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotTrade([]string{"AAPL"}); return goRowCount(v), e })
-		records = classify("stock_snapshot_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("stock_snapshot_trade", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: with_venue)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("stock_snapshot_trade", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// stock_snapshot_trade::with_venue
-	//   rationale: venue=nqb optional venue selector wiring
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotTrade([]string{"AAPL"}, WithVenue("nqb")); return goRowCount(v), e })
-		records = classify("stock_snapshot_trade", "with_venue", "standard", "venue=nqb optional venue selector wiring", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("stock_snapshot_trade", "with_venue", "venue=nqb optional venue selector wiring", &skip, records)
+		records = recordAborted("stock_snapshot_trade", "concrete", "required params set, no optionals — baseline wire path (also covers: with_venue)", &skip, records)
 	}
 	// stock_snapshot_trade::with_min_time
-	//   rationale: min_time=09:45:00 optional filter wiring
+	//   rationale: min_time=09:45:00 optional filter wiring (also covers: all_optionals)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotTrade([]string{"AAPL"}, WithMinTime("09:45:00")); return goRowCount(v), e })
-		records = classify("stock_snapshot_trade", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("stock_snapshot_trade", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("stock_snapshot_trade", "with_min_time", "min_time=09:45:00 optional filter wiring", &skip, records)
-	}
-	// stock_snapshot_trade::all_optionals
-	//   rationale: every applicable optional set at once — proves multi-optional wiring
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotTrade([]string{"AAPL"}, WithVenue("nqb"), WithMinTime("09:45:00")); return goRowCount(v), e })
-		records = classify("stock_snapshot_trade", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("stock_snapshot_trade", "all_optionals", "every applicable optional set at once — proves multi-optional wiring", &skip, records)
+		records = recordAborted("stock_snapshot_trade", "with_min_time", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", &skip, records)
 	}
 
 	// stock_snapshot_quote::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotQuote([]string{"AAPL"}); return goRowCount(v), e })
-		records = classify("stock_snapshot_quote", "concrete", "value", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("stock_snapshot_quote", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: with_venue)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("stock_snapshot_quote", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// stock_snapshot_quote::with_venue
-	//   rationale: venue=nqb optional venue selector wiring
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotQuote([]string{"AAPL"}, WithVenue("nqb")); return goRowCount(v), e })
-		records = classify("stock_snapshot_quote", "with_venue", "value", "venue=nqb optional venue selector wiring", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("stock_snapshot_quote", "with_venue", "venue=nqb optional venue selector wiring", &skip, records)
+		records = recordAborted("stock_snapshot_quote", "concrete", "required params set, no optionals — baseline wire path (also covers: with_venue)", &skip, records)
 	}
 	// stock_snapshot_quote::with_min_time
-	//   rationale: min_time=09:45:00 optional filter wiring
+	//   rationale: min_time=09:45:00 optional filter wiring (also covers: all_optionals)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotQuote([]string{"AAPL"}, WithMinTime("09:45:00")); return goRowCount(v), e })
-		records = classify("stock_snapshot_quote", "with_min_time", "value", "min_time=09:45:00 optional filter wiring", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("stock_snapshot_quote", "with_min_time", "value", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("stock_snapshot_quote", "with_min_time", "min_time=09:45:00 optional filter wiring", &skip, records)
-	}
-	// stock_snapshot_quote::all_optionals
-	//   rationale: every applicable optional set at once — proves multi-optional wiring
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotQuote([]string{"AAPL"}, WithVenue("nqb"), WithMinTime("09:45:00")); return goRowCount(v), e })
-		records = classify("stock_snapshot_quote", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("stock_snapshot_quote", "all_optionals", "every applicable optional set at once — proves multi-optional wiring", &skip, records)
+		records = recordAborted("stock_snapshot_quote", "with_min_time", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", &skip, records)
 	}
 
 	// stock_snapshot_market_value::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotMarketValue([]string{"AAPL"}); return goRowCount(v), e })
-		records = classify("stock_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("stock_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: with_venue)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("stock_snapshot_market_value", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// stock_snapshot_market_value::with_venue
-	//   rationale: venue=nqb optional venue selector wiring
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotMarketValue([]string{"AAPL"}, WithVenue("nqb")); return goRowCount(v), e })
-		records = classify("stock_snapshot_market_value", "with_venue", "standard", "venue=nqb optional venue selector wiring", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("stock_snapshot_market_value", "with_venue", "venue=nqb optional venue selector wiring", &skip, records)
+		records = recordAborted("stock_snapshot_market_value", "concrete", "required params set, no optionals — baseline wire path (also covers: with_venue)", &skip, records)
 	}
 	// stock_snapshot_market_value::with_min_time
-	//   rationale: min_time=09:45:00 optional filter wiring
+	//   rationale: min_time=09:45:00 optional filter wiring (also covers: all_optionals)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotMarketValue([]string{"AAPL"}, WithMinTime("09:45:00")); return goRowCount(v), e })
-		records = classify("stock_snapshot_market_value", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("stock_snapshot_market_value", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("stock_snapshot_market_value", "with_min_time", "min_time=09:45:00 optional filter wiring", &skip, records)
-	}
-	// stock_snapshot_market_value::all_optionals
-	//   rationale: every applicable optional set at once — proves multi-optional wiring
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotMarketValue([]string{"AAPL"}, WithVenue("nqb"), WithMinTime("09:45:00")); return goRowCount(v), e })
-		records = classify("stock_snapshot_market_value", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("stock_snapshot_market_value", "all_optionals", "every applicable optional set at once — proves multi-optional wiring", &skip, records)
+		records = recordAborted("stock_snapshot_market_value", "with_min_time", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", &skip, records)
 	}
 
 	// stock_history_eod::concrete
@@ -254,12 +190,12 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// stock_history_ohlc::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryOHLC("AAPL", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("stock_history_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("stock_history_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: with_venue)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("stock_history_ohlc", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
+		records = recordAborted("stock_history_ohlc", "concrete", "required params set, no optionals — baseline wire path (also covers: with_venue)", &skip, records)
 	}
 	// stock_history_ohlc::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -277,14 +213,6 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	} else {
 		records = recordAborted("stock_history_ohlc", "with_date_range", "start_date + end_date pair — date range optional wiring", &skip, records)
 	}
-	// stock_history_ohlc::with_venue
-	//   rationale: venue=nqb optional venue selector wiring
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryOHLC("AAPL", "20250303", "60000", WithVenue("nqb")); return goRowCount(v), e })
-		records = classify("stock_history_ohlc", "with_venue", "value", "venue=nqb optional venue selector wiring", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("stock_history_ohlc", "with_venue", "venue=nqb optional venue selector wiring", &skip, records)
-	}
 	// stock_history_ohlc::all_optionals
 	//   rationale: every applicable optional set at once — proves multi-optional wiring
 	if !hadTimeout {
@@ -295,12 +223,12 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// stock_history_trade::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTrade("AAPL", "20250303"); return goRowCount(v), e })
-		records = classify("stock_history_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("stock_history_trade", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: with_venue)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("stock_history_trade", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
+		records = recordAborted("stock_history_trade", "concrete", "required params set, no optionals — baseline wire path (also covers: with_venue)", &skip, records)
 	}
 	// stock_history_trade::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -318,14 +246,6 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	} else {
 		records = recordAborted("stock_history_trade", "with_date_range", "start_date + end_date pair — date range optional wiring", &skip, records)
 	}
-	// stock_history_trade::with_venue
-	//   rationale: venue=nqb optional venue selector wiring
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTrade("AAPL", "20250303", WithVenue("nqb")); return goRowCount(v), e })
-		records = classify("stock_history_trade", "with_venue", "standard", "venue=nqb optional venue selector wiring", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("stock_history_trade", "with_venue", "venue=nqb optional venue selector wiring", &skip, records)
-	}
 	// stock_history_trade::all_optionals
 	//   rationale: every applicable optional set at once — proves multi-optional wiring
 	if !hadTimeout {
@@ -336,12 +256,12 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// stock_history_quote::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryQuote("AAPL", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("stock_history_quote", "concrete", "value", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("stock_history_quote", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: with_venue)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("stock_history_quote", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
+		records = recordAborted("stock_history_quote", "concrete", "required params set, no optionals — baseline wire path (also covers: with_venue)", &skip, records)
 	}
 	// stock_history_quote::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -359,14 +279,6 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	} else {
 		records = recordAborted("stock_history_quote", "with_date_range", "start_date + end_date pair — date range optional wiring", &skip, records)
 	}
-	// stock_history_quote::with_venue
-	//   rationale: venue=nqb optional venue selector wiring
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryQuote("AAPL", "20250303", "60000", WithVenue("nqb")); return goRowCount(v), e })
-		records = classify("stock_history_quote", "with_venue", "value", "venue=nqb optional venue selector wiring", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("stock_history_quote", "with_venue", "venue=nqb optional venue selector wiring", &skip, records)
-	}
 	// stock_history_quote::all_optionals
 	//   rationale: every applicable optional set at once — proves multi-optional wiring
 	if !hadTimeout {
@@ -377,12 +289,12 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// stock_history_trade_quote::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTradeQuote("AAPL", "20250303"); return goRowCount(v), e })
-		records = classify("stock_history_trade_quote", "concrete", "standard", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("stock_history_trade_quote", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: with_venue)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("stock_history_trade_quote", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
+		records = recordAborted("stock_history_trade_quote", "concrete", "required params set, no optionals — baseline wire path (also covers: with_venue)", &skip, records)
 	}
 	// stock_history_trade_quote::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -408,14 +320,6 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	} else {
 		records = recordAborted("stock_history_trade_quote", "with_exclusive", "exclusive=true optional filter wiring", &skip, records)
 	}
-	// stock_history_trade_quote::with_venue
-	//   rationale: venue=nqb optional venue selector wiring
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTradeQuote("AAPL", "20250303", WithVenue("nqb")); return goRowCount(v), e })
-		records = classify("stock_history_trade_quote", "with_venue", "standard", "venue=nqb optional venue selector wiring", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("stock_history_trade_quote", "with_venue", "venue=nqb optional venue selector wiring", &skip, records)
-	}
 	// stock_history_trade_quote::all_optionals
 	//   rationale: every applicable optional set at once — proves multi-optional wiring
 	if !hadTimeout {
@@ -426,37 +330,21 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// stock_at_time_trade::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: with_venue, all_optionals)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.StockAtTimeTrade("AAPL", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-		records = classify("stock_at_time_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("stock_at_time_trade", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: with_venue, all_optionals)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("stock_at_time_trade", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// stock_at_time_trade::with_venue
-	//   rationale: venue=nqb optional venue selector wiring (also covers: all_optionals)
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.StockAtTimeTrade("AAPL", "20250303", "20250303", "12:00:00.000", WithVenue("nqb")); return goRowCount(v), e })
-		records = classify("stock_at_time_trade", "with_venue", "standard", "venue=nqb optional venue selector wiring (also covers: all_optionals)", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("stock_at_time_trade", "with_venue", "venue=nqb optional venue selector wiring (also covers: all_optionals)", &skip, records)
+		records = recordAborted("stock_at_time_trade", "concrete", "required params set, no optionals — baseline wire path (also covers: with_venue, all_optionals)", &skip, records)
 	}
 
 	// stock_at_time_quote::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: with_venue, all_optionals)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.StockAtTimeQuote("AAPL", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-		records = classify("stock_at_time_quote", "concrete", "value", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("stock_at_time_quote", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: with_venue, all_optionals)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("stock_at_time_quote", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// stock_at_time_quote::with_venue
-	//   rationale: venue=nqb optional venue selector wiring (also covers: all_optionals)
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.StockAtTimeQuote("AAPL", "20250303", "20250303", "12:00:00.000", WithVenue("nqb")); return goRowCount(v), e })
-		records = classify("stock_at_time_quote", "with_venue", "value", "venue=nqb optional venue selector wiring (also covers: all_optionals)", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("stock_at_time_quote", "with_venue", "venue=nqb optional venue selector wiring (also covers: all_optionals)", &skip, records)
+		records = recordAborted("stock_at_time_quote", "concrete", "required params set, no optionals — baseline wire path (also covers: with_venue, all_optionals)", &skip, records)
 	}
 
 	// option_list_symbols::basic
@@ -513,52 +401,36 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_snapshot_ohlc::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "20250321", "570", "C"); return goRowCount(v), e })
-		records = classify("option_snapshot_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_ohlc", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_snapshot_ohlc::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
-		records = classify("option_snapshot_ohlc", "concrete_iso", "value", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_snapshot_ohlc", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_snapshot_ohlc", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_snapshot_ohlc::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "20250321", "*", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_ohlc", "all_strikes_one_exp", "value", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_ohlc", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_ohlc", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_snapshot_ohlc", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_snapshot_ohlc::all_exps_one_strike
-	//   rationale: expiration=* — exercises expiration wildcard wire-unset
+	//   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "*", "570", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_ohlc", "all_exps_one_strike", "value", "expiration=* — exercises expiration wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_ohlc", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_ohlc", "all_exps_one_strike", "expiration=* — exercises expiration wildcard wire-unset", &skip, records)
+		records = recordAborted("option_snapshot_ohlc", "all_exps_one_strike", "expiration=* — sent as literal `*` on the wire (server fan-out)", &skip, records)
 	}
 	// option_snapshot_ohlc::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "*", "*", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_ohlc", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_ohlc", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_ohlc", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode", &skip, records)
-	}
-	// option_snapshot_ohlc::legacy_zero_wildcard
-	//   rationale: expiration=0 + strike=0 → translated to * on wire — backward compat
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "0", "0", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_ohlc", "legacy_zero_wildcard", "value", "expiration=0 + strike=0 → translated to * on wire — backward compat", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_snapshot_ohlc", "legacy_zero_wildcard", "expiration=0 + strike=0 → translated to * on wire — backward compat", &skip, records)
+		records = recordAborted("option_snapshot_ohlc", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", &skip, records)
 	}
 	// option_snapshot_ohlc::with_max_dte
 	//   rationale: max_dte=30 optional filter wiring
@@ -594,28 +466,20 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_snapshot_trade::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotTrade("SPY", "20250321", "570", "C"); return goRowCount(v), e })
-		records = classify("option_snapshot_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_trade", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_trade", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_snapshot_trade::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotTrade("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
-		records = classify("option_snapshot_trade", "concrete_iso", "standard", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_snapshot_trade", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_snapshot_trade", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_snapshot_trade::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotTrade("SPY", "20250321", "*", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_trade", "all_strikes_one_exp", "standard", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_trade", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_trade", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_snapshot_trade", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_snapshot_trade::with_strike_range
 	//   rationale: strike_range=10 optional filter wiring
@@ -643,52 +507,36 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_snapshot_quote::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "20250321", "570", "C"); return goRowCount(v), e })
-		records = classify("option_snapshot_quote", "concrete", "value", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_quote", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_quote", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_snapshot_quote::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
-		records = classify("option_snapshot_quote", "concrete_iso", "value", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_snapshot_quote", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_snapshot_quote", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_snapshot_quote::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "20250321", "*", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_quote", "all_strikes_one_exp", "value", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_quote", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_quote", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_snapshot_quote", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_snapshot_quote::all_exps_one_strike
-	//   rationale: expiration=* — exercises expiration wildcard wire-unset
+	//   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "*", "570", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_quote", "all_exps_one_strike", "value", "expiration=* — exercises expiration wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_quote", "all_exps_one_strike", "expiration=* — exercises expiration wildcard wire-unset", &skip, records)
+		records = recordAborted("option_snapshot_quote", "all_exps_one_strike", "expiration=* — sent as literal `*` on the wire (server fan-out)", &skip, records)
 	}
 	// option_snapshot_quote::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "*", "*", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_quote", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode", &skip, records)
-	}
-	// option_snapshot_quote::legacy_zero_wildcard
-	//   rationale: expiration=0 + strike=0 → translated to * on wire — backward compat
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "0", "0", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_quote", "legacy_zero_wildcard", "value", "expiration=0 + strike=0 → translated to * on wire — backward compat", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_snapshot_quote", "legacy_zero_wildcard", "expiration=0 + strike=0 → translated to * on wire — backward compat", &skip, records)
+		records = recordAborted("option_snapshot_quote", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", &skip, records)
 	}
 	// option_snapshot_quote::with_max_dte
 	//   rationale: max_dte=30 optional filter wiring
@@ -724,52 +572,36 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_snapshot_open_interest::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "20250321", "570", "C"); return goRowCount(v), e })
-		records = classify("option_snapshot_open_interest", "concrete", "value", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_open_interest", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_open_interest", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_snapshot_open_interest::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
-		records = classify("option_snapshot_open_interest", "concrete_iso", "value", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_snapshot_open_interest", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_snapshot_open_interest", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_snapshot_open_interest::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "20250321", "*", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_open_interest", "all_strikes_one_exp", "value", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_open_interest", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_open_interest", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_snapshot_open_interest", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_snapshot_open_interest::all_exps_one_strike
-	//   rationale: expiration=* — exercises expiration wildcard wire-unset
+	//   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "*", "570", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_open_interest", "all_exps_one_strike", "value", "expiration=* — exercises expiration wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_open_interest", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_open_interest", "all_exps_one_strike", "expiration=* — exercises expiration wildcard wire-unset", &skip, records)
+		records = recordAborted("option_snapshot_open_interest", "all_exps_one_strike", "expiration=* — sent as literal `*` on the wire (server fan-out)", &skip, records)
 	}
 	// option_snapshot_open_interest::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "*", "*", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_open_interest", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode", &skip, records)
-	}
-	// option_snapshot_open_interest::legacy_zero_wildcard
-	//   rationale: expiration=0 + strike=0 → translated to * on wire — backward compat
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "0", "0", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_open_interest", "legacy_zero_wildcard", "value", "expiration=0 + strike=0 → translated to * on wire — backward compat", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_snapshot_open_interest", "legacy_zero_wildcard", "expiration=0 + strike=0 → translated to * on wire — backward compat", &skip, records)
+		records = recordAborted("option_snapshot_open_interest", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", &skip, records)
 	}
 	// option_snapshot_open_interest::with_max_dte
 	//   rationale: max_dte=30 optional filter wiring
@@ -805,52 +637,36 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_snapshot_market_value::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "20250321", "570", "C"); return goRowCount(v), e })
-		records = classify("option_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_market_value", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_snapshot_market_value::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
-		records = classify("option_snapshot_market_value", "concrete_iso", "standard", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_snapshot_market_value", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_snapshot_market_value", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_snapshot_market_value::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "20250321", "*", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_market_value", "all_strikes_one_exp", "standard", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_market_value", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_market_value", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_snapshot_market_value", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_snapshot_market_value::all_exps_one_strike
-	//   rationale: expiration=* — exercises expiration wildcard wire-unset
+	//   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "*", "570", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_market_value", "all_exps_one_strike", "standard", "expiration=* — exercises expiration wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_market_value", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_market_value", "all_exps_one_strike", "expiration=* — exercises expiration wildcard wire-unset", &skip, records)
+		records = recordAborted("option_snapshot_market_value", "all_exps_one_strike", "expiration=* — sent as literal `*` on the wire (server fan-out)", &skip, records)
 	}
 	// option_snapshot_market_value::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "*", "*", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_market_value", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_market_value", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_market_value", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode", &skip, records)
-	}
-	// option_snapshot_market_value::legacy_zero_wildcard
-	//   rationale: expiration=0 + strike=0 → translated to * on wire — backward compat
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "0", "0", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_market_value", "legacy_zero_wildcard", "standard", "expiration=0 + strike=0 → translated to * on wire — backward compat", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_snapshot_market_value", "legacy_zero_wildcard", "expiration=0 + strike=0 → translated to * on wire — backward compat", &skip, records)
+		records = recordAborted("option_snapshot_market_value", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", &skip, records)
 	}
 	// option_snapshot_market_value::with_max_dte
 	//   rationale: max_dte=30 optional filter wiring
@@ -886,52 +702,36 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_snapshot_greeks_implied_volatility::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_implied_volatility", "concrete", "standard", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_greeks_implied_volatility", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_greeks_implied_volatility", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_snapshot_greeks_implied_volatility::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_implied_volatility", "concrete_iso", "standard", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_snapshot_greeks_implied_volatility", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_snapshot_greeks_implied_volatility", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_snapshot_greeks_implied_volatility::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "*", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_implied_volatility", "all_strikes_one_exp", "standard", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_greeks_implied_volatility", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_greeks_implied_volatility", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_snapshot_greeks_implied_volatility", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_snapshot_greeks_implied_volatility::all_exps_one_strike
-	//   rationale: expiration=* — exercises expiration wildcard wire-unset
+	//   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "*", "570", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_implied_volatility", "all_exps_one_strike", "standard", "expiration=* — exercises expiration wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_greeks_implied_volatility", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_greeks_implied_volatility", "all_exps_one_strike", "expiration=* — exercises expiration wildcard wire-unset", &skip, records)
+		records = recordAborted("option_snapshot_greeks_implied_volatility", "all_exps_one_strike", "expiration=* — sent as literal `*` on the wire (server fan-out)", &skip, records)
 	}
 	// option_snapshot_greeks_implied_volatility::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "*", "*", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_implied_volatility", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_greeks_implied_volatility", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_greeks_implied_volatility", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode", &skip, records)
-	}
-	// option_snapshot_greeks_implied_volatility::legacy_zero_wildcard
-	//   rationale: expiration=0 + strike=0 → translated to * on wire — backward compat
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "0", "0", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_implied_volatility", "legacy_zero_wildcard", "standard", "expiration=0 + strike=0 → translated to * on wire — backward compat", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_snapshot_greeks_implied_volatility", "legacy_zero_wildcard", "expiration=0 + strike=0 → translated to * on wire — backward compat", &skip, records)
+		records = recordAborted("option_snapshot_greeks_implied_volatility", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", &skip, records)
 	}
 	// option_snapshot_greeks_implied_volatility::with_annual_dividend
 	//   rationale: annual_dividend=0.015 optional Greeks-input wiring
@@ -958,12 +758,12 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 		records = recordAborted("option_snapshot_greeks_implied_volatility", "with_rate_value", "rate_value=0.05 optional Greeks-input wiring", &skip, records)
 	}
 	// option_snapshot_greeks_implied_volatility::with_stock_price
-	//   rationale: stock_price=150 optional Greeks-input wiring
+	//   rationale: stock_price=150.0 optional Greeks-input wiring
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C", WithStockPrice(150.0)); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_implied_volatility", "with_stock_price", "standard", "stock_price=150 optional Greeks-input wiring", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_greeks_implied_volatility", "with_stock_price", "standard", "stock_price=150.0 optional Greeks-input wiring", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_greeks_implied_volatility", "with_stock_price", "stock_price=150 optional Greeks-input wiring", &skip, records)
+		records = recordAborted("option_snapshot_greeks_implied_volatility", "with_stock_price", "stock_price=150.0 optional Greeks-input wiring", &skip, records)
 	}
 	// option_snapshot_greeks_implied_volatility::with_version
 	//   rationale: version=dg3 optional Greeks-version selector wiring
@@ -1015,52 +815,36 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_snapshot_greeks_all::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_greeks_all", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_snapshot_greeks_all::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_all", "concrete_iso", "professional", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_snapshot_greeks_all", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_snapshot_greeks_all", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_snapshot_greeks_all::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "*", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_all", "all_strikes_one_exp", "professional", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_greeks_all", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_snapshot_greeks_all", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_snapshot_greeks_all::all_exps_one_strike
-	//   rationale: expiration=* — exercises expiration wildcard wire-unset
+	//   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "*", "570", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_all", "all_exps_one_strike", "professional", "expiration=* — exercises expiration wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_greeks_all", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_greeks_all", "all_exps_one_strike", "expiration=* — exercises expiration wildcard wire-unset", &skip, records)
+		records = recordAborted("option_snapshot_greeks_all", "all_exps_one_strike", "expiration=* — sent as literal `*` on the wire (server fan-out)", &skip, records)
 	}
 	// option_snapshot_greeks_all::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "*", "*", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_greeks_all", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode", &skip, records)
-	}
-	// option_snapshot_greeks_all::legacy_zero_wildcard
-	//   rationale: expiration=0 + strike=0 → translated to * on wire — backward compat
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "0", "0", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_all", "legacy_zero_wildcard", "professional", "expiration=0 + strike=0 → translated to * on wire — backward compat", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_snapshot_greeks_all", "legacy_zero_wildcard", "expiration=0 + strike=0 → translated to * on wire — backward compat", &skip, records)
+		records = recordAborted("option_snapshot_greeks_all", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", &skip, records)
 	}
 	// option_snapshot_greeks_all::with_annual_dividend
 	//   rationale: annual_dividend=0.015 optional Greeks-input wiring
@@ -1087,12 +871,12 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 		records = recordAborted("option_snapshot_greeks_all", "with_rate_value", "rate_value=0.05 optional Greeks-input wiring", &skip, records)
 	}
 	// option_snapshot_greeks_all::with_stock_price
-	//   rationale: stock_price=150 optional Greeks-input wiring
+	//   rationale: stock_price=150.0 optional Greeks-input wiring
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C", WithStockPrice(150.0)); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_all", "with_stock_price", "professional", "stock_price=150 optional Greeks-input wiring", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_greeks_all", "with_stock_price", "professional", "stock_price=150.0 optional Greeks-input wiring", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_greeks_all", "with_stock_price", "stock_price=150 optional Greeks-input wiring", &skip, records)
+		records = recordAborted("option_snapshot_greeks_all", "with_stock_price", "stock_price=150.0 optional Greeks-input wiring", &skip, records)
 	}
 	// option_snapshot_greeks_all::with_version
 	//   rationale: version=dg3 optional Greeks-version selector wiring
@@ -1144,52 +928,36 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_snapshot_greeks_first_order::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_first_order", "concrete", "standard", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_greeks_first_order", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_greeks_first_order", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_snapshot_greeks_first_order::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_first_order", "concrete_iso", "standard", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_snapshot_greeks_first_order", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_snapshot_greeks_first_order", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_snapshot_greeks_first_order::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "*", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_first_order", "all_strikes_one_exp", "standard", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_greeks_first_order", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_greeks_first_order", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_snapshot_greeks_first_order", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_snapshot_greeks_first_order::all_exps_one_strike
-	//   rationale: expiration=* — exercises expiration wildcard wire-unset
+	//   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "*", "570", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_first_order", "all_exps_one_strike", "standard", "expiration=* — exercises expiration wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_greeks_first_order", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_greeks_first_order", "all_exps_one_strike", "expiration=* — exercises expiration wildcard wire-unset", &skip, records)
+		records = recordAborted("option_snapshot_greeks_first_order", "all_exps_one_strike", "expiration=* — sent as literal `*` on the wire (server fan-out)", &skip, records)
 	}
 	// option_snapshot_greeks_first_order::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "*", "*", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_first_order", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_greeks_first_order", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_greeks_first_order", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode", &skip, records)
-	}
-	// option_snapshot_greeks_first_order::legacy_zero_wildcard
-	//   rationale: expiration=0 + strike=0 → translated to * on wire — backward compat
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "0", "0", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_first_order", "legacy_zero_wildcard", "standard", "expiration=0 + strike=0 → translated to * on wire — backward compat", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_snapshot_greeks_first_order", "legacy_zero_wildcard", "expiration=0 + strike=0 → translated to * on wire — backward compat", &skip, records)
+		records = recordAborted("option_snapshot_greeks_first_order", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", &skip, records)
 	}
 	// option_snapshot_greeks_first_order::with_annual_dividend
 	//   rationale: annual_dividend=0.015 optional Greeks-input wiring
@@ -1216,12 +984,12 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 		records = recordAborted("option_snapshot_greeks_first_order", "with_rate_value", "rate_value=0.05 optional Greeks-input wiring", &skip, records)
 	}
 	// option_snapshot_greeks_first_order::with_stock_price
-	//   rationale: stock_price=150 optional Greeks-input wiring
+	//   rationale: stock_price=150.0 optional Greeks-input wiring
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C", WithStockPrice(150.0)); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_first_order", "with_stock_price", "standard", "stock_price=150 optional Greeks-input wiring", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_greeks_first_order", "with_stock_price", "standard", "stock_price=150.0 optional Greeks-input wiring", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_greeks_first_order", "with_stock_price", "stock_price=150 optional Greeks-input wiring", &skip, records)
+		records = recordAborted("option_snapshot_greeks_first_order", "with_stock_price", "stock_price=150.0 optional Greeks-input wiring", &skip, records)
 	}
 	// option_snapshot_greeks_first_order::with_version
 	//   rationale: version=dg3 optional Greeks-version selector wiring
@@ -1273,52 +1041,36 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_snapshot_greeks_second_order::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_greeks_second_order", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_snapshot_greeks_second_order::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_second_order", "concrete_iso", "professional", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_snapshot_greeks_second_order", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_snapshot_greeks_second_order", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_snapshot_greeks_second_order::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "*", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_greeks_second_order", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_snapshot_greeks_second_order", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_snapshot_greeks_second_order::all_exps_one_strike
-	//   rationale: expiration=* — exercises expiration wildcard wire-unset
+	//   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "*", "570", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_second_order", "all_exps_one_strike", "professional", "expiration=* — exercises expiration wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_greeks_second_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_greeks_second_order", "all_exps_one_strike", "expiration=* — exercises expiration wildcard wire-unset", &skip, records)
+		records = recordAborted("option_snapshot_greeks_second_order", "all_exps_one_strike", "expiration=* — sent as literal `*` on the wire (server fan-out)", &skip, records)
 	}
 	// option_snapshot_greeks_second_order::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "*", "*", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_greeks_second_order", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode", &skip, records)
-	}
-	// option_snapshot_greeks_second_order::legacy_zero_wildcard
-	//   rationale: expiration=0 + strike=0 → translated to * on wire — backward compat
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "0", "0", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_second_order", "legacy_zero_wildcard", "professional", "expiration=0 + strike=0 → translated to * on wire — backward compat", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_snapshot_greeks_second_order", "legacy_zero_wildcard", "expiration=0 + strike=0 → translated to * on wire — backward compat", &skip, records)
+		records = recordAborted("option_snapshot_greeks_second_order", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", &skip, records)
 	}
 	// option_snapshot_greeks_second_order::with_annual_dividend
 	//   rationale: annual_dividend=0.015 optional Greeks-input wiring
@@ -1345,12 +1097,12 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 		records = recordAborted("option_snapshot_greeks_second_order", "with_rate_value", "rate_value=0.05 optional Greeks-input wiring", &skip, records)
 	}
 	// option_snapshot_greeks_second_order::with_stock_price
-	//   rationale: stock_price=150 optional Greeks-input wiring
+	//   rationale: stock_price=150.0 optional Greeks-input wiring
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C", WithStockPrice(150.0)); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_second_order", "with_stock_price", "professional", "stock_price=150 optional Greeks-input wiring", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_greeks_second_order", "with_stock_price", "professional", "stock_price=150.0 optional Greeks-input wiring", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_greeks_second_order", "with_stock_price", "stock_price=150 optional Greeks-input wiring", &skip, records)
+		records = recordAborted("option_snapshot_greeks_second_order", "with_stock_price", "stock_price=150.0 optional Greeks-input wiring", &skip, records)
 	}
 	// option_snapshot_greeks_second_order::with_version
 	//   rationale: version=dg3 optional Greeks-version selector wiring
@@ -1402,52 +1154,36 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_snapshot_greeks_third_order::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_greeks_third_order", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_snapshot_greeks_third_order::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_third_order", "concrete_iso", "professional", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_snapshot_greeks_third_order", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_snapshot_greeks_third_order", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_snapshot_greeks_third_order::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "*", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_greeks_third_order", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_snapshot_greeks_third_order", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_snapshot_greeks_third_order::all_exps_one_strike
-	//   rationale: expiration=* — exercises expiration wildcard wire-unset
+	//   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "*", "570", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_third_order", "all_exps_one_strike", "professional", "expiration=* — exercises expiration wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_greeks_third_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_greeks_third_order", "all_exps_one_strike", "expiration=* — exercises expiration wildcard wire-unset", &skip, records)
+		records = recordAborted("option_snapshot_greeks_third_order", "all_exps_one_strike", "expiration=* — sent as literal `*` on the wire (server fan-out)", &skip, records)
 	}
 	// option_snapshot_greeks_third_order::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "*", "*", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_greeks_third_order", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode", &skip, records)
-	}
-	// option_snapshot_greeks_third_order::legacy_zero_wildcard
-	//   rationale: expiration=0 + strike=0 → translated to * on wire — backward compat
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "0", "0", "both"); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_third_order", "legacy_zero_wildcard", "professional", "expiration=0 + strike=0 → translated to * on wire — backward compat", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_snapshot_greeks_third_order", "legacy_zero_wildcard", "expiration=0 + strike=0 → translated to * on wire — backward compat", &skip, records)
+		records = recordAborted("option_snapshot_greeks_third_order", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", &skip, records)
 	}
 	// option_snapshot_greeks_third_order::with_annual_dividend
 	//   rationale: annual_dividend=0.015 optional Greeks-input wiring
@@ -1474,12 +1210,12 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 		records = recordAborted("option_snapshot_greeks_third_order", "with_rate_value", "rate_value=0.05 optional Greeks-input wiring", &skip, records)
 	}
 	// option_snapshot_greeks_third_order::with_stock_price
-	//   rationale: stock_price=150 optional Greeks-input wiring
+	//   rationale: stock_price=150.0 optional Greeks-input wiring
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C", WithStockPrice(150.0)); return goRowCount(v), e })
-		records = classify("option_snapshot_greeks_third_order", "with_stock_price", "professional", "stock_price=150 optional Greeks-input wiring", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_snapshot_greeks_third_order", "with_stock_price", "professional", "stock_price=150.0 optional Greeks-input wiring", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_snapshot_greeks_third_order", "with_stock_price", "stock_price=150 optional Greeks-input wiring", &skip, records)
+		records = recordAborted("option_snapshot_greeks_third_order", "with_stock_price", "stock_price=150.0 optional Greeks-input wiring", &skip, records)
 	}
 	// option_snapshot_greeks_third_order::with_version
 	//   rationale: version=dg3 optional Greeks-version selector wiring
@@ -1531,52 +1267,36 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_history_eod::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryEOD("SPY", "20250321", "570", "C", "20250303", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_eod", "concrete", "free", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_eod", "concrete", "free", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_eod", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_history_eod::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryEOD("SPY", "2025-03-21", "570", "C", "20250303", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_eod", "concrete_iso", "free", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_eod", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_history_eod", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_history_eod::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryEOD("SPY", "20250321", "*", "both", "20250303", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_eod", "all_strikes_one_exp", "free", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_eod", "all_strikes_one_exp", "free", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_eod", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_eod", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_history_eod::all_exps_one_strike
-	//   rationale: expiration=* — exercises expiration wildcard wire-unset
+	//   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryEOD("SPY", "*", "570", "both", "20250303", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_eod", "all_exps_one_strike", "free", "expiration=* — exercises expiration wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_eod", "all_exps_one_strike", "free", "expiration=* — sent as literal `*` on the wire (server fan-out)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_eod", "all_exps_one_strike", "expiration=* — exercises expiration wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_eod", "all_exps_one_strike", "expiration=* — sent as literal `*` on the wire (server fan-out)", &skip, records)
 	}
 	// option_history_eod::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryEOD("SPY", "*", "*", "both", "20250303", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_eod", "bulk_chain", "free", "expiration=* + strike=* + right=both — tests full-chain server mode", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_eod", "bulk_chain", "free", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_eod", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode", &skip, records)
-	}
-	// option_history_eod::legacy_zero_wildcard
-	//   rationale: expiration=0 + strike=0 → translated to * on wire — backward compat
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryEOD("SPY", "0", "0", "both", "20250303", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_eod", "legacy_zero_wildcard", "free", "expiration=0 + strike=0 → translated to * on wire — backward compat", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_eod", "legacy_zero_wildcard", "expiration=0 + strike=0 → translated to * on wire — backward compat", &skip, records)
+		records = recordAborted("option_history_eod", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", &skip, records)
 	}
 	// option_history_eod::with_max_dte
 	//   rationale: max_dte=30 optional filter wiring
@@ -1604,28 +1324,20 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_history_ohlc::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOHLC("SPY", "20250321", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("option_history_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_ohlc", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_history_ohlc::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOHLC("SPY", "2025-03-21", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("option_history_ohlc", "concrete_iso", "value", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_ohlc", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_history_ohlc", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_history_ohlc::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOHLC("SPY", "20250321", "*", "both", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("option_history_ohlc", "all_strikes_one_exp", "value", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_ohlc", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_ohlc", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_ohlc", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_history_ohlc::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -1661,52 +1373,36 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_history_trade::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "20250321", "570", "C", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_history_trade::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "2025-03-21", "570", "C", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade", "concrete_iso", "standard", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_trade", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_history_trade", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_history_trade::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "20250321", "*", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade", "all_strikes_one_exp", "standard", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_trade", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_history_trade::all_exps_one_strike
-	//   rationale: expiration=* — exercises expiration wildcard wire-unset
+	//   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "*", "570", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade", "all_exps_one_strike", "standard", "expiration=* — exercises expiration wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade", "all_exps_one_strike", "expiration=* — exercises expiration wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_trade", "all_exps_one_strike", "expiration=* — sent as literal `*` on the wire (server fan-out)", &skip, records)
 	}
 	// option_history_trade::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "*", "*", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode", &skip, records)
-	}
-	// option_history_trade::legacy_zero_wildcard
-	//   rationale: expiration=0 + strike=0 → translated to * on wire — backward compat
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "0", "0", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade", "legacy_zero_wildcard", "standard", "expiration=0 + strike=0 → translated to * on wire — backward compat", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_trade", "legacy_zero_wildcard", "expiration=0 + strike=0 → translated to * on wire — backward compat", &skip, records)
+		records = recordAborted("option_history_trade", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", &skip, records)
 	}
 	// option_history_trade::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -1750,52 +1446,36 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_history_quote::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "20250321", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("option_history_quote", "concrete", "value", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_quote", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_quote", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_history_quote::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "2025-03-21", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("option_history_quote", "concrete_iso", "value", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_quote", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_history_quote", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_history_quote::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "20250321", "*", "both", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("option_history_quote", "all_strikes_one_exp", "value", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_quote", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_quote", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_quote", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_history_quote::all_exps_one_strike
-	//   rationale: expiration=* — exercises expiration wildcard wire-unset
+	//   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "*", "570", "both", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("option_history_quote", "all_exps_one_strike", "value", "expiration=* — exercises expiration wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_quote", "all_exps_one_strike", "expiration=* — exercises expiration wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_quote", "all_exps_one_strike", "expiration=* — sent as literal `*` on the wire (server fan-out)", &skip, records)
 	}
 	// option_history_quote::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "*", "*", "both", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("option_history_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_quote", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode", &skip, records)
-	}
-	// option_history_quote::legacy_zero_wildcard
-	//   rationale: expiration=0 + strike=0 → translated to * on wire — backward compat
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "0", "0", "both", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("option_history_quote", "legacy_zero_wildcard", "value", "expiration=0 + strike=0 → translated to * on wire — backward compat", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_quote", "legacy_zero_wildcard", "expiration=0 + strike=0 → translated to * on wire — backward compat", &skip, records)
+		records = recordAborted("option_history_quote", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", &skip, records)
 	}
 	// option_history_quote::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -1839,52 +1519,36 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_history_trade_quote::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "20250321", "570", "C", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_quote", "concrete", "standard", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade_quote", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade_quote", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_history_trade_quote::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "2025-03-21", "570", "C", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_quote", "concrete_iso", "standard", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_trade_quote", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_history_trade_quote", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_history_trade_quote::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "20250321", "*", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_quote", "all_strikes_one_exp", "standard", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade_quote", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade_quote", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_trade_quote", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_history_trade_quote::all_exps_one_strike
-	//   rationale: expiration=* — exercises expiration wildcard wire-unset
+	//   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "*", "570", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_quote", "all_exps_one_strike", "standard", "expiration=* — exercises expiration wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade_quote", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade_quote", "all_exps_one_strike", "expiration=* — exercises expiration wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_trade_quote", "all_exps_one_strike", "expiration=* — sent as literal `*` on the wire (server fan-out)", &skip, records)
 	}
 	// option_history_trade_quote::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "*", "*", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_quote", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade_quote", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade_quote", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode", &skip, records)
-	}
-	// option_history_trade_quote::legacy_zero_wildcard
-	//   rationale: expiration=0 + strike=0 → translated to * on wire — backward compat
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "0", "0", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_quote", "legacy_zero_wildcard", "standard", "expiration=0 + strike=0 → translated to * on wire — backward compat", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_trade_quote", "legacy_zero_wildcard", "expiration=0 + strike=0 → translated to * on wire — backward compat", &skip, records)
+		records = recordAborted("option_history_trade_quote", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", &skip, records)
 	}
 	// option_history_trade_quote::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -1936,52 +1600,36 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_history_open_interest::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "20250321", "570", "C", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_open_interest", "concrete", "value", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_open_interest", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_open_interest", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_history_open_interest::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "2025-03-21", "570", "C", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_open_interest", "concrete_iso", "value", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_open_interest", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_history_open_interest", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_history_open_interest::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "20250321", "*", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_open_interest", "all_strikes_one_exp", "value", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_open_interest", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_open_interest", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_open_interest", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_history_open_interest::all_exps_one_strike
-	//   rationale: expiration=* — exercises expiration wildcard wire-unset
+	//   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "*", "570", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_open_interest", "all_exps_one_strike", "value", "expiration=* — exercises expiration wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_open_interest", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_open_interest", "all_exps_one_strike", "expiration=* — exercises expiration wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_open_interest", "all_exps_one_strike", "expiration=* — sent as literal `*` on the wire (server fan-out)", &skip, records)
 	}
 	// option_history_open_interest::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "*", "*", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_open_interest", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode", &skip, records)
-	}
-	// option_history_open_interest::legacy_zero_wildcard
-	//   rationale: expiration=0 + strike=0 → translated to * on wire — backward compat
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "0", "0", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_open_interest", "legacy_zero_wildcard", "value", "expiration=0 + strike=0 → translated to * on wire — backward compat", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_open_interest", "legacy_zero_wildcard", "expiration=0 + strike=0 → translated to * on wire — backward compat", &skip, records)
+		records = recordAborted("option_history_open_interest", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", &skip, records)
 	}
 	// option_history_open_interest::with_date_range
 	//   rationale: start_date + end_date pair — date range optional wiring
@@ -2017,52 +1665,36 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_history_greeks_eod::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "570", "C", "20250303", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_greeks_eod", "concrete", "standard", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_greeks_eod", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_greeks_eod", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_history_greeks_eod::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "2025-03-21", "570", "C", "20250303", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_greeks_eod", "concrete_iso", "standard", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_greeks_eod", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_history_greeks_eod", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_history_greeks_eod::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "*", "both", "20250303", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_greeks_eod", "all_strikes_one_exp", "standard", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_greeks_eod", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_greeks_eod", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_greeks_eod", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_history_greeks_eod::all_exps_one_strike
-	//   rationale: expiration=* — exercises expiration wildcard wire-unset
+	//   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "*", "570", "both", "20250303", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_greeks_eod", "all_exps_one_strike", "standard", "expiration=* — exercises expiration wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_greeks_eod", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_greeks_eod", "all_exps_one_strike", "expiration=* — exercises expiration wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_greeks_eod", "all_exps_one_strike", "expiration=* — sent as literal `*` on the wire (server fan-out)", &skip, records)
 	}
 	// option_history_greeks_eod::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "*", "*", "both", "20250303", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_greeks_eod", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_greeks_eod", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_greeks_eod", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode", &skip, records)
-	}
-	// option_history_greeks_eod::legacy_zero_wildcard
-	//   rationale: expiration=0 + strike=0 → translated to * on wire — backward compat
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "0", "0", "both", "20250303", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_greeks_eod", "legacy_zero_wildcard", "standard", "expiration=0 + strike=0 → translated to * on wire — backward compat", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_greeks_eod", "legacy_zero_wildcard", "expiration=0 + strike=0 → translated to * on wire — backward compat", &skip, records)
+		records = recordAborted("option_history_greeks_eod", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", &skip, records)
 	}
 	// option_history_greeks_eod::with_annual_dividend
 	//   rationale: annual_dividend=0.015 optional Greeks-input wiring
@@ -2130,28 +1762,20 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_history_greeks_all::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("option_history_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_greeks_all", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_history_greeks_all::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksAll("SPY", "2025-03-21", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("option_history_greeks_all", "concrete_iso", "professional", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_greeks_all", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_history_greeks_all", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_history_greeks_all::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "*", "both", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("option_history_greeks_all", "all_strikes_one_exp", "professional", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_greeks_all", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_greeks_all", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_history_greeks_all::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -2219,52 +1843,36 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_history_trade_greeks_all::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade_greeks_all", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_history_trade_greeks_all::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "2025-03-21", "570", "C", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_all", "concrete_iso", "professional", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_trade_greeks_all", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_history_trade_greeks_all", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_history_trade_greeks_all::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "*", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_all", "all_strikes_one_exp", "professional", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade_greeks_all", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_trade_greeks_all", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_history_trade_greeks_all::all_exps_one_strike
-	//   rationale: expiration=* — exercises expiration wildcard wire-unset
+	//   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "*", "570", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_all", "all_exps_one_strike", "professional", "expiration=* — exercises expiration wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade_greeks_all", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade_greeks_all", "all_exps_one_strike", "expiration=* — exercises expiration wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_trade_greeks_all", "all_exps_one_strike", "expiration=* — sent as literal `*` on the wire (server fan-out)", &skip, records)
 	}
 	// option_history_trade_greeks_all::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "*", "*", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade_greeks_all", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode", &skip, records)
-	}
-	// option_history_trade_greeks_all::legacy_zero_wildcard
-	//   rationale: expiration=0 + strike=0 → translated to * on wire — backward compat
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "0", "0", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_all", "legacy_zero_wildcard", "professional", "expiration=0 + strike=0 → translated to * on wire — backward compat", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_trade_greeks_all", "legacy_zero_wildcard", "expiration=0 + strike=0 → translated to * on wire — backward compat", &skip, records)
+		records = recordAborted("option_history_trade_greeks_all", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", &skip, records)
 	}
 	// option_history_trade_greeks_all::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -2340,28 +1948,20 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_history_greeks_first_order::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("option_history_greeks_first_order", "concrete", "standard", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_greeks_first_order", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_greeks_first_order", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_history_greeks_first_order::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksFirstOrder("SPY", "2025-03-21", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("option_history_greeks_first_order", "concrete_iso", "standard", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_greeks_first_order", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_history_greeks_first_order", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_history_greeks_first_order::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "*", "both", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("option_history_greeks_first_order", "all_strikes_one_exp", "standard", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_greeks_first_order", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_greeks_first_order", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_greeks_first_order", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_history_greeks_first_order::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -2429,52 +2029,36 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_history_trade_greeks_first_order::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_first_order", "concrete", "professional", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade_greeks_first_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade_greeks_first_order", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_history_trade_greeks_first_order::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "2025-03-21", "570", "C", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_first_order", "concrete_iso", "professional", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_trade_greeks_first_order", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_history_trade_greeks_first_order", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_history_trade_greeks_first_order::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "*", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_first_order", "all_strikes_one_exp", "professional", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade_greeks_first_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade_greeks_first_order", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_trade_greeks_first_order", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_history_trade_greeks_first_order::all_exps_one_strike
-	//   rationale: expiration=* — exercises expiration wildcard wire-unset
+	//   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "*", "570", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_first_order", "all_exps_one_strike", "professional", "expiration=* — exercises expiration wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade_greeks_first_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade_greeks_first_order", "all_exps_one_strike", "expiration=* — exercises expiration wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_trade_greeks_first_order", "all_exps_one_strike", "expiration=* — sent as literal `*` on the wire (server fan-out)", &skip, records)
 	}
 	// option_history_trade_greeks_first_order::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "*", "*", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_first_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade_greeks_first_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade_greeks_first_order", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode", &skip, records)
-	}
-	// option_history_trade_greeks_first_order::legacy_zero_wildcard
-	//   rationale: expiration=0 + strike=0 → translated to * on wire — backward compat
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "0", "0", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_first_order", "legacy_zero_wildcard", "professional", "expiration=0 + strike=0 → translated to * on wire — backward compat", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_trade_greeks_first_order", "legacy_zero_wildcard", "expiration=0 + strike=0 → translated to * on wire — backward compat", &skip, records)
+		records = recordAborted("option_history_trade_greeks_first_order", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", &skip, records)
 	}
 	// option_history_trade_greeks_first_order::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -2550,28 +2134,20 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_history_greeks_second_order::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("option_history_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_greeks_second_order", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_history_greeks_second_order::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksSecondOrder("SPY", "2025-03-21", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("option_history_greeks_second_order", "concrete_iso", "professional", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_greeks_second_order", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_history_greeks_second_order", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_history_greeks_second_order::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "*", "both", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("option_history_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_greeks_second_order", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_greeks_second_order", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_history_greeks_second_order::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -2639,52 +2215,36 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_history_trade_greeks_second_order::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade_greeks_second_order", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_history_trade_greeks_second_order::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "2025-03-21", "570", "C", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_second_order", "concrete_iso", "professional", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_trade_greeks_second_order", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_history_trade_greeks_second_order", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_history_trade_greeks_second_order::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "*", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade_greeks_second_order", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_trade_greeks_second_order", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_history_trade_greeks_second_order::all_exps_one_strike
-	//   rationale: expiration=* — exercises expiration wildcard wire-unset
+	//   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "*", "570", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_second_order", "all_exps_one_strike", "professional", "expiration=* — exercises expiration wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade_greeks_second_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade_greeks_second_order", "all_exps_one_strike", "expiration=* — exercises expiration wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_trade_greeks_second_order", "all_exps_one_strike", "expiration=* — sent as literal `*` on the wire (server fan-out)", &skip, records)
 	}
 	// option_history_trade_greeks_second_order::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "*", "*", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade_greeks_second_order", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode", &skip, records)
-	}
-	// option_history_trade_greeks_second_order::legacy_zero_wildcard
-	//   rationale: expiration=0 + strike=0 → translated to * on wire — backward compat
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "0", "0", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_second_order", "legacy_zero_wildcard", "professional", "expiration=0 + strike=0 → translated to * on wire — backward compat", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_trade_greeks_second_order", "legacy_zero_wildcard", "expiration=0 + strike=0 → translated to * on wire — backward compat", &skip, records)
+		records = recordAborted("option_history_trade_greeks_second_order", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", &skip, records)
 	}
 	// option_history_trade_greeks_second_order::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -2760,28 +2320,20 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_history_greeks_third_order::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("option_history_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_greeks_third_order", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_history_greeks_third_order::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksThirdOrder("SPY", "2025-03-21", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("option_history_greeks_third_order", "concrete_iso", "professional", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_greeks_third_order", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_history_greeks_third_order", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_history_greeks_third_order::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "*", "both", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("option_history_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_greeks_third_order", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_greeks_third_order", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_history_greeks_third_order::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -2849,52 +2401,36 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_history_trade_greeks_third_order::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade_greeks_third_order", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_history_trade_greeks_third_order::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "2025-03-21", "570", "C", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_third_order", "concrete_iso", "professional", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_trade_greeks_third_order", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_history_trade_greeks_third_order", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_history_trade_greeks_third_order::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "*", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade_greeks_third_order", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_trade_greeks_third_order", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_history_trade_greeks_third_order::all_exps_one_strike
-	//   rationale: expiration=* — exercises expiration wildcard wire-unset
+	//   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "*", "570", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_third_order", "all_exps_one_strike", "professional", "expiration=* — exercises expiration wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade_greeks_third_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade_greeks_third_order", "all_exps_one_strike", "expiration=* — exercises expiration wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_trade_greeks_third_order", "all_exps_one_strike", "expiration=* — sent as literal `*` on the wire (server fan-out)", &skip, records)
 	}
 	// option_history_trade_greeks_third_order::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "*", "*", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade_greeks_third_order", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode", &skip, records)
-	}
-	// option_history_trade_greeks_third_order::legacy_zero_wildcard
-	//   rationale: expiration=0 + strike=0 → translated to * on wire — backward compat
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "0", "0", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_third_order", "legacy_zero_wildcard", "professional", "expiration=0 + strike=0 → translated to * on wire — backward compat", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_trade_greeks_third_order", "legacy_zero_wildcard", "expiration=0 + strike=0 → translated to * on wire — backward compat", &skip, records)
+		records = recordAborted("option_history_trade_greeks_third_order", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", &skip, records)
 	}
 	// option_history_trade_greeks_third_order::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -2970,28 +2506,20 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_history_greeks_implied_volatility::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("option_history_greeks_implied_volatility", "concrete", "standard", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_greeks_implied_volatility", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_greeks_implied_volatility", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_history_greeks_implied_volatility::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "2025-03-21", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("option_history_greeks_implied_volatility", "concrete_iso", "standard", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_greeks_implied_volatility", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_history_greeks_implied_volatility", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_history_greeks_implied_volatility::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "*", "both", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("option_history_greeks_implied_volatility", "all_strikes_one_exp", "standard", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_greeks_implied_volatility", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_greeks_implied_volatility", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_greeks_implied_volatility", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_history_greeks_implied_volatility::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -3059,52 +2587,36 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_history_trade_greeks_implied_volatility::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_implied_volatility", "concrete", "professional", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade_greeks_implied_volatility", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade_greeks_implied_volatility", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_history_trade_greeks_implied_volatility::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "2025-03-21", "570", "C", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_implied_volatility", "concrete_iso", "professional", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_trade_greeks_implied_volatility", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_history_trade_greeks_implied_volatility", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_history_trade_greeks_implied_volatility::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "*", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_implied_volatility", "all_strikes_one_exp", "professional", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade_greeks_implied_volatility", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade_greeks_implied_volatility", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_trade_greeks_implied_volatility", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_history_trade_greeks_implied_volatility::all_exps_one_strike
-	//   rationale: expiration=* — exercises expiration wildcard wire-unset
+	//   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "*", "570", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_implied_volatility", "all_exps_one_strike", "professional", "expiration=* — exercises expiration wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade_greeks_implied_volatility", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade_greeks_implied_volatility", "all_exps_one_strike", "expiration=* — exercises expiration wildcard wire-unset", &skip, records)
+		records = recordAborted("option_history_trade_greeks_implied_volatility", "all_exps_one_strike", "expiration=* — sent as literal `*` on the wire (server fan-out)", &skip, records)
 	}
 	// option_history_trade_greeks_implied_volatility::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "*", "*", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_implied_volatility", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_history_trade_greeks_implied_volatility", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_history_trade_greeks_implied_volatility", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode", &skip, records)
-	}
-	// option_history_trade_greeks_implied_volatility::legacy_zero_wildcard
-	//   rationale: expiration=0 + strike=0 → translated to * on wire — backward compat
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "0", "0", "both", "20250303"); return goRowCount(v), e })
-		records = classify("option_history_trade_greeks_implied_volatility", "legacy_zero_wildcard", "professional", "expiration=0 + strike=0 → translated to * on wire — backward compat", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_history_trade_greeks_implied_volatility", "legacy_zero_wildcard", "expiration=0 + strike=0 → translated to * on wire — backward compat", &skip, records)
+		records = recordAborted("option_history_trade_greeks_implied_volatility", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", &skip, records)
 	}
 	// option_history_trade_greeks_implied_volatility::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -3180,52 +2692,36 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_at_time_trade::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeTrade("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-		records = classify("option_at_time_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_at_time_trade", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_at_time_trade", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_at_time_trade::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeTrade("SPY", "2025-03-21", "570", "C", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-		records = classify("option_at_time_trade", "concrete_iso", "standard", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_at_time_trade", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_at_time_trade", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_at_time_trade::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeTrade("SPY", "20250321", "*", "both", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-		records = classify("option_at_time_trade", "all_strikes_one_exp", "standard", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_at_time_trade", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_at_time_trade", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_at_time_trade", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_at_time_trade::all_exps_one_strike
-	//   rationale: expiration=* — exercises expiration wildcard wire-unset
+	//   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeTrade("SPY", "*", "570", "both", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-		records = classify("option_at_time_trade", "all_exps_one_strike", "standard", "expiration=* — exercises expiration wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_at_time_trade", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_at_time_trade", "all_exps_one_strike", "expiration=* — exercises expiration wildcard wire-unset", &skip, records)
+		records = recordAborted("option_at_time_trade", "all_exps_one_strike", "expiration=* — sent as literal `*` on the wire (server fan-out)", &skip, records)
 	}
 	// option_at_time_trade::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeTrade("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-		records = classify("option_at_time_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_at_time_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_at_time_trade", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode", &skip, records)
-	}
-	// option_at_time_trade::legacy_zero_wildcard
-	//   rationale: expiration=0 + strike=0 → translated to * on wire — backward compat
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeTrade("SPY", "0", "0", "both", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-		records = classify("option_at_time_trade", "legacy_zero_wildcard", "standard", "expiration=0 + strike=0 → translated to * on wire — backward compat", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_at_time_trade", "legacy_zero_wildcard", "expiration=0 + strike=0 → translated to * on wire — backward compat", &skip, records)
+		records = recordAborted("option_at_time_trade", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", &skip, records)
 	}
 	// option_at_time_trade::with_max_dte
 	//   rationale: max_dte=30 optional filter wiring
@@ -3253,52 +2749,36 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// option_at_time_quote::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeQuote("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-		records = classify("option_at_time_quote", "concrete", "value", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_at_time_quote", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_at_time_quote", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
-	}
-	// option_at_time_quote::concrete_iso
-	//   rationale: expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeQuote("SPY", "2025-03-21", "570", "C", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-		records = classify("option_at_time_quote", "concrete_iso", "value", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_at_time_quote", "concrete_iso", "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD", &skip, records)
+		records = recordAborted("option_at_time_quote", "concrete", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", &skip, records)
 	}
 	// option_at_time_quote::all_strikes_one_exp
-	//   rationale: strike=* on a supported endpoint — exercises strike wildcard wire-unset
+	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeQuote("SPY", "20250321", "*", "both", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-		records = classify("option_at_time_quote", "all_strikes_one_exp", "value", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_at_time_quote", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_at_time_quote", "all_strikes_one_exp", "strike=* on a supported endpoint — exercises strike wildcard wire-unset", &skip, records)
+		records = recordAborted("option_at_time_quote", "all_strikes_one_exp", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", &skip, records)
 	}
 	// option_at_time_quote::all_exps_one_strike
-	//   rationale: expiration=* — exercises expiration wildcard wire-unset
+	//   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeQuote("SPY", "*", "570", "both", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-		records = classify("option_at_time_quote", "all_exps_one_strike", "value", "expiration=* — exercises expiration wildcard wire-unset", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_at_time_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_at_time_quote", "all_exps_one_strike", "expiration=* — exercises expiration wildcard wire-unset", &skip, records)
+		records = recordAborted("option_at_time_quote", "all_exps_one_strike", "expiration=* — sent as literal `*` on the wire (server fan-out)", &skip, records)
 	}
 	// option_at_time_quote::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeQuote("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-		records = classify("option_at_time_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("option_at_time_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("option_at_time_quote", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode", &skip, records)
-	}
-	// option_at_time_quote::legacy_zero_wildcard
-	//   rationale: expiration=0 + strike=0 → translated to * on wire — backward compat
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeQuote("SPY", "0", "0", "both", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-		records = classify("option_at_time_quote", "legacy_zero_wildcard", "value", "expiration=0 + strike=0 → translated to * on wire — backward compat", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("option_at_time_quote", "legacy_zero_wildcard", "expiration=0 + strike=0 → translated to * on wire — backward compat", &skip, records)
+		records = recordAborted("option_at_time_quote", "bulk_chain", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", &skip, records)
 	}
 	// option_at_time_quote::with_max_dte
 	//   rationale: max_dte=30 optional filter wiring
@@ -3499,36 +2979,20 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	}
 
 	// stock_history_ohlc_range::concrete
-	//   rationale: required params set, no optionals — baseline wire path
+	//   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryOHLCRange("AAPL", "20250303", "20250303", "60000"); return goRowCount(v), e })
-		records = classify("stock_history_ohlc_range", "concrete", "value", "required params set, no optionals — baseline wire path", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("stock_history_ohlc_range", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: with_venue)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("stock_history_ohlc_range", "concrete", "required params set, no optionals — baseline wire path", &skip, records)
+		records = recordAborted("stock_history_ohlc_range", "concrete", "required params set, no optionals — baseline wire path (also covers: with_venue)", &skip, records)
 	}
 	// stock_history_ohlc_range::with_intraday_window
-	//   rationale: start_time + end_time pair — intraday window optional wiring
+	//   rationale: start_time + end_time pair — intraday window optional wiring (also covers: all_optionals)
 	if !hadTimeout {
 		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryOHLCRange("AAPL", "20250303", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
-		records = classify("stock_history_ohlc_range", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", r, &pass, &skip, &fail, &hadTimeout, records)
+		records = classify("stock_history_ohlc_range", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring (also covers: all_optionals)", r, &pass, &skip, &fail, &hadTimeout, records)
 	} else {
-		records = recordAborted("stock_history_ohlc_range", "with_intraday_window", "start_time + end_time pair — intraday window optional wiring", &skip, records)
-	}
-	// stock_history_ohlc_range::with_venue
-	//   rationale: venue=nqb optional venue selector wiring
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryOHLCRange("AAPL", "20250303", "20250303", "60000", WithVenue("nqb")); return goRowCount(v), e })
-		records = classify("stock_history_ohlc_range", "with_venue", "value", "venue=nqb optional venue selector wiring", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("stock_history_ohlc_range", "with_venue", "venue=nqb optional venue selector wiring", &skip, records)
-	}
-	// stock_history_ohlc_range::all_optionals
-	//   rationale: every applicable optional set at once — proves multi-optional wiring
-	if !hadTimeout {
-		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryOHLCRange("AAPL", "20250303", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithVenue("nqb")); return goRowCount(v), e })
-		records = classify("stock_history_ohlc_range", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", r, &pass, &skip, &fail, &hadTimeout, records)
-	} else {
-		records = recordAborted("stock_history_ohlc_range", "all_optionals", "every applicable optional set at once — proves multi-optional wiring", &skip, records)
+		records = recordAborted("stock_history_ohlc_range", "with_intraday_window", "start_time + end_time pair — intraday window optional wiring (also covers: all_optionals)", &skip, records)
 	}
 
 	return pass, skip, fail, hadTimeout, records
@@ -3583,7 +3047,10 @@ func classify(endpoint, mode, declaredMinTier, rationale string, r cellResult, p
 	fmt.Printf("  %-60s FAIL  %v\n", label, r.err)
 	*fail++
 	rec.Status = "FAIL"
-	detail := r.err.Error()
+	// gRPC / transport errors can contain embedded newlines; escape them
+	// so the agreement-table row stays single-line.
+	detail := strings.ReplaceAll(r.err.Error(), "\n", "\\n")
+	detail = strings.ReplaceAll(detail, "\r", "\\r")
 	if len(detail) > 200 {
 		detail = detail[:200]
 	}
