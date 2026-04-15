@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Public API redesign doc** (#282) -- \`docs/public-api-redesign.md\` charters the layered ergonomic-façade migration plan (exact generated surface as canonical parity layer, handwritten \`historical\` / \`realtime\` / \`analytics\` façades on top, typed value foundations, Python result containers, spec enrichment, compatibility window, semver cleanup). The streaming category is named \`realtime\` rather than \`live\` to avoid overloading \`live\`'s CI / run-mode meanings.
+
 ### Changed
 
 - **`scripts/check_tier_badges.py` now live-fetches ThetaData's \`openapiv3.yaml\`** (#280) -- removes \`scripts/upstream_tiers.json\` (a data file that didn't belong under \`scripts/\` anyway) and pulls the authoritative \`x-min-subscription\` map at check time, with 4 retries + exponential backoff and fail-closed on exhaustion. Eliminates the manual snapshot-refresh drift vector. The \`Extended Surfaces\` CI job already has outbound access, so no workflow changes required.
