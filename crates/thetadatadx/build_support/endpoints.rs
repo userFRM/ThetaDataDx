@@ -3149,90 +3149,61 @@ struct TestMode {
 
 /// Minimum subscription tier each endpoint requires.
 ///
-/// Hard-coded from `docs-site/docs/historical/**/*.md` `<TierBadge tier="..."
-/// />` — that surface is itself validated against upstream
-/// `openapiv3.yaml`'s `x-min-subscription` by `scripts/check_tier_badges.py`,
-/// so this map stays correct as long as the docs do.
+/// Derived at generator-run-time from the pinned upstream OpenAPI snapshot at
+/// `scripts/upstream_openapi.yaml` (see [`super::upstream_openapi`]), keyed
+/// on the endpoint's `operationId`. Upstream is the sole source of truth for
+/// `x-min-subscription`, so docs-site `<TierBadge>` and this function agree
+/// as long as the snapshot is fresh.
+///
+/// Four kinds of endpoints don't have an upstream entry and fall back to a
+/// tiny override table ([`sdk_only_min_tier`]): streaming RPCs (FPSS, not
+/// MDDS), SDK-private endpoints like `interest_rate_history_eod`, and
+/// SDK-only synthetic clones like `stock_history_ohlc_range`.
 fn endpoint_min_tier(name: &str) -> &'static str {
-    match name {
-        // ── Stock ─────────────────────────────────────────────────────────
-        "stock_list_symbols" | "stock_list_dates" => "free",
-        "stock_history_eod" => "free",
-        "stock_snapshot_ohlc"
-        | "stock_snapshot_quote"
-        | "stock_history_ohlc"
-        | "stock_history_ohlc_range"
-        | "stock_history_quote"
-        | "stock_at_time_quote" => "value",
-        "stock_snapshot_market_value"
-        | "stock_snapshot_trade"
-        | "stock_history_trade"
-        | "stock_history_trade_quote"
-        | "stock_at_time_trade" => "standard",
+    if let Some(tier) = sdk_only_min_tier(name) {
+        return tier;
+    }
+    let spec = super::upstream_openapi::UpstreamOpenApi::load();
+    let endpoint = spec.endpoint(name).unwrap_or_else(|| {
+        panic!(
+            "endpoint '{name}' is missing from the upstream OpenAPI snapshot \
+             at scripts/upstream_openapi.yaml; if this is a new endpoint, add \
+             it as an SDK-only override in `sdk_only_min_tier`, or refresh the \
+             snapshot with `python3 scripts/check_tier_badges.py --refresh-snapshot`."
+        )
+    });
+    match endpoint.min_subscription.as_str() {
+        "free" => "free",
+        "value" => "value",
+        "standard" => "standard",
+        "professional" => "professional",
+        other => panic!(
+            "endpoint '{name}': upstream min-subscription '{other}' is not a known tier. \
+             Expected one of free/value/standard/professional."
+        ),
+    }
+}
 
-        // ── Option list ───────────────────────────────────────────────────
-        "option_list_symbols"
-        | "option_list_dates"
-        | "option_list_strikes"
-        | "option_list_expirations" => "free",
-        "option_list_contracts" => "value",
-
-        // ── Option snapshot ───────────────────────────────────────────────
-        "option_snapshot_ohlc"
-        | "option_snapshot_quote"
-        | "option_snapshot_open_interest"
-        | "option_snapshot_market_value" => "value",
-        "option_snapshot_trade"
-        | "option_snapshot_greeks_implied_volatility"
-        | "option_snapshot_greeks_first_order" => "standard",
-        "option_snapshot_greeks_all"
-        | "option_snapshot_greeks_second_order"
-        | "option_snapshot_greeks_third_order" => "professional",
-
-        // ── Option history (non-trade-greeks) ─────────────────────────────
-        "option_history_eod" => "free",
-        "option_history_ohlc" | "option_history_quote" | "option_history_open_interest" => "value",
-        "option_history_trade"
-        | "option_history_trade_quote"
-        | "option_history_greeks_eod"
-        | "option_history_greeks_implied_volatility"
-        | "option_history_greeks_first_order" => "standard",
-        "option_history_greeks_all"
-        | "option_history_greeks_second_order"
-        | "option_history_greeks_third_order"
-        | "option_history_trade_greeks_implied_volatility"
-        | "option_history_trade_greeks_all"
-        | "option_history_trade_greeks_first_order"
-        | "option_history_trade_greeks_second_order"
-        | "option_history_trade_greeks_third_order" => "professional",
-
-        // ── Option at-time ────────────────────────────────────────────────
-        "option_at_time_quote" => "value",
-        "option_at_time_trade" => "standard",
-
-        // ── Index ─────────────────────────────────────────────────────────
-        "index_list_symbols" | "index_list_dates" | "index_history_eod" => "free",
-        "index_history_price" | "index_at_time_price" => "value",
-        "index_snapshot_ohlc"
-        | "index_snapshot_price"
-        | "index_snapshot_market_value"
-        | "index_history_ohlc" => "standard",
-
-        // ── Calendar / rate ───────────────────────────────────────────────
-        "calendar_open_today" | "interest_rate_history_eod" => "free",
-        "calendar_on_date" | "calendar_year" => "value",
-
-        // ── Streaming (covered by FPSS smoke harness, not this matrix) ────
+/// Minimum-tier override for endpoints that aren't in the upstream OpenAPI spec.
+///
+/// Returns `None` for every endpoint that upstream documents — those flow
+/// through [`endpoint_min_tier`]'s snapshot lookup.
+fn sdk_only_min_tier(name: &str) -> Option<&'static str> {
+    Some(match name {
+        // Streaming endpoints (FPSS, covered by scripts/fpss_smoke.py, not the
+        // live matrix validator). The value here is still used by
+        // `test_modes_for` for display-only `min_tier` on test cells, but the
+        // streaming surface is excluded from the matrix anyway.
         "stock_history_trade_stream"
         | "stock_history_quote_stream"
         | "option_history_trade_stream"
         | "option_history_quote_stream" => "standard",
-
-        other => panic!(
-            "endpoint '{other}' is missing a tier mapping in `endpoint_min_tier`. \
-             Add it after consulting docs-site/docs/historical/**/*.md TierBadge."
-        ),
-    }
+        // Synthetic clone sharing a wire RPC with `stock_history_ohlc`.
+        "stock_history_ohlc_range" => "value",
+        // SDK-only endpoint not documented upstream (FRED-backed, thetadatadx-local).
+        "interest_rate_history_eod" => "free",
+        _ => return None,
+    })
 }
 
 /// Render the language-agnostic value for a method-call parameter at a
@@ -3296,24 +3267,22 @@ fn has_full_contract_spec(endpoint: &GeneratedEndpoint) -> bool {
 
 /// Whether an option endpoint accepts `expiration=*` at the v3 server.
 ///
-/// The v3 server binds some endpoints to upstream's `expiration_no_star`
-/// parameter (openapiv3.yaml) — these return
-/// `InvalidArgument -- Cannot specify '*' for the date` if the client
-/// sends `*`. The list below mirrors the set of endpoints whose upstream
-/// parameter block uses `expiration_no_star`; bulk-expiration modes are
-/// suppressed for these in `test_modes_for`. Update this list when
-/// upstream widens or narrows the wildcard surface.
+/// Derived from the pinned upstream snapshot
+/// (`scripts/upstream_openapi.yaml`): upstream binds endpoints that reject
+/// wildcards to its `expiration_no_star` component parameter (they return
+/// `InvalidArgument -- Cannot specify '*' for the date` if we send `*`),
+/// and wildcard-accepting endpoints to `expiration`. See
+/// [`super::upstream_openapi::UpstreamEndpoint::supports_expiration_wildcard`].
+///
+/// Endpoints absent from upstream (streaming, SDK-only clones) fall back to
+/// `true` — they don't participate in the wildcard matrix anyway (streaming
+/// is skipped upstream of this call, and the SDK-only endpoints don't take
+/// an expiration parameter).
 fn endpoint_supports_expiration_wildcard(name: &str) -> bool {
-    !matches!(
-        name,
-        "option_snapshot_trade"
-            | "option_history_ohlc"
-            | "option_history_greeks_all"
-            | "option_history_greeks_first_order"
-            | "option_history_greeks_second_order"
-            | "option_history_greeks_third_order"
-            | "option_history_greeks_implied_volatility"
-    )
+    let spec = super::upstream_openapi::UpstreamOpenApi::load();
+    spec.endpoint(name)
+        .map(|endpoint| endpoint.supports_expiration_wildcard)
+        .unwrap_or(true)
 }
 
 /// Compute the comprehensive mode set for a given endpoint.

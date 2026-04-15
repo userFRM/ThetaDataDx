@@ -94,12 +94,12 @@ int main(int argc, char** argv) {
         cell("option_snapshot_open_interest::all_exps_one_strike", "value", [&] { return client.option_snapshot_open_interest("SPY", "*", "570", "both"); });
         cell("option_snapshot_open_interest::bulk_chain", "value", [&] { return client.option_snapshot_open_interest("SPY", "*", "*", "both"); });
         cell("option_snapshot_open_interest::legacy_zero_wildcard", "value", [&] { return client.option_snapshot_open_interest("SPY", "0", "0", "both"); });
-        cell("option_snapshot_market_value::concrete", "value", [&] { return client.option_snapshot_market_value("SPY", "20250321", "570", "C"); });
-        cell("option_snapshot_market_value::concrete_iso", "value", [&] { return client.option_snapshot_market_value("SPY", "2025-03-21", "570", "C"); });
-        cell("option_snapshot_market_value::all_strikes_one_exp", "value", [&] { return client.option_snapshot_market_value("SPY", "20250321", "*", "both"); });
-        cell("option_snapshot_market_value::all_exps_one_strike", "value", [&] { return client.option_snapshot_market_value("SPY", "*", "570", "both"); });
-        cell("option_snapshot_market_value::bulk_chain", "value", [&] { return client.option_snapshot_market_value("SPY", "*", "*", "both"); });
-        cell("option_snapshot_market_value::legacy_zero_wildcard", "value", [&] { return client.option_snapshot_market_value("SPY", "0", "0", "both"); });
+        cell("option_snapshot_market_value::concrete", "standard", [&] { return client.option_snapshot_market_value("SPY", "20250321", "570", "C"); });
+        cell("option_snapshot_market_value::concrete_iso", "standard", [&] { return client.option_snapshot_market_value("SPY", "2025-03-21", "570", "C"); });
+        cell("option_snapshot_market_value::all_strikes_one_exp", "standard", [&] { return client.option_snapshot_market_value("SPY", "20250321", "*", "both"); });
+        cell("option_snapshot_market_value::all_exps_one_strike", "standard", [&] { return client.option_snapshot_market_value("SPY", "*", "570", "both"); });
+        cell("option_snapshot_market_value::bulk_chain", "standard", [&] { return client.option_snapshot_market_value("SPY", "*", "*", "both"); });
+        cell("option_snapshot_market_value::legacy_zero_wildcard", "standard", [&] { return client.option_snapshot_market_value("SPY", "0", "0", "both"); });
         cell("option_snapshot_greeks_implied_volatility::concrete", "standard", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C"); });
         cell("option_snapshot_greeks_implied_volatility::concrete_iso", "standard", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "2025-03-21", "570", "C"); });
         cell("option_snapshot_greeks_implied_volatility::all_strikes_one_exp", "standard", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "*", "both"); });

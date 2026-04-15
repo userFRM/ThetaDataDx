@@ -7,6 +7,7 @@
 
 mod endpoints;
 mod ticks;
+mod upstream_openapi;
 
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     tonic_prost_build::configure()
