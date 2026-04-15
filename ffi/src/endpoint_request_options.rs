@@ -81,7 +81,7 @@ fn apply_endpoint_request_options(
         insert_bool_arg(args, "underlyer_use_nbbo", options.underlyer_use_nbbo)?;
     }
     if options.has_timeout_ms != 0 {
-        *args = std::mem::take(args).with_timeout_ms(options.timeout_ms);
+        args.set_timeout_ms(options.timeout_ms);
     }
     Ok(())
 }

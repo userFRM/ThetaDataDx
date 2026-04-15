@@ -155,9 +155,9 @@ fn render_python_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
             })
             .collect::<Vec<_>>()
             .join(", ");
-        write!(
+        writeln!(
             out,
-            "            let mut request = self.tdx.{}({});\n",
+            "            let mut request = self.tdx.{}({});",
             endpoint.name, positional_args
         )
         .unwrap();

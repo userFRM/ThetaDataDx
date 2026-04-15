@@ -69,7 +69,7 @@ pub(super) fn render_ffi_endpoint_request_options(params: &[GeneratedParam]) -> 
         }
     }
     out.push_str("    if options.has_timeout_ms != 0 {\n");
-    out.push_str("        *args = std::mem::take(args).with_timeout_ms(options.timeout_ms);\n");
+    out.push_str("        args.set_timeout_ms(options.timeout_ms);\n");
     out.push_str("    }\n");
     out.push_str("    Ok(())\n");
     out.push_str("}\n");

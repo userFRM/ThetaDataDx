@@ -60,6 +60,12 @@ impl EndpointArgs {
         self
     }
 
+    /// In-place equivalent of [`Self::with_timeout_ms`] for `&mut self` callers
+    /// (FFI dispatch shims that already hold a `&mut EndpointArgs`).
+    pub fn set_timeout_ms(&mut self, ms: u64) {
+        self.timeout_ms = Some(ms);
+    }
+
     /// Configured per-call deadline in milliseconds, if any.
     #[must_use]
     pub fn timeout_ms(&self) -> Option<u64> {
