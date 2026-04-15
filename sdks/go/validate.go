@@ -4,214 +4,1557 @@ package thetadatadx
 
 import (
 	"fmt"
+	"os"
 	"strings"
 )
 
-// ValidateAllEndpoints calls every non-stream endpoint with dummy-but-valid args.
-// Returns (pass, skip, fail) counts.
+var tierRank = map[string]int{
+	"free": 0, "value": 1, "standard": 2, "professional": 3,
+}
+
+// ValidateAllEndpoints runs the live parameter-mode matrix against `c`.
+// Returns (pass, skip, fail) counts. See issue #287.
 func ValidateAllEndpoints(c *Client) (int, int, int) {
 	pass, skip, fail := 0, 0, 0
+	accountTier := strings.ToLower(os.Getenv("VALIDATOR_ACCOUNT_TIER"))
+	if accountTier == "" {
+		accountTier = "free"
+	}
+	if _, ok := tierRank[accountTier]; !ok {
+		fmt.Fprintf(os.Stderr, "VALIDATOR_ACCOUNT_TIER must be one of free|value|standard|professional, got %q\n", accountTier)
+		return 0, 0, 1
+	}
+
 	var err error
 
-	_, err = c.StockListSymbols()
-	classify("stock_list_symbols", err, &pass, &skip, &fail)
+	if tierRank["free"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "stock_list_symbols::basic", "free", accountTier)
+		skip++
+	} else {
+		_, err = c.StockListSymbols()
+		classify("stock_list_symbols::basic", "free", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.StockListDates("TRADE", "AAPL")
-	classify("stock_list_dates", err, &pass, &skip, &fail)
+	if tierRank["free"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "stock_list_dates::basic", "free", accountTier)
+		skip++
+	} else {
+		_, err = c.StockListDates("TRADE", "AAPL")
+		classify("stock_list_dates::basic", "free", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.StockSnapshotOHLC([]string{"AAPL"})
-	classify("stock_snapshot_ohlc", err, &pass, &skip, &fail)
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "stock_snapshot_ohlc::concrete", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.StockSnapshotOHLC([]string{"AAPL"})
+		classify("stock_snapshot_ohlc::concrete", "value", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.StockSnapshotTrade([]string{"AAPL"})
-	classify("stock_snapshot_trade", err, &pass, &skip, &fail)
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "stock_snapshot_trade::concrete", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.StockSnapshotTrade([]string{"AAPL"})
+		classify("stock_snapshot_trade::concrete", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.StockSnapshotQuote([]string{"AAPL"})
-	classify("stock_snapshot_quote", err, &pass, &skip, &fail)
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "stock_snapshot_quote::concrete", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.StockSnapshotQuote([]string{"AAPL"})
+		classify("stock_snapshot_quote::concrete", "value", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.StockSnapshotMarketValue([]string{"AAPL"})
-	classify("stock_snapshot_market_value", err, &pass, &skip, &fail)
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "stock_snapshot_market_value::concrete", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.StockSnapshotMarketValue([]string{"AAPL"})
+		classify("stock_snapshot_market_value::concrete", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.StockHistoryEOD("AAPL", "20250303", "20250307")
-	classify("stock_history_eod", err, &pass, &skip, &fail)
+	if tierRank["free"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "stock_history_eod::concrete", "free", accountTier)
+		skip++
+	} else {
+		_, err = c.StockHistoryEOD("AAPL", "20250303", "20250307")
+		classify("stock_history_eod::concrete", "free", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.StockHistoryOHLC("AAPL", "20250303", "60000")
-	classify("stock_history_ohlc", err, &pass, &skip, &fail)
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "stock_history_ohlc::concrete", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.StockHistoryOHLC("AAPL", "20250303", "60000")
+		classify("stock_history_ohlc::concrete", "value", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.StockHistoryTrade("AAPL", "20250303")
-	classify("stock_history_trade", err, &pass, &skip, &fail)
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "stock_history_trade::concrete", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.StockHistoryTrade("AAPL", "20250303")
+		classify("stock_history_trade::concrete", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.StockHistoryQuote("AAPL", "20250303", "60000")
-	classify("stock_history_quote", err, &pass, &skip, &fail)
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "stock_history_quote::concrete", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.StockHistoryQuote("AAPL", "20250303", "60000")
+		classify("stock_history_quote::concrete", "value", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.StockHistoryTradeQuote("AAPL", "20250303")
-	classify("stock_history_trade_quote", err, &pass, &skip, &fail)
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "stock_history_trade_quote::concrete", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.StockHistoryTradeQuote("AAPL", "20250303")
+		classify("stock_history_trade_quote::concrete", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.StockAtTimeTrade("AAPL", "20250303", "20250307", "12:00:00.000")
-	classify("stock_at_time_trade", err, &pass, &skip, &fail)
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "stock_at_time_trade::concrete", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.StockAtTimeTrade("AAPL", "20250303", "20250307", "12:00:00.000")
+		classify("stock_at_time_trade::concrete", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.StockAtTimeQuote("AAPL", "20250303", "20250307", "12:00:00.000")
-	classify("stock_at_time_quote", err, &pass, &skip, &fail)
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "stock_at_time_quote::concrete", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.StockAtTimeQuote("AAPL", "20250303", "20250307", "12:00:00.000")
+		classify("stock_at_time_quote::concrete", "value", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionListSymbols()
-	classify("option_list_symbols", err, &pass, &skip, &fail)
+	if tierRank["free"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_list_symbols::basic", "free", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionListSymbols()
+		classify("option_list_symbols::basic", "free", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionListDates("TRADE", "SPY", "20250321", "570", "C")
-	classify("option_list_dates", err, &pass, &skip, &fail)
+	if tierRank["free"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_list_dates::basic", "free", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionListDates("TRADE", "SPY", "20250321", "570", "C")
+		classify("option_list_dates::basic", "free", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionListExpirations("SPY")
-	classify("option_list_expirations", err, &pass, &skip, &fail)
+	if tierRank["free"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_list_expirations::basic", "free", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionListExpirations("SPY")
+		classify("option_list_expirations::basic", "free", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionListStrikes("SPY", "20250321")
-	classify("option_list_strikes", err, &pass, &skip, &fail)
+	if tierRank["free"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_list_strikes::basic", "free", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionListStrikes("SPY", "20250321")
+		classify("option_list_strikes::basic", "free", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionListContracts("TRADE", "SPY", "20250303")
-	classify("option_list_contracts", err, &pass, &skip, &fail)
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_list_contracts::concrete", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionListContracts("TRADE", "SPY", "20250303")
+		classify("option_list_contracts::concrete", "value", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionSnapshotOHLC("SPY", "20250321", "570", "C")
-	classify("option_snapshot_ohlc", err, &pass, &skip, &fail)
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_ohlc::concrete", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotOHLC("SPY", "20250321", "570", "C")
+		classify("option_snapshot_ohlc::concrete", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_ohlc::concrete_iso", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotOHLC("SPY", "2025-03-21", "570", "C")
+		classify("option_snapshot_ohlc::concrete_iso", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_ohlc::all_strikes_one_exp", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotOHLC("SPY", "20250321", "*", "both")
+		classify("option_snapshot_ohlc::all_strikes_one_exp", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_ohlc::all_exps_one_strike", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotOHLC("SPY", "*", "570", "both")
+		classify("option_snapshot_ohlc::all_exps_one_strike", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_ohlc::bulk_chain", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotOHLC("SPY", "*", "*", "both")
+		classify("option_snapshot_ohlc::bulk_chain", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_ohlc::legacy_zero_wildcard", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotOHLC("SPY", "0", "0", "both")
+		classify("option_snapshot_ohlc::legacy_zero_wildcard", "value", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionSnapshotTrade("SPY", "20250321", "570", "C")
-	classify("option_snapshot_trade", err, &pass, &skip, &fail)
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_trade::concrete", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotTrade("SPY", "20250321", "570", "C")
+		classify("option_snapshot_trade::concrete", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_trade::concrete_iso", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotTrade("SPY", "2025-03-21", "570", "C")
+		classify("option_snapshot_trade::concrete_iso", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_trade::all_strikes_one_exp", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotTrade("SPY", "20250321", "*", "both")
+		classify("option_snapshot_trade::all_strikes_one_exp", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_trade::all_exps_one_strike", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotTrade("SPY", "*", "570", "both")
+		classify("option_snapshot_trade::all_exps_one_strike", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_trade::bulk_chain", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotTrade("SPY", "*", "*", "both")
+		classify("option_snapshot_trade::bulk_chain", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_trade::legacy_zero_wildcard", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotTrade("SPY", "0", "0", "both")
+		classify("option_snapshot_trade::legacy_zero_wildcard", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionSnapshotQuote("SPY", "20250321", "570", "C")
-	classify("option_snapshot_quote", err, &pass, &skip, &fail)
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_quote::concrete", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotQuote("SPY", "20250321", "570", "C")
+		classify("option_snapshot_quote::concrete", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_quote::concrete_iso", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotQuote("SPY", "2025-03-21", "570", "C")
+		classify("option_snapshot_quote::concrete_iso", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_quote::all_strikes_one_exp", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotQuote("SPY", "20250321", "*", "both")
+		classify("option_snapshot_quote::all_strikes_one_exp", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_quote::all_exps_one_strike", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotQuote("SPY", "*", "570", "both")
+		classify("option_snapshot_quote::all_exps_one_strike", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_quote::bulk_chain", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotQuote("SPY", "*", "*", "both")
+		classify("option_snapshot_quote::bulk_chain", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_quote::legacy_zero_wildcard", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotQuote("SPY", "0", "0", "both")
+		classify("option_snapshot_quote::legacy_zero_wildcard", "value", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionSnapshotOpenInterest("SPY", "20250321", "570", "C")
-	classify("option_snapshot_open_interest", err, &pass, &skip, &fail)
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_open_interest::concrete", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotOpenInterest("SPY", "20250321", "570", "C")
+		classify("option_snapshot_open_interest::concrete", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_open_interest::concrete_iso", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotOpenInterest("SPY", "2025-03-21", "570", "C")
+		classify("option_snapshot_open_interest::concrete_iso", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_open_interest::all_strikes_one_exp", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotOpenInterest("SPY", "20250321", "*", "both")
+		classify("option_snapshot_open_interest::all_strikes_one_exp", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_open_interest::all_exps_one_strike", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotOpenInterest("SPY", "*", "570", "both")
+		classify("option_snapshot_open_interest::all_exps_one_strike", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_open_interest::bulk_chain", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotOpenInterest("SPY", "*", "*", "both")
+		classify("option_snapshot_open_interest::bulk_chain", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_open_interest::legacy_zero_wildcard", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotOpenInterest("SPY", "0", "0", "both")
+		classify("option_snapshot_open_interest::legacy_zero_wildcard", "value", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionSnapshotMarketValue("SPY", "20250321", "570", "C")
-	classify("option_snapshot_market_value", err, &pass, &skip, &fail)
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_market_value::concrete", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotMarketValue("SPY", "20250321", "570", "C")
+		classify("option_snapshot_market_value::concrete", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_market_value::concrete_iso", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotMarketValue("SPY", "2025-03-21", "570", "C")
+		classify("option_snapshot_market_value::concrete_iso", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_market_value::all_strikes_one_exp", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotMarketValue("SPY", "20250321", "*", "both")
+		classify("option_snapshot_market_value::all_strikes_one_exp", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_market_value::all_exps_one_strike", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotMarketValue("SPY", "*", "570", "both")
+		classify("option_snapshot_market_value::all_exps_one_strike", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_market_value::bulk_chain", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotMarketValue("SPY", "*", "*", "both")
+		classify("option_snapshot_market_value::bulk_chain", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_market_value::legacy_zero_wildcard", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotMarketValue("SPY", "0", "0", "both")
+		classify("option_snapshot_market_value::legacy_zero_wildcard", "value", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C")
-	classify("option_snapshot_greeks_implied_volatility", err, &pass, &skip, &fail)
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_implied_volatility::concrete", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C")
+		classify("option_snapshot_greeks_implied_volatility::concrete", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_implied_volatility::concrete_iso", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksImpliedVolatility("SPY", "2025-03-21", "570", "C")
+		classify("option_snapshot_greeks_implied_volatility::concrete_iso", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_implied_volatility::all_strikes_one_exp", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "*", "both")
+		classify("option_snapshot_greeks_implied_volatility::all_strikes_one_exp", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_implied_volatility::all_exps_one_strike", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksImpliedVolatility("SPY", "*", "570", "both")
+		classify("option_snapshot_greeks_implied_volatility::all_exps_one_strike", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_implied_volatility::bulk_chain", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksImpliedVolatility("SPY", "*", "*", "both")
+		classify("option_snapshot_greeks_implied_volatility::bulk_chain", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_implied_volatility::legacy_zero_wildcard", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksImpliedVolatility("SPY", "0", "0", "both")
+		classify("option_snapshot_greeks_implied_volatility::legacy_zero_wildcard", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C")
-	classify("option_snapshot_greeks_all", err, &pass, &skip, &fail)
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_all::concrete", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C")
+		classify("option_snapshot_greeks_all::concrete", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_all::concrete_iso", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksAll("SPY", "2025-03-21", "570", "C")
+		classify("option_snapshot_greeks_all::concrete_iso", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_all::all_strikes_one_exp", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksAll("SPY", "20250321", "*", "both")
+		classify("option_snapshot_greeks_all::all_strikes_one_exp", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_all::all_exps_one_strike", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksAll("SPY", "*", "570", "both")
+		classify("option_snapshot_greeks_all::all_exps_one_strike", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_all::bulk_chain", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksAll("SPY", "*", "*", "both")
+		classify("option_snapshot_greeks_all::bulk_chain", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_all::legacy_zero_wildcard", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksAll("SPY", "0", "0", "both")
+		classify("option_snapshot_greeks_all::legacy_zero_wildcard", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C")
-	classify("option_snapshot_greeks_first_order", err, &pass, &skip, &fail)
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_first_order::concrete", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C")
+		classify("option_snapshot_greeks_first_order::concrete", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_first_order::concrete_iso", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksFirstOrder("SPY", "2025-03-21", "570", "C")
+		classify("option_snapshot_greeks_first_order::concrete_iso", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_first_order::all_strikes_one_exp", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "*", "both")
+		classify("option_snapshot_greeks_first_order::all_strikes_one_exp", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_first_order::all_exps_one_strike", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksFirstOrder("SPY", "*", "570", "both")
+		classify("option_snapshot_greeks_first_order::all_exps_one_strike", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_first_order::bulk_chain", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksFirstOrder("SPY", "*", "*", "both")
+		classify("option_snapshot_greeks_first_order::bulk_chain", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_first_order::legacy_zero_wildcard", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksFirstOrder("SPY", "0", "0", "both")
+		classify("option_snapshot_greeks_first_order::legacy_zero_wildcard", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C")
-	classify("option_snapshot_greeks_second_order", err, &pass, &skip, &fail)
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_second_order::concrete", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C")
+		classify("option_snapshot_greeks_second_order::concrete", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_second_order::concrete_iso", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksSecondOrder("SPY", "2025-03-21", "570", "C")
+		classify("option_snapshot_greeks_second_order::concrete_iso", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_second_order::all_strikes_one_exp", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "*", "both")
+		classify("option_snapshot_greeks_second_order::all_strikes_one_exp", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_second_order::all_exps_one_strike", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksSecondOrder("SPY", "*", "570", "both")
+		classify("option_snapshot_greeks_second_order::all_exps_one_strike", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_second_order::bulk_chain", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksSecondOrder("SPY", "*", "*", "both")
+		classify("option_snapshot_greeks_second_order::bulk_chain", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_second_order::legacy_zero_wildcard", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksSecondOrder("SPY", "0", "0", "both")
+		classify("option_snapshot_greeks_second_order::legacy_zero_wildcard", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C")
-	classify("option_snapshot_greeks_third_order", err, &pass, &skip, &fail)
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_third_order::concrete", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C")
+		classify("option_snapshot_greeks_third_order::concrete", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_third_order::concrete_iso", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksThirdOrder("SPY", "2025-03-21", "570", "C")
+		classify("option_snapshot_greeks_third_order::concrete_iso", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_third_order::all_strikes_one_exp", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "*", "both")
+		classify("option_snapshot_greeks_third_order::all_strikes_one_exp", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_third_order::all_exps_one_strike", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksThirdOrder("SPY", "*", "570", "both")
+		classify("option_snapshot_greeks_third_order::all_exps_one_strike", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_third_order::bulk_chain", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksThirdOrder("SPY", "*", "*", "both")
+		classify("option_snapshot_greeks_third_order::bulk_chain", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_snapshot_greeks_third_order::legacy_zero_wildcard", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionSnapshotGreeksThirdOrder("SPY", "0", "0", "both")
+		classify("option_snapshot_greeks_third_order::legacy_zero_wildcard", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionHistoryEOD("SPY", "20250321", "570", "C", "20250303", "20250307")
-	classify("option_history_eod", err, &pass, &skip, &fail)
+	if tierRank["free"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_eod::concrete", "free", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryEOD("SPY", "20250321", "570", "C", "20250303", "20250307")
+		classify("option_history_eod::concrete", "free", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["free"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_eod::concrete_iso", "free", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryEOD("SPY", "2025-03-21", "570", "C", "20250303", "20250307")
+		classify("option_history_eod::concrete_iso", "free", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["free"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_eod::all_strikes_one_exp", "free", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryEOD("SPY", "20250321", "*", "both", "20250303", "20250307")
+		classify("option_history_eod::all_strikes_one_exp", "free", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["free"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_eod::all_exps_one_strike", "free", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryEOD("SPY", "*", "570", "both", "20250303", "20250307")
+		classify("option_history_eod::all_exps_one_strike", "free", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["free"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_eod::bulk_chain", "free", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryEOD("SPY", "*", "*", "both", "20250303", "20250307")
+		classify("option_history_eod::bulk_chain", "free", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["free"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_eod::legacy_zero_wildcard", "free", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryEOD("SPY", "0", "0", "both", "20250303", "20250307")
+		classify("option_history_eod::legacy_zero_wildcard", "free", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionHistoryOHLC("SPY", "20250321", "570", "C", "20250303", "60000")
-	classify("option_history_ohlc", err, &pass, &skip, &fail)
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_ohlc::concrete", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryOHLC("SPY", "20250321", "570", "C", "20250303", "60000")
+		classify("option_history_ohlc::concrete", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_ohlc::concrete_iso", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryOHLC("SPY", "2025-03-21", "570", "C", "20250303", "60000")
+		classify("option_history_ohlc::concrete_iso", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_ohlc::all_strikes_one_exp", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryOHLC("SPY", "20250321", "*", "both", "20250303", "60000")
+		classify("option_history_ohlc::all_strikes_one_exp", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_ohlc::all_exps_one_strike", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryOHLC("SPY", "*", "570", "both", "20250303", "60000")
+		classify("option_history_ohlc::all_exps_one_strike", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_ohlc::bulk_chain", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryOHLC("SPY", "*", "*", "both", "20250303", "60000")
+		classify("option_history_ohlc::bulk_chain", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_ohlc::legacy_zero_wildcard", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryOHLC("SPY", "0", "0", "both", "20250303", "60000")
+		classify("option_history_ohlc::legacy_zero_wildcard", "value", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionHistoryTrade("SPY", "20250321", "570", "C", "20250303")
-	classify("option_history_trade", err, &pass, &skip, &fail)
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade::concrete", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTrade("SPY", "20250321", "570", "C", "20250303")
+		classify("option_history_trade::concrete", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade::concrete_iso", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTrade("SPY", "2025-03-21", "570", "C", "20250303")
+		classify("option_history_trade::concrete_iso", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade::all_strikes_one_exp", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTrade("SPY", "20250321", "*", "both", "20250303")
+		classify("option_history_trade::all_strikes_one_exp", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade::all_exps_one_strike", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTrade("SPY", "*", "570", "both", "20250303")
+		classify("option_history_trade::all_exps_one_strike", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade::bulk_chain", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTrade("SPY", "*", "*", "both", "20250303")
+		classify("option_history_trade::bulk_chain", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade::legacy_zero_wildcard", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTrade("SPY", "0", "0", "both", "20250303")
+		classify("option_history_trade::legacy_zero_wildcard", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionHistoryQuote("SPY", "20250321", "570", "C", "20250303", "60000")
-	classify("option_history_quote", err, &pass, &skip, &fail)
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_quote::concrete", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryQuote("SPY", "20250321", "570", "C", "20250303", "60000")
+		classify("option_history_quote::concrete", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_quote::concrete_iso", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryQuote("SPY", "2025-03-21", "570", "C", "20250303", "60000")
+		classify("option_history_quote::concrete_iso", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_quote::all_strikes_one_exp", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryQuote("SPY", "20250321", "*", "both", "20250303", "60000")
+		classify("option_history_quote::all_strikes_one_exp", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_quote::all_exps_one_strike", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryQuote("SPY", "*", "570", "both", "20250303", "60000")
+		classify("option_history_quote::all_exps_one_strike", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_quote::bulk_chain", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryQuote("SPY", "*", "*", "both", "20250303", "60000")
+		classify("option_history_quote::bulk_chain", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_quote::legacy_zero_wildcard", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryQuote("SPY", "0", "0", "both", "20250303", "60000")
+		classify("option_history_quote::legacy_zero_wildcard", "value", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionHistoryTradeQuote("SPY", "20250321", "570", "C", "20250303")
-	classify("option_history_trade_quote", err, &pass, &skip, &fail)
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_quote::concrete", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeQuote("SPY", "20250321", "570", "C", "20250303")
+		classify("option_history_trade_quote::concrete", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_quote::concrete_iso", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeQuote("SPY", "2025-03-21", "570", "C", "20250303")
+		classify("option_history_trade_quote::concrete_iso", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_quote::all_strikes_one_exp", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeQuote("SPY", "20250321", "*", "both", "20250303")
+		classify("option_history_trade_quote::all_strikes_one_exp", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_quote::all_exps_one_strike", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeQuote("SPY", "*", "570", "both", "20250303")
+		classify("option_history_trade_quote::all_exps_one_strike", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_quote::bulk_chain", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeQuote("SPY", "*", "*", "both", "20250303")
+		classify("option_history_trade_quote::bulk_chain", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_quote::legacy_zero_wildcard", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeQuote("SPY", "0", "0", "both", "20250303")
+		classify("option_history_trade_quote::legacy_zero_wildcard", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionHistoryOpenInterest("SPY", "20250321", "570", "C", "20250303")
-	classify("option_history_open_interest", err, &pass, &skip, &fail)
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_open_interest::concrete", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryOpenInterest("SPY", "20250321", "570", "C", "20250303")
+		classify("option_history_open_interest::concrete", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_open_interest::concrete_iso", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryOpenInterest("SPY", "2025-03-21", "570", "C", "20250303")
+		classify("option_history_open_interest::concrete_iso", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_open_interest::all_strikes_one_exp", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryOpenInterest("SPY", "20250321", "*", "both", "20250303")
+		classify("option_history_open_interest::all_strikes_one_exp", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_open_interest::all_exps_one_strike", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryOpenInterest("SPY", "*", "570", "both", "20250303")
+		classify("option_history_open_interest::all_exps_one_strike", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_open_interest::bulk_chain", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryOpenInterest("SPY", "*", "*", "both", "20250303")
+		classify("option_history_open_interest::bulk_chain", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_open_interest::legacy_zero_wildcard", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryOpenInterest("SPY", "0", "0", "both", "20250303")
+		classify("option_history_open_interest::legacy_zero_wildcard", "value", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionHistoryGreeksEOD("SPY", "20250321", "570", "C", "20250303", "20250307")
-	classify("option_history_greeks_eod", err, &pass, &skip, &fail)
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_eod::concrete", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksEOD("SPY", "20250321", "570", "C", "20250303", "20250307")
+		classify("option_history_greeks_eod::concrete", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_eod::concrete_iso", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksEOD("SPY", "2025-03-21", "570", "C", "20250303", "20250307")
+		classify("option_history_greeks_eod::concrete_iso", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_eod::all_strikes_one_exp", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksEOD("SPY", "20250321", "*", "both", "20250303", "20250307")
+		classify("option_history_greeks_eod::all_strikes_one_exp", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_eod::all_exps_one_strike", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksEOD("SPY", "*", "570", "both", "20250303", "20250307")
+		classify("option_history_greeks_eod::all_exps_one_strike", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_eod::bulk_chain", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksEOD("SPY", "*", "*", "both", "20250303", "20250307")
+		classify("option_history_greeks_eod::bulk_chain", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_eod::legacy_zero_wildcard", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksEOD("SPY", "0", "0", "both", "20250303", "20250307")
+		classify("option_history_greeks_eod::legacy_zero_wildcard", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionHistoryGreeksAll("SPY", "20250321", "570", "C", "20250303", "60000")
-	classify("option_history_greeks_all", err, &pass, &skip, &fail)
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_all::concrete", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksAll("SPY", "20250321", "570", "C", "20250303", "60000")
+		classify("option_history_greeks_all::concrete", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_all::concrete_iso", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksAll("SPY", "2025-03-21", "570", "C", "20250303", "60000")
+		classify("option_history_greeks_all::concrete_iso", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_all::all_strikes_one_exp", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksAll("SPY", "20250321", "*", "both", "20250303", "60000")
+		classify("option_history_greeks_all::all_strikes_one_exp", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_all::all_exps_one_strike", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksAll("SPY", "*", "570", "both", "20250303", "60000")
+		classify("option_history_greeks_all::all_exps_one_strike", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_all::bulk_chain", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksAll("SPY", "*", "*", "both", "20250303", "60000")
+		classify("option_history_greeks_all::bulk_chain", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_all::legacy_zero_wildcard", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksAll("SPY", "0", "0", "both", "20250303", "60000")
+		classify("option_history_greeks_all::legacy_zero_wildcard", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303")
-	classify("option_history_trade_greeks_all", err, &pass, &skip, &fail)
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_all::concrete", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303")
+		classify("option_history_trade_greeks_all::concrete", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_all::concrete_iso", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksAll("SPY", "2025-03-21", "570", "C", "20250303")
+		classify("option_history_trade_greeks_all::concrete_iso", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_all::all_strikes_one_exp", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksAll("SPY", "20250321", "*", "both", "20250303")
+		classify("option_history_trade_greeks_all::all_strikes_one_exp", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_all::all_exps_one_strike", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksAll("SPY", "*", "570", "both", "20250303")
+		classify("option_history_trade_greeks_all::all_exps_one_strike", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_all::bulk_chain", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksAll("SPY", "*", "*", "both", "20250303")
+		classify("option_history_trade_greeks_all::bulk_chain", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_all::legacy_zero_wildcard", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksAll("SPY", "0", "0", "both", "20250303")
+		classify("option_history_trade_greeks_all::legacy_zero_wildcard", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", "60000")
-	classify("option_history_greeks_first_order", err, &pass, &skip, &fail)
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_first_order::concrete", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", "60000")
+		classify("option_history_greeks_first_order::concrete", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_first_order::concrete_iso", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksFirstOrder("SPY", "2025-03-21", "570", "C", "20250303", "60000")
+		classify("option_history_greeks_first_order::concrete_iso", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_first_order::all_strikes_one_exp", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "*", "both", "20250303", "60000")
+		classify("option_history_greeks_first_order::all_strikes_one_exp", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_first_order::all_exps_one_strike", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksFirstOrder("SPY", "*", "570", "both", "20250303", "60000")
+		classify("option_history_greeks_first_order::all_exps_one_strike", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_first_order::bulk_chain", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksFirstOrder("SPY", "*", "*", "both", "20250303", "60000")
+		classify("option_history_greeks_first_order::bulk_chain", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_first_order::legacy_zero_wildcard", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksFirstOrder("SPY", "0", "0", "both", "20250303", "60000")
+		classify("option_history_greeks_first_order::legacy_zero_wildcard", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303")
-	classify("option_history_trade_greeks_first_order", err, &pass, &skip, &fail)
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_first_order::concrete", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303")
+		classify("option_history_trade_greeks_first_order::concrete", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_first_order::concrete_iso", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksFirstOrder("SPY", "2025-03-21", "570", "C", "20250303")
+		classify("option_history_trade_greeks_first_order::concrete_iso", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_first_order::all_strikes_one_exp", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "*", "both", "20250303")
+		classify("option_history_trade_greeks_first_order::all_strikes_one_exp", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_first_order::all_exps_one_strike", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksFirstOrder("SPY", "*", "570", "both", "20250303")
+		classify("option_history_trade_greeks_first_order::all_exps_one_strike", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_first_order::bulk_chain", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksFirstOrder("SPY", "*", "*", "both", "20250303")
+		classify("option_history_trade_greeks_first_order::bulk_chain", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_first_order::legacy_zero_wildcard", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksFirstOrder("SPY", "0", "0", "both", "20250303")
+		classify("option_history_trade_greeks_first_order::legacy_zero_wildcard", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", "60000")
-	classify("option_history_greeks_second_order", err, &pass, &skip, &fail)
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_second_order::concrete", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", "60000")
+		classify("option_history_greeks_second_order::concrete", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_second_order::concrete_iso", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksSecondOrder("SPY", "2025-03-21", "570", "C", "20250303", "60000")
+		classify("option_history_greeks_second_order::concrete_iso", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_second_order::all_strikes_one_exp", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "*", "both", "20250303", "60000")
+		classify("option_history_greeks_second_order::all_strikes_one_exp", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_second_order::all_exps_one_strike", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksSecondOrder("SPY", "*", "570", "both", "20250303", "60000")
+		classify("option_history_greeks_second_order::all_exps_one_strike", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_second_order::bulk_chain", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksSecondOrder("SPY", "*", "*", "both", "20250303", "60000")
+		classify("option_history_greeks_second_order::bulk_chain", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_second_order::legacy_zero_wildcard", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksSecondOrder("SPY", "0", "0", "both", "20250303", "60000")
+		classify("option_history_greeks_second_order::legacy_zero_wildcard", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303")
-	classify("option_history_trade_greeks_second_order", err, &pass, &skip, &fail)
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_second_order::concrete", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303")
+		classify("option_history_trade_greeks_second_order::concrete", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_second_order::concrete_iso", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksSecondOrder("SPY", "2025-03-21", "570", "C", "20250303")
+		classify("option_history_trade_greeks_second_order::concrete_iso", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_second_order::all_strikes_one_exp", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "*", "both", "20250303")
+		classify("option_history_trade_greeks_second_order::all_strikes_one_exp", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_second_order::all_exps_one_strike", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksSecondOrder("SPY", "*", "570", "both", "20250303")
+		classify("option_history_trade_greeks_second_order::all_exps_one_strike", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_second_order::bulk_chain", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksSecondOrder("SPY", "*", "*", "both", "20250303")
+		classify("option_history_trade_greeks_second_order::bulk_chain", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_second_order::legacy_zero_wildcard", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksSecondOrder("SPY", "0", "0", "both", "20250303")
+		classify("option_history_trade_greeks_second_order::legacy_zero_wildcard", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", "60000")
-	classify("option_history_greeks_third_order", err, &pass, &skip, &fail)
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_third_order::concrete", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", "60000")
+		classify("option_history_greeks_third_order::concrete", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_third_order::concrete_iso", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksThirdOrder("SPY", "2025-03-21", "570", "C", "20250303", "60000")
+		classify("option_history_greeks_third_order::concrete_iso", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_third_order::all_strikes_one_exp", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "*", "both", "20250303", "60000")
+		classify("option_history_greeks_third_order::all_strikes_one_exp", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_third_order::all_exps_one_strike", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksThirdOrder("SPY", "*", "570", "both", "20250303", "60000")
+		classify("option_history_greeks_third_order::all_exps_one_strike", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_third_order::bulk_chain", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksThirdOrder("SPY", "*", "*", "both", "20250303", "60000")
+		classify("option_history_greeks_third_order::bulk_chain", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_third_order::legacy_zero_wildcard", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksThirdOrder("SPY", "0", "0", "both", "20250303", "60000")
+		classify("option_history_greeks_third_order::legacy_zero_wildcard", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303")
-	classify("option_history_trade_greeks_third_order", err, &pass, &skip, &fail)
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_third_order::concrete", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303")
+		classify("option_history_trade_greeks_third_order::concrete", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_third_order::concrete_iso", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksThirdOrder("SPY", "2025-03-21", "570", "C", "20250303")
+		classify("option_history_trade_greeks_third_order::concrete_iso", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_third_order::all_strikes_one_exp", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "*", "both", "20250303")
+		classify("option_history_trade_greeks_third_order::all_strikes_one_exp", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_third_order::all_exps_one_strike", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksThirdOrder("SPY", "*", "570", "both", "20250303")
+		classify("option_history_trade_greeks_third_order::all_exps_one_strike", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_third_order::bulk_chain", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksThirdOrder("SPY", "*", "*", "both", "20250303")
+		classify("option_history_trade_greeks_third_order::bulk_chain", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_third_order::legacy_zero_wildcard", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksThirdOrder("SPY", "0", "0", "both", "20250303")
+		classify("option_history_trade_greeks_third_order::legacy_zero_wildcard", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", "60000")
-	classify("option_history_greeks_implied_volatility", err, &pass, &skip, &fail)
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_implied_volatility::concrete", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", "60000")
+		classify("option_history_greeks_implied_volatility::concrete", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_implied_volatility::concrete_iso", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksImpliedVolatility("SPY", "2025-03-21", "570", "C", "20250303", "60000")
+		classify("option_history_greeks_implied_volatility::concrete_iso", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_implied_volatility::all_strikes_one_exp", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "*", "both", "20250303", "60000")
+		classify("option_history_greeks_implied_volatility::all_strikes_one_exp", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_implied_volatility::all_exps_one_strike", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksImpliedVolatility("SPY", "*", "570", "both", "20250303", "60000")
+		classify("option_history_greeks_implied_volatility::all_exps_one_strike", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_implied_volatility::bulk_chain", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksImpliedVolatility("SPY", "*", "*", "both", "20250303", "60000")
+		classify("option_history_greeks_implied_volatility::bulk_chain", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_greeks_implied_volatility::legacy_zero_wildcard", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryGreeksImpliedVolatility("SPY", "0", "0", "both", "20250303", "60000")
+		classify("option_history_greeks_implied_volatility::legacy_zero_wildcard", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303")
-	classify("option_history_trade_greeks_implied_volatility", err, &pass, &skip, &fail)
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_implied_volatility::concrete", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303")
+		classify("option_history_trade_greeks_implied_volatility::concrete", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_implied_volatility::concrete_iso", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "2025-03-21", "570", "C", "20250303")
+		classify("option_history_trade_greeks_implied_volatility::concrete_iso", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_implied_volatility::all_strikes_one_exp", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "*", "both", "20250303")
+		classify("option_history_trade_greeks_implied_volatility::all_strikes_one_exp", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_implied_volatility::all_exps_one_strike", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "*", "570", "both", "20250303")
+		classify("option_history_trade_greeks_implied_volatility::all_exps_one_strike", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_implied_volatility::bulk_chain", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "*", "*", "both", "20250303")
+		classify("option_history_trade_greeks_implied_volatility::bulk_chain", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["professional"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_history_trade_greeks_implied_volatility::legacy_zero_wildcard", "professional", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "0", "0", "both", "20250303")
+		classify("option_history_trade_greeks_implied_volatility::legacy_zero_wildcard", "professional", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionAtTimeTrade("SPY", "20250321", "570", "C", "20250303", "20250307", "12:00:00.000")
-	classify("option_at_time_trade", err, &pass, &skip, &fail)
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_at_time_trade::concrete", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionAtTimeTrade("SPY", "20250321", "570", "C", "20250303", "20250307", "12:00:00.000")
+		classify("option_at_time_trade::concrete", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_at_time_trade::concrete_iso", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionAtTimeTrade("SPY", "2025-03-21", "570", "C", "20250303", "20250307", "12:00:00.000")
+		classify("option_at_time_trade::concrete_iso", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_at_time_trade::all_strikes_one_exp", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionAtTimeTrade("SPY", "20250321", "*", "both", "20250303", "20250307", "12:00:00.000")
+		classify("option_at_time_trade::all_strikes_one_exp", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_at_time_trade::all_exps_one_strike", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionAtTimeTrade("SPY", "*", "570", "both", "20250303", "20250307", "12:00:00.000")
+		classify("option_at_time_trade::all_exps_one_strike", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_at_time_trade::bulk_chain", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionAtTimeTrade("SPY", "*", "*", "both", "20250303", "20250307", "12:00:00.000")
+		classify("option_at_time_trade::bulk_chain", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_at_time_trade::legacy_zero_wildcard", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionAtTimeTrade("SPY", "0", "0", "both", "20250303", "20250307", "12:00:00.000")
+		classify("option_at_time_trade::legacy_zero_wildcard", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.OptionAtTimeQuote("SPY", "20250321", "570", "C", "20250303", "20250307", "12:00:00.000")
-	classify("option_at_time_quote", err, &pass, &skip, &fail)
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_at_time_quote::concrete", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionAtTimeQuote("SPY", "20250321", "570", "C", "20250303", "20250307", "12:00:00.000")
+		classify("option_at_time_quote::concrete", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_at_time_quote::concrete_iso", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionAtTimeQuote("SPY", "2025-03-21", "570", "C", "20250303", "20250307", "12:00:00.000")
+		classify("option_at_time_quote::concrete_iso", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_at_time_quote::all_strikes_one_exp", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionAtTimeQuote("SPY", "20250321", "*", "both", "20250303", "20250307", "12:00:00.000")
+		classify("option_at_time_quote::all_strikes_one_exp", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_at_time_quote::all_exps_one_strike", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionAtTimeQuote("SPY", "*", "570", "both", "20250303", "20250307", "12:00:00.000")
+		classify("option_at_time_quote::all_exps_one_strike", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_at_time_quote::bulk_chain", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionAtTimeQuote("SPY", "*", "*", "both", "20250303", "20250307", "12:00:00.000")
+		classify("option_at_time_quote::bulk_chain", "value", "non_empty", err, &pass, &skip, &fail)
+	}
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "option_at_time_quote::legacy_zero_wildcard", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.OptionAtTimeQuote("SPY", "0", "0", "both", "20250303", "20250307", "12:00:00.000")
+		classify("option_at_time_quote::legacy_zero_wildcard", "value", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.IndexListSymbols()
-	classify("index_list_symbols", err, &pass, &skip, &fail)
+	if tierRank["free"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "index_list_symbols::basic", "free", accountTier)
+		skip++
+	} else {
+		_, err = c.IndexListSymbols()
+		classify("index_list_symbols::basic", "free", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.IndexListDates("SPX")
-	classify("index_list_dates", err, &pass, &skip, &fail)
+	if tierRank["free"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "index_list_dates::basic", "free", accountTier)
+		skip++
+	} else {
+		_, err = c.IndexListDates("SPX")
+		classify("index_list_dates::basic", "free", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.IndexSnapshotOHLC([]string{"SPX"})
-	classify("index_snapshot_ohlc", err, &pass, &skip, &fail)
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "index_snapshot_ohlc::concrete", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.IndexSnapshotOHLC([]string{"SPX"})
+		classify("index_snapshot_ohlc::concrete", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.IndexSnapshotPrice([]string{"SPX"})
-	classify("index_snapshot_price", err, &pass, &skip, &fail)
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "index_snapshot_price::concrete", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.IndexSnapshotPrice([]string{"SPX"})
+		classify("index_snapshot_price::concrete", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.IndexSnapshotMarketValue([]string{"SPX"})
-	classify("index_snapshot_market_value", err, &pass, &skip, &fail)
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "index_snapshot_market_value::concrete", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.IndexSnapshotMarketValue([]string{"SPX"})
+		classify("index_snapshot_market_value::concrete", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.IndexHistoryEOD("SPX", "20250303", "20250307")
-	classify("index_history_eod", err, &pass, &skip, &fail)
+	if tierRank["free"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "index_history_eod::concrete", "free", accountTier)
+		skip++
+	} else {
+		_, err = c.IndexHistoryEOD("SPX", "20250303", "20250307")
+		classify("index_history_eod::concrete", "free", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.IndexHistoryOHLC("SPX", "20250303", "20250307", "60000")
-	classify("index_history_ohlc", err, &pass, &skip, &fail)
+	if tierRank["standard"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "index_history_ohlc::concrete", "standard", accountTier)
+		skip++
+	} else {
+		_, err = c.IndexHistoryOHLC("SPX", "20250303", "20250307", "60000")
+		classify("index_history_ohlc::concrete", "standard", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.IndexHistoryPrice("SPX", "20250303", "60000")
-	classify("index_history_price", err, &pass, &skip, &fail)
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "index_history_price::concrete", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.IndexHistoryPrice("SPX", "20250303", "60000")
+		classify("index_history_price::concrete", "value", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.IndexAtTimePrice("SPX", "20250303", "20250307", "12:00:00.000")
-	classify("index_at_time_price", err, &pass, &skip, &fail)
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "index_at_time_price::concrete", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.IndexAtTimePrice("SPX", "20250303", "20250307", "12:00:00.000")
+		classify("index_at_time_price::concrete", "value", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.CalendarOpenToday()
-	classify("calendar_open_today", err, &pass, &skip, &fail)
+	if tierRank["free"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "calendar_open_today::basic", "free", accountTier)
+		skip++
+	} else {
+		_, err = c.CalendarOpenToday()
+		classify("calendar_open_today::basic", "free", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.CalendarOnDate("20250303")
-	classify("calendar_on_date", err, &pass, &skip, &fail)
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "calendar_on_date::basic", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.CalendarOnDate("20250303")
+		classify("calendar_on_date::basic", "value", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.CalendarYear("2025")
-	classify("calendar_year", err, &pass, &skip, &fail)
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "calendar_year::basic", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.CalendarYear("2025")
+		classify("calendar_year::basic", "value", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.InterestRateHistoryEOD("SOFR", "20250303", "20250307")
-	classify("interest_rate_history_eod", err, &pass, &skip, &fail)
+	if tierRank["free"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "interest_rate_history_eod::basic", "free", accountTier)
+		skip++
+	} else {
+		_, err = c.InterestRateHistoryEOD("SOFR", "20250303", "20250307")
+		classify("interest_rate_history_eod::basic", "free", "non_empty", err, &pass, &skip, &fail)
+	}
 
-	_, err = c.StockHistoryOHLCRange("AAPL", "20250303", "20250307", "60000")
-	classify("stock_history_ohlc_range", err, &pass, &skip, &fail)
+	if tierRank["value"] > tierRank[accountTier] {
+		fmt.Printf("  %-60s SKIP: tier<%s> > account<%s>\n", "stock_history_ohlc_range::concrete", "value", accountTier)
+		skip++
+	} else {
+		_, err = c.StockHistoryOHLCRange("AAPL", "20250303", "20250307", "60000")
+		classify("stock_history_ohlc_range::concrete", "value", "non_empty", err, &pass, &skip, &fail)
+	}
 
 	return pass, skip, fail
 }
 
-func classify(name string, err error, pass, skip, fail *int) {
+func classify(label, minTier, expect string, err error, pass, skip, fail *int) {
 	if err == nil {
-		fmt.Printf("  %-45s PASS\n", name)
+		fmt.Printf("  %-60s PASS\n", label)
 		*pass++
-	} else if strings.Contains(strings.ToLower(err.Error()), "permission") ||
-		strings.Contains(strings.ToLower(err.Error()), "subscription") {
-		fmt.Printf("  %-45s SKIP  (tier)\n", name)
-		*skip++
-	} else if strings.Contains(strings.ToLower(err.Error()), "no data found") {
-		fmt.Printf("  %-45s PASS  (no data)\n", name)
-		*pass++
-	} else {
-		fmt.Printf("  %-45s FAIL  %v\n", name, err)
-		*fail++
+		return
 	}
+	lowered := strings.ToLower(err.Error())
+	if strings.Contains(lowered, "permission") || strings.Contains(lowered, "subscription") {
+		fmt.Printf("  %-60s SKIP: tier-permission (declared min_tier=%s)\n", label, minTier)
+		*skip++
+		return
+	}
+	if strings.Contains(lowered, "no data found") {
+		fmt.Printf("  %-60s PASS  (no data)\n", label)
+		*pass++
+		return
+	}
+	if expect == "error_permission" {
+		fmt.Printf("  %-60s FAIL  expected permission error, got %v\n", label, err)
+		*fail++
+		return
+	}
+	fmt.Printf("  %-60s FAIL  %v\n", label, err)
+	*fail++
 }

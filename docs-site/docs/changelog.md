@@ -21,6 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Live parameter-mode matrix validator** (#287) -- every SDK release validator (`scripts/validate_cli.py`, `scripts/validate_python.py`, `sdks/go/validate.go`, `sdks/cpp/examples/validate.cpp`) now runs one test per (endpoint, mode) pair instead of one per endpoint. Cell count per surface grew from 61 to 206. The mode taxonomy is emitted by `build_support/endpoints.rs::test_modes_for` from the endpoint's wire shape, keyed on the existing `endpoint_surface.toml`:
+  - **List** endpoints (`*_list_*`): one `basic` mode (server rejects `*` for `expiration` here, so no wildcard variant).
+  - **Stock / index / calendar / rate** endpoints: one `concrete` mode each. No `iso_date` mode — `validate::validate_date` is strict `YYYYMMDD`; ISO-dashed acceptance is intentionally scoped to `Expiration` only.
+  - **Option ContractSpec** endpoints (snapshot / history / at-time, 29 endpoints): six modes each — `concrete`, `concrete_iso`, `all_strikes_one_exp`, `all_exps_one_strike`, `bulk_chain`, `legacy_zero_wildcard`. This covers every wildcard cross-product the SDK validator accepts after #284 plus the ISO-dashed expiration form.
+  - **Tier gating** via the `VALIDATOR_ACCOUNT_TIER` env var (default `free`) — `free` / `value` / `standard` / `professional`. Cells whose declared `min_tier` exceeds the account tier emit a `SKIP: tier<X> > account<Y>` line and don't call the server. Tier labels are hardcoded in `endpoint_min_tier`, sourced from `docs-site/docs/historical/**/*.md` `<TierBadge tier="..." />` which is itself validated against upstream `openapiv3.yaml` by `scripts/check_tier_badges.py`.
+  - **Runtime permission fallback** — if the server returns a permission error despite an accepted `min_tier`, the cell is still classified as `SKIP: tier-permission` (catches docs drift such as `interest_rate_history_eod` being labelled `free` on docs but gated higher on the wire).
+  - Streaming endpoints (`*_trade_stream`, `*_quote_stream`) remain out-of-scope; they are exercised by `scripts/fpss_smoke.py` / `fpss_soak.py`.
+  - Live matrix run against production on a FREE-tier account: **17 PASS, 189 SKIP, 0 FAIL** (Python / CLI). All six wildcard modes on `option_history_eod` (the only free-tier ContractSpec endpoint) pass — the vocabulary shipped in #284 is now exercised end-to-end on every release.
 - **Public API redesign doc** (#282) -- \`docs/public-api-redesign.md\` charters the layered ergonomic-façade migration plan (exact generated surface as canonical parity layer, handwritten \`historical\` / \`realtime\` / \`analytics\` façades on top, typed value foundations, Python result containers, spec enrichment, compatibility window, semver cleanup). The streaming category is named \`realtime\` rather than \`live\` to avoid overloading \`live\`'s CI / run-mode meanings.
 
 ### Changed
