@@ -1,0 +1,59 @@
+	return pass, skip, fail, hadTimeout, records
+}
+
+// recordAborted adds a SKIP record for a cell that didn't run because an
+// earlier cell timed out. The ffi is not thread-safe on the same handle,
+// so we refuse to issue more calls once a worker has been leaked.
+func recordAborted(endpoint, mode string, skip *int, records []CellRecord) []CellRecord {
+	label := endpoint + "::" + mode
+	fmt.Printf("  %-60s SKIP: aborted-after-timeout\n", label)
+	*skip++
+	return append(records, CellRecord{
+		Endpoint: endpoint, Mode: mode, Status: "SKIP", Detail: "aborted-after-timeout",
+	})
+}
+
+// classify maps a live call outcome into PASS / SKIP / FAIL buckets and
+// appends a CellRecord for the agreement-check JSON artifact.
+func classify(endpoint, mode, declaredMinTier string, r cellResult, pass, skip, fail *int, hadTimeout *bool, records []CellRecord) []CellRecord {
+	label := endpoint + "::" + mode
+	rec := CellRecord{Endpoint: endpoint, Mode: mode, RowCount: r.rowCount}
+	if r.err == nil {
+		fmt.Printf("  %-60s PASS\n", label)
+		*pass++
+		rec.Status = "PASS"
+		return append(records, rec)
+	}
+	if errors.Is(r.err, errCellTimeout) {
+		fmt.Printf("  %-60s FAIL  timeout after 60s\n", label)
+		*fail++
+		*hadTimeout = true
+		rec.Status = "FAIL"
+		rec.Detail = "timeout after 60s"
+		return append(records, rec)
+	}
+	lowered := strings.ToLower(r.err.Error())
+	if strings.Contains(lowered, "permission") || strings.Contains(lowered, "subscription") {
+		fmt.Printf("  %-60s SKIP: tier-permission (declared min_tier=%s)\n", label, declaredMinTier)
+		*skip++
+		rec.Status = "SKIP"
+		rec.Detail = "tier-permission"
+		return append(records, rec)
+	}
+	if strings.Contains(lowered, "no data found") {
+		fmt.Printf("  %-60s PASS  (no data)\n", label)
+		*pass++
+		rec.Status = "PASS"
+		rec.Detail = "no data"
+		return append(records, rec)
+	}
+	fmt.Printf("  %-60s FAIL  %v\n", label, r.err)
+	*fail++
+	rec.Status = "FAIL"
+	detail := r.err.Error()
+	if len(detail) > 200 {
+		detail = detail[:200]
+	}
+	rec.Detail = detail
+	return append(records, rec)
+}
