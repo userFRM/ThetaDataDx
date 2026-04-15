@@ -73,12 +73,27 @@ fn normalize_right(right: &str) -> String {
         .to_string()
 }
 
+/// Normalize the `expiration` parameter for the v3 MDDS server.
+///
+/// The server accepts `"*"` as the canonical wildcard ("all expirations")
+/// and explicit `YYYYMMDD` dates, but rejects the legacy v3-terminal
+/// sentinel `"0"` with an `InvalidArgument` parse error. This function
+/// translates `"0"` -> `"*"` so callers can use either form; everything
+/// else passes through unchanged.
+fn normalize_expiration(expiration: &str) -> String {
+    if expiration == "0" {
+        "*".to_string()
+    } else {
+        expiration.to_string()
+    }
+}
+
 /// Helper: build a `proto::ContractSpec` from the four standard option params.
 macro_rules! contract_spec {
     ($symbol:expr, $expiration:expr, $strike:expr, $right:expr) => {
         Some(proto::ContractSpec {
             symbol: $symbol.to_string(),
-            expiration: $expiration.to_string(),
+            expiration: normalize_expiration(&$expiration.to_string()),
             strike: Some($strike.to_string()),
             right: Some(normalize_right(&$right.to_string())),
         })

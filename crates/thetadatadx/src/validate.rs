@@ -21,10 +21,17 @@ pub(crate) fn validate_date(value: &str, param_name: &str) -> Result<(), Endpoin
 }
 
 pub(crate) fn validate_expiration(value: &str, param_name: &str) -> Result<(), EndpointError> {
-    if value == "0" {
+    // `*` is upstream's canonical wildcard ("all expirations"); `0` is the
+    // legacy v3-terminal sentinel we still accept for back-compat and
+    // translate on the wire in `direct::normalize_expiration`.
+    if value == "*" || value == "0" {
         return Ok(());
     }
-    validate_date(value, param_name)
+    validate_date(value, param_name).map_err(|_| {
+        EndpointError::InvalidParams(format!(
+            "'{param_name}' must be '*' (wildcard), '0' (legacy wildcard), or 8 digits (YYYYMMDD), got: '{value}'"
+        ))
+    })
 }
 
 pub(crate) fn validate_symbol(value: &str, param_name: &str) -> Result<(), EndpointError> {
@@ -82,5 +89,37 @@ pub(crate) fn parse_bool(value: &str) -> Result<bool, &'static str> {
         Ok(false)
     } else {
         Err("accepted values are true, false, 1, or 0")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn expiration_accepts_canonical_wildcard() {
+        assert!(validate_expiration("*", "expiration").is_ok());
+    }
+
+    #[test]
+    fn expiration_accepts_legacy_zero_wildcard() {
+        assert!(validate_expiration("0", "expiration").is_ok());
+    }
+
+    #[test]
+    fn expiration_accepts_explicit_date() {
+        assert!(validate_expiration("20260417", "expiration").is_ok());
+    }
+
+    #[test]
+    fn expiration_rejects_garbage() {
+        for bad in ["", "2026-04-17", "abc", "1", "99", "202604175", "**"] {
+            let err = validate_expiration(bad, "expiration").unwrap_err();
+            let msg = format!("{err:?}");
+            assert!(
+                msg.contains("expiration"),
+                "expected descriptive error for '{bad}', got: {msg}"
+            );
+        }
     }
 }

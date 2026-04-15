@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Expiration wildcard for option bulk queries** (#284) -- \`validate_expiration\` now accepts \`"*"\` (upstream's canonical wildcard for "all expirations"), and \`direct::normalize_expiration\` translates the legacy v3-terminal sentinel \`"0"\` -> \`"*"\` on the wire. Previously the SDK had no working path to the server's bulk-expiration mode: \`"*"\` was rejected client-side, and \`"0"\` was rejected server-side with \`InvalidArgument -- Error parsing expiration\`. Users had to loop per-expiration (~22s for a full QQQ open-interest snapshot across 34 active expirations); the bulk call now returns all 9,966 rows in ~1.1s. Applies to every option snapshot / history endpoint that accepts \`expiration\` (upstream's \`openapiv3.yaml\` documents \`expiration=*\` on \`snapshot/{ohlc,quote,open_interest,market_value,greeks/*}\` and several history endpoints).
+
 ### Added
 
 - **Public API redesign doc** (#282) -- \`docs/public-api-redesign.md\` charters the layered ergonomic-façade migration plan (exact generated surface as canonical parity layer, handwritten \`historical\` / \`realtime\` / \`analytics\` façades on top, typed value foundations, Python result containers, spec enrichment, compatibility window, semver cleanup). The streaming category is named \`realtime\` rather than \`live\` to avoid overloading \`live\`'s CI / run-mode meanings.
