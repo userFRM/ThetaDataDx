@@ -107,13 +107,17 @@ pub(crate) fn wire_strike_opt(strike: &str) -> Option<String> {
 
 /// Map the SDK's `right` surface vocabulary to the wire representation.
 ///
-/// Same pattern as `wire_strike_opt`: upstream treats `right` as optional
-/// with `both` as the implicit "no filter" state. `*`, `both`, `0`, and
-/// empty all collapse to proto-unset; single sides (`C`/`P`/`call`/`put`)
-/// normalize to `"call"`/`"put"` on the wire.
+/// Upstream treats `right` as optional with `both` as the implicit "no
+/// filter" state and `*` as its explicit wildcard. Both collapse to
+/// proto-unset here so the server applies the documented default; single
+/// sides (`C` / `P` / `call` / `put`, any case) normalize to `"call"` /
+/// `"put"`. Any other input reaches [`normalize_right`] via
+/// [`crate::right::parse_right`], which panics with a descriptive message
+/// on unrecognized values — matching the panic-on-bad-right convention
+/// used by [`crate::fpss::protocol::Contract::option`].
 pub(crate) fn wire_right_opt(right: &str) -> Option<String> {
     match right.to_ascii_lowercase().as_str() {
-        "" | "*" | "0" | "both" => None,
+        "*" | "both" => None,
         _ => Some(normalize_right(right)),
     }
 }
@@ -723,12 +727,24 @@ mod tests {
 
     #[test]
     fn wire_right_opt_treats_wildcards_as_unset() {
-        assert_eq!(wire_right_opt(""), None);
         assert_eq!(wire_right_opt("*"), None);
-        assert_eq!(wire_right_opt("0"), None);
         assert_eq!(wire_right_opt("both"), None);
         assert_eq!(wire_right_opt("BOTH"), None);
         assert_eq!(wire_right_opt("Both"), None);
+    }
+
+    #[test]
+    #[should_panic(expected = "invalid option right")]
+    fn wire_right_opt_rejects_undocumented_forms() {
+        // Matches Contract::option's panic-on-bad-right convention;
+        // validate_right catches these earlier on the endpoint path.
+        let _ = wire_right_opt("");
+    }
+
+    #[test]
+    #[should_panic(expected = "invalid option right")]
+    fn wire_right_opt_rejects_zero_sentinel() {
+        let _ = wire_right_opt("0");
     }
 
     #[test]

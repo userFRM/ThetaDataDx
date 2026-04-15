@@ -1627,6 +1627,19 @@ fn direct_query_field_expr(
         }
         "interval" => format!("normalize_interval(&{arg_name})"),
         "time_of_day" => format!("normalize_time_of_day(&{arg_name})"),
+        // Top-level `expiration` fields on query messages get the same
+        // wire canonicalization as the ContractSpec copy: `0` -> `*`, ISO
+        // dashes stripped. Keeps the two expiration values on the request
+        // in agreement and prevents the server from seeing a raw `0` on
+        // either path. In list-endpoint context the arg is already `&str`
+        // (no extra borrow); in the parsed-endpoint context it's owned.
+        "expiration" => {
+            if list_context {
+                format!("normalize_expiration({arg_name})")
+            } else {
+                format!("normalize_expiration(&{arg_name})")
+            }
+        }
         "start_time" | "end_time" => format!("Some({arg_name}.clone())"),
         "venue" if endpoint.category == "stock" => {
             "venue.clone().or_else(|| Some(\"nqb\".to_string()))".into()
