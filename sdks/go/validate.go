@@ -89,926 +89,2654 @@ func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
 	records := make([]CellRecord, 0)
 	var r cellResult
 
-	r = runWithTimeout(func() (int, error) { v, e := c.StockListSymbols(); return goRowCount(v), e })
-	records = classify("stock_list_symbols", "basic", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockListSymbols(); return goRowCount(v), e })
+		records = classify("stock_list_symbols", "basic", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_list_symbols", "basic", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.StockListDates("TRADE", "AAPL"); return goRowCount(v), e })
-	records = classify("stock_list_dates", "basic", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockListDates("TRADE", "AAPL"); return goRowCount(v), e })
+		records = classify("stock_list_dates", "basic", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_list_dates", "basic", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotOHLC([]string{"AAPL"}); return goRowCount(v), e })
-	records = classify("stock_snapshot_ohlc", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotOHLC([]string{"AAPL"}, WithVenue("nqb")); return goRowCount(v), e })
-	records = classify("stock_snapshot_ohlc", "with_venue", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotOHLC([]string{"AAPL"}, WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("stock_snapshot_ohlc", "with_min_time", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotOHLC([]string{"AAPL"}, WithVenue("nqb"), WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("stock_snapshot_ohlc", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotOHLC([]string{"AAPL"}); return goRowCount(v), e })
+		records = classify("stock_snapshot_ohlc", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_snapshot_ohlc", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotOHLC([]string{"AAPL"}, WithVenue("nqb")); return goRowCount(v), e })
+		records = classify("stock_snapshot_ohlc", "with_venue", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_snapshot_ohlc", "with_venue", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotOHLC([]string{"AAPL"}, WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("stock_snapshot_ohlc", "with_min_time", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_snapshot_ohlc", "with_min_time", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotOHLC([]string{"AAPL"}, WithVenue("nqb"), WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("stock_snapshot_ohlc", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_snapshot_ohlc", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotTrade([]string{"AAPL"}); return goRowCount(v), e })
-	records = classify("stock_snapshot_trade", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotTrade([]string{"AAPL"}, WithVenue("nqb")); return goRowCount(v), e })
-	records = classify("stock_snapshot_trade", "with_venue", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotTrade([]string{"AAPL"}, WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("stock_snapshot_trade", "with_min_time", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotTrade([]string{"AAPL"}, WithVenue("nqb"), WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("stock_snapshot_trade", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotTrade([]string{"AAPL"}); return goRowCount(v), e })
+		records = classify("stock_snapshot_trade", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_snapshot_trade", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotTrade([]string{"AAPL"}, WithVenue("nqb")); return goRowCount(v), e })
+		records = classify("stock_snapshot_trade", "with_venue", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_snapshot_trade", "with_venue", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotTrade([]string{"AAPL"}, WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("stock_snapshot_trade", "with_min_time", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_snapshot_trade", "with_min_time", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotTrade([]string{"AAPL"}, WithVenue("nqb"), WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("stock_snapshot_trade", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_snapshot_trade", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotQuote([]string{"AAPL"}); return goRowCount(v), e })
-	records = classify("stock_snapshot_quote", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotQuote([]string{"AAPL"}, WithVenue("nqb")); return goRowCount(v), e })
-	records = classify("stock_snapshot_quote", "with_venue", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotQuote([]string{"AAPL"}, WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("stock_snapshot_quote", "with_min_time", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotQuote([]string{"AAPL"}, WithVenue("nqb"), WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("stock_snapshot_quote", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotQuote([]string{"AAPL"}); return goRowCount(v), e })
+		records = classify("stock_snapshot_quote", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_snapshot_quote", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotQuote([]string{"AAPL"}, WithVenue("nqb")); return goRowCount(v), e })
+		records = classify("stock_snapshot_quote", "with_venue", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_snapshot_quote", "with_venue", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotQuote([]string{"AAPL"}, WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("stock_snapshot_quote", "with_min_time", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_snapshot_quote", "with_min_time", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotQuote([]string{"AAPL"}, WithVenue("nqb"), WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("stock_snapshot_quote", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_snapshot_quote", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotMarketValue([]string{"AAPL"}); return goRowCount(v), e })
-	records = classify("stock_snapshot_market_value", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotMarketValue([]string{"AAPL"}, WithVenue("nqb")); return goRowCount(v), e })
-	records = classify("stock_snapshot_market_value", "with_venue", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotMarketValue([]string{"AAPL"}, WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("stock_snapshot_market_value", "with_min_time", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotMarketValue([]string{"AAPL"}, WithVenue("nqb"), WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("stock_snapshot_market_value", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotMarketValue([]string{"AAPL"}); return goRowCount(v), e })
+		records = classify("stock_snapshot_market_value", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_snapshot_market_value", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotMarketValue([]string{"AAPL"}, WithVenue("nqb")); return goRowCount(v), e })
+		records = classify("stock_snapshot_market_value", "with_venue", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_snapshot_market_value", "with_venue", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotMarketValue([]string{"AAPL"}, WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("stock_snapshot_market_value", "with_min_time", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_snapshot_market_value", "with_min_time", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockSnapshotMarketValue([]string{"AAPL"}, WithVenue("nqb"), WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("stock_snapshot_market_value", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_snapshot_market_value", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryEOD("AAPL", "20250303", "20250303"); return goRowCount(v), e })
-	records = classify("stock_history_eod", "concrete", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryEOD("AAPL", "20250303", "20250303"); return goRowCount(v), e })
+		records = classify("stock_history_eod", "concrete", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_eod", "concrete", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryOHLC("AAPL", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("stock_history_ohlc", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryOHLC("AAPL", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
-	records = classify("stock_history_ohlc", "with_intraday_window", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryOHLC("AAPL", "20250303", "60000", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("stock_history_ohlc", "with_date_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryOHLC("AAPL", "20250303", "60000", WithVenue("nqb")); return goRowCount(v), e })
-	records = classify("stock_history_ohlc", "with_venue", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryOHLC("AAPL", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithVenue("nqb"), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("stock_history_ohlc", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryOHLC("AAPL", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("stock_history_ohlc", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_ohlc", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryOHLC("AAPL", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
+		records = classify("stock_history_ohlc", "with_intraday_window", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_ohlc", "with_intraday_window", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryOHLC("AAPL", "20250303", "60000", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("stock_history_ohlc", "with_date_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_ohlc", "with_date_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryOHLC("AAPL", "20250303", "60000", WithVenue("nqb")); return goRowCount(v), e })
+		records = classify("stock_history_ohlc", "with_venue", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_ohlc", "with_venue", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryOHLC("AAPL", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithVenue("nqb"), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("stock_history_ohlc", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_ohlc", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTrade("AAPL", "20250303"); return goRowCount(v), e })
-	records = classify("stock_history_trade", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTrade("AAPL", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
-	records = classify("stock_history_trade", "with_intraday_window", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTrade("AAPL", "20250303", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("stock_history_trade", "with_date_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTrade("AAPL", "20250303", WithVenue("nqb")); return goRowCount(v), e })
-	records = classify("stock_history_trade", "with_venue", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTrade("AAPL", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithVenue("nqb"), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("stock_history_trade", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTrade("AAPL", "20250303"); return goRowCount(v), e })
+		records = classify("stock_history_trade", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_trade", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTrade("AAPL", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
+		records = classify("stock_history_trade", "with_intraday_window", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_trade", "with_intraday_window", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTrade("AAPL", "20250303", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("stock_history_trade", "with_date_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_trade", "with_date_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTrade("AAPL", "20250303", WithVenue("nqb")); return goRowCount(v), e })
+		records = classify("stock_history_trade", "with_venue", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_trade", "with_venue", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTrade("AAPL", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithVenue("nqb"), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("stock_history_trade", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_trade", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryQuote("AAPL", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("stock_history_quote", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryQuote("AAPL", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
-	records = classify("stock_history_quote", "with_intraday_window", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryQuote("AAPL", "20250303", "60000", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("stock_history_quote", "with_date_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryQuote("AAPL", "20250303", "60000", WithVenue("nqb")); return goRowCount(v), e })
-	records = classify("stock_history_quote", "with_venue", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryQuote("AAPL", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithVenue("nqb"), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("stock_history_quote", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryQuote("AAPL", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("stock_history_quote", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_quote", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryQuote("AAPL", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
+		records = classify("stock_history_quote", "with_intraday_window", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_quote", "with_intraday_window", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryQuote("AAPL", "20250303", "60000", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("stock_history_quote", "with_date_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_quote", "with_date_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryQuote("AAPL", "20250303", "60000", WithVenue("nqb")); return goRowCount(v), e })
+		records = classify("stock_history_quote", "with_venue", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_quote", "with_venue", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryQuote("AAPL", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithVenue("nqb"), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("stock_history_quote", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_quote", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTradeQuote("AAPL", "20250303"); return goRowCount(v), e })
-	records = classify("stock_history_trade_quote", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTradeQuote("AAPL", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
-	records = classify("stock_history_trade_quote", "with_intraday_window", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTradeQuote("AAPL", "20250303", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("stock_history_trade_quote", "with_date_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTradeQuote("AAPL", "20250303", WithExclusive(true)); return goRowCount(v), e })
-	records = classify("stock_history_trade_quote", "with_exclusive", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTradeQuote("AAPL", "20250303", WithVenue("nqb")); return goRowCount(v), e })
-	records = classify("stock_history_trade_quote", "with_venue", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTradeQuote("AAPL", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithExclusive(true), WithVenue("nqb"), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("stock_history_trade_quote", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTradeQuote("AAPL", "20250303"); return goRowCount(v), e })
+		records = classify("stock_history_trade_quote", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_trade_quote", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTradeQuote("AAPL", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
+		records = classify("stock_history_trade_quote", "with_intraday_window", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_trade_quote", "with_intraday_window", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTradeQuote("AAPL", "20250303", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("stock_history_trade_quote", "with_date_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_trade_quote", "with_date_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTradeQuote("AAPL", "20250303", WithExclusive(true)); return goRowCount(v), e })
+		records = classify("stock_history_trade_quote", "with_exclusive", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_trade_quote", "with_exclusive", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTradeQuote("AAPL", "20250303", WithVenue("nqb")); return goRowCount(v), e })
+		records = classify("stock_history_trade_quote", "with_venue", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_trade_quote", "with_venue", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryTradeQuote("AAPL", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithExclusive(true), WithVenue("nqb"), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("stock_history_trade_quote", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_trade_quote", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.StockAtTimeTrade("AAPL", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-	records = classify("stock_at_time_trade", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockAtTimeTrade("AAPL", "20250303", "20250303", "12:00:00.000", WithVenue("nqb")); return goRowCount(v), e })
-	records = classify("stock_at_time_trade", "with_venue", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockAtTimeTrade("AAPL", "20250303", "20250303", "12:00:00.000", WithVenue("nqb")); return goRowCount(v), e })
-	records = classify("stock_at_time_trade", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockAtTimeTrade("AAPL", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
+		records = classify("stock_at_time_trade", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_at_time_trade", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockAtTimeTrade("AAPL", "20250303", "20250303", "12:00:00.000", WithVenue("nqb")); return goRowCount(v), e })
+		records = classify("stock_at_time_trade", "with_venue", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_at_time_trade", "with_venue", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockAtTimeTrade("AAPL", "20250303", "20250303", "12:00:00.000", WithVenue("nqb")); return goRowCount(v), e })
+		records = classify("stock_at_time_trade", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_at_time_trade", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.StockAtTimeQuote("AAPL", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-	records = classify("stock_at_time_quote", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockAtTimeQuote("AAPL", "20250303", "20250303", "12:00:00.000", WithVenue("nqb")); return goRowCount(v), e })
-	records = classify("stock_at_time_quote", "with_venue", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockAtTimeQuote("AAPL", "20250303", "20250303", "12:00:00.000", WithVenue("nqb")); return goRowCount(v), e })
-	records = classify("stock_at_time_quote", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockAtTimeQuote("AAPL", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
+		records = classify("stock_at_time_quote", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_at_time_quote", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockAtTimeQuote("AAPL", "20250303", "20250303", "12:00:00.000", WithVenue("nqb")); return goRowCount(v), e })
+		records = classify("stock_at_time_quote", "with_venue", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_at_time_quote", "with_venue", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockAtTimeQuote("AAPL", "20250303", "20250303", "12:00:00.000", WithVenue("nqb")); return goRowCount(v), e })
+		records = classify("stock_at_time_quote", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_at_time_quote", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionListSymbols(); return goRowCount(v), e })
-	records = classify("option_list_symbols", "basic", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionListSymbols(); return goRowCount(v), e })
+		records = classify("option_list_symbols", "basic", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_list_symbols", "basic", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionListDates("TRADE", "SPY", "20250321", "570", "C"); return goRowCount(v), e })
-	records = classify("option_list_dates", "basic", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionListDates("TRADE", "SPY", "20250321", "570", "C"); return goRowCount(v), e })
+		records = classify("option_list_dates", "basic", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_list_dates", "basic", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionListExpirations("SPY"); return goRowCount(v), e })
-	records = classify("option_list_expirations", "basic", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionListExpirations("SPY"); return goRowCount(v), e })
+		records = classify("option_list_expirations", "basic", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_list_expirations", "basic", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionListStrikes("SPY", "20250321"); return goRowCount(v), e })
-	records = classify("option_list_strikes", "basic", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionListStrikes("SPY", "20250321"); return goRowCount(v), e })
+		records = classify("option_list_strikes", "basic", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_list_strikes", "basic", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionListContracts("TRADE", "SPY", "20250303"); return goRowCount(v), e })
-	records = classify("option_list_contracts", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionListContracts("TRADE", "SPY", "20250303", WithMaxDTE(int32(30))); return goRowCount(v), e })
-	records = classify("option_list_contracts", "with_max_dte", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionListContracts("TRADE", "SPY", "20250303", WithMaxDTE(int32(30))); return goRowCount(v), e })
-	records = classify("option_list_contracts", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionListContracts("TRADE", "SPY", "20250303"); return goRowCount(v), e })
+		records = classify("option_list_contracts", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_list_contracts", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionListContracts("TRADE", "SPY", "20250303", WithMaxDTE(int32(30))); return goRowCount(v), e })
+		records = classify("option_list_contracts", "with_max_dte", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_list_contracts", "with_max_dte", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionListContracts("TRADE", "SPY", "20250303", WithMaxDTE(int32(30))); return goRowCount(v), e })
+		records = classify("option_list_contracts", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_list_contracts", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "20250321", "570", "C"); return goRowCount(v), e })
-	records = classify("option_snapshot_ohlc", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
-	records = classify("option_snapshot_ohlc", "concrete_iso", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "20250321", "*", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_ohlc", "all_strikes_one_exp", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "*", "570", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_ohlc", "all_exps_one_strike", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "*", "*", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_ohlc", "bulk_chain", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "0", "0", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_ohlc", "legacy_zero_wildcard", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "20250321", "570", "C", WithMaxDTE(int32(30))); return goRowCount(v), e })
-	records = classify("option_snapshot_ohlc", "with_max_dte", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "20250321", "570", "C", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_snapshot_ohlc", "with_strike_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "20250321", "570", "C", WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("option_snapshot_ohlc", "with_min_time", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "20250321", "570", "C", WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("option_snapshot_ohlc", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "20250321", "570", "C"); return goRowCount(v), e })
+		records = classify("option_snapshot_ohlc", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_ohlc", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
+		records = classify("option_snapshot_ohlc", "concrete_iso", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_ohlc", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "20250321", "*", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_ohlc", "all_strikes_one_exp", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_ohlc", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "*", "570", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_ohlc", "all_exps_one_strike", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_ohlc", "all_exps_one_strike", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "*", "*", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_ohlc", "bulk_chain", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_ohlc", "bulk_chain", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "0", "0", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_ohlc", "legacy_zero_wildcard", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_ohlc", "legacy_zero_wildcard", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "20250321", "570", "C", WithMaxDTE(int32(30))); return goRowCount(v), e })
+		records = classify("option_snapshot_ohlc", "with_max_dte", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_ohlc", "with_max_dte", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "20250321", "570", "C", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_snapshot_ohlc", "with_strike_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_ohlc", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "20250321", "570", "C", WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("option_snapshot_ohlc", "with_min_time", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_ohlc", "with_min_time", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOHLC("SPY", "20250321", "570", "C", WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("option_snapshot_ohlc", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_ohlc", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotTrade("SPY", "20250321", "570", "C"); return goRowCount(v), e })
-	records = classify("option_snapshot_trade", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotTrade("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
-	records = classify("option_snapshot_trade", "concrete_iso", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotTrade("SPY", "20250321", "*", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_trade", "all_strikes_one_exp", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotTrade("SPY", "20250321", "570", "C", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_snapshot_trade", "with_strike_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotTrade("SPY", "20250321", "570", "C", WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("option_snapshot_trade", "with_min_time", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotTrade("SPY", "20250321", "570", "C", WithStrikeRange(int32(10)), WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("option_snapshot_trade", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotTrade("SPY", "20250321", "570", "C"); return goRowCount(v), e })
+		records = classify("option_snapshot_trade", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_trade", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotTrade("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
+		records = classify("option_snapshot_trade", "concrete_iso", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_trade", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotTrade("SPY", "20250321", "*", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_trade", "all_strikes_one_exp", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_trade", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotTrade("SPY", "20250321", "570", "C", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_snapshot_trade", "with_strike_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_trade", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotTrade("SPY", "20250321", "570", "C", WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("option_snapshot_trade", "with_min_time", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_trade", "with_min_time", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotTrade("SPY", "20250321", "570", "C", WithStrikeRange(int32(10)), WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("option_snapshot_trade", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_trade", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "20250321", "570", "C"); return goRowCount(v), e })
-	records = classify("option_snapshot_quote", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
-	records = classify("option_snapshot_quote", "concrete_iso", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "20250321", "*", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_quote", "all_strikes_one_exp", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "*", "570", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_quote", "all_exps_one_strike", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "*", "*", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_quote", "bulk_chain", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "0", "0", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_quote", "legacy_zero_wildcard", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "20250321", "570", "C", WithMaxDTE(int32(30))); return goRowCount(v), e })
-	records = classify("option_snapshot_quote", "with_max_dte", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "20250321", "570", "C", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_snapshot_quote", "with_strike_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "20250321", "570", "C", WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("option_snapshot_quote", "with_min_time", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "20250321", "570", "C", WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("option_snapshot_quote", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "20250321", "570", "C"); return goRowCount(v), e })
+		records = classify("option_snapshot_quote", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_quote", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
+		records = classify("option_snapshot_quote", "concrete_iso", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_quote", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "20250321", "*", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_quote", "all_strikes_one_exp", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_quote", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "*", "570", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_quote", "all_exps_one_strike", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_quote", "all_exps_one_strike", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "*", "*", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_quote", "bulk_chain", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_quote", "bulk_chain", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "0", "0", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_quote", "legacy_zero_wildcard", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_quote", "legacy_zero_wildcard", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "20250321", "570", "C", WithMaxDTE(int32(30))); return goRowCount(v), e })
+		records = classify("option_snapshot_quote", "with_max_dte", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_quote", "with_max_dte", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "20250321", "570", "C", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_snapshot_quote", "with_strike_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_quote", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "20250321", "570", "C", WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("option_snapshot_quote", "with_min_time", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_quote", "with_min_time", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotQuote("SPY", "20250321", "570", "C", WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("option_snapshot_quote", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_quote", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "20250321", "570", "C"); return goRowCount(v), e })
-	records = classify("option_snapshot_open_interest", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
-	records = classify("option_snapshot_open_interest", "concrete_iso", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "20250321", "*", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_open_interest", "all_strikes_one_exp", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "*", "570", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_open_interest", "all_exps_one_strike", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "*", "*", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_open_interest", "bulk_chain", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "0", "0", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_open_interest", "legacy_zero_wildcard", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "20250321", "570", "C", WithMaxDTE(int32(30))); return goRowCount(v), e })
-	records = classify("option_snapshot_open_interest", "with_max_dte", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "20250321", "570", "C", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_snapshot_open_interest", "with_strike_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "20250321", "570", "C", WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("option_snapshot_open_interest", "with_min_time", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "20250321", "570", "C", WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("option_snapshot_open_interest", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "20250321", "570", "C"); return goRowCount(v), e })
+		records = classify("option_snapshot_open_interest", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_open_interest", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
+		records = classify("option_snapshot_open_interest", "concrete_iso", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_open_interest", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "20250321", "*", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_open_interest", "all_strikes_one_exp", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_open_interest", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "*", "570", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_open_interest", "all_exps_one_strike", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_open_interest", "all_exps_one_strike", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "*", "*", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_open_interest", "bulk_chain", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_open_interest", "bulk_chain", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "0", "0", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_open_interest", "legacy_zero_wildcard", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_open_interest", "legacy_zero_wildcard", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "20250321", "570", "C", WithMaxDTE(int32(30))); return goRowCount(v), e })
+		records = classify("option_snapshot_open_interest", "with_max_dte", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_open_interest", "with_max_dte", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "20250321", "570", "C", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_snapshot_open_interest", "with_strike_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_open_interest", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "20250321", "570", "C", WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("option_snapshot_open_interest", "with_min_time", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_open_interest", "with_min_time", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotOpenInterest("SPY", "20250321", "570", "C", WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("option_snapshot_open_interest", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_open_interest", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "20250321", "570", "C"); return goRowCount(v), e })
-	records = classify("option_snapshot_market_value", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
-	records = classify("option_snapshot_market_value", "concrete_iso", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "20250321", "*", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_market_value", "all_strikes_one_exp", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "*", "570", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_market_value", "all_exps_one_strike", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "*", "*", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_market_value", "bulk_chain", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "0", "0", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_market_value", "legacy_zero_wildcard", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "20250321", "570", "C", WithMaxDTE(int32(30))); return goRowCount(v), e })
-	records = classify("option_snapshot_market_value", "with_max_dte", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "20250321", "570", "C", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_snapshot_market_value", "with_strike_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "20250321", "570", "C", WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("option_snapshot_market_value", "with_min_time", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "20250321", "570", "C", WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("option_snapshot_market_value", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "20250321", "570", "C"); return goRowCount(v), e })
+		records = classify("option_snapshot_market_value", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_market_value", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
+		records = classify("option_snapshot_market_value", "concrete_iso", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_market_value", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "20250321", "*", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_market_value", "all_strikes_one_exp", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_market_value", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "*", "570", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_market_value", "all_exps_one_strike", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_market_value", "all_exps_one_strike", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "*", "*", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_market_value", "bulk_chain", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_market_value", "bulk_chain", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "0", "0", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_market_value", "legacy_zero_wildcard", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_market_value", "legacy_zero_wildcard", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "20250321", "570", "C", WithMaxDTE(int32(30))); return goRowCount(v), e })
+		records = classify("option_snapshot_market_value", "with_max_dte", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_market_value", "with_max_dte", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "20250321", "570", "C", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_snapshot_market_value", "with_strike_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_market_value", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "20250321", "570", "C", WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("option_snapshot_market_value", "with_min_time", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_market_value", "with_min_time", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotMarketValue("SPY", "20250321", "570", "C", WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("option_snapshot_market_value", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_market_value", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_implied_volatility", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_implied_volatility", "concrete_iso", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "*", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_implied_volatility", "all_strikes_one_exp", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "*", "570", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_implied_volatility", "all_exps_one_strike", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "*", "*", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_implied_volatility", "bulk_chain", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "0", "0", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_implied_volatility", "legacy_zero_wildcard", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C", WithAnnualDividend(0.015)); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_implied_volatility", "with_annual_dividend", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C", WithRateType("sofr")); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_implied_volatility", "with_rate_type", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C", WithRateValue(0.05)); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_implied_volatility", "with_rate_value", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C", WithStockPrice(150.0)); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_implied_volatility", "with_stock_price", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C", WithVersion("dg3")); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_implied_volatility", "with_version", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C", WithMaxDTE(int32(30))); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_implied_volatility", "with_max_dte", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_implied_volatility", "with_strike_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C", WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_implied_volatility", "with_min_time", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C", WithUseMarketValue(true)); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_implied_volatility", "with_use_market_value", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C", WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithStockPrice(150.0), WithVersion("dg3"), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithMinTime("09:45:00"), WithUseMarketValue(true)); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_implied_volatility", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_implied_volatility", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_implied_volatility", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_implied_volatility", "concrete_iso", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_implied_volatility", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "*", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_implied_volatility", "all_strikes_one_exp", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_implied_volatility", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "*", "570", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_implied_volatility", "all_exps_one_strike", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_implied_volatility", "all_exps_one_strike", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "*", "*", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_implied_volatility", "bulk_chain", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_implied_volatility", "bulk_chain", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "0", "0", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_implied_volatility", "legacy_zero_wildcard", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_implied_volatility", "legacy_zero_wildcard", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C", WithAnnualDividend(0.015)); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_implied_volatility", "with_annual_dividend", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_implied_volatility", "with_annual_dividend", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C", WithRateType("sofr")); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_implied_volatility", "with_rate_type", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_implied_volatility", "with_rate_type", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C", WithRateValue(0.05)); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_implied_volatility", "with_rate_value", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_implied_volatility", "with_rate_value", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C", WithStockPrice(150.0)); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_implied_volatility", "with_stock_price", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_implied_volatility", "with_stock_price", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C", WithVersion("dg3")); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_implied_volatility", "with_version", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_implied_volatility", "with_version", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C", WithMaxDTE(int32(30))); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_implied_volatility", "with_max_dte", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_implied_volatility", "with_max_dte", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_implied_volatility", "with_strike_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_implied_volatility", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C", WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_implied_volatility", "with_min_time", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_implied_volatility", "with_min_time", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C", WithUseMarketValue(true)); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_implied_volatility", "with_use_market_value", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_implied_volatility", "with_use_market_value", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C", WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithStockPrice(150.0), WithVersion("dg3"), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithMinTime("09:45:00"), WithUseMarketValue(true)); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_implied_volatility", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_implied_volatility", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_all", "concrete", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_all", "concrete_iso", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "*", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_all", "all_strikes_one_exp", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "*", "570", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_all", "all_exps_one_strike", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "*", "*", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_all", "bulk_chain", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "0", "0", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_all", "legacy_zero_wildcard", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C", WithAnnualDividend(0.015)); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_all", "with_annual_dividend", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C", WithRateType("sofr")); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_all", "with_rate_type", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C", WithRateValue(0.05)); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_all", "with_rate_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C", WithStockPrice(150.0)); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_all", "with_stock_price", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C", WithVersion("dg3")); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_all", "with_version", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C", WithMaxDTE(int32(30))); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_all", "with_max_dte", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_all", "with_strike_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C", WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_all", "with_min_time", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C", WithUseMarketValue(true)); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_all", "with_use_market_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C", WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithStockPrice(150.0), WithVersion("dg3"), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithMinTime("09:45:00"), WithUseMarketValue(true)); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_all", "all_optionals", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_all", "concrete", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_all", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_all", "concrete_iso", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_all", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "*", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_all", "all_strikes_one_exp", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_all", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "*", "570", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_all", "all_exps_one_strike", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_all", "all_exps_one_strike", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "*", "*", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_all", "bulk_chain", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_all", "bulk_chain", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "0", "0", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_all", "legacy_zero_wildcard", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_all", "legacy_zero_wildcard", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C", WithAnnualDividend(0.015)); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_all", "with_annual_dividend", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_all", "with_annual_dividend", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C", WithRateType("sofr")); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_all", "with_rate_type", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_all", "with_rate_type", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C", WithRateValue(0.05)); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_all", "with_rate_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_all", "with_rate_value", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C", WithStockPrice(150.0)); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_all", "with_stock_price", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_all", "with_stock_price", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C", WithVersion("dg3")); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_all", "with_version", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_all", "with_version", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C", WithMaxDTE(int32(30))); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_all", "with_max_dte", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_all", "with_max_dte", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_all", "with_strike_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_all", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C", WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_all", "with_min_time", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_all", "with_min_time", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C", WithUseMarketValue(true)); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_all", "with_use_market_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_all", "with_use_market_value", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C", WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithStockPrice(150.0), WithVersion("dg3"), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithMinTime("09:45:00"), WithUseMarketValue(true)); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_all", "all_optionals", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_all", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_first_order", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_first_order", "concrete_iso", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "*", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_first_order", "all_strikes_one_exp", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "*", "570", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_first_order", "all_exps_one_strike", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "*", "*", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_first_order", "bulk_chain", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "0", "0", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_first_order", "legacy_zero_wildcard", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C", WithAnnualDividend(0.015)); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_first_order", "with_annual_dividend", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C", WithRateType("sofr")); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_first_order", "with_rate_type", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C", WithRateValue(0.05)); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_first_order", "with_rate_value", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C", WithStockPrice(150.0)); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_first_order", "with_stock_price", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C", WithVersion("dg3")); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_first_order", "with_version", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C", WithMaxDTE(int32(30))); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_first_order", "with_max_dte", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_first_order", "with_strike_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C", WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_first_order", "with_min_time", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C", WithUseMarketValue(true)); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_first_order", "with_use_market_value", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C", WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithStockPrice(150.0), WithVersion("dg3"), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithMinTime("09:45:00"), WithUseMarketValue(true)); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_first_order", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_first_order", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_first_order", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_first_order", "concrete_iso", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_first_order", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "*", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_first_order", "all_strikes_one_exp", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_first_order", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "*", "570", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_first_order", "all_exps_one_strike", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_first_order", "all_exps_one_strike", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "*", "*", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_first_order", "bulk_chain", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_first_order", "bulk_chain", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "0", "0", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_first_order", "legacy_zero_wildcard", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_first_order", "legacy_zero_wildcard", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C", WithAnnualDividend(0.015)); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_first_order", "with_annual_dividend", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_first_order", "with_annual_dividend", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C", WithRateType("sofr")); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_first_order", "with_rate_type", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_first_order", "with_rate_type", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C", WithRateValue(0.05)); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_first_order", "with_rate_value", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_first_order", "with_rate_value", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C", WithStockPrice(150.0)); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_first_order", "with_stock_price", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_first_order", "with_stock_price", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C", WithVersion("dg3")); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_first_order", "with_version", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_first_order", "with_version", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C", WithMaxDTE(int32(30))); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_first_order", "with_max_dte", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_first_order", "with_max_dte", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_first_order", "with_strike_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_first_order", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C", WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_first_order", "with_min_time", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_first_order", "with_min_time", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C", WithUseMarketValue(true)); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_first_order", "with_use_market_value", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_first_order", "with_use_market_value", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C", WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithStockPrice(150.0), WithVersion("dg3"), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithMinTime("09:45:00"), WithUseMarketValue(true)); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_first_order", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_first_order", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_second_order", "concrete", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_second_order", "concrete_iso", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "*", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_second_order", "all_strikes_one_exp", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "*", "570", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_second_order", "all_exps_one_strike", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "*", "*", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_second_order", "bulk_chain", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "0", "0", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_second_order", "legacy_zero_wildcard", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C", WithAnnualDividend(0.015)); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_second_order", "with_annual_dividend", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C", WithRateType("sofr")); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_second_order", "with_rate_type", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C", WithRateValue(0.05)); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_second_order", "with_rate_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C", WithStockPrice(150.0)); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_second_order", "with_stock_price", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C", WithVersion("dg3")); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_second_order", "with_version", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C", WithMaxDTE(int32(30))); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_second_order", "with_max_dte", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_second_order", "with_strike_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C", WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_second_order", "with_min_time", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C", WithUseMarketValue(true)); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_second_order", "with_use_market_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C", WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithStockPrice(150.0), WithVersion("dg3"), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithMinTime("09:45:00"), WithUseMarketValue(true)); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_second_order", "all_optionals", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_second_order", "concrete", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_second_order", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_second_order", "concrete_iso", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_second_order", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "*", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_second_order", "all_strikes_one_exp", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_second_order", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "*", "570", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_second_order", "all_exps_one_strike", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_second_order", "all_exps_one_strike", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "*", "*", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_second_order", "bulk_chain", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_second_order", "bulk_chain", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "0", "0", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_second_order", "legacy_zero_wildcard", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_second_order", "legacy_zero_wildcard", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C", WithAnnualDividend(0.015)); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_second_order", "with_annual_dividend", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_second_order", "with_annual_dividend", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C", WithRateType("sofr")); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_second_order", "with_rate_type", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_second_order", "with_rate_type", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C", WithRateValue(0.05)); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_second_order", "with_rate_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_second_order", "with_rate_value", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C", WithStockPrice(150.0)); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_second_order", "with_stock_price", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_second_order", "with_stock_price", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C", WithVersion("dg3")); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_second_order", "with_version", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_second_order", "with_version", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C", WithMaxDTE(int32(30))); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_second_order", "with_max_dte", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_second_order", "with_max_dte", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_second_order", "with_strike_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_second_order", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C", WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_second_order", "with_min_time", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_second_order", "with_min_time", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C", WithUseMarketValue(true)); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_second_order", "with_use_market_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_second_order", "with_use_market_value", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C", WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithStockPrice(150.0), WithVersion("dg3"), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithMinTime("09:45:00"), WithUseMarketValue(true)); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_second_order", "all_optionals", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_second_order", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_third_order", "concrete", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_third_order", "concrete_iso", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "*", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_third_order", "all_strikes_one_exp", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "*", "570", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_third_order", "all_exps_one_strike", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "*", "*", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_third_order", "bulk_chain", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "0", "0", "both"); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_third_order", "legacy_zero_wildcard", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C", WithAnnualDividend(0.015)); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_third_order", "with_annual_dividend", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C", WithRateType("sofr")); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_third_order", "with_rate_type", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C", WithRateValue(0.05)); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_third_order", "with_rate_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C", WithStockPrice(150.0)); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_third_order", "with_stock_price", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C", WithVersion("dg3")); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_third_order", "with_version", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C", WithMaxDTE(int32(30))); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_third_order", "with_max_dte", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_third_order", "with_strike_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C", WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_third_order", "with_min_time", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C", WithUseMarketValue(true)); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_third_order", "with_use_market_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C", WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithStockPrice(150.0), WithVersion("dg3"), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithMinTime("09:45:00"), WithUseMarketValue(true)); return goRowCount(v), e })
-	records = classify("option_snapshot_greeks_third_order", "all_optionals", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_third_order", "concrete", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_third_order", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "2025-03-21", "570", "C"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_third_order", "concrete_iso", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_third_order", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "*", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_third_order", "all_strikes_one_exp", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_third_order", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "*", "570", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_third_order", "all_exps_one_strike", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_third_order", "all_exps_one_strike", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "*", "*", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_third_order", "bulk_chain", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_third_order", "bulk_chain", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "0", "0", "both"); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_third_order", "legacy_zero_wildcard", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_third_order", "legacy_zero_wildcard", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C", WithAnnualDividend(0.015)); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_third_order", "with_annual_dividend", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_third_order", "with_annual_dividend", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C", WithRateType("sofr")); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_third_order", "with_rate_type", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_third_order", "with_rate_type", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C", WithRateValue(0.05)); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_third_order", "with_rate_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_third_order", "with_rate_value", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C", WithStockPrice(150.0)); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_third_order", "with_stock_price", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_third_order", "with_stock_price", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C", WithVersion("dg3")); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_third_order", "with_version", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_third_order", "with_version", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C", WithMaxDTE(int32(30))); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_third_order", "with_max_dte", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_third_order", "with_max_dte", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_third_order", "with_strike_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_third_order", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C", WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_third_order", "with_min_time", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_third_order", "with_min_time", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C", WithUseMarketValue(true)); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_third_order", "with_use_market_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_third_order", "with_use_market_value", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C", WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithStockPrice(150.0), WithVersion("dg3"), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithMinTime("09:45:00"), WithUseMarketValue(true)); return goRowCount(v), e })
+		records = classify("option_snapshot_greeks_third_order", "all_optionals", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_snapshot_greeks_third_order", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryEOD("SPY", "20250321", "570", "C", "20250303", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_eod", "concrete", "free", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryEOD("SPY", "2025-03-21", "570", "C", "20250303", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_eod", "concrete_iso", "free", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryEOD("SPY", "20250321", "*", "both", "20250303", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_eod", "all_strikes_one_exp", "free", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryEOD("SPY", "*", "570", "both", "20250303", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_eod", "all_exps_one_strike", "free", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryEOD("SPY", "*", "*", "both", "20250303", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_eod", "bulk_chain", "free", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryEOD("SPY", "0", "0", "both", "20250303", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_eod", "legacy_zero_wildcard", "free", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithMaxDTE(int32(30))); return goRowCount(v), e })
-	records = classify("option_history_eod", "with_max_dte", "free", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_history_eod", "with_strike_range", "free", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithMaxDTE(int32(30)), WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_history_eod", "all_optionals", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryEOD("SPY", "20250321", "570", "C", "20250303", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_eod", "concrete", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_eod", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryEOD("SPY", "2025-03-21", "570", "C", "20250303", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_eod", "concrete_iso", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_eod", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryEOD("SPY", "20250321", "*", "both", "20250303", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_eod", "all_strikes_one_exp", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_eod", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryEOD("SPY", "*", "570", "both", "20250303", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_eod", "all_exps_one_strike", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_eod", "all_exps_one_strike", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryEOD("SPY", "*", "*", "both", "20250303", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_eod", "bulk_chain", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_eod", "bulk_chain", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryEOD("SPY", "0", "0", "both", "20250303", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_eod", "legacy_zero_wildcard", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_eod", "legacy_zero_wildcard", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithMaxDTE(int32(30))); return goRowCount(v), e })
+		records = classify("option_history_eod", "with_max_dte", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_eod", "with_max_dte", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_history_eod", "with_strike_range", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_eod", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithMaxDTE(int32(30)), WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_history_eod", "all_optionals", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_eod", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOHLC("SPY", "20250321", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("option_history_ohlc", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOHLC("SPY", "2025-03-21", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("option_history_ohlc", "concrete_iso", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOHLC("SPY", "20250321", "*", "both", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("option_history_ohlc", "all_strikes_one_exp", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOHLC("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
-	records = classify("option_history_ohlc", "with_intraday_window", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOHLC("SPY", "20250321", "570", "C", "20250303", "60000", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_ohlc", "with_date_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOHLC("SPY", "20250321", "570", "C", "20250303", "60000", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_history_ohlc", "with_strike_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOHLC("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_ohlc", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOHLC("SPY", "20250321", "570", "C", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("option_history_ohlc", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_ohlc", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOHLC("SPY", "2025-03-21", "570", "C", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("option_history_ohlc", "concrete_iso", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_ohlc", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOHLC("SPY", "20250321", "*", "both", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("option_history_ohlc", "all_strikes_one_exp", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_ohlc", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOHLC("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
+		records = classify("option_history_ohlc", "with_intraday_window", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_ohlc", "with_intraday_window", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOHLC("SPY", "20250321", "570", "C", "20250303", "60000", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_ohlc", "with_date_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_ohlc", "with_date_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOHLC("SPY", "20250321", "570", "C", "20250303", "60000", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_history_ohlc", "with_strike_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_ohlc", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOHLC("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_ohlc", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_ohlc", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "20250321", "570", "C", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "2025-03-21", "570", "C", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade", "concrete_iso", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "20250321", "*", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade", "all_strikes_one_exp", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "*", "570", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade", "all_exps_one_strike", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "*", "*", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade", "bulk_chain", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "0", "0", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade", "legacy_zero_wildcard", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
-	records = classify("option_history_trade", "with_intraday_window", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "20250321", "570", "C", "20250303", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_trade", "with_date_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "20250321", "570", "C", "20250303", WithMaxDTE(int32(30))); return goRowCount(v), e })
-	records = classify("option_history_trade", "with_max_dte", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "20250321", "570", "C", "20250303", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_history_trade", "with_strike_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_trade", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "20250321", "570", "C", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "2025-03-21", "570", "C", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade", "concrete_iso", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "20250321", "*", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade", "all_strikes_one_exp", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "*", "570", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade", "all_exps_one_strike", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade", "all_exps_one_strike", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "*", "*", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade", "bulk_chain", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade", "bulk_chain", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "0", "0", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade", "legacy_zero_wildcard", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade", "legacy_zero_wildcard", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
+		records = classify("option_history_trade", "with_intraday_window", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade", "with_intraday_window", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "20250321", "570", "C", "20250303", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_trade", "with_date_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade", "with_date_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "20250321", "570", "C", "20250303", WithMaxDTE(int32(30))); return goRowCount(v), e })
+		records = classify("option_history_trade", "with_max_dte", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade", "with_max_dte", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "20250321", "570", "C", "20250303", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_history_trade", "with_strike_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTrade("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_trade", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "20250321", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("option_history_quote", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "2025-03-21", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("option_history_quote", "concrete_iso", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "20250321", "*", "both", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("option_history_quote", "all_strikes_one_exp", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "*", "570", "both", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("option_history_quote", "all_exps_one_strike", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "*", "*", "both", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("option_history_quote", "bulk_chain", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "0", "0", "both", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("option_history_quote", "legacy_zero_wildcard", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
-	records = classify("option_history_quote", "with_intraday_window", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "20250321", "570", "C", "20250303", "60000", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_quote", "with_date_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "20250321", "570", "C", "20250303", "60000", WithMaxDTE(int32(30))); return goRowCount(v), e })
-	records = classify("option_history_quote", "with_max_dte", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "20250321", "570", "C", "20250303", "60000", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_history_quote", "with_strike_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_quote", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "20250321", "570", "C", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("option_history_quote", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_quote", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "2025-03-21", "570", "C", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("option_history_quote", "concrete_iso", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_quote", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "20250321", "*", "both", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("option_history_quote", "all_strikes_one_exp", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_quote", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "*", "570", "both", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("option_history_quote", "all_exps_one_strike", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_quote", "all_exps_one_strike", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "*", "*", "both", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("option_history_quote", "bulk_chain", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_quote", "bulk_chain", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "0", "0", "both", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("option_history_quote", "legacy_zero_wildcard", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_quote", "legacy_zero_wildcard", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
+		records = classify("option_history_quote", "with_intraday_window", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_quote", "with_intraday_window", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "20250321", "570", "C", "20250303", "60000", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_quote", "with_date_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_quote", "with_date_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "20250321", "570", "C", "20250303", "60000", WithMaxDTE(int32(30))); return goRowCount(v), e })
+		records = classify("option_history_quote", "with_max_dte", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_quote", "with_max_dte", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "20250321", "570", "C", "20250303", "60000", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_history_quote", "with_strike_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_quote", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryQuote("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_quote", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_quote", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "20250321", "570", "C", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_quote", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "2025-03-21", "570", "C", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_quote", "concrete_iso", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "20250321", "*", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_quote", "all_strikes_one_exp", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "*", "570", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_quote", "all_exps_one_strike", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "*", "*", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_quote", "bulk_chain", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "0", "0", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_quote", "legacy_zero_wildcard", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
-	records = classify("option_history_trade_quote", "with_intraday_window", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "20250321", "570", "C", "20250303", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_trade_quote", "with_date_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "20250321", "570", "C", "20250303", WithExclusive(true)); return goRowCount(v), e })
-	records = classify("option_history_trade_quote", "with_exclusive", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "20250321", "570", "C", "20250303", WithMaxDTE(int32(30))); return goRowCount(v), e })
-	records = classify("option_history_trade_quote", "with_max_dte", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "20250321", "570", "C", "20250303", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_history_trade_quote", "with_strike_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithExclusive(true), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_trade_quote", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "20250321", "570", "C", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_quote", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_quote", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "2025-03-21", "570", "C", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_quote", "concrete_iso", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_quote", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "20250321", "*", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_quote", "all_strikes_one_exp", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_quote", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "*", "570", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_quote", "all_exps_one_strike", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_quote", "all_exps_one_strike", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "*", "*", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_quote", "bulk_chain", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_quote", "bulk_chain", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "0", "0", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_quote", "legacy_zero_wildcard", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_quote", "legacy_zero_wildcard", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
+		records = classify("option_history_trade_quote", "with_intraday_window", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_quote", "with_intraday_window", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "20250321", "570", "C", "20250303", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_trade_quote", "with_date_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_quote", "with_date_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "20250321", "570", "C", "20250303", WithExclusive(true)); return goRowCount(v), e })
+		records = classify("option_history_trade_quote", "with_exclusive", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_quote", "with_exclusive", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "20250321", "570", "C", "20250303", WithMaxDTE(int32(30))); return goRowCount(v), e })
+		records = classify("option_history_trade_quote", "with_max_dte", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_quote", "with_max_dte", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "20250321", "570", "C", "20250303", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_history_trade_quote", "with_strike_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_quote", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeQuote("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithExclusive(true), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_trade_quote", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_quote", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "20250321", "570", "C", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_open_interest", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "2025-03-21", "570", "C", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_open_interest", "concrete_iso", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "20250321", "*", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_open_interest", "all_strikes_one_exp", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "*", "570", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_open_interest", "all_exps_one_strike", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "*", "*", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_open_interest", "bulk_chain", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "0", "0", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_open_interest", "legacy_zero_wildcard", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "20250321", "570", "C", "20250303", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_open_interest", "with_date_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "20250321", "570", "C", "20250303", WithMaxDTE(int32(30))); return goRowCount(v), e })
-	records = classify("option_history_open_interest", "with_max_dte", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "20250321", "570", "C", "20250303", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_history_open_interest", "with_strike_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "20250321", "570", "C", "20250303", WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_open_interest", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "20250321", "570", "C", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_open_interest", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_open_interest", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "2025-03-21", "570", "C", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_open_interest", "concrete_iso", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_open_interest", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "20250321", "*", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_open_interest", "all_strikes_one_exp", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_open_interest", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "*", "570", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_open_interest", "all_exps_one_strike", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_open_interest", "all_exps_one_strike", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "*", "*", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_open_interest", "bulk_chain", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_open_interest", "bulk_chain", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "0", "0", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_open_interest", "legacy_zero_wildcard", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_open_interest", "legacy_zero_wildcard", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "20250321", "570", "C", "20250303", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_open_interest", "with_date_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_open_interest", "with_date_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "20250321", "570", "C", "20250303", WithMaxDTE(int32(30))); return goRowCount(v), e })
+		records = classify("option_history_open_interest", "with_max_dte", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_open_interest", "with_max_dte", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "20250321", "570", "C", "20250303", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_history_open_interest", "with_strike_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_open_interest", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryOpenInterest("SPY", "20250321", "570", "C", "20250303", WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_open_interest", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_open_interest", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "570", "C", "20250303", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_greeks_eod", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "2025-03-21", "570", "C", "20250303", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_greeks_eod", "concrete_iso", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "*", "both", "20250303", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_greeks_eod", "all_strikes_one_exp", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "*", "570", "both", "20250303", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_greeks_eod", "all_exps_one_strike", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "*", "*", "both", "20250303", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_greeks_eod", "bulk_chain", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "0", "0", "both", "20250303", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_greeks_eod", "legacy_zero_wildcard", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithAnnualDividend(0.015)); return goRowCount(v), e })
-	records = classify("option_history_greeks_eod", "with_annual_dividend", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithRateType("sofr")); return goRowCount(v), e })
-	records = classify("option_history_greeks_eod", "with_rate_type", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithRateValue(0.05)); return goRowCount(v), e })
-	records = classify("option_history_greeks_eod", "with_rate_value", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithVersion("dg3")); return goRowCount(v), e })
-	records = classify("option_history_greeks_eod", "with_version", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithUnderlyerUseNBBO(true)); return goRowCount(v), e })
-	records = classify("option_history_greeks_eod", "with_underlyer_use_nbbo", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithMaxDTE(int32(30))); return goRowCount(v), e })
-	records = classify("option_history_greeks_eod", "with_max_dte", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_history_greeks_eod", "with_strike_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithVersion("dg3"), WithUnderlyerUseNBBO(true), WithMaxDTE(int32(30)), WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_history_greeks_eod", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "570", "C", "20250303", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_greeks_eod", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_eod", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "2025-03-21", "570", "C", "20250303", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_greeks_eod", "concrete_iso", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_eod", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "*", "both", "20250303", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_greeks_eod", "all_strikes_one_exp", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_eod", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "*", "570", "both", "20250303", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_greeks_eod", "all_exps_one_strike", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_eod", "all_exps_one_strike", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "*", "*", "both", "20250303", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_greeks_eod", "bulk_chain", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_eod", "bulk_chain", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "0", "0", "both", "20250303", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_greeks_eod", "legacy_zero_wildcard", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_eod", "legacy_zero_wildcard", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithAnnualDividend(0.015)); return goRowCount(v), e })
+		records = classify("option_history_greeks_eod", "with_annual_dividend", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_eod", "with_annual_dividend", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithRateType("sofr")); return goRowCount(v), e })
+		records = classify("option_history_greeks_eod", "with_rate_type", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_eod", "with_rate_type", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithRateValue(0.05)); return goRowCount(v), e })
+		records = classify("option_history_greeks_eod", "with_rate_value", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_eod", "with_rate_value", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithVersion("dg3")); return goRowCount(v), e })
+		records = classify("option_history_greeks_eod", "with_version", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_eod", "with_version", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithUnderlyerUseNBBO(true)); return goRowCount(v), e })
+		records = classify("option_history_greeks_eod", "with_underlyer_use_nbbo", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_eod", "with_underlyer_use_nbbo", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithMaxDTE(int32(30))); return goRowCount(v), e })
+		records = classify("option_history_greeks_eod", "with_max_dte", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_eod", "with_max_dte", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_history_greeks_eod", "with_strike_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_eod", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithVersion("dg3"), WithUnderlyerUseNBBO(true), WithMaxDTE(int32(30)), WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_history_greeks_eod", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_eod", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("option_history_greeks_all", "concrete", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksAll("SPY", "2025-03-21", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("option_history_greeks_all", "concrete_iso", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "*", "both", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("option_history_greeks_all", "all_strikes_one_exp", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
-	records = classify("option_history_greeks_all", "with_intraday_window", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "570", "C", "20250303", "60000", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_greeks_all", "with_date_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "570", "C", "20250303", "60000", WithAnnualDividend(0.015)); return goRowCount(v), e })
-	records = classify("option_history_greeks_all", "with_annual_dividend", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "570", "C", "20250303", "60000", WithRateType("sofr")); return goRowCount(v), e })
-	records = classify("option_history_greeks_all", "with_rate_type", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "570", "C", "20250303", "60000", WithRateValue(0.05)); return goRowCount(v), e })
-	records = classify("option_history_greeks_all", "with_rate_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "570", "C", "20250303", "60000", WithVersion("dg3")); return goRowCount(v), e })
-	records = classify("option_history_greeks_all", "with_version", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "570", "C", "20250303", "60000", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_history_greeks_all", "with_strike_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithVersion("dg3"), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_greeks_all", "all_optionals", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "570", "C", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("option_history_greeks_all", "concrete", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_all", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksAll("SPY", "2025-03-21", "570", "C", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("option_history_greeks_all", "concrete_iso", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_all", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "*", "both", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("option_history_greeks_all", "all_strikes_one_exp", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_all", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
+		records = classify("option_history_greeks_all", "with_intraday_window", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_all", "with_intraday_window", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "570", "C", "20250303", "60000", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_greeks_all", "with_date_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_all", "with_date_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "570", "C", "20250303", "60000", WithAnnualDividend(0.015)); return goRowCount(v), e })
+		records = classify("option_history_greeks_all", "with_annual_dividend", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_all", "with_annual_dividend", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "570", "C", "20250303", "60000", WithRateType("sofr")); return goRowCount(v), e })
+		records = classify("option_history_greeks_all", "with_rate_type", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_all", "with_rate_type", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "570", "C", "20250303", "60000", WithRateValue(0.05)); return goRowCount(v), e })
+		records = classify("option_history_greeks_all", "with_rate_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_all", "with_rate_value", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "570", "C", "20250303", "60000", WithVersion("dg3")); return goRowCount(v), e })
+		records = classify("option_history_greeks_all", "with_version", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_all", "with_version", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "570", "C", "20250303", "60000", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_history_greeks_all", "with_strike_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_all", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithVersion("dg3"), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_greeks_all", "all_optionals", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_all", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_all", "concrete", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "2025-03-21", "570", "C", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_all", "concrete_iso", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "*", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_all", "all_strikes_one_exp", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "*", "570", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_all", "all_exps_one_strike", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "*", "*", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_all", "bulk_chain", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "0", "0", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_all", "legacy_zero_wildcard", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_all", "with_intraday_window", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_all", "with_date_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303", WithAnnualDividend(0.015)); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_all", "with_annual_dividend", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303", WithRateType("sofr")); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_all", "with_rate_type", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303", WithRateValue(0.05)); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_all", "with_rate_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303", WithVersion("dg3")); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_all", "with_version", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303", WithMaxDTE(int32(30))); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_all", "with_max_dte", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_all", "with_strike_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithVersion("dg3"), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_all", "all_optionals", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_all", "concrete", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_all", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "2025-03-21", "570", "C", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_all", "concrete_iso", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_all", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "*", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_all", "all_strikes_one_exp", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_all", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "*", "570", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_all", "all_exps_one_strike", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_all", "all_exps_one_strike", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "*", "*", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_all", "bulk_chain", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_all", "bulk_chain", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "0", "0", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_all", "legacy_zero_wildcard", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_all", "legacy_zero_wildcard", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_all", "with_intraday_window", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_all", "with_intraday_window", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_all", "with_date_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_all", "with_date_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303", WithAnnualDividend(0.015)); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_all", "with_annual_dividend", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_all", "with_annual_dividend", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303", WithRateType("sofr")); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_all", "with_rate_type", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_all", "with_rate_type", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303", WithRateValue(0.05)); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_all", "with_rate_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_all", "with_rate_value", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303", WithVersion("dg3")); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_all", "with_version", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_all", "with_version", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303", WithMaxDTE(int32(30))); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_all", "with_max_dte", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_all", "with_max_dte", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_all", "with_strike_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_all", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithVersion("dg3"), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_all", "all_optionals", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_all", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("option_history_greeks_first_order", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksFirstOrder("SPY", "2025-03-21", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("option_history_greeks_first_order", "concrete_iso", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "*", "both", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("option_history_greeks_first_order", "all_strikes_one_exp", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
-	records = classify("option_history_greeks_first_order", "with_intraday_window", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_greeks_first_order", "with_date_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithAnnualDividend(0.015)); return goRowCount(v), e })
-	records = classify("option_history_greeks_first_order", "with_annual_dividend", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithRateType("sofr")); return goRowCount(v), e })
-	records = classify("option_history_greeks_first_order", "with_rate_type", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithRateValue(0.05)); return goRowCount(v), e })
-	records = classify("option_history_greeks_first_order", "with_rate_value", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithVersion("dg3")); return goRowCount(v), e })
-	records = classify("option_history_greeks_first_order", "with_version", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_history_greeks_first_order", "with_strike_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithVersion("dg3"), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_greeks_first_order", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("option_history_greeks_first_order", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_first_order", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksFirstOrder("SPY", "2025-03-21", "570", "C", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("option_history_greeks_first_order", "concrete_iso", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_first_order", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "*", "both", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("option_history_greeks_first_order", "all_strikes_one_exp", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_first_order", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
+		records = classify("option_history_greeks_first_order", "with_intraday_window", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_first_order", "with_intraday_window", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_greeks_first_order", "with_date_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_first_order", "with_date_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithAnnualDividend(0.015)); return goRowCount(v), e })
+		records = classify("option_history_greeks_first_order", "with_annual_dividend", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_first_order", "with_annual_dividend", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithRateType("sofr")); return goRowCount(v), e })
+		records = classify("option_history_greeks_first_order", "with_rate_type", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_first_order", "with_rate_type", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithRateValue(0.05)); return goRowCount(v), e })
+		records = classify("option_history_greeks_first_order", "with_rate_value", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_first_order", "with_rate_value", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithVersion("dg3")); return goRowCount(v), e })
+		records = classify("option_history_greeks_first_order", "with_version", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_first_order", "with_version", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_history_greeks_first_order", "with_strike_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_first_order", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithVersion("dg3"), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_greeks_first_order", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_first_order", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_first_order", "concrete", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "2025-03-21", "570", "C", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_first_order", "concrete_iso", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "*", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_first_order", "all_strikes_one_exp", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "*", "570", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_first_order", "all_exps_one_strike", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "*", "*", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_first_order", "bulk_chain", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "0", "0", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_first_order", "legacy_zero_wildcard", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_first_order", "with_intraday_window", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_first_order", "with_date_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", WithAnnualDividend(0.015)); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_first_order", "with_annual_dividend", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", WithRateType("sofr")); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_first_order", "with_rate_type", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", WithRateValue(0.05)); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_first_order", "with_rate_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", WithVersion("dg3")); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_first_order", "with_version", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", WithMaxDTE(int32(30))); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_first_order", "with_max_dte", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_first_order", "with_strike_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithVersion("dg3"), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_first_order", "all_optionals", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_first_order", "concrete", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_first_order", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "2025-03-21", "570", "C", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_first_order", "concrete_iso", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_first_order", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "*", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_first_order", "all_strikes_one_exp", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_first_order", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "*", "570", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_first_order", "all_exps_one_strike", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_first_order", "all_exps_one_strike", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "*", "*", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_first_order", "bulk_chain", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_first_order", "bulk_chain", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "0", "0", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_first_order", "legacy_zero_wildcard", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_first_order", "legacy_zero_wildcard", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_first_order", "with_intraday_window", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_first_order", "with_intraday_window", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_first_order", "with_date_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_first_order", "with_date_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", WithAnnualDividend(0.015)); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_first_order", "with_annual_dividend", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_first_order", "with_annual_dividend", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", WithRateType("sofr")); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_first_order", "with_rate_type", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_first_order", "with_rate_type", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", WithRateValue(0.05)); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_first_order", "with_rate_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_first_order", "with_rate_value", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", WithVersion("dg3")); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_first_order", "with_version", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_first_order", "with_version", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", WithMaxDTE(int32(30))); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_first_order", "with_max_dte", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_first_order", "with_max_dte", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_first_order", "with_strike_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_first_order", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithVersion("dg3"), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_first_order", "all_optionals", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_first_order", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("option_history_greeks_second_order", "concrete", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksSecondOrder("SPY", "2025-03-21", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("option_history_greeks_second_order", "concrete_iso", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "*", "both", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("option_history_greeks_second_order", "all_strikes_one_exp", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
-	records = classify("option_history_greeks_second_order", "with_intraday_window", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_greeks_second_order", "with_date_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithAnnualDividend(0.015)); return goRowCount(v), e })
-	records = classify("option_history_greeks_second_order", "with_annual_dividend", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithRateType("sofr")); return goRowCount(v), e })
-	records = classify("option_history_greeks_second_order", "with_rate_type", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithRateValue(0.05)); return goRowCount(v), e })
-	records = classify("option_history_greeks_second_order", "with_rate_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithVersion("dg3")); return goRowCount(v), e })
-	records = classify("option_history_greeks_second_order", "with_version", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_history_greeks_second_order", "with_strike_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithVersion("dg3"), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_greeks_second_order", "all_optionals", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("option_history_greeks_second_order", "concrete", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_second_order", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksSecondOrder("SPY", "2025-03-21", "570", "C", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("option_history_greeks_second_order", "concrete_iso", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_second_order", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "*", "both", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("option_history_greeks_second_order", "all_strikes_one_exp", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_second_order", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
+		records = classify("option_history_greeks_second_order", "with_intraday_window", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_second_order", "with_intraday_window", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_greeks_second_order", "with_date_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_second_order", "with_date_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithAnnualDividend(0.015)); return goRowCount(v), e })
+		records = classify("option_history_greeks_second_order", "with_annual_dividend", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_second_order", "with_annual_dividend", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithRateType("sofr")); return goRowCount(v), e })
+		records = classify("option_history_greeks_second_order", "with_rate_type", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_second_order", "with_rate_type", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithRateValue(0.05)); return goRowCount(v), e })
+		records = classify("option_history_greeks_second_order", "with_rate_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_second_order", "with_rate_value", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithVersion("dg3")); return goRowCount(v), e })
+		records = classify("option_history_greeks_second_order", "with_version", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_second_order", "with_version", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_history_greeks_second_order", "with_strike_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_second_order", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithVersion("dg3"), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_greeks_second_order", "all_optionals", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_second_order", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_second_order", "concrete", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "2025-03-21", "570", "C", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_second_order", "concrete_iso", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "*", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_second_order", "all_strikes_one_exp", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "*", "570", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_second_order", "all_exps_one_strike", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "*", "*", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_second_order", "bulk_chain", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "0", "0", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_second_order", "legacy_zero_wildcard", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_second_order", "with_intraday_window", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_second_order", "with_date_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", WithAnnualDividend(0.015)); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_second_order", "with_annual_dividend", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", WithRateType("sofr")); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_second_order", "with_rate_type", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", WithRateValue(0.05)); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_second_order", "with_rate_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", WithVersion("dg3")); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_second_order", "with_version", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", WithMaxDTE(int32(30))); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_second_order", "with_max_dte", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_second_order", "with_strike_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithVersion("dg3"), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_second_order", "all_optionals", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_second_order", "concrete", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_second_order", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "2025-03-21", "570", "C", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_second_order", "concrete_iso", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_second_order", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "*", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_second_order", "all_strikes_one_exp", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_second_order", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "*", "570", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_second_order", "all_exps_one_strike", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_second_order", "all_exps_one_strike", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "*", "*", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_second_order", "bulk_chain", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_second_order", "bulk_chain", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "0", "0", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_second_order", "legacy_zero_wildcard", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_second_order", "legacy_zero_wildcard", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_second_order", "with_intraday_window", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_second_order", "with_intraday_window", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_second_order", "with_date_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_second_order", "with_date_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", WithAnnualDividend(0.015)); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_second_order", "with_annual_dividend", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_second_order", "with_annual_dividend", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", WithRateType("sofr")); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_second_order", "with_rate_type", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_second_order", "with_rate_type", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", WithRateValue(0.05)); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_second_order", "with_rate_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_second_order", "with_rate_value", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", WithVersion("dg3")); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_second_order", "with_version", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_second_order", "with_version", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", WithMaxDTE(int32(30))); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_second_order", "with_max_dte", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_second_order", "with_max_dte", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_second_order", "with_strike_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_second_order", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithVersion("dg3"), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_second_order", "all_optionals", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_second_order", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("option_history_greeks_third_order", "concrete", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksThirdOrder("SPY", "2025-03-21", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("option_history_greeks_third_order", "concrete_iso", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "*", "both", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("option_history_greeks_third_order", "all_strikes_one_exp", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
-	records = classify("option_history_greeks_third_order", "with_intraday_window", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_greeks_third_order", "with_date_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithAnnualDividend(0.015)); return goRowCount(v), e })
-	records = classify("option_history_greeks_third_order", "with_annual_dividend", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithRateType("sofr")); return goRowCount(v), e })
-	records = classify("option_history_greeks_third_order", "with_rate_type", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithRateValue(0.05)); return goRowCount(v), e })
-	records = classify("option_history_greeks_third_order", "with_rate_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithVersion("dg3")); return goRowCount(v), e })
-	records = classify("option_history_greeks_third_order", "with_version", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_history_greeks_third_order", "with_strike_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithVersion("dg3"), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_greeks_third_order", "all_optionals", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("option_history_greeks_third_order", "concrete", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_third_order", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksThirdOrder("SPY", "2025-03-21", "570", "C", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("option_history_greeks_third_order", "concrete_iso", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_third_order", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "*", "both", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("option_history_greeks_third_order", "all_strikes_one_exp", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_third_order", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
+		records = classify("option_history_greeks_third_order", "with_intraday_window", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_third_order", "with_intraday_window", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_greeks_third_order", "with_date_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_third_order", "with_date_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithAnnualDividend(0.015)); return goRowCount(v), e })
+		records = classify("option_history_greeks_third_order", "with_annual_dividend", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_third_order", "with_annual_dividend", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithRateType("sofr")); return goRowCount(v), e })
+		records = classify("option_history_greeks_third_order", "with_rate_type", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_third_order", "with_rate_type", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithRateValue(0.05)); return goRowCount(v), e })
+		records = classify("option_history_greeks_third_order", "with_rate_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_third_order", "with_rate_value", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithVersion("dg3")); return goRowCount(v), e })
+		records = classify("option_history_greeks_third_order", "with_version", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_third_order", "with_version", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_history_greeks_third_order", "with_strike_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_third_order", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithVersion("dg3"), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_greeks_third_order", "all_optionals", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_third_order", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_third_order", "concrete", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "2025-03-21", "570", "C", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_third_order", "concrete_iso", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "*", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_third_order", "all_strikes_one_exp", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "*", "570", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_third_order", "all_exps_one_strike", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "*", "*", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_third_order", "bulk_chain", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "0", "0", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_third_order", "legacy_zero_wildcard", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_third_order", "with_intraday_window", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_third_order", "with_date_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", WithAnnualDividend(0.015)); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_third_order", "with_annual_dividend", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", WithRateType("sofr")); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_third_order", "with_rate_type", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", WithRateValue(0.05)); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_third_order", "with_rate_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", WithVersion("dg3")); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_third_order", "with_version", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", WithMaxDTE(int32(30))); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_third_order", "with_max_dte", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_third_order", "with_strike_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithVersion("dg3"), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_third_order", "all_optionals", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_third_order", "concrete", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_third_order", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "2025-03-21", "570", "C", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_third_order", "concrete_iso", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_third_order", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "*", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_third_order", "all_strikes_one_exp", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_third_order", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "*", "570", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_third_order", "all_exps_one_strike", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_third_order", "all_exps_one_strike", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "*", "*", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_third_order", "bulk_chain", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_third_order", "bulk_chain", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "0", "0", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_third_order", "legacy_zero_wildcard", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_third_order", "legacy_zero_wildcard", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_third_order", "with_intraday_window", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_third_order", "with_intraday_window", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_third_order", "with_date_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_third_order", "with_date_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", WithAnnualDividend(0.015)); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_third_order", "with_annual_dividend", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_third_order", "with_annual_dividend", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", WithRateType("sofr")); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_third_order", "with_rate_type", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_third_order", "with_rate_type", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", WithRateValue(0.05)); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_third_order", "with_rate_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_third_order", "with_rate_value", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", WithVersion("dg3")); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_third_order", "with_version", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_third_order", "with_version", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", WithMaxDTE(int32(30))); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_third_order", "with_max_dte", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_third_order", "with_max_dte", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_third_order", "with_strike_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_third_order", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithVersion("dg3"), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_third_order", "all_optionals", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_third_order", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("option_history_greeks_implied_volatility", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "2025-03-21", "570", "C", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("option_history_greeks_implied_volatility", "concrete_iso", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "*", "both", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("option_history_greeks_implied_volatility", "all_strikes_one_exp", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
-	records = classify("option_history_greeks_implied_volatility", "with_intraday_window", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", "60000", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_greeks_implied_volatility", "with_date_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", "60000", WithAnnualDividend(0.015)); return goRowCount(v), e })
-	records = classify("option_history_greeks_implied_volatility", "with_annual_dividend", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", "60000", WithRateType("sofr")); return goRowCount(v), e })
-	records = classify("option_history_greeks_implied_volatility", "with_rate_type", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", "60000", WithRateValue(0.05)); return goRowCount(v), e })
-	records = classify("option_history_greeks_implied_volatility", "with_rate_value", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", "60000", WithVersion("dg3")); return goRowCount(v), e })
-	records = classify("option_history_greeks_implied_volatility", "with_version", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", "60000", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_history_greeks_implied_volatility", "with_strike_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithVersion("dg3"), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_greeks_implied_volatility", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("option_history_greeks_implied_volatility", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_implied_volatility", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "2025-03-21", "570", "C", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("option_history_greeks_implied_volatility", "concrete_iso", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_implied_volatility", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "*", "both", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("option_history_greeks_implied_volatility", "all_strikes_one_exp", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_implied_volatility", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
+		records = classify("option_history_greeks_implied_volatility", "with_intraday_window", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_implied_volatility", "with_intraday_window", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", "60000", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_greeks_implied_volatility", "with_date_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_implied_volatility", "with_date_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", "60000", WithAnnualDividend(0.015)); return goRowCount(v), e })
+		records = classify("option_history_greeks_implied_volatility", "with_annual_dividend", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_implied_volatility", "with_annual_dividend", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", "60000", WithRateType("sofr")); return goRowCount(v), e })
+		records = classify("option_history_greeks_implied_volatility", "with_rate_type", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_implied_volatility", "with_rate_type", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", "60000", WithRateValue(0.05)); return goRowCount(v), e })
+		records = classify("option_history_greeks_implied_volatility", "with_rate_value", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_implied_volatility", "with_rate_value", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", "60000", WithVersion("dg3")); return goRowCount(v), e })
+		records = classify("option_history_greeks_implied_volatility", "with_version", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_implied_volatility", "with_version", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", "60000", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_history_greeks_implied_volatility", "with_strike_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_implied_volatility", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithVersion("dg3"), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_greeks_implied_volatility", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_greeks_implied_volatility", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_implied_volatility", "concrete", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "2025-03-21", "570", "C", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_implied_volatility", "concrete_iso", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "*", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_implied_volatility", "all_strikes_one_exp", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "*", "570", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_implied_volatility", "all_exps_one_strike", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "*", "*", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_implied_volatility", "bulk_chain", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "0", "0", "both", "20250303"); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_implied_volatility", "legacy_zero_wildcard", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_implied_volatility", "with_intraday_window", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_implied_volatility", "with_date_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", WithAnnualDividend(0.015)); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_implied_volatility", "with_annual_dividend", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", WithRateType("sofr")); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_implied_volatility", "with_rate_type", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", WithRateValue(0.05)); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_implied_volatility", "with_rate_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", WithVersion("dg3")); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_implied_volatility", "with_version", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", WithMaxDTE(int32(30))); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_implied_volatility", "with_max_dte", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_implied_volatility", "with_strike_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithVersion("dg3"), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("option_history_trade_greeks_implied_volatility", "all_optionals", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_implied_volatility", "concrete", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_implied_volatility", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "2025-03-21", "570", "C", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_implied_volatility", "concrete_iso", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_implied_volatility", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "*", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_implied_volatility", "all_strikes_one_exp", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_implied_volatility", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "*", "570", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_implied_volatility", "all_exps_one_strike", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_implied_volatility", "all_exps_one_strike", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "*", "*", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_implied_volatility", "bulk_chain", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_implied_volatility", "bulk_chain", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "0", "0", "both", "20250303"); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_implied_volatility", "legacy_zero_wildcard", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_implied_volatility", "legacy_zero_wildcard", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_implied_volatility", "with_intraday_window", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_implied_volatility", "with_intraday_window", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_implied_volatility", "with_date_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_implied_volatility", "with_date_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", WithAnnualDividend(0.015)); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_implied_volatility", "with_annual_dividend", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_implied_volatility", "with_annual_dividend", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", WithRateType("sofr")); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_implied_volatility", "with_rate_type", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_implied_volatility", "with_rate_type", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", WithRateValue(0.05)); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_implied_volatility", "with_rate_value", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_implied_volatility", "with_rate_value", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", WithVersion("dg3")); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_implied_volatility", "with_version", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_implied_volatility", "with_version", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", WithMaxDTE(int32(30))); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_implied_volatility", "with_max_dte", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_implied_volatility", "with_max_dte", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_implied_volatility", "with_strike_range", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_implied_volatility", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithAnnualDividend(0.015), WithRateType("sofr"), WithRateValue(0.05), WithVersion("dg3"), WithMaxDTE(int32(30)), WithStrikeRange(int32(10)), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("option_history_trade_greeks_implied_volatility", "all_optionals", "professional", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_history_trade_greeks_implied_volatility", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeTrade("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-	records = classify("option_at_time_trade", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeTrade("SPY", "2025-03-21", "570", "C", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-	records = classify("option_at_time_trade", "concrete_iso", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeTrade("SPY", "20250321", "*", "both", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-	records = classify("option_at_time_trade", "all_strikes_one_exp", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeTrade("SPY", "*", "570", "both", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-	records = classify("option_at_time_trade", "all_exps_one_strike", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeTrade("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-	records = classify("option_at_time_trade", "bulk_chain", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeTrade("SPY", "0", "0", "both", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-	records = classify("option_at_time_trade", "legacy_zero_wildcard", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeTrade("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", WithMaxDTE(int32(30))); return goRowCount(v), e })
-	records = classify("option_at_time_trade", "with_max_dte", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeTrade("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_at_time_trade", "with_strike_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeTrade("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", WithMaxDTE(int32(30)), WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_at_time_trade", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeTrade("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
+		records = classify("option_at_time_trade", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_at_time_trade", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeTrade("SPY", "2025-03-21", "570", "C", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
+		records = classify("option_at_time_trade", "concrete_iso", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_at_time_trade", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeTrade("SPY", "20250321", "*", "both", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
+		records = classify("option_at_time_trade", "all_strikes_one_exp", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_at_time_trade", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeTrade("SPY", "*", "570", "both", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
+		records = classify("option_at_time_trade", "all_exps_one_strike", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_at_time_trade", "all_exps_one_strike", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeTrade("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
+		records = classify("option_at_time_trade", "bulk_chain", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_at_time_trade", "bulk_chain", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeTrade("SPY", "0", "0", "both", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
+		records = classify("option_at_time_trade", "legacy_zero_wildcard", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_at_time_trade", "legacy_zero_wildcard", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeTrade("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", WithMaxDTE(int32(30))); return goRowCount(v), e })
+		records = classify("option_at_time_trade", "with_max_dte", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_at_time_trade", "with_max_dte", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeTrade("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_at_time_trade", "with_strike_range", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_at_time_trade", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeTrade("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", WithMaxDTE(int32(30)), WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_at_time_trade", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_at_time_trade", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeQuote("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-	records = classify("option_at_time_quote", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeQuote("SPY", "2025-03-21", "570", "C", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-	records = classify("option_at_time_quote", "concrete_iso", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeQuote("SPY", "20250321", "*", "both", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-	records = classify("option_at_time_quote", "all_strikes_one_exp", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeQuote("SPY", "*", "570", "both", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-	records = classify("option_at_time_quote", "all_exps_one_strike", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeQuote("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-	records = classify("option_at_time_quote", "bulk_chain", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeQuote("SPY", "0", "0", "both", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-	records = classify("option_at_time_quote", "legacy_zero_wildcard", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeQuote("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", WithMaxDTE(int32(30))); return goRowCount(v), e })
-	records = classify("option_at_time_quote", "with_max_dte", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeQuote("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_at_time_quote", "with_strike_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeQuote("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", WithMaxDTE(int32(30)), WithStrikeRange(int32(10))); return goRowCount(v), e })
-	records = classify("option_at_time_quote", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeQuote("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
+		records = classify("option_at_time_quote", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_at_time_quote", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeQuote("SPY", "2025-03-21", "570", "C", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
+		records = classify("option_at_time_quote", "concrete_iso", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_at_time_quote", "concrete_iso", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeQuote("SPY", "20250321", "*", "both", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
+		records = classify("option_at_time_quote", "all_strikes_one_exp", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_at_time_quote", "all_strikes_one_exp", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeQuote("SPY", "*", "570", "both", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
+		records = classify("option_at_time_quote", "all_exps_one_strike", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_at_time_quote", "all_exps_one_strike", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeQuote("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
+		records = classify("option_at_time_quote", "bulk_chain", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_at_time_quote", "bulk_chain", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeQuote("SPY", "0", "0", "both", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
+		records = classify("option_at_time_quote", "legacy_zero_wildcard", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_at_time_quote", "legacy_zero_wildcard", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeQuote("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", WithMaxDTE(int32(30))); return goRowCount(v), e })
+		records = classify("option_at_time_quote", "with_max_dte", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_at_time_quote", "with_max_dte", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeQuote("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_at_time_quote", "with_strike_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_at_time_quote", "with_strike_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.OptionAtTimeQuote("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", WithMaxDTE(int32(30)), WithStrikeRange(int32(10))); return goRowCount(v), e })
+		records = classify("option_at_time_quote", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("option_at_time_quote", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.IndexListSymbols(); return goRowCount(v), e })
-	records = classify("index_list_symbols", "basic", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.IndexListSymbols(); return goRowCount(v), e })
+		records = classify("index_list_symbols", "basic", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("index_list_symbols", "basic", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.IndexListDates("SPX"); return goRowCount(v), e })
-	records = classify("index_list_dates", "basic", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.IndexListDates("SPX"); return goRowCount(v), e })
+		records = classify("index_list_dates", "basic", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("index_list_dates", "basic", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.IndexSnapshotOHLC([]string{"SPX"}); return goRowCount(v), e })
-	records = classify("index_snapshot_ohlc", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.IndexSnapshotOHLC([]string{"SPX"}, WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("index_snapshot_ohlc", "with_min_time", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.IndexSnapshotOHLC([]string{"SPX"}, WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("index_snapshot_ohlc", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.IndexSnapshotOHLC([]string{"SPX"}); return goRowCount(v), e })
+		records = classify("index_snapshot_ohlc", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("index_snapshot_ohlc", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.IndexSnapshotOHLC([]string{"SPX"}, WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("index_snapshot_ohlc", "with_min_time", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("index_snapshot_ohlc", "with_min_time", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.IndexSnapshotOHLC([]string{"SPX"}, WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("index_snapshot_ohlc", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("index_snapshot_ohlc", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.IndexSnapshotPrice([]string{"SPX"}); return goRowCount(v), e })
-	records = classify("index_snapshot_price", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.IndexSnapshotPrice([]string{"SPX"}, WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("index_snapshot_price", "with_min_time", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.IndexSnapshotPrice([]string{"SPX"}, WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("index_snapshot_price", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.IndexSnapshotPrice([]string{"SPX"}); return goRowCount(v), e })
+		records = classify("index_snapshot_price", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("index_snapshot_price", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.IndexSnapshotPrice([]string{"SPX"}, WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("index_snapshot_price", "with_min_time", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("index_snapshot_price", "with_min_time", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.IndexSnapshotPrice([]string{"SPX"}, WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("index_snapshot_price", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("index_snapshot_price", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.IndexSnapshotMarketValue([]string{"SPX"}); return goRowCount(v), e })
-	records = classify("index_snapshot_market_value", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.IndexSnapshotMarketValue([]string{"SPX"}, WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("index_snapshot_market_value", "with_min_time", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.IndexSnapshotMarketValue([]string{"SPX"}, WithMinTime("09:45:00")); return goRowCount(v), e })
-	records = classify("index_snapshot_market_value", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.IndexSnapshotMarketValue([]string{"SPX"}); return goRowCount(v), e })
+		records = classify("index_snapshot_market_value", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("index_snapshot_market_value", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.IndexSnapshotMarketValue([]string{"SPX"}, WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("index_snapshot_market_value", "with_min_time", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("index_snapshot_market_value", "with_min_time", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.IndexSnapshotMarketValue([]string{"SPX"}, WithMinTime("09:45:00")); return goRowCount(v), e })
+		records = classify("index_snapshot_market_value", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("index_snapshot_market_value", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.IndexHistoryEOD("SPX", "20250303", "20250303"); return goRowCount(v), e })
-	records = classify("index_history_eod", "concrete", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.IndexHistoryEOD("SPX", "20250303", "20250303"); return goRowCount(v), e })
+		records = classify("index_history_eod", "concrete", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("index_history_eod", "concrete", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.IndexHistoryOHLC("SPX", "20250303", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("index_history_ohlc", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.IndexHistoryOHLC("SPX", "20250303", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
-	records = classify("index_history_ohlc", "with_intraday_window", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.IndexHistoryOHLC("SPX", "20250303", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
-	records = classify("index_history_ohlc", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.IndexHistoryOHLC("SPX", "20250303", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("index_history_ohlc", "concrete", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("index_history_ohlc", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.IndexHistoryOHLC("SPX", "20250303", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
+		records = classify("index_history_ohlc", "with_intraday_window", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("index_history_ohlc", "with_intraday_window", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.IndexHistoryOHLC("SPX", "20250303", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
+		records = classify("index_history_ohlc", "all_optionals", "standard", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("index_history_ohlc", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.IndexHistoryPrice("SPX", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("index_history_price", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.IndexHistoryPrice("SPX", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
-	records = classify("index_history_price", "with_intraday_window", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.IndexHistoryPrice("SPX", "20250303", "60000", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("index_history_price", "with_date_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.IndexHistoryPrice("SPX", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
-	records = classify("index_history_price", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.IndexHistoryPrice("SPX", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("index_history_price", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("index_history_price", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.IndexHistoryPrice("SPX", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
+		records = classify("index_history_price", "with_intraday_window", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("index_history_price", "with_intraday_window", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.IndexHistoryPrice("SPX", "20250303", "60000", WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("index_history_price", "with_date_range", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("index_history_price", "with_date_range", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.IndexHistoryPrice("SPX", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithStartDate("20250303"), WithEndDate("20250303")); return goRowCount(v), e })
+		records = classify("index_history_price", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("index_history_price", "all_optionals", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.IndexAtTimePrice("SPX", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
-	records = classify("index_at_time_price", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.IndexAtTimePrice("SPX", "20250303", "20250303", "12:00:00.000"); return goRowCount(v), e })
+		records = classify("index_at_time_price", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("index_at_time_price", "concrete", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.CalendarOpenToday(); return goRowCount(v), e })
-	records = classify("calendar_open_today", "basic", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.CalendarOpenToday(); return goRowCount(v), e })
+		records = classify("calendar_open_today", "basic", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("calendar_open_today", "basic", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.CalendarOnDate("20250303"); return goRowCount(v), e })
-	records = classify("calendar_on_date", "basic", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.CalendarOnDate("20250303"); return goRowCount(v), e })
+		records = classify("calendar_on_date", "basic", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("calendar_on_date", "basic", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.CalendarYear("2025"); return goRowCount(v), e })
-	records = classify("calendar_year", "basic", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.CalendarYear("2025"); return goRowCount(v), e })
+		records = classify("calendar_year", "basic", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("calendar_year", "basic", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.InterestRateHistoryEOD("SOFR", "20250303", "20250303"); return goRowCount(v), e })
-	records = classify("interest_rate_history_eod", "basic", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.InterestRateHistoryEOD("SOFR", "20250303", "20250303"); return goRowCount(v), e })
+		records = classify("interest_rate_history_eod", "basic", "free", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("interest_rate_history_eod", "basic", &skip, records)
+	}
 
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryOHLCRange("AAPL", "20250303", "20250303", "60000"); return goRowCount(v), e })
-	records = classify("stock_history_ohlc_range", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryOHLCRange("AAPL", "20250303", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
-	records = classify("stock_history_ohlc_range", "with_intraday_window", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryOHLCRange("AAPL", "20250303", "20250303", "60000", WithVenue("nqb")); return goRowCount(v), e })
-	records = classify("stock_history_ohlc_range", "with_venue", "value", r, &pass, &skip, &fail, &hadTimeout, records)
-	r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryOHLCRange("AAPL", "20250303", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithVenue("nqb")); return goRowCount(v), e })
-	records = classify("stock_history_ohlc_range", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryOHLCRange("AAPL", "20250303", "20250303", "60000"); return goRowCount(v), e })
+		records = classify("stock_history_ohlc_range", "concrete", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_ohlc_range", "concrete", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryOHLCRange("AAPL", "20250303", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00")); return goRowCount(v), e })
+		records = classify("stock_history_ohlc_range", "with_intraday_window", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_ohlc_range", "with_intraday_window", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryOHLCRange("AAPL", "20250303", "20250303", "60000", WithVenue("nqb")); return goRowCount(v), e })
+		records = classify("stock_history_ohlc_range", "with_venue", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_ohlc_range", "with_venue", &skip, records)
+	}
+	if !hadTimeout {
+		r = runWithTimeout(func() (int, error) { v, e := c.StockHistoryOHLCRange("AAPL", "20250303", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithVenue("nqb")); return goRowCount(v), e })
+		records = classify("stock_history_ohlc_range", "all_optionals", "value", r, &pass, &skip, &fail, &hadTimeout, records)
+	} else {
+		records = recordAborted("stock_history_ohlc_range", "all_optionals", &skip, records)
+	}
 
 	return pass, skip, fail, hadTimeout, records
+}
+
+// recordAborted adds a SKIP record for a cell that didn't run because an
+// earlier cell timed out. The ffi is not thread-safe on the same handle,
+// so we refuse to issue more calls once a worker has been leaked.
+func recordAborted(endpoint, mode string, skip *int, records []CellRecord) []CellRecord {
+	label := endpoint + "::" + mode
+	fmt.Printf("  %-60s SKIP: aborted-after-timeout\n", label)
+	*skip++
+	return append(records, CellRecord{
+		Endpoint: endpoint, Mode: mode, Status: "SKIP", Detail: "aborted-after-timeout",
+	})
 }
 
 // classify maps a live call outcome into PASS / SKIP / FAIL buckets and

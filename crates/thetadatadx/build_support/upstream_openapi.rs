@@ -236,6 +236,30 @@ impl UpstreamOpenApi {
                 continue;
             }
 
+            // Inline parameter block (no `$ref` — upstream sometimes inlines
+            // `- name: foo\n  in: query\n  ...` directly on an endpoint).
+            // We don't know the wildcard semantics of an inline expiration
+            // param, so we fail the build rather than silently default it.
+            // Match lines that start `- name: expiration...` at any indent
+            // inside the parameters block.
+            if let Some(rest) = trimmed_leading.strip_prefix("- name:") {
+                let inline_name = rest.trim().trim_matches(|c| c == '"' || c == '\'');
+                if inline_name.contains("expiration") {
+                    let op = current_operation_id
+                        .as_deref()
+                        .or(current_path.as_deref())
+                        .unwrap_or("<unknown>");
+                    return Err(format!(
+                        "endpoint {op}: inline parameter named {inline_name:?} \
+                         contains \"expiration\". Upstream inlined the expiration \
+                         parameter (rather than using `$ref` to a known \
+                         component); teach `build_support/upstream_openapi.rs` \
+                         how to classify this inline form before proceeding."
+                    ));
+                }
+                continue;
+            }
+
             // Ignore all other lines.
             let _ = line_no; // reserved for future diagnostics
         }
@@ -535,6 +559,32 @@ paths:
         let err = UpstreamOpenApi::parse(text).expect_err("should fail");
         assert!(err.contains("expiration_strict"), "got: {err}");
         assert!(err.contains("option_snapshot_quote"), "got: {err}");
+    }
+
+    #[test]
+    fn errors_when_endpoint_inlines_expiration_parameter() {
+        // Endpoint inlines an `expiration` param via `- name:` instead of
+        // `$ref` — parser must fail rather than assume wildcard semantics.
+        let text = r##"
+paths:
+  /option/snapshot/trade:
+    x-min-subscription: standard
+    get:
+      operationId: option_snapshot_trade
+      parameters:
+        - $ref: "#/components/parameters/expiration_no_star"
+  /option/snapshot/quote:
+    x-min-subscription: value
+    get:
+      operationId: option_snapshot_quote
+      parameters:
+        - name: expiration_inline
+          in: query
+          required: true
+"##;
+        let err = UpstreamOpenApi::parse(text).expect_err("should fail");
+        assert!(err.contains("inline parameter"), "got: {err}");
+        assert!(err.contains("expiration_inline"), "got: {err}");
     }
 
     #[test]

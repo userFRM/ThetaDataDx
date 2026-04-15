@@ -3716,7 +3716,19 @@ fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
         .iter()
         .filter(|endpoint| !is_streaming_endpoint(endpoint))
     {
-        for mode in test_modes_for(endpoint) {
+        // CLI skips modes with builder overrides. The CLI's positional-arg
+        // model means isolating a single optional would require passing
+        // empty strings for the preceding optionals, which `insert_raw`
+        // rejects. Rather than emit fake cells that look like they exercise
+        // the optional but in fact send the bare concrete args (which was
+        // the prior state Codex flagged), we drop those cells entirely.
+        // The cross-language agreement script already handles cells missing
+        // from one SDK as an info-level note. Follow-up: convert the CLI to
+        // flag-style optionals (#290).
+        for mode in test_modes_for(endpoint)
+            .into_iter()
+            .filter(|mode| mode.builder_overrides.is_empty())
+        {
             let tokens = cli_command_tokens_for_mode(endpoint, &mode)
                 .into_iter()
                 .map(|token| format!("{token:?}"))
@@ -3738,19 +3750,36 @@ fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("records: list[dict] = []  # one record per cell for the agreement check\n\n");
     out.push_str("def _json_row_count(output: str) -> int:\n");
     out.push_str("    \"\"\"Count top-level rows from the CLI's --format json response.\n\n");
-    out.push_str("    JSON lists count as `len`. JSON dicts count as 1 (single-object\n");
-    out.push_str("    responses like `calendar_open_today`). Non-JSON output (warnings,\n");
-    out.push_str("    stderr noise) counts as 0.\n");
+    out.push_str("    The CLI emits pretty-printed JSON (multi-line), so we parse the\n");
+    out.push_str("    whole stdout rather than just the last line. For list responses\n");
+    out.push_str("    returns len(list). For dict responses that look columnar (values\n");
+    out.push_str("    are lists), returns len of any column. For dict responses that\n");
+    out.push_str("    are a single object (e.g. calendar_open_today), returns 1.\n");
+    out.push_str("    Non-JSON output returns 0.\n");
     out.push_str("    \"\"\"\n");
-    out.push_str("    try:\n");
-    out.push_str("        parsed = json.loads(output.strip().splitlines()[-1]) \\\n");
-    out.push_str("            if output.strip() else None\n");
-    out.push_str("    except (json.JSONDecodeError, IndexError):\n");
+    out.push_str("    stripped = output.strip()\n");
+    out.push_str("    if not stripped:\n");
     out.push_str("        return 0\n");
-    out.push_str("    if isinstance(parsed, list):\n");
-    out.push_str("        return len(parsed)\n");
-    out.push_str("    if isinstance(parsed, dict):\n");
-    out.push_str("        return 1\n");
+    out.push_str("    # The CLI may prefix with a warning / progress line before the JSON.\n");
+    out.push_str("    # Walk backwards through possible JSON start tokens to find the\n");
+    out.push_str("    # first that parses.\n");
+    out.push_str("    for start_token in (\"[\", \"{\"):\n");
+    out.push_str("        idx = stripped.find(start_token)\n");
+    out.push_str("        if idx == -1:\n");
+    out.push_str("            continue\n");
+    out.push_str("        try:\n");
+    out.push_str("            parsed = json.loads(stripped[idx:])\n");
+    out.push_str("        except json.JSONDecodeError:\n");
+    out.push_str("            continue\n");
+    out.push_str("        if isinstance(parsed, list):\n");
+    out.push_str("            return len(parsed)\n");
+    out.push_str("        if isinstance(parsed, dict):\n");
+    out.push_str("            # Columnar dict: treat any list-valued column as the row\n");
+    out.push_str("            # vector. Keeps agreement with the Python SDK.\n");
+    out.push_str("            for v in parsed.values():\n");
+    out.push_str("                if isinstance(v, list):\n");
+    out.push_str("                    return len(v)\n");
+    out.push_str("            return 1\n");
     out.push_str("    return 0\n\n");
     out.push_str("for endpoint, mode, min_tier, argv in CELLS:\n");
     out.push_str("    label = f\"{endpoint}::{mode}\"\n");
@@ -3894,7 +3923,8 @@ fn render_python_validate(endpoints: &[GeneratedEndpoint]) -> String {
     }
     out.push_str("]\n\n");
     out.push_str("pass_count = skip_count = fail_count = 0\n");
-    out.push_str("records: list[dict] = []  # one record per cell for the agreement check\n\n");
+    out.push_str("records: list[dict] = []  # one record per cell for the agreement check\n");
+    out.push_str("aborted = False  # flips True on the first timeout; all later cells SKIP\n\n");
     // Daemon thread + queue: a stuck call leaves the daemon thread running,
     // and os._exit() at the end kills it without waiting. Unlike
     // ThreadPoolExecutor, we don't register an atexit joiner -- that's the
@@ -3939,6 +3969,22 @@ fn render_python_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("        return 1\n\n");
     out.push_str("for endpoint, mode, min_tier, call in CELLS:\n");
     out.push_str("    label = f\"{endpoint}::{mode}\"\n");
+    out.push_str("    # Once a cell has timed out, its daemon worker is still running the\n");
+    out.push_str("    # blocking PyO3/FFI call on the shared client. The underlying FFI is\n");
+    out.push_str("    # not thread-safe on the same handle, so we refuse to issue more\n");
+    out.push_str("    # calls on the client and record the rest as SKIP:\n");
+    out.push_str("    # aborted-after-timeout. This keeps the artifact's cell list\n");
+    out.push_str("    # complete for the cross-language agreement check.\n");
+    out.push_str("    if aborted:\n");
+    out.push_str("        print(f\"  {label:60s} SKIP: aborted-after-timeout\", flush=True)\n");
+    out.push_str("        skip_count += 1\n");
+    out.push_str("        records.append({\n");
+    out.push_str("            \"endpoint\": endpoint, \"mode\": mode, \"status\": \"SKIP\",\n");
+    out.push_str(
+        "            \"row_count\": 0, \"duration_ms\": 0, \"detail\": \"aborted-after-timeout\",\n",
+    );
+    out.push_str("        })\n");
+    out.push_str("        continue\n");
     out.push_str("    t0 = time.monotonic()\n");
     out.push_str("    kind, value = _run_with_timeout(call, PER_CELL_TIMEOUT_SECS)\n");
     out.push_str("    duration_ms = int((time.monotonic() - t0) * 1000)\n");
@@ -3957,6 +4003,7 @@ fn render_python_validate(endpoints: &[GeneratedEndpoint]) -> String {
         "        print(f\"  {label:60s} FAIL  timeout after {PER_CELL_TIMEOUT_SECS}s\", flush=True)\n",
     );
     out.push_str("        fail_count += 1\n");
+    out.push_str("        aborted = True\n");
     out.push_str("    else:  # 'err'\n");
     out.push_str("        msg = str(value).lower()\n");
     out.push_str("        if \"permission\" in msg or \"subscription\" in msg:\n");
@@ -4113,23 +4160,51 @@ fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
                 }
             }
             let args = args_parts.join(", ");
+            // After a timeout fires, the worker goroutine still holds `c` and
+            // is calling the not-thread-safe FFI against it. Skip every
+            // remaining cell until the process exits rather than issue a
+            // parallel call on the same handle. See ffi/src/lib.rs:21.
+            out.push_str("\tif !hadTimeout {\n");
             writeln!(
                 out,
-                "\tr = runWithTimeout(func() (int, error) {{ v, e := c.{}({}); return goRowCount(v), e }})",
+                "\t\tr = runWithTimeout(func() (int, error) {{ v, e := c.{}({}); return goRowCount(v), e }})",
                 go_name, args
             )
             .unwrap();
             writeln!(
                 out,
-                "\trecords = classify({:?}, {:?}, {:?}, r, &pass, &skip, &fail, &hadTimeout, records)",
+                "\t\trecords = classify({:?}, {:?}, {:?}, r, &pass, &skip, &fail, &hadTimeout, records)",
                 endpoint.name, mode.name, mode.min_tier
             )
             .unwrap();
+            out.push_str("\t} else {\n");
+            writeln!(
+                out,
+                "\t\trecords = recordAborted({:?}, {:?}, &skip, records)",
+                endpoint.name, mode.name
+            )
+            .unwrap();
+            out.push_str("\t}\n");
         }
         out.push('\n');
     }
 
     out.push_str("\treturn pass, skip, fail, hadTimeout, records\n");
+    out.push_str("}\n\n");
+    out.push_str("// recordAborted adds a SKIP record for a cell that didn't run because an\n");
+    out.push_str("// earlier cell timed out. The ffi is not thread-safe on the same handle,\n");
+    out.push_str("// so we refuse to issue more calls once a worker has been leaked.\n");
+    out.push_str(
+        "func recordAborted(endpoint, mode string, skip *int, records []CellRecord) []CellRecord {\n",
+    );
+    out.push_str("\tlabel := endpoint + \"::\" + mode\n");
+    out.push_str("\tfmt.Printf(\"  %-60s SKIP: aborted-after-timeout\\n\", label)\n");
+    out.push_str("\t*skip++\n");
+    out.push_str("\treturn append(records, CellRecord{\n");
+    out.push_str(
+        "\t\tEndpoint: endpoint, Mode: mode, Status: \"SKIP\", Detail: \"aborted-after-timeout\",\n",
+    );
+    out.push_str("\t})\n");
     out.push_str("}\n\n");
     out.push_str("// classify maps a live call outcome into PASS / SKIP / FAIL buckets and\n");
     out.push_str("// appends a CellRecord for the agreement-check JSON artifact.\n");
@@ -4281,6 +4356,25 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str(
         "            CellRecord rec{endpoint, mode, std::string{}, 0, 0, std::string{}};\n",
     );
+    out.push_str("            // If a prior cell timed out, its worker thread is still running\n");
+    out.push_str(
+        "            // an FFI call against `client`. The FFI is not thread-safe on the\n",
+    );
+    out.push_str("            // same handle (ffi/src/lib.rs:21), so we must NOT issue another\n");
+    out.push_str("            // call on `client` now. Record the cell as SKIP:\n");
+    out.push_str("            // aborted-after-timeout and continue so the artifact keeps the\n");
+    out.push_str("            // full cell list (the agreement check can still pair cells\n");
+    out.push_str("            // across SDKs).\n");
+    out.push_str("            if (any_timeout) {\n");
+    out.push_str(
+        "                std::cout << \"  \" << std::left << std::setw(60) << label << \" SKIP: aborted-after-timeout\" << std::endl;\n",
+    );
+    out.push_str("                ++skip;\n");
+    out.push_str("                rec.status = \"SKIP\";\n");
+    out.push_str("                rec.detail = \"aborted-after-timeout\";\n");
+    out.push_str("                records.push_back(rec);\n");
+    out.push_str("                return;\n");
+    out.push_str("            }\n");
     out.push_str("            const auto t0 = std::chrono::steady_clock::now();\n");
     out.push_str("            try {\n");
     out.push_str("                // std::packaged_task + detached std::thread so a timed-out\n");
@@ -4288,7 +4382,8 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("                // future does). Worker thread leaks until the SDK call\n");
     out.push_str("                // returns; we flag any_timeout so main exits via _Exit and\n");
     out.push_str("                // avoids destroying the Client handle while the leaked\n");
-    out.push_str("                // thread may still be reading from it (UAF).\n");
+    out.push_str("                // thread may still be reading from it (UAF), and so that\n");
+    out.push_str("                // subsequent cells don't race against the leaked worker.\n");
     out.push_str("                using Result = decltype(call());\n");
     out.push_str(
         "                std::packaged_task<Result()> task(std::forward<decltype(call)>(call));\n",

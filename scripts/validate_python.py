@@ -472,6 +472,7 @@ CELLS = [
 
 pass_count = skip_count = fail_count = 0
 records: list[dict] = []  # one record per cell for the agreement check
+aborted = False  # flips True on the first timeout; all later cells SKIP
 
 def _run_with_timeout(call, timeout):
     """Run `call()` on a daemon thread; return (kind, value).
@@ -519,6 +520,20 @@ def _row_count(result):
 
 for endpoint, mode, min_tier, call in CELLS:
     label = f"{endpoint}::{mode}"
+    # Once a cell has timed out, its daemon worker is still running the
+    # blocking PyO3/FFI call on the shared client. The underlying FFI is
+    # not thread-safe on the same handle, so we refuse to issue more
+    # calls on the client and record the rest as SKIP:
+    # aborted-after-timeout. This keeps the artifact's cell list
+    # complete for the cross-language agreement check.
+    if aborted:
+        print(f"  {label:60s} SKIP: aborted-after-timeout", flush=True)
+        skip_count += 1
+        records.append({
+            "endpoint": endpoint, "mode": mode, "status": "SKIP",
+            "row_count": 0, "duration_ms": 0, "detail": "aborted-after-timeout",
+        })
+        continue
     t0 = time.monotonic()
     kind, value = _run_with_timeout(call, PER_CELL_TIMEOUT_SECS)
     duration_ms = int((time.monotonic() - t0) * 1000)
@@ -535,6 +550,7 @@ for endpoint, mode, min_tier, call in CELLS:
         detail = f"timeout after {PER_CELL_TIMEOUT_SECS}s"
         print(f"  {label:60s} FAIL  timeout after {PER_CELL_TIMEOUT_SECS}s", flush=True)
         fail_count += 1
+        aborted = True
     else:  # 'err'
         msg = str(value).lower()
         if "permission" in msg or "subscription" in msg:

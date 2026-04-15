@@ -92,6 +92,21 @@ int main(int argc, char** argv) {
         auto cell = [&](const char* endpoint, const char* mode, const char* declared_min_tier, auto&& call) {
             const std::string label = std::string(endpoint) + "::" + mode;
             CellRecord rec{endpoint, mode, std::string{}, 0, 0, std::string{}};
+            // If a prior cell timed out, its worker thread is still running
+            // an FFI call against `client`. The FFI is not thread-safe on the
+            // same handle (ffi/src/lib.rs:21), so we must NOT issue another
+            // call on `client` now. Record the cell as SKIP:
+            // aborted-after-timeout and continue so the artifact keeps the
+            // full cell list (the agreement check can still pair cells
+            // across SDKs).
+            if (any_timeout) {
+                std::cout << "  " << std::left << std::setw(60) << label << " SKIP: aborted-after-timeout" << std::endl;
+                ++skip;
+                rec.status = "SKIP";
+                rec.detail = "aborted-after-timeout";
+                records.push_back(rec);
+                return;
+            }
             const auto t0 = std::chrono::steady_clock::now();
             try {
                 // std::packaged_task + detached std::thread so a timed-out
@@ -99,7 +114,8 @@ int main(int argc, char** argv) {
                 // future does). Worker thread leaks until the SDK call
                 // returns; we flag any_timeout so main exits via _Exit and
                 // avoids destroying the Client handle while the leaked
-                // thread may still be reading from it (UAF).
+                // thread may still be reading from it (UAF), and so that
+                // subsequent cells don't race against the leaked worker.
                 using Result = decltype(call());
                 std::packaged_task<Result()> task(std::forward<decltype(call)>(call));
                 auto future = task.get_future();
