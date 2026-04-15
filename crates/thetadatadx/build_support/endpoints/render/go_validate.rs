@@ -9,11 +9,14 @@ use std::fmt::Write as _;
 use super::super::helpers::{
     go_arg_literal, go_builder_option, is_streaming_endpoint, method_params, to_go_exported_name,
 };
-use super::super::model::GeneratedEndpoint;
+use super::super::model::{GeneratedEndpoint, TestFixtures};
 use super::super::modes::test_modes_for;
 
 /// Generate the Go SDK validator (one row per (endpoint, mode) pair).
-pub(super) fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
+pub(super) fn render_go_validate(
+    endpoints: &[GeneratedEndpoint],
+    fixtures: &TestFixtures,
+) -> String {
     let mut out = String::from(include_str!("templates/validate_go/preamble.go.tmpl"));
     for endpoint in endpoints
         .iter()
@@ -21,7 +24,7 @@ pub(super) fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
     {
         let go_name = to_go_exported_name(&endpoint.name);
         let mp = method_params(endpoint);
-        for mode in test_modes_for(endpoint) {
+        for mode in test_modes_for(endpoint, fixtures) {
             let mut args_parts: Vec<String> = mp
                 .iter()
                 .zip(mode.args.iter())

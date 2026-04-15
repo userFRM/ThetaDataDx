@@ -9,7 +9,8 @@ use std::collections::{HashMap, HashSet};
 
 use super::model::{
     GeneratedEndpoint, GeneratedParam, ParsedEndpoints, ResolvedSurfaceEndpoint, ResolvedTemplate,
-    SurfaceEndpoint, SurfaceParam, SurfaceParamEntry, SurfaceSpec,
+    SurfaceEndpoint, SurfaceParam, SurfaceParamEntry, SurfaceSpec, SurfaceTestFixtures,
+    TestFixtures,
 };
 use super::proto_parser::load_proto_endpoints;
 
@@ -74,7 +75,217 @@ pub(super) fn load_endpoint_specs() -> Result<ParsedEndpoints, Box<dyn std::erro
 
     println!("cargo:rerun-if-changed={spec_path}");
 
-    Ok(ParsedEndpoints { endpoints })
+    let fixtures = into_test_fixtures(spec.test_fixtures);
+    validate_test_fixtures(&fixtures, &endpoints)?;
+
+    Ok(ParsedEndpoints {
+        endpoints,
+        fixtures,
+    })
+}
+
+/// Drop the TOML shape and expose fixtures to the rest of the generator
+/// without leaking `serde::Deserialize` plumbing.
+fn into_test_fixtures(surface: SurfaceTestFixtures) -> TestFixtures {
+    TestFixtures {
+        category_symbol: surface.category_symbol,
+        concrete_by_type: surface.concrete_by_type,
+        concrete_overrides: surface.concrete_overrides,
+        mode_overrides: surface.mode_overrides,
+        optional_defaults: surface.optional_defaults,
+    }
+}
+
+/// Closed sets the live-validator matrix in `modes.rs` knows how to consume.
+/// Anything outside these tables is a typo in the TOML and silently dropped
+/// coverage, so we reject it at build time. Keep these in lockstep with
+/// `modes.rs::test_modes_for` and the wire-type tables in `helpers.rs`.
+const KNOWN_CATEGORIES_WITH_SYMBOL: &[&str] = &["stock", "option", "index", "rate"];
+const KNOWN_WIRE_TYPES: &[&str] = &[
+    "Date",
+    "Expiration",
+    "Strike",
+    "Right",
+    "Interval",
+    "RequestType",
+    "Year",
+    "Str",
+];
+const KNOWN_MODE_OVERRIDES: &[&str] = &[
+    "concrete_iso",
+    "all_strikes_one_exp",
+    "all_exps_one_strike",
+    "bulk_chain",
+    "legacy_zero_wildcard",
+];
+
+/// Cross-check the `[test_fixtures]` block against the resolved endpoint set.
+///
+/// Two failure modes Codex round-1 caught:
+///   1. A missing entry in `optional_defaults` silently dropped a `with_<name>`
+///      cell and excluded the key from `all_optionals`, erasing coverage with
+///      no signal.
+///   2. A typo in any fixture map (`expiratoin = "2025-03-21"`) silently
+///      fell through to the default — the cell still ran, just with the
+///      wrong (unintended) value.
+///
+/// This pass collects every wrong row and returns one combined error so a
+/// dev fixing their TOML sees the full picture in one rebuild.
+fn validate_test_fixtures(
+    fixtures: &TestFixtures,
+    endpoints: &[GeneratedEndpoint],
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut errors: Vec<String> = Vec::new();
+
+    // ── Vocabulary derived from the resolved endpoint set ──────────────────
+    let known_method_param_names: HashSet<&str> = endpoints
+        .iter()
+        .flat_map(|ep| ep.params.iter())
+        .filter(|p| p.binding == "method")
+        .map(|p| p.name.as_str())
+        .collect();
+    let known_builder_param_names: HashSet<&str> = endpoints
+        .iter()
+        .flat_map(|ep| ep.params.iter())
+        .filter(|p| p.binding == "builder")
+        .map(|p| p.name.as_str())
+        .collect();
+
+    // ── Required-keys: every builder-bound optional needs a row in
+    //    `optional_defaults`. Without one, `with_<name>` is silently dropped
+    //    and the param is excluded from `all_optionals` — pure coverage loss.
+    let mut missing_optional_defaults: Vec<String> = Vec::new();
+    for endpoint in endpoints {
+        for param in &endpoint.params {
+            if param.binding != "builder" {
+                continue;
+            }
+            if !fixtures.optional_defaults.contains_key(&param.name) {
+                missing_optional_defaults.push(format!(
+                    "  '{}' (needed for {}.with_{})",
+                    param.name, endpoint.name, param.name
+                ));
+            }
+        }
+    }
+    if !missing_optional_defaults.is_empty() {
+        missing_optional_defaults.sort();
+        missing_optional_defaults.dedup();
+        errors.push(format!(
+            "[test_fixtures.optional_defaults] is missing required entries:\n{}",
+            missing_optional_defaults.join("\n")
+        ));
+    }
+
+    // ── Unknown-keys: every map's keys must be in its expected vocabulary.
+
+    // category_symbol → known-with-symbol categories.
+    let unknown_categories: Vec<&str> = fixtures
+        .category_symbol
+        .keys()
+        .map(String::as_str)
+        .filter(|name| !KNOWN_CATEGORIES_WITH_SYMBOL.contains(name))
+        .collect();
+    if !unknown_categories.is_empty() {
+        let mut sorted = unknown_categories;
+        sorted.sort();
+        errors.push(format!(
+            "[test_fixtures.category_symbol] has unknown categories: {} (expected one of: {})",
+            sorted.join(", "),
+            KNOWN_CATEGORIES_WITH_SYMBOL.join(", ")
+        ));
+    }
+
+    // concrete_by_type → known wire types.
+    let unknown_wire_types: Vec<&str> = fixtures
+        .concrete_by_type
+        .keys()
+        .map(String::as_str)
+        .filter(|name| !KNOWN_WIRE_TYPES.contains(name))
+        .collect();
+    if !unknown_wire_types.is_empty() {
+        let mut sorted = unknown_wire_types;
+        sorted.sort();
+        errors.push(format!(
+            "[test_fixtures.concrete_by_type] has unknown wire types: {} (expected one of: {})",
+            sorted.join(", "),
+            KNOWN_WIRE_TYPES.join(", ")
+        ));
+    }
+
+    // concrete_overrides → real method-call param names.
+    let unknown_concrete_overrides: Vec<&str> = fixtures
+        .concrete_overrides
+        .keys()
+        .map(String::as_str)
+        .filter(|name| !known_method_param_names.contains(name))
+        .collect();
+    if !unknown_concrete_overrides.is_empty() {
+        let mut sorted = unknown_concrete_overrides;
+        sorted.sort();
+        errors.push(format!(
+            "[test_fixtures.concrete_overrides] references param names that are not method-bound \
+             on any endpoint: {}",
+            sorted.join(", ")
+        ));
+    }
+
+    // mode_overrides.<mode> → known mode names; inner keys → real method-call params.
+    let mut unknown_mode_names: Vec<&str> = Vec::new();
+    let mut unknown_mode_param_keys: Vec<String> = Vec::new();
+    for (mode_name, overrides) in &fixtures.mode_overrides {
+        if !KNOWN_MODE_OVERRIDES.contains(&mode_name.as_str()) {
+            unknown_mode_names.push(mode_name.as_str());
+            continue;
+        }
+        for key in overrides.keys() {
+            if !known_method_param_names.contains(key.as_str()) {
+                unknown_mode_param_keys.push(format!("{mode_name}.{key}"));
+            }
+        }
+    }
+    if !unknown_mode_names.is_empty() {
+        unknown_mode_names.sort();
+        errors.push(format!(
+            "[test_fixtures.mode_overrides] has unknown mode names: {} (expected one of: {})",
+            unknown_mode_names.join(", "),
+            KNOWN_MODE_OVERRIDES.join(", ")
+        ));
+    }
+    if !unknown_mode_param_keys.is_empty() {
+        unknown_mode_param_keys.sort();
+        errors.push(format!(
+            "[test_fixtures.mode_overrides] references param names that are not method-bound on \
+             any endpoint: {}",
+            unknown_mode_param_keys.join(", ")
+        ));
+    }
+
+    // optional_defaults → real builder-bound param names.
+    let unknown_optional_defaults: Vec<&str> = fixtures
+        .optional_defaults
+        .keys()
+        .map(String::as_str)
+        .filter(|name| !known_builder_param_names.contains(name))
+        .collect();
+    if !unknown_optional_defaults.is_empty() {
+        let mut sorted = unknown_optional_defaults;
+        sorted.sort();
+        errors.push(format!(
+            "[test_fixtures.optional_defaults] references param names that are not builder-bound \
+             on any endpoint: {}",
+            sorted.join(", ")
+        ));
+    }
+
+    if !errors.is_empty() {
+        return Err(format!(
+            "endpoint_surface.toml [test_fixtures] validation failed:\n\n{}",
+            errors.join("\n\n")
+        )
+        .into());
+    }
+    Ok(())
 }
 
 /// Resolve the reusable spec language in `endpoint_surface.toml` into concrete endpoints.

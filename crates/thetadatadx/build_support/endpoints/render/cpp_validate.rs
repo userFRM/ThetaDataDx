@@ -11,18 +11,21 @@ use std::fmt::Write as _;
 use super::super::helpers::{
     cpp_arg_literal, cpp_builder_setter, is_streaming_endpoint, method_params,
 };
-use super::super::model::GeneratedEndpoint;
+use super::super::model::{GeneratedEndpoint, TestFixtures};
 use super::super::modes::test_modes_for;
 
 /// Generate the C++ SDK validator (one row per (endpoint, mode) pair).
-pub(super) fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
+pub(super) fn render_cpp_validate(
+    endpoints: &[GeneratedEndpoint],
+    fixtures: &TestFixtures,
+) -> String {
     let mut out = String::from(include_str!("templates/validate_cpp/preamble.cpp.tmpl"));
     for endpoint in endpoints
         .iter()
         .filter(|endpoint| !is_streaming_endpoint(endpoint))
     {
         let mp = method_params(endpoint);
-        for mode in test_modes_for(endpoint) {
+        for mode in test_modes_for(endpoint, fixtures) {
             let mut args_parts: Vec<String> = mp
                 .iter()
                 .zip(mode.args.iter())

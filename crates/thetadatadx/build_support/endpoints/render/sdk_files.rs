@@ -102,19 +102,19 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
         },
         GeneratedSourceFile {
             relative_path: "scripts/validate_cli.py",
-            contents: cli_validate::render_cli_validate(&parsed.endpoints),
+            contents: cli_validate::render_cli_validate(&parsed.endpoints, &parsed.fixtures),
         },
         GeneratedSourceFile {
             relative_path: "scripts/validate_python.py",
-            contents: python_validate::render_python_validate(&parsed.endpoints),
+            contents: python_validate::render_python_validate(&parsed.endpoints, &parsed.fixtures),
         },
         GeneratedSourceFile {
             relative_path: "sdks/go/validate.go",
-            contents: go_validate::render_go_validate(&parsed.endpoints),
+            contents: go_validate::render_go_validate(&parsed.endpoints, &parsed.fixtures),
         },
         GeneratedSourceFile {
             relative_path: "sdks/cpp/examples/validate.cpp",
-            contents: cpp_validate::render_cpp_validate(&parsed.endpoints),
+            contents: cpp_validate::render_cpp_validate(&parsed.endpoints, &parsed.fixtures),
         },
     ])
 }

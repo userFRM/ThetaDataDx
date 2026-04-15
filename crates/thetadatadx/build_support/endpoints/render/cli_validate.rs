@@ -8,11 +8,14 @@
 use std::fmt::Write as _;
 
 use super::super::helpers::{cli_command_tokens_for_mode, is_streaming_endpoint};
-use super::super::model::GeneratedEndpoint;
+use super::super::model::{GeneratedEndpoint, TestFixtures};
 use super::super::modes::test_modes_for;
 
 /// Generate the CLI validator (one row per (endpoint, mode) pair).
-pub(super) fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
+pub(super) fn render_cli_validate(
+    endpoints: &[GeneratedEndpoint],
+    fixtures: &TestFixtures,
+) -> String {
     let mut out = String::from(include_str!("templates/validate_cli/preamble.py.tmpl"));
     for endpoint in endpoints
         .iter()
@@ -27,7 +30,7 @@ pub(super) fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
         // The cross-language agreement script already handles cells missing
         // from one SDK as an info-level note. Follow-up: convert the CLI to
         // flag-style optionals (#290).
-        for mode in test_modes_for(endpoint)
+        for mode in test_modes_for(endpoint, fixtures)
             .into_iter()
             .filter(|mode| mode.builder_overrides.is_empty())
         {

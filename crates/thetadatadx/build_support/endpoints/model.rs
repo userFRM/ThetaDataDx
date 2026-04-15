@@ -22,6 +22,33 @@ pub(super) struct SurfaceSpec {
     #[serde(default)]
     pub(super) templates: HashMap<String, SurfaceTemplate>,
     pub(super) endpoints: Vec<SurfaceEndpoint>,
+    pub(super) test_fixtures: SurfaceTestFixtures,
+}
+
+/// Representative fixture values feeding the live-validator parameter-mode
+/// matrix. Split so every hardcoded value in the Rust generator maps to a
+/// single TOML row.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct SurfaceTestFixtures {
+    /// Anchor symbol per endpoint category. Feeds `Symbol`/`Symbols` fixtures.
+    pub(super) category_symbol: HashMap<String, String>,
+    /// Concrete (no-wildcard) fixture keyed on the wire `param_type`. Covers
+    /// everything except `Symbol`/`Symbols`, which route through
+    /// `category_symbol`.
+    pub(super) concrete_by_type: HashMap<String, String>,
+    /// Per-param-name overrides that beat `concrete_by_type` matching (e.g.
+    /// the compressed `end_date` that keeps bulk cells inside the 60s
+    /// per-cell timeout). See issue #290.
+    #[serde(default)]
+    pub(super) concrete_overrides: HashMap<String, String>,
+    /// Per-mode param-name overrides for option ContractSpec variants
+    /// (`concrete_iso`, `all_strikes_one_exp`, wildcard/zero-sentinel cells).
+    #[serde(default)]
+    pub(super) mode_overrides: HashMap<String, HashMap<String, String>>,
+    /// Representative values for builder-bound optional params. Drives
+    /// `with_<name>` and `all_optionals` modes.
+    pub(super) optional_defaults: HashMap<String, String>,
 }
 
 /// A reusable parameter group declared in `endpoint_surface.toml`.
@@ -190,4 +217,17 @@ pub(super) struct GeneratedEndpoint {
 #[derive(Debug, Clone)]
 pub(super) struct ParsedEndpoints {
     pub(super) endpoints: Vec<GeneratedEndpoint>,
+    pub(super) fixtures: TestFixtures,
+}
+
+/// Resolved fixture tables consumed by `modes.rs`. Wire-compatible 1:1 with
+/// `SurfaceTestFixtures` after TOML load — the indirection keeps the build-
+/// support shape separate from the proto-parser output type.
+#[derive(Debug, Clone, Default)]
+pub(super) struct TestFixtures {
+    pub(super) category_symbol: HashMap<String, String>,
+    pub(super) concrete_by_type: HashMap<String, String>,
+    pub(super) concrete_overrides: HashMap<String, String>,
+    pub(super) mode_overrides: HashMap<String, HashMap<String, String>>,
+    pub(super) optional_defaults: HashMap<String, String>,
 }
