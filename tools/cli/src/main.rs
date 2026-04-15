@@ -44,8 +44,13 @@ fn build_cli() -> Command {
                 .long("format")
                 .global(true)
                 .default_value("table")
-                .value_parser(["table", "json", "csv"])
-                .help("Output format"),
+                .value_parser(["table", "json", "json-raw", "csv"])
+                .help(
+                    "Output format. `json-raw` emits dates as YYYYMMDD ints and \
+                     ms_of_day as raw i32 ms (vs `json` which presentation-formats \
+                     them); consumed by scripts/validate_agreement.py for \
+                     cross-language agreement checks.",
+                ),
         );
 
     app = add_generated_utility_commands(app);
@@ -137,6 +142,14 @@ include!("utilities.rs");
 enum OutputFormat {
     Table,
     Json,
+    /// Same schema as `Json` but fields keep their raw numeric form: dates
+    /// stay as YYYYMMDD ints (not `"YYYY-MM-DD"` strings), ms-of-day stays
+    /// as raw i32 ms (not `"HH:MM:SS.mmm"`), and prices stay as unformatted
+    /// f64 (not `"685.860000"` strings). Consumed by
+    /// `scripts/validate_agreement.py` so cross-language agreement doesn't
+    /// get false diffs on presentation formatting. Renderers that don't
+    /// populate a raw parallel row fall back to `Json` behavior.
+    JsonRaw,
     Csv,
 }
 
@@ -144,6 +157,7 @@ impl OutputFormat {
     fn from_str(s: &str) -> Self {
         match s {
             "json" => Self::Json,
+            "json-raw" => Self::JsonRaw,
             "csv" => Self::Csv,
             _ => Self::Table,
         }
@@ -203,9 +217,26 @@ fn format_date(date: i32) -> String {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// A row-oriented data structure that all output formatters consume.
+///
+/// Carries two independent header/row pairs:
+/// * `headers` + `rows` — presentation layer. CLI-friendly aliases
+///   (`time` for ms-of-day, `iv` for implied_volatility, dropped contract-id
+///   columns when the tick isn't an option) drive `--format table | json | csv`.
+/// * `raw_headers` + `raw_rows` — canonical SDK schema. Field names match
+///   `sdks/python/src/tick_columnar.rs` exactly so `scripts/validate_agreement.py`
+///   can compare CLI `first_row` against Python / Go / server cell-by-cell
+///   without renaming surgery. Populated only by tick renderers via
+///   `push_with_raw`; non-tick renderers leave it empty and `--format json-raw`
+///   falls back to the string-reparse path.
+///
+/// The two header lists CAN differ in length and ordering. The presentation
+/// row is what humans read; the raw row is what cross-language agreement
+/// compares against.
 struct TabularData {
     headers: Vec<String>,
     rows: Vec<Vec<String>>,
+    raw_headers: Vec<String>,
+    raw_rows: Vec<Vec<sonic_rs::Value>>,
 }
 
 impl TabularData {
@@ -216,6 +247,8 @@ impl TabularData {
                 .map(std::string::ToString::to_string)
                 .collect(),
             rows: Vec::new(),
+            raw_headers: Vec::new(),
+            raw_rows: Vec::new(),
         }
     }
 
@@ -223,10 +256,39 @@ impl TabularData {
         self.rows.push(row);
     }
 
+    /// Set the canonical-schema headers used by `--format json-raw`.
+    /// Field names must exactly match the canonical SDK schema (i.e.
+    /// `sdks/python/src/tick_columnar.rs`) so the cross-language
+    /// agreement check doesn't false-diff on field-name disagreements.
+    fn set_raw_headers(&mut self, headers: Vec<&str>) {
+        self.raw_headers = headers
+            .into_iter()
+            .map(std::string::ToString::to_string)
+            .collect();
+    }
+
+    /// Push a presentation row alongside its canonical-schema raw row.
+    /// `row` matches `headers` (presentation columns, length-equal). `raw`
+    /// matches `raw_headers` (canonical SDK columns, length-equal). The
+    /// two vectors are independent — CLI presentation drops contract-id
+    /// columns when the tick isn't an option, but the raw row always
+    /// carries the full canonical schema.
+    fn push_with_raw(&mut self, row: Vec<String>, raw: Vec<sonic_rs::Value>) {
+        debug_assert_eq!(row.len(), self.headers.len(), "row length mismatch");
+        debug_assert_eq!(
+            raw.len(),
+            self.raw_headers.len(),
+            "raw row length mismatch -- did you forget set_raw_headers?",
+        );
+        self.rows.push(row);
+        self.raw_rows.push(raw);
+    }
+
     fn render(&self, fmt: &OutputFormat) {
         match fmt {
             OutputFormat::Table => self.render_table(),
             OutputFormat::Json => self.render_json(),
+            OutputFormat::JsonRaw => self.render_json_raw(),
             OutputFormat::Csv => self.render_csv(),
         }
     }
@@ -289,6 +351,36 @@ impl TabularData {
         );
     }
 
+    /// Emit the canonical JSON form consumed by scripts/validate_agreement.py.
+    ///
+    /// Uses `raw_headers` (canonical SDK schema, matching
+    /// `sdks/python/src/tick_columnar.rs`) and `raw_rows` (raw values, no
+    /// presentation formatting). When the renderer didn't populate raw
+    /// data (non-tick subcommands), falls back to `render_json` so this
+    /// never silently emits stale data.
+    fn render_json_raw(&self) {
+        if self.raw_rows.is_empty() || self.raw_headers.is_empty() {
+            self.render_json();
+            return;
+        }
+        let arr: Vec<sonic_rs::Value> = self
+            .raw_rows
+            .iter()
+            .map(|row| {
+                let mut obj = sonic_rs::Object::new();
+                for (i, h) in self.raw_headers.iter().enumerate() {
+                    let val = row.get(i).cloned().unwrap_or(sonic_rs::Value::new_null());
+                    obj.insert(&h, val);
+                }
+                sonic_rs::Value::from(obj)
+            })
+            .collect();
+        println!(
+            "{}",
+            sonic_rs::to_string_pretty(&arr).unwrap_or_else(|_| "[]".into())
+        );
+    }
+
     fn render_csv(&self) {
         println!("{}", self.headers.join(","));
         for row in &self.rows {
@@ -336,6 +428,69 @@ async fn connect(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+//  Raw-value helpers for json-raw output
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// These build `sonic_rs::Value` directly from the raw tick struct fields so
+// the cross-language agreement check can compare apples-to-apples with the
+// Python / Go / C++ SDKs, which expose raw ints for dates and ms-of-day. See
+// scripts/validate_agreement.py for the canonical contract.
+//
+// Sentinel semantics (`date == 0`, `ms_of_day < 0`) are preserved verbatim
+// here -- Python (sdks/python/src/tick_columnar.rs) and Go (sdks/go/tick_structs.go)
+// emit those same sentinels as raw ints, and the server emitter
+// (tools/server/src/format.rs:346) does too. Normalization to `null` lives
+// entirely on the consumer side in scripts/validate_agreement.py so all
+// producers can stay stupid-simple passthroughs and the agreement check has
+// one authoritative canonicalization rule. If this side mapped `0 -> null`,
+// it would silently disagree with every other producer.
+
+/// Raw YYYYMMDD int. `0` passes through verbatim; consumer-side
+/// canonicalization in validate_agreement.py normalizes it to null for
+/// comparison with SDKs that legitimately emit `0` as a sentinel.
+fn raw_date(date: i32) -> sonic_rs::Value {
+    sonic_rs::Value::from(sonic_rs::Number::from(date))
+}
+
+/// Raw milliseconds-since-midnight int. Negative values pass through
+/// verbatim; consumer-side canonicalization normalizes them to null for
+/// cross-language agreement.
+fn raw_ms(ms: i32) -> sonic_rs::Value {
+    sonic_rs::Value::from(sonic_rs::Number::from(ms))
+}
+
+/// Non-finite f64 -> JSON null. JSON itself rejects NaN / +Inf / -Inf in
+/// standards-compliant encoders, so we must collapse here or serialization
+/// fails. Matches validator's canonicalization rule.
+fn raw_f64(value: f64) -> sonic_rs::Value {
+    sonic_rs::Number::from_f64(value).map_or_else(sonic_rs::Value::new_null, sonic_rs::Value::from)
+}
+
+/// Raw integer value as JSON number.
+fn raw_i32(value: i32) -> sonic_rs::Value {
+    sonic_rs::Value::from(sonic_rs::Number::from(value))
+}
+
+/// Raw string (tick fields like `OptionContract::root`).
+fn raw_str(value: &str) -> sonic_rs::Value {
+    sonic_rs::Value::from(value)
+}
+
+/// Canonical `right` representation for tick types (NOT `OptionContract`).
+/// Matches `sdks/python/src/tick_columnar.rs` (`"C"` / `"P"` / `""`) and
+/// `sdks/go/tick_structs.go` `RightStr` (same mapping). Server uses the
+/// same mapping for the option-tick contract-id helper.
+fn raw_right_label(is_call: bool, is_put: bool) -> sonic_rs::Value {
+    if is_call {
+        sonic_rs::Value::from("C")
+    } else if is_put {
+        sonic_rs::Value::from("P")
+    } else {
+        sonic_rs::Value::from("")
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 //  Tick rendering helpers — reduce repetition across subcommands
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -359,26 +514,76 @@ fn render_eod(ticks: &[tdbe::types::tick::EodTick], fmt: &OutputFormat) {
         "ask",
         "ask_condition",
     ]);
+    // Canonical schema -- matches sdks/python/src/tick_columnar.rs:21-64
+    // (eod_ticks_to_columnar): ms_of_day, ms_of_day2, open, high, low, close,
+    // volume, count, bid_size, bid_exchange, bid, bid_condition, ask_size,
+    // ask_exchange, ask, ask_condition, date, expiration, strike, right.
+    td.set_raw_headers(vec![
+        "ms_of_day",
+        "ms_of_day2",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "count",
+        "bid_size",
+        "bid_exchange",
+        "bid",
+        "bid_condition",
+        "ask_size",
+        "ask_exchange",
+        "ask",
+        "ask_condition",
+        "date",
+        "expiration",
+        "strike",
+        "right",
+    ]);
     for t in ticks {
-        td.push(vec![
-            format_date(t.date),
-            format_ms(t.ms_of_day),
-            format_ms(t.ms_of_day2),
-            format_price_f64(t.open),
-            format_price_f64(t.high),
-            format_price_f64(t.low),
-            format_price_f64(t.close),
-            format!("{}", t.volume),
-            format!("{}", t.count),
-            format!("{}", t.bid_size),
-            format!("{}", t.bid_exchange),
-            format_price_f64(t.bid),
-            format!("{}", t.bid_condition),
-            format!("{}", t.ask_size),
-            format!("{}", t.ask_exchange),
-            format_price_f64(t.ask),
-            format!("{}", t.ask_condition),
-        ]);
+        td.push_with_raw(
+            vec![
+                format_date(t.date),
+                format_ms(t.ms_of_day),
+                format_ms(t.ms_of_day2),
+                format_price_f64(t.open),
+                format_price_f64(t.high),
+                format_price_f64(t.low),
+                format_price_f64(t.close),
+                format!("{}", t.volume),
+                format!("{}", t.count),
+                format!("{}", t.bid_size),
+                format!("{}", t.bid_exchange),
+                format_price_f64(t.bid),
+                format!("{}", t.bid_condition),
+                format!("{}", t.ask_size),
+                format!("{}", t.ask_exchange),
+                format_price_f64(t.ask),
+                format!("{}", t.ask_condition),
+            ],
+            vec![
+                raw_ms(t.ms_of_day),
+                raw_ms(t.ms_of_day2),
+                raw_f64(t.open),
+                raw_f64(t.high),
+                raw_f64(t.low),
+                raw_f64(t.close),
+                raw_i32(t.volume),
+                raw_i32(t.count),
+                raw_i32(t.bid_size),
+                raw_i32(t.bid_exchange),
+                raw_f64(t.bid),
+                raw_i32(t.bid_condition),
+                raw_i32(t.ask_size),
+                raw_i32(t.ask_exchange),
+                raw_f64(t.ask),
+                raw_i32(t.ask_condition),
+                raw_date(t.date),
+                raw_i32(t.expiration),
+                raw_f64(t.strike),
+                raw_right_label(t.is_call(), t.is_put()),
+            ],
+        );
     }
     td.render(fmt);
 }
@@ -387,17 +592,47 @@ fn render_ohlc(ticks: &[tdbe::types::tick::OhlcTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec![
         "date", "time", "open", "high", "low", "close", "volume", "count",
     ]);
+    // Canonical schema -- matches sdks/python/src/tick_columnar.rs:176-201
+    // (ohlc_ticks_to_columnar).
+    td.set_raw_headers(vec![
+        "ms_of_day",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "count",
+        "date",
+        "expiration",
+        "strike",
+        "right",
+    ]);
     for t in ticks {
-        td.push(vec![
-            format_date(t.date),
-            format_ms(t.ms_of_day),
-            format_price_f64(t.open),
-            format_price_f64(t.high),
-            format_price_f64(t.low),
-            format_price_f64(t.close),
-            format!("{}", t.volume),
-            format!("{}", t.count),
-        ]);
+        td.push_with_raw(
+            vec![
+                format_date(t.date),
+                format_ms(t.ms_of_day),
+                format_price_f64(t.open),
+                format_price_f64(t.high),
+                format_price_f64(t.low),
+                format_price_f64(t.close),
+                format!("{}", t.volume),
+                format!("{}", t.count),
+            ],
+            vec![
+                raw_ms(t.ms_of_day),
+                raw_f64(t.open),
+                raw_f64(t.high),
+                raw_f64(t.low),
+                raw_f64(t.close),
+                raw_i32(t.volume),
+                raw_i32(t.count),
+                raw_date(t.date),
+                raw_i32(t.expiration),
+                raw_f64(t.strike),
+                raw_right_label(t.is_call(), t.is_put()),
+            ],
+        );
     }
     td.render(fmt);
 }
@@ -412,16 +647,62 @@ fn render_trades(ticks: &[tdbe::types::tick::TradeTick], fmt: &OutputFormat) {
         "condition",
         "sequence",
     ]);
+    // Canonical schema -- matches sdks/python/src/tick_columnar.rs:336-374
+    // (trade_ticks_to_columnar). Adds ext_condition1-4, condition_flags,
+    // price_flags, volume_type, records_back fields the CLI presentation
+    // table doesn't surface but the SDKs do.
+    td.set_raw_headers(vec![
+        "ms_of_day",
+        "sequence",
+        "ext_condition1",
+        "ext_condition2",
+        "ext_condition3",
+        "ext_condition4",
+        "condition",
+        "size",
+        "exchange",
+        "price",
+        "condition_flags",
+        "price_flags",
+        "volume_type",
+        "records_back",
+        "date",
+        "expiration",
+        "strike",
+        "right",
+    ]);
     for t in ticks {
-        td.push(vec![
-            format_date(t.date),
-            format_ms(t.ms_of_day),
-            format_price_f64(t.price),
-            format!("{}", t.size),
-            format!("{}", t.exchange),
-            format!("{}", t.condition),
-            format!("{}", t.sequence),
-        ]);
+        td.push_with_raw(
+            vec![
+                format_date(t.date),
+                format_ms(t.ms_of_day),
+                format_price_f64(t.price),
+                format!("{}", t.size),
+                format!("{}", t.exchange),
+                format!("{}", t.condition),
+                format!("{}", t.sequence),
+            ],
+            vec![
+                raw_ms(t.ms_of_day),
+                raw_i32(t.sequence),
+                raw_i32(t.ext_condition1),
+                raw_i32(t.ext_condition2),
+                raw_i32(t.ext_condition3),
+                raw_i32(t.ext_condition4),
+                raw_i32(t.condition),
+                raw_i32(t.size),
+                raw_i32(t.exchange),
+                raw_f64(t.price),
+                raw_i32(t.condition_flags),
+                raw_i32(t.price_flags),
+                raw_i32(t.volume_type),
+                raw_i32(t.records_back),
+                raw_date(t.date),
+                raw_i32(t.expiration),
+                raw_f64(t.strike),
+                raw_right_label(t.is_call(), t.is_put()),
+            ],
+        );
     }
     td.render(fmt);
 }
@@ -439,19 +720,56 @@ fn render_quotes(ticks: &[tdbe::types::tick::QuoteTick], fmt: &OutputFormat) {
         "ask",
         "ask_condition",
     ]);
+    // Canonical schema -- matches sdks/python/src/tick_columnar.rs:244-275
+    // (quote_ticks_to_columnar). Includes `midpoint` field that the CLI
+    // presentation table doesn't surface.
+    td.set_raw_headers(vec![
+        "ms_of_day",
+        "bid_size",
+        "bid_exchange",
+        "bid",
+        "bid_condition",
+        "ask_size",
+        "ask_exchange",
+        "ask",
+        "ask_condition",
+        "date",
+        "midpoint",
+        "expiration",
+        "strike",
+        "right",
+    ]);
     for t in ticks {
-        td.push(vec![
-            format_date(t.date),
-            format_ms(t.ms_of_day),
-            format!("{}", t.bid_size),
-            format!("{}", t.bid_exchange),
-            format_price_f64(t.bid),
-            format!("{}", t.bid_condition),
-            format!("{}", t.ask_size),
-            format!("{}", t.ask_exchange),
-            format_price_f64(t.ask),
-            format!("{}", t.ask_condition),
-        ]);
+        td.push_with_raw(
+            vec![
+                format_date(t.date),
+                format_ms(t.ms_of_day),
+                format!("{}", t.bid_size),
+                format!("{}", t.bid_exchange),
+                format_price_f64(t.bid),
+                format!("{}", t.bid_condition),
+                format!("{}", t.ask_size),
+                format!("{}", t.ask_exchange),
+                format_price_f64(t.ask),
+                format!("{}", t.ask_condition),
+            ],
+            vec![
+                raw_ms(t.ms_of_day),
+                raw_i32(t.bid_size),
+                raw_i32(t.bid_exchange),
+                raw_f64(t.bid),
+                raw_i32(t.bid_condition),
+                raw_i32(t.ask_size),
+                raw_i32(t.ask_exchange),
+                raw_f64(t.ask),
+                raw_i32(t.ask_condition),
+                raw_date(t.date),
+                raw_f64(t.midpoint),
+                raw_i32(t.expiration),
+                raw_f64(t.strike),
+                raw_right_label(t.is_call(), t.is_put()),
+            ],
+        );
     }
     td.render(fmt);
 }
@@ -479,33 +797,118 @@ fn render_trade_quotes(ticks: &[tdbe::types::tick::TradeQuoteTick], fmt: &Output
         "ask",
         "ask_size",
     ]);
+    // Canonical schema -- matches sdks/python/src/tick_columnar.rs:277-334
+    // (trade_quote_ticks_to_columnar). Adds ext_condition1-4,
+    // condition_flags, price_flags, volume_type, records_back,
+    // bid_exchange, bid_condition, ask_exchange, ask_condition fields
+    // the CLI presentation table doesn't surface.
+    td.set_raw_headers(vec![
+        "ms_of_day",
+        "sequence",
+        "ext_condition1",
+        "ext_condition2",
+        "ext_condition3",
+        "ext_condition4",
+        "condition",
+        "size",
+        "exchange",
+        "price",
+        "condition_flags",
+        "price_flags",
+        "volume_type",
+        "records_back",
+        "quote_ms_of_day",
+        "bid_size",
+        "bid_exchange",
+        "bid",
+        "bid_condition",
+        "ask_size",
+        "ask_exchange",
+        "ask",
+        "ask_condition",
+        "date",
+        "expiration",
+        "strike",
+        "right",
+    ]);
     for t in ticks {
-        td.push(vec![
-            format_date(t.date),
-            format_ms(t.ms_of_day),
-            format_price_f64(t.price),
-            format!("{}", t.size),
-            format!("{}", t.exchange),
-            format!("{}", t.condition),
-            format!("{}", t.sequence),
-            format_ms(t.quote_ms_of_day),
-            format_price_f64(t.bid),
-            format!("{}", t.bid_size),
-            format_price_f64(t.ask),
-            format!("{}", t.ask_size),
-        ]);
+        td.push_with_raw(
+            vec![
+                format_date(t.date),
+                format_ms(t.ms_of_day),
+                format_price_f64(t.price),
+                format!("{}", t.size),
+                format!("{}", t.exchange),
+                format!("{}", t.condition),
+                format!("{}", t.sequence),
+                format_ms(t.quote_ms_of_day),
+                format_price_f64(t.bid),
+                format!("{}", t.bid_size),
+                format_price_f64(t.ask),
+                format!("{}", t.ask_size),
+            ],
+            vec![
+                raw_ms(t.ms_of_day),
+                raw_i32(t.sequence),
+                raw_i32(t.ext_condition1),
+                raw_i32(t.ext_condition2),
+                raw_i32(t.ext_condition3),
+                raw_i32(t.ext_condition4),
+                raw_i32(t.condition),
+                raw_i32(t.size),
+                raw_i32(t.exchange),
+                raw_f64(t.price),
+                raw_i32(t.condition_flags),
+                raw_i32(t.price_flags),
+                raw_i32(t.volume_type),
+                raw_i32(t.records_back),
+                raw_ms(t.quote_ms_of_day),
+                raw_i32(t.bid_size),
+                raw_i32(t.bid_exchange),
+                raw_f64(t.bid),
+                raw_i32(t.bid_condition),
+                raw_i32(t.ask_size),
+                raw_i32(t.ask_exchange),
+                raw_f64(t.ask),
+                raw_i32(t.ask_condition),
+                raw_date(t.date),
+                raw_i32(t.expiration),
+                raw_f64(t.strike),
+                raw_right_label(t.is_call(), t.is_put()),
+            ],
+        );
     }
     td.render(fmt);
 }
 
 fn render_open_interest(ticks: &[tdbe::types::tick::OpenInterestTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec!["date", "ms_of_day", "open_interest"]);
+    // Canonical schema -- matches sdks/python/src/tick_columnar.rs:203-218
+    // (open_interest_ticks_to_columnar).
+    td.set_raw_headers(vec![
+        "ms_of_day",
+        "open_interest",
+        "date",
+        "expiration",
+        "strike",
+        "right",
+    ]);
     for t in ticks {
-        td.push(vec![
-            format_date(t.date),
-            format_ms(t.ms_of_day),
-            format!("{}", t.open_interest),
-        ]);
+        td.push_with_raw(
+            vec![
+                format_date(t.date),
+                format_ms(t.ms_of_day),
+                format!("{}", t.open_interest),
+            ],
+            vec![
+                raw_ms(t.ms_of_day),
+                raw_i32(t.open_interest),
+                raw_date(t.date),
+                raw_i32(t.expiration),
+                raw_f64(t.strike),
+                raw_right_label(t.is_call(), t.is_put()),
+            ],
+        );
     }
     td.render(fmt);
 }
@@ -518,14 +921,38 @@ fn render_market_value(ticks: &[tdbe::types::tick::MarketValueTick], fmt: &Outpu
         "market_ask",
         "market_price",
     ]);
+    // Canonical schema -- matches sdks/python/src/tick_columnar.rs:155-174
+    // (market_value_ticks_to_columnar).
+    td.set_raw_headers(vec![
+        "ms_of_day",
+        "market_bid",
+        "market_ask",
+        "market_price",
+        "date",
+        "expiration",
+        "strike",
+        "right",
+    ]);
     for t in ticks {
-        td.push(vec![
-            format_date(t.date),
-            format_ms(t.ms_of_day),
-            format!("{:.4}", t.market_bid),
-            format!("{:.4}", t.market_ask),
-            format!("{:.4}", t.market_price),
-        ]);
+        td.push_with_raw(
+            vec![
+                format_date(t.date),
+                format_ms(t.ms_of_day),
+                format!("{:.4}", t.market_bid),
+                format!("{:.4}", t.market_ask),
+                format!("{:.4}", t.market_price),
+            ],
+            vec![
+                raw_ms(t.ms_of_day),
+                raw_f64(t.market_bid),
+                raw_f64(t.market_ask),
+                raw_f64(t.market_price),
+                raw_date(t.date),
+                raw_i32(t.expiration),
+                raw_f64(t.strike),
+                raw_right_label(t.is_call(), t.is_put()),
+            ],
+        );
     }
     td.render(fmt);
 }
@@ -557,97 +984,220 @@ fn render_greeks(ticks: &[tdbe::types::tick::GreeksTick], fmt: &OutputFormat) {
         "lambda",
         "vera",
     ]);
+    // Canonical schema -- matches sdks/python/src/tick_columnar.rs:66-123
+    // (greeks_ticks_to_columnar). Note `implied_volatility` (not the CLI
+    // presentation alias `iv`).
+    td.set_raw_headers(vec![
+        "ms_of_day",
+        "implied_volatility",
+        "delta",
+        "gamma",
+        "theta",
+        "vega",
+        "rho",
+        "iv_error",
+        "vanna",
+        "charm",
+        "vomma",
+        "veta",
+        "speed",
+        "zomma",
+        "color",
+        "ultima",
+        "d1",
+        "d2",
+        "dual_delta",
+        "dual_gamma",
+        "epsilon",
+        "lambda",
+        "vera",
+        "date",
+        "expiration",
+        "strike",
+        "right",
+    ]);
     for t in ticks {
-        td.push(vec![
-            format_date(t.date),
-            format_ms(t.ms_of_day),
-            format!("{:.6}", t.implied_volatility),
-            format!("{:.6}", t.delta),
-            format!("{:.6}", t.gamma),
-            format!("{:.6}", t.theta),
-            format!("{:.6}", t.vega),
-            format!("{:.6}", t.rho),
-            format!("{:.6}", t.iv_error),
-            format!("{:.6}", t.vanna),
-            format!("{:.6}", t.charm),
-            format!("{:.6}", t.vomma),
-            format!("{:.6}", t.veta),
-            format!("{:.6}", t.speed),
-            format!("{:.6}", t.zomma),
-            format!("{:.6}", t.color),
-            format!("{:.6}", t.ultima),
-            format!("{:.6}", t.d1),
-            format!("{:.6}", t.d2),
-            format!("{:.6}", t.dual_delta),
-            format!("{:.6}", t.dual_gamma),
-            format!("{:.6}", t.epsilon),
-            format!("{:.6}", t.lambda),
-            format!("{:.6}", t.vera),
-        ]);
+        td.push_with_raw(
+            vec![
+                format_date(t.date),
+                format_ms(t.ms_of_day),
+                format!("{:.6}", t.implied_volatility),
+                format!("{:.6}", t.delta),
+                format!("{:.6}", t.gamma),
+                format!("{:.6}", t.theta),
+                format!("{:.6}", t.vega),
+                format!("{:.6}", t.rho),
+                format!("{:.6}", t.iv_error),
+                format!("{:.6}", t.vanna),
+                format!("{:.6}", t.charm),
+                format!("{:.6}", t.vomma),
+                format!("{:.6}", t.veta),
+                format!("{:.6}", t.speed),
+                format!("{:.6}", t.zomma),
+                format!("{:.6}", t.color),
+                format!("{:.6}", t.ultima),
+                format!("{:.6}", t.d1),
+                format!("{:.6}", t.d2),
+                format!("{:.6}", t.dual_delta),
+                format!("{:.6}", t.dual_gamma),
+                format!("{:.6}", t.epsilon),
+                format!("{:.6}", t.lambda),
+                format!("{:.6}", t.vera),
+            ],
+            vec![
+                raw_ms(t.ms_of_day),
+                raw_f64(t.implied_volatility),
+                raw_f64(t.delta),
+                raw_f64(t.gamma),
+                raw_f64(t.theta),
+                raw_f64(t.vega),
+                raw_f64(t.rho),
+                raw_f64(t.iv_error),
+                raw_f64(t.vanna),
+                raw_f64(t.charm),
+                raw_f64(t.vomma),
+                raw_f64(t.veta),
+                raw_f64(t.speed),
+                raw_f64(t.zomma),
+                raw_f64(t.color),
+                raw_f64(t.ultima),
+                raw_f64(t.d1),
+                raw_f64(t.d2),
+                raw_f64(t.dual_delta),
+                raw_f64(t.dual_gamma),
+                raw_f64(t.epsilon),
+                raw_f64(t.lambda),
+                raw_f64(t.vera),
+                raw_date(t.date),
+                raw_i32(t.expiration),
+                raw_f64(t.strike),
+                raw_right_label(t.is_call(), t.is_put()),
+            ],
+        );
     }
     td.render(fmt);
 }
 
 fn render_iv(ticks: &[tdbe::types::tick::IvTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec!["date", "ms_of_day", "implied_volatility", "iv_error"]);
+    // Canonical schema -- matches sdks/python/src/tick_columnar.rs:136-153
+    // (iv_ticks_to_columnar).
+    td.set_raw_headers(vec![
+        "ms_of_day",
+        "implied_volatility",
+        "iv_error",
+        "date",
+        "expiration",
+        "strike",
+        "right",
+    ]);
     for t in ticks {
-        td.push(vec![
-            format_date(t.date),
-            format_ms(t.ms_of_day),
-            format!("{:.6}", t.implied_volatility),
-            format!("{:.6}", t.iv_error),
-        ]);
+        td.push_with_raw(
+            vec![
+                format_date(t.date),
+                format_ms(t.ms_of_day),
+                format!("{:.6}", t.implied_volatility),
+                format!("{:.6}", t.iv_error),
+            ],
+            vec![
+                raw_ms(t.ms_of_day),
+                raw_f64(t.implied_volatility),
+                raw_f64(t.iv_error),
+                raw_date(t.date),
+                raw_i32(t.expiration),
+                raw_f64(t.strike),
+                raw_right_label(t.is_call(), t.is_put()),
+            ],
+        );
     }
     td.render(fmt);
 }
 
 fn render_price(ticks: &[tdbe::types::tick::PriceTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec!["date", "ms_of_day", "price"]);
+    // Canonical schema -- matches sdks/python/src/tick_columnar.rs:233-242
+    // (price_ticks_to_columnar). PriceTick has no contract-id fields.
+    td.set_raw_headers(vec!["ms_of_day", "price", "date"]);
     for t in ticks {
-        td.push(vec![
-            format_date(t.date),
-            format_ms(t.ms_of_day),
-            format_price_f64(t.price),
-        ]);
+        td.push_with_raw(
+            vec![
+                format_date(t.date),
+                format_ms(t.ms_of_day),
+                format_price_f64(t.price),
+            ],
+            vec![raw_ms(t.ms_of_day), raw_f64(t.price), raw_date(t.date)],
+        );
     }
     td.render(fmt);
 }
 
 fn render_calendar(days: &[tdbe::types::tick::CalendarDay], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec!["date", "is_open", "open_time", "close_time", "status"]);
+    // Canonical schema -- matches sdks/python/src/tick_columnar.rs:6-19
+    // (calendar_days_to_columnar). is_open is i32 (matches Python columnar
+    // form, not the Go bool projection).
+    td.set_raw_headers(vec!["date", "is_open", "open_time", "close_time", "status"]);
     for d in days {
-        td.push(vec![
-            format_date(d.date),
-            format!("{}", d.is_open),
-            format_ms(d.open_time),
-            format_ms(d.close_time),
-            format!("{}", d.status),
-        ]);
+        td.push_with_raw(
+            vec![
+                format_date(d.date),
+                format!("{}", d.is_open),
+                format_ms(d.open_time),
+                format_ms(d.close_time),
+                format!("{}", d.status),
+            ],
+            vec![
+                raw_date(d.date),
+                raw_i32(d.is_open),
+                raw_ms(d.open_time),
+                raw_ms(d.close_time),
+                raw_i32(d.status),
+            ],
+        );
     }
     td.render(fmt);
 }
 
 fn render_interest_rates(ticks: &[tdbe::types::tick::InterestRateTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec!["date", "ms_of_day", "rate"]);
+    // Canonical schema -- matches sdks/python/src/tick_columnar.rs:125-134
+    // (interest_rate_ticks_to_columnar).
+    td.set_raw_headers(vec!["ms_of_day", "rate", "date"]);
     for t in ticks {
-        td.push(vec![
-            format_date(t.date),
-            format_ms(t.ms_of_day),
-            format!("{:.6}", t.rate),
-        ]);
+        td.push_with_raw(
+            vec![
+                format_date(t.date),
+                format_ms(t.ms_of_day),
+                format!("{:.6}", t.rate),
+            ],
+            vec![raw_ms(t.ms_of_day), raw_f64(t.rate), raw_date(t.date)],
+        );
     }
     td.render(fmt);
 }
 
 fn render_option_contracts(contracts: &[tdbe::types::tick::OptionContract], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec!["root", "expiration", "strike", "right"]);
+    // Canonical schema -- matches sdks/python/src/tick_columnar.rs:220-231
+    // (option_contracts_to_columnar). Note: Python emits `right` as a raw
+    // i32 here (NOT the "C"/"P"/"" string mapping used for tick types),
+    // because OptionContract carries the raw upstream code.
+    td.set_raw_headers(vec!["root", "expiration", "strike", "right"]);
     for c in contracts {
-        td.push(vec![
-            c.root.clone(),
-            format!("{}", c.expiration),
-            format_price_f64(c.strike),
-            format!("{}", c.right),
-        ]);
+        td.push_with_raw(
+            vec![
+                c.root.clone(),
+                format!("{}", c.expiration),
+                format_price_f64(c.strike),
+                format!("{}", c.right),
+            ],
+            vec![
+                raw_str(&c.root),
+                raw_date(c.expiration),
+                raw_f64(c.strike),
+                raw_i32(c.right),
+            ],
+        );
     }
     td.render(fmt);
 }
@@ -754,4 +1304,112 @@ async fn run(matches: ArgMatches) -> Result<(), thetadatadx::Error> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{raw_date, raw_f64, raw_i32, raw_ms, raw_right_label, OutputFormat, TabularData};
+    use sonic_rs::JsonValueTrait;
+
+    #[test]
+    fn json_raw_format_parses_from_string() {
+        assert!(matches!(
+            OutputFormat::from_str("json-raw"),
+            OutputFormat::JsonRaw
+        ));
+        assert!(matches!(OutputFormat::from_str("json"), OutputFormat::Json));
+        assert!(matches!(OutputFormat::from_str("csv"), OutputFormat::Csv));
+        assert!(matches!(
+            OutputFormat::from_str("table"),
+            OutputFormat::Table
+        ));
+        assert!(matches!(
+            OutputFormat::from_str("unknown"),
+            OutputFormat::Table
+        ));
+    }
+
+    #[test]
+    fn raw_date_passes_through_sentinel() {
+        // `0` is a sentinel for "no date" but we pass it through verbatim.
+        // Python/Go SDKs emit `0` as raw i32 too; normalizing to null here
+        // would silently disagree with them. The validator consumer
+        // canonicalizes both shapes to None for comparison.
+        assert!(raw_date(0).is_number());
+        assert!(raw_date(20260417).is_number());
+    }
+
+    #[test]
+    fn raw_ms_passes_through_sentinel() {
+        // Negative ms is a sentinel for "missing" but we pass it through
+        // verbatim to match Python/Go SDK behavior. Consumer-side
+        // canonicalization collapses it to None for agreement checks.
+        assert!(raw_ms(-1).is_number());
+        assert!(raw_ms(0).is_number());
+        assert!(raw_ms(34_200_000).is_number());
+    }
+
+    #[test]
+    fn raw_f64_non_finite_is_null() {
+        assert!(raw_f64(f64::NAN).is_null());
+        assert!(raw_f64(f64::INFINITY).is_null());
+        assert!(raw_f64(f64::NEG_INFINITY).is_null());
+        assert!(!raw_f64(0.0).is_null());
+        assert!(!raw_f64(685.86).is_null());
+    }
+
+    #[test]
+    fn tabular_data_push_with_raw_stores_both() {
+        let mut td = TabularData::new(vec!["date", "price"]);
+        td.set_raw_headers(vec!["date", "price"]);
+        td.push_with_raw(
+            vec!["2026-04-17".into(), "685.860000".into()],
+            vec![raw_date(20260417), raw_f64(685.86)],
+        );
+        assert_eq!(td.rows.len(), 1);
+        assert_eq!(td.raw_rows.len(), 1);
+        assert_eq!(td.rows[0][0], "2026-04-17");
+        assert!(td.raw_rows[0][0].is_number());
+    }
+
+    #[test]
+    fn tabular_data_independent_presentation_and_raw_schemas() {
+        // The presentation row (`time`, dropped contract-id) and the raw
+        // row (canonical `ms_of_day`, full contract-id) can have different
+        // lengths and field orderings. push_with_raw enforces row==headers
+        // and raw==raw_headers length-equality.
+        let mut td = TabularData::new(vec!["date", "time", "price"]);
+        td.set_raw_headers(vec![
+            "ms_of_day",
+            "price",
+            "date",
+            "expiration",
+            "strike",
+            "right",
+        ]);
+        td.push_with_raw(
+            vec!["2026-04-17".into(), "09:30:00.000".into(), "5.42".into()],
+            vec![
+                raw_ms(34_200_000),
+                raw_f64(5.42),
+                raw_date(20260417),
+                raw_i32(20260321),
+                raw_f64(570.0),
+                raw_right_label(true, false),
+            ],
+        );
+        assert_eq!(td.headers.len(), 3);
+        assert_eq!(td.raw_headers.len(), 6);
+        assert_eq!(td.raw_rows[0].len(), 6);
+        assert_eq!(td.raw_headers[0], "ms_of_day"); // canonical, not "time"
+    }
+
+    #[test]
+    fn raw_right_label_matches_python_string_mapping() {
+        // Mirrors sdks/python/src/tick_columnar.rs:41 ("C" / "P" / "")
+        // and Go RightStr at sdks/go/tick_structs.go:215.
+        assert_eq!(raw_right_label(true, false).as_str(), Some("C"));
+        assert_eq!(raw_right_label(false, true).as_str(), Some("P"));
+        assert_eq!(raw_right_label(false, false).as_str(), Some(""));
+    }
 }
