@@ -3294,6 +3294,28 @@ fn has_full_contract_spec(endpoint: &GeneratedEndpoint) -> bool {
         && names.contains("right")
 }
 
+/// Whether an option endpoint accepts `expiration=*` at the v3 server.
+///
+/// The v3 server binds some endpoints to upstream's `expiration_no_star`
+/// parameter (openapiv3.yaml) — these return
+/// `InvalidArgument -- Cannot specify '*' for the date` if the client
+/// sends `*`. The list below mirrors the set of endpoints whose upstream
+/// parameter block uses `expiration_no_star`; bulk-expiration modes are
+/// suppressed for these in `test_modes_for`. Update this list when
+/// upstream widens or narrows the wildcard surface.
+fn endpoint_supports_expiration_wildcard(name: &str) -> bool {
+    !matches!(
+        name,
+        "option_snapshot_trade"
+            | "option_history_ohlc"
+            | "option_history_greeks_all"
+            | "option_history_greeks_first_order"
+            | "option_history_greeks_second_order"
+            | "option_history_greeks_third_order"
+            | "option_history_greeks_implied_volatility"
+    )
+}
+
 /// Compute the comprehensive mode set for a given endpoint.
 ///
 /// The taxonomy:
@@ -3334,7 +3356,13 @@ fn test_modes_for(endpoint: &GeneratedEndpoint) -> Vec<TestMode> {
         }];
     }
 
-    // ── Option ContractSpec: full wildcard cross-product. ───────────────────
+    // ── Option ContractSpec: full wildcard cross-product, except where the
+    // v3 server explicitly disallows `expiration=*` on an endpoint (it binds
+    // that endpoint to the `expiration_no_star` parameter in upstream's
+    // openapiv3.yaml, and returns `InvalidArgument -- Cannot specify '*' for
+    // the date` if we pass it). Those endpoints get only the concrete +
+    // ISO-dashed fixtures plus the `all_strikes_one_exp` mode, which uses a
+    // concrete expiration.
     if has_full_contract_spec(endpoint) {
         let mut modes = vec![
             TestMode {
@@ -3355,31 +3383,35 @@ fn test_modes_for(endpoint: &GeneratedEndpoint) -> Vec<TestMode> {
                 min_tier: endpoint_tier,
                 expect: "non_empty",
             },
-            TestMode {
-                name: "all_exps_one_strike",
-                args: args_with_overrides(endpoint, &[("expiration", "*"), ("right", "both")]),
-                min_tier: endpoint_tier,
-                expect: "non_empty",
-            },
-            TestMode {
-                name: "bulk_chain",
-                args: args_with_overrides(
-                    endpoint,
-                    &[("expiration", "*"), ("strike", "*"), ("right", "both")],
-                ),
-                min_tier: endpoint_tier,
-                expect: "non_empty",
-            },
-            TestMode {
-                name: "legacy_zero_wildcard",
-                args: args_with_overrides(
-                    endpoint,
-                    &[("expiration", "0"), ("strike", "0"), ("right", "both")],
-                ),
-                min_tier: endpoint_tier,
-                expect: "non_empty",
-            },
         ];
+        if endpoint_supports_expiration_wildcard(&endpoint.name) {
+            modes.extend([
+                TestMode {
+                    name: "all_exps_one_strike",
+                    args: args_with_overrides(endpoint, &[("expiration", "*"), ("right", "both")]),
+                    min_tier: endpoint_tier,
+                    expect: "non_empty",
+                },
+                TestMode {
+                    name: "bulk_chain",
+                    args: args_with_overrides(
+                        endpoint,
+                        &[("expiration", "*"), ("strike", "*"), ("right", "both")],
+                    ),
+                    min_tier: endpoint_tier,
+                    expect: "non_empty",
+                },
+                TestMode {
+                    name: "legacy_zero_wildcard",
+                    args: args_with_overrides(
+                        endpoint,
+                        &[("expiration", "0"), ("strike", "0"), ("right", "both")],
+                    ),
+                    min_tier: endpoint_tier,
+                    expect: "non_empty",
+                },
+            ]);
+        }
         modes.dedup_by(|a, b| a.args == b.args && a.name == b.name);
         return modes;
     }
@@ -3435,9 +3467,12 @@ fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("\"\"\"Live parameter-mode matrix validator for the CLI surface.\n\n");
     out.push_str("Each row is one (endpoint, mode) cell. Modes cover concrete fixtures plus\n");
     out.push_str("wildcard / ISO-date / legacy-zero variants for option ContractSpec\n");
-    out.push_str("endpoints. Cells whose `min_tier` exceeds the account tier (taken from\n");
-    out.push_str("the `VALIDATOR_ACCOUNT_TIER` env var, default `free`) skip with a clear\n");
-    out.push_str("`SKIP: tier<...>` line. See issue #287.\n\"\"\"\n");
+    out.push_str("endpoints. Every cell is attempted against production; the server is the\n");
+    out.push_str("ground truth for what the account can access. Cells whose documented\n");
+    out.push_str("`min_tier` exceeds the live account tier come back as a permission error\n");
+    out.push_str("and are classified `SKIP: tier-permission`. Real configuration bugs\n");
+    out.push_str("(invalid arguments, wire-format errors) surface as `FAIL`. See issue\n");
+    out.push_str("#287.\n\"\"\"\n");
     out.push_str("from __future__ import annotations\n\n");
     out.push_str("import os\n");
     out.push_str("import pathlib\n");
@@ -3445,13 +3480,9 @@ fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("import sys\n\n");
     out.push_str("REPO = pathlib.Path(__file__).resolve().parents[1]\n");
     out.push_str("TDX = REPO / \"target\" / \"release\" / (\"tdx.exe\" if os.name == \"nt\" else \"tdx\")\n\n");
-    out.push_str("TIER_RANK = {\"free\": 0, \"value\": 1, \"standard\": 2, \"professional\": 3}\n");
-    out.push_str("ACCOUNT_TIER = os.environ.get(\"VALIDATOR_ACCOUNT_TIER\", \"free\").lower()\n");
-    out.push_str("if ACCOUNT_TIER not in TIER_RANK:\n");
-    out.push_str(
-        "    raise SystemExit(f\"VALIDATOR_ACCOUNT_TIER must be one of {sorted(TIER_RANK)}, got {ACCOUNT_TIER!r}\")\n\n",
-    );
-    out.push_str("# (endpoint, mode_name, min_tier, expect, [argv...])\n");
+    out.push_str("# (endpoint, mode_name, declared_min_tier, [argv...])\n");
+    out.push_str("# `declared_min_tier` is informational only (printed on tier-permission\n");
+    out.push_str("# skips so you can see which modes the server refused).\n");
     out.push_str("CELLS = [\n");
     for endpoint in endpoints
         .iter()
@@ -3465,8 +3496,8 @@ fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
                 .join(", ");
             writeln!(
                 out,
-                "    ({:?}, {:?}, {:?}, {:?}, [{}]),",
-                endpoint.name, mode.name, mode.min_tier, mode.expect, tokens
+                "    ({:?}, {:?}, {:?}, [{}]),",
+                endpoint.name, mode.name, mode.min_tier, tokens
             )
             .unwrap();
         }
@@ -3476,14 +3507,8 @@ fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("    raise SystemExit(f\"missing CLI binary: {TDX}\")\n\n");
     out.push_str("creds = sys.argv[1]\n");
     out.push_str("pass_count = skip_count = fail_count = 0\n");
-    out.push_str("for endpoint, mode, min_tier, expect, argv in CELLS:\n");
+    out.push_str("for endpoint, mode, min_tier, argv in CELLS:\n");
     out.push_str("    label = f\"{endpoint}::{mode}\"\n");
-    out.push_str("    if TIER_RANK[min_tier] > TIER_RANK[ACCOUNT_TIER]:\n");
-    out.push_str(
-        "        print(f\"  {label:60s} SKIP: tier<{min_tier}> > account<{ACCOUNT_TIER}>\")\n",
-    );
-    out.push_str("        skip_count += 1\n");
-    out.push_str("        continue\n");
     out.push_str("    proc = subprocess.run(\n");
     out.push_str("        [str(TDX), \"--creds\", creds, *argv, \"--format\", \"json\"],\n");
     out.push_str("        cwd=REPO,\n");
@@ -3493,11 +3518,10 @@ fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("    )\n");
     out.push_str("    output = (proc.stdout or b\"\").decode(\"utf-8\", errors=\"replace\")\n");
     out.push_str("    msg = output.lower()\n");
-    out.push_str("    is_perm = \"permission\" in msg or \"subscription\" in msg\n");
     out.push_str("    if proc.returncode == 0:\n");
     out.push_str("        print(f\"  {label:60s} PASS\")\n");
     out.push_str("        pass_count += 1\n");
-    out.push_str("    elif is_perm:\n");
+    out.push_str("    elif \"permission\" in msg or \"subscription\" in msg:\n");
     out.push_str(
         "        print(f\"  {label:60s} SKIP: tier-permission (declared min_tier={min_tier})\")\n",
     );
@@ -3505,11 +3529,6 @@ fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("    elif \"no data found\" in msg:\n");
     out.push_str("        print(f\"  {label:60s} PASS  (no data)\")\n");
     out.push_str("        pass_count += 1\n");
-    out.push_str("    elif expect == \"error_permission\":\n");
-    out.push_str(
-        "        print(f\"  {label:60s} FAIL  expected permission error, got: {output.strip()}\")\n",
-    );
-    out.push_str("        fail_count += 1\n");
     out.push_str("    else:\n");
     out.push_str("        print(f\"  {label:60s} FAIL  {output.strip()}\")\n");
     out.push_str("        fail_count += 1\n");
@@ -3530,22 +3549,20 @@ fn render_python_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("\"\"\"Live parameter-mode matrix validator for the Python SDK.\n\n");
     out.push_str("Each row is one (endpoint, mode) cell. Modes cover concrete fixtures plus\n");
     out.push_str("wildcard / ISO-date / legacy-zero variants for option ContractSpec\n");
-    out.push_str("endpoints. Cells whose `min_tier` exceeds the account tier (taken from\n");
-    out.push_str("the `VALIDATOR_ACCOUNT_TIER` env var, default `free`) skip with a clear\n");
-    out.push_str("`SKIP: tier<...>` line. See issue #287.\n\"\"\"\n");
-    out.push_str("import os\n");
+    out.push_str("endpoints. Every cell is attempted against production; the server is the\n");
+    out.push_str("ground truth for what the account can access. Cells whose documented\n");
+    out.push_str("`min_tier` exceeds the live account tier come back as a permission error\n");
+    out.push_str("and are classified `SKIP: tier-permission`. Real configuration bugs\n");
+    out.push_str("(invalid arguments, wire-format errors) surface as `FAIL`. See issue\n");
+    out.push_str("#287.\n\"\"\"\n");
     out.push_str("import sys\n\n");
     out.push_str("from thetadatadx import Credentials, Config, ThetaDataDx\n\n");
-    out.push_str("TIER_RANK = {\"free\": 0, \"value\": 1, \"standard\": 2, \"professional\": 3}\n");
-    out.push_str("ACCOUNT_TIER = os.environ.get(\"VALIDATOR_ACCOUNT_TIER\", \"free\").lower()\n");
-    out.push_str("if ACCOUNT_TIER not in TIER_RANK:\n");
-    out.push_str(
-        "    raise SystemExit(f\"VALIDATOR_ACCOUNT_TIER must be one of {sorted(TIER_RANK)}, got {ACCOUNT_TIER!r}\")\n\n",
-    );
     out.push_str(
         "client = ThetaDataDx(Credentials.from_file(sys.argv[1]), Config.production())\n\n",
     );
-    out.push_str("# (endpoint, mode_name, min_tier, expect, callable)\n");
+    out.push_str("# (endpoint, mode_name, declared_min_tier, callable)\n");
+    out.push_str("# `declared_min_tier` is informational only (printed on tier-permission\n");
+    out.push_str("# skips so you can see which modes the server refused).\n");
     out.push_str("CELLS = [\n");
     for endpoint in endpoints
         .iter()
@@ -3561,22 +3578,16 @@ fn render_python_validate(endpoints: &[GeneratedEndpoint]) -> String {
                 .join(", ");
             writeln!(
                 out,
-                "    ({:?}, {:?}, {:?}, {:?}, lambda: client.{}({})),",
-                endpoint.name, mode.name, mode.min_tier, mode.expect, endpoint.name, args
+                "    ({:?}, {:?}, {:?}, lambda: client.{}({})),",
+                endpoint.name, mode.name, mode.min_tier, endpoint.name, args
             )
             .unwrap();
         }
     }
     out.push_str("]\n\n");
     out.push_str("pass_count = skip_count = fail_count = 0\n");
-    out.push_str("for endpoint, mode, min_tier, expect, call in CELLS:\n");
+    out.push_str("for endpoint, mode, min_tier, call in CELLS:\n");
     out.push_str("    label = f\"{endpoint}::{mode}\"\n");
-    out.push_str("    if TIER_RANK[min_tier] > TIER_RANK[ACCOUNT_TIER]:\n");
-    out.push_str(
-        "        print(f\"  {label:60s} SKIP: tier<{min_tier}> > account<{ACCOUNT_TIER}>\")\n",
-    );
-    out.push_str("        skip_count += 1\n");
-    out.push_str("        continue\n");
     out.push_str("    try:\n");
     out.push_str("        call()\n");
     out.push_str("        print(f\"  {label:60s} PASS\")\n");
@@ -3591,11 +3602,6 @@ fn render_python_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("        elif \"no data found\" in msg:\n");
     out.push_str("            print(f\"  {label:60s} PASS  (no data)\")\n");
     out.push_str("            pass_count += 1\n");
-    out.push_str("        elif expect == \"error_permission\":\n");
-    out.push_str(
-        "            print(f\"  {label:60s} FAIL  expected permission error, got: {e}\")\n",
-    );
-    out.push_str("            fail_count += 1\n");
     out.push_str("        else:\n");
     out.push_str("            print(f\"  {label:60s} FAIL  {e}\")\n");
     out.push_str("            fail_count += 1\n");
@@ -3617,26 +3623,16 @@ fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("package thetadatadx\n\n");
     out.push_str("import (\n");
     out.push_str("\t\"fmt\"\n");
-    out.push_str("\t\"os\"\n");
     out.push_str("\t\"strings\"\n");
     out.push_str(")\n\n");
-    out.push_str("var tierRank = map[string]int{\n");
-    out.push_str("\t\"free\": 0, \"value\": 1, \"standard\": 2, \"professional\": 3,\n");
-    out.push_str("}\n\n");
     out.push_str("// ValidateAllEndpoints runs the live parameter-mode matrix against `c`.\n");
-    out.push_str("// Returns (pass, skip, fail) counts. See issue #287.\n");
+    out.push_str("// Every cell is attempted against production; the server is the ground\n");
+    out.push_str("// truth for what the account can access. Cells whose documented min_tier\n");
+    out.push_str("// exceeds the live account tier come back as a permission error and are\n");
+    out.push_str("// classified as SKIP: tier-permission. Real configuration bugs surface\n");
+    out.push_str("// as FAIL. Returns (pass, skip, fail) counts. See issue #287.\n");
     out.push_str("func ValidateAllEndpoints(c *Client) (int, int, int) {\n");
     out.push_str("\tpass, skip, fail := 0, 0, 0\n");
-    out.push_str("\taccountTier := strings.ToLower(os.Getenv(\"VALIDATOR_ACCOUNT_TIER\"))\n");
-    out.push_str("\tif accountTier == \"\" {\n");
-    out.push_str("\t\taccountTier = \"free\"\n");
-    out.push_str("\t}\n");
-    out.push_str("\tif _, ok := tierRank[accountTier]; !ok {\n");
-    out.push_str(
-        "\t\tfmt.Fprintf(os.Stderr, \"VALIDATOR_ACCOUNT_TIER must be one of free|value|standard|professional, got %q\\n\", accountTier)\n",
-    );
-    out.push_str("\t\treturn 0, 0, 1\n");
-    out.push_str("\t}\n\n");
     out.push_str("\tvar err error\n\n");
 
     for endpoint in endpoints
@@ -3647,42 +3643,30 @@ fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
         let mp = method_params(endpoint);
         for mode in test_modes_for(endpoint) {
             let label = format!("{}::{}", endpoint.name, mode.name);
-            writeln!(
-                out,
-                "\tif tierRank[{:?}] > tierRank[accountTier] {{",
-                mode.min_tier
-            )
-            .unwrap();
-            writeln!(
-                out,
-                "\t\tfmt.Printf(\"  %-60s SKIP: tier<%s> > account<%s>\\n\", {label:?}, {:?}, accountTier)",
-                mode.min_tier
-            )
-            .unwrap();
-            out.push_str("\t\tskip++\n");
-            out.push_str("\t} else {\n");
             let args = mp
                 .iter()
                 .zip(mode.args.iter())
                 .map(|(param, value)| go_arg_literal(param, value))
                 .collect::<Vec<_>>()
                 .join(", ");
-            writeln!(out, "\t\t_, err = c.{}({})", go_name, args).unwrap();
+            writeln!(out, "\t_, err = c.{}({})", go_name, args).unwrap();
             writeln!(
                 out,
-                "\t\tclassify({label:?}, {:?}, {:?}, err, &pass, &skip, &fail)",
-                mode.min_tier, mode.expect
+                "\tclassify({label:?}, {:?}, err, &pass, &skip, &fail)",
+                mode.min_tier
             )
             .unwrap();
-            out.push_str("\t}\n");
         }
         out.push('\n');
     }
 
     out.push_str("\treturn pass, skip, fail\n");
     out.push_str("}\n\n");
+    out.push_str("// classify maps a live call outcome into PASS / SKIP / FAIL buckets.\n");
+    out.push_str("// `declaredMinTier` is echoed on tier-permission skips so the caller can\n");
+    out.push_str("// see which documented tier the server refused.\n");
     out.push_str(
-        "func classify(label, minTier, expect string, err error, pass, skip, fail *int) {\n",
+        "func classify(label, declaredMinTier string, err error, pass, skip, fail *int) {\n",
     );
     out.push_str("\tif err == nil {\n");
     out.push_str("\t\tfmt.Printf(\"  %-60s PASS\\n\", label)\n");
@@ -3694,7 +3678,7 @@ fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
         "\tif strings.Contains(lowered, \"permission\") || strings.Contains(lowered, \"subscription\") {\n",
     );
     out.push_str(
-        "\t\tfmt.Printf(\"  %-60s SKIP: tier-permission (declared min_tier=%s)\\n\", label, minTier)\n",
+        "\t\tfmt.Printf(\"  %-60s SKIP: tier-permission (declared min_tier=%s)\\n\", label, declaredMinTier)\n",
     );
     out.push_str("\t\t*skip++\n");
     out.push_str("\t\treturn\n");
@@ -3702,13 +3686,6 @@ fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("\tif strings.Contains(lowered, \"no data found\") {\n");
     out.push_str("\t\tfmt.Printf(\"  %-60s PASS  (no data)\\n\", label)\n");
     out.push_str("\t\t*pass++\n");
-    out.push_str("\t\treturn\n");
-    out.push_str("\t}\n");
-    out.push_str("\tif expect == \"error_permission\" {\n");
-    out.push_str(
-        "\t\tfmt.Printf(\"  %-60s FAIL  expected permission error, got %v\\n\", label, err)\n",
-    );
-    out.push_str("\t\t*fail++\n");
     out.push_str("\t\treturn\n");
     out.push_str("\t}\n");
     out.push_str("\tfmt.Printf(\"  %-60s FAIL  %v\\n\", label, err)\n");
@@ -3724,14 +3701,17 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str(
         "// @generated DO NOT EDIT \u{2014} regenerated by generate_sdk_surfaces from endpoint_surface.toml\n",
     );
-    out.push_str("// Live parameter-mode matrix validator for the C++ SDK. See issue #287.\n");
+    out.push_str("// Live parameter-mode matrix validator for the C++ SDK. Every cell is\n");
+    out.push_str("// attempted against production; the server is the ground truth for what\n");
+    out.push_str("// the account can access. Cells whose documented min_tier exceeds the\n");
+    out.push_str("// live account tier come back as a permission error and are classified\n");
+    out.push_str("// SKIP: tier-permission. Real configuration bugs surface as FAIL. See\n");
+    out.push_str("// issue #287.\n");
     out.push_str("#include <algorithm>\n");
     out.push_str("#include <cctype>\n");
-    out.push_str("#include <cstdlib>\n");
     out.push_str("#include <iomanip>\n");
     out.push_str("#include <iostream>\n");
     out.push_str("#include <string>\n");
-    out.push_str("#include <unordered_map>\n");
     out.push_str("#include <vector>\n");
     out.push_str("#include \"thetadx.hpp\"\n\n");
     out.push_str("namespace {\n\n");
@@ -3743,24 +3723,9 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("    });\n");
     out.push_str("    return value;\n");
     out.push_str("}\n\n");
-    out.push_str("const std::unordered_map<std::string, int> kTierRank = {\n");
-    out.push_str("    {\"free\", 0}, {\"value\", 1}, {\"standard\", 2}, {\"professional\", 3},\n");
-    out.push_str("};\n\n");
     out.push_str("} // namespace\n\n");
     out.push_str("int main(int argc, char** argv) {\n");
     out.push_str("    const std::string creds_path = argc > 1 ? argv[1] : \"creds.txt\";\n");
-    out.push_str("    const char* env_tier = std::getenv(\"VALIDATOR_ACCOUNT_TIER\");\n");
-    out.push_str(
-        "    std::string account_tier = lower(env_tier == nullptr ? \"free\" : env_tier);\n",
-    );
-    out.push_str("    auto tier_it = kTierRank.find(account_tier);\n");
-    out.push_str("    if (tier_it == kTierRank.end()) {\n");
-    out.push_str(
-        "        std::cerr << \"VALIDATOR_ACCOUNT_TIER must be free|value|standard|professional, got '\" << account_tier << \"'\" << std::endl;\n",
-    );
-    out.push_str("        return 1;\n");
-    out.push_str("    }\n");
-    out.push_str("    const int account_rank = tier_it->second;\n");
     out.push_str("    int pass = 0;\n");
     out.push_str("    int skip = 0;\n");
     out.push_str("    int fail = 0;\n\n");
@@ -3769,16 +3734,8 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("        auto config = tdx::Config::production();\n");
     out.push_str("        auto client = tdx::Client::connect(creds, config);\n\n");
     out.push_str(
-        "        auto cell = [&](const char* label, const char* min_tier, const char* expect, auto&& call) {\n",
+        "        auto cell = [&](const char* label, const char* declared_min_tier, auto&& call) {\n",
     );
-    out.push_str("            int min_rank = kTierRank.at(min_tier);\n");
-    out.push_str("            if (min_rank > account_rank) {\n");
-    out.push_str(
-        "                std::cout << \"  \" << std::left << std::setw(60) << label << \" SKIP: tier<\" << min_tier << \"> > account<\" << account_tier << \">\" << std::endl;\n",
-    );
-    out.push_str("                ++skip;\n");
-    out.push_str("                return;\n");
-    out.push_str("            }\n");
     out.push_str("            try {\n");
     out.push_str("                (void)call();\n");
     out.push_str(
@@ -3791,7 +3748,7 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
         "                if (msg.find(\"permission\") != std::string::npos || msg.find(\"subscription\") != std::string::npos) {\n",
     );
     out.push_str(
-        "                    std::cout << \"  \" << std::left << std::setw(60) << label << \" SKIP: tier-permission (declared min_tier=\" << min_tier << \")\" << std::endl;\n",
+        "                    std::cout << \"  \" << std::left << std::setw(60) << label << \" SKIP: tier-permission (declared min_tier=\" << declared_min_tier << \")\" << std::endl;\n",
     );
     out.push_str("                    ++skip;\n");
     out.push_str(
@@ -3801,11 +3758,6 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
         "                    std::cout << \"  \" << std::left << std::setw(60) << label << \" PASS  (no data)\" << std::endl;\n",
     );
     out.push_str("                    ++pass;\n");
-    out.push_str("                } else if (std::string(expect) == \"error_permission\") {\n");
-    out.push_str(
-        "                    std::cout << \"  \" << std::left << std::setw(60) << label << \" FAIL  expected permission error, got \" << e.what() << std::endl;\n",
-    );
-    out.push_str("                    ++fail;\n");
     out.push_str("                } else {\n");
     out.push_str(
         "                    std::cout << \"  \" << std::left << std::setw(60) << label << \" FAIL  \" << e.what() << std::endl;\n",
@@ -3830,8 +3782,8 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
                 .join(", ");
             writeln!(
                 out,
-                "        cell({:?}, {:?}, {:?}, [&] {{ return client.{}({}); }});",
-                label, mode.min_tier, mode.expect, endpoint.name, args
+                "        cell({:?}, {:?}, [&] {{ return client.{}({}); }});",
+                label, mode.min_tier, endpoint.name, args
             )
             .unwrap();
         }
