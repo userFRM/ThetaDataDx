@@ -35,11 +35,9 @@ pub(super) fn render_go_validate(
                     args_parts.push(opt);
                 }
             }
+            // Cross-cutting deadline (W3): SDK enforces and cancels on expiry.
+            args_parts.push("WithTimeoutMs(perCellTimeoutMs)".into());
             let args = args_parts.join(", ");
-            // After a timeout fires, the worker goroutine still holds `c` and
-            // is calling the not-thread-safe FFI against it. Skip every
-            // remaining cell until the process exits rather than issue a
-            // parallel call on the same handle. See ffi/src/lib.rs:21.
             write!(
                 out,
                 include_str!("templates/validate_go/cell.go.tmpl"),

@@ -3,20 +3,17 @@
 package thetadatadx
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 	"time"
 )
 
-// perCellTimeout caps each live cell at 60 seconds. A stuck cell classifies
-// as FAIL rather than stalling CI indefinitely. See issue #290.
-const perCellTimeout = 60 * time.Second
-
-// errCellTimeout is the sentinel the timeout path returns. We recognize
-// it in classify so the FAIL line clearly says "timeout".
-var errCellTimeout = errors.New("cell timeout after 60s")
+// perCellTimeoutMs caps each live cell at 60 seconds. The Rust SDK
+// enforces the deadline via tokio::time::timeout and cancels the
+// in-flight gRPC stream on expiry; the *Client handle stays usable.
+// See [docs/dev/w3-async-cancellation-design.md] (W3).
+const perCellTimeoutMs uint64 = 60_000
 
 // CellRecord is one row of the validator's per-cell JSON artifact used
 // by the cross-language agreement check. `Status` is PASS|SKIP|FAIL.
@@ -32,34 +29,6 @@ type CellRecord struct {
 	RowCount   int    `json:"row_count"`
 	DurationMS int64  `json:"duration_ms"`
 	Detail     string `json:"detail"`
-}
-
-// cellResult pairs the call's error with the derived row count. Used
-// internally by the timeout helper; external consumers look at the
-// returned record slice.
-type cellResult struct {
-	err      error
-	rowCount int
-}
-
-// runWithTimeout runs call in a goroutine and returns either the result
-// or (errCellTimeout, 0) if the call doesn't finish within perCellTimeout.
-// The Go SDK doesn't thread a context.Context into its CGo calls, so a
-// timed-out goroutine leaks until the blocking call returns on its own.
-// Acceptable for a validator (process exits at the end); real cancellation
-// is a separate, larger change. See issue #290.
-func runWithTimeout(call func() (int, error)) cellResult {
-	done := make(chan cellResult, 1)
-	go func() {
-		n, e := call()
-		done <- cellResult{err: e, rowCount: n}
-	}()
-	select {
-	case r := <-done:
-		return r
-	case <-time.After(perCellTimeout):
-		return cellResult{err: errCellTimeout}
-	}
 }
 
 // goRowCount returns len() for slices, 1 for non-nil non-slice, 0 for
@@ -81,16 +50,12 @@ func goRowCount(v interface{}) int {
 // truth for what the account can access. Cells whose documented min_tier
 // exceeds the live account tier come back as a permission error and are
 // classified as SKIP: tier-permission. Real configuration bugs surface
-// as FAIL. Cells that don't finish within 60 seconds classify as FAIL
-// with "timeout after 60s". Returns (pass, skip, fail, hadTimeout, records).
-// When `hadTimeout` is true, at least one goroutine is still running the
-// CGo call it was started for; callers MUST os.Exit() instead of Close()ing
-// the Client, because the leaked goroutine still holds a pointer to its
-// FFI handle. Closing in that window is a use-after-free. See issues
-// #287, #290.
-func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {
+// as FAIL. Cells that don't finish within 60 seconds are cancelled by
+// the SDK and classified as FAIL with "timeout after 60s". Returns
+// (pass, skip, fail, records) — there is no `hadTimeout` flag any more
+// because the SDK cleans up after itself; subsequent cells run normally
+// on the same `*Client`. See issues #287, #290 and W3.
+func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	pass, skip, fail := 0, 0, 0
-	hadTimeout := false
 	records := make([]CellRecord, 0)
-	var r cellResult
 

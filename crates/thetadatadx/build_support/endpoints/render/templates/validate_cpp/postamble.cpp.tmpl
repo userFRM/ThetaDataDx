@@ -30,11 +30,5 @@
     }
     std::cout.flush();
     std::cerr.flush();
-    if (any_timeout) {
-        // Skip destructors -- leaked worker thread may still be reading
-        // Client/Config/Credentials FFI handles. _Exit terminates the
-        // process without unwinding.
-        std::_Exit(fail > 0 ? 1 : 0);
-    }
     return fail > 0 ? 1 : 0;
 }

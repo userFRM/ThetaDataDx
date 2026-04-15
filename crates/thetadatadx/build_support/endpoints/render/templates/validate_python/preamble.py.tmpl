@@ -11,26 +11,20 @@ and are classified `SKIP: tier-permission`. Real configuration bugs
 (invalid arguments, wire-format errors) surface as `FAIL`. See issue
 #287.
 
-Each cell is bounded by a 60-second per-call timeout enforced by a
-daemon `threading.Thread` + `queue.Queue.get(timeout=...)`. A stuck
-cell classifies as FAIL with `timeout after 60s`. On completion we
-call `os._exit()` to bypass the interpreter's non-daemon-thread join
-and atexit machinery -- otherwise any truly-wedged PyO3 call would
-block process teardown. Daemon threads are abruptly killed at
-`_exit`, which is exactly what we want for a single-shot validator.
-See issue #290.
+Each cell carries a 60-second per-call deadline that the Rust SDK enforces
+via `tokio::time::timeout`. On expiry the in-flight gRPC stream is
+cancelled and a RuntimeError carrying "Request deadline exceeded" is
+raised. The `ThetaDataDx` handle stays usable for subsequent cells.
+See [docs/dev/w3-async-cancellation-design.md] (W3).
 """
 import json
-import os
 import pathlib
-import queue
 import sys
-import threading
 import time
 
 from thetadatadx import Credentials, Config, ThetaDataDx
 
-PER_CELL_TIMEOUT_SECS = 60
+PER_CELL_TIMEOUT_MS = 60_000
 ARTIFACT_PATH = pathlib.Path(__file__).resolve().parents[1] / "artifacts" / "validator_python.json"
 
 client = ThetaDataDx(Credentials.from_file(sys.argv[1]), Config.production())
@@ -40,5 +34,6 @@ client = ThetaDataDx(Credentials.from_file(sys.argv[1]), Config.production())
 # skips so you can see which modes the server refused). `rationale` is a
 # one-sentence description of what the cell proves; it surfaces in the
 # per-cell JSON artifact and in the cross-language agreement disagreement
-# output (see scripts/validate_agreement.py).
+# output (see scripts/validate_agreement.py). Each callable threads
+# timeout_ms=PER_CELL_TIMEOUT_MS so the SDK enforces the budget.
 CELLS = [

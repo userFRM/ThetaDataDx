@@ -1,9 +1,11 @@
 //! Live parameter-mode matrix validator generator for the C++ SDK.
 //!
 //! Emits `sdks/cpp/examples/validate.cpp`: one `cell(...)` lambda per
-//! (endpoint, mode), behind a `std::packaged_task` + detached `std::thread`
-//! timeout shim and `_Exit` teardown when any cell timed out. The lambda
-//! helper, main wrapper, and artifact writer all live in
+//! (endpoint, mode). Each cell sets `EndpointRequestOptions::timeout_ms`
+//! to 60_000 so the Rust SDK enforces the deadline and throws a
+//! `tdx::Error` carrying "Request deadline exceeded" on expiry (W3).
+//! The gRPC stream is cancelled by the SDK; the `Client` handle stays
+//! usable. Preamble/cell/postamble templates live in
 //! `templates/validate_cpp/`.
 
 use std::fmt::Write as _;
@@ -31,16 +33,17 @@ pub(super) fn render_cpp_validate(
                 .zip(mode.args.iter())
                 .map(|(param, value)| cpp_arg_literal(param, value))
                 .collect();
-            if !mode.builder_overrides.is_empty() {
-                let setters: String = mode
-                    .builder_overrides
-                    .iter()
-                    .filter_map(|(name, value)| cpp_builder_setter(endpoint, name, value))
-                    .collect();
-                if !setters.is_empty() {
-                    args_parts.push(format!("tdx::EndpointRequestOptions{{}}{setters}"));
-                }
-            }
+            // Every cell carries the cross-cutting per-call deadline (W3).
+            // Other builder overrides (if any) are chained into the same
+            // EndpointRequestOptions via the fluent `with_<name>` setters.
+            let setters: String = mode
+                .builder_overrides
+                .iter()
+                .filter_map(|(name, value)| cpp_builder_setter(endpoint, name, value))
+                .collect();
+            args_parts.push(format!(
+                "tdx::EndpointRequestOptions{{}}{setters}.with_timeout_ms(kPerCellTimeoutMs)"
+            ));
             let args = args_parts.join(", ");
             write!(
                 out,

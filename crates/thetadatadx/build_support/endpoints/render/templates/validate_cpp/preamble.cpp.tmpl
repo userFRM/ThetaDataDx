@@ -3,34 +3,32 @@
 // attempted against production; the server is the ground truth for what
 // the account can access. Cells whose documented min_tier exceeds the
 // live account tier come back as a permission error and are classified
-// SKIP: tier-permission. Real configuration bugs surface as FAIL. Cells
-// that don't finish within 60 seconds classify as FAIL with "timeout
-// after 60s". The worker thread is detached and keeps running the SDK
-// call; to avoid a use-after-free race between that leaked thread and
-// the Client/Config/Credentials destructors on main's unwind, the
-// validator exits via std::_Exit whenever any timeout fired -- skipping
-// destructors is exactly what we want when a leaked thread might still
-// touch FFI state. When no timeouts fired the normal return path is
-// taken so RAII runs as usual. See issues #287, #290.
+// SKIP: tier-permission. Real configuration bugs surface as FAIL.
+//
+// Per-cell deadline (W3): each cell sets
+// EndpointRequestOptions::timeout_ms = 60_000 so the Rust SDK enforces
+// the budget via tokio::time::timeout and cancels the in-flight gRPC
+// stream on expiry; the throw surfaces as a tdx::Error carrying
+// "Request deadline exceeded". RAII destructors run normally because
+// the SDK has already cleaned up its in-flight state. See issues #287,
+// #290 and [docs/dev/w3-async-cancellation-design.md].
 #include <algorithm>
 #include <cctype>
 #include <chrono>
 #include <cstdlib>
 #include <fstream>
-#include <future>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <sys/stat.h>
-#include <thread>
 #include <utility>
 #include <vector>
 #include "thetadx.hpp"
 
 namespace {
 
-constexpr auto kPerCellTimeout = std::chrono::seconds(60);
+constexpr uint64_t kPerCellTimeoutMs = 60'000;
 
 std::string lower(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
@@ -82,10 +80,6 @@ int main(int argc, char** argv) {
     int pass = 0;
     int skip = 0;
     int fail = 0;
-    // Track whether any cell timed out. Leaked worker threads racing with
-    // RAII Close() on client/config/creds would be UB, so we _Exit at end
-    // if this flag is set instead of returning.
-    bool any_timeout = false;
     std::vector<CellRecord> records;
 
     try {
@@ -96,52 +90,23 @@ int main(int argc, char** argv) {
         auto cell = [&](const char* endpoint, const char* mode, const char* declared_min_tier, const char* rationale, auto&& call) {
             const std::string label = std::string(endpoint) + "::" + mode;
             CellRecord rec{endpoint, mode, rationale, std::string{}, 0, 0, std::string{}};
-            // If a prior cell timed out, its worker thread is still running
-            // an FFI call against `client`. The FFI is not thread-safe on the
-            // same handle (ffi/src/lib.rs:21), so we must NOT issue another
-            // call on `client` now. Record the cell as SKIP:
-            // aborted-after-timeout and continue so the artifact keeps the
-            // full cell list (the agreement check can still pair cells
-            // across SDKs).
-            if (any_timeout) {
-                std::cout << "  " << std::left << std::setw(60) << label << " SKIP: aborted-after-timeout" << std::endl;
-                ++skip;
-                rec.status = "SKIP";
-                rec.detail = "aborted-after-timeout";
-                records.push_back(rec);
-                return;
-            }
             const auto t0 = std::chrono::steady_clock::now();
             try {
-                // std::packaged_task + detached std::thread so a timed-out
-                // future doesn't block in its destructor (which std::async's
-                // future does). Worker thread leaks until the SDK call
-                // returns; we flag any_timeout so main exits via _Exit and
-                // avoids destroying the Client handle while the leaked
-                // thread may still be reading from it (UAF), and so that
-                // subsequent cells don't race against the leaked worker.
-                using Result = decltype(call());
-                std::packaged_task<Result()> task(std::forward<decltype(call)>(call));
-                auto future = task.get_future();
-                std::thread(std::move(task)).detach();
-                if (future.wait_for(kPerCellTimeout) == std::future_status::timeout) {
-                    std::cout << "  " << std::left << std::setw(60) << label << " FAIL  timeout after 60s" << std::endl;
-                    ++fail;
-                    any_timeout = true;
-                    rec.status = "FAIL";
-                    rec.detail = "timeout after 60s";
-                    rec.duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count();
-                    records.push_back(rec);
-                    return;
-                }
-                auto value = future.get();
+                auto value = call();
                 rec.row_count = static_cast<int>(value.size());
                 std::cout << "  " << std::left << std::setw(60) << label << " PASS" << std::endl;
                 ++pass;
                 rec.status = "PASS";
             } catch (const std::exception& e) {
                 const std::string msg = lower(e.what());
-                if (msg.find("permission") != std::string::npos || msg.find("subscription") != std::string::npos) {
+                if (msg.find("request deadline exceeded") != std::string::npos) {
+                    // SDK cancelled the in-flight gRPC stream on deadline elapse;
+                    // the next cell runs normally on the same Client handle.
+                    std::cout << "  " << std::left << std::setw(60) << label << " FAIL  timeout after 60s" << std::endl;
+                    ++fail;
+                    rec.status = "FAIL";
+                    rec.detail = "timeout after 60s";
+                } else if (msg.find("permission") != std::string::npos || msg.find("subscription") != std::string::npos) {
                     std::cout << "  " << std::left << std::setw(60) << label << " SKIP: tier-permission (declared min_tier=" << declared_min_tier << ")" << std::endl;
                     ++skip;
                     rec.status = "SKIP";

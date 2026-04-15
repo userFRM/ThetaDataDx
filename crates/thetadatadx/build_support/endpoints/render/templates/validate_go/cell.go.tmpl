@@ -1,8 +1,7 @@
 	// {endpoint}::{mode}
 	//   rationale: {rationale}
-	if !hadTimeout {{
-		r = runWithTimeout(func() (int, error) {{ v, e := c.{go_method_name}({args}); return goRowCount(v), e }})
-		records = classify({endpoint:?}, {mode:?}, {min_tier:?}, {rationale:?}, r, &pass, &skip, &fail, &hadTimeout, records)
-	}} else {{
-		records = recordAborted({endpoint:?}, {mode:?}, {rationale:?}, &skip, records)
+	{{
+		t0 := time.Now()
+		v, e := c.{go_method_name}({args})
+		records = classify({endpoint:?}, {mode:?}, {min_tier:?}, {rationale:?}, v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}}

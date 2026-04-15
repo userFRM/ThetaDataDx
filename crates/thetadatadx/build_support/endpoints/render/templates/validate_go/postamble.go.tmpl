@@ -1,43 +1,34 @@
-	return pass, skip, fail, hadTimeout, records
-}
-
-// recordAborted adds a SKIP record for a cell that didn't run because an
-// earlier cell timed out. The ffi is not thread-safe on the same handle,
-// so we refuse to issue more calls once a worker has been leaked.
-func recordAborted(endpoint, mode, rationale string, skip *int, records []CellRecord) []CellRecord {
-	label := endpoint + "::" + mode
-	fmt.Printf("  %-60s SKIP: aborted-after-timeout\n", label)
-	*skip++
-	return append(records, CellRecord{
-		Endpoint: endpoint, Mode: mode, Rationale: rationale, Status: "SKIP", Detail: "aborted-after-timeout",
-	})
+	return pass, skip, fail, records
 }
 
 // classify maps a live call outcome into PASS / SKIP / FAIL buckets and
 // appends a CellRecord for the agreement-check JSON artifact.
-func classify(endpoint, mode, declaredMinTier, rationale string, r cellResult, pass, skip, fail *int, hadTimeout *bool, records []CellRecord) []CellRecord {
+func classify(endpoint, mode, declaredMinTier, rationale string, v interface{}, err error, dur time.Duration, pass, skip, fail *int, records []CellRecord) []CellRecord {
 	label := endpoint + "::" + mode
-	rec := CellRecord{Endpoint: endpoint, Mode: mode, Rationale: rationale, RowCount: r.rowCount}
-	if r.err == nil {
+	rec := CellRecord{Endpoint: endpoint, Mode: mode, Rationale: rationale, RowCount: goRowCount(v), DurationMS: dur.Milliseconds()}
+	if err == nil {
 		fmt.Printf("  %-60s PASS\n", label)
 		*pass++
 		rec.Status = "PASS"
 		return append(records, rec)
 	}
-	if errors.Is(r.err, errCellTimeout) {
+	lowered := strings.ToLower(err.Error())
+	// Per-call deadline elapsed: SDK cancelled the in-flight gRPC stream
+	// (the next cell runs normally on the same *Client).
+	if strings.Contains(lowered, "request deadline exceeded") {
 		fmt.Printf("  %-60s FAIL  timeout after 60s\n", label)
 		*fail++
-		*hadTimeout = true
 		rec.Status = "FAIL"
 		rec.Detail = "timeout after 60s"
+		rec.RowCount = 0
 		return append(records, rec)
 	}
-	lowered := strings.ToLower(r.err.Error())
 	if strings.Contains(lowered, "permission") || strings.Contains(lowered, "subscription") {
 		fmt.Printf("  %-60s SKIP: tier-permission (declared min_tier=%s)\n", label, declaredMinTier)
 		*skip++
 		rec.Status = "SKIP"
 		rec.Detail = "tier-permission"
+		rec.RowCount = 0
 		return append(records, rec)
 	}
 	if strings.Contains(lowered, "no data found") {
@@ -45,18 +36,20 @@ func classify(endpoint, mode, declaredMinTier, rationale string, r cellResult, p
 		*pass++
 		rec.Status = "PASS"
 		rec.Detail = "no data"
+		rec.RowCount = 0
 		return append(records, rec)
 	}
-	fmt.Printf("  %-60s FAIL  %v\n", label, r.err)
+	fmt.Printf("  %-60s FAIL  %v\n", label, err)
 	*fail++
 	rec.Status = "FAIL"
 	// gRPC / transport errors can contain embedded newlines; escape them
 	// so the agreement-table row stays single-line.
-	detail := strings.ReplaceAll(r.err.Error(), "\n", "\\n")
+	detail := strings.ReplaceAll(err.Error(), "\n", "\\n")
 	detail = strings.ReplaceAll(detail, "\r", "\\r")
 	if len(detail) > 200 {
 		detail = detail[:200]
 	}
 	rec.Detail = detail
+	rec.RowCount = 0
 	return append(records, rec)
 }
