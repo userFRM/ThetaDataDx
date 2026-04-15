@@ -3,17 +3,26 @@
 // attempted against production; the server is the ground truth for what
 // the account can access. Cells whose documented min_tier exceeds the
 // live account tier come back as a permission error and are classified
-// SKIP: tier-permission. Real configuration bugs surface as FAIL. See
-// issue #287.
+// SKIP: tier-permission. Real configuration bugs surface as FAIL. Cells
+// that don't finish within 60 seconds classify as FAIL with "timeout
+// after 60s" (the worker thread is detached and leaks until the blocking
+// call returns on its own, which is acceptable for a single-shot
+// validator). See issues #287, #290.
 #include <algorithm>
 #include <cctype>
+#include <chrono>
+#include <future>
 #include <iomanip>
 #include <iostream>
 #include <string>
+#include <thread>
+#include <utility>
 #include <vector>
 #include "thetadx.hpp"
 
 namespace {
+
+constexpr auto kPerCellTimeout = std::chrono::seconds(60);
 
 std::string lower(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
@@ -37,7 +46,20 @@ int main(int argc, char** argv) {
 
         auto cell = [&](const char* label, const char* declared_min_tier, auto&& call) {
             try {
-                (void)call();
+                // std::packaged_task + detached std::thread so a timed-out
+                // future doesn't block in its destructor (which std::async's
+                // future does). Worker thread leaks until the SDK call
+                // returns; acceptable for a one-shot validator.
+                using Result = decltype(call());
+                std::packaged_task<Result()> task(std::forward<decltype(call)>(call));
+                auto future = task.get_future();
+                std::thread(std::move(task)).detach();
+                if (future.wait_for(kPerCellTimeout) == std::future_status::timeout) {
+                    std::cout << "  " << std::left << std::setw(60) << label << " FAIL  timeout after 60s" << std::endl;
+                    ++fail;
+                    return;
+                }
+                (void)future.get();
                 std::cout << "  " << std::left << std::setw(60) << label << " PASS" << std::endl;
                 ++pass;
             } catch (const std::exception& e) {

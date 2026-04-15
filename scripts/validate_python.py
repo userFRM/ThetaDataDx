@@ -10,10 +10,19 @@ ground truth for what the account can access. Cells whose documented
 and are classified `SKIP: tier-permission`. Real configuration bugs
 (invalid arguments, wire-format errors) surface as `FAIL`. See issue
 #287.
+
+Each cell is bounded by a 60-second per-call timeout
+(concurrent.futures.ThreadPoolExecutor). A stuck cell classifies as
+FAIL with `timeout after 60s` rather than stalling CI indefinitely --
+a human should investigate whether the fixture is too broad or the
+server is misbehaving. See issue #290.
 """
+import concurrent.futures
 import sys
 
 from thetadatadx import Credentials, Config, ThetaDataDx
+
+PER_CELL_TIMEOUT_SECS = 60
 
 client = ThetaDataDx(Credentials.from_file(sys.argv[1]), Config.production())
 
@@ -211,10 +220,15 @@ CELLS = [
 pass_count = skip_count = fail_count = 0
 for endpoint, mode, min_tier, call in CELLS:
     label = f"{endpoint}::{mode}"
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    future = pool.submit(call)
     try:
-        call()
+        future.result(timeout=PER_CELL_TIMEOUT_SECS)
         print(f"  {label:60s} PASS")
         pass_count += 1
+    except concurrent.futures.TimeoutError:
+        print(f"  {label:60s} FAIL  timeout after {PER_CELL_TIMEOUT_SECS}s")
+        fail_count += 1
     except Exception as e:
         msg = str(e).lower()
         if "permission" in msg or "subscription" in msg:
@@ -226,6 +240,10 @@ for endpoint, mode, min_tier, call in CELLS:
         else:
             print(f"  {label:60s} FAIL  {e}")
             fail_count += 1
+    finally:
+        # wait=False so we don't block on a stuck worker thread;
+        # cancel_futures=True prevents queued (never-started) work from running.
+        pool.shutdown(wait=False, cancel_futures=True)
 
 print(f"\nPython: {pass_count} PASS, {skip_count} SKIP, {fail_count} FAIL")
 print(f"COUNTS:{pass_count}:{skip_count}:{fail_count}")

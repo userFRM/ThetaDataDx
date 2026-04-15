@@ -3441,12 +3441,17 @@ fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("`min_tier` exceeds the live account tier come back as a permission error\n");
     out.push_str("and are classified `SKIP: tier-permission`. Real configuration bugs\n");
     out.push_str("(invalid arguments, wire-format errors) surface as `FAIL`. See issue\n");
-    out.push_str("#287.\n\"\"\"\n");
+    out.push_str("#287.\n\n");
+    out.push_str("Each cell is bounded by a 60-second subprocess timeout. A stuck cell\n");
+    out.push_str("classifies as FAIL with `timeout after 60s` rather than stalling CI\n");
+    out.push_str("indefinitely -- a human should investigate whether the fixture is too\n");
+    out.push_str("broad or the server is misbehaving. See issue #290.\n\"\"\"\n");
     out.push_str("from __future__ import annotations\n\n");
     out.push_str("import os\n");
     out.push_str("import pathlib\n");
     out.push_str("import subprocess\n");
     out.push_str("import sys\n\n");
+    out.push_str("PER_CELL_TIMEOUT_SECS = 60\n\n");
     out.push_str("REPO = pathlib.Path(__file__).resolve().parents[1]\n");
     out.push_str("TDX = REPO / \"target\" / \"release\" / (\"tdx.exe\" if os.name == \"nt\" else \"tdx\")\n\n");
     out.push_str("# (endpoint, mode_name, declared_min_tier, [argv...])\n");
@@ -3478,13 +3483,21 @@ fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("pass_count = skip_count = fail_count = 0\n");
     out.push_str("for endpoint, mode, min_tier, argv in CELLS:\n");
     out.push_str("    label = f\"{endpoint}::{mode}\"\n");
-    out.push_str("    proc = subprocess.run(\n");
-    out.push_str("        [str(TDX), \"--creds\", creds, *argv, \"--format\", \"json\"],\n");
-    out.push_str("        cwd=REPO,\n");
-    out.push_str("        stdout=subprocess.PIPE,\n");
-    out.push_str("        stderr=subprocess.STDOUT,\n");
-    out.push_str("        check=False,\n");
-    out.push_str("    )\n");
+    out.push_str("    try:\n");
+    out.push_str("        proc = subprocess.run(\n");
+    out.push_str("            [str(TDX), \"--creds\", creds, *argv, \"--format\", \"json\"],\n");
+    out.push_str("            cwd=REPO,\n");
+    out.push_str("            stdout=subprocess.PIPE,\n");
+    out.push_str("            stderr=subprocess.STDOUT,\n");
+    out.push_str("            check=False,\n");
+    out.push_str("            timeout=PER_CELL_TIMEOUT_SECS,\n");
+    out.push_str("        )\n");
+    out.push_str("    except subprocess.TimeoutExpired:\n");
+    out.push_str(
+        "        print(f\"  {label:60s} FAIL  timeout after {PER_CELL_TIMEOUT_SECS}s\")\n",
+    );
+    out.push_str("        fail_count += 1\n");
+    out.push_str("        continue\n");
     out.push_str("    output = (proc.stdout or b\"\").decode(\"utf-8\", errors=\"replace\")\n");
     out.push_str("    msg = output.lower()\n");
     out.push_str("    if proc.returncode == 0:\n");
@@ -3523,9 +3536,16 @@ fn render_python_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("`min_tier` exceeds the live account tier come back as a permission error\n");
     out.push_str("and are classified `SKIP: tier-permission`. Real configuration bugs\n");
     out.push_str("(invalid arguments, wire-format errors) surface as `FAIL`. See issue\n");
-    out.push_str("#287.\n\"\"\"\n");
+    out.push_str("#287.\n\n");
+    out.push_str("Each cell is bounded by a 60-second per-call timeout\n");
+    out.push_str("(concurrent.futures.ThreadPoolExecutor). A stuck cell classifies as\n");
+    out.push_str("FAIL with `timeout after 60s` rather than stalling CI indefinitely --\n");
+    out.push_str("a human should investigate whether the fixture is too broad or the\n");
+    out.push_str("server is misbehaving. See issue #290.\n\"\"\"\n");
+    out.push_str("import concurrent.futures\n");
     out.push_str("import sys\n\n");
     out.push_str("from thetadatadx import Credentials, Config, ThetaDataDx\n\n");
+    out.push_str("PER_CELL_TIMEOUT_SECS = 60\n\n");
     out.push_str(
         "client = ThetaDataDx(Credentials.from_file(sys.argv[1]), Config.production())\n\n",
     );
@@ -3555,12 +3575,31 @@ fn render_python_validate(endpoints: &[GeneratedEndpoint]) -> String {
     }
     out.push_str("]\n\n");
     out.push_str("pass_count = skip_count = fail_count = 0\n");
+    // A single-worker ThreadPoolExecutor per cell. The SDK's PyO3 methods
+    // release the GIL while blocked on the network, so the executor future
+    // *can* be timed out. But if a future blocks inside native code that
+    // never yields, cancel() is a no-op -- the background thread leaks for
+    // the rest of the process. That's acceptable for a validator: the
+    // process exits at the end, and surfacing a stuck cell as FAIL is
+    // strictly better than hanging CI.
     out.push_str("for endpoint, mode, min_tier, call in CELLS:\n");
     out.push_str("    label = f\"{endpoint}::{mode}\"\n");
+    // Do NOT use a `with` block: ThreadPoolExecutor.__exit__ calls
+    // shutdown(wait=True), which would block forever if the worker thread is
+    // stuck in a blocking PyO3 call. Instead, manually shutdown(wait=False)
+    // so the stuck thread leaks until process exit -- acceptable for a
+    // one-shot validator, the strictly-better alternative to hanging CI.
+    out.push_str("    pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)\n");
+    out.push_str("    future = pool.submit(call)\n");
     out.push_str("    try:\n");
-    out.push_str("        call()\n");
+    out.push_str("        future.result(timeout=PER_CELL_TIMEOUT_SECS)\n");
     out.push_str("        print(f\"  {label:60s} PASS\")\n");
     out.push_str("        pass_count += 1\n");
+    out.push_str("    except concurrent.futures.TimeoutError:\n");
+    out.push_str(
+        "        print(f\"  {label:60s} FAIL  timeout after {PER_CELL_TIMEOUT_SECS}s\")\n",
+    );
+    out.push_str("        fail_count += 1\n");
     out.push_str("    except Exception as e:\n");
     out.push_str("        msg = str(e).lower()\n");
     out.push_str("        if \"permission\" in msg or \"subscription\" in msg:\n");
@@ -3574,6 +3613,12 @@ fn render_python_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("        else:\n");
     out.push_str("            print(f\"  {label:60s} FAIL  {e}\")\n");
     out.push_str("            fail_count += 1\n");
+    out.push_str("    finally:\n");
+    out.push_str("        # wait=False so we don't block on a stuck worker thread;\n");
+    out.push_str(
+        "        # cancel_futures=True prevents queued (never-started) work from running.\n",
+    );
+    out.push_str("        pool.shutdown(wait=False, cancel_futures=True)\n");
     out.push('\n');
     out.push_str(
         "print(f\"\\nPython: {pass_count} PASS, {skip_count} SKIP, {fail_count} FAIL\")\n",
@@ -3591,15 +3636,42 @@ fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
     );
     out.push_str("package thetadatadx\n\n");
     out.push_str("import (\n");
+    out.push_str("\t\"errors\"\n");
     out.push_str("\t\"fmt\"\n");
     out.push_str("\t\"strings\"\n");
+    out.push_str("\t\"time\"\n");
     out.push_str(")\n\n");
+    out.push_str("// perCellTimeout caps each live cell at 60 seconds. A stuck cell classifies\n");
+    out.push_str("// as FAIL rather than stalling CI indefinitely. See issue #290.\n");
+    out.push_str("const perCellTimeout = 60 * time.Second\n\n");
+    out.push_str("// errCellTimeout is the sentinel the timeout path returns. We recognize\n");
+    out.push_str("// it in classify so the FAIL line clearly says \"timeout\".\n");
+    out.push_str("var errCellTimeout = errors.New(\"cell timeout after 60s\")\n\n");
+    out.push_str("// runWithTimeout runs call in a goroutine and returns either its error or\n");
+    out.push_str("// errCellTimeout if the call doesn't finish within perCellTimeout. The Go\n");
+    out.push_str("// SDK doesn't currently thread a context.Context into its CGo calls, so\n");
+    out.push_str("// a timed-out goroutine leaks until the blocking CGo call returns on its\n");
+    out.push_str("// own. That's acceptable for a validator (process exits at the end) but\n");
+    out.push_str("// not a substitute for real cancellation -- which is a separate, larger\n");
+    out.push_str("// change.\n");
+    out.push_str("func runWithTimeout(call func() error) error {\n");
+    out.push_str("\tdone := make(chan error, 1)\n");
+    out.push_str("\tgo func() { done <- call() }()\n");
+    out.push_str("\tselect {\n");
+    out.push_str("\tcase err := <-done:\n");
+    out.push_str("\t\treturn err\n");
+    out.push_str("\tcase <-time.After(perCellTimeout):\n");
+    out.push_str("\t\treturn errCellTimeout\n");
+    out.push_str("\t}\n");
+    out.push_str("}\n\n");
     out.push_str("// ValidateAllEndpoints runs the live parameter-mode matrix against `c`.\n");
     out.push_str("// Every cell is attempted against production; the server is the ground\n");
     out.push_str("// truth for what the account can access. Cells whose documented min_tier\n");
     out.push_str("// exceeds the live account tier come back as a permission error and are\n");
     out.push_str("// classified as SKIP: tier-permission. Real configuration bugs surface\n");
-    out.push_str("// as FAIL. Returns (pass, skip, fail) counts. See issue #287.\n");
+    out.push_str("// as FAIL. Cells that don't finish within 60 seconds classify as FAIL\n");
+    out.push_str("// with \"timeout after 60s\". Returns (pass, skip, fail) counts. See issues\n");
+    out.push_str("// #287, #290.\n");
     out.push_str("func ValidateAllEndpoints(c *Client) (int, int, int) {\n");
     out.push_str("\tpass, skip, fail := 0, 0, 0\n");
     out.push_str("\tvar err error\n\n");
@@ -3618,7 +3690,12 @@ fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
                 .map(|(param, value)| go_arg_literal(param, value))
                 .collect::<Vec<_>>()
                 .join(", ");
-            writeln!(out, "\t_, err = c.{}({})", go_name, args).unwrap();
+            writeln!(
+                out,
+                "\terr = runWithTimeout(func() error {{ _, e := c.{}({}); return e }})",
+                go_name, args
+            )
+            .unwrap();
             writeln!(
                 out,
                 "\tclassify({label:?}, {:?}, err, &pass, &skip, &fail)",
@@ -3640,6 +3717,11 @@ fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("\tif err == nil {\n");
     out.push_str("\t\tfmt.Printf(\"  %-60s PASS\\n\", label)\n");
     out.push_str("\t\t*pass++\n");
+    out.push_str("\t\treturn\n");
+    out.push_str("\t}\n");
+    out.push_str("\tif errors.Is(err, errCellTimeout) {\n");
+    out.push_str("\t\tfmt.Printf(\"  %-60s FAIL  timeout after 60s\\n\", label)\n");
+    out.push_str("\t\t*fail++\n");
     out.push_str("\t\treturn\n");
     out.push_str("\t}\n");
     out.push_str("\tlowered := strings.ToLower(err.Error())\n");
@@ -3674,16 +3756,24 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("// attempted against production; the server is the ground truth for what\n");
     out.push_str("// the account can access. Cells whose documented min_tier exceeds the\n");
     out.push_str("// live account tier come back as a permission error and are classified\n");
-    out.push_str("// SKIP: tier-permission. Real configuration bugs surface as FAIL. See\n");
-    out.push_str("// issue #287.\n");
+    out.push_str("// SKIP: tier-permission. Real configuration bugs surface as FAIL. Cells\n");
+    out.push_str("// that don't finish within 60 seconds classify as FAIL with \"timeout\n");
+    out.push_str("// after 60s\" (the worker thread is detached and leaks until the blocking\n");
+    out.push_str("// call returns on its own, which is acceptable for a single-shot\n");
+    out.push_str("// validator). See issues #287, #290.\n");
     out.push_str("#include <algorithm>\n");
     out.push_str("#include <cctype>\n");
+    out.push_str("#include <chrono>\n");
+    out.push_str("#include <future>\n");
     out.push_str("#include <iomanip>\n");
     out.push_str("#include <iostream>\n");
     out.push_str("#include <string>\n");
+    out.push_str("#include <thread>\n");
+    out.push_str("#include <utility>\n");
     out.push_str("#include <vector>\n");
     out.push_str("#include \"thetadx.hpp\"\n\n");
     out.push_str("namespace {\n\n");
+    out.push_str("constexpr auto kPerCellTimeout = std::chrono::seconds(60);\n\n");
     out.push_str("std::string lower(std::string value) {\n");
     out.push_str(
         "    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {\n",
@@ -3706,7 +3796,26 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
         "        auto cell = [&](const char* label, const char* declared_min_tier, auto&& call) {\n",
     );
     out.push_str("            try {\n");
-    out.push_str("                (void)call();\n");
+    out.push_str("                // std::packaged_task + detached std::thread so a timed-out\n");
+    out.push_str("                // future doesn't block in its destructor (which std::async's\n");
+    out.push_str("                // future does). Worker thread leaks until the SDK call\n");
+    out.push_str("                // returns; acceptable for a one-shot validator.\n");
+    out.push_str("                using Result = decltype(call());\n");
+    out.push_str(
+        "                std::packaged_task<Result()> task(std::forward<decltype(call)>(call));\n",
+    );
+    out.push_str("                auto future = task.get_future();\n");
+    out.push_str("                std::thread(std::move(task)).detach();\n");
+    out.push_str(
+        "                if (future.wait_for(kPerCellTimeout) == std::future_status::timeout) {\n",
+    );
+    out.push_str(
+        "                    std::cout << \"  \" << std::left << std::setw(60) << label << \" FAIL  timeout after 60s\" << std::endl;\n",
+    );
+    out.push_str("                    ++fail;\n");
+    out.push_str("                    return;\n");
+    out.push_str("                }\n");
+    out.push_str("                (void)future.get();\n");
     out.push_str(
         "                std::cout << \"  \" << std::left << std::setw(60) << label << \" PASS\" << std::endl;\n",
     );

@@ -10,6 +10,11 @@ ground truth for what the account can access. Cells whose documented
 and are classified `SKIP: tier-permission`. Real configuration bugs
 (invalid arguments, wire-format errors) surface as `FAIL`. See issue
 #287.
+
+Each cell is bounded by a 60-second subprocess timeout. A stuck cell
+classifies as FAIL with `timeout after 60s` rather than stalling CI
+indefinitely -- a human should investigate whether the fixture is too
+broad or the server is misbehaving. See issue #290.
 """
 from __future__ import annotations
 
@@ -17,6 +22,8 @@ import os
 import pathlib
 import subprocess
 import sys
+
+PER_CELL_TIMEOUT_SECS = 60
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 TDX = REPO / "target" / "release" / ("tdx.exe" if os.name == "nt" else "tdx")
@@ -219,13 +226,19 @@ creds = sys.argv[1]
 pass_count = skip_count = fail_count = 0
 for endpoint, mode, min_tier, argv in CELLS:
     label = f"{endpoint}::{mode}"
-    proc = subprocess.run(
-        [str(TDX), "--creds", creds, *argv, "--format", "json"],
-        cwd=REPO,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        check=False,
-    )
+    try:
+        proc = subprocess.run(
+            [str(TDX), "--creds", creds, *argv, "--format", "json"],
+            cwd=REPO,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+            timeout=PER_CELL_TIMEOUT_SECS,
+        )
+    except subprocess.TimeoutExpired:
+        print(f"  {label:60s} FAIL  timeout after {PER_CELL_TIMEOUT_SECS}s")
+        fail_count += 1
+        continue
     output = (proc.stdout or b"").decode("utf-8", errors="replace")
     msg = output.lower()
     if proc.returncode == 0:
