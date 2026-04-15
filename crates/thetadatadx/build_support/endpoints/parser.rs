@@ -76,8 +76,14 @@ pub(super) fn load_endpoint_specs() -> Result<ParsedEndpoints, Box<dyn std::erro
     println!("cargo:rerun-if-changed={spec_path}");
 
     let fixtures = into_test_fixtures(spec.test_fixtures);
-    validate_test_fixtures(&fixtures, &endpoints)?;
 
+    // Fixture validation is intentionally NOT run here — it touches the
+    // upstream OpenAPI snapshot (via `endpoint_supports_expiration_wildcard`)
+    // which isn't packaged into the Python sdist. `build.rs` → `generate_all`
+    // never emits validators, so a missing fixture row wouldn't produce
+    // corrupted output from this path. `sdk_files.rs::render_sdk_generated_files`
+    // — the only caller that actually emits validator code and therefore
+    // needs the fixtures — invokes [`validate_test_fixtures`] explicitly.
     Ok(ParsedEndpoints {
         endpoints,
         fixtures,
@@ -135,7 +141,7 @@ const KNOWN_MODE_OVERRIDES: &[&str] = &[
 /// Every check collects every offender across every fixture map and returns
 /// them in one combined error so a dev fixing TOML drift sees the full
 /// picture in a single rebuild, not one error per `cargo run`.
-fn validate_test_fixtures(
+pub(super) fn validate_test_fixtures(
     fixtures: &TestFixtures,
     endpoints: &[GeneratedEndpoint],
 ) -> Result<(), Box<dyn std::error::Error>> {

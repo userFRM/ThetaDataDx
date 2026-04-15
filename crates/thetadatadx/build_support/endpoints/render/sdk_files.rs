@@ -9,7 +9,7 @@
 use std::path::Path;
 
 use super::super::helpers::collect_builder_params;
-use super::super::parser::load_endpoint_specs;
+use super::super::parser::{load_endpoint_specs, validate_test_fixtures};
 use super::{cli_validate, cpp, cpp_validate, ffi, go, go_validate, python, python_validate};
 
 struct GeneratedSourceFile {
@@ -49,6 +49,12 @@ pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
 
 fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std::error::Error>> {
     let parsed = load_endpoint_specs()?;
+    // Fixtures power the live-validator matrix only — kept out of the
+    // `load_endpoint_specs` path so `build.rs` doesn't pay the upstream
+    // OpenAPI snapshot dependency (not in the Python sdist). Every fixture
+    // consumer flows through here, so validating at this seam catches
+    // every drift case with full per-endpoint blast radius.
+    validate_test_fixtures(&parsed.fixtures, &parsed.endpoints)?;
     let builder_params = collect_builder_params(&parsed.endpoints);
 
     Ok(vec![
