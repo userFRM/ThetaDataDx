@@ -1466,3 +1466,95 @@ wire_name = "option_history_quote"
 description = "Stream NBBO quotes for an option contract, chunk-by-chunk."
 rest_path = "/v3/option/history/quote"
 returns = "QuoteTicks"
+
+# ─────────────────────────── Live-validator fixtures ────────────────────────
+#
+# Representative values threaded into the (endpoint × mode) matrix that the
+# per-language live-validator renderers emit. Every mode in
+# `build_support/endpoints/modes.rs` reads its fixture values from this block
+# — there are no hardcoded fixture literals in Rust. Editing one row here
+# propagates to every generated validator (CLI, Python, Go, C++) the next
+# time `generate_sdk_surfaces` runs.
+#
+# `parser.rs::validate_test_fixtures` enforces fail-fast at build time:
+#   * every key in any fixture map must be in its expected vocabulary
+#     (real param name, real wire type, known mode/category). Typos like
+#     `expiratoin = "2025-03-21"` fail the build with the offending key.
+#   * every builder-bound optional param across all endpoints must have a
+#     row in `optional_defaults`. A missing row would otherwise silently
+#     drop the corresponding `with_<name>` cell from the matrix.
+
+[test_fixtures]
+# Anchor symbol per endpoint category. Picked to guarantee the representative
+# cell returns a non-empty response on the production server during a normal
+# session's trading window.
+category_symbol = { stock = "AAPL", option = "SPY", index = "SPX", rate = "SOFR" }
+
+# Default representative value per wire `param_type`. Used for every
+# method-call param except `Symbol`/`Symbols`, which route through
+# `category_symbol` above, and params listed in `concrete_overrides` below.
+# 20250303 is a Monday the pinned upstream snapshot confirms is a trading day
+# for every category we emit cells for.
+concrete_by_type = { Date = "20250303", Expiration = "20250321", Strike = "570", Right = "C", Interval = "60000", RequestType = "TRADE", Year = "2025", Str = "12:00:00.000" }
+
+# Per-param-name overrides that beat `concrete_by_type`. Used to compress
+# date ranges so bulk cells stack multiple 60s timeouts without blowing the
+# ~10-minute live-run budget (see issue #290). Widening this back to a
+# multi-day window is the first lever to pull if volume coverage matters
+# more than runtime for a specific cell.
+concrete_overrides = { end_date = "20250303" }
+
+[test_fixtures.optional_defaults]
+# Representative values for builder-bound optionals. Drive `with_<name>`
+# modes and the `all_optionals` combined cell. Every builder param across
+# every endpoint MUST have a row here (enforced by validate_test_fixtures);
+# without one, the corresponding `with_<name>` cell would silently drop
+# from the matrix.
+max_dte = "30"
+strike_range = "10"
+min_time = "09:45:00"
+venue = "nqb"
+start_time = "09:30:00"
+end_time = "10:00:00"
+start_date = "20250303"
+end_date = "20250303"
+exclusive = "true"
+annual_dividend = "0.015"
+rate_type = "sofr"
+rate_value = "0.05"
+stock_price = "150.0"
+version = "dg3"
+use_market_value = "true"
+underlyer_use_nbbo = "true"
+
+[test_fixtures.mode_overrides.concrete_iso]
+# ISO-dashed expiration acceptance is scoped to `Expiration` params (PR #284).
+expiration = "2025-03-21"
+
+[test_fixtures.mode_overrides.all_strikes_one_exp]
+# Concrete expiration, every strike across both rights. Emitted even for
+# endpoints that reject `expiration=*` because the expiration here is a real
+# date, not a wildcard.
+strike = "*"
+right = "both"
+
+[test_fixtures.mode_overrides.all_exps_one_strike]
+# Every expiration at one strike. Only emitted for endpoints upstream binds
+# to `expiration` (wildcard-accepting); skipped for those bound to
+# `expiration_no_star`.
+expiration = "*"
+right = "both"
+
+[test_fixtures.mode_overrides.bulk_chain]
+# Every expiration × every strike. Full option chain, skipped for
+# `expiration_no_star` endpoints.
+expiration = "*"
+strike = "*"
+right = "both"
+
+[test_fixtures.mode_overrides.legacy_zero_wildcard]
+# `0` sentinel is a v3 legacy wildcard form. Skipped for
+# `expiration_no_star` endpoints because they reject both `*` and `0`.
+expiration = "0"
+strike = "0"
+right = "both"

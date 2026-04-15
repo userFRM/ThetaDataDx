@@ -757,17 +757,6 @@ pub(super) fn cpp_builder_setter(
 
 // ───────────────────────── CLI / validator scaffolding ─────────────────────
 
-/// Map a `param_type` from the endpoint surface to a dummy value for Python validation.
-pub(super) fn validation_symbol(endpoint: &GeneratedEndpoint) -> &'static str {
-    match endpoint.category.as_str() {
-        "stock" => "AAPL",
-        "option" => "SPY",
-        "index" => "SPX",
-        "rate" => "SOFR",
-        other => panic!("unsupported validation endpoint category: {other}"),
-    }
-}
-
 pub(super) fn cli_command_name(endpoint: &GeneratedEndpoint) -> String {
     match endpoint.category.as_str() {
         "stock" | "option" | "index" | "calendar" => endpoint

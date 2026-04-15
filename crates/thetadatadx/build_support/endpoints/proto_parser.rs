@@ -7,7 +7,9 @@
 
 use std::collections::HashMap;
 
-use super::model::{GeneratedEndpoint, GeneratedParam, ParsedEndpoints, ProtoField, Rpc};
+use super::model::{
+    GeneratedEndpoint, GeneratedParam, ParsedEndpoints, ProtoField, Rpc, TestFixtures,
+};
 
 /// Parse endpoint metadata from `external.proto` into a reusable intermediate form.
 ///
@@ -122,7 +124,10 @@ pub(super) fn load_proto_endpoints() -> Result<ParsedEndpoints, Box<dyn std::err
         endpoints.push(range);
     }
 
-    Ok(ParsedEndpoints { endpoints })
+    Ok(ParsedEndpoints {
+        endpoints,
+        fixtures: TestFixtures::default(),
+    })
 }
 
 fn is_simple_list_method(method: &str) -> bool {
