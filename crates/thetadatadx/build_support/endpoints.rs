@@ -3130,7 +3130,7 @@ fn cli_command_tokens_for_mode(endpoint: &GeneratedEndpoint, mode: &TestMode) ->
 struct TestMode {
     /// Mode identifier (`concrete`, `bulk_chain`, `iso_date`, ...). Used in
     /// validator output so failures point at a specific cell.
-    name: &'static str,
+    name: String,
     /// Method-call positional arguments, in declaration order. Each entry is
     /// the language-agnostic string value (e.g. `"SPY"`, `"20260417"`,
     /// `"*"`). `Symbols`-typed params are still rendered as a single string
@@ -3145,6 +3145,12 @@ struct TestMode {
     ///   - `empty_ok`: a successful call that may legitimately return zero rows
     ///   - `error_permission`: tier/permission errors are PASS, real errors FAIL
     expect: &'static str,
+    /// Optional (builder-bound) parameter overrides to apply on this mode.
+    /// Each entry is `(param_name, representative_value)`. Rendered per
+    /// language: Python kwargs, Go `thetadatadx.WithXxx()` opts, C++
+    /// `EndpointRequestOptions{}.with_xxx()`. CLI skips these (positional
+    /// clap args don't support targeted optional injection); see PR #291.
+    builder_overrides: Vec<(String, String)>,
 }
 
 /// Minimum subscription tier each endpoint requires.
@@ -3208,9 +3214,15 @@ fn sdk_only_min_tier(name: &str) -> Option<&'static str> {
 
 /// Render the language-agnostic value for a method-call parameter at a
 /// concrete fixture (no wildcards, compact dates).
+///
+/// Date range is deliberately narrowed to a single day (20250303 = Mon)
+/// to keep the matrix within the ~10-minute live-run budget even when
+/// bulk-expiration / bulk-strike cells stack multiple 60s timeouts.
+/// Widening this back to a multi-day window is the first lever to pull
+/// if a cell's volume coverage matters more than runtime. See #290.
 fn concrete_value(endpoint: &GeneratedEndpoint, param: &GeneratedParam) -> String {
     if param.name == "end_date" {
-        return "20250307".into();
+        return "20250303".into();
     }
     match param.param_type.as_str() {
         "Symbol" | "Symbols" => validation_symbol(endpoint).into(),
@@ -3307,22 +3319,32 @@ fn test_modes_for(endpoint: &GeneratedEndpoint) -> Vec<TestMode> {
 
     // ── List endpoints: one mode, no wildcard expiration (server rejects). ──
     if is_simple_list_endpoint(endpoint) {
-        return vec![TestMode {
-            name: "basic",
-            args: concrete_args(endpoint),
-            min_tier: endpoint_tier,
-            expect: "non_empty",
-        }];
+        return append_optional_modes(
+            endpoint,
+            endpoint_tier,
+            vec![TestMode {
+                name: "basic".to_string(),
+                args: concrete_args(endpoint),
+                min_tier: endpoint_tier,
+                expect: "non_empty",
+                builder_overrides: Vec::new(),
+            }],
+        );
     }
 
     // ── Calendar / rate: one mode. ──────────────────────────────────────────
     if matches!(endpoint.category.as_str(), "calendar" | "rate") {
-        return vec![TestMode {
-            name: "basic",
-            args: concrete_args(endpoint),
-            min_tier: endpoint_tier,
-            expect: "non_empty",
-        }];
+        return append_optional_modes(
+            endpoint,
+            endpoint_tier,
+            vec![TestMode {
+                name: "basic".to_string(),
+                args: concrete_args(endpoint),
+                min_tier: endpoint_tier,
+                expect: "non_empty",
+                builder_overrides: Vec::new(),
+            }],
+        );
     }
 
     // ── Option ContractSpec: full wildcard cross-product, except where the
@@ -3335,54 +3357,60 @@ fn test_modes_for(endpoint: &GeneratedEndpoint) -> Vec<TestMode> {
     if has_full_contract_spec(endpoint) {
         let mut modes = vec![
             TestMode {
-                name: "concrete",
+                name: "concrete".to_string(),
                 args: concrete_args(endpoint),
                 min_tier: endpoint_tier,
                 expect: "non_empty",
+                builder_overrides: Vec::new(),
             },
             TestMode {
-                name: "concrete_iso",
+                name: "concrete_iso".to_string(),
                 args: args_with_overrides(endpoint, &[("expiration", "2025-03-21")]),
                 min_tier: endpoint_tier,
                 expect: "non_empty",
+                builder_overrides: Vec::new(),
             },
             TestMode {
-                name: "all_strikes_one_exp",
+                name: "all_strikes_one_exp".to_string(),
                 args: args_with_overrides(endpoint, &[("strike", "*"), ("right", "both")]),
                 min_tier: endpoint_tier,
                 expect: "non_empty",
+                builder_overrides: Vec::new(),
             },
         ];
         if endpoint_supports_expiration_wildcard(&endpoint.name) {
             modes.extend([
                 TestMode {
-                    name: "all_exps_one_strike",
+                    name: "all_exps_one_strike".to_string(),
                     args: args_with_overrides(endpoint, &[("expiration", "*"), ("right", "both")]),
                     min_tier: endpoint_tier,
                     expect: "non_empty",
+                    builder_overrides: Vec::new(),
                 },
                 TestMode {
-                    name: "bulk_chain",
+                    name: "bulk_chain".to_string(),
                     args: args_with_overrides(
                         endpoint,
                         &[("expiration", "*"), ("strike", "*"), ("right", "both")],
                     ),
                     min_tier: endpoint_tier,
                     expect: "non_empty",
+                    builder_overrides: Vec::new(),
                 },
                 TestMode {
-                    name: "legacy_zero_wildcard",
+                    name: "legacy_zero_wildcard".to_string(),
                     args: args_with_overrides(
                         endpoint,
                         &[("expiration", "0"), ("strike", "0"), ("right", "both")],
                     ),
                     min_tier: endpoint_tier,
                     expect: "non_empty",
+                    builder_overrides: Vec::new(),
                 },
             ]);
         }
         modes.dedup_by(|a, b| a.args == b.args && a.name == b.name);
-        return modes;
+        return append_optional_modes(endpoint, endpoint_tier, modes);
     }
 
     // ── Stock / index / non-ContractSpec endpoints. ─────────────────────────
@@ -3393,12 +3421,171 @@ fn test_modes_for(endpoint: &GeneratedEndpoint) -> Vec<TestMode> {
     // `YYYYMMDD` only — ISO-dashed acceptance is scoped to `Expiration`
     // (see PR #284). Adding an `iso_date` cell here would test behavior the
     // SDK contract intentionally does not support, so it would always fail.
-    vec![TestMode {
-        name: "concrete",
-        args: concrete_args(endpoint),
-        min_tier: endpoint_tier,
-        expect: "non_empty",
-    }]
+    append_optional_modes(
+        endpoint,
+        endpoint_tier,
+        vec![TestMode {
+            name: "concrete".to_string(),
+            args: concrete_args(endpoint),
+            min_tier: endpoint_tier,
+            expect: "non_empty",
+            builder_overrides: Vec::new(),
+        }],
+    )
+}
+
+/// Representative value to feed each builder-bound (optional) parameter in
+/// `with_<name>` and `all_optionals` modes. Kept dense here so callers see
+/// the full matrix at a glance.
+///
+/// Covers every optional currently exposed in `endpoint_surface.toml`. If a
+/// future builder param isn't listed, the generator falls back to `None`,
+/// which drops the mode (avoids emitting a cell with no actual coverage).
+fn optional_fixture_value(param_name: &str) -> Option<&'static str> {
+    Some(match param_name {
+        "max_dte" => "30",
+        "strike_range" => "10",
+        "min_time" => "09:45:00",
+        "venue" => "nqb",
+        "start_time" => "09:30:00",
+        "end_time" => "10:00:00",
+        "start_date" => "20250303",
+        "end_date" => "20250303",
+        "exclusive" => "true",
+        "annual_dividend" => "0.015",
+        "rate_type" => "sofr",
+        "rate_value" => "0.05",
+        "stock_price" => "150.0",
+        "version" => "dg3",
+        "use_market_value" => "true",
+        "underlyer_use_nbbo" => "true",
+        _ => return None,
+    })
+}
+
+/// Expand the baseline (wildcard/concrete) modes with one `with_<name>` cell
+/// per optional param the endpoint accepts, plus one `all_optionals` cell
+/// that sets every applicable optional at once.
+///
+/// Design decisions:
+/// * Start-time/end-time are a single `with_intraday_window` mode rather than
+///   two independent cells. The SDK accepts them independently but sending
+///   only one half makes the time window implicit which the server rejects.
+/// * Start-date/end-date are a single `with_date_range` mode, and only
+///   emitted if the endpoint has BOTH optional params. Sending only one
+///   half is an invalid argument on the wire.
+/// * The rest pair 1:1 with a single `with_<param_name>` mode.
+/// * The `all_optionals` mode collects every applicable representative value
+///   into one call — proves the SDK can serialize them all together.
+///
+/// No cell is ever deduplicated against another by wire shape: even if two
+/// generated modes would hit the server with identical bytes, we keep both
+/// so the cross-language agreement check can detect SDKs that diverge
+/// *only* on that cell. See PR #291 / issue #290.
+fn append_optional_modes(
+    endpoint: &GeneratedEndpoint,
+    endpoint_tier: &'static str,
+    mut modes: Vec<TestMode>,
+) -> Vec<TestMode> {
+    let optional_names: Vec<String> = builder_params(endpoint)
+        .iter()
+        .map(|param| param.name.clone())
+        .collect();
+    if optional_names.is_empty() {
+        return modes;
+    }
+
+    // Single compound modes: when both halves of a pair are present, emit a
+    // SINGLE cell that sets both. Otherwise skip (sending only one half is
+    // invalid on the wire for this SDK).
+    let has_param = |needle: &str| optional_names.iter().any(|n| n == needle);
+    let mut handled: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    // intraday window (start_time + end_time).
+    if has_param("start_time") && has_param("end_time") {
+        let overrides = vec![
+            (
+                "start_time".to_string(),
+                optional_fixture_value("start_time").unwrap().to_string(),
+            ),
+            (
+                "end_time".to_string(),
+                optional_fixture_value("end_time").unwrap().to_string(),
+            ),
+        ];
+        modes.push(TestMode {
+            name: "with_intraday_window".to_string(),
+            args: concrete_args(endpoint),
+            min_tier: endpoint_tier,
+            expect: "non_empty",
+            builder_overrides: overrides,
+        });
+        handled.insert("start_time".into());
+        handled.insert("end_time".into());
+    }
+
+    // date range (start_date + end_date), only when BOTH are optional on
+    // this endpoint. (They are required args on some endpoints; those skip
+    // this compound mode.)
+    if has_param("start_date") && has_param("end_date") {
+        let overrides = vec![
+            (
+                "start_date".to_string(),
+                optional_fixture_value("start_date").unwrap().to_string(),
+            ),
+            (
+                "end_date".to_string(),
+                optional_fixture_value("end_date").unwrap().to_string(),
+            ),
+        ];
+        modes.push(TestMode {
+            name: "with_date_range".to_string(),
+            args: concrete_args(endpoint),
+            min_tier: endpoint_tier,
+            expect: "non_empty",
+            builder_overrides: overrides,
+        });
+        handled.insert("start_date".into());
+        handled.insert("end_date".into());
+    }
+
+    // Per-parameter `with_<name>` modes for everything else.
+    for param_name in &optional_names {
+        if handled.contains(param_name) {
+            continue;
+        }
+        let Some(value) = optional_fixture_value(param_name) else {
+            continue;
+        };
+        modes.push(TestMode {
+            name: format!("with_{param_name}"),
+            args: concrete_args(endpoint),
+            min_tier: endpoint_tier,
+            expect: "non_empty",
+            builder_overrides: vec![(param_name.clone(), value.to_string())],
+        });
+    }
+
+    // `all_optionals` mode — set every applicable optional at once. Uses
+    // the compound fixtures for paired params (single intraday window, single
+    // date range) so the compound cell and this one agree on wire shape.
+    let mut all_overrides: Vec<(String, String)> = Vec::new();
+    for param_name in &optional_names {
+        if let Some(value) = optional_fixture_value(param_name) {
+            all_overrides.push((param_name.clone(), value.to_string()));
+        }
+    }
+    if !all_overrides.is_empty() {
+        modes.push(TestMode {
+            name: "all_optionals".to_string(),
+            args: concrete_args(endpoint),
+            min_tier: endpoint_tier,
+            expect: "non_empty",
+            builder_overrides: all_overrides,
+        });
+    }
+
+    modes
 }
 
 /// Render a single arg string as a Python literal expression, taking the
@@ -3426,6 +3613,68 @@ fn cpp_arg_literal(param: &GeneratedParam, value: &str) -> String {
     }
 }
 
+/// Look up a builder-bound `GeneratedParam` on the endpoint by name.
+fn builder_param_for<'a>(
+    endpoint: &'a GeneratedEndpoint,
+    name: &str,
+) -> Option<&'a GeneratedParam> {
+    endpoint
+        .params
+        .iter()
+        .find(|p| p.name == name && !is_method_call_param(p))
+}
+
+/// Render a Python kwarg value (`key=value`) for a builder-bound param,
+/// preserving the param's wire type (Bool → `True`/`False`, Int/Float → bare,
+/// Str → quoted).
+fn python_builder_kwarg(endpoint: &GeneratedEndpoint, name: &str, value: &str) -> Option<String> {
+    let param = builder_param_for(endpoint, name)?;
+    let literal = match param.param_type.as_str() {
+        "Bool" => match value {
+            "true" => "True".to_string(),
+            "false" => "False".to_string(),
+            other => panic!("python_builder_kwarg: bool override {other:?} must be true/false"),
+        },
+        "Int" | "Float" => value.to_string(),
+        _ => format!("\"{value}\""),
+    };
+    Some(format!("{name}={literal}"))
+}
+
+/// Render a Go `WithXxx(value)` option for a builder-bound param. The
+/// generated validate.go lives in the same `package thetadatadx` as the
+/// `WithXxx` ctors, so no package qualifier is needed.
+fn go_builder_option(endpoint: &GeneratedEndpoint, name: &str, value: &str) -> Option<String> {
+    let param = builder_param_for(endpoint, name)?;
+    let with_name = go_with_name_from_param(name);
+    let literal = match param.param_type.as_str() {
+        "Bool" => value.to_string(),
+        "Int" => format!("int32({value})"),
+        "Float" => value.to_string(),
+        _ => format!("\"{value}\""),
+    };
+    Some(format!("{with_name}({literal})"))
+}
+
+/// Convert a snake_case param name to the Go `WithXxx` exported ctor, keeping
+/// the `DTE`/`NBBO` acronym casing used in the existing hand-rolled options.
+fn go_with_name_from_param(name: &str) -> String {
+    let exported = name.split('_').map(go_segment_pascal).collect::<String>();
+    format!("With{exported}")
+}
+
+/// Render a C++ `.with_<name>(value)` chained setter for a builder-bound param.
+fn cpp_builder_setter(endpoint: &GeneratedEndpoint, name: &str, value: &str) -> Option<String> {
+    let param = builder_param_for(endpoint, name)?;
+    let literal = match param.param_type.as_str() {
+        "Bool" => value.to_string(),
+        "Int" => value.to_string(),
+        "Float" => value.to_string(),
+        _ => format!("\"{value}\""),
+    };
+    Some(format!(".with_{name}({literal})"))
+}
+
 /// Generate the CLI validator (one row per (endpoint, mode) pair).
 fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
     let mut out = String::new();
@@ -3447,13 +3696,18 @@ fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("indefinitely -- a human should investigate whether the fixture is too\n");
     out.push_str("broad or the server is misbehaving. See issue #290.\n\"\"\"\n");
     out.push_str("from __future__ import annotations\n\n");
+    out.push_str("import json\n");
     out.push_str("import os\n");
     out.push_str("import pathlib\n");
     out.push_str("import subprocess\n");
-    out.push_str("import sys\n\n");
+    out.push_str("import sys\n");
+    out.push_str("import time\n\n");
     out.push_str("PER_CELL_TIMEOUT_SECS = 60\n\n");
     out.push_str("REPO = pathlib.Path(__file__).resolve().parents[1]\n");
-    out.push_str("TDX = REPO / \"target\" / \"release\" / (\"tdx.exe\" if os.name == \"nt\" else \"tdx\")\n\n");
+    out.push_str(
+        "TDX = REPO / \"target\" / \"release\" / (\"tdx.exe\" if os.name == \"nt\" else \"tdx\")\n",
+    );
+    out.push_str("ARTIFACT_PATH = REPO / \"artifacts\" / \"validator_cli.json\"\n\n");
     out.push_str("# (endpoint, mode_name, declared_min_tier, [argv...])\n");
     out.push_str("# `declared_min_tier` is informational only (printed on tier-permission\n");
     out.push_str("# skips so you can see which modes the server refused).\n");
@@ -3481,8 +3735,26 @@ fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("    raise SystemExit(f\"missing CLI binary: {TDX}\")\n\n");
     out.push_str("creds = sys.argv[1]\n");
     out.push_str("pass_count = skip_count = fail_count = 0\n");
+    out.push_str("records: list[dict] = []  # one record per cell for the agreement check\n\n");
+    out.push_str("def _json_row_count(output: str) -> int:\n");
+    out.push_str("    \"\"\"Count top-level rows from the CLI's --format json response.\n\n");
+    out.push_str("    JSON lists count as `len`. JSON dicts count as 1 (single-object\n");
+    out.push_str("    responses like `calendar_open_today`). Non-JSON output (warnings,\n");
+    out.push_str("    stderr noise) counts as 0.\n");
+    out.push_str("    \"\"\"\n");
+    out.push_str("    try:\n");
+    out.push_str("        parsed = json.loads(output.strip().splitlines()[-1]) \\\n");
+    out.push_str("            if output.strip() else None\n");
+    out.push_str("    except (json.JSONDecodeError, IndexError):\n");
+    out.push_str("        return 0\n");
+    out.push_str("    if isinstance(parsed, list):\n");
+    out.push_str("        return len(parsed)\n");
+    out.push_str("    if isinstance(parsed, dict):\n");
+    out.push_str("        return 1\n");
+    out.push_str("    return 0\n\n");
     out.push_str("for endpoint, mode, min_tier, argv in CELLS:\n");
     out.push_str("    label = f\"{endpoint}::{mode}\"\n");
+    out.push_str("    t0 = time.monotonic()\n");
     out.push_str("    try:\n");
     out.push_str("        proc = subprocess.run(\n");
     out.push_str("            [str(TDX), \"--creds\", creds, *argv, \"--format\", \"json\"],\n");
@@ -3493,30 +3765,61 @@ fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("            timeout=PER_CELL_TIMEOUT_SECS,\n");
     out.push_str("        )\n");
     out.push_str("    except subprocess.TimeoutExpired:\n");
+    out.push_str("        duration_ms = int((time.monotonic() - t0) * 1000)\n");
     out.push_str(
         "        print(f\"  {label:60s} FAIL  timeout after {PER_CELL_TIMEOUT_SECS}s\")\n",
     );
     out.push_str("        fail_count += 1\n");
+    out.push_str("        records.append({\n");
+    out.push_str("            \"endpoint\": endpoint, \"mode\": mode, \"status\": \"FAIL\",\n");
+    out.push_str(
+        "            \"row_count\": 0, \"duration_ms\": duration_ms, \"detail\": \"timeout after 60s\",\n",
+    );
+    out.push_str("        })\n");
     out.push_str("        continue\n");
+    out.push_str("    duration_ms = int((time.monotonic() - t0) * 1000)\n");
     out.push_str("    output = (proc.stdout or b\"\").decode(\"utf-8\", errors=\"replace\")\n");
     out.push_str("    msg = output.lower()\n");
+    out.push_str("    row_count = 0\n");
+    out.push_str("    status: str\n");
+    out.push_str("    detail: str = \"\"\n");
     out.push_str("    if proc.returncode == 0:\n");
+    out.push_str("        row_count = _json_row_count(output)\n");
+    out.push_str("        status = \"PASS\"\n");
     out.push_str("        print(f\"  {label:60s} PASS\")\n");
     out.push_str("        pass_count += 1\n");
     out.push_str("    elif \"permission\" in msg or \"subscription\" in msg:\n");
+    out.push_str("        status = \"SKIP\"\n");
+    out.push_str("        detail = \"tier-permission\"\n");
     out.push_str(
         "        print(f\"  {label:60s} SKIP: tier-permission (declared min_tier={min_tier})\")\n",
     );
     out.push_str("        skip_count += 1\n");
     out.push_str("    elif \"no data found\" in msg:\n");
+    out.push_str("        status = \"PASS\"\n");
+    out.push_str("        detail = \"no data\"\n");
     out.push_str("        print(f\"  {label:60s} PASS  (no data)\")\n");
     out.push_str("        pass_count += 1\n");
     out.push_str("    else:\n");
+    out.push_str("        status = \"FAIL\"\n");
+    out.push_str("        detail = output.strip()[:200]\n");
     out.push_str("        print(f\"  {label:60s} FAIL  {output.strip()}\")\n");
     out.push_str("        fail_count += 1\n");
+    out.push_str("    records.append({\n");
+    out.push_str("        \"endpoint\": endpoint, \"mode\": mode, \"status\": status,\n");
+    out.push_str(
+        "        \"row_count\": row_count, \"duration_ms\": duration_ms, \"detail\": detail,\n",
+    );
+    out.push_str("    })\n");
     out.push('\n');
     out.push_str("print(f\"\\nCLI: {pass_count} PASS, {skip_count} SKIP, {fail_count} FAIL\")\n");
     out.push_str("print(f\"COUNTS:{pass_count}:{skip_count}:{fail_count}\")\n");
+    out.push_str("ARTIFACT_PATH.parent.mkdir(parents=True, exist_ok=True)\n");
+    out.push_str("ARTIFACT_PATH.write_text(json.dumps({\n");
+    out.push_str("    \"lang\": \"cli\",\n");
+    out.push_str("    \"records\": records,\n");
+    out.push_str("}, indent=2, sort_keys=True))\n");
+    out.push_str("print(f\"artifact: {ARTIFACT_PATH}\")\n");
     out.push_str("sys.exit(1 if fail_count > 0 else 0)\n");
     out
 }
@@ -3545,12 +3848,18 @@ fn render_python_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("block process teardown. Daemon threads are abruptly killed at\n");
     out.push_str("`_exit`, which is exactly what we want for a single-shot validator.\n");
     out.push_str("See issue #290.\n\"\"\"\n");
+    out.push_str("import json\n");
     out.push_str("import os\n");
+    out.push_str("import pathlib\n");
     out.push_str("import queue\n");
     out.push_str("import sys\n");
-    out.push_str("import threading\n\n");
+    out.push_str("import threading\n");
+    out.push_str("import time\n\n");
     out.push_str("from thetadatadx import Credentials, Config, ThetaDataDx\n\n");
-    out.push_str("PER_CELL_TIMEOUT_SECS = 60\n\n");
+    out.push_str("PER_CELL_TIMEOUT_SECS = 60\n");
+    out.push_str(
+        "ARTIFACT_PATH = pathlib.Path(__file__).resolve().parents[1] / \"artifacts\" / \"validator_python.json\"\n\n",
+    );
     out.push_str(
         "client = ThetaDataDx(Credentials.from_file(sys.argv[1]), Config.production())\n\n",
     );
@@ -3564,12 +3873,17 @@ fn render_python_validate(endpoints: &[GeneratedEndpoint]) -> String {
     {
         let mp = method_params(endpoint);
         for mode in test_modes_for(endpoint) {
-            let args = mp
+            let mut args_parts: Vec<String> = mp
                 .iter()
                 .zip(mode.args.iter())
                 .map(|(param, value)| python_arg_literal(param, value))
-                .collect::<Vec<_>>()
-                .join(", ");
+                .collect();
+            for (name, value) in &mode.builder_overrides {
+                if let Some(kwarg) = python_builder_kwarg(endpoint, name, value) {
+                    args_parts.push(kwarg);
+                }
+            }
+            let args = args_parts.join(", ");
             writeln!(
                 out,
                 "    ({:?}, {:?}, {:?}, lambda: client.{}({})),",
@@ -3579,7 +3893,8 @@ fn render_python_validate(endpoints: &[GeneratedEndpoint]) -> String {
         }
     }
     out.push_str("]\n\n");
-    out.push_str("pass_count = skip_count = fail_count = 0\n\n");
+    out.push_str("pass_count = skip_count = fail_count = 0\n");
+    out.push_str("records: list[dict] = []  # one record per cell for the agreement check\n\n");
     // Daemon thread + queue: a stuck call leaves the daemon thread running,
     // and os._exit() at the end kills it without waiting. Unlike
     // ThreadPoolExecutor, we don't register an atexit joiner -- that's the
@@ -3602,13 +3917,32 @@ fn render_python_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("        return q.get(timeout=timeout)\n");
     out.push_str("    except queue.Empty:\n");
     out.push_str("        return (\"timeout\", None)\n\n");
+    out.push_str("def _row_count(result):\n");
+    out.push_str("    \"\"\"Return a row count for the agreement check. Handles SDK return\n");
+    out.push_str("    shapes: list[Tick], str-list, and `None`. Non-list returns count as 1.\n");
+    out.push_str("    \"\"\"\n");
+    out.push_str("    if result is None:\n");
+    out.push_str("        return 0\n");
+    out.push_str("    try:\n");
+    out.push_str("        return len(result)\n");
+    out.push_str("    except TypeError:\n");
+    out.push_str("        return 1\n\n");
     out.push_str("for endpoint, mode, min_tier, call in CELLS:\n");
     out.push_str("    label = f\"{endpoint}::{mode}\"\n");
+    out.push_str("    t0 = time.monotonic()\n");
     out.push_str("    kind, value = _run_with_timeout(call, PER_CELL_TIMEOUT_SECS)\n");
+    out.push_str("    duration_ms = int((time.monotonic() - t0) * 1000)\n");
+    out.push_str("    row_count: int = 0\n");
+    out.push_str("    status: str\n");
+    out.push_str("    detail: str = \"\"\n");
     out.push_str("    if kind == \"ok\":\n");
+    out.push_str("        row_count = _row_count(value)\n");
+    out.push_str("        status = \"PASS\"\n");
     out.push_str("        print(f\"  {label:60s} PASS\", flush=True)\n");
     out.push_str("        pass_count += 1\n");
     out.push_str("    elif kind == \"timeout\":\n");
+    out.push_str("        status = \"FAIL\"\n");
+    out.push_str("        detail = f\"timeout after {PER_CELL_TIMEOUT_SECS}s\"\n");
     out.push_str(
         "        print(f\"  {label:60s} FAIL  timeout after {PER_CELL_TIMEOUT_SECS}s\", flush=True)\n",
     );
@@ -3616,21 +3950,41 @@ fn render_python_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("    else:  # 'err'\n");
     out.push_str("        msg = str(value).lower()\n");
     out.push_str("        if \"permission\" in msg or \"subscription\" in msg:\n");
+    out.push_str("            status = \"SKIP\"\n");
+    out.push_str("            detail = \"tier-permission\"\n");
     out.push_str(
         "            print(f\"  {label:60s} SKIP: tier-permission (declared min_tier={min_tier})\", flush=True)\n",
     );
     out.push_str("            skip_count += 1\n");
     out.push_str("        elif \"no data found\" in msg:\n");
+    out.push_str("            status = \"PASS\"\n");
+    out.push_str("            detail = \"no data\"\n");
     out.push_str("            print(f\"  {label:60s} PASS  (no data)\", flush=True)\n");
     out.push_str("            pass_count += 1\n");
     out.push_str("        else:\n");
+    out.push_str("            status = \"FAIL\"\n");
+    out.push_str("            detail = str(value)\n");
     out.push_str("            print(f\"  {label:60s} FAIL  {value}\", flush=True)\n");
     out.push_str("            fail_count += 1\n");
+    out.push_str("    records.append({\n");
+    out.push_str("        \"endpoint\": endpoint,\n");
+    out.push_str("        \"mode\": mode,\n");
+    out.push_str("        \"status\": status,\n");
+    out.push_str("        \"row_count\": row_count,\n");
+    out.push_str("        \"duration_ms\": duration_ms,\n");
+    out.push_str("        \"detail\": detail,\n");
+    out.push_str("    })\n");
     out.push('\n');
     out.push_str(
         "print(f\"\\nPython: {pass_count} PASS, {skip_count} SKIP, {fail_count} FAIL\", flush=True)\n",
     );
     out.push_str("print(f\"COUNTS:{pass_count}:{skip_count}:{fail_count}\", flush=True)\n");
+    out.push_str("ARTIFACT_PATH.parent.mkdir(parents=True, exist_ok=True)\n");
+    out.push_str("ARTIFACT_PATH.write_text(json.dumps({\n");
+    out.push_str("    \"lang\": \"python\",\n");
+    out.push_str("    \"records\": records,\n");
+    out.push_str("}, indent=2, sort_keys=True))\n");
+    out.push_str("print(f\"artifact: {ARTIFACT_PATH}\", flush=True)\n");
     // os._exit bypasses Python's interpreter shutdown, which otherwise joins
     // non-daemon threads (and ThreadPoolExecutor's atexit hook). A timed-out
     // PyO3 call sitting on a daemon thread is killed abruptly by _exit, which
@@ -3652,6 +4006,7 @@ fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("import (\n");
     out.push_str("\t\"errors\"\n");
     out.push_str("\t\"fmt\"\n");
+    out.push_str("\t\"reflect\"\n");
     out.push_str("\t\"strings\"\n");
     out.push_str("\t\"time\"\n");
     out.push_str(")\n\n");
@@ -3661,22 +4016,54 @@ fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("// errCellTimeout is the sentinel the timeout path returns. We recognize\n");
     out.push_str("// it in classify so the FAIL line clearly says \"timeout\".\n");
     out.push_str("var errCellTimeout = errors.New(\"cell timeout after 60s\")\n\n");
-    out.push_str("// runWithTimeout runs call in a goroutine and returns either its error or\n");
-    out.push_str("// errCellTimeout if the call doesn't finish within perCellTimeout. The Go\n");
-    out.push_str("// SDK doesn't currently thread a context.Context into its CGo calls, so\n");
-    out.push_str("// a timed-out goroutine leaks until the blocking CGo call returns on its\n");
-    out.push_str("// own. That's acceptable for a validator (process exits at the end) but\n");
-    out.push_str("// not a substitute for real cancellation -- which is a separate, larger\n");
-    out.push_str("// change.\n");
-    out.push_str("func runWithTimeout(call func() error) error {\n");
-    out.push_str("\tdone := make(chan error, 1)\n");
-    out.push_str("\tgo func() { done <- call() }()\n");
+    out.push_str("// CellRecord is one row of the validator's per-cell JSON artifact used\n");
+    out.push_str("// by the cross-language agreement check. `Status` is PASS|SKIP|FAIL.\n");
+    out.push_str("type CellRecord struct {\n");
+    out.push_str("\tEndpoint   string `json:\"endpoint\"`\n");
+    out.push_str("\tMode       string `json:\"mode\"`\n");
+    out.push_str("\tStatus     string `json:\"status\"`\n");
+    out.push_str("\tRowCount   int    `json:\"row_count\"`\n");
+    out.push_str("\tDurationMS int64  `json:\"duration_ms\"`\n");
+    out.push_str("\tDetail     string `json:\"detail\"`\n");
+    out.push_str("}\n\n");
+    out.push_str("// cellResult pairs the call's error with the derived row count. Used\n");
+    out.push_str("// internally by the timeout helper; external consumers look at the\n");
+    out.push_str("// returned record slice.\n");
+    out.push_str("type cellResult struct {\n");
+    out.push_str("\terr      error\n");
+    out.push_str("\trowCount int\n");
+    out.push_str("}\n\n");
+    out.push_str("// runWithTimeout runs call in a goroutine and returns either the result\n");
+    out.push_str("// or (errCellTimeout, 0) if the call doesn't finish within perCellTimeout.\n");
+    out.push_str("// The Go SDK doesn't thread a context.Context into its CGo calls, so a\n");
+    out.push_str("// timed-out goroutine leaks until the blocking call returns on its own.\n");
+    out.push_str("// Acceptable for a validator (process exits at the end); real cancellation\n");
+    out.push_str("// is a separate, larger change. See issue #290.\n");
+    out.push_str("func runWithTimeout(call func() (int, error)) cellResult {\n");
+    out.push_str("\tdone := make(chan cellResult, 1)\n");
+    out.push_str("\tgo func() {\n");
+    out.push_str("\t\tn, e := call()\n");
+    out.push_str("\t\tdone <- cellResult{err: e, rowCount: n}\n");
+    out.push_str("\t}()\n");
     out.push_str("\tselect {\n");
-    out.push_str("\tcase err := <-done:\n");
-    out.push_str("\t\treturn err\n");
+    out.push_str("\tcase r := <-done:\n");
+    out.push_str("\t\treturn r\n");
     out.push_str("\tcase <-time.After(perCellTimeout):\n");
-    out.push_str("\t\treturn errCellTimeout\n");
+    out.push_str("\t\treturn cellResult{err: errCellTimeout}\n");
     out.push_str("\t}\n");
+    out.push_str("}\n\n");
+    out.push_str("// goRowCount returns len() for slices, 1 for non-nil non-slice, 0 for\n");
+    out.push_str("// nil. Uses reflect so it works across all SDK tick types uniformly\n");
+    out.push_str("// without a huge switch.\n");
+    out.push_str("func goRowCount(v interface{}) int {\n");
+    out.push_str("\tif v == nil {\n");
+    out.push_str("\t\treturn 0\n");
+    out.push_str("\t}\n");
+    out.push_str("\trv := reflect.ValueOf(v)\n");
+    out.push_str("\tif rv.Kind() == reflect.Slice {\n");
+    out.push_str("\t\treturn rv.Len()\n");
+    out.push_str("\t}\n");
+    out.push_str("\treturn 1\n");
     out.push_str("}\n\n");
     out.push_str("// ValidateAllEndpoints runs the live parameter-mode matrix against `c`.\n");
     out.push_str("// Every cell is attempted against production; the server is the ground\n");
@@ -3684,16 +4071,19 @@ fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("// exceeds the live account tier come back as a permission error and are\n");
     out.push_str("// classified as SKIP: tier-permission. Real configuration bugs surface\n");
     out.push_str("// as FAIL. Cells that don't finish within 60 seconds classify as FAIL\n");
-    out.push_str("// with \"timeout after 60s\". Returns (pass, skip, fail, hadTimeout). When\n");
-    out.push_str("// `hadTimeout` is true, at least one goroutine is still running the CGo\n");
-    out.push_str("// call it was started for; callers MUST os.Exit() instead of Close()ing\n");
+    out.push_str(
+        "// with \"timeout after 60s\". Returns (pass, skip, fail, hadTimeout, records).\n",
+    );
+    out.push_str("// When `hadTimeout` is true, at least one goroutine is still running the\n");
+    out.push_str("// CGo call it was started for; callers MUST os.Exit() instead of Close()ing\n");
     out.push_str("// the Client, because the leaked goroutine still holds a pointer to its\n");
     out.push_str("// FFI handle. Closing in that window is a use-after-free. See issues\n");
     out.push_str("// #287, #290.\n");
-    out.push_str("func ValidateAllEndpoints(c *Client) (int, int, int, bool) {\n");
+    out.push_str("func ValidateAllEndpoints(c *Client) (int, int, int, bool, []CellRecord) {\n");
     out.push_str("\tpass, skip, fail := 0, 0, 0\n");
     out.push_str("\thadTimeout := false\n");
-    out.push_str("\tvar err error\n\n");
+    out.push_str("\trecords := make([]CellRecord, 0)\n");
+    out.push_str("\tvar r cellResult\n\n");
 
     for endpoint in endpoints
         .iter()
@@ -3702,51 +4092,57 @@ fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
         let go_name = to_go_exported_name(&endpoint.name);
         let mp = method_params(endpoint);
         for mode in test_modes_for(endpoint) {
-            let label = format!("{}::{}", endpoint.name, mode.name);
-            let args = mp
+            let mut args_parts: Vec<String> = mp
                 .iter()
                 .zip(mode.args.iter())
                 .map(|(param, value)| go_arg_literal(param, value))
-                .collect::<Vec<_>>()
-                .join(", ");
+                .collect();
+            for (name, value) in &mode.builder_overrides {
+                if let Some(opt) = go_builder_option(endpoint, name, value) {
+                    args_parts.push(opt);
+                }
+            }
+            let args = args_parts.join(", ");
             writeln!(
                 out,
-                "\terr = runWithTimeout(func() error {{ _, e := c.{}({}); return e }})",
+                "\tr = runWithTimeout(func() (int, error) {{ v, e := c.{}({}); return goRowCount(v), e }})",
                 go_name, args
             )
             .unwrap();
             writeln!(
                 out,
-                "\tclassify({label:?}, {:?}, err, &pass, &skip, &fail, &hadTimeout)",
-                mode.min_tier
+                "\trecords = classify({:?}, {:?}, {:?}, r, &pass, &skip, &fail, &hadTimeout, records)",
+                endpoint.name, mode.name, mode.min_tier
             )
             .unwrap();
         }
         out.push('\n');
     }
 
-    out.push_str("\treturn pass, skip, fail, hadTimeout\n");
+    out.push_str("\treturn pass, skip, fail, hadTimeout, records\n");
     out.push_str("}\n\n");
-    out.push_str("// classify maps a live call outcome into PASS / SKIP / FAIL buckets.\n");
-    out.push_str("// `declaredMinTier` is echoed on tier-permission skips so the caller can\n");
-    out.push_str("// see which documented tier the server refused. When the call timed\n");
-    out.push_str("// out, `hadTimeout` is set -- callers use it to decide whether to skip\n");
-    out.push_str("// Close() on the client (which would race with the leaked goroutine).\n");
+    out.push_str("// classify maps a live call outcome into PASS / SKIP / FAIL buckets and\n");
+    out.push_str("// appends a CellRecord for the agreement-check JSON artifact.\n");
     out.push_str(
-        "func classify(label, declaredMinTier string, err error, pass, skip, fail *int, hadTimeout *bool) {\n",
+        "func classify(endpoint, mode, declaredMinTier string, r cellResult, pass, skip, fail *int, hadTimeout *bool, records []CellRecord) []CellRecord {\n",
     );
-    out.push_str("\tif err == nil {\n");
+    out.push_str("\tlabel := endpoint + \"::\" + mode\n");
+    out.push_str("\trec := CellRecord{Endpoint: endpoint, Mode: mode, RowCount: r.rowCount}\n");
+    out.push_str("\tif r.err == nil {\n");
     out.push_str("\t\tfmt.Printf(\"  %-60s PASS\\n\", label)\n");
     out.push_str("\t\t*pass++\n");
-    out.push_str("\t\treturn\n");
+    out.push_str("\t\trec.Status = \"PASS\"\n");
+    out.push_str("\t\treturn append(records, rec)\n");
     out.push_str("\t}\n");
-    out.push_str("\tif errors.Is(err, errCellTimeout) {\n");
+    out.push_str("\tif errors.Is(r.err, errCellTimeout) {\n");
     out.push_str("\t\tfmt.Printf(\"  %-60s FAIL  timeout after 60s\\n\", label)\n");
     out.push_str("\t\t*fail++\n");
     out.push_str("\t\t*hadTimeout = true\n");
-    out.push_str("\t\treturn\n");
+    out.push_str("\t\trec.Status = \"FAIL\"\n");
+    out.push_str("\t\trec.Detail = \"timeout after 60s\"\n");
+    out.push_str("\t\treturn append(records, rec)\n");
     out.push_str("\t}\n");
-    out.push_str("\tlowered := strings.ToLower(err.Error())\n");
+    out.push_str("\tlowered := strings.ToLower(r.err.Error())\n");
     out.push_str(
         "\tif strings.Contains(lowered, \"permission\") || strings.Contains(lowered, \"subscription\") {\n",
     );
@@ -3754,15 +4150,26 @@ fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
         "\t\tfmt.Printf(\"  %-60s SKIP: tier-permission (declared min_tier=%s)\\n\", label, declaredMinTier)\n",
     );
     out.push_str("\t\t*skip++\n");
-    out.push_str("\t\treturn\n");
+    out.push_str("\t\trec.Status = \"SKIP\"\n");
+    out.push_str("\t\trec.Detail = \"tier-permission\"\n");
+    out.push_str("\t\treturn append(records, rec)\n");
     out.push_str("\t}\n");
     out.push_str("\tif strings.Contains(lowered, \"no data found\") {\n");
     out.push_str("\t\tfmt.Printf(\"  %-60s PASS  (no data)\\n\", label)\n");
     out.push_str("\t\t*pass++\n");
-    out.push_str("\t\treturn\n");
+    out.push_str("\t\trec.Status = \"PASS\"\n");
+    out.push_str("\t\trec.Detail = \"no data\"\n");
+    out.push_str("\t\treturn append(records, rec)\n");
     out.push_str("\t}\n");
-    out.push_str("\tfmt.Printf(\"  %-60s FAIL  %v\\n\", label, err)\n");
+    out.push_str("\tfmt.Printf(\"  %-60s FAIL  %v\\n\", label, r.err)\n");
     out.push_str("\t*fail++\n");
+    out.push_str("\trec.Status = \"FAIL\"\n");
+    out.push_str("\tdetail := r.err.Error()\n");
+    out.push_str("\tif len(detail) > 200 {\n");
+    out.push_str("\t\tdetail = detail[:200]\n");
+    out.push_str("\t}\n");
+    out.push_str("\trec.Detail = detail\n");
+    out.push_str("\treturn append(records, rec)\n");
     out.push_str("}\n");
 
     out
@@ -3791,10 +4198,13 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("#include <cctype>\n");
     out.push_str("#include <chrono>\n");
     out.push_str("#include <cstdlib>\n");
+    out.push_str("#include <fstream>\n");
     out.push_str("#include <future>\n");
     out.push_str("#include <iomanip>\n");
     out.push_str("#include <iostream>\n");
+    out.push_str("#include <sstream>\n");
     out.push_str("#include <string>\n");
+    out.push_str("#include <sys/stat.h>\n");
     out.push_str("#include <thread>\n");
     out.push_str("#include <utility>\n");
     out.push_str("#include <vector>\n");
@@ -3809,6 +4219,36 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("    });\n");
     out.push_str("    return value;\n");
     out.push_str("}\n\n");
+    out.push_str("struct CellRecord {\n");
+    out.push_str("    std::string endpoint;\n");
+    out.push_str("    std::string mode;\n");
+    out.push_str("    std::string status;\n");
+    out.push_str("    int row_count = 0;\n");
+    out.push_str("    long long duration_ms = 0;\n");
+    out.push_str("    std::string detail;\n");
+    out.push_str("};\n\n");
+    out.push_str("std::string json_escape(const std::string& in) {\n");
+    out.push_str("    std::string out;\n");
+    out.push_str("    out.reserve(in.size() + 2);\n");
+    out.push_str("    for (char c : in) {\n");
+    out.push_str("        switch (c) {\n");
+    out.push_str("            case '\\\\': out += \"\\\\\\\\\"; break;\n");
+    out.push_str("            case '\"':  out += \"\\\\\\\"\"; break;\n");
+    out.push_str("            case '\\n': out += \"\\\\n\";  break;\n");
+    out.push_str("            case '\\r': out += \"\\\\r\";  break;\n");
+    out.push_str("            case '\\t': out += \"\\\\t\";  break;\n");
+    out.push_str("            default:\n");
+    out.push_str("                if (static_cast<unsigned char>(c) < 0x20) {\n");
+    out.push_str("                    char buf[8];\n");
+    out.push_str("                    std::snprintf(buf, sizeof(buf), \"\\\\u%04x\", c);\n");
+    out.push_str("                    out += buf;\n");
+    out.push_str("                } else {\n");
+    out.push_str("                    out += c;\n");
+    out.push_str("                }\n");
+    out.push_str("        }\n");
+    out.push_str("    }\n");
+    out.push_str("    return out;\n");
+    out.push_str("}\n\n");
     out.push_str("} // namespace\n\n");
     out.push_str("int main(int argc, char** argv) {\n");
     out.push_str("    const std::string creds_path = argc > 1 ? argv[1] : \"creds.txt\";\n");
@@ -3818,14 +4258,20 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("    // Track whether any cell timed out. Leaked worker threads racing with\n");
     out.push_str("    // RAII Close() on client/config/creds would be UB, so we _Exit at end\n");
     out.push_str("    // if this flag is set instead of returning.\n");
-    out.push_str("    bool any_timeout = false;\n\n");
+    out.push_str("    bool any_timeout = false;\n");
+    out.push_str("    std::vector<CellRecord> records;\n\n");
     out.push_str("    try {\n");
     out.push_str("        auto creds = tdx::Credentials::from_file(creds_path);\n");
     out.push_str("        auto config = tdx::Config::production();\n");
     out.push_str("        auto client = tdx::Client::connect(creds, config);\n\n");
     out.push_str(
-        "        auto cell = [&](const char* label, const char* declared_min_tier, auto&& call) {\n",
+        "        auto cell = [&](const char* endpoint, const char* mode, const char* declared_min_tier, auto&& call) {\n",
     );
+    out.push_str("            const std::string label = std::string(endpoint) + \"::\" + mode;\n");
+    out.push_str(
+        "            CellRecord rec{endpoint, mode, std::string{}, 0, 0, std::string{}};\n",
+    );
+    out.push_str("            const auto t0 = std::chrono::steady_clock::now();\n");
     out.push_str("            try {\n");
     out.push_str("                // std::packaged_task + detached std::thread so a timed-out\n");
     out.push_str("                // future doesn't block in its destructor (which std::async's\n");
@@ -3847,13 +4293,21 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
     );
     out.push_str("                    ++fail;\n");
     out.push_str("                    any_timeout = true;\n");
+    out.push_str("                    rec.status = \"FAIL\";\n");
+    out.push_str("                    rec.detail = \"timeout after 60s\";\n");
+    out.push_str(
+        "                    rec.duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count();\n",
+    );
+    out.push_str("                    records.push_back(rec);\n");
     out.push_str("                    return;\n");
     out.push_str("                }\n");
-    out.push_str("                (void)future.get();\n");
+    out.push_str("                auto value = future.get();\n");
+    out.push_str("                rec.row_count = static_cast<int>(value.size());\n");
     out.push_str(
         "                std::cout << \"  \" << std::left << std::setw(60) << label << \" PASS\" << std::endl;\n",
     );
     out.push_str("                ++pass;\n");
+    out.push_str("                rec.status = \"PASS\";\n");
     out.push_str("            } catch (const std::exception& e) {\n");
     out.push_str("                const std::string msg = lower(e.what());\n");
     out.push_str(
@@ -3863,6 +4317,8 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
         "                    std::cout << \"  \" << std::left << std::setw(60) << label << \" SKIP: tier-permission (declared min_tier=\" << declared_min_tier << \")\" << std::endl;\n",
     );
     out.push_str("                    ++skip;\n");
+    out.push_str("                    rec.status = \"SKIP\";\n");
+    out.push_str("                    rec.detail = \"tier-permission\";\n");
     out.push_str(
         "                } else if (msg.find(\"no data found\") != std::string::npos) {\n",
     );
@@ -3870,13 +4326,23 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
         "                    std::cout << \"  \" << std::left << std::setw(60) << label << \" PASS  (no data)\" << std::endl;\n",
     );
     out.push_str("                    ++pass;\n");
+    out.push_str("                    rec.status = \"PASS\";\n");
+    out.push_str("                    rec.detail = \"no data\";\n");
     out.push_str("                } else {\n");
     out.push_str(
         "                    std::cout << \"  \" << std::left << std::setw(60) << label << \" FAIL  \" << e.what() << std::endl;\n",
     );
     out.push_str("                    ++fail;\n");
+    out.push_str("                    rec.status = \"FAIL\";\n");
+    out.push_str("                    std::string d = e.what();\n");
+    out.push_str("                    if (d.size() > 200) { d = d.substr(0, 200); }\n");
+    out.push_str("                    rec.detail = std::move(d);\n");
     out.push_str("                }\n");
     out.push_str("            }\n");
+    out.push_str(
+        "            rec.duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count();\n",
+    );
+    out.push_str("            records.push_back(rec);\n");
     out.push_str("        };\n\n");
 
     for endpoint in endpoints
@@ -3885,17 +4351,26 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
     {
         let mp = method_params(endpoint);
         for mode in test_modes_for(endpoint) {
-            let label = format!("{}::{}", endpoint.name, mode.name);
-            let args = mp
+            let mut args_parts: Vec<String> = mp
                 .iter()
                 .zip(mode.args.iter())
                 .map(|(param, value)| cpp_arg_literal(param, value))
-                .collect::<Vec<_>>()
-                .join(", ");
+                .collect();
+            if !mode.builder_overrides.is_empty() {
+                let setters: String = mode
+                    .builder_overrides
+                    .iter()
+                    .filter_map(|(name, value)| cpp_builder_setter(endpoint, name, value))
+                    .collect();
+                if !setters.is_empty() {
+                    args_parts.push(format!("tdx::EndpointRequestOptions{{}}{setters}"));
+                }
+            }
+            let args = args_parts.join(", ");
             writeln!(
                 out,
-                "        cell({:?}, {:?}, [&] {{ return client.{}({}); }});",
-                label, mode.min_tier, endpoint.name, args
+                "        cell({:?}, {:?}, {:?}, [&] {{ return client.{}({}); }});",
+                endpoint.name, mode.name, mode.min_tier, endpoint.name, args
             )
             .unwrap();
         }
@@ -3913,6 +4388,41 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str(
         "    std::cout << \"COUNTS:\" << pass << \":\" << skip << \":\" << fail << std::endl;\n",
     );
+    // Emit the per-cell JSON artifact for the cross-language agreement check.
+    // Write relative to the working directory; the validate_release.sh wrapper
+    // cd's into the repo root so artifacts land in the standard location.
+    out.push_str("    try {\n");
+    out.push_str("        const char* artifact_dir = \"artifacts\";\n");
+    out.push_str("        mkdir(artifact_dir, 0755);\n");
+    out.push_str("        std::ofstream artifact(\"artifacts/validator_cpp.json\");\n");
+    out.push_str(
+        "        artifact << \"{\\n  \\\"lang\\\": \\\"cpp\\\",\\n  \\\"records\\\": [\\n\";\n",
+    );
+    out.push_str("        for (size_t i = 0; i < records.size(); ++i) {\n");
+    out.push_str("            const auto& r = records[i];\n");
+    out.push_str(
+        "            artifact << \"    {\\\"endpoint\\\": \\\"\" << json_escape(r.endpoint) << \"\\\", \";\n",
+    );
+    out.push_str(
+        "            artifact << \"\\\"mode\\\": \\\"\" << json_escape(r.mode) << \"\\\", \";\n",
+    );
+    out.push_str(
+        "            artifact << \"\\\"status\\\": \\\"\" << json_escape(r.status) << \"\\\", \";\n",
+    );
+    out.push_str("            artifact << \"\\\"row_count\\\": \" << r.row_count << \", \";\n");
+    out.push_str("            artifact << \"\\\"duration_ms\\\": \" << r.duration_ms << \", \";\n");
+    out.push_str(
+        "            artifact << \"\\\"detail\\\": \\\"\" << json_escape(r.detail) << \"\\\"}\";\n",
+    );
+    out.push_str("            if (i + 1 < records.size()) { artifact << \",\"; }\n");
+    out.push_str("            artifact << \"\\n\";\n");
+    out.push_str("        }\n");
+    out.push_str("        artifact << \"  ]\\n}\\n\";\n");
+    out.push_str("        artifact.close();\n");
+    out.push_str("        std::cout << \"artifact: artifacts/validator_cpp.json\" << std::endl;\n");
+    out.push_str("    } catch (const std::exception& e) {\n");
+    out.push_str("        std::cerr << \"artifact write failure: \" << e.what() << std::endl;\n");
+    out.push_str("    }\n");
     out.push_str("    std::cout.flush();\n");
     out.push_str("    std::cerr.flush();\n");
     out.push_str("    if (any_timeout) {\n");
