@@ -496,11 +496,22 @@ def _run_with_timeout(call, timeout):
         return ("timeout", None)
 
 def _row_count(result):
-    """Return a row count for the agreement check. Handles SDK return
-    shapes: list[Tick], str-list, and `None`. Non-list returns count as 1.
+    """Return a row count for the agreement check.
+
+    Handles the three Python SDK return shapes:
+      - `list[Tick]`          -> len(list)            (history endpoints)
+      - columnar dict         -> len(any column list) (snapshot endpoints)
+      - str-list              -> len(list)            (list endpoints)
+      - None                   -> 0                   (void returns)
     """
     if result is None:
         return 0
+    if isinstance(result, dict):
+        # Columnar: each column is a list; rows = len of any column.
+        for v in result.values():
+            if isinstance(v, list):
+                return len(v)
+        return 1  # dict with no list columns (shouldn't happen in practice)
     try:
         return len(result)
     except TypeError:
