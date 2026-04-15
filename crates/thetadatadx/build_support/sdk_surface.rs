@@ -354,18 +354,18 @@ fn render_go_fpss_methods(methods: &[String]) -> String {
 }
 
 /// Substrings that identify an FFI thread-local error read in generated
-/// Go code. This is the single source of truth shared between this
-/// post-processor and the static audit test in
-/// `sdks/go/timeout_pin_test.go::tlsReaderMarkers`. Adding a new marker
-/// here requires mirroring the change there.
+/// Go code. Paired with `tlsReaderMarkers` in
+/// `sdks/go/timeout_pin_test.go` — both lists MUST stay byte-identical,
+/// enforced by the `go_tls_marker_list_mirrors_rust` integration test
+/// at `crates/thetadatadx/tests/go_tls_marker_parity.rs`. A divergent
+/// addition on either side fails that test naming the missing entries.
 const GO_TLS_READER_MARKERS: &[&str] = &[
     "lastError(",
     "lastErrorRaw(",
     "f.fpssCall(",
     "C.tdx_last_error(",
     // Helpers that themselves read the TLS slot — callers must pin
-    // before invoking them. Kept in sync with the static audit in
-    // `sdks/go/timeout_pin_test.go::tlsReaderMarkers`.
+    // before invoking them.
     "stringArrayToGo(",
 ];
 

@@ -15,10 +15,13 @@ import (
 // `runtime.LockOSThread()` (with a matching deferred unlock) before
 // reaching that line.
 //
-// This list is the single source of truth for "what counts as a TLS
-// reader" shared with the generator's `inject_os_thread_pin`
-// post-processor in `crates/thetadatadx/build_support/sdk_surface.rs`.
-// Adding a new marker here requires mirroring the change there.
+// Paired with `GO_TLS_READER_MARKERS` in
+// `crates/thetadatadx/build_support/sdk_surface.rs`. The two lists
+// MUST stay byte-identical — enforced by the
+// `go_tls_marker_list_mirrors_rust` integration test at
+// `crates/thetadatadx/tests/go_tls_marker_parity.rs`. A divergent
+// addition on either side fails that test naming the missing
+// entries.
 var tlsReaderMarkers = []string{
 	"lastError(",
 	"lastErrorRaw(",
