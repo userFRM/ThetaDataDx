@@ -81,7 +81,8 @@ pub(super) fn render_python_validate(endpoints: &[GeneratedEndpoint]) -> String 
     }
     out.push_str("]\n\n");
     out.push_str("pass_count = skip_count = fail_count = 0\n");
-    out.push_str("records: list[dict] = []  # one record per cell for the agreement check\n\n");
+    out.push_str("records: list[dict] = []  # one record per cell for the agreement check\n");
+    out.push_str("aborted = False  # flips True on the first timeout; all later cells SKIP\n\n");
     // Daemon thread + queue: a stuck call leaves the daemon thread running,
     // and os._exit() at the end kills it without waiting. Unlike
     // ThreadPoolExecutor, we don't register an atexit joiner -- that's the
@@ -126,6 +127,22 @@ pub(super) fn render_python_validate(endpoints: &[GeneratedEndpoint]) -> String 
     out.push_str("        return 1\n\n");
     out.push_str("for endpoint, mode, min_tier, call in CELLS:\n");
     out.push_str("    label = f\"{endpoint}::{mode}\"\n");
+    out.push_str("    # Once a cell has timed out, its daemon worker is still running the\n");
+    out.push_str("    # blocking PyO3/FFI call on the shared client. The underlying FFI is\n");
+    out.push_str("    # not thread-safe on the same handle, so we refuse to issue more\n");
+    out.push_str("    # calls on the client and record the rest as SKIP:\n");
+    out.push_str("    # aborted-after-timeout. This keeps the artifact's cell list\n");
+    out.push_str("    # complete for the cross-language agreement check.\n");
+    out.push_str("    if aborted:\n");
+    out.push_str("        print(f\"  {label:60s} SKIP: aborted-after-timeout\", flush=True)\n");
+    out.push_str("        skip_count += 1\n");
+    out.push_str("        records.append({\n");
+    out.push_str("            \"endpoint\": endpoint, \"mode\": mode, \"status\": \"SKIP\",\n");
+    out.push_str(
+        "            \"row_count\": 0, \"duration_ms\": 0, \"detail\": \"aborted-after-timeout\",\n",
+    );
+    out.push_str("        })\n");
+    out.push_str("        continue\n");
     out.push_str("    t0 = time.monotonic()\n");
     out.push_str("    kind, value = _run_with_timeout(call, PER_CELL_TIMEOUT_SECS)\n");
     out.push_str("    duration_ms = int((time.monotonic() - t0) * 1000)\n");
@@ -144,6 +161,7 @@ pub(super) fn render_python_validate(endpoints: &[GeneratedEndpoint]) -> String 
         "        print(f\"  {label:60s} FAIL  timeout after {PER_CELL_TIMEOUT_SECS}s\", flush=True)\n",
     );
     out.push_str("        fail_count += 1\n");
+    out.push_str("        aborted = True\n");
     out.push_str("    else:  # 'err'\n");
     out.push_str("        msg = str(value).lower()\n");
     out.push_str("        if \"permission\" in msg or \"subscription\" in msg:\n");

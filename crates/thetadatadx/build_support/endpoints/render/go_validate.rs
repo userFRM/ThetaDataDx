@@ -118,23 +118,51 @@ pub(super) fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
                 }
             }
             let args = args_parts.join(", ");
+            // After a timeout fires, the worker goroutine still holds `c` and
+            // is calling the not-thread-safe FFI against it. Skip every
+            // remaining cell until the process exits rather than issue a
+            // parallel call on the same handle. See ffi/src/lib.rs:21.
+            out.push_str("\tif !hadTimeout {\n");
             writeln!(
                 out,
-                "\tr = runWithTimeout(func() (int, error) {{ v, e := c.{}({}); return goRowCount(v), e }})",
+                "\t\tr = runWithTimeout(func() (int, error) {{ v, e := c.{}({}); return goRowCount(v), e }})",
                 go_name, args
             )
             .unwrap();
             writeln!(
                 out,
-                "\trecords = classify({:?}, {:?}, {:?}, r, &pass, &skip, &fail, &hadTimeout, records)",
+                "\t\trecords = classify({:?}, {:?}, {:?}, r, &pass, &skip, &fail, &hadTimeout, records)",
                 endpoint.name, mode.name, mode.min_tier
             )
             .unwrap();
+            out.push_str("\t} else {\n");
+            writeln!(
+                out,
+                "\t\trecords = recordAborted({:?}, {:?}, &skip, records)",
+                endpoint.name, mode.name
+            )
+            .unwrap();
+            out.push_str("\t}\n");
         }
         out.push('\n');
     }
 
     out.push_str("\treturn pass, skip, fail, hadTimeout, records\n");
+    out.push_str("}\n\n");
+    out.push_str("// recordAborted adds a SKIP record for a cell that didn't run because an\n");
+    out.push_str("// earlier cell timed out. The ffi is not thread-safe on the same handle,\n");
+    out.push_str("// so we refuse to issue more calls once a worker has been leaked.\n");
+    out.push_str(
+        "func recordAborted(endpoint, mode string, skip *int, records []CellRecord) []CellRecord {\n",
+    );
+    out.push_str("\tlabel := endpoint + \"::\" + mode\n");
+    out.push_str("\tfmt.Printf(\"  %-60s SKIP: aborted-after-timeout\\n\", label)\n");
+    out.push_str("\t*skip++\n");
+    out.push_str("\treturn append(records, CellRecord{\n");
+    out.push_str(
+        "\t\tEndpoint: endpoint, Mode: mode, Status: \"SKIP\", Detail: \"aborted-after-timeout\",\n",
+    );
+    out.push_str("\t})\n");
     out.push_str("}\n\n");
     out.push_str("// classify maps a live call outcome into PASS / SKIP / FAIL buckets and\n");
     out.push_str("// appends a CellRecord for the agreement-check JSON artifact.\n");

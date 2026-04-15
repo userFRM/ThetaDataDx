@@ -52,7 +52,19 @@ pub(super) fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
         .iter()
         .filter(|endpoint| !is_streaming_endpoint(endpoint))
     {
-        for mode in test_modes_for(endpoint) {
+        // CLI skips modes with builder overrides. The CLI's positional-arg
+        // model means isolating a single optional would require passing
+        // empty strings for the preceding optionals, which `insert_raw`
+        // rejects. Rather than emit fake cells that look like they exercise
+        // the optional but in fact send the bare concrete args (which was
+        // the prior state Codex flagged), we drop those cells entirely.
+        // The cross-language agreement script already handles cells missing
+        // from one SDK as an info-level note. Follow-up: convert the CLI to
+        // flag-style optionals (#290).
+        for mode in test_modes_for(endpoint)
+            .into_iter()
+            .filter(|mode| mode.builder_overrides.is_empty())
+        {
             let tokens = cli_command_tokens_for_mode(endpoint, &mode)
                 .into_iter()
                 .map(|token| format!("{token:?}"))
@@ -74,19 +86,36 @@ pub(super) fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("records: list[dict] = []  # one record per cell for the agreement check\n\n");
     out.push_str("def _json_row_count(output: str) -> int:\n");
     out.push_str("    \"\"\"Count top-level rows from the CLI's --format json response.\n\n");
-    out.push_str("    JSON lists count as `len`. JSON dicts count as 1 (single-object\n");
-    out.push_str("    responses like `calendar_open_today`). Non-JSON output (warnings,\n");
-    out.push_str("    stderr noise) counts as 0.\n");
+    out.push_str("    The CLI emits pretty-printed JSON (multi-line), so we parse the\n");
+    out.push_str("    whole stdout rather than just the last line. For list responses\n");
+    out.push_str("    returns len(list). For dict responses that look columnar (values\n");
+    out.push_str("    are lists), returns len of any column. For dict responses that\n");
+    out.push_str("    are a single object (e.g. calendar_open_today), returns 1.\n");
+    out.push_str("    Non-JSON output returns 0.\n");
     out.push_str("    \"\"\"\n");
-    out.push_str("    try:\n");
-    out.push_str("        parsed = json.loads(output.strip().splitlines()[-1]) \\\n");
-    out.push_str("            if output.strip() else None\n");
-    out.push_str("    except (json.JSONDecodeError, IndexError):\n");
+    out.push_str("    stripped = output.strip()\n");
+    out.push_str("    if not stripped:\n");
     out.push_str("        return 0\n");
-    out.push_str("    if isinstance(parsed, list):\n");
-    out.push_str("        return len(parsed)\n");
-    out.push_str("    if isinstance(parsed, dict):\n");
-    out.push_str("        return 1\n");
+    out.push_str("    # The CLI may prefix with a warning / progress line before the JSON.\n");
+    out.push_str("    # Walk backwards through possible JSON start tokens to find the\n");
+    out.push_str("    # first that parses.\n");
+    out.push_str("    for start_token in (\"[\", \"{\"):\n");
+    out.push_str("        idx = stripped.find(start_token)\n");
+    out.push_str("        if idx == -1:\n");
+    out.push_str("            continue\n");
+    out.push_str("        try:\n");
+    out.push_str("            parsed = json.loads(stripped[idx:])\n");
+    out.push_str("        except json.JSONDecodeError:\n");
+    out.push_str("            continue\n");
+    out.push_str("        if isinstance(parsed, list):\n");
+    out.push_str("            return len(parsed)\n");
+    out.push_str("        if isinstance(parsed, dict):\n");
+    out.push_str("            # Columnar dict: treat any list-valued column as the row\n");
+    out.push_str("            # vector. Keeps agreement with the Python SDK.\n");
+    out.push_str("            for v in parsed.values():\n");
+    out.push_str("                if isinstance(v, list):\n");
+    out.push_str("                    return len(v)\n");
+    out.push_str("            return 1\n");
     out.push_str("    return 0\n\n");
     out.push_str("for endpoint, mode, min_tier, argv in CELLS:\n");
     out.push_str("    label = f\"{endpoint}::{mode}\"\n");

@@ -108,6 +108,25 @@ pub(super) fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str(
         "            CellRecord rec{endpoint, mode, std::string{}, 0, 0, std::string{}};\n",
     );
+    out.push_str("            // If a prior cell timed out, its worker thread is still running\n");
+    out.push_str(
+        "            // an FFI call against `client`. The FFI is not thread-safe on the\n",
+    );
+    out.push_str("            // same handle (ffi/src/lib.rs:21), so we must NOT issue another\n");
+    out.push_str("            // call on `client` now. Record the cell as SKIP:\n");
+    out.push_str("            // aborted-after-timeout and continue so the artifact keeps the\n");
+    out.push_str("            // full cell list (the agreement check can still pair cells\n");
+    out.push_str("            // across SDKs).\n");
+    out.push_str("            if (any_timeout) {\n");
+    out.push_str(
+        "                std::cout << \"  \" << std::left << std::setw(60) << label << \" SKIP: aborted-after-timeout\" << std::endl;\n",
+    );
+    out.push_str("                ++skip;\n");
+    out.push_str("                rec.status = \"SKIP\";\n");
+    out.push_str("                rec.detail = \"aborted-after-timeout\";\n");
+    out.push_str("                records.push_back(rec);\n");
+    out.push_str("                return;\n");
+    out.push_str("            }\n");
     out.push_str("            const auto t0 = std::chrono::steady_clock::now();\n");
     out.push_str("            try {\n");
     out.push_str("                // std::packaged_task + detached std::thread so a timed-out\n");
@@ -115,7 +134,8 @@ pub(super) fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("                // future does). Worker thread leaks until the SDK call\n");
     out.push_str("                // returns; we flag any_timeout so main exits via _Exit and\n");
     out.push_str("                // avoids destroying the Client handle while the leaked\n");
-    out.push_str("                // thread may still be reading from it (UAF).\n");
+    out.push_str("                // thread may still be reading from it (UAF), and so that\n");
+    out.push_str("                // subsequent cells don't race against the leaked worker.\n");
     out.push_str("                using Result = decltype(call());\n");
     out.push_str(
         "                std::packaged_task<Result()> task(std::forward<decltype(call)>(call));\n",

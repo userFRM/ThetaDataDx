@@ -15,7 +15,7 @@ use super::super::helpers::{
 };
 use super::super::model::{GeneratedEndpoint, ProtoField};
 
-pub(crate) fn generate_direct_list_endpoint(out: &mut String, endpoint: &GeneratedEndpoint) {
+pub(super) fn generate_direct_list_endpoint(out: &mut String, endpoint: &GeneratedEndpoint) {
     writeln!(out, "list_endpoint! {{").unwrap();
     writeln!(out, "    #[doc = {:?}]", endpoint.description).unwrap();
     writeln!(
@@ -70,7 +70,7 @@ pub(crate) fn generate_direct_list_endpoint(out: &mut String, endpoint: &Generat
     out.push_str("}\n\n");
 }
 
-pub(crate) fn generate_direct_parsed_endpoint(out: &mut String, endpoint: &GeneratedEndpoint) {
+pub(super) fn generate_direct_parsed_endpoint(out: &mut String, endpoint: &GeneratedEndpoint) {
     writeln!(out, "parsed_endpoint! {{").unwrap();
     writeln!(out, "    #[doc = {:?}]", endpoint.description).unwrap();
     writeln!(
@@ -155,7 +155,7 @@ pub(crate) fn generate_direct_parsed_endpoint(out: &mut String, endpoint: &Gener
     out.push_str("}\n\n");
 }
 
-pub(crate) fn generate_direct_streaming_endpoint(out: &mut String, endpoint: &GeneratedEndpoint) {
+pub(super) fn generate_direct_streaming_endpoint(out: &mut String, endpoint: &GeneratedEndpoint) {
     let method_params = endpoint
         .params
         .iter()
@@ -379,7 +379,7 @@ pub(crate) fn generate_direct_streaming_endpoint(out: &mut String, endpoint: &Ge
     out.push_str("}\n\n");
 }
 
-pub(crate) fn direct_query_field_expr(
+pub(super) fn direct_query_field_expr(
     endpoint: &GeneratedEndpoint,
     field: &ProtoField,
     list_context: bool,
