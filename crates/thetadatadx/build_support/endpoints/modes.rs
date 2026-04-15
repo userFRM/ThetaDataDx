@@ -266,7 +266,11 @@ fn args_for_mode(
 /// Whether the endpoint's method-call params include the full ContractSpec
 /// quartet (symbol, expiration, strike, right). Drives wildcard mode
 /// generation for option snapshot / history / at-time endpoints.
-fn has_full_contract_spec(endpoint: &GeneratedEndpoint) -> bool {
+///
+/// Exposed to `parser.rs::validate_test_fixtures` so the required-mode and
+/// per-mode closed-vocabulary checks stay in lockstep with the emission
+/// logic in [`test_modes_for`].
+pub(super) fn has_full_contract_spec(endpoint: &GeneratedEndpoint) -> bool {
     let names: HashSet<&str> = method_params(endpoint)
         .iter()
         .map(|p| p.name.as_str())
@@ -290,7 +294,11 @@ fn has_full_contract_spec(endpoint: &GeneratedEndpoint) -> bool {
 /// `true` — they don't participate in the wildcard matrix anyway (streaming
 /// is skipped upstream of this call, and the SDK-only endpoints don't take
 /// an expiration parameter).
-fn endpoint_supports_expiration_wildcard(name: &str) -> bool {
+///
+/// Exposed to `parser.rs::validate_test_fixtures` so wildcard-mode
+/// required-row and per-mode vocabulary checks stay in lockstep with
+/// [`test_modes_for`].
+pub(super) fn endpoint_supports_expiration_wildcard(name: &str) -> bool {
     let spec = super::super::upstream_openapi::UpstreamOpenApi::load();
     spec.endpoint(name)
         .map(|endpoint| endpoint.supports_expiration_wildcard)

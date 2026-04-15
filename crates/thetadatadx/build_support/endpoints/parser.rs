@@ -121,16 +121,20 @@ const KNOWN_MODE_OVERRIDES: &[&str] = &[
 
 /// Cross-check the `[test_fixtures]` block against the resolved endpoint set.
 ///
-/// Two failure modes Codex round-1 caught:
-///   1. A missing entry in `optional_defaults` silently dropped a `with_<name>`
-///      cell and excluded the key from `all_optionals`, erasing coverage with
-///      no signal.
-///   2. A typo in any fixture map (`expiratoin = "2025-03-21"`) silently
-///      fell through to the default — the cell still ran, just with the
-///      wrong (unintended) value.
+/// Prevents every silent-coverage-regression path Codex review has flagged:
 ///
-/// This pass collects every wrong row and returns one combined error so a
-/// dev fixing their TOML sees the full picture in one rebuild.
+///   * **Round 1 / 2**: a missing `optional_defaults` row silently drops the
+///     corresponding `with_<name>` cell and excludes the param from
+///     `all_optionals`. Typos in any fixture map silently fall through to
+///     a default and test the wrong value.
+///   * **Round 3**: missing rows in `category_symbol`, `concrete_by_type`, or
+///     `mode_overrides` fall through to opaque panics in `modes.rs`. Dead
+///     keys under `mode_overrides.<mode>` are accepted even when no endpoint
+///     emitting that mode binds the name (the override is silently unused).
+///
+/// Every check collects every offender across every fixture map and returns
+/// them in one combined error so a dev fixing TOML drift sees the full
+/// picture in a single rebuild, not one error per `cargo run`.
 fn validate_test_fixtures(
     fixtures: &TestFixtures,
     endpoints: &[GeneratedEndpoint],
@@ -138,24 +142,146 @@ fn validate_test_fixtures(
     let mut errors: Vec<String> = Vec::new();
 
     // ── Vocabulary derived from the resolved endpoint set ──────────────────
-    let known_method_param_names: HashSet<&str> = endpoints
+    //
+    // Streaming endpoints are skipped because `test_modes_for` returns an
+    // empty mode vec for them — they never touch the fixture maps, so their
+    // params shouldn't drive required-row checks. Non-streaming endpoints
+    // are the matrix's full consumer set.
+    let live_endpoints: Vec<&GeneratedEndpoint> =
+        endpoints.iter().filter(|ep| ep.kind != "stream").collect();
+
+    let known_method_param_names: HashSet<&str> = live_endpoints
         .iter()
         .flat_map(|ep| ep.params.iter())
         .filter(|p| p.binding == "method")
         .map(|p| p.name.as_str())
         .collect();
-    let known_builder_param_names: HashSet<&str> = endpoints
+    let known_builder_param_names: HashSet<&str> = live_endpoints
         .iter()
         .flat_map(|ep| ep.params.iter())
         .filter(|p| p.binding == "builder")
         .map(|p| p.name.as_str())
         .collect();
 
-    // ── Required-keys: every builder-bound optional needs a row in
-    //    `optional_defaults`. Without one, `with_<name>` is silently dropped
-    //    and the param is excluded from `all_optionals` — pure coverage loss.
+    // ── Required rows: one check per fixture map. Every row that `modes.rs`
+    //    will touch at emission time must exist at validation time so a
+    //    missing TOML entry never falls through to an opaque panic.
+
+    // category_symbol: every non-streaming endpoint whose method params
+    // include a Symbol/Symbols reads `category_symbol[endpoint.category]`.
+    // Build the required set from the live endpoint surface.
+    let mut required_category_rows: HashMap<&str, Vec<&str>> = HashMap::new();
+    for endpoint in &live_endpoints {
+        let has_symbol_param = endpoint.params.iter().any(|p| {
+            p.binding == "method" && matches!(p.param_type.as_str(), "Symbol" | "Symbols")
+        });
+        if !has_symbol_param {
+            continue;
+        }
+        required_category_rows
+            .entry(endpoint.category.as_str())
+            .or_default()
+            .push(endpoint.name.as_str());
+    }
+    let mut missing_category_rows: Vec<String> = required_category_rows
+        .iter()
+        .filter(|(category, _)| !fixtures.category_symbol.contains_key(**category))
+        .map(|(category, consumers)| {
+            let mut names = consumers.clone();
+            names.sort();
+            format!(
+                "  '{}' (needed for {} endpoint(s): first is {})",
+                category,
+                names.len(),
+                names.first().copied().unwrap_or("?"),
+            )
+        })
+        .collect();
+    if !missing_category_rows.is_empty() {
+        missing_category_rows.sort();
+        errors.push(format!(
+            "[test_fixtures.category_symbol] is missing required entries:\n{}",
+            missing_category_rows.join("\n")
+        ));
+    }
+
+    // concrete_by_type: every method-bound param whose `param_type` is not
+    // `Symbol`/`Symbols` (those route through `category_symbol`) reads
+    // `concrete_by_type[param.param_type]` — unless `concrete_overrides` has
+    // a row for the param name, which wins.
+    let mut required_type_rows: HashMap<&str, Vec<String>> = HashMap::new();
+    for endpoint in &live_endpoints {
+        for param in &endpoint.params {
+            if param.binding != "method"
+                || matches!(param.param_type.as_str(), "Symbol" | "Symbols")
+            {
+                continue;
+            }
+            if fixtures.concrete_overrides.contains_key(&param.name) {
+                continue;
+            }
+            required_type_rows
+                .entry(param.param_type.as_str())
+                .or_default()
+                .push(format!("{}.{}", endpoint.name, param.name));
+        }
+    }
+    let mut missing_type_rows: Vec<String> = required_type_rows
+        .iter()
+        .filter(|(ty, _)| !fixtures.concrete_by_type.contains_key(**ty))
+        .map(|(ty, consumers)| {
+            let mut consumers = consumers.clone();
+            consumers.sort();
+            format!(
+                "  '{}' (needed for {} param(s): first is {})",
+                ty,
+                consumers.len(),
+                consumers.first().map(String::as_str).unwrap_or("?")
+            )
+        })
+        .collect();
+    if !missing_type_rows.is_empty() {
+        missing_type_rows.sort();
+        errors.push(format!(
+            "[test_fixtures.concrete_by_type] is missing required entries:\n{}",
+            missing_type_rows.join("\n")
+        ));
+    }
+
+    // mode_overrides: every mode that at least one endpoint actually emits
+    // must have an entry (empty is fine; present-but-empty won't trip the
+    // opaque `.get(mode_name).unwrap_or_else(panic!())` in `args_for_mode`).
+    let mode_emitters = compute_mode_emitters(&live_endpoints);
+    let mut missing_mode_entries: Vec<String> = Vec::new();
+    for (mode_name, consumers) in &mode_emitters {
+        if consumers.is_empty() {
+            continue;
+        }
+        if !fixtures.mode_overrides.contains_key(*mode_name) {
+            let mut sample = consumers.clone();
+            sample.sort();
+            missing_mode_entries.push(format!(
+                "  '{}' (emitted by {} endpoint(s): first is {})",
+                mode_name,
+                sample.len(),
+                sample.first().copied().unwrap_or("?")
+            ));
+        }
+    }
+    if !missing_mode_entries.is_empty() {
+        missing_mode_entries.sort();
+        errors.push(format!(
+            "[test_fixtures.mode_overrides] is missing required entries:\n{}",
+            missing_mode_entries.join("\n")
+        ));
+    }
+
+    // optional_defaults: every builder-bound param the matrix references
+    // needs a row, otherwise `with_<name>` silently drops and `all_optionals`
+    // excludes the key. Walk the resolved endpoint set, report per-endpoint
+    // so the dev sees blast radius.
     let mut missing_optional_defaults: Vec<String> = Vec::new();
-    for endpoint in endpoints {
+    for endpoint in &live_endpoints {
         for param in &endpoint.params {
             if param.binding != "builder" {
                 continue;
@@ -177,7 +303,8 @@ fn validate_test_fixtures(
         ));
     }
 
-    // ── Unknown-keys: every map's keys must be in its expected vocabulary.
+    // ── Unknown / dead keys: every map's keys must match its expected
+    //    vocabulary. Typos and stale rows surface here with full context.
 
     // category_symbol → known-with-symbol categories.
     let unknown_categories: Vec<&str> = fixtures
@@ -230,17 +357,22 @@ fn validate_test_fixtures(
         ));
     }
 
-    // mode_overrides.<mode> → known mode names; inner keys → real method-call params.
+    // mode_overrides.<mode> → known mode names; inner keys → per-mode valid
+    // set (params bound by endpoints that emit that mode). A key that's
+    // method-bound globally but dead under a specific mode — e.g. `year`
+    // under `concrete_iso` where no ContractSpec endpoint binds `year` —
+    // must fail for that mode, not just for a global union.
     let mut unknown_mode_names: Vec<&str> = Vec::new();
-    let mut unknown_mode_param_keys: Vec<String> = Vec::new();
+    let mut unused_mode_param_keys: Vec<String> = Vec::new();
     for (mode_name, overrides) in &fixtures.mode_overrides {
         if !KNOWN_MODE_OVERRIDES.contains(&mode_name.as_str()) {
             unknown_mode_names.push(mode_name.as_str());
             continue;
         }
+        let valid_keys = mode_override_valid_keys(&live_endpoints, mode_name.as_str());
         for key in overrides.keys() {
-            if !known_method_param_names.contains(key.as_str()) {
-                unknown_mode_param_keys.push(format!("{mode_name}.{key}"));
+            if !valid_keys.contains(key.as_str()) {
+                unused_mode_param_keys.push(format!("{mode_name}.{key}"));
             }
         }
     }
@@ -252,12 +384,12 @@ fn validate_test_fixtures(
             KNOWN_MODE_OVERRIDES.join(", ")
         ));
     }
-    if !unknown_mode_param_keys.is_empty() {
-        unknown_mode_param_keys.sort();
+    if !unused_mode_param_keys.is_empty() {
+        unused_mode_param_keys.sort();
         errors.push(format!(
-            "[test_fixtures.mode_overrides] references param names that are not method-bound on \
-             any endpoint: {}",
-            unknown_mode_param_keys.join(", ")
+            "[test_fixtures.mode_overrides] contains dead keys — not bound by any endpoint \
+             emitting that mode: {}",
+            unused_mode_param_keys.join(", ")
         ));
     }
 
@@ -286,6 +418,66 @@ fn validate_test_fixtures(
         .into());
     }
     Ok(())
+}
+
+/// For each mode in [`KNOWN_MODE_OVERRIDES`], collect the endpoints that
+/// emit it. Mirrors the branching in `modes.rs::test_modes_for`:
+/// * `concrete_iso`, `all_strikes_one_exp` — any endpoint with the full
+///   ContractSpec quartet (symbol / expiration / strike / right).
+/// * `all_exps_one_strike`, `bulk_chain`, `legacy_zero_wildcard` — same,
+///   further restricted to endpoints upstream marks as accepting
+///   `expiration=*`.
+///
+/// Streaming endpoints are already filtered out by the caller. A mode with
+/// zero consumers doesn't need a TOML row and isn't reported as missing.
+fn compute_mode_emitters<'a>(
+    endpoints: &[&'a GeneratedEndpoint],
+) -> Vec<(&'static str, Vec<&'a str>)> {
+    let mut out: Vec<(&'static str, Vec<&'a str>)> = Vec::new();
+    for mode in KNOWN_MODE_OVERRIDES {
+        let consumers: Vec<&'a str> = endpoints
+            .iter()
+            .filter(|ep| endpoint_emits_mode(ep, mode))
+            .map(|ep| ep.name.as_str())
+            .collect();
+        out.push((*mode, consumers));
+    }
+    out
+}
+
+/// Whether the named mode appears in `test_modes_for(endpoint, ...)`'s
+/// output. Kept in lockstep with the branching in `modes.rs` — every new
+/// mode or predicate there needs a line here.
+fn endpoint_emits_mode(endpoint: &GeneratedEndpoint, mode: &str) -> bool {
+    if endpoint.kind == "stream" {
+        return false;
+    }
+    let has_contract_spec = super::modes::has_full_contract_spec(endpoint);
+    match mode {
+        "concrete_iso" | "all_strikes_one_exp" => has_contract_spec,
+        "all_exps_one_strike" | "bulk_chain" | "legacy_zero_wildcard" => {
+            has_contract_spec && super::modes::endpoint_supports_expiration_wildcard(&endpoint.name)
+        }
+        _ => false,
+    }
+}
+
+/// Union of method-param names belonging to every endpoint that emits the
+/// given mode. This is the per-mode valid-key set used to detect dead keys
+/// under `mode_overrides.<mode>`. A key that's valid globally (it's a
+/// method-bound name on some endpoint somewhere) but unused under the
+/// specific mode is flagged as dead by Codex round-3.
+fn mode_override_valid_keys<'a>(
+    endpoints: &[&'a GeneratedEndpoint],
+    mode: &str,
+) -> HashSet<&'a str> {
+    endpoints
+        .iter()
+        .filter(|ep| endpoint_emits_mode(ep, mode))
+        .flat_map(|ep| ep.params.iter())
+        .filter(|p| p.binding == "method")
+        .map(|p| p.name.as_str())
+        .collect()
 }
 
 /// Resolve the reusable spec language in `endpoint_surface.toml` into concrete endpoints.
