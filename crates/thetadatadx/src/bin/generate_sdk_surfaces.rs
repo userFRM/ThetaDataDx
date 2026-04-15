@@ -11,7 +11,7 @@ use std::path::PathBuf;
 
 // Reason: modules shared with build.rs via #[path]; many helpers are only called from build.rs.
 #[allow(dead_code)]
-#[path = "../../build_support/endpoints.rs"]
+#[path = "../../build_support/endpoints/mod.rs"]
 mod endpoints;
 #[allow(dead_code)]
 #[path = "../../build_support/sdk_surface.rs"]
