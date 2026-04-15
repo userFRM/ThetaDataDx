@@ -11,10 +11,13 @@ and are classified `SKIP: tier-permission`. Real configuration bugs
 (invalid arguments, wire-format errors) surface as `FAIL`. See issue
 #287.
 
-Each cell is bounded by a 60-second subprocess timeout. A stuck cell
-classifies as FAIL with `timeout after 60s` rather than stalling CI
-indefinitely -- a human should investigate whether the fixture is too
-broad or the server is misbehaving. See issue #290.
+Each cell is bounded by a 60-second per-call deadline that the CLI
+forwards to the SDK via `--timeout-ms 60000` (W3). On expiry the SDK
+cancels the in-flight gRPC stream and the subprocess exits cleanly with
+an error containing "Request deadline exceeded". A 90-second subprocess
+timeout remains as a safety net in case the SDK itself wedges (it
+shouldn't), in which case the OS reaps the child via SIGKILL.
+See issues #287, #290.
 """
 from __future__ import annotations
 
@@ -25,7 +28,11 @@ import subprocess
 import sys
 import time
 
-PER_CELL_TIMEOUT_SECS = 60
+PER_CELL_TIMEOUT_MS = 60_000
+# Subprocess kill-switch one-and-a-half times the SDK budget. Triggers
+# only if the SDK itself wedges past its own deadline (it shouldn't);
+# the OS reaps the child via SIGKILL on expiry.
+SUBPROCESS_KILL_SECS = (PER_CELL_TIMEOUT_MS * 3) // 2000
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 TDX = REPO / "target" / "release" / ("tdx.exe" if os.name == "nt" else "tdx")
@@ -531,21 +538,32 @@ for endpoint, mode, min_tier, rationale, argv in CELLS:
             # --format json-raw keeps dates as YYYYMMDD ints and ms_of_day as raw
             # i32 ms so first_row matches the raw form Python/Go/C++ SDKs expose.
             # See scripts/validate_agreement.py for the canonical contract.
-            [str(TDX), "--creds", creds, *argv, "--format", "json-raw"],
+            # --timeout-ms forwards the SDK-enforced deadline (W3) so the
+            # subprocess exits cleanly with "Request deadline exceeded"
+            # instead of being SIGKILLed by the subprocess kill-switch below.
+            [
+                str(TDX), "--creds", creds,
+                "--timeout-ms", str(PER_CELL_TIMEOUT_MS),
+                *argv, "--format", "json-raw",
+            ],
             cwd=REPO,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             check=False,
-            timeout=PER_CELL_TIMEOUT_SECS,
+            timeout=SUBPROCESS_KILL_SECS,
         )
     except subprocess.TimeoutExpired:
+        # Subprocess kill-switch: the SDK should have returned a
+        # "Request deadline exceeded" error before this fires. If we
+        # land here the SDK itself wedged; flag it.
         duration_ms = int((time.monotonic() - t0) * 1000)
-        print(f"  {label:60s} FAIL  timeout after {PER_CELL_TIMEOUT_SECS}s")
+        print(f"  {label:60s} FAIL  subprocess kill after {SUBPROCESS_KILL_SECS}s (SDK didn't honor --timeout-ms)")
         fail_count += 1
         records.append({
             "endpoint": endpoint, "mode": mode, "rationale": rationale,
             "status": "FAIL",
-            "row_count": 0, "duration_ms": duration_ms, "detail": "timeout after 60s",
+            "row_count": 0, "duration_ms": duration_ms,
+            "detail": "subprocess kill (SDK wedged)",
         })
         continue
     duration_ms = int((time.monotonic() - t0) * 1000)

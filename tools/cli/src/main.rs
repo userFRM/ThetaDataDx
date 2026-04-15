@@ -51,6 +51,13 @@ fn build_cli() -> Command {
                      them); consumed by scripts/validate_agreement.py for \
                      cross-language agreement checks.",
                 ),
+        )
+        .arg(
+            Arg::new("timeout-ms")
+                .long("timeout-ms")
+                .global(true)
+                .value_parser(clap::value_parser!(u64))
+                .help("Per-call deadline in milliseconds (W3). On expiry the in-flight gRPC call is cancelled."),
         );
 
     app = add_generated_utility_commands(app);
@@ -1288,7 +1295,10 @@ async fn run(matches: ArgMatches) -> Result<(), thetadatadx::Error> {
                 })?;
 
                 let client = connect(creds_path, config_preset).await?;
-                let args = build_endpoint_args(ep, sub_m)?;
+                let mut args = build_endpoint_args(ep, sub_m)?;
+                if let Some(&ms) = matches.get_one::<u64>("timeout-ms") {
+                    args = args.with_timeout_ms(ms);
+                }
                 let output = invoke_endpoint(&client, ep.name, &args).await?;
                 render_output(ep, output, &fmt);
             } else {

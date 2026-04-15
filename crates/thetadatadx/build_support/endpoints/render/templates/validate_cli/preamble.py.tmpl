@@ -11,10 +11,13 @@ and are classified `SKIP: tier-permission`. Real configuration bugs
 (invalid arguments, wire-format errors) surface as `FAIL`. See issue
 #287.
 
-Each cell is bounded by a 60-second subprocess timeout. A stuck cell
-classifies as FAIL with `timeout after 60s` rather than stalling CI
-indefinitely -- a human should investigate whether the fixture is too
-broad or the server is misbehaving. See issue #290.
+Each cell is bounded by a 60-second per-call deadline that the CLI
+forwards to the SDK via `--timeout-ms 60000` (W3). On expiry the SDK
+cancels the in-flight gRPC stream and the subprocess exits cleanly with
+an error containing "Request deadline exceeded". A 90-second subprocess
+timeout remains as a safety net in case the SDK itself wedges (it
+shouldn't), in which case the OS reaps the child via SIGKILL.
+See issues #287, #290.
 """
 from __future__ import annotations
 
@@ -25,7 +28,11 @@ import subprocess
 import sys
 import time
 
-PER_CELL_TIMEOUT_SECS = 60
+PER_CELL_TIMEOUT_MS = 60_000
+# Subprocess kill-switch one-and-a-half times the SDK budget. Triggers
+# only if the SDK itself wedges past its own deadline (it shouldn't);
+# the OS reaps the child via SIGKILL on expiry.
+SUBPROCESS_KILL_SECS = (PER_CELL_TIMEOUT_MS * 3) // 2000
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 TDX = REPO / "target" / "release" / ("tdx.exe" if os.name == "nt" else "tdx")
