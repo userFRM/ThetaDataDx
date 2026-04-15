@@ -75,27 +75,75 @@ fn normalize_right(right: &str) -> String {
 
 /// Normalize the `expiration` parameter for the v3 MDDS server.
 ///
-/// The server accepts `"*"` as the canonical wildcard ("all expirations")
-/// and explicit `YYYYMMDD` dates, but rejects the legacy v3-terminal
-/// sentinel `"0"` with an `InvalidArgument` parse error. This function
-/// translates `"0"` -> `"*"` so callers can use either form; everything
-/// else passes through unchanged.
-fn normalize_expiration(expiration: &str) -> String {
-    if expiration == "0" {
-        "*".to_string()
+/// Accepted forms on the SDK surface (see `validate_expiration`):
+///   - `*`            canonical wildcard (passes through)
+///   - `0`            legacy v3-terminal sentinel -> translated to `*`
+///   - `YYYYMMDD`     explicit compact date (passes through)
+///   - `YYYY-MM-DD`   explicit ISO date -> translated to `YYYYMMDD`
+///
+/// The server itself rejects `"0"` for expiration with an `InvalidArgument`
+/// parse error, so we translate it client-side. It accepts both date forms,
+/// but we canonicalize to `YYYYMMDD` on the wire to match the Java terminal's
+/// behavior.
+pub(crate) fn normalize_expiration(expiration: &str) -> String {
+    match expiration {
+        "0" => "*".to_string(),
+        // Strip dashes from ISO form.
+        v if v.len() == 10 && v.as_bytes()[4] == b'-' && v.as_bytes()[7] == b'-' => {
+            v.replace('-', "")
+        }
+        other => other.to_string(),
+    }
+}
+
+/// Map the SDK's `strike` surface vocabulary to the wire value the Java
+/// terminal would produce.
+///
+/// The Java terminal only sets `ContractSpec.strike` when the caller
+/// explicitly provided a strike; if omitted, the field is left unset and the
+/// server applies its documented default (`*` wildcard). Our SDK forces the
+/// caller to always pass a value, so we reinterpret the wildcard sentinels
+/// (`*`, `0`, empty) as "leave the field unset" -- identical wire outcome.
+///
+/// Any other value is forwarded verbatim (validation happened upstream in
+/// `validate_strike`).
+pub(crate) fn wire_strike_opt(strike: &str) -> Option<String> {
+    if strike.is_empty() || strike == "*" || strike == "0" {
+        None
     } else {
-        expiration.to_string()
+        Some(strike.to_string())
+    }
+}
+
+/// Map the SDK's `right` surface vocabulary to the wire value the Java
+/// terminal would produce.
+///
+/// Same pattern as `wire_strike_opt`: the terminal only sets
+/// `ContractSpec.right` when the caller provided a side. Our SDK lets callers
+/// express "either side" via `*` / `both` / empty (and the legacy `0`
+/// sentinel), which we translate to an unset field so the server returns
+/// both calls and puts.
+pub(crate) fn wire_right_opt(right: &str) -> Option<String> {
+    match right.to_ascii_lowercase().as_str() {
+        "" | "*" | "0" | "both" => None,
+        _ => Some(normalize_right(right)),
     }
 }
 
 /// Helper: build a `proto::ContractSpec` from the four standard option params.
+///
+/// Mirrors the wire semantics of the Java terminal's REST handlers exactly:
+/// `symbol` and `expiration` are always set; `strike` and `right` are only
+/// set when the caller provided a real single-value (non-wildcard) input.
+/// Wildcards (`*`, `0`, `both`, empty) become unset proto fields so the
+/// server's documented defaults apply.
 macro_rules! contract_spec {
     ($symbol:expr, $expiration:expr, $strike:expr, $right:expr) => {
         Some(proto::ContractSpec {
             symbol: $symbol.to_string(),
             expiration: normalize_expiration(&$expiration.to_string()),
-            strike: Some($strike.to_string()),
-            right: Some(normalize_right(&$right.to_string())),
+            strike: wire_strike_opt(&$strike.to_string()),
+            right: wire_right_opt(&$right.to_string()),
         })
     };
 }
@@ -648,5 +696,60 @@ mod tests {
         assert!((ticks[0].open - 15000.0).abs() < 1e-10);
         assert!((ticks[0].close - 15100.0).abs() < 1e-10);
         assert_eq!(ticks[0].date, 20240301);
+    }
+
+    // ── Wire-translation tests (Java terminal parity) ────────────────────
+
+    #[test]
+    fn normalize_expiration_translates_legacy_zero_to_star() {
+        assert_eq!(normalize_expiration("0"), "*");
+    }
+
+    #[test]
+    fn normalize_expiration_passes_star_through() {
+        assert_eq!(normalize_expiration("*"), "*");
+    }
+
+    #[test]
+    fn normalize_expiration_passes_compact_date_through() {
+        assert_eq!(normalize_expiration("20260417"), "20260417");
+    }
+
+    #[test]
+    fn normalize_expiration_strips_iso_dashes() {
+        assert_eq!(normalize_expiration("2026-04-17"), "20260417");
+    }
+
+    #[test]
+    fn wire_strike_opt_treats_wildcards_as_unset() {
+        assert_eq!(wire_strike_opt(""), None);
+        assert_eq!(wire_strike_opt("0"), None);
+        assert_eq!(wire_strike_opt("*"), None);
+    }
+
+    #[test]
+    fn wire_strike_opt_forwards_real_strikes() {
+        assert_eq!(wire_strike_opt("550"), Some("550".to_string()));
+        assert_eq!(wire_strike_opt("17.5"), Some("17.5".to_string()));
+    }
+
+    #[test]
+    fn wire_right_opt_treats_wildcards_as_unset() {
+        assert_eq!(wire_right_opt(""), None);
+        assert_eq!(wire_right_opt("*"), None);
+        assert_eq!(wire_right_opt("0"), None);
+        assert_eq!(wire_right_opt("both"), None);
+        assert_eq!(wire_right_opt("BOTH"), None);
+        assert_eq!(wire_right_opt("Both"), None);
+    }
+
+    #[test]
+    fn wire_right_opt_forwards_single_sides_normalized() {
+        assert_eq!(wire_right_opt("C"), Some("call".to_string()));
+        assert_eq!(wire_right_opt("c"), Some("call".to_string()));
+        assert_eq!(wire_right_opt("call"), Some("call".to_string()));
+        assert_eq!(wire_right_opt("CALL"), Some("call".to_string()));
+        assert_eq!(wire_right_opt("P"), Some("put".to_string()));
+        assert_eq!(wire_right_opt("put"), Some("put".to_string()));
     }
 }

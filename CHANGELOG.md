@@ -9,7 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Expiration wildcard for option bulk queries** (#284) -- \`validate_expiration\` now accepts \`"*"\` (upstream's canonical wildcard for "all expirations"), and \`direct::normalize_expiration\` translates the legacy v3-terminal sentinel \`"0"\` -> \`"*"\` on the wire. Previously the SDK had no working path to the server's bulk-expiration mode: \`"*"\` was rejected client-side, and \`"0"\` was rejected server-side with \`InvalidArgument -- Error parsing expiration\`. Users had to loop per-expiration (~22s for a full QQQ open-interest snapshot across 34 active expirations); the bulk call now returns all 9,966 rows in ~1.1s. Applies to every option snapshot / history endpoint that accepts \`expiration\` (upstream's \`openapiv3.yaml\` documents \`expiration=*\` on \`snapshot/{ohlc,quote,open_interest,market_value,greeks/*}\` and several history endpoints).
+- **Option bulk-query wire semantics match the Java terminal exactly** (#284) -- full audit against the decompiled v3 Java terminal (`net.thetadata.generated.v3grpc.RestResource`) revealed our SDK was producing wire requests the terminal doesn't. Fixes:
+  - **`expiration`** -- \`validate_expiration\` accepts \`"*"\` (upstream's canonical wildcard), \`"0"\` (legacy sentinel), \`"YYYYMMDD"\`, and \`"YYYY-MM-DD"\` (ISO). \`direct::normalize_expiration\` translates \`"0"\` -> \`"*"\` and strips dashes from the ISO form before the wire so the server receives the canonical \`YYYYMMDD\` or \`*\`. Previously \`"*"\` was rejected client-side and \`"0"\` was rejected server-side with \`InvalidArgument -- Error parsing expiration\`, so the SDK had no working path to bulk-expiration mode.
+  - **`strike`** -- new \`validate_strike\` accepts \`"*"\` / \`"0"\` / empty (wildcard) or a positive decimal. New \`direct::wire_strike_opt\` emits \`None\` for wildcards so \`ContractSpec.strike\` is left unset on the proto, matching the terminal's \`if (strike != null) { contractSpecBuilder.setStrike(strike); }\` pattern.
+  - **`right`** -- new \`direct::wire_right_opt\` emits \`None\` for \`"*"\` / \`"both"\` / \`"0"\` / empty, matching the terminal's optional-field pattern. Single sides (\`"C"\`, \`"P"\`, \`"call"\`, \`"put"\`) normalize to \`"call"\` / \`"put"\` on the wire as before.
+  - **Wired `required_strike` / `optional_strike` accessors** in the endpoint layer (generator now dispatches \`Strike\` to them).
+  - Verified live against production across 64 parameter-mode combinations on \`option_snapshot_open_interest\` (every cross of \`{*, 0, YYYYMMDD, YYYY-MM-DD}\` × \`{*, 0, 550, ""}\` × \`{*, both, C, P}\`): every combination returns correct, consistent data (9,966 rows for full chain / 4,983 per side / 454 per expiration / exact single-contract lookups). Bulk query for all of QQQ's open interest now takes ~1s (single call) vs ~22s (34-expiration loop).
+
+  Applies to every option snapshot / history / at-time endpoint that builds a \`ContractSpec\`.
 
 ### Added
 
