@@ -614,7 +614,7 @@ impl ThetaDataDx {
         start_date: &str,
         end_date: &str,
     ) -> PyResult<Py<PyAny>> {
-        let columnar = self.stock_history_eod(py, symbol, start_date, end_date)?;
+        let columnar = self.stock_history_eod(py, symbol, start_date, end_date, None)?;
         columnar_to_dataframe(py, columnar)
     }
 
@@ -626,8 +626,9 @@ impl ThetaDataDx {
         date: &str,
         interval: &str,
     ) -> PyResult<Py<PyAny>> {
-        let columnar =
-            self.stock_history_ohlc(py, symbol, date, interval, None, None, None, None, None)?;
+        let columnar = self.stock_history_ohlc(
+            py, symbol, date, interval, None, None, None, None, None, None,
+        )?;
         columnar_to_dataframe(py, columnar)
     }
 
@@ -638,7 +639,8 @@ impl ThetaDataDx {
         symbol: &str,
         date: &str,
     ) -> PyResult<Py<PyAny>> {
-        let columnar = self.stock_history_trade(py, symbol, date, None, None, None, None, None)?;
+        let columnar =
+            self.stock_history_trade(py, symbol, date, None, None, None, None, None, None)?;
         columnar_to_dataframe(py, columnar)
     }
 
@@ -650,8 +652,9 @@ impl ThetaDataDx {
         date: &str,
         interval: &str,
     ) -> PyResult<Py<PyAny>> {
-        let columnar =
-            self.stock_history_quote(py, symbol, date, interval, None, None, None, None, None)?;
+        let columnar = self.stock_history_quote(
+            py, symbol, date, interval, None, None, None, None, None, None,
+        )?;
         columnar_to_dataframe(py, columnar)
     }
 
