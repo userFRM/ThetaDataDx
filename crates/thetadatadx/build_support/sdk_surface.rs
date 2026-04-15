@@ -353,10 +353,26 @@ fn render_go_fpss_methods(methods: &[String]) -> String {
     out
 }
 
+/// Substrings that identify an FFI thread-local error read in generated
+/// Go code. This is the single source of truth shared between this
+/// post-processor and the static audit test in
+/// `sdks/go/timeout_pin_test.go::tlsReaderMarkers`. Adding a new marker
+/// here requires mirroring the change there.
+const GO_TLS_READER_MARKERS: &[&str] = &[
+    "lastError(",
+    "lastErrorRaw(",
+    "f.fpssCall(",
+    "C.tdx_last_error(",
+    // Helpers that themselves read the TLS slot — callers must pin
+    // before invoking them. Kept in sync with the static audit in
+    // `sdks/go/timeout_pin_test.go::tlsReaderMarkers`.
+    "stringArrayToGo(",
+];
+
 /// Insert `runtime.LockOSThread()` + deferred unlock at the top of every
 /// Go method body in `src` whose body reads the FFI's thread-local error
-/// slot (via `lastError()`, `lastErrorRaw()`, or `f.fpssCall`). Methods
-/// with body-reads preserved; methods without remain unchanged.
+/// slot (any substring in `GO_TLS_READER_MARKERS`). Methods without
+/// TLS reads pass through unchanged.
 fn inject_os_thread_pin(src: &str) -> String {
     // Work line-by-line. A new method opens with `func (<recv>) <Name>(` and
     // the opening brace is always on the same line per our templates. The
@@ -377,10 +393,7 @@ fn inject_os_thread_pin(src: &str) -> String {
                 if l.starts_with('}') {
                     break;
                 }
-                if l.contains("lastError(")
-                    || l.contains("lastErrorRaw(")
-                    || l.contains("f.fpssCall(")
-                {
+                if GO_TLS_READER_MARKERS.iter().any(|m| l.contains(m)) {
                     touches_tls = true;
                 }
                 j += 1;

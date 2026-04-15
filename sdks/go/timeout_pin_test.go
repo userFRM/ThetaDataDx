@@ -8,143 +8,166 @@ import (
 	"testing"
 )
 
-// pinScannedFiles is the list of Go source files whose top-level
-// methods must be scanned for the FFI-TLS OS-thread pin invariant.
-// Every method in these files that touches the FFI's thread-local
-// error slot (lastError, lastErrorRaw, or f.fpssCall) MUST open with:
+// tlsReaderMarkers is the authoritative list of substrings that
+// identify an FFI thread-local error read. Any Go source line
+// containing one of these consults the `LAST_ERROR` thread_local in
+// `ffi/src/lib.rs`, so the enclosing function MUST have executed
+// `runtime.LockOSThread()` (with a matching deferred unlock) before
+// reaching that line.
 //
-//	runtime.LockOSThread()
-//	defer runtime.UnlockOSThread()
-//
-// Without the pin, the Go runtime can migrate the goroutine between
-// successive cgo calls and the error read lands on the wrong OS
-// thread (Rust thread_local!, empty on the new thread). See
-// `docs/dev/w3-async-cancellation-design.md` "cgo thread-local
-// correctness" for the full contract.
-//
-// The list covers every Go source file in this package that crosses
-// the cgo boundary AND reads the FFI error slot. If new Go files are
-// added that issue FFI calls with a TLS error read, they must be
-// added here too or the invariant is not enforced for them.
-var pinScannedFiles = []string{
-	"historical.go",   // generated `*_with_options` endpoint wrappers
-	"fpss_methods.go", // generated FPSS subscribe / unsubscribe / lookup
-	"utilities.go",    // generated AllGreeks / ImpliedVolatility
-	"client.go",       // hand-written Connect
-	"fpss.go",         // hand-written NewFpssClient
+// This list is the single source of truth for "what counts as a TLS
+// reader" shared with the generator's `inject_os_thread_pin`
+// post-processor in `crates/thetadatadx/build_support/sdk_surface.rs`.
+// Adding a new marker here requires mirroring the change there.
+var tlsReaderMarkers = []string{
+	"lastError(",
+	"lastErrorRaw(",
+	"f.fpssCall(",
+	"C.tdx_last_error(",
+	// Helpers that themselves read the TLS slot — callers must pin
+	// BEFORE invoking them. (The helpers also self-pin defensively,
+	// which makes them safe even if a caller forgets, but the
+	// static audit is stricter.)
+	"stringArrayToGo(",
 }
 
-// minPinnedMethods is a regression guard against the generator
-// silently dropping wrappers. Set below the current exact count so an
-// incidental +/- 1 from the spec doesn't flake the test; the main
-// signal is "did the generator stop emitting?", not an exact counter.
+// expectedPinnedMethods is the exact count of Go functions in
+// `sdks/go/*.go` (excluding `*_test.go`) that read the FFI's
+// thread-local error slot and are therefore required to pin. Updated
+// INTENTIONALLY when a TLS-reading method is genuinely added or
+// removed — a silent drift in either direction fails the test and
+// forces the reviewer to confirm the change is expected.
 //
-// Current breakdown (roughly): 61 historical endpoints + ~16 fpss
-// methods that read the error slot + 2 utilities + 2 hand-written.
-const minPinnedMethods = 75
+// Current breakdown (W3 round-6):
+//   - 61 historical endpoints    (historical.go, 53 via lastErrorRaw +
+//                                 8 list endpoints via stringArrayToGo)
+//   - 20 fpss_methods.go         (subscribe/unsubscribe + lookup)
+//   -  2 utilities               (AllGreeks, ImpliedVolatility)
+//   -  2 hand-written client     (Connect, NewFpssClient)
+//   -  2 hand-written credentials (NewCredentials, CredentialsFromFile)
+//   -  1 hand-written helper     (stringArrayToGo, self-pin defensive)
+//
+// Total: 88. The TLS helpers themselves (`lastError`, `lastErrorRaw`,
+// `fpssCall`) are excluded via `isTLSHelper` — they ARE the read, and
+// the test audits their callers.
+const expectedPinnedMethods = 88
 
-// TestEveryEndpointPinsOSThread is the DETERMINISTIC arm of the W3
-// round-3 fix verification (see TestTimeoutConcurrent for the dynamic
-// arm). It statically grep-scans each file in `pinScannedFiles` and
-// requires every method whose body references the TLS error-reading
-// helpers to open with the pin idiom.
+// TestEveryFFIErrorReaderPinsOSThread is the DETERMINISTIC arm of the
+// W3 fix verification (see TestTimeoutConcurrent for the behavioral
+// load arm). It walks every non-test .go file in `sdks/go/` and, for
+// every function body that contains a TLS-reading marker, requires
+// the enclosing function to have executed `runtime.LockOSThread()` +
+// `defer runtime.UnlockOSThread()` on lines STRICTLY BEFORE the
+// first TLS-reading line.
 //
-// The test FAILS on broken code. Verified manually by temporarily
-// disabling `runtime.LockOSThread()` in `historical.go` and in
-// `fpss_methods.go` and re-running this test: it reported every
-// affected method by name, for both files.
+// This is file-agnostic by design: a new Go file added to the
+// package that happens to read the FFI error slot will automatically
+// be picked up and audited. No allowlist to keep in sync.
 //
-// The test also enforces a minimum total count via
-// `minPinnedMethods` — a regression guard against the generator
-// silently dropping wrappers.
-func TestEveryEndpointPinsOSThread(t *testing.T) {
+// The `expectedPinnedMethods` constant is an EXACT-MATCH counter.
+// Adding a new TLS-reading wrapper must be accompanied by bumping
+// this constant; removing one must decrement it. Either direction of
+// drift fails the test with a clear delta, so a reviewer must make
+// the change intentional.
+//
+// Verified as a true negative test (round-6 run): temporarily
+// removing the pin from `thetadx.go::CredentialsFromFile` fails the
+// test with the file/function/offending-line listed. Same for any
+// other pinned method.
+func TestEveryFFIErrorReaderPinsOSThread(t *testing.T) {
 	_, thisFile, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("runtime.Caller failed")
 	}
 	pkgDir := filepath.Dir(thisFile)
 
+	goFiles, err := filepath.Glob(filepath.Join(pkgDir, "*.go"))
+	if err != nil {
+		t.Fatalf("glob: %v", err)
+	}
+
 	type missingEntry struct {
-		file   string
-		method string
-		got    string
+		file    string
+		method  string
+		offense string
 	}
 	var missing []missingEntry
-	totalPinned := 0
+	var pinned []string
 
-	for _, fname := range pinScannedFiles {
-		path := filepath.Join(pkgDir, fname)
+	for _, path := range goFiles {
+		fname := filepath.Base(path)
+		// Skip test files: they may legitimately read TLS to set up
+		// fixtures without needing the production pin invariant.
+		if strings.HasSuffix(fname, "_test.go") {
+			continue
+		}
 		data, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatalf("read %s: %v", fname, err)
 		}
 		lines := strings.Split(string(data), "\n")
-		// Identify methods by the one-line opening pattern our
-		// generators / hand-written files use:
-		//   `func (<recv>) <Name>(...) (...) {`
-		// or `func <Name>(...) (...) {` for package-level fns.
 		for i, line := range lines {
 			if !strings.HasPrefix(line, "func ") || !strings.HasSuffix(line, "{") {
 				continue
 			}
 			methodName := extractMethodName(line)
-			if methodName == "" {
+			if methodName == "" || isTLSHelper(methodName) {
+				// The helpers ARE the TLS reads; pinning them would
+				// be a nested pin, harmless but pointless. Their
+				// callers are what the audit enforces.
 				continue
 			}
-			// Skip helpers that are themselves called from already-
-			// pinned wrappers — their pinning is the caller's
-			// responsibility.
-			if methodName == "fpssCall" || methodName == "Close" {
-				continue
-			}
-
-			// Look at the body (from the opening brace to the next
-			// `}` at column 0). If any body line references a
-			// TLS-error helper, the pin idiom MUST appear earlier in
-			// the body — lines above the first TLS-reading line.
-			// Hand-written wrappers (Connect, NewFpssClient) may do
-			// nil checks before acquiring the pin; that's fine as
-			// long as the pin is in place before the cgo call that
-			// sets the error slot.
 			bodyEnd := findMethodBodyEnd(lines, i+1)
-			bodyLines := lines[i+1 : bodyEnd]
-			firstTLSRead := findFirstTLSReadLine(bodyLines)
-			if firstTLSRead == -1 {
+			body := lines[i+1 : bodyEnd]
+			firstReadIdx := findFirstTLSRead(body)
+			if firstReadIdx == -1 {
 				continue
 			}
-
-			if !hasPinBefore(bodyLines, firstTLSRead) {
-				// Report the first TLS-reading line as the offense
-				// so the error message points at the broken code.
+			if !hasPinBefore(body, firstReadIdx) {
 				missing = append(missing, missingEntry{
-					fname,
-					methodName,
-					strings.TrimSpace(bodyLines[firstTLSRead]),
+					file:    fname,
+					method:  methodName,
+					offense: strings.TrimSpace(body[firstReadIdx]),
 				})
 				continue
 			}
-			totalPinned++
+			pinned = append(pinned, fname+"::"+methodName)
 		}
 	}
 
 	if len(missing) > 0 {
 		t.Errorf("W3 cgo-TLS pin regression: %d method(s) read the FFI error slot without runtime.LockOSThread:", len(missing))
 		for _, m := range missing {
-			t.Errorf("  - %s :: %s (got: %s)", m.file, m.method, m.got)
+			t.Errorf("  - %s :: %s (got: %s)", m.file, m.method, m.offense)
 		}
 	}
 
-	if totalPinned < minPinnedMethods {
-		t.Errorf("pinned-method count dropped: got %d, want >= %d (generator may have stopped emitting wrappers)", totalPinned, minPinnedMethods)
+	if len(pinned) != expectedPinnedMethods {
+		t.Errorf(
+			"TLS-pinned-method count changed: got %d, want exactly %d. If this change is intentional, update expectedPinnedMethods in timeout_pin_test.go.",
+			len(pinned),
+			expectedPinnedMethods,
+		)
+		if testing.Verbose() {
+			for _, m := range pinned {
+				t.Logf("  pinned: %s", m)
+			}
+		}
 	}
 }
 
+// isTLSHelper identifies the helpers whose bodies ARE the TLS read
+// (so the ones that need to pin are their callers, not these).
+func isTLSHelper(name string) bool {
+	switch name {
+	case "lastError", "lastErrorRaw", "fpssCall":
+		return true
+	}
+	return false
+}
+
 func extractMethodName(line string) string {
-	// Input: `func (c *Client) StockListSymbols(opts ...EndpointOption) ([]string, error) {`
-	//   or:  `func AllGreeks(...) (...) {`
-	// Output: `StockListSymbols` / `AllGreeks`
 	rest := strings.TrimPrefix(line, "func ")
-	// Strip the `(receiver) ` block if present.
 	if strings.HasPrefix(rest, "(") {
 		end := strings.Index(rest, ") ")
 		if end == -1 {
@@ -168,22 +191,17 @@ func findMethodBodyEnd(lines []string, from int) int {
 	return len(lines)
 }
 
-// findFirstTLSReadLine returns the index (within body) of the first
-// line that reads the FFI's thread_local error slot, or -1 if none.
-func findFirstTLSReadLine(body []string) int {
+func findFirstTLSRead(body []string) int {
 	for j, l := range body {
-		if strings.Contains(l, "lastError(") ||
-			strings.Contains(l, "lastErrorRaw(") ||
-			strings.Contains(l, "f.fpssCall(") {
-			return j
+		for _, marker := range tlsReaderMarkers {
+			if strings.Contains(l, marker) {
+				return j
+			}
 		}
 	}
 	return -1
 }
 
-// hasPinBefore returns true if `body` contains both
-// `runtime.LockOSThread()` and `defer runtime.UnlockOSThread()` on
-// lines STRICTLY BEFORE `before` (exclusive).
 func hasPinBefore(body []string, before int) bool {
 	sawLock := false
 	sawDeferUnlock := false

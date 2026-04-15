@@ -10,6 +10,7 @@ import "C"
 
 import (
 	"fmt"
+	"runtime"
 	"unsafe"
 )
 
@@ -49,7 +50,14 @@ func lastErrorRaw() string {
 // runtime can migrate the goroutine mid-sequence and the post-call
 // `lastErrorRaw()` below would read a stale/empty slot on the wrong
 // OS thread.
+//
+// We also pin here defensively — Lock/UnlockOSThread nest safely, so
+// if a future caller forgets to pin, this helper remains correct.
+// The static audit in `timeout_pin_test.go` enforces the same
+// invariant statically.
 func stringArrayToGo(arr C.TdxStringArray) ([]string, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	if e := lastErrorRaw(); e != "" {
 		C.tdx_string_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -80,7 +88,14 @@ type Credentials struct {
 }
 
 // NewCredentials creates credentials from email and password.
+//
+// Pins the goroutine to one OS thread across the cgo call + TLS error
+// read because the FFI's last-error slot is a Rust thread_local. See
+// `docs/dev/w3-async-cancellation-design.md` "cgo thread-local
+// correctness".
 func NewCredentials(email, password string) (*Credentials, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cEmail := C.CString(email)
 	cPassword := C.CString(password)
 	defer C.free(unsafe.Pointer(cEmail))
@@ -94,7 +109,14 @@ func NewCredentials(email, password string) (*Credentials, error) {
 }
 
 // CredentialsFromFile loads credentials from a file (line 1 = email, line 2 = password).
+//
+// Pins the goroutine to one OS thread across the cgo call + TLS error
+// read because the FFI's last-error slot is a Rust thread_local. See
+// `docs/dev/w3-async-cancellation-design.md` "cgo thread-local
+// correctness".
 func CredentialsFromFile(path string) (*Credentials, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
