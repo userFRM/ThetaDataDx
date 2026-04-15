@@ -5,6 +5,10 @@
 /// Fields use simple C-friendly sentinels:
 /// - integer/boolean/float fields: check the companion `has_*` flag
 /// - string pointers: null means unset
+///
+/// `timeout_ms` is the cross-cutting per-call deadline (W3). Set with the
+/// companion `has_timeout_ms = 1`; on expiry the call returns an error and the
+/// underlying gRPC stream is cancelled, leaving the client handle reusable.
 #[repr(C)]
 pub struct TdxEndpointRequestOptions {
     pub venue: *const c_char,
@@ -31,6 +35,8 @@ pub struct TdxEndpointRequestOptions {
     pub has_use_market_value: i32,
     pub underlyer_use_nbbo: i32,
     pub has_underlyer_use_nbbo: i32,
+    pub timeout_ms: u64,
+    pub has_timeout_ms: i32,
 }
 
 fn apply_endpoint_request_options(
@@ -73,6 +79,9 @@ fn apply_endpoint_request_options(
     }
     if options.has_underlyer_use_nbbo != 0 {
         insert_bool_arg(args, "underlyer_use_nbbo", options.underlyer_use_nbbo)?;
+    }
+    if options.has_timeout_ms != 0 {
+        *args = std::mem::take(args).with_timeout_ms(options.timeout_ms);
     }
     Ok(())
 }

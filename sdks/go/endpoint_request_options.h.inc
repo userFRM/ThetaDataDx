@@ -24,4 +24,7 @@ typedef struct {
     int32_t has_use_market_value;
     int32_t underlyer_use_nbbo;
     int32_t has_underlyer_use_nbbo;
+    /* Per-call deadline (W3). Set has_timeout_ms = 1 to apply. */
+    uint64_t timeout_ms;
+    int32_t has_timeout_ms;
 } TdxEndpointRequestOptions;
