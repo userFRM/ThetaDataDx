@@ -3,23 +3,72 @@
 // attempted against production; the server is the ground truth for what
 // the account can access. Cells whose documented min_tier exceeds the
 // live account tier come back as a permission error and are classified
-// SKIP: tier-permission. Real configuration bugs surface as FAIL. See
-// issue #287.
+// SKIP: tier-permission. Real configuration bugs surface as FAIL. Cells
+// that don't finish within 60 seconds classify as FAIL with "timeout
+// after 60s". The worker thread is detached and keeps running the SDK
+// call; to avoid a use-after-free race between that leaked thread and
+// the Client/Config/Credentials destructors on main's unwind, the
+// validator exits via std::_Exit whenever any timeout fired -- skipping
+// destructors is exactly what we want when a leaked thread might still
+// touch FFI state. When no timeouts fired the normal return path is
+// taken so RAII runs as usual. See issues #287, #290.
 #include <algorithm>
 #include <cctype>
+#include <chrono>
+#include <cstdlib>
+#include <fstream>
+#include <future>
 #include <iomanip>
 #include <iostream>
+#include <sstream>
 #include <string>
+#include <sys/stat.h>
+#include <thread>
+#include <utility>
 #include <vector>
 #include "thetadx.hpp"
 
 namespace {
+
+constexpr auto kPerCellTimeout = std::chrono::seconds(60);
 
 std::string lower(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
         return static_cast<char>(std::tolower(c));
     });
     return value;
+}
+
+struct CellRecord {
+    std::string endpoint;
+    std::string mode;
+    std::string status;
+    int row_count = 0;
+    long long duration_ms = 0;
+    std::string detail;
+};
+
+std::string json_escape(const std::string& in) {
+    std::string out;
+    out.reserve(in.size() + 2);
+    for (char c : in) {
+        switch (c) {
+            case '\\': out += "\\\\"; break;
+            case '"':  out += "\\\""; break;
+            case '\n': out += "\\n";  break;
+            case '\r': out += "\\r";  break;
+            case '\t': out += "\\t";  break;
+            default:
+                if (static_cast<unsigned char>(c) < 0x20) {
+                    char buf[8];
+                    std::snprintf(buf, sizeof(buf), "\\u%04x", c);
+                    out += buf;
+                } else {
+                    out += c;
+                }
+        }
+    }
+    return out;
 }
 
 } // namespace
@@ -29,217 +78,501 @@ int main(int argc, char** argv) {
     int pass = 0;
     int skip = 0;
     int fail = 0;
+    // Track whether any cell timed out. Leaked worker threads racing with
+    // RAII Close() on client/config/creds would be UB, so we _Exit at end
+    // if this flag is set instead of returning.
+    bool any_timeout = false;
+    std::vector<CellRecord> records;
 
     try {
         auto creds = tdx::Credentials::from_file(creds_path);
         auto config = tdx::Config::production();
         auto client = tdx::Client::connect(creds, config);
 
-        auto cell = [&](const char* label, const char* declared_min_tier, auto&& call) {
+        auto cell = [&](const char* endpoint, const char* mode, const char* declared_min_tier, auto&& call) {
+            const std::string label = std::string(endpoint) + "::" + mode;
+            CellRecord rec{endpoint, mode, std::string{}, 0, 0, std::string{}};
+            const auto t0 = std::chrono::steady_clock::now();
             try {
-                (void)call();
+                // std::packaged_task + detached std::thread so a timed-out
+                // future doesn't block in its destructor (which std::async's
+                // future does). Worker thread leaks until the SDK call
+                // returns; we flag any_timeout so main exits via _Exit and
+                // avoids destroying the Client handle while the leaked
+                // thread may still be reading from it (UAF).
+                using Result = decltype(call());
+                std::packaged_task<Result()> task(std::forward<decltype(call)>(call));
+                auto future = task.get_future();
+                std::thread(std::move(task)).detach();
+                if (future.wait_for(kPerCellTimeout) == std::future_status::timeout) {
+                    std::cout << "  " << std::left << std::setw(60) << label << " FAIL  timeout after 60s" << std::endl;
+                    ++fail;
+                    any_timeout = true;
+                    rec.status = "FAIL";
+                    rec.detail = "timeout after 60s";
+                    rec.duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count();
+                    records.push_back(rec);
+                    return;
+                }
+                auto value = future.get();
+                rec.row_count = static_cast<int>(value.size());
                 std::cout << "  " << std::left << std::setw(60) << label << " PASS" << std::endl;
                 ++pass;
+                rec.status = "PASS";
             } catch (const std::exception& e) {
                 const std::string msg = lower(e.what());
                 if (msg.find("permission") != std::string::npos || msg.find("subscription") != std::string::npos) {
                     std::cout << "  " << std::left << std::setw(60) << label << " SKIP: tier-permission (declared min_tier=" << declared_min_tier << ")" << std::endl;
                     ++skip;
+                    rec.status = "SKIP";
+                    rec.detail = "tier-permission";
                 } else if (msg.find("no data found") != std::string::npos) {
                     std::cout << "  " << std::left << std::setw(60) << label << " PASS  (no data)" << std::endl;
                     ++pass;
+                    rec.status = "PASS";
+                    rec.detail = "no data";
                 } else {
                     std::cout << "  " << std::left << std::setw(60) << label << " FAIL  " << e.what() << std::endl;
                     ++fail;
+                    rec.status = "FAIL";
+                    std::string d = e.what();
+                    if (d.size() > 200) { d = d.substr(0, 200); }
+                    rec.detail = std::move(d);
                 }
             }
+            rec.duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count();
+            records.push_back(rec);
         };
 
-        cell("stock_list_symbols::basic", "free", [&] { return client.stock_list_symbols(); });
-        cell("stock_list_dates::basic", "free", [&] { return client.stock_list_dates("TRADE", "AAPL"); });
-        cell("stock_snapshot_ohlc::concrete", "value", [&] { return client.stock_snapshot_ohlc(std::vector<std::string>{"AAPL"}); });
-        cell("stock_snapshot_trade::concrete", "standard", [&] { return client.stock_snapshot_trade(std::vector<std::string>{"AAPL"}); });
-        cell("stock_snapshot_quote::concrete", "value", [&] { return client.stock_snapshot_quote(std::vector<std::string>{"AAPL"}); });
-        cell("stock_snapshot_market_value::concrete", "standard", [&] { return client.stock_snapshot_market_value(std::vector<std::string>{"AAPL"}); });
-        cell("stock_history_eod::concrete", "free", [&] { return client.stock_history_eod("AAPL", "20250303", "20250307"); });
-        cell("stock_history_ohlc::concrete", "value", [&] { return client.stock_history_ohlc("AAPL", "20250303", "60000"); });
-        cell("stock_history_trade::concrete", "standard", [&] { return client.stock_history_trade("AAPL", "20250303"); });
-        cell("stock_history_quote::concrete", "value", [&] { return client.stock_history_quote("AAPL", "20250303", "60000"); });
-        cell("stock_history_trade_quote::concrete", "standard", [&] { return client.stock_history_trade_quote("AAPL", "20250303"); });
-        cell("stock_at_time_trade::concrete", "standard", [&] { return client.stock_at_time_trade("AAPL", "20250303", "20250307", "12:00:00.000"); });
-        cell("stock_at_time_quote::concrete", "value", [&] { return client.stock_at_time_quote("AAPL", "20250303", "20250307", "12:00:00.000"); });
-        cell("option_list_symbols::basic", "free", [&] { return client.option_list_symbols(); });
-        cell("option_list_dates::basic", "free", [&] { return client.option_list_dates("TRADE", "SPY", "20250321", "570", "C"); });
-        cell("option_list_expirations::basic", "free", [&] { return client.option_list_expirations("SPY"); });
-        cell("option_list_strikes::basic", "free", [&] { return client.option_list_strikes("SPY", "20250321"); });
-        cell("option_list_contracts::concrete", "value", [&] { return client.option_list_contracts("TRADE", "SPY", "20250303"); });
-        cell("option_snapshot_ohlc::concrete", "value", [&] { return client.option_snapshot_ohlc("SPY", "20250321", "570", "C"); });
-        cell("option_snapshot_ohlc::concrete_iso", "value", [&] { return client.option_snapshot_ohlc("SPY", "2025-03-21", "570", "C"); });
-        cell("option_snapshot_ohlc::all_strikes_one_exp", "value", [&] { return client.option_snapshot_ohlc("SPY", "20250321", "*", "both"); });
-        cell("option_snapshot_ohlc::all_exps_one_strike", "value", [&] { return client.option_snapshot_ohlc("SPY", "*", "570", "both"); });
-        cell("option_snapshot_ohlc::bulk_chain", "value", [&] { return client.option_snapshot_ohlc("SPY", "*", "*", "both"); });
-        cell("option_snapshot_ohlc::legacy_zero_wildcard", "value", [&] { return client.option_snapshot_ohlc("SPY", "0", "0", "both"); });
-        cell("option_snapshot_trade::concrete", "standard", [&] { return client.option_snapshot_trade("SPY", "20250321", "570", "C"); });
-        cell("option_snapshot_trade::concrete_iso", "standard", [&] { return client.option_snapshot_trade("SPY", "2025-03-21", "570", "C"); });
-        cell("option_snapshot_trade::all_strikes_one_exp", "standard", [&] { return client.option_snapshot_trade("SPY", "20250321", "*", "both"); });
-        cell("option_snapshot_quote::concrete", "value", [&] { return client.option_snapshot_quote("SPY", "20250321", "570", "C"); });
-        cell("option_snapshot_quote::concrete_iso", "value", [&] { return client.option_snapshot_quote("SPY", "2025-03-21", "570", "C"); });
-        cell("option_snapshot_quote::all_strikes_one_exp", "value", [&] { return client.option_snapshot_quote("SPY", "20250321", "*", "both"); });
-        cell("option_snapshot_quote::all_exps_one_strike", "value", [&] { return client.option_snapshot_quote("SPY", "*", "570", "both"); });
-        cell("option_snapshot_quote::bulk_chain", "value", [&] { return client.option_snapshot_quote("SPY", "*", "*", "both"); });
-        cell("option_snapshot_quote::legacy_zero_wildcard", "value", [&] { return client.option_snapshot_quote("SPY", "0", "0", "both"); });
-        cell("option_snapshot_open_interest::concrete", "value", [&] { return client.option_snapshot_open_interest("SPY", "20250321", "570", "C"); });
-        cell("option_snapshot_open_interest::concrete_iso", "value", [&] { return client.option_snapshot_open_interest("SPY", "2025-03-21", "570", "C"); });
-        cell("option_snapshot_open_interest::all_strikes_one_exp", "value", [&] { return client.option_snapshot_open_interest("SPY", "20250321", "*", "both"); });
-        cell("option_snapshot_open_interest::all_exps_one_strike", "value", [&] { return client.option_snapshot_open_interest("SPY", "*", "570", "both"); });
-        cell("option_snapshot_open_interest::bulk_chain", "value", [&] { return client.option_snapshot_open_interest("SPY", "*", "*", "both"); });
-        cell("option_snapshot_open_interest::legacy_zero_wildcard", "value", [&] { return client.option_snapshot_open_interest("SPY", "0", "0", "both"); });
-        cell("option_snapshot_market_value::concrete", "value", [&] { return client.option_snapshot_market_value("SPY", "20250321", "570", "C"); });
-        cell("option_snapshot_market_value::concrete_iso", "value", [&] { return client.option_snapshot_market_value("SPY", "2025-03-21", "570", "C"); });
-        cell("option_snapshot_market_value::all_strikes_one_exp", "value", [&] { return client.option_snapshot_market_value("SPY", "20250321", "*", "both"); });
-        cell("option_snapshot_market_value::all_exps_one_strike", "value", [&] { return client.option_snapshot_market_value("SPY", "*", "570", "both"); });
-        cell("option_snapshot_market_value::bulk_chain", "value", [&] { return client.option_snapshot_market_value("SPY", "*", "*", "both"); });
-        cell("option_snapshot_market_value::legacy_zero_wildcard", "value", [&] { return client.option_snapshot_market_value("SPY", "0", "0", "both"); });
-        cell("option_snapshot_greeks_implied_volatility::concrete", "standard", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C"); });
-        cell("option_snapshot_greeks_implied_volatility::concrete_iso", "standard", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "2025-03-21", "570", "C"); });
-        cell("option_snapshot_greeks_implied_volatility::all_strikes_one_exp", "standard", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "*", "both"); });
-        cell("option_snapshot_greeks_implied_volatility::all_exps_one_strike", "standard", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "*", "570", "both"); });
-        cell("option_snapshot_greeks_implied_volatility::bulk_chain", "standard", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "*", "*", "both"); });
-        cell("option_snapshot_greeks_implied_volatility::legacy_zero_wildcard", "standard", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "0", "0", "both"); });
-        cell("option_snapshot_greeks_all::concrete", "professional", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", "570", "C"); });
-        cell("option_snapshot_greeks_all::concrete_iso", "professional", [&] { return client.option_snapshot_greeks_all("SPY", "2025-03-21", "570", "C"); });
-        cell("option_snapshot_greeks_all::all_strikes_one_exp", "professional", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", "*", "both"); });
-        cell("option_snapshot_greeks_all::all_exps_one_strike", "professional", [&] { return client.option_snapshot_greeks_all("SPY", "*", "570", "both"); });
-        cell("option_snapshot_greeks_all::bulk_chain", "professional", [&] { return client.option_snapshot_greeks_all("SPY", "*", "*", "both"); });
-        cell("option_snapshot_greeks_all::legacy_zero_wildcard", "professional", [&] { return client.option_snapshot_greeks_all("SPY", "0", "0", "both"); });
-        cell("option_snapshot_greeks_first_order::concrete", "standard", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C"); });
-        cell("option_snapshot_greeks_first_order::concrete_iso", "standard", [&] { return client.option_snapshot_greeks_first_order("SPY", "2025-03-21", "570", "C"); });
-        cell("option_snapshot_greeks_first_order::all_strikes_one_exp", "standard", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", "*", "both"); });
-        cell("option_snapshot_greeks_first_order::all_exps_one_strike", "standard", [&] { return client.option_snapshot_greeks_first_order("SPY", "*", "570", "both"); });
-        cell("option_snapshot_greeks_first_order::bulk_chain", "standard", [&] { return client.option_snapshot_greeks_first_order("SPY", "*", "*", "both"); });
-        cell("option_snapshot_greeks_first_order::legacy_zero_wildcard", "standard", [&] { return client.option_snapshot_greeks_first_order("SPY", "0", "0", "both"); });
-        cell("option_snapshot_greeks_second_order::concrete", "professional", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C"); });
-        cell("option_snapshot_greeks_second_order::concrete_iso", "professional", [&] { return client.option_snapshot_greeks_second_order("SPY", "2025-03-21", "570", "C"); });
-        cell("option_snapshot_greeks_second_order::all_strikes_one_exp", "professional", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", "*", "both"); });
-        cell("option_snapshot_greeks_second_order::all_exps_one_strike", "professional", [&] { return client.option_snapshot_greeks_second_order("SPY", "*", "570", "both"); });
-        cell("option_snapshot_greeks_second_order::bulk_chain", "professional", [&] { return client.option_snapshot_greeks_second_order("SPY", "*", "*", "both"); });
-        cell("option_snapshot_greeks_second_order::legacy_zero_wildcard", "professional", [&] { return client.option_snapshot_greeks_second_order("SPY", "0", "0", "both"); });
-        cell("option_snapshot_greeks_third_order::concrete", "professional", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C"); });
-        cell("option_snapshot_greeks_third_order::concrete_iso", "professional", [&] { return client.option_snapshot_greeks_third_order("SPY", "2025-03-21", "570", "C"); });
-        cell("option_snapshot_greeks_third_order::all_strikes_one_exp", "professional", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", "*", "both"); });
-        cell("option_snapshot_greeks_third_order::all_exps_one_strike", "professional", [&] { return client.option_snapshot_greeks_third_order("SPY", "*", "570", "both"); });
-        cell("option_snapshot_greeks_third_order::bulk_chain", "professional", [&] { return client.option_snapshot_greeks_third_order("SPY", "*", "*", "both"); });
-        cell("option_snapshot_greeks_third_order::legacy_zero_wildcard", "professional", [&] { return client.option_snapshot_greeks_third_order("SPY", "0", "0", "both"); });
-        cell("option_history_eod::concrete", "free", [&] { return client.option_history_eod("SPY", "20250321", "570", "C", "20250303", "20250307"); });
-        cell("option_history_eod::concrete_iso", "free", [&] { return client.option_history_eod("SPY", "2025-03-21", "570", "C", "20250303", "20250307"); });
-        cell("option_history_eod::all_strikes_one_exp", "free", [&] { return client.option_history_eod("SPY", "20250321", "*", "both", "20250303", "20250307"); });
-        cell("option_history_eod::all_exps_one_strike", "free", [&] { return client.option_history_eod("SPY", "*", "570", "both", "20250303", "20250307"); });
-        cell("option_history_eod::bulk_chain", "free", [&] { return client.option_history_eod("SPY", "*", "*", "both", "20250303", "20250307"); });
-        cell("option_history_eod::legacy_zero_wildcard", "free", [&] { return client.option_history_eod("SPY", "0", "0", "both", "20250303", "20250307"); });
-        cell("option_history_ohlc::concrete", "value", [&] { return client.option_history_ohlc("SPY", "20250321", "570", "C", "20250303", "60000"); });
-        cell("option_history_ohlc::concrete_iso", "value", [&] { return client.option_history_ohlc("SPY", "2025-03-21", "570", "C", "20250303", "60000"); });
-        cell("option_history_ohlc::all_strikes_one_exp", "value", [&] { return client.option_history_ohlc("SPY", "20250321", "*", "both", "20250303", "60000"); });
-        cell("option_history_trade::concrete", "standard", [&] { return client.option_history_trade("SPY", "20250321", "570", "C", "20250303"); });
-        cell("option_history_trade::concrete_iso", "standard", [&] { return client.option_history_trade("SPY", "2025-03-21", "570", "C", "20250303"); });
-        cell("option_history_trade::all_strikes_one_exp", "standard", [&] { return client.option_history_trade("SPY", "20250321", "*", "both", "20250303"); });
-        cell("option_history_trade::all_exps_one_strike", "standard", [&] { return client.option_history_trade("SPY", "*", "570", "both", "20250303"); });
-        cell("option_history_trade::bulk_chain", "standard", [&] { return client.option_history_trade("SPY", "*", "*", "both", "20250303"); });
-        cell("option_history_trade::legacy_zero_wildcard", "standard", [&] { return client.option_history_trade("SPY", "0", "0", "both", "20250303"); });
-        cell("option_history_quote::concrete", "value", [&] { return client.option_history_quote("SPY", "20250321", "570", "C", "20250303", "60000"); });
-        cell("option_history_quote::concrete_iso", "value", [&] { return client.option_history_quote("SPY", "2025-03-21", "570", "C", "20250303", "60000"); });
-        cell("option_history_quote::all_strikes_one_exp", "value", [&] { return client.option_history_quote("SPY", "20250321", "*", "both", "20250303", "60000"); });
-        cell("option_history_quote::all_exps_one_strike", "value", [&] { return client.option_history_quote("SPY", "*", "570", "both", "20250303", "60000"); });
-        cell("option_history_quote::bulk_chain", "value", [&] { return client.option_history_quote("SPY", "*", "*", "both", "20250303", "60000"); });
-        cell("option_history_quote::legacy_zero_wildcard", "value", [&] { return client.option_history_quote("SPY", "0", "0", "both", "20250303", "60000"); });
-        cell("option_history_trade_quote::concrete", "standard", [&] { return client.option_history_trade_quote("SPY", "20250321", "570", "C", "20250303"); });
-        cell("option_history_trade_quote::concrete_iso", "standard", [&] { return client.option_history_trade_quote("SPY", "2025-03-21", "570", "C", "20250303"); });
-        cell("option_history_trade_quote::all_strikes_one_exp", "standard", [&] { return client.option_history_trade_quote("SPY", "20250321", "*", "both", "20250303"); });
-        cell("option_history_trade_quote::all_exps_one_strike", "standard", [&] { return client.option_history_trade_quote("SPY", "*", "570", "both", "20250303"); });
-        cell("option_history_trade_quote::bulk_chain", "standard", [&] { return client.option_history_trade_quote("SPY", "*", "*", "both", "20250303"); });
-        cell("option_history_trade_quote::legacy_zero_wildcard", "standard", [&] { return client.option_history_trade_quote("SPY", "0", "0", "both", "20250303"); });
-        cell("option_history_open_interest::concrete", "value", [&] { return client.option_history_open_interest("SPY", "20250321", "570", "C", "20250303"); });
-        cell("option_history_open_interest::concrete_iso", "value", [&] { return client.option_history_open_interest("SPY", "2025-03-21", "570", "C", "20250303"); });
-        cell("option_history_open_interest::all_strikes_one_exp", "value", [&] { return client.option_history_open_interest("SPY", "20250321", "*", "both", "20250303"); });
-        cell("option_history_open_interest::all_exps_one_strike", "value", [&] { return client.option_history_open_interest("SPY", "*", "570", "both", "20250303"); });
-        cell("option_history_open_interest::bulk_chain", "value", [&] { return client.option_history_open_interest("SPY", "*", "*", "both", "20250303"); });
-        cell("option_history_open_interest::legacy_zero_wildcard", "value", [&] { return client.option_history_open_interest("SPY", "0", "0", "both", "20250303"); });
-        cell("option_history_greeks_eod::concrete", "standard", [&] { return client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250307"); });
-        cell("option_history_greeks_eod::concrete_iso", "standard", [&] { return client.option_history_greeks_eod("SPY", "2025-03-21", "570", "C", "20250303", "20250307"); });
-        cell("option_history_greeks_eod::all_strikes_one_exp", "standard", [&] { return client.option_history_greeks_eod("SPY", "20250321", "*", "both", "20250303", "20250307"); });
-        cell("option_history_greeks_eod::all_exps_one_strike", "standard", [&] { return client.option_history_greeks_eod("SPY", "*", "570", "both", "20250303", "20250307"); });
-        cell("option_history_greeks_eod::bulk_chain", "standard", [&] { return client.option_history_greeks_eod("SPY", "*", "*", "both", "20250303", "20250307"); });
-        cell("option_history_greeks_eod::legacy_zero_wildcard", "standard", [&] { return client.option_history_greeks_eod("SPY", "0", "0", "both", "20250303", "20250307"); });
-        cell("option_history_greeks_all::concrete", "professional", [&] { return client.option_history_greeks_all("SPY", "20250321", "570", "C", "20250303", "60000"); });
-        cell("option_history_greeks_all::concrete_iso", "professional", [&] { return client.option_history_greeks_all("SPY", "2025-03-21", "570", "C", "20250303", "60000"); });
-        cell("option_history_greeks_all::all_strikes_one_exp", "professional", [&] { return client.option_history_greeks_all("SPY", "20250321", "*", "both", "20250303", "60000"); });
-        cell("option_history_trade_greeks_all::concrete", "professional", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303"); });
-        cell("option_history_trade_greeks_all::concrete_iso", "professional", [&] { return client.option_history_trade_greeks_all("SPY", "2025-03-21", "570", "C", "20250303"); });
-        cell("option_history_trade_greeks_all::all_strikes_one_exp", "professional", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", "*", "both", "20250303"); });
-        cell("option_history_trade_greeks_all::all_exps_one_strike", "professional", [&] { return client.option_history_trade_greeks_all("SPY", "*", "570", "both", "20250303"); });
-        cell("option_history_trade_greeks_all::bulk_chain", "professional", [&] { return client.option_history_trade_greeks_all("SPY", "*", "*", "both", "20250303"); });
-        cell("option_history_trade_greeks_all::legacy_zero_wildcard", "professional", [&] { return client.option_history_trade_greeks_all("SPY", "0", "0", "both", "20250303"); });
-        cell("option_history_greeks_first_order::concrete", "standard", [&] { return client.option_history_greeks_first_order("SPY", "20250321", "570", "C", "20250303", "60000"); });
-        cell("option_history_greeks_first_order::concrete_iso", "standard", [&] { return client.option_history_greeks_first_order("SPY", "2025-03-21", "570", "C", "20250303", "60000"); });
-        cell("option_history_greeks_first_order::all_strikes_one_exp", "standard", [&] { return client.option_history_greeks_first_order("SPY", "20250321", "*", "both", "20250303", "60000"); });
-        cell("option_history_trade_greeks_first_order::concrete", "professional", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303"); });
-        cell("option_history_trade_greeks_first_order::concrete_iso", "professional", [&] { return client.option_history_trade_greeks_first_order("SPY", "2025-03-21", "570", "C", "20250303"); });
-        cell("option_history_trade_greeks_first_order::all_strikes_one_exp", "professional", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", "*", "both", "20250303"); });
-        cell("option_history_trade_greeks_first_order::all_exps_one_strike", "professional", [&] { return client.option_history_trade_greeks_first_order("SPY", "*", "570", "both", "20250303"); });
-        cell("option_history_trade_greeks_first_order::bulk_chain", "professional", [&] { return client.option_history_trade_greeks_first_order("SPY", "*", "*", "both", "20250303"); });
-        cell("option_history_trade_greeks_first_order::legacy_zero_wildcard", "professional", [&] { return client.option_history_trade_greeks_first_order("SPY", "0", "0", "both", "20250303"); });
-        cell("option_history_greeks_second_order::concrete", "professional", [&] { return client.option_history_greeks_second_order("SPY", "20250321", "570", "C", "20250303", "60000"); });
-        cell("option_history_greeks_second_order::concrete_iso", "professional", [&] { return client.option_history_greeks_second_order("SPY", "2025-03-21", "570", "C", "20250303", "60000"); });
-        cell("option_history_greeks_second_order::all_strikes_one_exp", "professional", [&] { return client.option_history_greeks_second_order("SPY", "20250321", "*", "both", "20250303", "60000"); });
-        cell("option_history_trade_greeks_second_order::concrete", "professional", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303"); });
-        cell("option_history_trade_greeks_second_order::concrete_iso", "professional", [&] { return client.option_history_trade_greeks_second_order("SPY", "2025-03-21", "570", "C", "20250303"); });
-        cell("option_history_trade_greeks_second_order::all_strikes_one_exp", "professional", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", "*", "both", "20250303"); });
-        cell("option_history_trade_greeks_second_order::all_exps_one_strike", "professional", [&] { return client.option_history_trade_greeks_second_order("SPY", "*", "570", "both", "20250303"); });
-        cell("option_history_trade_greeks_second_order::bulk_chain", "professional", [&] { return client.option_history_trade_greeks_second_order("SPY", "*", "*", "both", "20250303"); });
-        cell("option_history_trade_greeks_second_order::legacy_zero_wildcard", "professional", [&] { return client.option_history_trade_greeks_second_order("SPY", "0", "0", "both", "20250303"); });
-        cell("option_history_greeks_third_order::concrete", "professional", [&] { return client.option_history_greeks_third_order("SPY", "20250321", "570", "C", "20250303", "60000"); });
-        cell("option_history_greeks_third_order::concrete_iso", "professional", [&] { return client.option_history_greeks_third_order("SPY", "2025-03-21", "570", "C", "20250303", "60000"); });
-        cell("option_history_greeks_third_order::all_strikes_one_exp", "professional", [&] { return client.option_history_greeks_third_order("SPY", "20250321", "*", "both", "20250303", "60000"); });
-        cell("option_history_trade_greeks_third_order::concrete", "professional", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303"); });
-        cell("option_history_trade_greeks_third_order::concrete_iso", "professional", [&] { return client.option_history_trade_greeks_third_order("SPY", "2025-03-21", "570", "C", "20250303"); });
-        cell("option_history_trade_greeks_third_order::all_strikes_one_exp", "professional", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", "*", "both", "20250303"); });
-        cell("option_history_trade_greeks_third_order::all_exps_one_strike", "professional", [&] { return client.option_history_trade_greeks_third_order("SPY", "*", "570", "both", "20250303"); });
-        cell("option_history_trade_greeks_third_order::bulk_chain", "professional", [&] { return client.option_history_trade_greeks_third_order("SPY", "*", "*", "both", "20250303"); });
-        cell("option_history_trade_greeks_third_order::legacy_zero_wildcard", "professional", [&] { return client.option_history_trade_greeks_third_order("SPY", "0", "0", "both", "20250303"); });
-        cell("option_history_greeks_implied_volatility::concrete", "standard", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", "60000"); });
-        cell("option_history_greeks_implied_volatility::concrete_iso", "standard", [&] { return client.option_history_greeks_implied_volatility("SPY", "2025-03-21", "570", "C", "20250303", "60000"); });
-        cell("option_history_greeks_implied_volatility::all_strikes_one_exp", "standard", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", "*", "both", "20250303", "60000"); });
-        cell("option_history_trade_greeks_implied_volatility::concrete", "professional", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303"); });
-        cell("option_history_trade_greeks_implied_volatility::concrete_iso", "professional", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "2025-03-21", "570", "C", "20250303"); });
-        cell("option_history_trade_greeks_implied_volatility::all_strikes_one_exp", "professional", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "*", "both", "20250303"); });
-        cell("option_history_trade_greeks_implied_volatility::all_exps_one_strike", "professional", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "*", "570", "both", "20250303"); });
-        cell("option_history_trade_greeks_implied_volatility::bulk_chain", "professional", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "*", "*", "both", "20250303"); });
-        cell("option_history_trade_greeks_implied_volatility::legacy_zero_wildcard", "professional", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "0", "0", "both", "20250303"); });
-        cell("option_at_time_trade::concrete", "standard", [&] { return client.option_at_time_trade("SPY", "20250321", "570", "C", "20250303", "20250307", "12:00:00.000"); });
-        cell("option_at_time_trade::concrete_iso", "standard", [&] { return client.option_at_time_trade("SPY", "2025-03-21", "570", "C", "20250303", "20250307", "12:00:00.000"); });
-        cell("option_at_time_trade::all_strikes_one_exp", "standard", [&] { return client.option_at_time_trade("SPY", "20250321", "*", "both", "20250303", "20250307", "12:00:00.000"); });
-        cell("option_at_time_trade::all_exps_one_strike", "standard", [&] { return client.option_at_time_trade("SPY", "*", "570", "both", "20250303", "20250307", "12:00:00.000"); });
-        cell("option_at_time_trade::bulk_chain", "standard", [&] { return client.option_at_time_trade("SPY", "*", "*", "both", "20250303", "20250307", "12:00:00.000"); });
-        cell("option_at_time_trade::legacy_zero_wildcard", "standard", [&] { return client.option_at_time_trade("SPY", "0", "0", "both", "20250303", "20250307", "12:00:00.000"); });
-        cell("option_at_time_quote::concrete", "value", [&] { return client.option_at_time_quote("SPY", "20250321", "570", "C", "20250303", "20250307", "12:00:00.000"); });
-        cell("option_at_time_quote::concrete_iso", "value", [&] { return client.option_at_time_quote("SPY", "2025-03-21", "570", "C", "20250303", "20250307", "12:00:00.000"); });
-        cell("option_at_time_quote::all_strikes_one_exp", "value", [&] { return client.option_at_time_quote("SPY", "20250321", "*", "both", "20250303", "20250307", "12:00:00.000"); });
-        cell("option_at_time_quote::all_exps_one_strike", "value", [&] { return client.option_at_time_quote("SPY", "*", "570", "both", "20250303", "20250307", "12:00:00.000"); });
-        cell("option_at_time_quote::bulk_chain", "value", [&] { return client.option_at_time_quote("SPY", "*", "*", "both", "20250303", "20250307", "12:00:00.000"); });
-        cell("option_at_time_quote::legacy_zero_wildcard", "value", [&] { return client.option_at_time_quote("SPY", "0", "0", "both", "20250303", "20250307", "12:00:00.000"); });
-        cell("index_list_symbols::basic", "free", [&] { return client.index_list_symbols(); });
-        cell("index_list_dates::basic", "free", [&] { return client.index_list_dates("SPX"); });
-        cell("index_snapshot_ohlc::concrete", "standard", [&] { return client.index_snapshot_ohlc(std::vector<std::string>{"SPX"}); });
-        cell("index_snapshot_price::concrete", "standard", [&] { return client.index_snapshot_price(std::vector<std::string>{"SPX"}); });
-        cell("index_snapshot_market_value::concrete", "standard", [&] { return client.index_snapshot_market_value(std::vector<std::string>{"SPX"}); });
-        cell("index_history_eod::concrete", "free", [&] { return client.index_history_eod("SPX", "20250303", "20250307"); });
-        cell("index_history_ohlc::concrete", "standard", [&] { return client.index_history_ohlc("SPX", "20250303", "20250307", "60000"); });
-        cell("index_history_price::concrete", "value", [&] { return client.index_history_price("SPX", "20250303", "60000"); });
-        cell("index_at_time_price::concrete", "value", [&] { return client.index_at_time_price("SPX", "20250303", "20250307", "12:00:00.000"); });
-        cell("calendar_open_today::basic", "free", [&] { return client.calendar_open_today(); });
-        cell("calendar_on_date::basic", "value", [&] { return client.calendar_on_date("20250303"); });
-        cell("calendar_year::basic", "value", [&] { return client.calendar_year("2025"); });
-        cell("interest_rate_history_eod::basic", "free", [&] { return client.interest_rate_history_eod("SOFR", "20250303", "20250307"); });
-        cell("stock_history_ohlc_range::concrete", "value", [&] { return client.stock_history_ohlc_range("AAPL", "20250303", "20250307", "60000"); });
+        cell("stock_list_symbols", "basic", "free", [&] { return client.stock_list_symbols(); });
+        cell("stock_list_dates", "basic", "free", [&] { return client.stock_list_dates("TRADE", "AAPL"); });
+        cell("stock_snapshot_ohlc", "concrete", "value", [&] { return client.stock_snapshot_ohlc(std::vector<std::string>{"AAPL"}); });
+        cell("stock_snapshot_ohlc", "with_venue", "value", [&] { return client.stock_snapshot_ohlc(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_venue("nqb")); });
+        cell("stock_snapshot_ohlc", "with_min_time", "value", [&] { return client.stock_snapshot_ohlc(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_min_time("09:45:00")); });
+        cell("stock_snapshot_ohlc", "all_optionals", "value", [&] { return client.stock_snapshot_ohlc(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_venue("nqb").with_min_time("09:45:00")); });
+        cell("stock_snapshot_trade", "concrete", "standard", [&] { return client.stock_snapshot_trade(std::vector<std::string>{"AAPL"}); });
+        cell("stock_snapshot_trade", "with_venue", "standard", [&] { return client.stock_snapshot_trade(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_venue("nqb")); });
+        cell("stock_snapshot_trade", "with_min_time", "standard", [&] { return client.stock_snapshot_trade(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_min_time("09:45:00")); });
+        cell("stock_snapshot_trade", "all_optionals", "standard", [&] { return client.stock_snapshot_trade(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_venue("nqb").with_min_time("09:45:00")); });
+        cell("stock_snapshot_quote", "concrete", "value", [&] { return client.stock_snapshot_quote(std::vector<std::string>{"AAPL"}); });
+        cell("stock_snapshot_quote", "with_venue", "value", [&] { return client.stock_snapshot_quote(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_venue("nqb")); });
+        cell("stock_snapshot_quote", "with_min_time", "value", [&] { return client.stock_snapshot_quote(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_min_time("09:45:00")); });
+        cell("stock_snapshot_quote", "all_optionals", "value", [&] { return client.stock_snapshot_quote(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_venue("nqb").with_min_time("09:45:00")); });
+        cell("stock_snapshot_market_value", "concrete", "standard", [&] { return client.stock_snapshot_market_value(std::vector<std::string>{"AAPL"}); });
+        cell("stock_snapshot_market_value", "with_venue", "standard", [&] { return client.stock_snapshot_market_value(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_venue("nqb")); });
+        cell("stock_snapshot_market_value", "with_min_time", "standard", [&] { return client.stock_snapshot_market_value(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_min_time("09:45:00")); });
+        cell("stock_snapshot_market_value", "all_optionals", "standard", [&] { return client.stock_snapshot_market_value(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_venue("nqb").with_min_time("09:45:00")); });
+        cell("stock_history_eod", "concrete", "free", [&] { return client.stock_history_eod("AAPL", "20250303", "20250303"); });
+        cell("stock_history_ohlc", "concrete", "value", [&] { return client.stock_history_ohlc("AAPL", "20250303", "60000"); });
+        cell("stock_history_ohlc", "with_intraday_window", "value", [&] { return client.stock_history_ohlc("AAPL", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00")); });
+        cell("stock_history_ohlc", "with_date_range", "value", [&] { return client.stock_history_ohlc("AAPL", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303")); });
+        cell("stock_history_ohlc", "with_venue", "value", [&] { return client.stock_history_ohlc("AAPL", "20250303", "60000", tdx::EndpointRequestOptions{}.with_venue("nqb")); });
+        cell("stock_history_ohlc", "all_optionals", "value", [&] { return client.stock_history_ohlc("AAPL", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_venue("nqb").with_start_date("20250303").with_end_date("20250303")); });
+        cell("stock_history_trade", "concrete", "standard", [&] { return client.stock_history_trade("AAPL", "20250303"); });
+        cell("stock_history_trade", "with_intraday_window", "standard", [&] { return client.stock_history_trade("AAPL", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00")); });
+        cell("stock_history_trade", "with_date_range", "standard", [&] { return client.stock_history_trade("AAPL", "20250303", tdx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303")); });
+        cell("stock_history_trade", "with_venue", "standard", [&] { return client.stock_history_trade("AAPL", "20250303", tdx::EndpointRequestOptions{}.with_venue("nqb")); });
+        cell("stock_history_trade", "all_optionals", "standard", [&] { return client.stock_history_trade("AAPL", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_venue("nqb").with_start_date("20250303").with_end_date("20250303")); });
+        cell("stock_history_quote", "concrete", "value", [&] { return client.stock_history_quote("AAPL", "20250303", "60000"); });
+        cell("stock_history_quote", "with_intraday_window", "value", [&] { return client.stock_history_quote("AAPL", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00")); });
+        cell("stock_history_quote", "with_date_range", "value", [&] { return client.stock_history_quote("AAPL", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303")); });
+        cell("stock_history_quote", "with_venue", "value", [&] { return client.stock_history_quote("AAPL", "20250303", "60000", tdx::EndpointRequestOptions{}.with_venue("nqb")); });
+        cell("stock_history_quote", "all_optionals", "value", [&] { return client.stock_history_quote("AAPL", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_venue("nqb").with_start_date("20250303").with_end_date("20250303")); });
+        cell("stock_history_trade_quote", "concrete", "standard", [&] { return client.stock_history_trade_quote("AAPL", "20250303"); });
+        cell("stock_history_trade_quote", "with_intraday_window", "standard", [&] { return client.stock_history_trade_quote("AAPL", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00")); });
+        cell("stock_history_trade_quote", "with_date_range", "standard", [&] { return client.stock_history_trade_quote("AAPL", "20250303", tdx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303")); });
+        cell("stock_history_trade_quote", "with_exclusive", "standard", [&] { return client.stock_history_trade_quote("AAPL", "20250303", tdx::EndpointRequestOptions{}.with_exclusive(true)); });
+        cell("stock_history_trade_quote", "with_venue", "standard", [&] { return client.stock_history_trade_quote("AAPL", "20250303", tdx::EndpointRequestOptions{}.with_venue("nqb")); });
+        cell("stock_history_trade_quote", "all_optionals", "standard", [&] { return client.stock_history_trade_quote("AAPL", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_exclusive(true).with_venue("nqb").with_start_date("20250303").with_end_date("20250303")); });
+        cell("stock_at_time_trade", "concrete", "standard", [&] { return client.stock_at_time_trade("AAPL", "20250303", "20250303", "12:00:00.000"); });
+        cell("stock_at_time_trade", "with_venue", "standard", [&] { return client.stock_at_time_trade("AAPL", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_venue("nqb")); });
+        cell("stock_at_time_trade", "all_optionals", "standard", [&] { return client.stock_at_time_trade("AAPL", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_venue("nqb")); });
+        cell("stock_at_time_quote", "concrete", "value", [&] { return client.stock_at_time_quote("AAPL", "20250303", "20250303", "12:00:00.000"); });
+        cell("stock_at_time_quote", "with_venue", "value", [&] { return client.stock_at_time_quote("AAPL", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_venue("nqb")); });
+        cell("stock_at_time_quote", "all_optionals", "value", [&] { return client.stock_at_time_quote("AAPL", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_venue("nqb")); });
+        cell("option_list_symbols", "basic", "free", [&] { return client.option_list_symbols(); });
+        cell("option_list_dates", "basic", "free", [&] { return client.option_list_dates("TRADE", "SPY", "20250321", "570", "C"); });
+        cell("option_list_expirations", "basic", "free", [&] { return client.option_list_expirations("SPY"); });
+        cell("option_list_strikes", "basic", "free", [&] { return client.option_list_strikes("SPY", "20250321"); });
+        cell("option_list_contracts", "concrete", "value", [&] { return client.option_list_contracts("TRADE", "SPY", "20250303"); });
+        cell("option_list_contracts", "with_max_dte", "value", [&] { return client.option_list_contracts("TRADE", "SPY", "20250303", tdx::EndpointRequestOptions{}.with_max_dte(30)); });
+        cell("option_list_contracts", "all_optionals", "value", [&] { return client.option_list_contracts("TRADE", "SPY", "20250303", tdx::EndpointRequestOptions{}.with_max_dte(30)); });
+        cell("option_snapshot_ohlc", "concrete", "value", [&] { return client.option_snapshot_ohlc("SPY", "20250321", "570", "C"); });
+        cell("option_snapshot_ohlc", "concrete_iso", "value", [&] { return client.option_snapshot_ohlc("SPY", "2025-03-21", "570", "C"); });
+        cell("option_snapshot_ohlc", "all_strikes_one_exp", "value", [&] { return client.option_snapshot_ohlc("SPY", "20250321", "*", "both"); });
+        cell("option_snapshot_ohlc", "all_exps_one_strike", "value", [&] { return client.option_snapshot_ohlc("SPY", "*", "570", "both"); });
+        cell("option_snapshot_ohlc", "bulk_chain", "value", [&] { return client.option_snapshot_ohlc("SPY", "*", "*", "both"); });
+        cell("option_snapshot_ohlc", "legacy_zero_wildcard", "value", [&] { return client.option_snapshot_ohlc("SPY", "0", "0", "both"); });
+        cell("option_snapshot_ohlc", "with_max_dte", "value", [&] { return client.option_snapshot_ohlc("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_max_dte(30)); });
+        cell("option_snapshot_ohlc", "with_strike_range", "value", [&] { return client.option_snapshot_ohlc("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_snapshot_ohlc", "with_min_time", "value", [&] { return client.option_snapshot_ohlc("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_min_time("09:45:00")); });
+        cell("option_snapshot_ohlc", "all_optionals", "value", [&] { return client.option_snapshot_ohlc("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_max_dte(30).with_strike_range(10).with_min_time("09:45:00")); });
+        cell("option_snapshot_trade", "concrete", "standard", [&] { return client.option_snapshot_trade("SPY", "20250321", "570", "C"); });
+        cell("option_snapshot_trade", "concrete_iso", "standard", [&] { return client.option_snapshot_trade("SPY", "2025-03-21", "570", "C"); });
+        cell("option_snapshot_trade", "all_strikes_one_exp", "standard", [&] { return client.option_snapshot_trade("SPY", "20250321", "*", "both"); });
+        cell("option_snapshot_trade", "with_strike_range", "standard", [&] { return client.option_snapshot_trade("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_snapshot_trade", "with_min_time", "standard", [&] { return client.option_snapshot_trade("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_min_time("09:45:00")); });
+        cell("option_snapshot_trade", "all_optionals", "standard", [&] { return client.option_snapshot_trade("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_strike_range(10).with_min_time("09:45:00")); });
+        cell("option_snapshot_quote", "concrete", "value", [&] { return client.option_snapshot_quote("SPY", "20250321", "570", "C"); });
+        cell("option_snapshot_quote", "concrete_iso", "value", [&] { return client.option_snapshot_quote("SPY", "2025-03-21", "570", "C"); });
+        cell("option_snapshot_quote", "all_strikes_one_exp", "value", [&] { return client.option_snapshot_quote("SPY", "20250321", "*", "both"); });
+        cell("option_snapshot_quote", "all_exps_one_strike", "value", [&] { return client.option_snapshot_quote("SPY", "*", "570", "both"); });
+        cell("option_snapshot_quote", "bulk_chain", "value", [&] { return client.option_snapshot_quote("SPY", "*", "*", "both"); });
+        cell("option_snapshot_quote", "legacy_zero_wildcard", "value", [&] { return client.option_snapshot_quote("SPY", "0", "0", "both"); });
+        cell("option_snapshot_quote", "with_max_dte", "value", [&] { return client.option_snapshot_quote("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_max_dte(30)); });
+        cell("option_snapshot_quote", "with_strike_range", "value", [&] { return client.option_snapshot_quote("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_snapshot_quote", "with_min_time", "value", [&] { return client.option_snapshot_quote("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_min_time("09:45:00")); });
+        cell("option_snapshot_quote", "all_optionals", "value", [&] { return client.option_snapshot_quote("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_max_dte(30).with_strike_range(10).with_min_time("09:45:00")); });
+        cell("option_snapshot_open_interest", "concrete", "value", [&] { return client.option_snapshot_open_interest("SPY", "20250321", "570", "C"); });
+        cell("option_snapshot_open_interest", "concrete_iso", "value", [&] { return client.option_snapshot_open_interest("SPY", "2025-03-21", "570", "C"); });
+        cell("option_snapshot_open_interest", "all_strikes_one_exp", "value", [&] { return client.option_snapshot_open_interest("SPY", "20250321", "*", "both"); });
+        cell("option_snapshot_open_interest", "all_exps_one_strike", "value", [&] { return client.option_snapshot_open_interest("SPY", "*", "570", "both"); });
+        cell("option_snapshot_open_interest", "bulk_chain", "value", [&] { return client.option_snapshot_open_interest("SPY", "*", "*", "both"); });
+        cell("option_snapshot_open_interest", "legacy_zero_wildcard", "value", [&] { return client.option_snapshot_open_interest("SPY", "0", "0", "both"); });
+        cell("option_snapshot_open_interest", "with_max_dte", "value", [&] { return client.option_snapshot_open_interest("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_max_dte(30)); });
+        cell("option_snapshot_open_interest", "with_strike_range", "value", [&] { return client.option_snapshot_open_interest("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_snapshot_open_interest", "with_min_time", "value", [&] { return client.option_snapshot_open_interest("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_min_time("09:45:00")); });
+        cell("option_snapshot_open_interest", "all_optionals", "value", [&] { return client.option_snapshot_open_interest("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_max_dte(30).with_strike_range(10).with_min_time("09:45:00")); });
+        cell("option_snapshot_market_value", "concrete", "standard", [&] { return client.option_snapshot_market_value("SPY", "20250321", "570", "C"); });
+        cell("option_snapshot_market_value", "concrete_iso", "standard", [&] { return client.option_snapshot_market_value("SPY", "2025-03-21", "570", "C"); });
+        cell("option_snapshot_market_value", "all_strikes_one_exp", "standard", [&] { return client.option_snapshot_market_value("SPY", "20250321", "*", "both"); });
+        cell("option_snapshot_market_value", "all_exps_one_strike", "standard", [&] { return client.option_snapshot_market_value("SPY", "*", "570", "both"); });
+        cell("option_snapshot_market_value", "bulk_chain", "standard", [&] { return client.option_snapshot_market_value("SPY", "*", "*", "both"); });
+        cell("option_snapshot_market_value", "legacy_zero_wildcard", "standard", [&] { return client.option_snapshot_market_value("SPY", "0", "0", "both"); });
+        cell("option_snapshot_market_value", "with_max_dte", "standard", [&] { return client.option_snapshot_market_value("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_max_dte(30)); });
+        cell("option_snapshot_market_value", "with_strike_range", "standard", [&] { return client.option_snapshot_market_value("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_snapshot_market_value", "with_min_time", "standard", [&] { return client.option_snapshot_market_value("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_min_time("09:45:00")); });
+        cell("option_snapshot_market_value", "all_optionals", "standard", [&] { return client.option_snapshot_market_value("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_max_dte(30).with_strike_range(10).with_min_time("09:45:00")); });
+        cell("option_snapshot_greeks_implied_volatility", "concrete", "standard", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C"); });
+        cell("option_snapshot_greeks_implied_volatility", "concrete_iso", "standard", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "2025-03-21", "570", "C"); });
+        cell("option_snapshot_greeks_implied_volatility", "all_strikes_one_exp", "standard", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "*", "both"); });
+        cell("option_snapshot_greeks_implied_volatility", "all_exps_one_strike", "standard", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "*", "570", "both"); });
+        cell("option_snapshot_greeks_implied_volatility", "bulk_chain", "standard", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "*", "*", "both"); });
+        cell("option_snapshot_greeks_implied_volatility", "legacy_zero_wildcard", "standard", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "0", "0", "both"); });
+        cell("option_snapshot_greeks_implied_volatility", "with_annual_dividend", "standard", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015)); });
+        cell("option_snapshot_greeks_implied_volatility", "with_rate_type", "standard", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_rate_type("sofr")); });
+        cell("option_snapshot_greeks_implied_volatility", "with_rate_value", "standard", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_rate_value(0.05)); });
+        cell("option_snapshot_greeks_implied_volatility", "with_stock_price", "standard", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_stock_price(150.0)); });
+        cell("option_snapshot_greeks_implied_volatility", "with_version", "standard", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_version("dg3")); });
+        cell("option_snapshot_greeks_implied_volatility", "with_max_dte", "standard", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_max_dte(30)); });
+        cell("option_snapshot_greeks_implied_volatility", "with_strike_range", "standard", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_snapshot_greeks_implied_volatility", "with_min_time", "standard", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_min_time("09:45:00")); });
+        cell("option_snapshot_greeks_implied_volatility", "with_use_market_value", "standard", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_use_market_value(true)); });
+        cell("option_snapshot_greeks_implied_volatility", "all_optionals", "standard", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_version("dg3").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true)); });
+        cell("option_snapshot_greeks_all", "concrete", "professional", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", "570", "C"); });
+        cell("option_snapshot_greeks_all", "concrete_iso", "professional", [&] { return client.option_snapshot_greeks_all("SPY", "2025-03-21", "570", "C"); });
+        cell("option_snapshot_greeks_all", "all_strikes_one_exp", "professional", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", "*", "both"); });
+        cell("option_snapshot_greeks_all", "all_exps_one_strike", "professional", [&] { return client.option_snapshot_greeks_all("SPY", "*", "570", "both"); });
+        cell("option_snapshot_greeks_all", "bulk_chain", "professional", [&] { return client.option_snapshot_greeks_all("SPY", "*", "*", "both"); });
+        cell("option_snapshot_greeks_all", "legacy_zero_wildcard", "professional", [&] { return client.option_snapshot_greeks_all("SPY", "0", "0", "both"); });
+        cell("option_snapshot_greeks_all", "with_annual_dividend", "professional", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015)); });
+        cell("option_snapshot_greeks_all", "with_rate_type", "professional", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_rate_type("sofr")); });
+        cell("option_snapshot_greeks_all", "with_rate_value", "professional", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_rate_value(0.05)); });
+        cell("option_snapshot_greeks_all", "with_stock_price", "professional", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_stock_price(150.0)); });
+        cell("option_snapshot_greeks_all", "with_version", "professional", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_version("dg3")); });
+        cell("option_snapshot_greeks_all", "with_max_dte", "professional", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_max_dte(30)); });
+        cell("option_snapshot_greeks_all", "with_strike_range", "professional", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_snapshot_greeks_all", "with_min_time", "professional", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_min_time("09:45:00")); });
+        cell("option_snapshot_greeks_all", "with_use_market_value", "professional", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_use_market_value(true)); });
+        cell("option_snapshot_greeks_all", "all_optionals", "professional", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_version("dg3").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true)); });
+        cell("option_snapshot_greeks_first_order", "concrete", "standard", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C"); });
+        cell("option_snapshot_greeks_first_order", "concrete_iso", "standard", [&] { return client.option_snapshot_greeks_first_order("SPY", "2025-03-21", "570", "C"); });
+        cell("option_snapshot_greeks_first_order", "all_strikes_one_exp", "standard", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", "*", "both"); });
+        cell("option_snapshot_greeks_first_order", "all_exps_one_strike", "standard", [&] { return client.option_snapshot_greeks_first_order("SPY", "*", "570", "both"); });
+        cell("option_snapshot_greeks_first_order", "bulk_chain", "standard", [&] { return client.option_snapshot_greeks_first_order("SPY", "*", "*", "both"); });
+        cell("option_snapshot_greeks_first_order", "legacy_zero_wildcard", "standard", [&] { return client.option_snapshot_greeks_first_order("SPY", "0", "0", "both"); });
+        cell("option_snapshot_greeks_first_order", "with_annual_dividend", "standard", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015)); });
+        cell("option_snapshot_greeks_first_order", "with_rate_type", "standard", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_rate_type("sofr")); });
+        cell("option_snapshot_greeks_first_order", "with_rate_value", "standard", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_rate_value(0.05)); });
+        cell("option_snapshot_greeks_first_order", "with_stock_price", "standard", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_stock_price(150.0)); });
+        cell("option_snapshot_greeks_first_order", "with_version", "standard", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_version("dg3")); });
+        cell("option_snapshot_greeks_first_order", "with_max_dte", "standard", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_max_dte(30)); });
+        cell("option_snapshot_greeks_first_order", "with_strike_range", "standard", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_snapshot_greeks_first_order", "with_min_time", "standard", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_min_time("09:45:00")); });
+        cell("option_snapshot_greeks_first_order", "with_use_market_value", "standard", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_use_market_value(true)); });
+        cell("option_snapshot_greeks_first_order", "all_optionals", "standard", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_version("dg3").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true)); });
+        cell("option_snapshot_greeks_second_order", "concrete", "professional", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C"); });
+        cell("option_snapshot_greeks_second_order", "concrete_iso", "professional", [&] { return client.option_snapshot_greeks_second_order("SPY", "2025-03-21", "570", "C"); });
+        cell("option_snapshot_greeks_second_order", "all_strikes_one_exp", "professional", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", "*", "both"); });
+        cell("option_snapshot_greeks_second_order", "all_exps_one_strike", "professional", [&] { return client.option_snapshot_greeks_second_order("SPY", "*", "570", "both"); });
+        cell("option_snapshot_greeks_second_order", "bulk_chain", "professional", [&] { return client.option_snapshot_greeks_second_order("SPY", "*", "*", "both"); });
+        cell("option_snapshot_greeks_second_order", "legacy_zero_wildcard", "professional", [&] { return client.option_snapshot_greeks_second_order("SPY", "0", "0", "both"); });
+        cell("option_snapshot_greeks_second_order", "with_annual_dividend", "professional", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015)); });
+        cell("option_snapshot_greeks_second_order", "with_rate_type", "professional", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_rate_type("sofr")); });
+        cell("option_snapshot_greeks_second_order", "with_rate_value", "professional", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_rate_value(0.05)); });
+        cell("option_snapshot_greeks_second_order", "with_stock_price", "professional", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_stock_price(150.0)); });
+        cell("option_snapshot_greeks_second_order", "with_version", "professional", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_version("dg3")); });
+        cell("option_snapshot_greeks_second_order", "with_max_dte", "professional", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_max_dte(30)); });
+        cell("option_snapshot_greeks_second_order", "with_strike_range", "professional", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_snapshot_greeks_second_order", "with_min_time", "professional", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_min_time("09:45:00")); });
+        cell("option_snapshot_greeks_second_order", "with_use_market_value", "professional", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_use_market_value(true)); });
+        cell("option_snapshot_greeks_second_order", "all_optionals", "professional", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_version("dg3").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true)); });
+        cell("option_snapshot_greeks_third_order", "concrete", "professional", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C"); });
+        cell("option_snapshot_greeks_third_order", "concrete_iso", "professional", [&] { return client.option_snapshot_greeks_third_order("SPY", "2025-03-21", "570", "C"); });
+        cell("option_snapshot_greeks_third_order", "all_strikes_one_exp", "professional", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", "*", "both"); });
+        cell("option_snapshot_greeks_third_order", "all_exps_one_strike", "professional", [&] { return client.option_snapshot_greeks_third_order("SPY", "*", "570", "both"); });
+        cell("option_snapshot_greeks_third_order", "bulk_chain", "professional", [&] { return client.option_snapshot_greeks_third_order("SPY", "*", "*", "both"); });
+        cell("option_snapshot_greeks_third_order", "legacy_zero_wildcard", "professional", [&] { return client.option_snapshot_greeks_third_order("SPY", "0", "0", "both"); });
+        cell("option_snapshot_greeks_third_order", "with_annual_dividend", "professional", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015)); });
+        cell("option_snapshot_greeks_third_order", "with_rate_type", "professional", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_rate_type("sofr")); });
+        cell("option_snapshot_greeks_third_order", "with_rate_value", "professional", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_rate_value(0.05)); });
+        cell("option_snapshot_greeks_third_order", "with_stock_price", "professional", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_stock_price(150.0)); });
+        cell("option_snapshot_greeks_third_order", "with_version", "professional", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_version("dg3")); });
+        cell("option_snapshot_greeks_third_order", "with_max_dte", "professional", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_max_dte(30)); });
+        cell("option_snapshot_greeks_third_order", "with_strike_range", "professional", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_snapshot_greeks_third_order", "with_min_time", "professional", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_min_time("09:45:00")); });
+        cell("option_snapshot_greeks_third_order", "with_use_market_value", "professional", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_use_market_value(true)); });
+        cell("option_snapshot_greeks_third_order", "all_optionals", "professional", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_version("dg3").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true)); });
+        cell("option_history_eod", "concrete", "free", [&] { return client.option_history_eod("SPY", "20250321", "570", "C", "20250303", "20250303"); });
+        cell("option_history_eod", "concrete_iso", "free", [&] { return client.option_history_eod("SPY", "2025-03-21", "570", "C", "20250303", "20250303"); });
+        cell("option_history_eod", "all_strikes_one_exp", "free", [&] { return client.option_history_eod("SPY", "20250321", "*", "both", "20250303", "20250303"); });
+        cell("option_history_eod", "all_exps_one_strike", "free", [&] { return client.option_history_eod("SPY", "*", "570", "both", "20250303", "20250303"); });
+        cell("option_history_eod", "bulk_chain", "free", [&] { return client.option_history_eod("SPY", "*", "*", "both", "20250303", "20250303"); });
+        cell("option_history_eod", "legacy_zero_wildcard", "free", [&] { return client.option_history_eod("SPY", "0", "0", "both", "20250303", "20250303"); });
+        cell("option_history_eod", "with_max_dte", "free", [&] { return client.option_history_eod("SPY", "20250321", "570", "C", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_max_dte(30)); });
+        cell("option_history_eod", "with_strike_range", "free", [&] { return client.option_history_eod("SPY", "20250321", "570", "C", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_history_eod", "all_optionals", "free", [&] { return client.option_history_eod("SPY", "20250321", "570", "C", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_max_dte(30).with_strike_range(10)); });
+        cell("option_history_ohlc", "concrete", "value", [&] { return client.option_history_ohlc("SPY", "20250321", "570", "C", "20250303", "60000"); });
+        cell("option_history_ohlc", "concrete_iso", "value", [&] { return client.option_history_ohlc("SPY", "2025-03-21", "570", "C", "20250303", "60000"); });
+        cell("option_history_ohlc", "all_strikes_one_exp", "value", [&] { return client.option_history_ohlc("SPY", "20250321", "*", "both", "20250303", "60000"); });
+        cell("option_history_ohlc", "with_intraday_window", "value", [&] { return client.option_history_ohlc("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00")); });
+        cell("option_history_ohlc", "with_date_range", "value", [&] { return client.option_history_ohlc("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_ohlc", "with_strike_range", "value", [&] { return client.option_history_ohlc("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_history_ohlc", "all_optionals", "value", [&] { return client.option_history_ohlc("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_strike_range(10).with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_trade", "concrete", "standard", [&] { return client.option_history_trade("SPY", "20250321", "570", "C", "20250303"); });
+        cell("option_history_trade", "concrete_iso", "standard", [&] { return client.option_history_trade("SPY", "2025-03-21", "570", "C", "20250303"); });
+        cell("option_history_trade", "all_strikes_one_exp", "standard", [&] { return client.option_history_trade("SPY", "20250321", "*", "both", "20250303"); });
+        cell("option_history_trade", "all_exps_one_strike", "standard", [&] { return client.option_history_trade("SPY", "*", "570", "both", "20250303"); });
+        cell("option_history_trade", "bulk_chain", "standard", [&] { return client.option_history_trade("SPY", "*", "*", "both", "20250303"); });
+        cell("option_history_trade", "legacy_zero_wildcard", "standard", [&] { return client.option_history_trade("SPY", "0", "0", "both", "20250303"); });
+        cell("option_history_trade", "with_intraday_window", "standard", [&] { return client.option_history_trade("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00")); });
+        cell("option_history_trade", "with_date_range", "standard", [&] { return client.option_history_trade("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_trade", "with_max_dte", "standard", [&] { return client.option_history_trade("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_max_dte(30)); });
+        cell("option_history_trade", "with_strike_range", "standard", [&] { return client.option_history_trade("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_history_trade", "all_optionals", "standard", [&] { return client.option_history_trade("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_quote", "concrete", "value", [&] { return client.option_history_quote("SPY", "20250321", "570", "C", "20250303", "60000"); });
+        cell("option_history_quote", "concrete_iso", "value", [&] { return client.option_history_quote("SPY", "2025-03-21", "570", "C", "20250303", "60000"); });
+        cell("option_history_quote", "all_strikes_one_exp", "value", [&] { return client.option_history_quote("SPY", "20250321", "*", "both", "20250303", "60000"); });
+        cell("option_history_quote", "all_exps_one_strike", "value", [&] { return client.option_history_quote("SPY", "*", "570", "both", "20250303", "60000"); });
+        cell("option_history_quote", "bulk_chain", "value", [&] { return client.option_history_quote("SPY", "*", "*", "both", "20250303", "60000"); });
+        cell("option_history_quote", "legacy_zero_wildcard", "value", [&] { return client.option_history_quote("SPY", "0", "0", "both", "20250303", "60000"); });
+        cell("option_history_quote", "with_intraday_window", "value", [&] { return client.option_history_quote("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00")); });
+        cell("option_history_quote", "with_date_range", "value", [&] { return client.option_history_quote("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_quote", "with_max_dte", "value", [&] { return client.option_history_quote("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_max_dte(30)); });
+        cell("option_history_quote", "with_strike_range", "value", [&] { return client.option_history_quote("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_history_quote", "all_optionals", "value", [&] { return client.option_history_quote("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_trade_quote", "concrete", "standard", [&] { return client.option_history_trade_quote("SPY", "20250321", "570", "C", "20250303"); });
+        cell("option_history_trade_quote", "concrete_iso", "standard", [&] { return client.option_history_trade_quote("SPY", "2025-03-21", "570", "C", "20250303"); });
+        cell("option_history_trade_quote", "all_strikes_one_exp", "standard", [&] { return client.option_history_trade_quote("SPY", "20250321", "*", "both", "20250303"); });
+        cell("option_history_trade_quote", "all_exps_one_strike", "standard", [&] { return client.option_history_trade_quote("SPY", "*", "570", "both", "20250303"); });
+        cell("option_history_trade_quote", "bulk_chain", "standard", [&] { return client.option_history_trade_quote("SPY", "*", "*", "both", "20250303"); });
+        cell("option_history_trade_quote", "legacy_zero_wildcard", "standard", [&] { return client.option_history_trade_quote("SPY", "0", "0", "both", "20250303"); });
+        cell("option_history_trade_quote", "with_intraday_window", "standard", [&] { return client.option_history_trade_quote("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00")); });
+        cell("option_history_trade_quote", "with_date_range", "standard", [&] { return client.option_history_trade_quote("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_trade_quote", "with_exclusive", "standard", [&] { return client.option_history_trade_quote("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_exclusive(true)); });
+        cell("option_history_trade_quote", "with_max_dte", "standard", [&] { return client.option_history_trade_quote("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_max_dte(30)); });
+        cell("option_history_trade_quote", "with_strike_range", "standard", [&] { return client.option_history_trade_quote("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_history_trade_quote", "all_optionals", "standard", [&] { return client.option_history_trade_quote("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_exclusive(true).with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_open_interest", "concrete", "value", [&] { return client.option_history_open_interest("SPY", "20250321", "570", "C", "20250303"); });
+        cell("option_history_open_interest", "concrete_iso", "value", [&] { return client.option_history_open_interest("SPY", "2025-03-21", "570", "C", "20250303"); });
+        cell("option_history_open_interest", "all_strikes_one_exp", "value", [&] { return client.option_history_open_interest("SPY", "20250321", "*", "both", "20250303"); });
+        cell("option_history_open_interest", "all_exps_one_strike", "value", [&] { return client.option_history_open_interest("SPY", "*", "570", "both", "20250303"); });
+        cell("option_history_open_interest", "bulk_chain", "value", [&] { return client.option_history_open_interest("SPY", "*", "*", "both", "20250303"); });
+        cell("option_history_open_interest", "legacy_zero_wildcard", "value", [&] { return client.option_history_open_interest("SPY", "0", "0", "both", "20250303"); });
+        cell("option_history_open_interest", "with_date_range", "value", [&] { return client.option_history_open_interest("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_open_interest", "with_max_dte", "value", [&] { return client.option_history_open_interest("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_max_dte(30)); });
+        cell("option_history_open_interest", "with_strike_range", "value", [&] { return client.option_history_open_interest("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_history_open_interest", "all_optionals", "value", [&] { return client.option_history_open_interest("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_greeks_eod", "concrete", "standard", [&] { return client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250303"); });
+        cell("option_history_greeks_eod", "concrete_iso", "standard", [&] { return client.option_history_greeks_eod("SPY", "2025-03-21", "570", "C", "20250303", "20250303"); });
+        cell("option_history_greeks_eod", "all_strikes_one_exp", "standard", [&] { return client.option_history_greeks_eod("SPY", "20250321", "*", "both", "20250303", "20250303"); });
+        cell("option_history_greeks_eod", "all_exps_one_strike", "standard", [&] { return client.option_history_greeks_eod("SPY", "*", "570", "both", "20250303", "20250303"); });
+        cell("option_history_greeks_eod", "bulk_chain", "standard", [&] { return client.option_history_greeks_eod("SPY", "*", "*", "both", "20250303", "20250303"); });
+        cell("option_history_greeks_eod", "legacy_zero_wildcard", "standard", [&] { return client.option_history_greeks_eod("SPY", "0", "0", "both", "20250303", "20250303"); });
+        cell("option_history_greeks_eod", "with_annual_dividend", "standard", [&] { return client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015)); });
+        cell("option_history_greeks_eod", "with_rate_type", "standard", [&] { return client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_rate_type("sofr")); });
+        cell("option_history_greeks_eod", "with_rate_value", "standard", [&] { return client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_rate_value(0.05)); });
+        cell("option_history_greeks_eod", "with_version", "standard", [&] { return client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_version("dg3")); });
+        cell("option_history_greeks_eod", "with_underlyer_use_nbbo", "standard", [&] { return client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_underlyer_use_nbbo(true)); });
+        cell("option_history_greeks_eod", "with_max_dte", "standard", [&] { return client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_max_dte(30)); });
+        cell("option_history_greeks_eod", "with_strike_range", "standard", [&] { return client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_history_greeks_eod", "all_optionals", "standard", [&] { return client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_underlyer_use_nbbo(true).with_max_dte(30).with_strike_range(10)); });
+        cell("option_history_greeks_all", "concrete", "professional", [&] { return client.option_history_greeks_all("SPY", "20250321", "570", "C", "20250303", "60000"); });
+        cell("option_history_greeks_all", "concrete_iso", "professional", [&] { return client.option_history_greeks_all("SPY", "2025-03-21", "570", "C", "20250303", "60000"); });
+        cell("option_history_greeks_all", "all_strikes_one_exp", "professional", [&] { return client.option_history_greeks_all("SPY", "20250321", "*", "both", "20250303", "60000"); });
+        cell("option_history_greeks_all", "with_intraday_window", "professional", [&] { return client.option_history_greeks_all("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00")); });
+        cell("option_history_greeks_all", "with_date_range", "professional", [&] { return client.option_history_greeks_all("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_greeks_all", "with_annual_dividend", "professional", [&] { return client.option_history_greeks_all("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015)); });
+        cell("option_history_greeks_all", "with_rate_type", "professional", [&] { return client.option_history_greeks_all("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_rate_type("sofr")); });
+        cell("option_history_greeks_all", "with_rate_value", "professional", [&] { return client.option_history_greeks_all("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_rate_value(0.05)); });
+        cell("option_history_greeks_all", "with_version", "professional", [&] { return client.option_history_greeks_all("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_version("dg3")); });
+        cell("option_history_greeks_all", "with_strike_range", "professional", [&] { return client.option_history_greeks_all("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_history_greeks_all", "all_optionals", "professional", [&] { return client.option_history_greeks_all("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_strike_range(10).with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_trade_greeks_all", "concrete", "professional", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303"); });
+        cell("option_history_trade_greeks_all", "concrete_iso", "professional", [&] { return client.option_history_trade_greeks_all("SPY", "2025-03-21", "570", "C", "20250303"); });
+        cell("option_history_trade_greeks_all", "all_strikes_one_exp", "professional", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", "*", "both", "20250303"); });
+        cell("option_history_trade_greeks_all", "all_exps_one_strike", "professional", [&] { return client.option_history_trade_greeks_all("SPY", "*", "570", "both", "20250303"); });
+        cell("option_history_trade_greeks_all", "bulk_chain", "professional", [&] { return client.option_history_trade_greeks_all("SPY", "*", "*", "both", "20250303"); });
+        cell("option_history_trade_greeks_all", "legacy_zero_wildcard", "professional", [&] { return client.option_history_trade_greeks_all("SPY", "0", "0", "both", "20250303"); });
+        cell("option_history_trade_greeks_all", "with_intraday_window", "professional", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00")); });
+        cell("option_history_trade_greeks_all", "with_date_range", "professional", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_trade_greeks_all", "with_annual_dividend", "professional", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015)); });
+        cell("option_history_trade_greeks_all", "with_rate_type", "professional", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_rate_type("sofr")); });
+        cell("option_history_trade_greeks_all", "with_rate_value", "professional", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_rate_value(0.05)); });
+        cell("option_history_trade_greeks_all", "with_version", "professional", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_version("dg3")); });
+        cell("option_history_trade_greeks_all", "with_max_dte", "professional", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_max_dte(30)); });
+        cell("option_history_trade_greeks_all", "with_strike_range", "professional", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_history_trade_greeks_all", "all_optionals", "professional", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_greeks_first_order", "concrete", "standard", [&] { return client.option_history_greeks_first_order("SPY", "20250321", "570", "C", "20250303", "60000"); });
+        cell("option_history_greeks_first_order", "concrete_iso", "standard", [&] { return client.option_history_greeks_first_order("SPY", "2025-03-21", "570", "C", "20250303", "60000"); });
+        cell("option_history_greeks_first_order", "all_strikes_one_exp", "standard", [&] { return client.option_history_greeks_first_order("SPY", "20250321", "*", "both", "20250303", "60000"); });
+        cell("option_history_greeks_first_order", "with_intraday_window", "standard", [&] { return client.option_history_greeks_first_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00")); });
+        cell("option_history_greeks_first_order", "with_date_range", "standard", [&] { return client.option_history_greeks_first_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_greeks_first_order", "with_annual_dividend", "standard", [&] { return client.option_history_greeks_first_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015)); });
+        cell("option_history_greeks_first_order", "with_rate_type", "standard", [&] { return client.option_history_greeks_first_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_rate_type("sofr")); });
+        cell("option_history_greeks_first_order", "with_rate_value", "standard", [&] { return client.option_history_greeks_first_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_rate_value(0.05)); });
+        cell("option_history_greeks_first_order", "with_version", "standard", [&] { return client.option_history_greeks_first_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_version("dg3")); });
+        cell("option_history_greeks_first_order", "with_strike_range", "standard", [&] { return client.option_history_greeks_first_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_history_greeks_first_order", "all_optionals", "standard", [&] { return client.option_history_greeks_first_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_strike_range(10).with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_trade_greeks_first_order", "concrete", "professional", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303"); });
+        cell("option_history_trade_greeks_first_order", "concrete_iso", "professional", [&] { return client.option_history_trade_greeks_first_order("SPY", "2025-03-21", "570", "C", "20250303"); });
+        cell("option_history_trade_greeks_first_order", "all_strikes_one_exp", "professional", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", "*", "both", "20250303"); });
+        cell("option_history_trade_greeks_first_order", "all_exps_one_strike", "professional", [&] { return client.option_history_trade_greeks_first_order("SPY", "*", "570", "both", "20250303"); });
+        cell("option_history_trade_greeks_first_order", "bulk_chain", "professional", [&] { return client.option_history_trade_greeks_first_order("SPY", "*", "*", "both", "20250303"); });
+        cell("option_history_trade_greeks_first_order", "legacy_zero_wildcard", "professional", [&] { return client.option_history_trade_greeks_first_order("SPY", "0", "0", "both", "20250303"); });
+        cell("option_history_trade_greeks_first_order", "with_intraday_window", "professional", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00")); });
+        cell("option_history_trade_greeks_first_order", "with_date_range", "professional", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_trade_greeks_first_order", "with_annual_dividend", "professional", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015)); });
+        cell("option_history_trade_greeks_first_order", "with_rate_type", "professional", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_rate_type("sofr")); });
+        cell("option_history_trade_greeks_first_order", "with_rate_value", "professional", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_rate_value(0.05)); });
+        cell("option_history_trade_greeks_first_order", "with_version", "professional", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_version("dg3")); });
+        cell("option_history_trade_greeks_first_order", "with_max_dte", "professional", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_max_dte(30)); });
+        cell("option_history_trade_greeks_first_order", "with_strike_range", "professional", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_history_trade_greeks_first_order", "all_optionals", "professional", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_greeks_second_order", "concrete", "professional", [&] { return client.option_history_greeks_second_order("SPY", "20250321", "570", "C", "20250303", "60000"); });
+        cell("option_history_greeks_second_order", "concrete_iso", "professional", [&] { return client.option_history_greeks_second_order("SPY", "2025-03-21", "570", "C", "20250303", "60000"); });
+        cell("option_history_greeks_second_order", "all_strikes_one_exp", "professional", [&] { return client.option_history_greeks_second_order("SPY", "20250321", "*", "both", "20250303", "60000"); });
+        cell("option_history_greeks_second_order", "with_intraday_window", "professional", [&] { return client.option_history_greeks_second_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00")); });
+        cell("option_history_greeks_second_order", "with_date_range", "professional", [&] { return client.option_history_greeks_second_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_greeks_second_order", "with_annual_dividend", "professional", [&] { return client.option_history_greeks_second_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015)); });
+        cell("option_history_greeks_second_order", "with_rate_type", "professional", [&] { return client.option_history_greeks_second_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_rate_type("sofr")); });
+        cell("option_history_greeks_second_order", "with_rate_value", "professional", [&] { return client.option_history_greeks_second_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_rate_value(0.05)); });
+        cell("option_history_greeks_second_order", "with_version", "professional", [&] { return client.option_history_greeks_second_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_version("dg3")); });
+        cell("option_history_greeks_second_order", "with_strike_range", "professional", [&] { return client.option_history_greeks_second_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_history_greeks_second_order", "all_optionals", "professional", [&] { return client.option_history_greeks_second_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_strike_range(10).with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_trade_greeks_second_order", "concrete", "professional", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303"); });
+        cell("option_history_trade_greeks_second_order", "concrete_iso", "professional", [&] { return client.option_history_trade_greeks_second_order("SPY", "2025-03-21", "570", "C", "20250303"); });
+        cell("option_history_trade_greeks_second_order", "all_strikes_one_exp", "professional", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", "*", "both", "20250303"); });
+        cell("option_history_trade_greeks_second_order", "all_exps_one_strike", "professional", [&] { return client.option_history_trade_greeks_second_order("SPY", "*", "570", "both", "20250303"); });
+        cell("option_history_trade_greeks_second_order", "bulk_chain", "professional", [&] { return client.option_history_trade_greeks_second_order("SPY", "*", "*", "both", "20250303"); });
+        cell("option_history_trade_greeks_second_order", "legacy_zero_wildcard", "professional", [&] { return client.option_history_trade_greeks_second_order("SPY", "0", "0", "both", "20250303"); });
+        cell("option_history_trade_greeks_second_order", "with_intraday_window", "professional", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00")); });
+        cell("option_history_trade_greeks_second_order", "with_date_range", "professional", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_trade_greeks_second_order", "with_annual_dividend", "professional", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015)); });
+        cell("option_history_trade_greeks_second_order", "with_rate_type", "professional", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_rate_type("sofr")); });
+        cell("option_history_trade_greeks_second_order", "with_rate_value", "professional", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_rate_value(0.05)); });
+        cell("option_history_trade_greeks_second_order", "with_version", "professional", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_version("dg3")); });
+        cell("option_history_trade_greeks_second_order", "with_max_dte", "professional", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_max_dte(30)); });
+        cell("option_history_trade_greeks_second_order", "with_strike_range", "professional", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_history_trade_greeks_second_order", "all_optionals", "professional", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_greeks_third_order", "concrete", "professional", [&] { return client.option_history_greeks_third_order("SPY", "20250321", "570", "C", "20250303", "60000"); });
+        cell("option_history_greeks_third_order", "concrete_iso", "professional", [&] { return client.option_history_greeks_third_order("SPY", "2025-03-21", "570", "C", "20250303", "60000"); });
+        cell("option_history_greeks_third_order", "all_strikes_one_exp", "professional", [&] { return client.option_history_greeks_third_order("SPY", "20250321", "*", "both", "20250303", "60000"); });
+        cell("option_history_greeks_third_order", "with_intraday_window", "professional", [&] { return client.option_history_greeks_third_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00")); });
+        cell("option_history_greeks_third_order", "with_date_range", "professional", [&] { return client.option_history_greeks_third_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_greeks_third_order", "with_annual_dividend", "professional", [&] { return client.option_history_greeks_third_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015)); });
+        cell("option_history_greeks_third_order", "with_rate_type", "professional", [&] { return client.option_history_greeks_third_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_rate_type("sofr")); });
+        cell("option_history_greeks_third_order", "with_rate_value", "professional", [&] { return client.option_history_greeks_third_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_rate_value(0.05)); });
+        cell("option_history_greeks_third_order", "with_version", "professional", [&] { return client.option_history_greeks_third_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_version("dg3")); });
+        cell("option_history_greeks_third_order", "with_strike_range", "professional", [&] { return client.option_history_greeks_third_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_history_greeks_third_order", "all_optionals", "professional", [&] { return client.option_history_greeks_third_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_strike_range(10).with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_trade_greeks_third_order", "concrete", "professional", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303"); });
+        cell("option_history_trade_greeks_third_order", "concrete_iso", "professional", [&] { return client.option_history_trade_greeks_third_order("SPY", "2025-03-21", "570", "C", "20250303"); });
+        cell("option_history_trade_greeks_third_order", "all_strikes_one_exp", "professional", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", "*", "both", "20250303"); });
+        cell("option_history_trade_greeks_third_order", "all_exps_one_strike", "professional", [&] { return client.option_history_trade_greeks_third_order("SPY", "*", "570", "both", "20250303"); });
+        cell("option_history_trade_greeks_third_order", "bulk_chain", "professional", [&] { return client.option_history_trade_greeks_third_order("SPY", "*", "*", "both", "20250303"); });
+        cell("option_history_trade_greeks_third_order", "legacy_zero_wildcard", "professional", [&] { return client.option_history_trade_greeks_third_order("SPY", "0", "0", "both", "20250303"); });
+        cell("option_history_trade_greeks_third_order", "with_intraday_window", "professional", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00")); });
+        cell("option_history_trade_greeks_third_order", "with_date_range", "professional", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_trade_greeks_third_order", "with_annual_dividend", "professional", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015)); });
+        cell("option_history_trade_greeks_third_order", "with_rate_type", "professional", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_rate_type("sofr")); });
+        cell("option_history_trade_greeks_third_order", "with_rate_value", "professional", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_rate_value(0.05)); });
+        cell("option_history_trade_greeks_third_order", "with_version", "professional", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_version("dg3")); });
+        cell("option_history_trade_greeks_third_order", "with_max_dte", "professional", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_max_dte(30)); });
+        cell("option_history_trade_greeks_third_order", "with_strike_range", "professional", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_history_trade_greeks_third_order", "all_optionals", "professional", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_greeks_implied_volatility", "concrete", "standard", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", "60000"); });
+        cell("option_history_greeks_implied_volatility", "concrete_iso", "standard", [&] { return client.option_history_greeks_implied_volatility("SPY", "2025-03-21", "570", "C", "20250303", "60000"); });
+        cell("option_history_greeks_implied_volatility", "all_strikes_one_exp", "standard", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", "*", "both", "20250303", "60000"); });
+        cell("option_history_greeks_implied_volatility", "with_intraday_window", "standard", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00")); });
+        cell("option_history_greeks_implied_volatility", "with_date_range", "standard", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_greeks_implied_volatility", "with_annual_dividend", "standard", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015)); });
+        cell("option_history_greeks_implied_volatility", "with_rate_type", "standard", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_rate_type("sofr")); });
+        cell("option_history_greeks_implied_volatility", "with_rate_value", "standard", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_rate_value(0.05)); });
+        cell("option_history_greeks_implied_volatility", "with_version", "standard", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_version("dg3")); });
+        cell("option_history_greeks_implied_volatility", "with_strike_range", "standard", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_history_greeks_implied_volatility", "all_optionals", "standard", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_strike_range(10).with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_trade_greeks_implied_volatility", "concrete", "professional", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303"); });
+        cell("option_history_trade_greeks_implied_volatility", "concrete_iso", "professional", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "2025-03-21", "570", "C", "20250303"); });
+        cell("option_history_trade_greeks_implied_volatility", "all_strikes_one_exp", "professional", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "*", "both", "20250303"); });
+        cell("option_history_trade_greeks_implied_volatility", "all_exps_one_strike", "professional", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "*", "570", "both", "20250303"); });
+        cell("option_history_trade_greeks_implied_volatility", "bulk_chain", "professional", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "*", "*", "both", "20250303"); });
+        cell("option_history_trade_greeks_implied_volatility", "legacy_zero_wildcard", "professional", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "0", "0", "both", "20250303"); });
+        cell("option_history_trade_greeks_implied_volatility", "with_intraday_window", "professional", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00")); });
+        cell("option_history_trade_greeks_implied_volatility", "with_date_range", "professional", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_history_trade_greeks_implied_volatility", "with_annual_dividend", "professional", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015)); });
+        cell("option_history_trade_greeks_implied_volatility", "with_rate_type", "professional", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_rate_type("sofr")); });
+        cell("option_history_trade_greeks_implied_volatility", "with_rate_value", "professional", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_rate_value(0.05)); });
+        cell("option_history_trade_greeks_implied_volatility", "with_version", "professional", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_version("dg3")); });
+        cell("option_history_trade_greeks_implied_volatility", "with_max_dte", "professional", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_max_dte(30)); });
+        cell("option_history_trade_greeks_implied_volatility", "with_strike_range", "professional", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_history_trade_greeks_implied_volatility", "all_optionals", "professional", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303")); });
+        cell("option_at_time_trade", "concrete", "standard", [&] { return client.option_at_time_trade("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000"); });
+        cell("option_at_time_trade", "concrete_iso", "standard", [&] { return client.option_at_time_trade("SPY", "2025-03-21", "570", "C", "20250303", "20250303", "12:00:00.000"); });
+        cell("option_at_time_trade", "all_strikes_one_exp", "standard", [&] { return client.option_at_time_trade("SPY", "20250321", "*", "both", "20250303", "20250303", "12:00:00.000"); });
+        cell("option_at_time_trade", "all_exps_one_strike", "standard", [&] { return client.option_at_time_trade("SPY", "*", "570", "both", "20250303", "20250303", "12:00:00.000"); });
+        cell("option_at_time_trade", "bulk_chain", "standard", [&] { return client.option_at_time_trade("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000"); });
+        cell("option_at_time_trade", "legacy_zero_wildcard", "standard", [&] { return client.option_at_time_trade("SPY", "0", "0", "both", "20250303", "20250303", "12:00:00.000"); });
+        cell("option_at_time_trade", "with_max_dte", "standard", [&] { return client.option_at_time_trade("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_max_dte(30)); });
+        cell("option_at_time_trade", "with_strike_range", "standard", [&] { return client.option_at_time_trade("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_at_time_trade", "all_optionals", "standard", [&] { return client.option_at_time_trade("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_max_dte(30).with_strike_range(10)); });
+        cell("option_at_time_quote", "concrete", "value", [&] { return client.option_at_time_quote("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000"); });
+        cell("option_at_time_quote", "concrete_iso", "value", [&] { return client.option_at_time_quote("SPY", "2025-03-21", "570", "C", "20250303", "20250303", "12:00:00.000"); });
+        cell("option_at_time_quote", "all_strikes_one_exp", "value", [&] { return client.option_at_time_quote("SPY", "20250321", "*", "both", "20250303", "20250303", "12:00:00.000"); });
+        cell("option_at_time_quote", "all_exps_one_strike", "value", [&] { return client.option_at_time_quote("SPY", "*", "570", "both", "20250303", "20250303", "12:00:00.000"); });
+        cell("option_at_time_quote", "bulk_chain", "value", [&] { return client.option_at_time_quote("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000"); });
+        cell("option_at_time_quote", "legacy_zero_wildcard", "value", [&] { return client.option_at_time_quote("SPY", "0", "0", "both", "20250303", "20250303", "12:00:00.000"); });
+        cell("option_at_time_quote", "with_max_dte", "value", [&] { return client.option_at_time_quote("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_max_dte(30)); });
+        cell("option_at_time_quote", "with_strike_range", "value", [&] { return client.option_at_time_quote("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_strike_range(10)); });
+        cell("option_at_time_quote", "all_optionals", "value", [&] { return client.option_at_time_quote("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_max_dte(30).with_strike_range(10)); });
+        cell("index_list_symbols", "basic", "free", [&] { return client.index_list_symbols(); });
+        cell("index_list_dates", "basic", "free", [&] { return client.index_list_dates("SPX"); });
+        cell("index_snapshot_ohlc", "concrete", "standard", [&] { return client.index_snapshot_ohlc(std::vector<std::string>{"SPX"}); });
+        cell("index_snapshot_ohlc", "with_min_time", "standard", [&] { return client.index_snapshot_ohlc(std::vector<std::string>{"SPX"}, tdx::EndpointRequestOptions{}.with_min_time("09:45:00")); });
+        cell("index_snapshot_ohlc", "all_optionals", "standard", [&] { return client.index_snapshot_ohlc(std::vector<std::string>{"SPX"}, tdx::EndpointRequestOptions{}.with_min_time("09:45:00")); });
+        cell("index_snapshot_price", "concrete", "standard", [&] { return client.index_snapshot_price(std::vector<std::string>{"SPX"}); });
+        cell("index_snapshot_price", "with_min_time", "standard", [&] { return client.index_snapshot_price(std::vector<std::string>{"SPX"}, tdx::EndpointRequestOptions{}.with_min_time("09:45:00")); });
+        cell("index_snapshot_price", "all_optionals", "standard", [&] { return client.index_snapshot_price(std::vector<std::string>{"SPX"}, tdx::EndpointRequestOptions{}.with_min_time("09:45:00")); });
+        cell("index_snapshot_market_value", "concrete", "standard", [&] { return client.index_snapshot_market_value(std::vector<std::string>{"SPX"}); });
+        cell("index_snapshot_market_value", "with_min_time", "standard", [&] { return client.index_snapshot_market_value(std::vector<std::string>{"SPX"}, tdx::EndpointRequestOptions{}.with_min_time("09:45:00")); });
+        cell("index_snapshot_market_value", "all_optionals", "standard", [&] { return client.index_snapshot_market_value(std::vector<std::string>{"SPX"}, tdx::EndpointRequestOptions{}.with_min_time("09:45:00")); });
+        cell("index_history_eod", "concrete", "free", [&] { return client.index_history_eod("SPX", "20250303", "20250303"); });
+        cell("index_history_ohlc", "concrete", "standard", [&] { return client.index_history_ohlc("SPX", "20250303", "20250303", "60000"); });
+        cell("index_history_ohlc", "with_intraday_window", "standard", [&] { return client.index_history_ohlc("SPX", "20250303", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00")); });
+        cell("index_history_ohlc", "all_optionals", "standard", [&] { return client.index_history_ohlc("SPX", "20250303", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00")); });
+        cell("index_history_price", "concrete", "value", [&] { return client.index_history_price("SPX", "20250303", "60000"); });
+        cell("index_history_price", "with_intraday_window", "value", [&] { return client.index_history_price("SPX", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00")); });
+        cell("index_history_price", "with_date_range", "value", [&] { return client.index_history_price("SPX", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303")); });
+        cell("index_history_price", "all_optionals", "value", [&] { return client.index_history_price("SPX", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_start_date("20250303").with_end_date("20250303")); });
+        cell("index_at_time_price", "concrete", "value", [&] { return client.index_at_time_price("SPX", "20250303", "20250303", "12:00:00.000"); });
+        cell("calendar_open_today", "basic", "free", [&] { return client.calendar_open_today(); });
+        cell("calendar_on_date", "basic", "value", [&] { return client.calendar_on_date("20250303"); });
+        cell("calendar_year", "basic", "value", [&] { return client.calendar_year("2025"); });
+        cell("interest_rate_history_eod", "basic", "free", [&] { return client.interest_rate_history_eod("SOFR", "20250303", "20250303"); });
+        cell("stock_history_ohlc_range", "concrete", "value", [&] { return client.stock_history_ohlc_range("AAPL", "20250303", "20250303", "60000"); });
+        cell("stock_history_ohlc_range", "with_intraday_window", "value", [&] { return client.stock_history_ohlc_range("AAPL", "20250303", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00")); });
+        cell("stock_history_ohlc_range", "with_venue", "value", [&] { return client.stock_history_ohlc_range("AAPL", "20250303", "20250303", "60000", tdx::EndpointRequestOptions{}.with_venue("nqb")); });
+        cell("stock_history_ohlc_range", "all_optionals", "value", [&] { return client.stock_history_ohlc_range("AAPL", "20250303", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_venue("nqb")); });
     } catch (const std::exception& e) {
         std::cerr << "validator bootstrap failure: " << e.what() << std::endl;
         return 1;
@@ -247,5 +580,35 @@ int main(int argc, char** argv) {
 
     std::cout << "\nC++: " << pass << " PASS, " << skip << " SKIP, " << fail << " FAIL" << std::endl;
     std::cout << "COUNTS:" << pass << ":" << skip << ":" << fail << std::endl;
+    try {
+        const char* artifact_dir = "artifacts";
+        mkdir(artifact_dir, 0755);
+        std::ofstream artifact("artifacts/validator_cpp.json");
+        artifact << "{\n  \"lang\": \"cpp\",\n  \"records\": [\n";
+        for (size_t i = 0; i < records.size(); ++i) {
+            const auto& r = records[i];
+            artifact << "    {\"endpoint\": \"" << json_escape(r.endpoint) << "\", ";
+            artifact << "\"mode\": \"" << json_escape(r.mode) << "\", ";
+            artifact << "\"status\": \"" << json_escape(r.status) << "\", ";
+            artifact << "\"row_count\": " << r.row_count << ", ";
+            artifact << "\"duration_ms\": " << r.duration_ms << ", ";
+            artifact << "\"detail\": \"" << json_escape(r.detail) << "\"}";
+            if (i + 1 < records.size()) { artifact << ","; }
+            artifact << "\n";
+        }
+        artifact << "  ]\n}\n";
+        artifact.close();
+        std::cout << "artifact: artifacts/validator_cpp.json" << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "artifact write failure: " << e.what() << std::endl;
+    }
+    std::cout.flush();
+    std::cerr.flush();
+    if (any_timeout) {
+        // Skip destructors -- leaked worker thread may still be reading
+        // Client/Config/Credentials FFI handles. _Exit terminates the
+        // process without unwinding.
+        std::_Exit(fail > 0 ? 1 : 0);
+    }
     return fail > 0 ? 1 : 0;
 }

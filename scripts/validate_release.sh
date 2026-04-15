@@ -3,16 +3,23 @@
 # ThetaDataDx Release Validation
 #
 # Single script that validates every delivery surface:
-#   1. CLI     — all 61 endpoints via generated validate_cli.py (Rust core)
-#   2. Python  — all 61 endpoints via generated validate_python.py (PyO3 bridge)
-#   3. Go      — all 61 endpoints via generated validate.go (CGo FFI bridge)
+#   1. CLI       — generated validate_cli.py        (Rust core)
+#   2. Python    — generated validate_python.py     (PyO3 bridge)
+#   3. Go        — generated validate.go            (CGo FFI bridge)
+#   4. C++       — generated validate.cpp           (C FFI bridge)
+#   5. Agreement — cross-language artifact diff     (scripts/validate_agreement.py)
+#
+# Each SDK validator writes a per-cell JSON artifact to
+# `artifacts/validator_<lang>.json`. The agreement step asserts that every
+# (endpoint, mode) cell present in >=2 artifacts agrees on status and
+# row_count. Mismatches fail the release. See PR #291.
 #
 # Usage:
 #   ./scripts/validate_release.sh                    # creds.txt in repo root
 #   ./scripts/validate_release.sh /path/to/creds.txt
 #
 # Prerequisites:
-#   Rust, Go, Python, and a working compiler toolchain
+#   Rust, Go, Python, a C++17 toolchain, and CMake
 #
 # The script will build missing local artifacts as needed. If the Python SDK is
 # not installed into the current interpreter, it bootstraps a local virtualenv
@@ -76,9 +83,9 @@ ensure_python_sdk() {
     PYTHON_BIN="$venv_dir/bin/python"
 }
 
-# ── 1. CLI (all 61 endpoints) ──────────────────────────────────────────────
+# ── 1. CLI ──────────────────────────────────────────────────────────────────
 
-section "1/3  CLI — all 61 endpoints"
+section "1/5  CLI — live parameter-mode matrix"
 
 if [ ! -f "$REPO/target/release/tdx" ]; then
     echo "Building CLI..."
@@ -94,9 +101,9 @@ cli_skip=$(echo "$cli_counts" | cut -d: -f2)
 cli_fail=$(echo "$cli_counts" | cut -d: -f3)
 record "CLI" "$cli_pass" "$cli_skip" "$cli_fail"
 
-# ── 2. Python SDK (all 61 endpoints) ─────────────────────────────────────
+# ── 2. Python SDK ───────────────────────────────────────────────────────────
 
-section "2/3  Python SDK — all 61 endpoints"
+section "2/5  Python SDK — live parameter-mode matrix"
 
 py_pass=0
 py_skip=0
@@ -116,9 +123,9 @@ else
 fi
 record "Python" "$py_pass" "$py_skip" "$py_fail"
 
-# ── 3. Go SDK (all 61 endpoints) ─────────────────────────────────────────
+# ── 3. Go SDK ───────────────────────────────────────────────────────────────
 
-section "3/3  Go SDK — all 61 endpoints"
+section "3/5  Go SDK — live parameter-mode matrix"
 
 go_pass=0
 go_skip=0
@@ -143,6 +150,47 @@ else
     go_fail=61
 fi
 record "Go" "$go_pass" "$go_skip" "$go_fail"
+
+# ── 4. C++ SDK ──────────────────────────────────────────────────────────────
+
+section "4/5  C++ SDK — live parameter-mode matrix"
+
+cpp_pass=0
+cpp_skip=0
+cpp_fail=0
+
+CPP_BUILD="$REPO/sdks/cpp/build"
+if [ ! -f "$CPP_BUILD/thetadatadx_validate" ]; then
+    echo "Building C++ validator..."
+    (cd "$REPO/sdks/cpp" && cmake -B build -S . >/dev/null 2>&1 && cmake --build build --target thetadatadx_validate >/dev/null 2>&1) || true
+fi
+
+if [ -x "$CPP_BUILD/thetadatadx_validate" ]; then
+    cpp_result=$(cd "$REPO" && LD_LIBRARY_PATH="$FFI_LIB" "$CPP_BUILD/thetadatadx_validate" "$CREDS" 2>&1)
+    echo "$cpp_result"
+    cpp_counts=$(echo "$cpp_result" | grep -oP 'COUNTS:\K.*')
+    cpp_pass=$(echo "$cpp_counts" | cut -d: -f1)
+    cpp_skip=$(echo "$cpp_counts" | cut -d: -f2)
+    cpp_fail=$(echo "$cpp_counts" | cut -d: -f3)
+else
+    echo "  C++ validator build failed or target missing."
+    cpp_fail=1
+fi
+record "C++" "$cpp_pass" "$cpp_skip" "$cpp_fail"
+
+# ── 5. Cross-language agreement ─────────────────────────────────────────────
+
+section "5/5  Cross-language agreement"
+
+agreement_result=$(python3 "$REPO/scripts/validate_agreement.py" 2>&1)
+echo "$agreement_result"
+agreement_exit=$?
+if [ "$agreement_exit" -ne 0 ]; then
+    TOTAL_FAIL=$((TOTAL_FAIL + 1))
+    SECTION_RESULTS+=("$(printf "  %-12s %3s       %3s      %3d FAIL" "Agreement" "" "" 1)")
+else
+    SECTION_RESULTS+=("$(printf "  %-12s %3s PASS  %3s SKIP  %3s FAIL" "Agreement" "1" "0" "0")")
+fi
 
 # ── Summary ────────────────────────────────────────────────────────────────
 

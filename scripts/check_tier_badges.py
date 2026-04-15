@@ -4,8 +4,13 @@
 The authoritative source is ThetaData's OpenAPI spec
 (``https://docs.thetadata.us/openapiv3.yaml``), which encodes the minimum
 subscription tier of every endpoint via a top-level
-``x-min-subscription:`` field. We fetch it at check time -- no snapshot to
-refresh, no drift vector.
+``x-min-subscription:`` field.
+
+Source of truth: ``scripts/upstream_openapi.yaml`` (a checked-in snapshot
+of the upstream YAML). The Rust validator generator parses the same file,
+so both machinery and humans reason against one pinned schema. Refresh
+the snapshot by rerunning this script with ``--refresh-snapshot``; the
+fetch path below is retained for that single purpose.
 
 The script walks ``docs-site/docs/historical/**/*.md``, extracts each
 page's ``<TierBadge tier="..." />``, maps the docs path to an upstream
@@ -17,6 +22,7 @@ doesn't document.
 
 from __future__ import annotations
 
+import argparse
 import re
 import sys
 import time
@@ -27,6 +33,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 HISTORICAL_ROOT = ROOT / "docs-site/docs/historical"
+SNAPSHOT_PATH = ROOT / "scripts/upstream_openapi.yaml"
 
 UPSTREAM_URL = "https://docs.thetadata.us/openapiv3.yaml"
 FETCH_TIMEOUT_SECS = 30
@@ -112,6 +119,47 @@ def fetch_upstream_yaml() -> str:
     return ""  # unreachable; fail() raises
 
 
+def read_snapshot_yaml() -> str:
+    if not SNAPSHOT_PATH.exists():
+        fail(
+            f"snapshot missing at {SNAPSHOT_PATH.relative_to(ROOT)}; "
+            "run `python3 scripts/check_tier_badges.py --refresh-snapshot` to populate."
+        )
+    return SNAPSHOT_PATH.read_text()
+
+
+def refresh_snapshot() -> None:
+    """Fetch the live upstream YAML and overwrite the committed snapshot.
+
+    Prepends a frontmatter block (``_captured_at``, ``_source``,
+    ``_refresh_with``) so later readers know when and how the snapshot was
+    taken. The parser here and the Rust generator both tolerate leading
+    ``#`` comment lines because they only match on indentation-specific
+    structural lines.
+    """
+    print(f"refreshing {SNAPSHOT_PATH.relative_to(ROOT)} from {UPSTREAM_URL} ...", flush=True)
+    body = fetch_upstream_yaml()
+    # UTC ISO-8601 timestamp, second precision -- no need for millis here.
+    captured_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    frontmatter = (
+        f"# _captured_at: {captured_at}\n"
+        f"# _source: {UPSTREAM_URL}\n"
+        "# _refresh_with: python3 scripts/check_tier_badges.py --refresh-snapshot\n"
+        "#\n"
+        "# This file is the pinned upstream ThetaData OpenAPI v3 spec. Both the\n"
+        "# tier-badge check (scripts/check_tier_badges.py) and the Rust validator\n"
+        "# generator (crates/thetadatadx/build_support/endpoints.rs) derive endpoint\n"
+        "# min-subscription tiers and expiration-wildcard support from it, so both\n"
+        "# human docs and generated machinery agree on one pinned schema. Refresh\n"
+        "# with the command above when ThetaData publishes a new spec.\n"
+    )
+    content = frontmatter + body
+    SNAPSHOT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    SNAPSHOT_PATH.write_text(content)
+    line_count = content.count("\n") + (0 if content.endswith("\n") else 1)
+    print(f"  wrote {line_count} lines to {SNAPSHOT_PATH.relative_to(ROOT)} (captured_at={captured_at})")
+
+
 def parse_tier_mapping(yaml_text: str) -> dict[str, str]:
     """Extract ``path -> x-min-subscription`` from the OpenAPI YAML."""
     mapping: dict[str, str] = {}
@@ -172,8 +220,23 @@ def find_tier_badge(text: str) -> str | None:
 
 
 def main() -> int:
-    print(f"fetching {UPSTREAM_URL} ...", flush=True)
-    yaml_text = fetch_upstream_yaml()
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0] if __doc__ else "")
+    parser.add_argument(
+        "--refresh-snapshot",
+        action="store_true",
+        help=(
+            "Fetch the live upstream YAML and overwrite "
+            "scripts/upstream_openapi.yaml, then exit."
+        ),
+    )
+    args = parser.parse_args()
+
+    if args.refresh_snapshot:
+        refresh_snapshot()
+        return 0
+
+    print(f"reading {SNAPSHOT_PATH.relative_to(ROOT)} ...", flush=True)
+    yaml_text = read_snapshot_yaml()
     upstream = parse_tier_mapping(yaml_text)
     print(f"  parsed {len(upstream)} upstream endpoints", flush=True)
 

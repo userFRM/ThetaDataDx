@@ -19,6 +19,9 @@ mod sdk_surface;
 #[allow(dead_code)]
 #[path = "../../build_support/ticks.rs"]
 mod ticks;
+#[allow(dead_code)]
+#[path = "../../build_support/upstream_openapi.rs"]
+mod upstream_openapi;
 
 fn repo_root() -> PathBuf {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));

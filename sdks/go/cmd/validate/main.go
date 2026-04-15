@@ -17,9 +17,11 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
 	thetadatadx "github.com/userFRM/thetadatadx/sdks/go"
 )
@@ -34,21 +36,51 @@ func main() {
 	if err != nil {
 		log.Fatalf("creds: %v", err)
 	}
-	defer c.Close()
 
 	cfg := thetadatadx.ProductionConfig()
-	defer cfg.Close()
 
 	client, err := thetadatadx.Connect(c, cfg)
 	if err != nil {
 		log.Fatalf("connect: %v", err)
 	}
-	defer client.Close()
 
-	pass, skip, fail := thetadatadx.ValidateAllEndpoints(client)
+	pass, skip, fail, hadTimeout, records := thetadatadx.ValidateAllEndpoints(client)
 	fmt.Printf("\nGo: %d PASS, %d SKIP, %d FAIL\n", pass, skip, fail)
 	fmt.Printf("COUNTS:%d:%d:%d\n", pass, skip, fail)
+
+	// Write JSON artifact for the cross-language agreement check.
+	// Path is relative to this binary's CWD, which is sdks/go when invoked
+	// via `go run`. Repo root is two levels up.
+	artifactPath := filepath.Join("..", "..", "artifacts", "validator_go.json")
+	if err := os.MkdirAll(filepath.Dir(artifactPath), 0o755); err != nil {
+		log.Printf("warning: mkdir artifacts: %v", err)
+	}
+	artifact := map[string]interface{}{
+		"lang":    "go",
+		"records": records,
+	}
+	data, err := json.MarshalIndent(artifact, "", "  ")
+	if err != nil {
+		log.Printf("warning: marshal artifact: %v", err)
+	} else if err := os.WriteFile(artifactPath, data, 0o644); err != nil {
+		log.Printf("warning: write artifact: %v", err)
+	} else {
+		fmt.Printf("artifact: %s\n", artifactPath)
+	}
+
+	// When any cell timed out, a background goroutine is still running a CGo
+	// call holding a pointer to the client handle. Closing the handle now
+	// would race with that goroutine (use-after-free). Skip the deferred
+	// Close and let the OS reclaim memory + descriptors via os.Exit. When no
+	// timeout fired, run Close explicitly so this binary matches normal
+	// library-user hygiene. See issue #290.
+	if !hadTimeout {
+		client.Close()
+		cfg.Close()
+		c.Close()
+	}
 	if fail > 0 {
 		os.Exit(1)
 	}
+	os.Exit(0)
 }
