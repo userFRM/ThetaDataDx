@@ -109,6 +109,20 @@ pub enum Error {
     /// TLS error.
     #[error("TLS error: {0}")]
     Tls(#[from] rustls::Error),
+
+    /// Per-request deadline elapsed.
+    ///
+    /// Returned when a `with_deadline(d)` (Rust builder) or `timeout_ms`
+    /// (FFI / Python / Go / C++) elapses while the gRPC call was in flight.
+    /// The in-flight future is dropped before this error is returned, so the
+    /// underlying `tonic::transport::Channel` cancels the stream and the
+    /// request-semaphore permit is released; subsequent calls on the same
+    /// `DirectClient` succeed.
+    #[error("Request deadline exceeded after {duration_ms} ms")]
+    Timeout {
+        /// Configured budget in milliseconds.
+        duration_ms: u64,
+    },
 }
 
 impl From<tdbe::error::Error> for Error {
@@ -181,5 +195,15 @@ mod tests {
         let msg = format!("{err}");
         assert!(msg.contains("Disconnected"));
         assert!(msg.contains("server rejected login"));
+    }
+
+    #[test]
+    fn timeout_error_carries_duration() {
+        let err = Error::Timeout {
+            duration_ms: 60_000,
+        };
+        let msg = format!("{err}");
+        assert!(msg.contains("60000"));
+        assert!(msg.contains("deadline"));
     }
 }

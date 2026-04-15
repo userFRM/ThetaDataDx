@@ -4,11 +4,55 @@
 //! time as well as the handwritten streaming endpoints in [`crate::direct`].
 //! They are declared with `#[macro_use]` in `lib.rs` so every sibling module
 //! can reference them.
+//!
+//! ## Per-call deadlines
+//!
+//! Every generated builder exposes [`with_deadline(Duration)`](#with_deadline)
+//! which wraps the in-flight gRPC call (`<grpc>` + `collect_stream`) in
+//! [`tokio::time::timeout`]. On expiry the future is dropped: the local
+//! `_permit` releases the request-semaphore slot, the tonic `Streaming` is
+//! dropped (RST_STREAM on the underlying H2 stream), and the call returns
+//! `Err(Error::Timeout { duration_ms })`. The `DirectClient` is unaffected;
+//! a subsequent call on the same handle succeeds.
+//!
+//! List endpoints additionally expose a parallel `<name>_with_deadline(...)`
+//! async method on `DirectClient`: the existing `pub async fn <name>(...)`
+//! signatures stay non-breaking, while the `_with_deadline` variant gives
+//! the same cancellation contract for the validator and registry dispatch.
+//!
+//! See [`docs/dev/w3-async-cancellation-design.md`].
+
+/// Run a future with an optional per-call deadline.
+///
+/// When `deadline` is `None` the future is awaited verbatim. When `Some(d)`
+/// the future is wrapped in [`tokio::time::timeout`]; on elapsed the future
+/// is dropped and `Error::Timeout { duration_ms }` is returned. Local state
+/// captured by the future (`_permit`, `tonic::Streaming`) drops with it.
+pub(crate) async fn run_with_optional_deadline<F, T>(
+    deadline: Option<std::time::Duration>,
+    fut: F,
+) -> Result<T, crate::error::Error>
+where
+    F: std::future::Future<Output = Result<T, crate::error::Error>>,
+{
+    match deadline {
+        None => fut.await,
+        Some(d) => match tokio::time::timeout(d, fut).await {
+            Ok(inner) => inner,
+            Err(_) => Err(crate::error::Error::Timeout {
+                duration_ms: u64::try_from(d.as_millis()).unwrap_or(u64::MAX),
+            }),
+        },
+    }
+}
 
 /// Generate a list endpoint that returns `Vec<String>` by extracting a text
 /// column from the response `DataTable`.
 ///
 /// Pattern: build request -> gRPC call -> collect stream -> extract text column.
+/// Emits two methods on `DirectClient`:
+/// - `pub async fn <name>(...)` — no deadline.
+/// - `pub async fn <name>_with_deadline(deadline, ...)` — caps the call.
 macro_rules! list_endpoint {
     (
         $(#[$meta:meta])*
@@ -17,41 +61,64 @@ macro_rules! list_endpoint {
         request: $req:ident;
         query: $query:ident { $($field:ident : $val:expr),* $(,)? };
     ) => {
-        #[allow(clippy::too_many_arguments)] // Reason: ThetaData endpoints require many parameters (symbol, date, strike, exp, right, etc.).
-        $(#[$meta])*
-        /// # Errors
-        ///
-        /// Returns an error on network, authentication, or parsing failure.
-        pub async fn $name(&self, $($arg : $arg_ty),*) -> Result<Vec<String>, Error> {
-            tracing::debug!(endpoint = stringify!($name), "gRPC request");
-            metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
-            let _metrics_start = std::time::Instant::now();
-            let _permit = self.request_semaphore.acquire().await
-                .map_err(|_| Error::Config("request semaphore closed".into()))?;
-            let request = proto::$req {
-                query_info: Some(self.query_info()),
-                params: Some(proto::$query { $($field : $val),* }),
-            };
-            let stream = match self.stub().$grpc(request).await {
-                Ok(resp) => resp.into_inner(),
-                Err(e) => {
-                    metrics::counter!("thetadatadx.grpc.errors", "endpoint" => stringify!($name)).increment(1);
-                    return Err(e.into());
-                }
-            };
-            let table = match self.collect_stream(stream).await {
-                Ok(t) => t,
-                Err(e) => {
-                    metrics::counter!("thetadatadx.grpc.errors", "endpoint" => stringify!($name)).increment(1);
-                    return Err(e);
-                }
-            };
-            metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
-                .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
-            Ok(decode::extract_text_column(&table, $col)
-                .into_iter()
-                .flatten()
-                .collect())
+        ::paste::paste! {
+            #[allow(clippy::too_many_arguments)] // Reason: ThetaData endpoints require many parameters (symbol, date, strike, exp, right, etc.).
+            $(#[$meta])*
+            /// # Errors
+            ///
+            /// Returns an error on network, authentication, or parsing failure.
+            pub async fn $name(&self, $($arg : $arg_ty),*) -> Result<Vec<String>, Error> {
+                self.[<__ $name _impl>](None, $($arg),*).await
+            }
+
+            #[allow(clippy::too_many_arguments)] // Reason: forwarding to ThetaData endpoint with cross-cutting deadline.
+            $(#[$meta])*
+            #[doc = "Variant with a per-call deadline. On expiry the in-flight gRPC"]
+            #[doc = "call is cancelled and `Err(Error::Timeout)` is returned; the"]
+            #[doc = "`DirectClient` is left intact for subsequent calls."]
+            /// # Errors
+            ///
+            /// Returns `Error::Timeout` if `deadline` elapses, otherwise the same
+            /// errors as the deadline-less variant.
+            pub async fn [<$name _with_deadline>](&self, deadline: std::time::Duration, $($arg : $arg_ty),*) -> Result<Vec<String>, Error> {
+                self.[<__ $name _impl>](Some(deadline), $($arg),*).await
+            }
+
+            #[allow(non_snake_case, clippy::too_many_arguments)] // Reason: synthetic-name impl shared between deadline / no-deadline entry points.
+            async fn [<__ $name _impl>](&self, __deadline: Option<std::time::Duration>, $($arg : $arg_ty),*) -> Result<Vec<String>, Error> {
+                let inner = async move {
+                    tracing::debug!(endpoint = stringify!($name), "gRPC request");
+                    metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
+                    let _metrics_start = std::time::Instant::now();
+                    let _permit = self.request_semaphore.acquire().await
+                        .map_err(|_| Error::Config("request semaphore closed".into()))?;
+                    let request = proto::$req {
+                        query_info: Some(self.query_info()),
+                        params: Some(proto::$query { $($field : $val),* }),
+                    };
+                    let stream = match self.stub().$grpc(request).await {
+                        Ok(resp) => resp.into_inner(),
+                        Err(e) => {
+                            metrics::counter!("thetadatadx.grpc.errors", "endpoint" => stringify!($name)).increment(1);
+                            return Err::<Vec<String>, Error>(e.into());
+                        }
+                    };
+                    let table = match self.collect_stream(stream).await {
+                        Ok(t) => t,
+                        Err(e) => {
+                            metrics::counter!("thetadatadx.grpc.errors", "endpoint" => stringify!($name)).increment(1);
+                            return Err(e);
+                        }
+                    };
+                    metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
+                        .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
+                    Ok(decode::extract_text_column(&table, $col)
+                        .into_iter()
+                        .flatten()
+                        .collect())
+                };
+                $crate::macros::run_with_optional_deadline(__deadline, inner).await
+            }
         }
     };
 }
@@ -59,8 +126,9 @@ macro_rules! list_endpoint {
 /// Generate an endpoint that returns parsed tick data (`Vec<T>`) via a builder.
 ///
 /// The endpoint method returns a builder struct that captures required params.
-/// Optional params are set via chainable setter methods. `.await` (via `IntoFuture`)
-/// executes the gRPC call.
+/// Optional params are set via chainable setter methods. A per-call deadline
+/// is set via `with_deadline(Duration)`. `.await` (via `IntoFuture`) executes
+/// the gRPC call.
 ///
 /// # Example
 ///
@@ -72,6 +140,7 @@ macro_rules! list_endpoint {
 /// let ticks = client.stock_history_ohlc("AAPL", "20260401", "1m")
 ///     .venue("arca")
 ///     .start_time("04:00:00")
+///     .with_deadline(std::time::Duration::from_secs(60))
 ///     .await?;
 /// ```
 macro_rules! parsed_endpoint {
@@ -93,12 +162,25 @@ macro_rules! parsed_endpoint {
             client: &'a DirectClient,
             $(pub(crate) $req_arg: req_field_type!($req_kind),)*
             $(pub(crate) $opt_name: opt_field_type!($opt_kind),)*
+            pub(crate) deadline: Option<std::time::Duration>,
         }
 
         impl<'a> $builder_name<'a> {
             $(
                 opt_setter!($opt_name, $opt_kind);
             )*
+
+            /// Apply a per-call deadline.
+            ///
+            /// On expiry the in-flight gRPC call is cancelled and the
+            /// builder's future resolves to `Err(Error::Timeout)`. The
+            /// underlying `DirectClient` is unaffected; subsequent calls
+            /// on the same handle succeed.
+            #[must_use]
+            pub fn with_deadline(mut self, duration: std::time::Duration) -> Self {
+                self.deadline = Some(duration);
+                self
+            }
         }
 
         impl<'a> IntoFuture for $builder_name<'a> {
@@ -111,35 +193,39 @@ macro_rules! parsed_endpoint {
                         client,
                         $($req_arg,)*
                         $($opt_name,)*
+                        deadline,
                     } = self;
                     let _ = &client;
                     $($(validate_date(&$date_arg)?;)+)?
-                    tracing::debug!(endpoint = stringify!($name), "gRPC request");
-                    metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
-                    let _metrics_start = std::time::Instant::now();
-                    let _permit = client.request_semaphore.acquire().await
-                        .map_err(|_| Error::Config("request semaphore closed".into()))?;
-                    let request = proto::$req {
-                        query_info: Some(client.query_info()),
-                        params: Some(proto::$query { $($field : $val),* }),
+                    let inner = async move {
+                        tracing::debug!(endpoint = stringify!($name), "gRPC request");
+                        metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
+                        let _metrics_start = std::time::Instant::now();
+                        let _permit = client.request_semaphore.acquire().await
+                            .map_err(|_| Error::Config("request semaphore closed".into()))?;
+                        let request = proto::$req {
+                            query_info: Some(client.query_info()),
+                            params: Some(proto::$query { $($field : $val),* }),
+                        };
+                        let stream = match client.stub().$grpc(request).await {
+                            Ok(resp) => resp.into_inner(),
+                            Err(e) => {
+                                metrics::counter!("thetadatadx.grpc.errors", "endpoint" => stringify!($name)).increment(1);
+                                return Err::<$ret, Error>(e.into());
+                            }
+                        };
+                        let table = match client.collect_stream(stream).await {
+                            Ok(t) => t,
+                            Err(e) => {
+                                metrics::counter!("thetadatadx.grpc.errors", "endpoint" => stringify!($name)).increment(1);
+                                return Err(e);
+                            }
+                        };
+                        metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
+                            .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
+                        Ok($parser(&table))
                     };
-                    let stream = match client.stub().$grpc(request).await {
-                        Ok(resp) => resp.into_inner(),
-                        Err(e) => {
-                            metrics::counter!("thetadatadx.grpc.errors", "endpoint" => stringify!($name)).increment(1);
-                            return Err(e.into());
-                        }
-                    };
-                    let table = match client.collect_stream(stream).await {
-                        Ok(t) => t,
-                        Err(e) => {
-                            metrics::counter!("thetadatadx.grpc.errors", "endpoint" => stringify!($name)).increment(1);
-                            return Err(e);
-                        }
-                    };
-                    metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
-                        .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
-                    Ok($parser(&table))
+                    $crate::macros::run_with_optional_deadline(deadline, inner).await
                 })
             }
         }
@@ -151,6 +237,7 @@ macro_rules! parsed_endpoint {
                     client: self,
                     $($req_arg: req_convert!($req_kind, $req_arg),)*
                     $($opt_name: $opt_default,)*
+                    deadline: None,
                 }
             }
         }
@@ -190,6 +277,108 @@ macro_rules! opt_field_type {
     (opt_f64)  => { Option<f64> };
     (opt_bool) => { Option<bool> };
     (string)   => { String };
+}
+
+/// Verify the deadline helper actually cancels the inner future and frees
+/// resources captured by it. The macro-generated endpoint code wraps a
+/// future that holds a `tokio::sync::SemaphorePermit` (the request-permit)
+/// and a `tonic::Streaming` (the gRPC stream); on timeout the future is
+/// dropped, both resources release, and the next call succeeds. We model
+/// that contract here using `tokio::sync::Semaphore` directly so the test
+/// is offline.
+#[cfg(test)]
+mod tests {
+    use super::run_with_optional_deadline;
+    use crate::error::Error;
+    use std::sync::Arc;
+    use std::time::Duration;
+    use tokio::sync::Semaphore;
+
+    /// `None` deadline forwards the future result verbatim.
+    #[tokio::test]
+    async fn passthrough_when_no_deadline() {
+        let result: Result<i32, Error> = run_with_optional_deadline(None, async { Ok(7) }).await;
+        assert_eq!(result.unwrap(), 7);
+    }
+
+    /// Future completes inside the deadline -> success propagates.
+    #[tokio::test]
+    async fn returns_inner_when_under_deadline() {
+        let result: Result<&str, Error> =
+            run_with_optional_deadline(Some(Duration::from_secs(60)), async { Ok("ok") }).await;
+        assert_eq!(result.unwrap(), "ok");
+    }
+
+    /// Deadline elapses -> `Error::Timeout { duration_ms }`.
+    #[tokio::test]
+    async fn returns_timeout_when_over_deadline() {
+        let result: Result<(), Error> =
+            run_with_optional_deadline(Some(Duration::from_millis(5)), async {
+                tokio::time::sleep(Duration::from_secs(60)).await;
+                Ok(())
+            })
+            .await;
+        match result {
+            Err(Error::Timeout { duration_ms }) => assert_eq!(duration_ms, 5),
+            other => panic!("expected Error::Timeout, got {other:?}"),
+        }
+    }
+
+    /// Drop-on-timeout actually releases resources held by the inner future.
+    /// The endpoint macros hold a `request_semaphore` permit and a tonic
+    /// `Streaming` in local bindings; both must drop when the timeout fires.
+    /// We simulate that by gating the inner future on a 1-permit semaphore
+    /// and asserting the next acquisition succeeds immediately.
+    #[tokio::test]
+    async fn drops_inner_state_on_timeout() {
+        let semaphore = Arc::new(Semaphore::new(1));
+        let semaphore_clone = Arc::clone(&semaphore);
+
+        let timed_out: Result<(), Error> =
+            run_with_optional_deadline(Some(Duration::from_millis(5)), async move {
+                let _permit = semaphore_clone.acquire().await.expect("acquire");
+                tokio::time::sleep(Duration::from_secs(60)).await;
+                Ok(())
+            })
+            .await;
+        assert!(matches!(timed_out, Err(Error::Timeout { .. })));
+
+        // The permit must be released because the inner future was dropped.
+        // try_acquire is non-blocking; if the permit had leaked, this would
+        // return TryAcquireError::NoPermits.
+        let next = semaphore.try_acquire();
+        assert!(
+            next.is_ok(),
+            "permit not released on timeout — cancellation didn't drop the inner future"
+        );
+    }
+
+    /// Subsequent invocations on a shared resource succeed after a prior
+    /// timeout. Mirrors the validator-side requirement: cell N+1 on the
+    /// same `DirectClient` must succeed even if cell N timed out.
+    #[tokio::test]
+    async fn next_invocation_succeeds_after_timeout() {
+        let semaphore = Arc::new(Semaphore::new(1));
+        let sem1 = Arc::clone(&semaphore);
+        let sem2 = Arc::clone(&semaphore);
+
+        let timed_out: Result<(), Error> =
+            run_with_optional_deadline(Some(Duration::from_millis(5)), async move {
+                let _permit = sem1.acquire().await.expect("acquire");
+                tokio::time::sleep(Duration::from_secs(60)).await;
+                Ok(())
+            })
+            .await;
+        assert!(matches!(timed_out, Err(Error::Timeout { .. })));
+
+        let succeeded: Result<i32, Error> =
+            run_with_optional_deadline(Some(Duration::from_secs(60)), async move {
+                let _permit = sem2.acquire().await.expect("acquire");
+                Ok(42)
+            })
+            .await;
+        assert_eq!(succeeded.unwrap(), 42);
+    }
 }
 
 /// Generate a chainable setter method based on the tag token.
