@@ -13,6 +13,7 @@
 
 #include "thetadx.h"
 
+#include <chrono>
 #include <cstdint>
 #include <map>
 #include <memory>
