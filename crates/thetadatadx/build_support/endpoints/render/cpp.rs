@@ -54,8 +54,14 @@ pub(super) fn render_cpp_options(params: &[GeneratedParam]) -> String {
     out.push_str("        timeout_ms = value;\n");
     out.push_str("        return *this;\n");
     out.push_str("    }\n");
+    // A negative duration means "deadline already in the past" and clamps
+    // to 1 ms (immediate expiration). Without the clamp, the cast to
+    // uint64_t would silently wrap to a multi-century value, the opposite
+    // of the caller's intent.
     out.push_str("    EndpointRequestOptions& with_deadline(std::chrono::milliseconds value) {\n");
-    out.push_str("        timeout_ms = static_cast<uint64_t>(value.count());\n");
+    out.push_str(
+        "        timeout_ms = value.count() < 0 ? 1u : static_cast<uint64_t>(value.count());\n",
+    );
     out.push_str("        return *this;\n");
     out.push_str("    }\n");
     out.push_str("};\n");
@@ -188,6 +194,11 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint) -> String {
         out.push_str("    auto symbol_ptrs = detail::string_ptrs(symbols);\n");
     }
     out.push_str("    detail::FfiEndpointRequestOptions ffi_options(options);\n");
+    // Clear any stale FFI error before the call so check_string_array /
+    // check_tick_array can disambiguate "success-empty" from "failure-with-
+    // empty-sentinel" (e.g. timeout). W3 round-2 fix — see
+    // ffi/src/lib.rs::tdx_clear_error.
+    out.push_str("    tdx_clear_error();\n");
 
     if endpoint.return_type == "StringList" {
         write!(
@@ -225,6 +236,15 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint) -> String {
             }
         }
         out.push_str(", &ffi_options.raw);\n");
+        // Disambiguate empty-success vs failure-empty (e.g. timeout). See
+        // ffi/src/lib.rs::tdx_clear_error and the matching call before the FFI.
+        out.push_str("    {\n");
+        out.push_str("        const std::string err = detail::last_ffi_error_raw();\n");
+        out.push_str("        if (!err.empty()) {\n");
+        out.push_str("            tdx_option_contract_array_free(arr);\n");
+        out.push_str("            throw std::runtime_error(\"thetadatadx: \" + err);\n");
+        out.push_str("        }\n");
+        out.push_str("    }\n");
         out.push_str("    std::vector<OptionContract> result;\n");
         out.push_str("    result.reserve(arr.len);\n");
         out.push_str("    for (size_t i = 0; i < arr.len; ++i) {\n");

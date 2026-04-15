@@ -80,6 +80,21 @@ pub extern "C" fn tdx_last_error() -> *const c_char {
     })
 }
 
+/// Clear the thread-local error string.
+///
+/// Wrappers in higher-level languages (Go, C++, Python) should call this
+/// before issuing an FFI call so they can distinguish "the call set a new
+/// error" from "the previous call left a stale error in the slot". Critical
+/// for endpoints that return an empty value sentinel on both success
+/// (no rows) and failure (e.g. timeout) — without clearing first, the
+/// caller can't tell the two apart from the array alone.
+#[no_mangle]
+pub extern "C" fn tdx_clear_error() {
+    LAST_ERROR.with(|e| {
+        *e.borrow_mut() = None;
+    });
+}
+
 // ── Opaque handle types ──
 
 /// Opaque credentials handle.

@@ -378,6 +378,13 @@ void tdx_contract_map_array_free(TdxContractMapArray* arr);
  *  Do NOT free this pointer. */
 const char* tdx_last_error(void);
 
+/** Clear the thread-local error string.
+ *  Higher-level wrappers should call this before issuing an FFI call so
+ *  they can distinguish "the call set a new error" from "the previous
+ *  call left a stale error in the slot" when an empty value (e.g. zero
+ *  rows) is also a valid success outcome. */
+void tdx_clear_error(void);
+
 /* ── Credentials ── */
 
 /** Create credentials from email and password. Returns NULL on error. */

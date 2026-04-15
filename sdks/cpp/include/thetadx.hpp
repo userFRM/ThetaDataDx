@@ -123,6 +123,17 @@ static std::string last_ffi_error() {
     return err ? std::string(err) : "unknown error";
 }
 
+// Raw variant: returns "" when the FFI error slot is empty. Used by
+// post-call disambiguation in check_array helpers — distinguishes
+// success-empty from failure-empty (e.g. timeout on a list endpoint
+// returns the same `{nullptr, 0}` sentinel as a successful empty result).
+// Generated `_with_options` callers MUST `tdx_clear_error()` before
+// invoking the FFI so a stale error from a prior call isn't picked up.
+static std::string last_ffi_error_raw() {
+    const char* err = tdx_last_error();
+    return err ? std::string(err) : std::string();
+}
+
 template<typename T>
 std::vector<T> to_vector(const T* data, size_t len) {
     if (data == nullptr || len == 0) return {};
@@ -141,11 +152,37 @@ inline std::vector<std::string> string_array_to_vector(TdxStringArray arr) {
     return result;
 }
 
-// Check a TdxStringArray for errors (empty may be an error).
+// Convert a TdxStringArray to vector<string>, throwing on FFI error.
+//
+// Empty array is ambiguous: success-with-zero-results AND failure (e.g.
+// timeout on a list endpoint) both return `{nullptr, 0}`. Disambiguate by
+// reading `tdx_last_error_raw` after the call. Generated wrappers
+// `tdx_clear_error()` before the FFI call so a stale error from a prior
+// call isn't misattributed.
 inline std::vector<std::string> check_string_array(TdxStringArray arr) {
-    // Note: empty array is valid (no results), not an error.
-    // Errors are signaled by tdx_last_error().
+    const std::string err = last_ffi_error_raw();
+    if (!err.empty()) {
+        tdx_string_array_free(arr);
+        throw std::runtime_error("thetadatadx: " + err);
+    }
     return string_array_to_vector(arr);
+}
+
+// Convert a typed tick array to vector<T> by passing in the converter and
+// the FFI-array free fn. Throws on FFI error so callers don't mistake a
+// timed-out tick endpoint for "no rows". Same contract as
+// check_string_array — `tdx_clear_error()` MUST have been called before
+// the FFI invocation.
+template<typename T, typename Arr, typename Convert, typename Free>
+std::vector<T> check_tick_array(Arr arr, Convert convert, Free free_fn) {
+    const std::string err = last_ffi_error_raw();
+    if (!err.empty()) {
+        free_fn(arr);
+        throw std::runtime_error("thetadatadx: " + err);
+    }
+    auto result = convert(arr);
+    free_fn(arr);
+    return result;
 }
 
 inline std::vector<Subscription> subscription_array_to_vector(TdxSubscriptionArray* arr) {

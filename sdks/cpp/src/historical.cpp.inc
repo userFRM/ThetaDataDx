@@ -2,18 +2,28 @@
 
 std::vector<std::string> Client::stock_list_symbols(const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     return detail::check_string_array(tdx_stock_list_symbols_with_options(handle_.get(), &ffi_options.raw));
 }
 
 std::vector<std::string> Client::stock_list_dates(const std::string& request_type, const std::string& symbol, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     return detail::check_string_array(tdx_stock_list_dates_with_options(handle_.get(), request_type.c_str(), symbol.c_str(), &ffi_options.raw));
 }
 
 std::vector<OhlcTick> Client::stock_snapshot_ohlc(const std::vector<std::string>& symbols, const EndpointRequestOptions& options) const {
     auto symbol_ptrs = detail::string_ptrs(symbols);
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_stock_snapshot_ohlc_with_options(handle_.get(), symbol_ptrs.data(), symbol_ptrs.size(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_ohlc_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_ohlc_tick_array_free(arr);
     return result;
@@ -22,7 +32,15 @@ std::vector<OhlcTick> Client::stock_snapshot_ohlc(const std::vector<std::string>
 std::vector<TradeTick> Client::stock_snapshot_trade(const std::vector<std::string>& symbols, const EndpointRequestOptions& options) const {
     auto symbol_ptrs = detail::string_ptrs(symbols);
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_stock_snapshot_trade_with_options(handle_.get(), symbol_ptrs.data(), symbol_ptrs.size(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_trade_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_trade_tick_array_free(arr);
     return result;
@@ -31,7 +49,15 @@ std::vector<TradeTick> Client::stock_snapshot_trade(const std::vector<std::strin
 std::vector<QuoteTick> Client::stock_snapshot_quote(const std::vector<std::string>& symbols, const EndpointRequestOptions& options) const {
     auto symbol_ptrs = detail::string_ptrs(symbols);
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_stock_snapshot_quote_with_options(handle_.get(), symbol_ptrs.data(), symbol_ptrs.size(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_quote_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_quote_tick_array_free(arr);
     return result;
@@ -40,7 +66,15 @@ std::vector<QuoteTick> Client::stock_snapshot_quote(const std::vector<std::strin
 std::vector<MarketValueTick> Client::stock_snapshot_market_value(const std::vector<std::string>& symbols, const EndpointRequestOptions& options) const {
     auto symbol_ptrs = detail::string_ptrs(symbols);
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_stock_snapshot_market_value_with_options(handle_.get(), symbol_ptrs.data(), symbol_ptrs.size(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_market_value_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_market_value_tick_array_free(arr);
     return result;
@@ -48,7 +82,15 @@ std::vector<MarketValueTick> Client::stock_snapshot_market_value(const std::vect
 
 std::vector<EodTick> Client::stock_history_eod(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_stock_history_eod_with_options(handle_.get(), symbol.c_str(), start_date.c_str(), end_date.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_eod_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_eod_tick_array_free(arr);
     return result;
@@ -56,7 +98,15 @@ std::vector<EodTick> Client::stock_history_eod(const std::string& symbol, const 
 
 std::vector<OhlcTick> Client::stock_history_ohlc(const std::string& symbol, const std::string& date, const std::string& interval, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_stock_history_ohlc_with_options(handle_.get(), symbol.c_str(), date.c_str(), interval.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_ohlc_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_ohlc_tick_array_free(arr);
     return result;
@@ -64,7 +114,15 @@ std::vector<OhlcTick> Client::stock_history_ohlc(const std::string& symbol, cons
 
 std::vector<TradeTick> Client::stock_history_trade(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_stock_history_trade_with_options(handle_.get(), symbol.c_str(), date.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_trade_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_trade_tick_array_free(arr);
     return result;
@@ -72,7 +130,15 @@ std::vector<TradeTick> Client::stock_history_trade(const std::string& symbol, co
 
 std::vector<QuoteTick> Client::stock_history_quote(const std::string& symbol, const std::string& date, const std::string& interval, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_stock_history_quote_with_options(handle_.get(), symbol.c_str(), date.c_str(), interval.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_quote_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_quote_tick_array_free(arr);
     return result;
@@ -80,7 +146,15 @@ std::vector<QuoteTick> Client::stock_history_quote(const std::string& symbol, co
 
 std::vector<TradeQuoteTick> Client::stock_history_trade_quote(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_stock_history_trade_quote_with_options(handle_.get(), symbol.c_str(), date.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_trade_quote_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_trade_quote_tick_array_free(arr);
     return result;
@@ -88,7 +162,15 @@ std::vector<TradeQuoteTick> Client::stock_history_trade_quote(const std::string&
 
 std::vector<TradeTick> Client::stock_at_time_trade(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_stock_at_time_trade_with_options(handle_.get(), symbol.c_str(), start_date.c_str(), end_date.c_str(), time_of_day.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_trade_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_trade_tick_array_free(arr);
     return result;
@@ -96,7 +178,15 @@ std::vector<TradeTick> Client::stock_at_time_trade(const std::string& symbol, co
 
 std::vector<QuoteTick> Client::stock_at_time_quote(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_stock_at_time_quote_with_options(handle_.get(), symbol.c_str(), start_date.c_str(), end_date.c_str(), time_of_day.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_quote_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_quote_tick_array_free(arr);
     return result;
@@ -104,27 +194,39 @@ std::vector<QuoteTick> Client::stock_at_time_quote(const std::string& symbol, co
 
 std::vector<std::string> Client::option_list_symbols(const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     return detail::check_string_array(tdx_option_list_symbols_with_options(handle_.get(), &ffi_options.raw));
 }
 
 std::vector<std::string> Client::option_list_dates(const std::string& request_type, const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     return detail::check_string_array(tdx_option_list_dates_with_options(handle_.get(), request_type.c_str(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), &ffi_options.raw));
 }
 
 std::vector<std::string> Client::option_list_expirations(const std::string& symbol, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     return detail::check_string_array(tdx_option_list_expirations_with_options(handle_.get(), symbol.c_str(), &ffi_options.raw));
 }
 
 std::vector<std::string> Client::option_list_strikes(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     return detail::check_string_array(tdx_option_list_strikes_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), &ffi_options.raw));
 }
 
 std::vector<OptionContract> Client::option_list_contracts(const std::string& request_type, const std::string& symbol, const std::string& date, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     TdxOptionContractArray arr = tdx_option_list_contracts_with_options(handle_.get(), request_type.c_str(), symbol.c_str(), date.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_option_contract_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     std::vector<OptionContract> result;
     result.reserve(arr.len);
     for (size_t i = 0; i < arr.len; ++i) {
@@ -141,7 +243,15 @@ std::vector<OptionContract> Client::option_list_contracts(const std::string& req
 
 std::vector<OhlcTick> Client::option_snapshot_ohlc(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_snapshot_ohlc_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_ohlc_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_ohlc_tick_array_free(arr);
     return result;
@@ -149,7 +259,15 @@ std::vector<OhlcTick> Client::option_snapshot_ohlc(const std::string& symbol, co
 
 std::vector<TradeTick> Client::option_snapshot_trade(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_snapshot_trade_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_trade_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_trade_tick_array_free(arr);
     return result;
@@ -157,7 +275,15 @@ std::vector<TradeTick> Client::option_snapshot_trade(const std::string& symbol, 
 
 std::vector<QuoteTick> Client::option_snapshot_quote(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_snapshot_quote_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_quote_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_quote_tick_array_free(arr);
     return result;
@@ -165,7 +291,15 @@ std::vector<QuoteTick> Client::option_snapshot_quote(const std::string& symbol, 
 
 std::vector<OpenInterestTick> Client::option_snapshot_open_interest(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_snapshot_open_interest_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_open_interest_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_open_interest_tick_array_free(arr);
     return result;
@@ -173,7 +307,15 @@ std::vector<OpenInterestTick> Client::option_snapshot_open_interest(const std::s
 
 std::vector<MarketValueTick> Client::option_snapshot_market_value(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_snapshot_market_value_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_market_value_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_market_value_tick_array_free(arr);
     return result;
@@ -181,7 +323,15 @@ std::vector<MarketValueTick> Client::option_snapshot_market_value(const std::str
 
 std::vector<IvTick> Client::option_snapshot_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_snapshot_greeks_implied_volatility_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_iv_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_iv_tick_array_free(arr);
     return result;
@@ -189,7 +339,15 @@ std::vector<IvTick> Client::option_snapshot_greeks_implied_volatility(const std:
 
 std::vector<GreeksTick> Client::option_snapshot_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_snapshot_greeks_all_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_greeks_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_greeks_tick_array_free(arr);
     return result;
@@ -197,7 +355,15 @@ std::vector<GreeksTick> Client::option_snapshot_greeks_all(const std::string& sy
 
 std::vector<GreeksTick> Client::option_snapshot_greeks_first_order(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_snapshot_greeks_first_order_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_greeks_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_greeks_tick_array_free(arr);
     return result;
@@ -205,7 +371,15 @@ std::vector<GreeksTick> Client::option_snapshot_greeks_first_order(const std::st
 
 std::vector<GreeksTick> Client::option_snapshot_greeks_second_order(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_snapshot_greeks_second_order_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_greeks_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_greeks_tick_array_free(arr);
     return result;
@@ -213,7 +387,15 @@ std::vector<GreeksTick> Client::option_snapshot_greeks_second_order(const std::s
 
 std::vector<GreeksTick> Client::option_snapshot_greeks_third_order(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_snapshot_greeks_third_order_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_greeks_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_greeks_tick_array_free(arr);
     return result;
@@ -221,7 +403,15 @@ std::vector<GreeksTick> Client::option_snapshot_greeks_third_order(const std::st
 
 std::vector<EodTick> Client::option_history_eod(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_history_eod_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), start_date.c_str(), end_date.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_eod_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_eod_tick_array_free(arr);
     return result;
@@ -229,7 +419,15 @@ std::vector<EodTick> Client::option_history_eod(const std::string& symbol, const
 
 std::vector<OhlcTick> Client::option_history_ohlc(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const std::string& interval, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_history_ohlc_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), date.c_str(), interval.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_ohlc_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_ohlc_tick_array_free(arr);
     return result;
@@ -237,7 +435,15 @@ std::vector<OhlcTick> Client::option_history_ohlc(const std::string& symbol, con
 
 std::vector<TradeTick> Client::option_history_trade(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_history_trade_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), date.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_trade_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_trade_tick_array_free(arr);
     return result;
@@ -245,7 +451,15 @@ std::vector<TradeTick> Client::option_history_trade(const std::string& symbol, c
 
 std::vector<QuoteTick> Client::option_history_quote(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const std::string& interval, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_history_quote_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), date.c_str(), interval.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_quote_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_quote_tick_array_free(arr);
     return result;
@@ -253,7 +467,15 @@ std::vector<QuoteTick> Client::option_history_quote(const std::string& symbol, c
 
 std::vector<TradeQuoteTick> Client::option_history_trade_quote(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_history_trade_quote_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), date.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_trade_quote_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_trade_quote_tick_array_free(arr);
     return result;
@@ -261,7 +483,15 @@ std::vector<TradeQuoteTick> Client::option_history_trade_quote(const std::string
 
 std::vector<OpenInterestTick> Client::option_history_open_interest(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_history_open_interest_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), date.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_open_interest_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_open_interest_tick_array_free(arr);
     return result;
@@ -269,7 +499,15 @@ std::vector<OpenInterestTick> Client::option_history_open_interest(const std::st
 
 std::vector<GreeksTick> Client::option_history_greeks_eod(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_history_greeks_eod_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), start_date.c_str(), end_date.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_greeks_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_greeks_tick_array_free(arr);
     return result;
@@ -277,7 +515,15 @@ std::vector<GreeksTick> Client::option_history_greeks_eod(const std::string& sym
 
 std::vector<GreeksTick> Client::option_history_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const std::string& interval, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_history_greeks_all_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), date.c_str(), interval.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_greeks_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_greeks_tick_array_free(arr);
     return result;
@@ -285,7 +531,15 @@ std::vector<GreeksTick> Client::option_history_greeks_all(const std::string& sym
 
 std::vector<GreeksTick> Client::option_history_trade_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_history_trade_greeks_all_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), date.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_greeks_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_greeks_tick_array_free(arr);
     return result;
@@ -293,7 +547,15 @@ std::vector<GreeksTick> Client::option_history_trade_greeks_all(const std::strin
 
 std::vector<GreeksTick> Client::option_history_greeks_first_order(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const std::string& interval, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_history_greeks_first_order_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), date.c_str(), interval.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_greeks_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_greeks_tick_array_free(arr);
     return result;
@@ -301,7 +563,15 @@ std::vector<GreeksTick> Client::option_history_greeks_first_order(const std::str
 
 std::vector<GreeksTick> Client::option_history_trade_greeks_first_order(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_history_trade_greeks_first_order_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), date.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_greeks_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_greeks_tick_array_free(arr);
     return result;
@@ -309,7 +579,15 @@ std::vector<GreeksTick> Client::option_history_trade_greeks_first_order(const st
 
 std::vector<GreeksTick> Client::option_history_greeks_second_order(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const std::string& interval, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_history_greeks_second_order_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), date.c_str(), interval.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_greeks_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_greeks_tick_array_free(arr);
     return result;
@@ -317,7 +595,15 @@ std::vector<GreeksTick> Client::option_history_greeks_second_order(const std::st
 
 std::vector<GreeksTick> Client::option_history_trade_greeks_second_order(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_history_trade_greeks_second_order_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), date.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_greeks_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_greeks_tick_array_free(arr);
     return result;
@@ -325,7 +611,15 @@ std::vector<GreeksTick> Client::option_history_trade_greeks_second_order(const s
 
 std::vector<GreeksTick> Client::option_history_greeks_third_order(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const std::string& interval, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_history_greeks_third_order_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), date.c_str(), interval.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_greeks_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_greeks_tick_array_free(arr);
     return result;
@@ -333,7 +627,15 @@ std::vector<GreeksTick> Client::option_history_greeks_third_order(const std::str
 
 std::vector<GreeksTick> Client::option_history_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_history_trade_greeks_third_order_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), date.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_greeks_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_greeks_tick_array_free(arr);
     return result;
@@ -341,7 +643,15 @@ std::vector<GreeksTick> Client::option_history_trade_greeks_third_order(const st
 
 std::vector<IvTick> Client::option_history_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const std::string& interval, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_history_greeks_implied_volatility_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), date.c_str(), interval.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_iv_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_iv_tick_array_free(arr);
     return result;
@@ -349,7 +659,15 @@ std::vector<IvTick> Client::option_history_greeks_implied_volatility(const std::
 
 std::vector<IvTick> Client::option_history_trade_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_history_trade_greeks_implied_volatility_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), date.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_iv_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_iv_tick_array_free(arr);
     return result;
@@ -357,7 +675,15 @@ std::vector<IvTick> Client::option_history_trade_greeks_implied_volatility(const
 
 std::vector<TradeTick> Client::option_at_time_trade(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_at_time_trade_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), start_date.c_str(), end_date.c_str(), time_of_day.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_trade_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_trade_tick_array_free(arr);
     return result;
@@ -365,7 +691,15 @@ std::vector<TradeTick> Client::option_at_time_trade(const std::string& symbol, c
 
 std::vector<QuoteTick> Client::option_at_time_quote(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_option_at_time_quote_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str(), start_date.c_str(), end_date.c_str(), time_of_day.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_quote_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_quote_tick_array_free(arr);
     return result;
@@ -373,18 +707,28 @@ std::vector<QuoteTick> Client::option_at_time_quote(const std::string& symbol, c
 
 std::vector<std::string> Client::index_list_symbols(const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     return detail::check_string_array(tdx_index_list_symbols_with_options(handle_.get(), &ffi_options.raw));
 }
 
 std::vector<std::string> Client::index_list_dates(const std::string& symbol, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     return detail::check_string_array(tdx_index_list_dates_with_options(handle_.get(), symbol.c_str(), &ffi_options.raw));
 }
 
 std::vector<OhlcTick> Client::index_snapshot_ohlc(const std::vector<std::string>& symbols, const EndpointRequestOptions& options) const {
     auto symbol_ptrs = detail::string_ptrs(symbols);
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_index_snapshot_ohlc_with_options(handle_.get(), symbol_ptrs.data(), symbol_ptrs.size(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_ohlc_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_ohlc_tick_array_free(arr);
     return result;
@@ -393,7 +737,15 @@ std::vector<OhlcTick> Client::index_snapshot_ohlc(const std::vector<std::string>
 std::vector<PriceTick> Client::index_snapshot_price(const std::vector<std::string>& symbols, const EndpointRequestOptions& options) const {
     auto symbol_ptrs = detail::string_ptrs(symbols);
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_index_snapshot_price_with_options(handle_.get(), symbol_ptrs.data(), symbol_ptrs.size(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_price_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_price_tick_array_free(arr);
     return result;
@@ -402,7 +754,15 @@ std::vector<PriceTick> Client::index_snapshot_price(const std::vector<std::strin
 std::vector<MarketValueTick> Client::index_snapshot_market_value(const std::vector<std::string>& symbols, const EndpointRequestOptions& options) const {
     auto symbol_ptrs = detail::string_ptrs(symbols);
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_index_snapshot_market_value_with_options(handle_.get(), symbol_ptrs.data(), symbol_ptrs.size(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_market_value_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_market_value_tick_array_free(arr);
     return result;
@@ -410,7 +770,15 @@ std::vector<MarketValueTick> Client::index_snapshot_market_value(const std::vect
 
 std::vector<EodTick> Client::index_history_eod(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_index_history_eod_with_options(handle_.get(), symbol.c_str(), start_date.c_str(), end_date.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_eod_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_eod_tick_array_free(arr);
     return result;
@@ -418,7 +786,15 @@ std::vector<EodTick> Client::index_history_eod(const std::string& symbol, const 
 
 std::vector<OhlcTick> Client::index_history_ohlc(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& interval, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_index_history_ohlc_with_options(handle_.get(), symbol.c_str(), start_date.c_str(), end_date.c_str(), interval.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_ohlc_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_ohlc_tick_array_free(arr);
     return result;
@@ -426,7 +802,15 @@ std::vector<OhlcTick> Client::index_history_ohlc(const std::string& symbol, cons
 
 std::vector<PriceTick> Client::index_history_price(const std::string& symbol, const std::string& date, const std::string& interval, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_index_history_price_with_options(handle_.get(), symbol.c_str(), date.c_str(), interval.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_price_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_price_tick_array_free(arr);
     return result;
@@ -434,7 +818,15 @@ std::vector<PriceTick> Client::index_history_price(const std::string& symbol, co
 
 std::vector<PriceTick> Client::index_at_time_price(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_index_at_time_price_with_options(handle_.get(), symbol.c_str(), start_date.c_str(), end_date.c_str(), time_of_day.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_price_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_price_tick_array_free(arr);
     return result;
@@ -442,7 +834,15 @@ std::vector<PriceTick> Client::index_at_time_price(const std::string& symbol, co
 
 std::vector<CalendarDay> Client::calendar_open_today(const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_calendar_open_today_with_options(handle_.get(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_calendar_day_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_calendar_day_array_free(arr);
     return result;
@@ -450,7 +850,15 @@ std::vector<CalendarDay> Client::calendar_open_today(const EndpointRequestOption
 
 std::vector<CalendarDay> Client::calendar_on_date(const std::string& date, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_calendar_on_date_with_options(handle_.get(), date.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_calendar_day_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_calendar_day_array_free(arr);
     return result;
@@ -458,7 +866,15 @@ std::vector<CalendarDay> Client::calendar_on_date(const std::string& date, const
 
 std::vector<CalendarDay> Client::calendar_year(const std::string& year, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_calendar_year_with_options(handle_.get(), year.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_calendar_day_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_calendar_day_array_free(arr);
     return result;
@@ -466,7 +882,15 @@ std::vector<CalendarDay> Client::calendar_year(const std::string& year, const En
 
 std::vector<InterestRateTick> Client::interest_rate_history_eod(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_interest_rate_history_eod_with_options(handle_.get(), symbol.c_str(), start_date.c_str(), end_date.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_interest_rate_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_interest_rate_tick_array_free(arr);
     return result;
@@ -474,7 +898,15 @@ std::vector<InterestRateTick> Client::interest_rate_history_eod(const std::strin
 
 std::vector<OhlcTick> Client::stock_history_ohlc_range(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& interval, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
+    tdx_clear_error();
     auto arr = tdx_stock_history_ohlc_range_with_options(handle_.get(), symbol.c_str(), start_date.c_str(), end_date.c_str(), interval.c_str(), &ffi_options.raw);
+    {
+        const std::string err = detail::last_ffi_error_raw();
+        if (!err.empty()) {
+            tdx_ohlc_tick_array_free(arr);
+            throw std::runtime_error("thetadatadx: " + err);
+        }
+    }
     auto result = detail::to_vector(arr.data, arr.len);
     tdx_ohlc_tick_array_free(arr);
     return result;

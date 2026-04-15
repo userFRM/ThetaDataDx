@@ -22,8 +22,30 @@ func lastError() string {
 	return C.GoString(p)
 }
 
-// stringArrayToGo converts a TdxStringArray to a Go []string and frees the C memory.
+// lastErrorRaw returns the FFI error string verbatim, with empty-string
+// indicating "no error set since the last tdx_clear_error". Used by
+// stringArrayToGo to disambiguate a successful empty result from a
+// failure-with-empty-sentinel (e.g. timeout on a list endpoint).
+func lastErrorRaw() string {
+	p := C.tdx_last_error()
+	if p == nil {
+		return ""
+	}
+	return C.GoString(p)
+}
+
+// stringArrayToGo converts a TdxStringArray to a Go []string and frees the
+// C memory. It consults `tdx_last_error` directly because a successful
+// empty result and a timeout/failure both return `{data: null, len: 0}` —
+// they can only be distinguished by the error slot. Generated
+// `*_with_options` wrappers MUST call `tdx_clear_error` before the FFI
+// call so we don't pick up a stale error left by a prior call (W3
+// round-2 fix).
 func stringArrayToGo(arr C.TdxStringArray) ([]string, error) {
+	if e := lastErrorRaw(); e != "" {
+		C.tdx_string_array_free(arr)
+		return nil, fmt.Errorf("thetadatadx: %s", e)
+	}
 	if arr.data == nil || arr.len == 0 {
 		C.tdx_string_array_free(arr)
 		return nil, nil

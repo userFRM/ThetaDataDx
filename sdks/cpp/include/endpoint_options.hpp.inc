@@ -109,7 +109,7 @@ struct EndpointRequestOptions {
         return *this;
     }
     EndpointRequestOptions& with_deadline(std::chrono::milliseconds value) {
-        timeout_ms = static_cast<uint64_t>(value.count());
+        timeout_ms = value.count() < 0 ? 1u : static_cast<uint64_t>(value.count());
         return *this;
     }
 };

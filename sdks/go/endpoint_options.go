@@ -210,8 +210,17 @@ func WithTimeoutMs(value uint64) EndpointOption {
 }
 
 // WithDeadline sets the per-call deadline as a time.Duration; see WithTimeoutMs.
+// A negative duration means "deadline already in the past" and clamps
+// to 1 ms (immediate expiration). Without the clamp, the conversion
+// to uint64 would silently wrap to a multi-century value, the opposite
+// of the caller's intent.
 func WithDeadline(value time.Duration) EndpointOption {
-	ms := uint64(value / time.Millisecond)
+	var ms uint64
+	if value < 0 {
+		ms = 1
+	} else {
+		ms = uint64(value / time.Millisecond)
+	}
 	return func(options *EndpointRequestOptions) {
 		msCopy := ms
 		options.TimeoutMs = &msCopy

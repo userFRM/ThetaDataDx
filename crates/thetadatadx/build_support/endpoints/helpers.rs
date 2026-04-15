@@ -505,10 +505,17 @@ pub(super) fn cpp_converter_expr(return_type: &str) -> String {
     match return_type {
         "StringList" => "return detail::check_string_array(arr);".into(),
         "OptionContracts" => "return detail::option_contract_array_to_vector(arr);".into(),
-        other => format!(
-            "auto result = detail::to_vector(arr.data, arr.len);\n    {}(arr);\n    return result;",
-            ffi_free_fn(other).trim_start_matches("C.")
-        ),
+        other => {
+            // Check `tdx_last_error_raw` before converting: success-empty
+            // and failure (e.g. timeout) both return `{nullptr, 0}` arrays,
+            // so we have to consult the error slot directly. The generated
+            // Client method `tdx_clear_error()`s before the FFI call so a
+            // stale error from a prior call isn't misattributed.
+            let free_fn = ffi_free_fn(other).trim_start_matches("C.").to_string();
+            format!(
+                "{{\n        const std::string err = detail::last_ffi_error_raw();\n        if (!err.empty()) {{\n            {free_fn}(arr);\n            throw std::runtime_error(\"thetadatadx: \" + err);\n        }}\n    }}\n    auto result = detail::to_vector(arr.data, arr.len);\n    {free_fn}(arr);\n    return result;"
+            )
+        }
     }
 }
 
