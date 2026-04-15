@@ -9,10 +9,13 @@ import "C"
 
 import (
 	"fmt"
+	"runtime"
 	"unsafe"
 )
 
 func (c *Client) StockListSymbols(opts ...EndpointOption) ([]string, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
@@ -21,6 +24,8 @@ func (c *Client) StockListSymbols(opts ...EndpointOption) ([]string, error) {
 }
 
 func (c *Client) StockListDates(requestType string, symbol string, opts ...EndpointOption) ([]string, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cRequestType := C.CString(requestType)
 	defer C.free(unsafe.Pointer(cRequestType))
 	cSymbol := C.CString(symbol)
@@ -33,6 +38,8 @@ func (c *Client) StockListDates(requestType string, symbol string, opts ...Endpo
 }
 
 func (c *Client) StockSnapshotOHLC(symbols []string, opts ...EndpointOption) ([]OhlcTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbols, cSymbolsLen := symbolsToCArray(symbols)
 	defer freeSymbolArray(cSymbols, cSymbolsLen)
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
@@ -49,6 +56,8 @@ func (c *Client) StockSnapshotOHLC(symbols []string, opts ...EndpointOption) ([]
 }
 
 func (c *Client) StockSnapshotTrade(symbols []string, opts ...EndpointOption) ([]TradeTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbols, cSymbolsLen := symbolsToCArray(symbols)
 	defer freeSymbolArray(cSymbols, cSymbolsLen)
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
@@ -65,6 +74,8 @@ func (c *Client) StockSnapshotTrade(symbols []string, opts ...EndpointOption) ([
 }
 
 func (c *Client) StockSnapshotQuote(symbols []string, opts ...EndpointOption) ([]QuoteTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbols, cSymbolsLen := symbolsToCArray(symbols)
 	defer freeSymbolArray(cSymbols, cSymbolsLen)
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
@@ -81,6 +92,8 @@ func (c *Client) StockSnapshotQuote(symbols []string, opts ...EndpointOption) ([
 }
 
 func (c *Client) StockSnapshotMarketValue(symbols []string, opts ...EndpointOption) ([]MarketValueTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbols, cSymbolsLen := symbolsToCArray(symbols)
 	defer freeSymbolArray(cSymbols, cSymbolsLen)
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
@@ -97,6 +110,8 @@ func (c *Client) StockSnapshotMarketValue(symbols []string, opts ...EndpointOpti
 }
 
 func (c *Client) StockHistoryEOD(symbol string, startDate string, endDate string, opts ...EndpointOption) ([]EodTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cStartDate := C.CString(startDate)
@@ -117,6 +132,8 @@ func (c *Client) StockHistoryEOD(symbol string, startDate string, endDate string
 }
 
 func (c *Client) StockHistoryOHLC(symbol string, date string, interval string, opts ...EndpointOption) ([]OhlcTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cDate := C.CString(date)
@@ -137,6 +154,8 @@ func (c *Client) StockHistoryOHLC(symbol string, date string, interval string, o
 }
 
 func (c *Client) StockHistoryTrade(symbol string, date string, opts ...EndpointOption) ([]TradeTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cDate := C.CString(date)
@@ -155,6 +174,8 @@ func (c *Client) StockHistoryTrade(symbol string, date string, opts ...EndpointO
 }
 
 func (c *Client) StockHistoryQuote(symbol string, date string, interval string, opts ...EndpointOption) ([]QuoteTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cDate := C.CString(date)
@@ -175,6 +196,8 @@ func (c *Client) StockHistoryQuote(symbol string, date string, interval string, 
 }
 
 func (c *Client) StockHistoryTradeQuote(symbol string, date string, opts ...EndpointOption) ([]TradeQuoteTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cDate := C.CString(date)
@@ -193,6 +216,8 @@ func (c *Client) StockHistoryTradeQuote(symbol string, date string, opts ...Endp
 }
 
 func (c *Client) StockAtTimeTrade(symbol string, startDate string, endDate string, timeOfDay string, opts ...EndpointOption) ([]TradeTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cStartDate := C.CString(startDate)
@@ -215,6 +240,8 @@ func (c *Client) StockAtTimeTrade(symbol string, startDate string, endDate strin
 }
 
 func (c *Client) StockAtTimeQuote(symbol string, startDate string, endDate string, timeOfDay string, opts ...EndpointOption) ([]QuoteTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cStartDate := C.CString(startDate)
@@ -237,6 +264,8 @@ func (c *Client) StockAtTimeQuote(symbol string, startDate string, endDate strin
 }
 
 func (c *Client) OptionListSymbols(opts ...EndpointOption) ([]string, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
@@ -245,6 +274,8 @@ func (c *Client) OptionListSymbols(opts ...EndpointOption) ([]string, error) {
 }
 
 func (c *Client) OptionListDates(requestType string, symbol string, expiration string, strike string, right string, opts ...EndpointOption) ([]string, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cRequestType := C.CString(requestType)
 	defer C.free(unsafe.Pointer(cRequestType))
 	cSymbol := C.CString(symbol)
@@ -263,6 +294,8 @@ func (c *Client) OptionListDates(requestType string, symbol string, expiration s
 }
 
 func (c *Client) OptionListExpirations(symbol string, opts ...EndpointOption) ([]string, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
@@ -273,6 +306,8 @@ func (c *Client) OptionListExpirations(symbol string, opts ...EndpointOption) ([
 }
 
 func (c *Client) OptionListStrikes(symbol string, expiration string, opts ...EndpointOption) ([]string, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -285,6 +320,8 @@ func (c *Client) OptionListStrikes(symbol string, expiration string, opts ...End
 }
 
 func (c *Client) OptionListContracts(requestType string, symbol string, date string, opts ...EndpointOption) ([]OptionContract, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cRequestType := C.CString(requestType)
 	defer C.free(unsafe.Pointer(cRequestType))
 	cSymbol := C.CString(symbol)
@@ -305,6 +342,8 @@ func (c *Client) OptionListContracts(requestType string, symbol string, date str
 }
 
 func (c *Client) OptionSnapshotOHLC(symbol string, expiration string, strike string, right string, opts ...EndpointOption) ([]OhlcTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -327,6 +366,8 @@ func (c *Client) OptionSnapshotOHLC(symbol string, expiration string, strike str
 }
 
 func (c *Client) OptionSnapshotTrade(symbol string, expiration string, strike string, right string, opts ...EndpointOption) ([]TradeTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -349,6 +390,8 @@ func (c *Client) OptionSnapshotTrade(symbol string, expiration string, strike st
 }
 
 func (c *Client) OptionSnapshotQuote(symbol string, expiration string, strike string, right string, opts ...EndpointOption) ([]QuoteTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -371,6 +414,8 @@ func (c *Client) OptionSnapshotQuote(symbol string, expiration string, strike st
 }
 
 func (c *Client) OptionSnapshotOpenInterest(symbol string, expiration string, strike string, right string, opts ...EndpointOption) ([]OpenInterestTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -393,6 +438,8 @@ func (c *Client) OptionSnapshotOpenInterest(symbol string, expiration string, st
 }
 
 func (c *Client) OptionSnapshotMarketValue(symbol string, expiration string, strike string, right string, opts ...EndpointOption) ([]MarketValueTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -415,6 +462,8 @@ func (c *Client) OptionSnapshotMarketValue(symbol string, expiration string, str
 }
 
 func (c *Client) OptionSnapshotGreeksImpliedVolatility(symbol string, expiration string, strike string, right string, opts ...EndpointOption) ([]IVTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -437,6 +486,8 @@ func (c *Client) OptionSnapshotGreeksImpliedVolatility(symbol string, expiration
 }
 
 func (c *Client) OptionSnapshotGreeksAll(symbol string, expiration string, strike string, right string, opts ...EndpointOption) ([]GreeksTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -459,6 +510,8 @@ func (c *Client) OptionSnapshotGreeksAll(symbol string, expiration string, strik
 }
 
 func (c *Client) OptionSnapshotGreeksFirstOrder(symbol string, expiration string, strike string, right string, opts ...EndpointOption) ([]GreeksTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -481,6 +534,8 @@ func (c *Client) OptionSnapshotGreeksFirstOrder(symbol string, expiration string
 }
 
 func (c *Client) OptionSnapshotGreeksSecondOrder(symbol string, expiration string, strike string, right string, opts ...EndpointOption) ([]GreeksTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -503,6 +558,8 @@ func (c *Client) OptionSnapshotGreeksSecondOrder(symbol string, expiration strin
 }
 
 func (c *Client) OptionSnapshotGreeksThirdOrder(symbol string, expiration string, strike string, right string, opts ...EndpointOption) ([]GreeksTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -525,6 +582,8 @@ func (c *Client) OptionSnapshotGreeksThirdOrder(symbol string, expiration string
 }
 
 func (c *Client) OptionHistoryEOD(symbol string, expiration string, strike string, right string, startDate string, endDate string, opts ...EndpointOption) ([]EodTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -551,6 +610,8 @@ func (c *Client) OptionHistoryEOD(symbol string, expiration string, strike strin
 }
 
 func (c *Client) OptionHistoryOHLC(symbol string, expiration string, strike string, right string, date string, interval string, opts ...EndpointOption) ([]OhlcTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -577,6 +638,8 @@ func (c *Client) OptionHistoryOHLC(symbol string, expiration string, strike stri
 }
 
 func (c *Client) OptionHistoryTrade(symbol string, expiration string, strike string, right string, date string, opts ...EndpointOption) ([]TradeTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -601,6 +664,8 @@ func (c *Client) OptionHistoryTrade(symbol string, expiration string, strike str
 }
 
 func (c *Client) OptionHistoryQuote(symbol string, expiration string, strike string, right string, date string, interval string, opts ...EndpointOption) ([]QuoteTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -627,6 +692,8 @@ func (c *Client) OptionHistoryQuote(symbol string, expiration string, strike str
 }
 
 func (c *Client) OptionHistoryTradeQuote(symbol string, expiration string, strike string, right string, date string, opts ...EndpointOption) ([]TradeQuoteTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -651,6 +718,8 @@ func (c *Client) OptionHistoryTradeQuote(symbol string, expiration string, strik
 }
 
 func (c *Client) OptionHistoryOpenInterest(symbol string, expiration string, strike string, right string, date string, opts ...EndpointOption) ([]OpenInterestTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -675,6 +744,8 @@ func (c *Client) OptionHistoryOpenInterest(symbol string, expiration string, str
 }
 
 func (c *Client) OptionHistoryGreeksEOD(symbol string, expiration string, strike string, right string, startDate string, endDate string, opts ...EndpointOption) ([]GreeksTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -701,6 +772,8 @@ func (c *Client) OptionHistoryGreeksEOD(symbol string, expiration string, strike
 }
 
 func (c *Client) OptionHistoryGreeksAll(symbol string, expiration string, strike string, right string, date string, interval string, opts ...EndpointOption) ([]GreeksTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -727,6 +800,8 @@ func (c *Client) OptionHistoryGreeksAll(symbol string, expiration string, strike
 }
 
 func (c *Client) OptionHistoryTradeGreeksAll(symbol string, expiration string, strike string, right string, date string, opts ...EndpointOption) ([]GreeksTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -751,6 +826,8 @@ func (c *Client) OptionHistoryTradeGreeksAll(symbol string, expiration string, s
 }
 
 func (c *Client) OptionHistoryGreeksFirstOrder(symbol string, expiration string, strike string, right string, date string, interval string, opts ...EndpointOption) ([]GreeksTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -777,6 +854,8 @@ func (c *Client) OptionHistoryGreeksFirstOrder(symbol string, expiration string,
 }
 
 func (c *Client) OptionHistoryTradeGreeksFirstOrder(symbol string, expiration string, strike string, right string, date string, opts ...EndpointOption) ([]GreeksTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -801,6 +880,8 @@ func (c *Client) OptionHistoryTradeGreeksFirstOrder(symbol string, expiration st
 }
 
 func (c *Client) OptionHistoryGreeksSecondOrder(symbol string, expiration string, strike string, right string, date string, interval string, opts ...EndpointOption) ([]GreeksTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -827,6 +908,8 @@ func (c *Client) OptionHistoryGreeksSecondOrder(symbol string, expiration string
 }
 
 func (c *Client) OptionHistoryTradeGreeksSecondOrder(symbol string, expiration string, strike string, right string, date string, opts ...EndpointOption) ([]GreeksTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -851,6 +934,8 @@ func (c *Client) OptionHistoryTradeGreeksSecondOrder(symbol string, expiration s
 }
 
 func (c *Client) OptionHistoryGreeksThirdOrder(symbol string, expiration string, strike string, right string, date string, interval string, opts ...EndpointOption) ([]GreeksTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -877,6 +962,8 @@ func (c *Client) OptionHistoryGreeksThirdOrder(symbol string, expiration string,
 }
 
 func (c *Client) OptionHistoryTradeGreeksThirdOrder(symbol string, expiration string, strike string, right string, date string, opts ...EndpointOption) ([]GreeksTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -901,6 +988,8 @@ func (c *Client) OptionHistoryTradeGreeksThirdOrder(symbol string, expiration st
 }
 
 func (c *Client) OptionHistoryGreeksImpliedVolatility(symbol string, expiration string, strike string, right string, date string, interval string, opts ...EndpointOption) ([]IVTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -927,6 +1016,8 @@ func (c *Client) OptionHistoryGreeksImpliedVolatility(symbol string, expiration 
 }
 
 func (c *Client) OptionHistoryTradeGreeksImpliedVolatility(symbol string, expiration string, strike string, right string, date string, opts ...EndpointOption) ([]IVTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -951,6 +1042,8 @@ func (c *Client) OptionHistoryTradeGreeksImpliedVolatility(symbol string, expira
 }
 
 func (c *Client) OptionAtTimeTrade(symbol string, expiration string, strike string, right string, startDate string, endDate string, timeOfDay string, opts ...EndpointOption) ([]TradeTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -979,6 +1072,8 @@ func (c *Client) OptionAtTimeTrade(symbol string, expiration string, strike stri
 }
 
 func (c *Client) OptionAtTimeQuote(symbol string, expiration string, strike string, right string, startDate string, endDate string, timeOfDay string, opts ...EndpointOption) ([]QuoteTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
@@ -1007,6 +1102,8 @@ func (c *Client) OptionAtTimeQuote(symbol string, expiration string, strike stri
 }
 
 func (c *Client) IndexListSymbols(opts ...EndpointOption) ([]string, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
@@ -1015,6 +1112,8 @@ func (c *Client) IndexListSymbols(opts ...EndpointOption) ([]string, error) {
 }
 
 func (c *Client) IndexListDates(symbol string, opts ...EndpointOption) ([]string, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
@@ -1025,6 +1124,8 @@ func (c *Client) IndexListDates(symbol string, opts ...EndpointOption) ([]string
 }
 
 func (c *Client) IndexSnapshotOHLC(symbols []string, opts ...EndpointOption) ([]OhlcTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbols, cSymbolsLen := symbolsToCArray(symbols)
 	defer freeSymbolArray(cSymbols, cSymbolsLen)
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
@@ -1041,6 +1142,8 @@ func (c *Client) IndexSnapshotOHLC(symbols []string, opts ...EndpointOption) ([]
 }
 
 func (c *Client) IndexSnapshotPrice(symbols []string, opts ...EndpointOption) ([]PriceTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbols, cSymbolsLen := symbolsToCArray(symbols)
 	defer freeSymbolArray(cSymbols, cSymbolsLen)
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
@@ -1057,6 +1160,8 @@ func (c *Client) IndexSnapshotPrice(symbols []string, opts ...EndpointOption) ([
 }
 
 func (c *Client) IndexSnapshotMarketValue(symbols []string, opts ...EndpointOption) ([]MarketValueTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbols, cSymbolsLen := symbolsToCArray(symbols)
 	defer freeSymbolArray(cSymbols, cSymbolsLen)
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
@@ -1073,6 +1178,8 @@ func (c *Client) IndexSnapshotMarketValue(symbols []string, opts ...EndpointOpti
 }
 
 func (c *Client) IndexHistoryEOD(symbol string, startDate string, endDate string, opts ...EndpointOption) ([]EodTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cStartDate := C.CString(startDate)
@@ -1093,6 +1200,8 @@ func (c *Client) IndexHistoryEOD(symbol string, startDate string, endDate string
 }
 
 func (c *Client) IndexHistoryOHLC(symbol string, startDate string, endDate string, interval string, opts ...EndpointOption) ([]OhlcTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cStartDate := C.CString(startDate)
@@ -1115,6 +1224,8 @@ func (c *Client) IndexHistoryOHLC(symbol string, startDate string, endDate strin
 }
 
 func (c *Client) IndexHistoryPrice(symbol string, date string, interval string, opts ...EndpointOption) ([]PriceTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cDate := C.CString(date)
@@ -1135,6 +1246,8 @@ func (c *Client) IndexHistoryPrice(symbol string, date string, interval string, 
 }
 
 func (c *Client) IndexAtTimePrice(symbol string, startDate string, endDate string, timeOfDay string, opts ...EndpointOption) ([]PriceTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cStartDate := C.CString(startDate)
@@ -1157,6 +1270,8 @@ func (c *Client) IndexAtTimePrice(symbol string, startDate string, endDate strin
 }
 
 func (c *Client) CalendarOpenToday(opts ...EndpointOption) ([]CalendarDay, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
@@ -1171,6 +1286,8 @@ func (c *Client) CalendarOpenToday(opts ...EndpointOption) ([]CalendarDay, error
 }
 
 func (c *Client) CalendarOnDate(date string, opts ...EndpointOption) ([]CalendarDay, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cDate := C.CString(date)
 	defer C.free(unsafe.Pointer(cDate))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
@@ -1187,6 +1304,8 @@ func (c *Client) CalendarOnDate(date string, opts ...EndpointOption) ([]Calendar
 }
 
 func (c *Client) CalendarYear(year string, opts ...EndpointOption) ([]CalendarDay, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cYear := C.CString(year)
 	defer C.free(unsafe.Pointer(cYear))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
@@ -1203,6 +1322,8 @@ func (c *Client) CalendarYear(year string, opts ...EndpointOption) ([]CalendarDa
 }
 
 func (c *Client) InterestRateHistoryEOD(symbol string, startDate string, endDate string, opts ...EndpointOption) ([]InterestRateTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cStartDate := C.CString(startDate)
@@ -1223,6 +1344,8 @@ func (c *Client) InterestRateHistoryEOD(symbol string, startDate string, endDate
 }
 
 func (c *Client) StockHistoryOHLCRange(symbol string, startDate string, endDate string, interval string, opts ...EndpointOption) ([]OhlcTick, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cStartDate := C.CString(startDate)

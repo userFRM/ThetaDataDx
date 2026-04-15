@@ -41,6 +41,14 @@ func lastErrorRaw() string {
 // `*_with_options` wrappers MUST call `tdx_clear_error` before the FFI
 // call so we don't pick up a stale error left by a prior call (W3
 // round-2 fix).
+//
+// The FFI error slot is a Rust `thread_local!`, so the clear / call /
+// check sequence MUST run on a single OS thread. Generated wrappers
+// pin the goroutine via `runtime.LockOSThread()` + deferred unlock
+// before entering this helper (W3 round-3 fix). Without the pin, Go's
+// runtime can migrate the goroutine mid-sequence and the post-call
+// `lastErrorRaw()` below would read a stale/empty slot on the wrong
+// OS thread.
 func stringArrayToGo(arr C.TdxStringArray) ([]string, error) {
 	if e := lastErrorRaw(); e != "" {
 		C.tdx_string_array_free(arr)

@@ -215,8 +215,17 @@ pub(super) fn render_go_historical(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("/*\n#include \"ffi_bridge.h\"\n*/\nimport \"C\"\n\n");
     out.push_str("import (\n");
     out.push_str("\t\"fmt\"\n");
+    out.push_str("\t\"runtime\"\n");
     out.push_str("\t\"unsafe\"\n");
     out.push_str(")\n\n");
+    // cgo-thread-local correctness (W3 round-3): the FFI stores the last
+    // error in a Rust `thread_local!`. Go's runtime can migrate a
+    // goroutine to a different OS thread between successive cgo calls, so
+    // reading the error slot after a call on a different thread returns
+    // stale/empty data. Every generated wrapper pins the goroutine to
+    // one OS thread for the duration of the clear/call/check sequence
+    // via runtime.LockOSThread. See
+    // [docs/dev/w3-async-cancellation-design.md].
 
     for endpoint in endpoints
         .iter()
@@ -249,6 +258,13 @@ fn render_go_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
         go_result_type(&endpoint.return_type)
     )
     .unwrap();
+
+    // Pin the goroutine to a single OS thread for the whole FFI sequence
+    // (clear error slot -> cgo call -> read error slot). The error slot
+    // is a Rust thread_local; reading it on a different OS thread from
+    // the one that set it would return empty (stale) data. See W3 round-3.
+    out.push_str("\truntime.LockOSThread()\n");
+    out.push_str("\tdefer runtime.UnlockOSThread()\n");
 
     let has_symbols = method_params
         .iter()

@@ -54,6 +54,18 @@ fn runtime() -> &'static tokio::runtime::Runtime {
 }
 
 // ── Thread-local error string ──
+//
+// Contract: the error slot is scoped to the OS thread that set it. Higher-
+// level languages whose runtime can migrate a logical execution unit
+// across OS threads (notably Go, where a goroutine can park on one thread
+// and resume on another) MUST pin the execution unit for the duration of
+// a clear/call/check sequence. The generated Go wrappers do this via
+// `runtime.LockOSThread` + deferred unlock (see
+// `crates/thetadatadx/build_support/endpoints/render/go.rs` —
+// `render_go_endpoint_method`). C++ and Python never migrate threads
+// implicitly, so no pinning is needed there. See
+// `docs/dev/w3-async-cancellation-design.md` "cgo thread-local
+// correctness" for the full rationale.
 
 thread_local! {
     static LAST_ERROR: std::cell::RefCell<Option<CString>> = const { std::cell::RefCell::new(None) };

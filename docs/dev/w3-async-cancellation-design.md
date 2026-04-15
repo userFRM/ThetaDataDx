@@ -104,6 +104,43 @@ SDK call surface
 
 Direct (non-registry) callers chain `.with_deadline(d)` on the builder.
 
+## cgo thread-local correctness (Go)
+
+The FFI returns errors via `tdx_last_error()`, backed by a Rust
+`thread_local!`. An endpoint call from Go is three cgo invocations in
+sequence:
+
+1. `C.tdx_clear_error()` — zero the slot on the current OS thread.
+2. `C.tdx_<endpoint>_with_options(...)` — the actual call; on failure it
+   populates the slot.
+3. `C.tdx_last_error()` (via `lastErrorRaw()`) — read the slot.
+
+Go's runtime can migrate a goroutine to a different OS thread between
+cgo calls (typically at scheduling points in blocking syscalls). If step
+3 runs on a different OS thread than step 2, the read sees a stale/empty
+slot and a real failure is silently reported as "no rows".
+
+Every generated Go endpoint method pins the goroutine to one OS thread
+for the whole sequence:
+
+```go
+func (c *Client) StockListSymbols(opts ...EndpointOption) ([]string, error) {
+    runtime.LockOSThread()
+    defer runtime.UnlockOSThread()
+    // ... clear / call / check ...
+}
+```
+
+C++ doesn't need this — its threads never migrate implicitly. Python
+also doesn't need it — `py.detach` releases the GIL but doesn't move
+OS threads for the duration of the cgo-analogue call.
+
+The pin is cheap (just sets a goroutine flag) and is released
+immediately when the method returns; concurrency across goroutines is
+unchanged because each goroutine gets its own OS-thread affinity only
+for the duration of its own call. Concurrent calls from N goroutines
+occupy N threads from the Go scheduler, all running independently.
+
 ## Out of scope
 
 - **Streaming endpoints (FPSS)**. They are long-lived subscriptions, not
