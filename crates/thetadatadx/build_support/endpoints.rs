@@ -3088,53 +3088,6 @@ fn validation_symbol(endpoint: &GeneratedEndpoint) -> &'static str {
     }
 }
 
-fn validation_dummy_str(endpoint: &GeneratedEndpoint, param: &GeneratedParam) -> String {
-    if param.name == "end_date" {
-        return "20250307".into();
-    }
-    match param.param_type.as_str() {
-        "Symbol" | "Symbols" => validation_symbol(endpoint).into(),
-        "Date" => "20250303".into(),
-        "Expiration" => "20250321".into(),
-        "Strike" => "570".into(),
-        "Right" => "C".into(),
-        "Interval" => "60000".into(),
-        "RequestType" => "TRADE".into(),
-        "Year" => "2025".into(),
-        "Str" => "12:00:00.000".into(),
-        _ => String::new(),
-    }
-}
-
-fn python_dummy_value(endpoint: &GeneratedEndpoint, param: &GeneratedParam) -> String {
-    // Use a known-good past date range for option endpoints.
-    // SPY 20250321 C 570 had active Greeks in March 2025.
-    // Stock endpoints use 20250303-20250307 (known trading week).
-    // end_date is offset from start_date so date ranges return multiple rows.
-    match param.param_type.as_str() {
-        "Symbols" => format!("[\"{}\"]", validation_dummy_str(endpoint, param)),
-        _ => format!("\"{}\"", validation_dummy_str(endpoint, param)),
-    }
-}
-
-/// Map a `param_type` from the endpoint surface to a dummy value for Go validation.
-fn go_dummy_value(endpoint: &GeneratedEndpoint, param: &GeneratedParam) -> String {
-    // Same known-good past dates as Python.
-    match param.param_type.as_str() {
-        "Symbols" => format!("[]string{{\"{}\"}}", validation_dummy_str(endpoint, param)),
-        _ => format!("\"{}\"", validation_dummy_str(endpoint, param)),
-    }
-}
-
-fn cpp_dummy_value(endpoint: &GeneratedEndpoint, param: &GeneratedParam) -> String {
-    let value = validation_dummy_str(endpoint, param);
-    if param.param_type == "Symbols" {
-        format!("std::vector<std::string>{{\"{value}\"}}")
-    } else {
-        format!("\"{value}\"")
-    }
-}
-
 fn cli_command_name(endpoint: &GeneratedEndpoint) -> String {
     match endpoint.category.as_str() {
         "stock" | "option" | "index" | "calendar" => endpoint
@@ -3151,7 +3104,7 @@ fn cli_command_name(endpoint: &GeneratedEndpoint) -> String {
     }
 }
 
-fn cli_command_tokens(endpoint: &GeneratedEndpoint) -> Vec<String> {
+fn cli_command_tokens_for_mode(endpoint: &GeneratedEndpoint, mode: &TestMode) -> Vec<String> {
     let mut tokens = vec![
         match endpoint.category.as_str() {
             "rate" => "rate".into(),
@@ -3159,19 +3112,332 @@ fn cli_command_tokens(endpoint: &GeneratedEndpoint) -> Vec<String> {
         },
         cli_command_name(endpoint),
     ];
-    for param in method_params(endpoint) {
-        tokens.push(validation_dummy_str(endpoint, param));
-    }
+    tokens.extend(mode.args.iter().cloned());
     tokens
 }
 
+// ───────────────────────── Multi-mode parameter matrix ──────────────────────
+//
+// `TestMode` captures one (parameter-shape × tier) cell that the live
+// validator should exercise. Modes are derived per endpoint by
+// [`test_modes_for`] from the endpoint's wire shape — list endpoints get one
+// mode, ContractSpec endpoints get the full wildcard cross-product, and so
+// on. Each mode carries language-agnostic string args so per-language
+// renderers (CLI / Python / Go / C++) can format them appropriately.
+
+/// One parameter-mode test cell to run against a live endpoint.
+#[derive(Debug, Clone)]
+struct TestMode {
+    /// Mode identifier (`concrete`, `bulk_chain`, `iso_date`, ...). Used in
+    /// validator output so failures point at a specific cell.
+    name: &'static str,
+    /// Method-call positional arguments, in declaration order. Each entry is
+    /// the language-agnostic string value (e.g. `"SPY"`, `"20260417"`,
+    /// `"*"`). `Symbols`-typed params are still rendered as a single string
+    /// here — per-language renderers wrap them in the target list literal.
+    args: Vec<String>,
+    /// Highest subscription tier this mode requires (`"free"`, `"value"`,
+    /// `"standard"`, `"professional"`). The validator skips the cell with a
+    /// clear `SKIP: tier<X>` line if the account tier is below.
+    min_tier: &'static str,
+    /// Outcome the validator should expect.
+    ///   - `non_empty`: a normal successful call (rows or "no data" both PASS)
+    ///   - `empty_ok`: a successful call that may legitimately return zero rows
+    ///   - `error_permission`: tier/permission errors are PASS, real errors FAIL
+    expect: &'static str,
+}
+
+/// Minimum subscription tier each endpoint requires.
+///
+/// Hard-coded from `docs-site/docs/historical/**/*.md` `<TierBadge tier="..."
+/// />` — that surface is itself validated against upstream
+/// `openapiv3.yaml`'s `x-min-subscription` by `scripts/check_tier_badges.py`,
+/// so this map stays correct as long as the docs do.
+fn endpoint_min_tier(name: &str) -> &'static str {
+    match name {
+        // ── Stock ─────────────────────────────────────────────────────────
+        "stock_list_symbols" | "stock_list_dates" => "free",
+        "stock_history_eod" => "free",
+        "stock_snapshot_ohlc"
+        | "stock_snapshot_quote"
+        | "stock_history_ohlc"
+        | "stock_history_ohlc_range"
+        | "stock_history_quote"
+        | "stock_at_time_quote" => "value",
+        "stock_snapshot_market_value"
+        | "stock_snapshot_trade"
+        | "stock_history_trade"
+        | "stock_history_trade_quote"
+        | "stock_at_time_trade" => "standard",
+
+        // ── Option list ───────────────────────────────────────────────────
+        "option_list_symbols"
+        | "option_list_dates"
+        | "option_list_strikes"
+        | "option_list_expirations" => "free",
+        "option_list_contracts" => "value",
+
+        // ── Option snapshot ───────────────────────────────────────────────
+        "option_snapshot_ohlc"
+        | "option_snapshot_quote"
+        | "option_snapshot_open_interest"
+        | "option_snapshot_market_value" => "value",
+        "option_snapshot_trade"
+        | "option_snapshot_greeks_implied_volatility"
+        | "option_snapshot_greeks_first_order" => "standard",
+        "option_snapshot_greeks_all"
+        | "option_snapshot_greeks_second_order"
+        | "option_snapshot_greeks_third_order" => "professional",
+
+        // ── Option history (non-trade-greeks) ─────────────────────────────
+        "option_history_eod" => "free",
+        "option_history_ohlc" | "option_history_quote" | "option_history_open_interest" => "value",
+        "option_history_trade"
+        | "option_history_trade_quote"
+        | "option_history_greeks_eod"
+        | "option_history_greeks_implied_volatility"
+        | "option_history_greeks_first_order" => "standard",
+        "option_history_greeks_all"
+        | "option_history_greeks_second_order"
+        | "option_history_greeks_third_order"
+        | "option_history_trade_greeks_implied_volatility"
+        | "option_history_trade_greeks_all"
+        | "option_history_trade_greeks_first_order"
+        | "option_history_trade_greeks_second_order"
+        | "option_history_trade_greeks_third_order" => "professional",
+
+        // ── Option at-time ────────────────────────────────────────────────
+        "option_at_time_quote" => "value",
+        "option_at_time_trade" => "standard",
+
+        // ── Index ─────────────────────────────────────────────────────────
+        "index_list_symbols" | "index_list_dates" | "index_history_eod" => "free",
+        "index_history_price" | "index_at_time_price" => "value",
+        "index_snapshot_ohlc"
+        | "index_snapshot_price"
+        | "index_snapshot_market_value"
+        | "index_history_ohlc" => "standard",
+
+        // ── Calendar / rate ───────────────────────────────────────────────
+        "calendar_open_today" | "interest_rate_history_eod" => "free",
+        "calendar_on_date" | "calendar_year" => "value",
+
+        // ── Streaming (covered by FPSS smoke harness, not this matrix) ────
+        "stock_history_trade_stream"
+        | "stock_history_quote_stream"
+        | "option_history_trade_stream"
+        | "option_history_quote_stream" => "standard",
+
+        other => panic!(
+            "endpoint '{other}' is missing a tier mapping in `endpoint_min_tier`. \
+             Add it after consulting docs-site/docs/historical/**/*.md TierBadge."
+        ),
+    }
+}
+
+/// Render the language-agnostic value for a method-call parameter at a
+/// concrete fixture (no wildcards, compact dates).
+fn concrete_value(endpoint: &GeneratedEndpoint, param: &GeneratedParam) -> String {
+    if param.name == "end_date" {
+        return "20250307".into();
+    }
+    match param.param_type.as_str() {
+        "Symbol" | "Symbols" => validation_symbol(endpoint).into(),
+        "Date" => "20250303".into(),
+        "Expiration" => "20250321".into(),
+        "Strike" => "570".into(),
+        "Right" => "C".into(),
+        "Interval" => "60000".into(),
+        "RequestType" => "TRADE".into(),
+        "Year" => "2025".into(),
+        "Str" => "12:00:00.000".into(),
+        other => panic!("concrete_value: unsupported param type {other}"),
+    }
+}
+
+/// Build the args vector for a concrete (no-wildcard) call.
+fn concrete_args(endpoint: &GeneratedEndpoint) -> Vec<String> {
+    method_params(endpoint)
+        .iter()
+        .map(|param| concrete_value(endpoint, param))
+        .collect()
+}
+
+/// Build args for a mode that overrides specific parameter names with given
+/// values — everything else falls back to [`concrete_value`].
+fn args_with_overrides(
+    endpoint: &GeneratedEndpoint,
+    overrides: &[(&'static str, &str)],
+) -> Vec<String> {
+    method_params(endpoint)
+        .iter()
+        .map(|param| {
+            overrides
+                .iter()
+                .find_map(|(name, value)| (*name == param.name).then(|| (*value).to_string()))
+                .unwrap_or_else(|| concrete_value(endpoint, param))
+        })
+        .collect()
+}
+
+/// Whether the endpoint's method-call params include the full ContractSpec
+/// quartet (symbol, expiration, strike, right). Drives wildcard mode
+/// generation for option snapshot / history / at-time endpoints.
+fn has_full_contract_spec(endpoint: &GeneratedEndpoint) -> bool {
+    let names: HashSet<&str> = method_params(endpoint)
+        .iter()
+        .map(|p| p.name.as_str())
+        .collect();
+    names.contains("symbol")
+        && names.contains("expiration")
+        && names.contains("strike")
+        && names.contains("right")
+}
+
+/// Compute the comprehensive mode set for a given endpoint.
+///
+/// The taxonomy:
+///   * **List** endpoints (`*_list_*`): one `basic` mode. Server rejects
+///     `*` for `expiration` here, so we don't emit a wildcard variant.
+///   * **Stock / index snapshot or history** (no ContractSpec): one
+///     `concrete` mode plus an `iso_date` mode where dates are involved.
+///   * **Option ContractSpec** endpoints: the full cross-product —
+///     `concrete`, `concrete_iso`, `all_strikes_one_exp`,
+///     `all_exps_one_strike`, `bulk_chain`, `legacy_zero_wildcard`.
+///   * **Calendar / rate**: one mode each.
+///
+/// Stream endpoints are covered by `scripts/fpss_smoke.py` /
+/// `scripts/fpss_soak.py` and intentionally skipped here.
+fn test_modes_for(endpoint: &GeneratedEndpoint) -> Vec<TestMode> {
+    if is_streaming_endpoint(endpoint) {
+        return Vec::new();
+    }
+    let endpoint_tier = endpoint_min_tier(&endpoint.name);
+
+    // ── List endpoints: one mode, no wildcard expiration (server rejects). ──
+    if is_simple_list_endpoint(endpoint) {
+        return vec![TestMode {
+            name: "basic",
+            args: concrete_args(endpoint),
+            min_tier: endpoint_tier,
+            expect: "non_empty",
+        }];
+    }
+
+    // ── Calendar / rate: one mode. ──────────────────────────────────────────
+    if matches!(endpoint.category.as_str(), "calendar" | "rate") {
+        return vec![TestMode {
+            name: "basic",
+            args: concrete_args(endpoint),
+            min_tier: endpoint_tier,
+            expect: "non_empty",
+        }];
+    }
+
+    // ── Option ContractSpec: full wildcard cross-product. ───────────────────
+    if has_full_contract_spec(endpoint) {
+        let mut modes = vec![
+            TestMode {
+                name: "concrete",
+                args: concrete_args(endpoint),
+                min_tier: endpoint_tier,
+                expect: "non_empty",
+            },
+            TestMode {
+                name: "concrete_iso",
+                args: args_with_overrides(endpoint, &[("expiration", "2025-03-21")]),
+                min_tier: endpoint_tier,
+                expect: "non_empty",
+            },
+            TestMode {
+                name: "all_strikes_one_exp",
+                args: args_with_overrides(endpoint, &[("strike", "*"), ("right", "both")]),
+                min_tier: endpoint_tier,
+                expect: "non_empty",
+            },
+            TestMode {
+                name: "all_exps_one_strike",
+                args: args_with_overrides(endpoint, &[("expiration", "*"), ("right", "both")]),
+                min_tier: endpoint_tier,
+                expect: "non_empty",
+            },
+            TestMode {
+                name: "bulk_chain",
+                args: args_with_overrides(
+                    endpoint,
+                    &[("expiration", "*"), ("strike", "*"), ("right", "both")],
+                ),
+                min_tier: endpoint_tier,
+                expect: "non_empty",
+            },
+            TestMode {
+                name: "legacy_zero_wildcard",
+                args: args_with_overrides(
+                    endpoint,
+                    &[("expiration", "0"), ("strike", "0"), ("right", "both")],
+                ),
+                min_tier: endpoint_tier,
+                expect: "non_empty",
+            },
+        ];
+        modes.dedup_by(|a, b| a.args == b.args && a.name == b.name);
+        return modes;
+    }
+
+    // ── Stock / index / non-ContractSpec endpoints. ─────────────────────────
+    //
+    // We deliberately do NOT emit an `iso_date` mode for stock/index
+    // endpoints with `start_date`/`end_date`. Those parameters are typed as
+    // `Date` in the SDK, and `validate::validate_date` is strict
+    // `YYYYMMDD` only — ISO-dashed acceptance is scoped to `Expiration`
+    // (see PR #284). Adding an `iso_date` cell here would test behavior the
+    // SDK contract intentionally does not support, so it would always fail.
+    vec![TestMode {
+        name: "concrete",
+        args: concrete_args(endpoint),
+        min_tier: endpoint_tier,
+        expect: "non_empty",
+    }]
+}
+
+/// Render a single arg string as a Python literal expression, taking the
+/// param's wire type into account so `Symbols` becomes a list.
+fn python_arg_literal(param: &GeneratedParam, value: &str) -> String {
+    match param.param_type.as_str() {
+        "Symbols" => format!("[\"{value}\"]"),
+        _ => format!("\"{value}\""),
+    }
+}
+
+/// Render a single arg string as a Go literal expression.
+fn go_arg_literal(param: &GeneratedParam, value: &str) -> String {
+    match param.param_type.as_str() {
+        "Symbols" => format!("[]string{{\"{value}\"}}"),
+        _ => format!("\"{value}\""),
+    }
+}
+
+/// Render a single arg string as a C++ literal expression.
+fn cpp_arg_literal(param: &GeneratedParam, value: &str) -> String {
+    match param.param_type.as_str() {
+        "Symbols" => format!("std::vector<std::string>{{\"{value}\"}}"),
+        _ => format!("\"{value}\""),
+    }
+}
+
+/// Generate the CLI validator (one row per (endpoint, mode) pair).
 fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
     let mut out = String::new();
     out.push_str("#!/usr/bin/env python3\n");
     out.push_str(
-        "# @generated DO NOT EDIT — regenerated by generate_sdk_surfaces from endpoint_surface.toml\n",
+        "# @generated DO NOT EDIT \u{2014} regenerated by generate_sdk_surfaces from endpoint_surface.toml\n",
     );
-    out.push_str("\"\"\"Validate all non-stream endpoints through the CLI.\"\"\"\n");
+    out.push_str("\"\"\"Live parameter-mode matrix validator for the CLI surface.\n\n");
+    out.push_str("Each row is one (endpoint, mode) cell. Modes cover concrete fixtures plus\n");
+    out.push_str("wildcard / ISO-date / legacy-zero variants for option ContractSpec\n");
+    out.push_str("endpoints. Cells whose `min_tier` exceeds the account tier (taken from\n");
+    out.push_str("the `VALIDATOR_ACCOUNT_TIER` env var, default `free`) skip with a clear\n");
+    out.push_str("`SKIP: tier<...>` line. See issue #287.\n\"\"\"\n");
     out.push_str("from __future__ import annotations\n\n");
     out.push_str("import os\n");
     out.push_str("import pathlib\n");
@@ -3179,45 +3445,73 @@ fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("import sys\n\n");
     out.push_str("REPO = pathlib.Path(__file__).resolve().parents[1]\n");
     out.push_str("TDX = REPO / \"target\" / \"release\" / (\"tdx.exe\" if os.name == \"nt\" else \"tdx\")\n\n");
-    out.push_str("ENDPOINTS = [\n");
+    out.push_str("TIER_RANK = {\"free\": 0, \"value\": 1, \"standard\": 2, \"professional\": 3}\n");
+    out.push_str("ACCOUNT_TIER = os.environ.get(\"VALIDATOR_ACCOUNT_TIER\", \"free\").lower()\n");
+    out.push_str("if ACCOUNT_TIER not in TIER_RANK:\n");
+    out.push_str(
+        "    raise SystemExit(f\"VALIDATOR_ACCOUNT_TIER must be one of {sorted(TIER_RANK)}, got {ACCOUNT_TIER!r}\")\n\n",
+    );
+    out.push_str("# (endpoint, mode_name, min_tier, expect, [argv...])\n");
+    out.push_str("CELLS = [\n");
     for endpoint in endpoints
         .iter()
         .filter(|endpoint| !is_streaming_endpoint(endpoint))
     {
-        let tokens = cli_command_tokens(endpoint)
-            .into_iter()
-            .map(|token| format!("{token:?}"))
-            .collect::<Vec<_>>()
-            .join(", ");
-        writeln!(out, "    ({:?}, [{}]),", endpoint.name, tokens).unwrap();
+        for mode in test_modes_for(endpoint) {
+            let tokens = cli_command_tokens_for_mode(endpoint, &mode)
+                .into_iter()
+                .map(|token| format!("{token:?}"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            writeln!(
+                out,
+                "    ({:?}, {:?}, {:?}, {:?}, [{}]),",
+                endpoint.name, mode.name, mode.min_tier, mode.expect, tokens
+            )
+            .unwrap();
+        }
     }
     out.push_str("]\n\n");
     out.push_str("if not TDX.exists():\n");
     out.push_str("    raise SystemExit(f\"missing CLI binary: {TDX}\")\n\n");
     out.push_str("creds = sys.argv[1]\n");
     out.push_str("pass_count = skip_count = fail_count = 0\n");
-    out.push_str("for name, args in ENDPOINTS:\n");
+    out.push_str("for endpoint, mode, min_tier, expect, argv in CELLS:\n");
+    out.push_str("    label = f\"{endpoint}::{mode}\"\n");
+    out.push_str("    if TIER_RANK[min_tier] > TIER_RANK[ACCOUNT_TIER]:\n");
+    out.push_str(
+        "        print(f\"  {label:60s} SKIP: tier<{min_tier}> > account<{ACCOUNT_TIER}>\")\n",
+    );
+    out.push_str("        skip_count += 1\n");
+    out.push_str("        continue\n");
     out.push_str("    proc = subprocess.run(\n");
-    out.push_str("        [str(TDX), \"--creds\", creds, *args, \"--format\", \"json\"],\n");
+    out.push_str("        [str(TDX), \"--creds\", creds, *argv, \"--format\", \"json\"],\n");
     out.push_str("        cwd=REPO,\n");
     out.push_str("        stdout=subprocess.PIPE,\n");
     out.push_str("        stderr=subprocess.STDOUT,\n");
     out.push_str("        check=False,\n");
     out.push_str("    )\n");
     out.push_str("    output = (proc.stdout or b\"\").decode(\"utf-8\", errors=\"replace\")\n");
-    out.push_str("    if proc.returncode == 0:\n");
-    out.push_str("        print(f\"  {name:45s} PASS\")\n");
-    out.push_str("        pass_count += 1\n");
-    out.push_str("        continue\n");
     out.push_str("    msg = output.lower()\n");
-    out.push_str("    if \"permission\" in msg or \"subscription\" in msg:\n");
-    out.push_str("        print(f\"  {name:45s} SKIP  (tier)\")\n");
+    out.push_str("    is_perm = \"permission\" in msg or \"subscription\" in msg\n");
+    out.push_str("    if proc.returncode == 0:\n");
+    out.push_str("        print(f\"  {label:60s} PASS\")\n");
+    out.push_str("        pass_count += 1\n");
+    out.push_str("    elif is_perm:\n");
+    out.push_str(
+        "        print(f\"  {label:60s} SKIP: tier-permission (declared min_tier={min_tier})\")\n",
+    );
     out.push_str("        skip_count += 1\n");
     out.push_str("    elif \"no data found\" in msg:\n");
-    out.push_str("        print(f\"  {name:45s} PASS  (no data)\")\n");
+    out.push_str("        print(f\"  {label:60s} PASS  (no data)\")\n");
     out.push_str("        pass_count += 1\n");
+    out.push_str("    elif expect == \"error_permission\":\n");
+    out.push_str(
+        "        print(f\"  {label:60s} FAIL  expected permission error, got: {output.strip()}\")\n",
+    );
+    out.push_str("        fail_count += 1\n");
     out.push_str("    else:\n");
-    out.push_str("        print(f\"  {name:45s} FAIL  {output.strip()}\")\n");
+    out.push_str("        print(f\"  {label:60s} FAIL  {output.strip()}\")\n");
     out.push_str("        fail_count += 1\n");
     out.push('\n');
     out.push_str("print(f\"\\nCLI: {pass_count} PASS, {skip_count} SKIP, {fail_count} FAIL\")\n");
@@ -3226,56 +3520,84 @@ fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out
 }
 
-/// Generate a standalone Python validation script that calls every non-stream endpoint.
+/// Generate the Python SDK validator (one row per (endpoint, mode) pair).
 fn render_python_validate(endpoints: &[GeneratedEndpoint]) -> String {
     let mut out = String::new();
     out.push_str("#!/usr/bin/env python3\n");
     out.push_str(
         "# @generated DO NOT EDIT \u{2014} regenerated by generate_sdk_surfaces from endpoint_surface.toml\n",
     );
-    out.push_str("\"\"\"Validate all non-stream endpoints through the Python SDK.\"\"\"\n");
+    out.push_str("\"\"\"Live parameter-mode matrix validator for the Python SDK.\n\n");
+    out.push_str("Each row is one (endpoint, mode) cell. Modes cover concrete fixtures plus\n");
+    out.push_str("wildcard / ISO-date / legacy-zero variants for option ContractSpec\n");
+    out.push_str("endpoints. Cells whose `min_tier` exceeds the account tier (taken from\n");
+    out.push_str("the `VALIDATOR_ACCOUNT_TIER` env var, default `free`) skip with a clear\n");
+    out.push_str("`SKIP: tier<...>` line. See issue #287.\n\"\"\"\n");
+    out.push_str("import os\n");
     out.push_str("import sys\n\n");
     out.push_str("from thetadatadx import Credentials, Config, ThetaDataDx\n\n");
+    out.push_str("TIER_RANK = {\"free\": 0, \"value\": 1, \"standard\": 2, \"professional\": 3}\n");
+    out.push_str("ACCOUNT_TIER = os.environ.get(\"VALIDATOR_ACCOUNT_TIER\", \"free\").lower()\n");
+    out.push_str("if ACCOUNT_TIER not in TIER_RANK:\n");
+    out.push_str(
+        "    raise SystemExit(f\"VALIDATOR_ACCOUNT_TIER must be one of {sorted(TIER_RANK)}, got {ACCOUNT_TIER!r}\")\n\n",
+    );
     out.push_str(
         "client = ThetaDataDx(Credentials.from_file(sys.argv[1]), Config.production())\n\n",
     );
-    out.push_str("ENDPOINTS = [\n");
-
+    out.push_str("# (endpoint, mode_name, min_tier, expect, callable)\n");
+    out.push_str("CELLS = [\n");
     for endpoint in endpoints
         .iter()
         .filter(|endpoint| !is_streaming_endpoint(endpoint))
     {
         let mp = method_params(endpoint);
-        let args = mp
-            .iter()
-            .map(|param| python_dummy_value(endpoint, param))
-            .collect::<Vec<_>>()
-            .join(", ");
-        writeln!(
-            out,
-            "    (\"{}\", lambda: client.{}({})),",
-            endpoint.name, endpoint.name, args
-        )
-        .unwrap();
+        for mode in test_modes_for(endpoint) {
+            let args = mp
+                .iter()
+                .zip(mode.args.iter())
+                .map(|(param, value)| python_arg_literal(param, value))
+                .collect::<Vec<_>>()
+                .join(", ");
+            writeln!(
+                out,
+                "    ({:?}, {:?}, {:?}, {:?}, lambda: client.{}({})),",
+                endpoint.name, mode.name, mode.min_tier, mode.expect, endpoint.name, args
+            )
+            .unwrap();
+        }
     }
-
     out.push_str("]\n\n");
     out.push_str("pass_count = skip_count = fail_count = 0\n");
-    out.push_str("for name, call in ENDPOINTS:\n");
+    out.push_str("for endpoint, mode, min_tier, expect, call in CELLS:\n");
+    out.push_str("    label = f\"{endpoint}::{mode}\"\n");
+    out.push_str("    if TIER_RANK[min_tier] > TIER_RANK[ACCOUNT_TIER]:\n");
+    out.push_str(
+        "        print(f\"  {label:60s} SKIP: tier<{min_tier}> > account<{ACCOUNT_TIER}>\")\n",
+    );
+    out.push_str("        skip_count += 1\n");
+    out.push_str("        continue\n");
     out.push_str("    try:\n");
-    out.push_str("        result = call()\n");
-    out.push_str("        print(f\"  {name:45s} PASS\")\n");
+    out.push_str("        call()\n");
+    out.push_str("        print(f\"  {label:60s} PASS\")\n");
     out.push_str("        pass_count += 1\n");
     out.push_str("    except Exception as e:\n");
     out.push_str("        msg = str(e).lower()\n");
     out.push_str("        if \"permission\" in msg or \"subscription\" in msg:\n");
-    out.push_str("            print(f\"  {name:45s} SKIP  (tier)\")\n");
+    out.push_str(
+        "            print(f\"  {label:60s} SKIP: tier-permission (declared min_tier={min_tier})\")\n",
+    );
     out.push_str("            skip_count += 1\n");
     out.push_str("        elif \"no data found\" in msg:\n");
-    out.push_str("            print(f\"  {name:45s} PASS  (no data)\")\n");
+    out.push_str("            print(f\"  {label:60s} PASS  (no data)\")\n");
     out.push_str("            pass_count += 1\n");
+    out.push_str("        elif expect == \"error_permission\":\n");
+    out.push_str(
+        "            print(f\"  {label:60s} FAIL  expected permission error, got: {e}\")\n",
+    );
+    out.push_str("            fail_count += 1\n");
     out.push_str("        else:\n");
-    out.push_str("            print(f\"  {name:45s} FAIL  {e}\")\n");
+    out.push_str("            print(f\"  {label:60s} FAIL  {e}\")\n");
     out.push_str("            fail_count += 1\n");
     out.push('\n');
     out.push_str(
@@ -3283,11 +3605,10 @@ fn render_python_validate(endpoints: &[GeneratedEndpoint]) -> String {
     );
     out.push_str("print(f\"COUNTS:{pass_count}:{skip_count}:{fail_count}\")\n");
     out.push_str("sys.exit(1 if fail_count > 0 else 0)\n");
-
     out
 }
 
-/// Generate a Go validation file that calls every non-stream endpoint.
+/// Generate the Go SDK validator (one row per (endpoint, mode) pair).
 fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
     let mut out = String::new();
     out.push_str(
@@ -3296,14 +3617,26 @@ fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("package thetadatadx\n\n");
     out.push_str("import (\n");
     out.push_str("\t\"fmt\"\n");
+    out.push_str("\t\"os\"\n");
     out.push_str("\t\"strings\"\n");
     out.push_str(")\n\n");
-    out.push_str(
-        "// ValidateAllEndpoints calls every non-stream endpoint with dummy-but-valid args.\n",
-    );
-    out.push_str("// Returns (pass, skip, fail) counts.\n");
+    out.push_str("var tierRank = map[string]int{\n");
+    out.push_str("\t\"free\": 0, \"value\": 1, \"standard\": 2, \"professional\": 3,\n");
+    out.push_str("}\n\n");
+    out.push_str("// ValidateAllEndpoints runs the live parameter-mode matrix against `c`.\n");
+    out.push_str("// Returns (pass, skip, fail) counts. See issue #287.\n");
     out.push_str("func ValidateAllEndpoints(c *Client) (int, int, int) {\n");
     out.push_str("\tpass, skip, fail := 0, 0, 0\n");
+    out.push_str("\taccountTier := strings.ToLower(os.Getenv(\"VALIDATOR_ACCOUNT_TIER\"))\n");
+    out.push_str("\tif accountTier == \"\" {\n");
+    out.push_str("\t\taccountTier = \"free\"\n");
+    out.push_str("\t}\n");
+    out.push_str("\tif _, ok := tierRank[accountTier]; !ok {\n");
+    out.push_str(
+        "\t\tfmt.Fprintf(os.Stderr, \"VALIDATOR_ACCOUNT_TIER must be one of free|value|standard|professional, got %q\\n\", accountTier)\n",
+    );
+    out.push_str("\t\treturn 0, 0, 1\n");
+    out.push_str("\t}\n\n");
     out.push_str("\tvar err error\n\n");
 
     for endpoint in endpoints
@@ -3312,55 +3645,93 @@ fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
     {
         let go_name = to_go_exported_name(&endpoint.name);
         let mp = method_params(endpoint);
-        let args = mp
-            .iter()
-            .map(|param| go_dummy_value(endpoint, param))
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        writeln!(out, "\t_, err = c.{}({})", go_name, args).unwrap();
-        writeln!(
-            out,
-            "\tclassify(\"{}\", err, &pass, &skip, &fail)",
-            endpoint.name
-        )
-        .unwrap();
+        for mode in test_modes_for(endpoint) {
+            let label = format!("{}::{}", endpoint.name, mode.name);
+            writeln!(
+                out,
+                "\tif tierRank[{:?}] > tierRank[accountTier] {{",
+                mode.min_tier
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "\t\tfmt.Printf(\"  %-60s SKIP: tier<%s> > account<%s>\\n\", {label:?}, {:?}, accountTier)",
+                mode.min_tier
+            )
+            .unwrap();
+            out.push_str("\t\tskip++\n");
+            out.push_str("\t} else {\n");
+            let args = mp
+                .iter()
+                .zip(mode.args.iter())
+                .map(|(param, value)| go_arg_literal(param, value))
+                .collect::<Vec<_>>()
+                .join(", ");
+            writeln!(out, "\t\t_, err = c.{}({})", go_name, args).unwrap();
+            writeln!(
+                out,
+                "\t\tclassify({label:?}, {:?}, {:?}, err, &pass, &skip, &fail)",
+                mode.min_tier, mode.expect
+            )
+            .unwrap();
+            out.push_str("\t}\n");
+        }
         out.push('\n');
     }
 
     out.push_str("\treturn pass, skip, fail\n");
     out.push_str("}\n\n");
-    out.push_str("func classify(name string, err error, pass, skip, fail *int) {\n");
-    out.push_str("\tif err == nil {\n");
-    out.push_str("\t\tfmt.Printf(\"  %-45s PASS\\n\", name)\n");
-    out.push_str("\t\t*pass++\n");
-    out.push_str("\t} else if strings.Contains(strings.ToLower(err.Error()), \"permission\") ||\n");
-    out.push_str("\t\tstrings.Contains(strings.ToLower(err.Error()), \"subscription\") {\n");
-    out.push_str("\t\tfmt.Printf(\"  %-45s SKIP  (tier)\\n\", name)\n");
-    out.push_str("\t\t*skip++\n");
     out.push_str(
-        "\t} else if strings.Contains(strings.ToLower(err.Error()), \"no data found\") {\n",
+        "func classify(label, minTier, expect string, err error, pass, skip, fail *int) {\n",
     );
-    out.push_str("\t\tfmt.Printf(\"  %-45s PASS  (no data)\\n\", name)\n");
+    out.push_str("\tif err == nil {\n");
+    out.push_str("\t\tfmt.Printf(\"  %-60s PASS\\n\", label)\n");
     out.push_str("\t\t*pass++\n");
-    out.push_str("\t} else {\n");
-    out.push_str("\t\tfmt.Printf(\"  %-45s FAIL  %v\\n\", name, err)\n");
-    out.push_str("\t\t*fail++\n");
+    out.push_str("\t\treturn\n");
     out.push_str("\t}\n");
+    out.push_str("\tlowered := strings.ToLower(err.Error())\n");
+    out.push_str(
+        "\tif strings.Contains(lowered, \"permission\") || strings.Contains(lowered, \"subscription\") {\n",
+    );
+    out.push_str(
+        "\t\tfmt.Printf(\"  %-60s SKIP: tier-permission (declared min_tier=%s)\\n\", label, minTier)\n",
+    );
+    out.push_str("\t\t*skip++\n");
+    out.push_str("\t\treturn\n");
+    out.push_str("\t}\n");
+    out.push_str("\tif strings.Contains(lowered, \"no data found\") {\n");
+    out.push_str("\t\tfmt.Printf(\"  %-60s PASS  (no data)\\n\", label)\n");
+    out.push_str("\t\t*pass++\n");
+    out.push_str("\t\treturn\n");
+    out.push_str("\t}\n");
+    out.push_str("\tif expect == \"error_permission\" {\n");
+    out.push_str(
+        "\t\tfmt.Printf(\"  %-60s FAIL  expected permission error, got %v\\n\", label, err)\n",
+    );
+    out.push_str("\t\t*fail++\n");
+    out.push_str("\t\treturn\n");
+    out.push_str("\t}\n");
+    out.push_str("\tfmt.Printf(\"  %-60s FAIL  %v\\n\", label, err)\n");
+    out.push_str("\t*fail++\n");
     out.push_str("}\n");
 
     out
 }
 
+/// Generate the C++ SDK validator (one row per (endpoint, mode) pair).
 fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
     let mut out = String::new();
     out.push_str(
-        "// @generated DO NOT EDIT — regenerated by generate_sdk_surfaces from endpoint_surface.toml\n",
+        "// @generated DO NOT EDIT \u{2014} regenerated by generate_sdk_surfaces from endpoint_surface.toml\n",
     );
+    out.push_str("// Live parameter-mode matrix validator for the C++ SDK. See issue #287.\n");
     out.push_str("#include <algorithm>\n");
     out.push_str("#include <cctype>\n");
+    out.push_str("#include <cstdlib>\n");
+    out.push_str("#include <iomanip>\n");
     out.push_str("#include <iostream>\n");
     out.push_str("#include <string>\n");
+    out.push_str("#include <unordered_map>\n");
     out.push_str("#include <vector>\n");
     out.push_str("#include \"thetadx.hpp\"\n\n");
     out.push_str("namespace {\n\n");
@@ -3372,9 +3743,24 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("    });\n");
     out.push_str("    return value;\n");
     out.push_str("}\n\n");
+    out.push_str("const std::unordered_map<std::string, int> kTierRank = {\n");
+    out.push_str("    {\"free\", 0}, {\"value\", 1}, {\"standard\", 2}, {\"professional\", 3},\n");
+    out.push_str("};\n\n");
     out.push_str("} // namespace\n\n");
     out.push_str("int main(int argc, char** argv) {\n");
     out.push_str("    const std::string creds_path = argc > 1 ? argv[1] : \"creds.txt\";\n");
+    out.push_str("    const char* env_tier = std::getenv(\"VALIDATOR_ACCOUNT_TIER\");\n");
+    out.push_str(
+        "    std::string account_tier = lower(env_tier == nullptr ? \"free\" : env_tier);\n",
+    );
+    out.push_str("    auto tier_it = kTierRank.find(account_tier);\n");
+    out.push_str("    if (tier_it == kTierRank.end()) {\n");
+    out.push_str(
+        "        std::cerr << \"VALIDATOR_ACCOUNT_TIER must be free|value|standard|professional, got '\" << account_tier << \"'\" << std::endl;\n",
+    );
+    out.push_str("        return 1;\n");
+    out.push_str("    }\n");
+    out.push_str("    const int account_rank = tier_it->second;\n");
     out.push_str("    int pass = 0;\n");
     out.push_str("    int skip = 0;\n");
     out.push_str("    int fail = 0;\n\n");
@@ -3382,27 +3768,48 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("        auto creds = tdx::Credentials::from_file(creds_path);\n");
     out.push_str("        auto config = tdx::Config::production();\n");
     out.push_str("        auto client = tdx::Client::connect(creds, config);\n\n");
-    out.push_str("        auto classify = [&](const char* name, auto&& call) {\n");
+    out.push_str(
+        "        auto cell = [&](const char* label, const char* min_tier, const char* expect, auto&& call) {\n",
+    );
+    out.push_str("            int min_rank = kTierRank.at(min_tier);\n");
+    out.push_str("            if (min_rank > account_rank) {\n");
+    out.push_str(
+        "                std::cout << \"  \" << std::left << std::setw(60) << label << \" SKIP: tier<\" << min_tier << \"> > account<\" << account_tier << \">\" << std::endl;\n",
+    );
+    out.push_str("                ++skip;\n");
+    out.push_str("                return;\n");
+    out.push_str("            }\n");
     out.push_str("            try {\n");
     out.push_str("                (void)call();\n");
-    out.push_str("                std::cout << \"  \" << name << \" PASS\" << std::endl;\n");
+    out.push_str(
+        "                std::cout << \"  \" << std::left << std::setw(60) << label << \" PASS\" << std::endl;\n",
+    );
     out.push_str("                ++pass;\n");
     out.push_str("            } catch (const std::exception& e) {\n");
     out.push_str("                const std::string msg = lower(e.what());\n");
-    out.push_str("                if (msg.find(\"permission\") != std::string::npos || msg.find(\"subscription\") != std::string::npos) {\n");
     out.push_str(
-        "                    std::cout << \"  \" << name << \" SKIP  (tier)\" << std::endl;\n",
+        "                if (msg.find(\"permission\") != std::string::npos || msg.find(\"subscription\") != std::string::npos) {\n",
+    );
+    out.push_str(
+        "                    std::cout << \"  \" << std::left << std::setw(60) << label << \" SKIP: tier-permission (declared min_tier=\" << min_tier << \")\" << std::endl;\n",
     );
     out.push_str("                    ++skip;\n");
     out.push_str(
         "                } else if (msg.find(\"no data found\") != std::string::npos) {\n",
     );
     out.push_str(
-        "                    std::cout << \"  \" << name << \" PASS  (no data)\" << std::endl;\n",
+        "                    std::cout << \"  \" << std::left << std::setw(60) << label << \" PASS  (no data)\" << std::endl;\n",
     );
     out.push_str("                    ++pass;\n");
+    out.push_str("                } else if (std::string(expect) == \"error_permission\") {\n");
+    out.push_str(
+        "                    std::cout << \"  \" << std::left << std::setw(60) << label << \" FAIL  expected permission error, got \" << e.what() << std::endl;\n",
+    );
+    out.push_str("                    ++fail;\n");
     out.push_str("                } else {\n");
-    out.push_str("                    std::cout << \"  \" << name << \" FAIL  \" << e.what() << std::endl;\n");
+    out.push_str(
+        "                    std::cout << \"  \" << std::left << std::setw(60) << label << \" FAIL  \" << e.what() << std::endl;\n",
+    );
     out.push_str("                    ++fail;\n");
     out.push_str("                }\n");
     out.push_str("            }\n");
@@ -3412,17 +3819,22 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
         .iter()
         .filter(|endpoint| !is_streaming_endpoint(endpoint))
     {
-        let args = method_params(endpoint)
-            .iter()
-            .map(|param| cpp_dummy_value(endpoint, param))
-            .collect::<Vec<_>>()
-            .join(", ");
-        writeln!(
-            out,
-            "        classify(\"{}\", [&] {{ return client.{}({}); }});",
-            endpoint.name, endpoint.name, args
-        )
-        .unwrap();
+        let mp = method_params(endpoint);
+        for mode in test_modes_for(endpoint) {
+            let label = format!("{}::{}", endpoint.name, mode.name);
+            let args = mp
+                .iter()
+                .zip(mode.args.iter())
+                .map(|(param, value)| cpp_arg_literal(param, value))
+                .collect::<Vec<_>>()
+                .join(", ");
+            writeln!(
+                out,
+                "        cell({:?}, {:?}, {:?}, [&] {{ return client.{}({}); }});",
+                label, mode.min_tier, mode.expect, endpoint.name, args
+            )
+            .unwrap();
+        }
     }
 
     out.push_str("    } catch (const std::exception& e) {\n");
@@ -3431,7 +3843,9 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
     );
     out.push_str("        return 1;\n");
     out.push_str("    }\n\n");
-    out.push_str("    std::cout << \"\\nC++: \" << pass << \" PASS, \" << skip << \" SKIP, \" << fail << \" FAIL\" << std::endl;\n");
+    out.push_str(
+        "    std::cout << \"\\nC++: \" << pass << \" PASS, \" << skip << \" SKIP, \" << fail << \" FAIL\" << std::endl;\n",
+    );
     out.push_str(
         "    std::cout << \"COUNTS:\" << pass << \":\" << skip << \":\" << fail << std::endl;\n",
     );
