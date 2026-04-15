@@ -7,6 +7,7 @@ import "C"
 
 import (
 	"fmt"
+	"runtime"
 )
 
 
@@ -120,6 +121,11 @@ type FpssClient struct {
 }
 
 // NewFpssClient connects to the FPSS streaming servers and returns a client.
+//
+// Pins the goroutine to one OS thread across the cgo call + TLS error
+// read because the FFI's last-error slot is a Rust thread_local.
+// See `docs/dev/w3-async-cancellation-design.md` "cgo thread-local
+// correctness".
 func NewFpssClient(creds *Credentials, config *Config) (*FpssClient, error) {
 	if creds == nil || creds.handle == nil {
 		return nil, fmt.Errorf("thetadatadx: credentials handle is nil")
@@ -127,6 +133,8 @@ func NewFpssClient(creds *Credentials, config *Config) (*FpssClient, error) {
 	if config == nil || config.handle == nil {
 		return nil, fmt.Errorf("thetadatadx: config handle is nil")
 	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	h := C.tdx_fpss_connect(creds.handle, config.handle)
 	if h == nil {
 		return nil, fmt.Errorf("thetadatadx: %s", lastError())
@@ -134,6 +142,10 @@ func NewFpssClient(creds *Credentials, config *Config) (*FpssClient, error) {
 	return &FpssClient{handle: h}, nil
 }
 
+// fpssCall is called by the generated subscribe/unsubscribe wrappers in
+// fpss_methods.go. Every such wrapper has already pinned its goroutine
+// via runtime.LockOSThread() so the in-flight cgo call and this
+// lastError() read both run on the same OS thread.
 func (f *FpssClient) fpssCall(rc C.int) (int, error) {
 	if rc < 0 {
 		return int(rc), fmt.Errorf("thetadatadx: %s", lastError())

@@ -50,10 +50,13 @@ import (
 //     contention at release — any migration is most likely to happen
 //     in that window.
 //  3. Amplify the sample: each goroutine issues N=100 calls in a tight
-//     loop. With 10 goroutines × 100 calls = 1000 cgo call sequences
-//     the test runs long enough for any non-zero migration-probability
-//     window to fire many times. Per-call runtime ~1ms, whole test
-//     under a second.
+//     loop (10 goroutines × 100 calls = 1000 cgo call sequences). Volume
+//     alone does not make the detection bulletproof — on a 1-CPU runner
+//     or with a scheduler that keeps the goroutines on one OS thread,
+//     the per-call migration probability p can be effectively zero and
+//     a broken implementation still passes. This test is a BEHAVIORAL
+//     LOAD GUARD, not a statistical proof; TestEveryEndpointPinsOSThread
+//     in timeout_pin_test.go is the deterministic arm.
 //  4. Per-call assertion: every call must return an error containing
 //     "request deadline exceeded". Even one nil-error return from any
 //     iteration of any goroutine fails the test with the goroutine id

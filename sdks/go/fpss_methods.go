@@ -9,11 +9,14 @@ import "C"
 
 import (
 	"fmt"
+	"runtime"
 	"unsafe"
 )
 
 // SubscribeQuotes subscribes to real-time quote data for a stock symbol.
 func (f *FpssClient) SubscribeQuotes(symbol string) (int, error) {
+    runtime.LockOSThread()
+    defer runtime.UnlockOSThread()
     cs := C.CString(symbol)
     defer C.free(unsafe.Pointer(cs))
     return f.fpssCall(C.tdx_fpss_subscribe_quotes(f.handle, cs))
@@ -21,6 +24,8 @@ func (f *FpssClient) SubscribeQuotes(symbol string) (int, error) {
 
 // SubscribeTrades subscribes to real-time trade data for a stock symbol.
 func (f *FpssClient) SubscribeTrades(symbol string) (int, error) {
+    runtime.LockOSThread()
+    defer runtime.UnlockOSThread()
     cs := C.CString(symbol)
     defer C.free(unsafe.Pointer(cs))
     return f.fpssCall(C.tdx_fpss_subscribe_trades(f.handle, cs))
@@ -28,6 +33,8 @@ func (f *FpssClient) SubscribeTrades(symbol string) (int, error) {
 
 // SubscribeOpenInterest subscribes to open interest data for a stock symbol.
 func (f *FpssClient) SubscribeOpenInterest(symbol string) (int, error) {
+    runtime.LockOSThread()
+    defer runtime.UnlockOSThread()
     cs := C.CString(symbol)
     defer C.free(unsafe.Pointer(cs))
     return f.fpssCall(C.tdx_fpss_subscribe_open_interest(f.handle, cs))
@@ -35,6 +42,8 @@ func (f *FpssClient) SubscribeOpenInterest(symbol string) (int, error) {
 
 // SubscribeOptionQuotes subscribes to quote data for an option contract.
 func (f *FpssClient) SubscribeOptionQuotes(symbol, expiration, strike, right string) (int, error) {
+    runtime.LockOSThread()
+    defer runtime.UnlockOSThread()
     cs := C.CString(symbol)
     ce := C.CString(expiration)
     ck := C.CString(strike)
@@ -48,6 +57,8 @@ func (f *FpssClient) SubscribeOptionQuotes(symbol, expiration, strike, right str
 
 // SubscribeOptionTrades subscribes to trade data for an option contract.
 func (f *FpssClient) SubscribeOptionTrades(symbol, expiration, strike, right string) (int, error) {
+    runtime.LockOSThread()
+    defer runtime.UnlockOSThread()
     cs := C.CString(symbol)
     ce := C.CString(expiration)
     ck := C.CString(strike)
@@ -61,6 +72,8 @@ func (f *FpssClient) SubscribeOptionTrades(symbol, expiration, strike, right str
 
 // SubscribeOptionOpenInterest subscribes to open interest data for an option contract.
 func (f *FpssClient) SubscribeOptionOpenInterest(symbol, expiration, strike, right string) (int, error) {
+    runtime.LockOSThread()
+    defer runtime.UnlockOSThread()
     cs := C.CString(symbol)
     ce := C.CString(expiration)
     ck := C.CString(strike)
@@ -74,6 +87,8 @@ func (f *FpssClient) SubscribeOptionOpenInterest(symbol, expiration, strike, rig
 
 // SubscribeFullTrades subscribes to all trades for a security type ("STOCK", "OPTION", "INDEX").
 func (f *FpssClient) SubscribeFullTrades(secType string) (int, error) {
+    runtime.LockOSThread()
+    defer runtime.UnlockOSThread()
     cs := C.CString(secType)
     defer C.free(unsafe.Pointer(cs))
     return f.fpssCall(C.tdx_fpss_subscribe_full_trades(f.handle, cs))
@@ -81,6 +96,8 @@ func (f *FpssClient) SubscribeFullTrades(secType string) (int, error) {
 
 // SubscribeFullOpenInterest subscribes to all open interest for a security type ("STOCK", "OPTION", "INDEX").
 func (f *FpssClient) SubscribeFullOpenInterest(secType string) (int, error) {
+    runtime.LockOSThread()
+    defer runtime.UnlockOSThread()
     cs := C.CString(secType)
     defer C.free(unsafe.Pointer(cs))
     return f.fpssCall(C.tdx_fpss_subscribe_full_open_interest(f.handle, cs))
@@ -88,6 +105,8 @@ func (f *FpssClient) SubscribeFullOpenInterest(secType string) (int, error) {
 
 // UnsubscribeQuotes unsubscribes from quote data for a stock symbol.
 func (f *FpssClient) UnsubscribeQuotes(symbol string) (int, error) {
+    runtime.LockOSThread()
+    defer runtime.UnlockOSThread()
     cs := C.CString(symbol)
     defer C.free(unsafe.Pointer(cs))
     return f.fpssCall(C.tdx_fpss_unsubscribe_quotes(f.handle, cs))
@@ -95,6 +114,8 @@ func (f *FpssClient) UnsubscribeQuotes(symbol string) (int, error) {
 
 // UnsubscribeTrades unsubscribes from trade data for a stock symbol.
 func (f *FpssClient) UnsubscribeTrades(symbol string) (int, error) {
+    runtime.LockOSThread()
+    defer runtime.UnlockOSThread()
     cs := C.CString(symbol)
     defer C.free(unsafe.Pointer(cs))
     return f.fpssCall(C.tdx_fpss_unsubscribe_trades(f.handle, cs))
@@ -102,6 +123,8 @@ func (f *FpssClient) UnsubscribeTrades(symbol string) (int, error) {
 
 // UnsubscribeOpenInterest unsubscribes from open interest data for a stock symbol.
 func (f *FpssClient) UnsubscribeOpenInterest(symbol string) (int, error) {
+    runtime.LockOSThread()
+    defer runtime.UnlockOSThread()
     cs := C.CString(symbol)
     defer C.free(unsafe.Pointer(cs))
     return f.fpssCall(C.tdx_fpss_unsubscribe_open_interest(f.handle, cs))
@@ -109,6 +132,8 @@ func (f *FpssClient) UnsubscribeOpenInterest(symbol string) (int, error) {
 
 // UnsubscribeOptionQuotes unsubscribes from quote data for an option contract.
 func (f *FpssClient) UnsubscribeOptionQuotes(symbol, expiration, strike, right string) (int, error) {
+    runtime.LockOSThread()
+    defer runtime.UnlockOSThread()
     cs := C.CString(symbol)
     ce := C.CString(expiration)
     ck := C.CString(strike)
@@ -122,6 +147,8 @@ func (f *FpssClient) UnsubscribeOptionQuotes(symbol, expiration, strike, right s
 
 // UnsubscribeOptionTrades unsubscribes from trade data for an option contract.
 func (f *FpssClient) UnsubscribeOptionTrades(symbol, expiration, strike, right string) (int, error) {
+    runtime.LockOSThread()
+    defer runtime.UnlockOSThread()
     cs := C.CString(symbol)
     ce := C.CString(expiration)
     ck := C.CString(strike)
@@ -135,6 +162,8 @@ func (f *FpssClient) UnsubscribeOptionTrades(symbol, expiration, strike, right s
 
 // UnsubscribeOptionOpenInterest unsubscribes from open interest data for an option contract.
 func (f *FpssClient) UnsubscribeOptionOpenInterest(symbol, expiration, strike, right string) (int, error) {
+    runtime.LockOSThread()
+    defer runtime.UnlockOSThread()
     cs := C.CString(symbol)
     ce := C.CString(expiration)
     ck := C.CString(strike)
@@ -148,6 +177,8 @@ func (f *FpssClient) UnsubscribeOptionOpenInterest(symbol, expiration, strike, r
 
 // UnsubscribeFullTrades unsubscribes from all trades for a security type ("STOCK", "OPTION", "INDEX").
 func (f *FpssClient) UnsubscribeFullTrades(secType string) (int, error) {
+    runtime.LockOSThread()
+    defer runtime.UnlockOSThread()
     cs := C.CString(secType)
     defer C.free(unsafe.Pointer(cs))
     return f.fpssCall(C.tdx_fpss_unsubscribe_full_trades(f.handle, cs))
@@ -155,6 +186,8 @@ func (f *FpssClient) UnsubscribeFullTrades(secType string) (int, error) {
 
 // UnsubscribeFullOpenInterest unsubscribes from all open interest for a security type ("STOCK", "OPTION", "INDEX").
 func (f *FpssClient) UnsubscribeFullOpenInterest(secType string) (int, error) {
+    runtime.LockOSThread()
+    defer runtime.UnlockOSThread()
     cs := C.CString(secType)
     defer C.free(unsafe.Pointer(cs))
     return f.fpssCall(C.tdx_fpss_unsubscribe_full_open_interest(f.handle, cs))
@@ -168,6 +201,8 @@ func (f *FpssClient) IsAuthenticated() bool {
 // ContractLookup looks up a contract by its server-assigned ID.
 // Returns ("", nil) when the ID is not found, ("", error) on real errors.
 func (f *FpssClient) ContractLookup(id int) (string, error) {
+    runtime.LockOSThread()
+    defer runtime.UnlockOSThread()
     cstr := C.tdx_fpss_contract_lookup(f.handle, C.int(id))
     if cstr == nil {
         // NULL + empty last-error means "not found"; non-empty means real error.
@@ -183,6 +218,8 @@ func (f *FpssClient) ContractLookup(id int) (string, error) {
 
 // ContractMap returns the current contract ID mapping.
 func (f *FpssClient) ContractMap() (map[int32]string, error) {
+    runtime.LockOSThread()
+    defer runtime.UnlockOSThread()
     arr := C.tdx_fpss_contract_map(f.handle)
     if arr == nil {
         return nil, fmt.Errorf("thetadatadx: %s", lastError())
@@ -205,6 +242,8 @@ func (f *FpssClient) ContractMap() (map[int32]string, error) {
 
 // ActiveSubscriptions returns the currently active subscriptions as typed structs.
 func (f *FpssClient) ActiveSubscriptions() ([]Subscription, error) {
+    runtime.LockOSThread()
+    defer runtime.UnlockOSThread()
     arr := C.tdx_fpss_active_subscriptions(f.handle)
     if arr == nil {
         return nil, fmt.Errorf("thetadatadx: %s", lastError())
@@ -325,6 +364,8 @@ func (f *FpssClient) NextEvent(timeoutMs uint64) (*FpssEvent, error) {
 
 // Reconnect reconnects the FPSS streaming connection, re-subscribing all previous subscriptions.
 func (f *FpssClient) Reconnect() error {
+    runtime.LockOSThread()
+    defer runtime.UnlockOSThread()
     rc := C.tdx_fpss_reconnect(f.handle)
     if rc < 0 {
         return fmt.Errorf("thetadatadx: %s", lastError())
