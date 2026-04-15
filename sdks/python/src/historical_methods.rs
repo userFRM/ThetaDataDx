@@ -3,43 +3,56 @@
 #[pymethods]
 impl ThetaDataDx {
     /// List all available stock ticker symbols.
+    #[pyo3(signature = (*, timeout_ms=None))]
     fn stock_list_symbols(
         &self,
         py: Python<'_>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Vec<String>> {
         py.detach(|| {
             runtime()
                 .block_on(async {
-                    self.tdx.stock_list_symbols().await
+                    if let Some(ms) = timeout_ms {
+                        self.tdx.stock_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
+                    } else {
+                        self.tdx.stock_list_symbols().await
+                    }
                 })
                 .map_err(to_py_err)
         })
     }
 
     /// List available dates for a stock by request type (EOD, TRADE, QUOTE, etc.).
+    #[pyo3(signature = (request_type, symbol, *, timeout_ms=None))]
     fn stock_list_dates(
         &self,
         py: Python<'_>,
         request_type: &str,
         symbol: &str,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Vec<String>> {
         py.detach(|| {
             runtime()
                 .block_on(async {
-                    self.tdx.stock_list_dates(request_type, symbol).await
+                    if let Some(ms) = timeout_ms {
+                        self.tdx.stock_list_dates_with_deadline(std::time::Duration::from_millis(ms), request_type, symbol).await
+                    } else {
+                        self.tdx.stock_list_dates(request_type, symbol).await
+                    }
                 })
                 .map_err(to_py_err)
         })
     }
 
     /// Get the latest OHLC snapshot for one or more stocks.
-    #[pyo3(signature = (symbols, *, venue=None, min_time=None))]
+    #[pyo3(signature = (symbols, *, venue=None, min_time=None, timeout_ms=None))]
     fn stock_snapshot_ohlc(
         &self,
         py: Python<'_>,
         symbols: Vec<String>,
         venue: Option<&str>,
         min_time: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let ticks = py.detach(|| {
@@ -50,6 +63,9 @@ impl ThetaDataDx {
             if let Some(value) = min_time {
                 request = request.min_time(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -58,13 +74,14 @@ impl ThetaDataDx {
     }
 
     /// Get the latest trade snapshot for one or more stocks.
-    #[pyo3(signature = (symbols, *, venue=None, min_time=None))]
+    #[pyo3(signature = (symbols, *, venue=None, min_time=None, timeout_ms=None))]
     fn stock_snapshot_trade(
         &self,
         py: Python<'_>,
         symbols: Vec<String>,
         venue: Option<&str>,
         min_time: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let ticks = py.detach(|| {
@@ -75,6 +92,9 @@ impl ThetaDataDx {
             if let Some(value) = min_time {
                 request = request.min_time(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -83,13 +103,14 @@ impl ThetaDataDx {
     }
 
     /// Get the latest NBBO quote snapshot for one or more stocks.
-    #[pyo3(signature = (symbols, *, venue=None, min_time=None))]
+    #[pyo3(signature = (symbols, *, venue=None, min_time=None, timeout_ms=None))]
     fn stock_snapshot_quote(
         &self,
         py: Python<'_>,
         symbols: Vec<String>,
         venue: Option<&str>,
         min_time: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let ticks = py.detach(|| {
@@ -100,6 +121,9 @@ impl ThetaDataDx {
             if let Some(value) = min_time {
                 request = request.min_time(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -108,13 +132,14 @@ impl ThetaDataDx {
     }
 
     /// Get the latest market value snapshot for one or more stocks.
-    #[pyo3(signature = (symbols, *, venue=None, min_time=None))]
+    #[pyo3(signature = (symbols, *, venue=None, min_time=None, timeout_ms=None))]
     fn stock_snapshot_market_value(
         &self,
         py: Python<'_>,
         symbols: Vec<String>,
         venue: Option<&str>,
         min_time: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let ticks = py.detach(|| {
@@ -125,6 +150,9 @@ impl ThetaDataDx {
             if let Some(value) = min_time {
                 request = request.min_time(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -133,25 +161,29 @@ impl ThetaDataDx {
     }
 
     /// Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day.
+    #[pyo3(signature = (symbol, start_date, end_date, *, timeout_ms=None))]
     fn stock_history_eod(
         &self,
         py: Python<'_>,
         symbol: &str,
         start_date: &str,
         end_date: &str,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
+            let mut request = self.tdx.stock_history_eod(symbol, start_date, end_date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
-                .block_on(async {
-                    self.tdx.stock_history_eod(symbol, start_date, end_date).await
-                })
+                .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
         Ok(eod_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch intraday OHLC bars for a stock on a single date.
-    #[pyo3(signature = (symbol, date, interval, *, start_time=None, end_time=None, venue=None, start_date=None, end_date=None))]
+    #[pyo3(signature = (symbol, date, interval, *, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
     fn stock_history_ohlc(
         &self,
         py: Python<'_>,
@@ -163,6 +195,7 @@ impl ThetaDataDx {
         venue: Option<&str>,
         start_date: Option<&str>,
         end_date: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.stock_history_ohlc(symbol, date, interval);
@@ -181,6 +214,9 @@ impl ThetaDataDx {
             if let Some(value) = end_date {
                 request = request.end_date(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -189,7 +225,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch all trades for a stock on a given date.
-    #[pyo3(signature = (symbol, date, *, start_time=None, end_time=None, venue=None, start_date=None, end_date=None))]
+    #[pyo3(signature = (symbol, date, *, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
     fn stock_history_trade(
         &self,
         py: Python<'_>,
@@ -200,6 +236,7 @@ impl ThetaDataDx {
         venue: Option<&str>,
         start_date: Option<&str>,
         end_date: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.stock_history_trade(symbol, date);
@@ -218,6 +255,9 @@ impl ThetaDataDx {
             if let Some(value) = end_date {
                 request = request.end_date(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -226,7 +266,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch NBBO quotes for a stock on a given date at a given interval.
-    #[pyo3(signature = (symbol, date, interval, *, start_time=None, end_time=None, venue=None, start_date=None, end_date=None))]
+    #[pyo3(signature = (symbol, date, interval, *, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
     fn stock_history_quote(
         &self,
         py: Python<'_>,
@@ -238,6 +278,7 @@ impl ThetaDataDx {
         venue: Option<&str>,
         start_date: Option<&str>,
         end_date: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.stock_history_quote(symbol, date, interval);
@@ -256,6 +297,9 @@ impl ThetaDataDx {
             if let Some(value) = end_date {
                 request = request.end_date(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -264,7 +308,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
-    #[pyo3(signature = (symbol, date, *, start_time=None, end_time=None, exclusive=None, venue=None, start_date=None, end_date=None))]
+    #[pyo3(signature = (symbol, date, *, start_time=None, end_time=None, exclusive=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
     fn stock_history_trade_quote(
         &self,
         py: Python<'_>,
@@ -276,6 +320,7 @@ impl ThetaDataDx {
         venue: Option<&str>,
         start_date: Option<&str>,
         end_date: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.stock_history_trade_quote(symbol, date);
@@ -297,6 +342,9 @@ impl ThetaDataDx {
             if let Some(value) = end_date {
                 request = request.end_date(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -305,7 +353,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch the trade at a specific time of day across a date range.
-    #[pyo3(signature = (symbol, start_date, end_date, time_of_day, *, venue=None))]
+    #[pyo3(signature = (symbol, start_date, end_date, time_of_day, *, venue=None, timeout_ms=None))]
     fn stock_at_time_trade(
         &self,
         py: Python<'_>,
@@ -314,11 +362,15 @@ impl ThetaDataDx {
         end_date: &str,
         time_of_day: &str,
         venue: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.stock_at_time_trade(symbol, start_date, end_date, time_of_day);
             if let Some(value) = venue {
                 request = request.venue(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             runtime()
                 .block_on(async { request.await })
@@ -328,7 +380,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch the quote at a specific time of day across a date range.
-    #[pyo3(signature = (symbol, start_date, end_date, time_of_day, *, venue=None))]
+    #[pyo3(signature = (symbol, start_date, end_date, time_of_day, *, venue=None, timeout_ms=None))]
     fn stock_at_time_quote(
         &self,
         py: Python<'_>,
@@ -337,11 +389,15 @@ impl ThetaDataDx {
         end_date: &str,
         time_of_day: &str,
         venue: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.stock_at_time_quote(symbol, start_date, end_date, time_of_day);
             if let Some(value) = venue {
                 request = request.venue(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             runtime()
                 .block_on(async { request.await })
@@ -351,20 +407,27 @@ impl ThetaDataDx {
     }
 
     /// List all available option underlying symbols.
+    #[pyo3(signature = (*, timeout_ms=None))]
     fn option_list_symbols(
         &self,
         py: Python<'_>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Vec<String>> {
         py.detach(|| {
             runtime()
                 .block_on(async {
-                    self.tdx.option_list_symbols().await
+                    if let Some(ms) = timeout_ms {
+                        self.tdx.option_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
+                    } else {
+                        self.tdx.option_list_symbols().await
+                    }
                 })
                 .map_err(to_py_err)
         })
     }
 
     /// List available dates for an option contract by request type.
+    #[pyo3(signature = (request_type, symbol, expiration, strike, right, *, timeout_ms=None))]
     fn option_list_dates(
         &self,
         py: Python<'_>,
@@ -373,49 +436,66 @@ impl ThetaDataDx {
         expiration: &str,
         strike: &str,
         right: &str,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Vec<String>> {
         py.detach(|| {
             runtime()
                 .block_on(async {
-                    self.tdx.option_list_dates(request_type, symbol, expiration, strike, right).await
+                    if let Some(ms) = timeout_ms {
+                        self.tdx.option_list_dates_with_deadline(std::time::Duration::from_millis(ms), request_type, symbol, expiration, strike, right).await
+                    } else {
+                        self.tdx.option_list_dates(request_type, symbol, expiration, strike, right).await
+                    }
                 })
                 .map_err(to_py_err)
         })
     }
 
     /// List available expiration dates for an option underlying.
+    #[pyo3(signature = (symbol, *, timeout_ms=None))]
     fn option_list_expirations(
         &self,
         py: Python<'_>,
         symbol: &str,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Vec<String>> {
         py.detach(|| {
             runtime()
                 .block_on(async {
-                    self.tdx.option_list_expirations(symbol).await
+                    if let Some(ms) = timeout_ms {
+                        self.tdx.option_list_expirations_with_deadline(std::time::Duration::from_millis(ms), symbol).await
+                    } else {
+                        self.tdx.option_list_expirations(symbol).await
+                    }
                 })
                 .map_err(to_py_err)
         })
     }
 
     /// List available strike prices for an option at a given expiration.
+    #[pyo3(signature = (symbol, expiration, *, timeout_ms=None))]
     fn option_list_strikes(
         &self,
         py: Python<'_>,
         symbol: &str,
         expiration: &str,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Vec<String>> {
         py.detach(|| {
             runtime()
                 .block_on(async {
-                    self.tdx.option_list_strikes(symbol, expiration).await
+                    if let Some(ms) = timeout_ms {
+                        self.tdx.option_list_strikes_with_deadline(std::time::Duration::from_millis(ms), symbol, expiration).await
+                    } else {
+                        self.tdx.option_list_strikes(symbol, expiration).await
+                    }
                 })
                 .map_err(to_py_err)
         })
     }
 
     /// List all option contracts for a symbol on a given date.
-    #[pyo3(signature = (request_type, symbol, date, *, max_dte=None))]
+    #[pyo3(signature = (request_type, symbol, date, *, max_dte=None, timeout_ms=None))]
     fn option_list_contracts(
         &self,
         py: Python<'_>,
@@ -423,11 +503,15 @@ impl ThetaDataDx {
         symbol: &str,
         date: &str,
         max_dte: Option<i32>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_list_contracts(request_type, symbol, date);
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             runtime()
                 .block_on(async { request.await })
@@ -437,7 +521,7 @@ impl ThetaDataDx {
     }
 
     /// Get the latest OHLC snapshot for an option contract.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, max_dte=None, strike_range=None, min_time=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, *, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
     fn option_snapshot_ohlc(
         &self,
         py: Python<'_>,
@@ -448,6 +532,7 @@ impl ThetaDataDx {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         min_time: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_snapshot_ohlc(symbol, expiration, strike, right);
@@ -460,6 +545,9 @@ impl ThetaDataDx {
             if let Some(value) = min_time {
                 request = request.min_time(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -468,7 +556,7 @@ impl ThetaDataDx {
     }
 
     /// Get the latest trade snapshot for an option contract.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, strike_range=None, min_time=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, *, strike_range=None, min_time=None, timeout_ms=None))]
     fn option_snapshot_trade(
         &self,
         py: Python<'_>,
@@ -478,6 +566,7 @@ impl ThetaDataDx {
         right: &str,
         strike_range: Option<i32>,
         min_time: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_snapshot_trade(symbol, expiration, strike, right);
@@ -487,6 +576,9 @@ impl ThetaDataDx {
             if let Some(value) = min_time {
                 request = request.min_time(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -495,7 +587,7 @@ impl ThetaDataDx {
     }
 
     /// Get the latest NBBO quote snapshot for an option contract.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, max_dte=None, strike_range=None, min_time=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, *, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
     fn option_snapshot_quote(
         &self,
         py: Python<'_>,
@@ -506,6 +598,7 @@ impl ThetaDataDx {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         min_time: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_snapshot_quote(symbol, expiration, strike, right);
@@ -518,6 +611,9 @@ impl ThetaDataDx {
             if let Some(value) = min_time {
                 request = request.min_time(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -526,7 +622,7 @@ impl ThetaDataDx {
     }
 
     /// Get the latest open interest snapshot for an option contract.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, max_dte=None, strike_range=None, min_time=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, *, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
     fn option_snapshot_open_interest(
         &self,
         py: Python<'_>,
@@ -537,6 +633,7 @@ impl ThetaDataDx {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         min_time: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_snapshot_open_interest(symbol, expiration, strike, right);
@@ -549,6 +646,9 @@ impl ThetaDataDx {
             if let Some(value) = min_time {
                 request = request.min_time(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -557,7 +657,7 @@ impl ThetaDataDx {
     }
 
     /// Get the latest market value snapshot for an option contract.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, max_dte=None, strike_range=None, min_time=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, *, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
     fn option_snapshot_market_value(
         &self,
         py: Python<'_>,
@@ -568,6 +668,7 @@ impl ThetaDataDx {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         min_time: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_snapshot_market_value(symbol, expiration, strike, right);
@@ -580,6 +681,9 @@ impl ThetaDataDx {
             if let Some(value) = min_time {
                 request = request.min_time(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -588,7 +692,7 @@ impl ThetaDataDx {
     }
 
     /// Get implied volatility snapshot for an option contract (from ThetaData server).
-    #[pyo3(signature = (symbol, expiration, strike, right, *, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, *, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
     fn option_snapshot_greeks_implied_volatility(
         &self,
         py: Python<'_>,
@@ -605,6 +709,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         min_time: Option<&str>,
         use_market_value: Option<bool>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_snapshot_greeks_implied_volatility(symbol, expiration, strike, right);
@@ -635,6 +740,9 @@ impl ThetaDataDx {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -643,7 +751,7 @@ impl ThetaDataDx {
     }
 
     /// Get all Greeks snapshot for an option contract (from ThetaData server).
-    #[pyo3(signature = (symbol, expiration, strike, right, *, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, *, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
     fn option_snapshot_greeks_all(
         &self,
         py: Python<'_>,
@@ -660,6 +768,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         min_time: Option<&str>,
         use_market_value: Option<bool>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_snapshot_greeks_all(symbol, expiration, strike, right);
@@ -690,6 +799,9 @@ impl ThetaDataDx {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -698,7 +810,7 @@ impl ThetaDataDx {
     }
 
     /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, *, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
     fn option_snapshot_greeks_first_order(
         &self,
         py: Python<'_>,
@@ -715,6 +827,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         min_time: Option<&str>,
         use_market_value: Option<bool>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_snapshot_greeks_first_order(symbol, expiration, strike, right);
@@ -745,6 +858,9 @@ impl ThetaDataDx {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -753,7 +869,7 @@ impl ThetaDataDx {
     }
 
     /// Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, *, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
     fn option_snapshot_greeks_second_order(
         &self,
         py: Python<'_>,
@@ -770,6 +886,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         min_time: Option<&str>,
         use_market_value: Option<bool>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_snapshot_greeks_second_order(symbol, expiration, strike, right);
@@ -800,6 +917,9 @@ impl ThetaDataDx {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -808,7 +928,7 @@ impl ThetaDataDx {
     }
 
     /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, *, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
     fn option_snapshot_greeks_third_order(
         &self,
         py: Python<'_>,
@@ -825,6 +945,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         min_time: Option<&str>,
         use_market_value: Option<bool>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_snapshot_greeks_third_order(symbol, expiration, strike, right);
@@ -855,6 +976,9 @@ impl ThetaDataDx {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -863,7 +987,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch end-of-day option data for a contract over a date range.
-    #[pyo3(signature = (symbol, expiration, strike, right, start_date, end_date, *, max_dte=None, strike_range=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, start_date, end_date, *, max_dte=None, strike_range=None, timeout_ms=None))]
     fn option_history_eod(
         &self,
         py: Python<'_>,
@@ -875,6 +999,7 @@ impl ThetaDataDx {
         end_date: &str,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_eod(symbol, expiration, strike, right, start_date, end_date);
@@ -884,6 +1009,9 @@ impl ThetaDataDx {
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -892,7 +1020,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch intraday OHLC bars for an option contract.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, strike_range=None, start_date=None, end_date=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_ohlc(
         &self,
         py: Python<'_>,
@@ -907,6 +1035,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_ohlc(symbol, expiration, strike, right, date, interval);
@@ -925,6 +1054,9 @@ impl ThetaDataDx {
             if let Some(value) = end_date {
                 request = request.end_date(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -933,7 +1065,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch all trades for an option contract on a given date.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, max_dte=None, strike_range=None, start_date=None, end_date=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade(
         &self,
         py: Python<'_>,
@@ -948,6 +1080,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_trade(symbol, expiration, strike, right, date);
@@ -969,6 +1102,9 @@ impl ThetaDataDx {
             if let Some(value) = end_date {
                 request = request.end_date(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -977,7 +1113,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch NBBO quotes for an option contract on a given date.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, max_dte=None, strike_range=None, start_date=None, end_date=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_quote(
         &self,
         py: Python<'_>,
@@ -993,6 +1129,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_quote(symbol, expiration, strike, right, date, interval);
@@ -1014,6 +1151,9 @@ impl ThetaDataDx {
             if let Some(value) = end_date {
                 request = request.end_date(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -1022,7 +1162,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch combined trade + quote ticks for an option contract.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, exclusive=None, max_dte=None, strike_range=None, start_date=None, end_date=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, exclusive=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_quote(
         &self,
         py: Python<'_>,
@@ -1038,6 +1178,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_trade_quote(symbol, expiration, strike, right, date);
@@ -1062,6 +1203,9 @@ impl ThetaDataDx {
             if let Some(value) = end_date {
                 request = request.end_date(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -1070,7 +1214,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch open interest history for an option contract.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, *, max_dte=None, strike_range=None, start_date=None, end_date=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, date, *, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_open_interest(
         &self,
         py: Python<'_>,
@@ -1083,6 +1227,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_open_interest(symbol, expiration, strike, right, date);
@@ -1098,6 +1243,9 @@ impl ThetaDataDx {
             if let Some(value) = end_date {
                 request = request.end_date(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -1106,7 +1254,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch end-of-day Greeks history for an option contract.
-    #[pyo3(signature = (symbol, expiration, strike, right, start_date, end_date, *, annual_dividend=None, rate_type=None, rate_value=None, version=None, underlyer_use_nbbo=None, max_dte=None, strike_range=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, start_date, end_date, *, annual_dividend=None, rate_type=None, rate_value=None, version=None, underlyer_use_nbbo=None, max_dte=None, strike_range=None, timeout_ms=None))]
     fn option_history_greeks_eod(
         &self,
         py: Python<'_>,
@@ -1123,6 +1271,7 @@ impl ThetaDataDx {
         underlyer_use_nbbo: Option<bool>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_greeks_eod(symbol, expiration, strike, right, start_date, end_date);
@@ -1147,6 +1296,9 @@ impl ThetaDataDx {
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -1155,7 +1307,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_all(
         &self,
         py: Python<'_>,
@@ -1174,6 +1326,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_greeks_all(symbol, expiration, strike, right, date, interval);
@@ -1204,6 +1357,9 @@ impl ThetaDataDx {
             if let Some(value) = end_date {
                 request = request.end_date(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -1212,7 +1368,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch all Greeks on each trade for an option contract.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_all(
         &self,
         py: Python<'_>,
@@ -1231,6 +1387,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_trade_greeks_all(symbol, expiration, strike, right, date);
@@ -1264,6 +1421,9 @@ impl ThetaDataDx {
             if let Some(value) = end_date {
                 request = request.end_date(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -1272,7 +1432,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch first-order Greeks history (intraday, sampled by interval).
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_first_order(
         &self,
         py: Python<'_>,
@@ -1291,6 +1451,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_greeks_first_order(symbol, expiration, strike, right, date, interval);
@@ -1321,6 +1482,9 @@ impl ThetaDataDx {
             if let Some(value) = end_date {
                 request = request.end_date(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -1329,7 +1493,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch first-order Greeks on each trade for an option contract.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_first_order(
         &self,
         py: Python<'_>,
@@ -1348,6 +1512,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_trade_greeks_first_order(symbol, expiration, strike, right, date);
@@ -1381,6 +1546,9 @@ impl ThetaDataDx {
             if let Some(value) = end_date {
                 request = request.end_date(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -1389,7 +1557,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch second-order Greeks history (intraday, sampled by interval).
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_second_order(
         &self,
         py: Python<'_>,
@@ -1408,6 +1576,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_greeks_second_order(symbol, expiration, strike, right, date, interval);
@@ -1438,6 +1607,9 @@ impl ThetaDataDx {
             if let Some(value) = end_date {
                 request = request.end_date(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -1446,7 +1618,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch second-order Greeks on each trade for an option contract.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_second_order(
         &self,
         py: Python<'_>,
@@ -1465,6 +1637,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_trade_greeks_second_order(symbol, expiration, strike, right, date);
@@ -1498,6 +1671,9 @@ impl ThetaDataDx {
             if let Some(value) = end_date {
                 request = request.end_date(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -1506,7 +1682,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch third-order Greeks history (intraday, sampled by interval).
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_third_order(
         &self,
         py: Python<'_>,
@@ -1525,6 +1701,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_greeks_third_order(symbol, expiration, strike, right, date, interval);
@@ -1555,6 +1732,9 @@ impl ThetaDataDx {
             if let Some(value) = end_date {
                 request = request.end_date(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -1563,7 +1743,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch third-order Greeks on each trade for an option contract.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_third_order(
         &self,
         py: Python<'_>,
@@ -1582,6 +1762,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_trade_greeks_third_order(symbol, expiration, strike, right, date);
@@ -1615,6 +1796,9 @@ impl ThetaDataDx {
             if let Some(value) = end_date {
                 request = request.end_date(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -1623,7 +1807,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch implied volatility history (intraday, sampled by interval).
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_implied_volatility(
         &self,
         py: Python<'_>,
@@ -1642,6 +1826,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_greeks_implied_volatility(symbol, expiration, strike, right, date, interval);
@@ -1672,6 +1857,9 @@ impl ThetaDataDx {
             if let Some(value) = end_date {
                 request = request.end_date(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -1680,7 +1868,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch implied volatility on each trade for an option contract.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_implied_volatility(
         &self,
         py: Python<'_>,
@@ -1699,6 +1887,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         start_date: Option<&str>,
         end_date: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_history_trade_greeks_implied_volatility(symbol, expiration, strike, right, date);
@@ -1732,6 +1921,9 @@ impl ThetaDataDx {
             if let Some(value) = end_date {
                 request = request.end_date(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -1740,7 +1932,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch the trade at a specific time of day across a date range for an option.
-    #[pyo3(signature = (symbol, expiration, strike, right, start_date, end_date, time_of_day, *, max_dte=None, strike_range=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, start_date, end_date, time_of_day, *, max_dte=None, strike_range=None, timeout_ms=None))]
     fn option_at_time_trade(
         &self,
         py: Python<'_>,
@@ -1753,6 +1945,7 @@ impl ThetaDataDx {
         time_of_day: &str,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_at_time_trade(symbol, expiration, strike, right, start_date, end_date, time_of_day);
@@ -1762,6 +1955,9 @@ impl ThetaDataDx {
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -1770,7 +1966,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch the quote at a specific time of day across a date range for an option.
-    #[pyo3(signature = (symbol, expiration, strike, right, start_date, end_date, time_of_day, *, max_dte=None, strike_range=None))]
+    #[pyo3(signature = (symbol, expiration, strike, right, start_date, end_date, time_of_day, *, max_dte=None, strike_range=None, timeout_ms=None))]
     fn option_at_time_quote(
         &self,
         py: Python<'_>,
@@ -1783,6 +1979,7 @@ impl ThetaDataDx {
         time_of_day: &str,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.option_at_time_quote(symbol, expiration, strike, right, start_date, end_date, time_of_day);
@@ -1792,6 +1989,9 @@ impl ThetaDataDx {
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -1800,47 +2000,63 @@ impl ThetaDataDx {
     }
 
     /// List all available index symbols.
+    #[pyo3(signature = (*, timeout_ms=None))]
     fn index_list_symbols(
         &self,
         py: Python<'_>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Vec<String>> {
         py.detach(|| {
             runtime()
                 .block_on(async {
-                    self.tdx.index_list_symbols().await
+                    if let Some(ms) = timeout_ms {
+                        self.tdx.index_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
+                    } else {
+                        self.tdx.index_list_symbols().await
+                    }
                 })
                 .map_err(to_py_err)
         })
     }
 
     /// List available dates for an index symbol.
+    #[pyo3(signature = (symbol, *, timeout_ms=None))]
     fn index_list_dates(
         &self,
         py: Python<'_>,
         symbol: &str,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Vec<String>> {
         py.detach(|| {
             runtime()
                 .block_on(async {
-                    self.tdx.index_list_dates(symbol).await
+                    if let Some(ms) = timeout_ms {
+                        self.tdx.index_list_dates_with_deadline(std::time::Duration::from_millis(ms), symbol).await
+                    } else {
+                        self.tdx.index_list_dates(symbol).await
+                    }
                 })
                 .map_err(to_py_err)
         })
     }
 
     /// Get the latest OHLC snapshot for one or more indices.
-    #[pyo3(signature = (symbols, *, min_time=None))]
+    #[pyo3(signature = (symbols, *, min_time=None, timeout_ms=None))]
     fn index_snapshot_ohlc(
         &self,
         py: Python<'_>,
         symbols: Vec<String>,
         min_time: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let ticks = py.detach(|| {
             let mut request = self.tdx.index_snapshot_ohlc(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             runtime()
                 .block_on(async { request.await })
@@ -1850,18 +2066,22 @@ impl ThetaDataDx {
     }
 
     /// Get the latest price snapshot for one or more indices.
-    #[pyo3(signature = (symbols, *, min_time=None))]
+    #[pyo3(signature = (symbols, *, min_time=None, timeout_ms=None))]
     fn index_snapshot_price(
         &self,
         py: Python<'_>,
         symbols: Vec<String>,
         min_time: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let ticks = py.detach(|| {
             let mut request = self.tdx.index_snapshot_price(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             runtime()
                 .block_on(async { request.await })
@@ -1871,18 +2091,22 @@ impl ThetaDataDx {
     }
 
     /// Get the latest market value snapshot for one or more indices.
-    #[pyo3(signature = (symbols, *, min_time=None))]
+    #[pyo3(signature = (symbols, *, min_time=None, timeout_ms=None))]
     fn index_snapshot_market_value(
         &self,
         py: Python<'_>,
         symbols: Vec<String>,
         min_time: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let ticks = py.detach(|| {
             let mut request = self.tdx.index_snapshot_market_value(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             runtime()
                 .block_on(async { request.await })
@@ -1892,25 +2116,29 @@ impl ThetaDataDx {
     }
 
     /// Fetch end-of-day index data for a date range.
+    #[pyo3(signature = (symbol, start_date, end_date, *, timeout_ms=None))]
     fn index_history_eod(
         &self,
         py: Python<'_>,
         symbol: &str,
         start_date: &str,
         end_date: &str,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
+            let mut request = self.tdx.index_history_eod(symbol, start_date, end_date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
-                .block_on(async {
-                    self.tdx.index_history_eod(symbol, start_date, end_date).await
-                })
+                .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
         Ok(eod_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch intraday OHLC bars for an index.
-    #[pyo3(signature = (symbol, start_date, end_date, interval, *, start_time=None, end_time=None))]
+    #[pyo3(signature = (symbol, start_date, end_date, interval, *, start_time=None, end_time=None, timeout_ms=None))]
     fn index_history_ohlc(
         &self,
         py: Python<'_>,
@@ -1920,6 +2148,7 @@ impl ThetaDataDx {
         interval: &str,
         start_time: Option<&str>,
         end_time: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.index_history_ohlc(symbol, start_date, end_date, interval);
@@ -1929,6 +2158,9 @@ impl ThetaDataDx {
             if let Some(value) = end_time {
                 request = request.end_time(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -1937,7 +2169,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch intraday price history for an index.
-    #[pyo3(signature = (symbol, date, interval, *, start_time=None, end_time=None, start_date=None, end_date=None))]
+    #[pyo3(signature = (symbol, date, interval, *, start_time=None, end_time=None, start_date=None, end_date=None, timeout_ms=None))]
     fn index_history_price(
         &self,
         py: Python<'_>,
@@ -1948,6 +2180,7 @@ impl ThetaDataDx {
         end_time: Option<&str>,
         start_date: Option<&str>,
         end_date: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.index_history_price(symbol, date, interval);
@@ -1963,6 +2196,9 @@ impl ThetaDataDx {
             if let Some(value) = end_date {
                 request = request.end_date(value);
             }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
                 .block_on(async { request.await })
                 .map_err(to_py_err)
@@ -1971,6 +2207,7 @@ impl ThetaDataDx {
     }
 
     /// Fetch the index price at a specific time of day across a date range.
+    #[pyo3(signature = (symbol, start_date, end_date, time_of_day, *, timeout_ms=None))]
     fn index_at_time_price(
         &self,
         py: Python<'_>,
@@ -1978,84 +2215,103 @@ impl ThetaDataDx {
         start_date: &str,
         end_date: &str,
         time_of_day: &str,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
+            let mut request = self.tdx.index_at_time_price(symbol, start_date, end_date, time_of_day);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
-                .block_on(async {
-                    self.tdx.index_at_time_price(symbol, start_date, end_date, time_of_day).await
-                })
+                .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
         Ok(price_ticks_to_columnar(py, &ticks))
     }
 
     /// Check whether the market is open today.
+    #[pyo3(signature = (*, timeout_ms=None))]
     fn calendar_open_today(
         &self,
         py: Python<'_>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
+            let mut request = self.tdx.calendar_open_today();
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
-                .block_on(async {
-                    self.tdx.calendar_open_today().await
-                })
+                .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
         Ok(calendar_days_to_columnar(py, &ticks))
     }
 
     /// Get calendar information for a specific date.
+    #[pyo3(signature = (date, *, timeout_ms=None))]
     fn calendar_on_date(
         &self,
         py: Python<'_>,
         date: &str,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
+            let mut request = self.tdx.calendar_on_date(date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
-                .block_on(async {
-                    self.tdx.calendar_on_date(date).await
-                })
+                .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
         Ok(calendar_days_to_columnar(py, &ticks))
     }
 
     /// Get calendar information for an entire year.
+    #[pyo3(signature = (year, *, timeout_ms=None))]
     fn calendar_year(
         &self,
         py: Python<'_>,
         year: &str,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
+            let mut request = self.tdx.calendar_year(year);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
-                .block_on(async {
-                    self.tdx.calendar_year(year).await
-                })
+                .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
         Ok(calendar_days_to_columnar(py, &ticks))
     }
 
     /// Fetch end-of-day interest rate history.
+    #[pyo3(signature = (symbol, start_date, end_date, *, timeout_ms=None))]
     fn interest_rate_history_eod(
         &self,
         py: Python<'_>,
         symbol: &str,
         start_date: &str,
         end_date: &str,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
+            let mut request = self.tdx.interest_rate_history_eod(symbol, start_date, end_date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
             runtime()
-                .block_on(async {
-                    self.tdx.interest_rate_history_eod(symbol, start_date, end_date).await
-                })
+                .block_on(async { request.await })
                 .map_err(to_py_err)
         })?;
         Ok(interest_rate_ticks_to_columnar(py, &ticks))
     }
 
     /// Fetch intraday OHLC bars across a date range.
-    #[pyo3(signature = (symbol, start_date, end_date, interval, *, start_time=None, end_time=None, venue=None))]
+    #[pyo3(signature = (symbol, start_date, end_date, interval, *, start_time=None, end_time=None, venue=None, timeout_ms=None))]
     fn stock_history_ohlc_range(
         &self,
         py: Python<'_>,
@@ -2066,6 +2322,7 @@ impl ThetaDataDx {
         start_time: Option<&str>,
         end_time: Option<&str>,
         venue: Option<&str>,
+        timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let ticks = py.detach(|| {
             let mut request = self.tdx.stock_history_ohlc_range(symbol, start_date, end_date, interval);
@@ -2077,6 +2334,9 @@ impl ThetaDataDx {
             }
             if let Some(value) = venue {
                 request = request.venue(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             runtime()
                 .block_on(async { request.await })
