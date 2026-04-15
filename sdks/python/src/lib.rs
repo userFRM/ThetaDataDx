@@ -3,7 +3,7 @@
 //! This is NOT a reimplementation. Every call goes through the Rust crate,
 //! giving Python users native performance for ThetaData market data access.
 
-use pyo3::exceptions::{PyConnectionError, PyRuntimeError, PyValueError};
+use pyo3::exceptions::{PyConnectionError, PyRuntimeError, PyTimeoutError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use std::sync::OnceLock;
@@ -28,6 +28,12 @@ fn to_py_err(e: thetadatadx::Error) -> PyErr {
     match e {
         thetadatadx::Error::Auth { message, .. } => PyConnectionError::new_err(message),
         thetadatadx::Error::Config(msg) => PyValueError::new_err(msg),
+        // `Error::Timeout` maps to Python's stdlib `builtins.TimeoutError`
+        // (which inherits from `OSError` in 3.3+) so callers can write
+        // `except TimeoutError`. Falls back through `except Exception`
+        // for backward compat. Documented in
+        // [docs/dev/w3-async-cancellation-design.md].
+        thetadatadx::Error::Timeout { .. } => PyTimeoutError::new_err(e.to_string()),
         _ => PyRuntimeError::new_err(e.to_string()),
     }
 }

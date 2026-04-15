@@ -74,7 +74,11 @@ Every endpoint that does not yet have a `_with_options` variant gets one
 generated, so callers can always pass a deadline.
 
 Python: every generated method gains a `timeout_ms: Optional[int] = None`
-kwarg. Maps to `Error::Timeout` -> `TimeoutError`.
+kwarg. `Error::Timeout` maps to Python's stdlib `builtins.TimeoutError`
+(via PyO3's `PyTimeoutError`); inherits from `OSError` in 3.3+ so
+callers can write `except TimeoutError` specifically or fall back to
+`except Exception`. `timeout_ms=0` is normalized to "no deadline" at
+the Rust setter — same convention as the Go and C++ surfaces.
 
 Go: a new `WithTimeoutMs(uint64)` `EndpointOption` sets the cross-cutting
 timeout. Existing builder-style methods accept it via the existing
