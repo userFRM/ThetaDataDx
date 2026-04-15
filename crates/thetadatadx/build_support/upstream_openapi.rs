@@ -202,8 +202,13 @@ impl UpstreamOpenApi {
             }
 
             // Parameter `$ref` under the endpoint's `parameters:` list. These
-            // appear at 8 spaces + `- $ref:`. We only care about the two
-            // expiration variants.
+            // appear at 8 spaces + `- $ref:`. We recognize the two known
+            // expiration variants, and we also fail the build if any other
+            // ref name *contains* "expiration" — that would be upstream
+            // drifting the parameter (e.g. renaming to `expiration_strict`
+            // or `expiration_v2`) and we must not silently default the
+            // affected endpoint to wildcard-allowed. Catching this per
+            // endpoint, not just globally, is the point.
             if let Some(rest) = trimmed_leading.strip_prefix("- $ref:") {
                 let rest = rest.trim();
                 if ref_points_at(rest, "expiration_no_star") {
@@ -212,6 +217,21 @@ impl UpstreamOpenApi {
                 } else if ref_points_at(rest, "expiration") {
                     uses_expiration = true;
                     saw_any_expiration_ref = true;
+                } else if let Some(name) = extract_param_name(rest) {
+                    if name.contains("expiration") {
+                        let op = current_operation_id
+                            .as_deref()
+                            .or(current_path.as_deref())
+                            .unwrap_or("<unknown>");
+                        return Err(format!(
+                            "endpoint {op}: parameter ref {rest:?} contains \
+                             \"expiration\" but is not one of the two known \
+                             variants (expiration, expiration_no_star). \
+                             Upstream likely renamed or split the expiration \
+                             parameter; teach `build_support/upstream_openapi.rs` \
+                             how to classify {name:?} before proceeding."
+                        ));
+                    }
                 }
                 continue;
             }
@@ -354,6 +374,26 @@ fn strip_indented_kv<'a>(line: &'a str, indent: usize, key: &str) -> Option<&'a 
     Some(after_colon.trim())
 }
 
+/// Extract the parameter component name from a ``$ref: "#/components/parameters/NAME"``
+/// payload, regardless of `parameters` nesting or quoting style.
+///
+/// Returns `None` if the ref doesn't point at `#/components/parameters/*`.
+/// Used to catch upstream drift: any ref whose name *contains* `"expiration"`
+/// but isn't one of the two known variants (`expiration` / `expiration_no_star`)
+/// is a hard error — we must not silently emit wildcard modes for it.
+fn extract_param_name(ref_tail: &str) -> Option<&str> {
+    let stripped = ref_tail
+        .strip_prefix('"')
+        .and_then(|s| s.strip_suffix('"'))
+        .or_else(|| {
+            ref_tail
+                .strip_prefix('\'')
+                .and_then(|s| s.strip_suffix('\''))
+        })
+        .unwrap_or(ref_tail);
+    stripped.strip_prefix("#/components/parameters/")
+}
+
 /// Test whether a ``$ref: "..."`` payload points at the given `parameters/NAME`.
 /// Accepts either the double-quoted or single-quoted form as upstream has
 /// mixed both historically.
@@ -468,6 +508,33 @@ paths:
         let empty = "openapi: 3.1.0\ninfo:\n  title: empty\n";
         let err = UpstreamOpenApi::parse(empty).expect_err("should fail");
         assert!(err.contains("0 endpoints"), "got: {err}");
+    }
+
+    #[test]
+    fn errors_when_single_endpoint_uses_unknown_expiration_variant() {
+        // One endpoint has the known variant; another uses a new
+        // `expiration_strict` variant. The parser must fail on the latter,
+        // not silently default it to wildcard-allowed.
+        let text = r##"
+paths:
+  /option/snapshot/trade:
+    x-min-subscription: standard
+    get:
+      operationId: option_snapshot_trade
+      parameters:
+        - $ref: "#/components/parameters/single_symbol"
+        - $ref: "#/components/parameters/expiration_no_star"
+  /option/snapshot/quote:
+    x-min-subscription: value
+    get:
+      operationId: option_snapshot_quote
+      parameters:
+        - $ref: "#/components/parameters/single_symbol"
+        - $ref: "#/components/parameters/expiration_strict"
+"##;
+        let err = UpstreamOpenApi::parse(text).expect_err("should fail");
+        assert!(err.contains("expiration_strict"), "got: {err}");
+        assert!(err.contains("option_snapshot_quote"), "got: {err}");
     }
 
     #[test]

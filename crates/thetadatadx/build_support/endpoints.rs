@@ -3684,10 +3684,15 @@ fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("// exceeds the live account tier come back as a permission error and are\n");
     out.push_str("// classified as SKIP: tier-permission. Real configuration bugs surface\n");
     out.push_str("// as FAIL. Cells that don't finish within 60 seconds classify as FAIL\n");
-    out.push_str("// with \"timeout after 60s\". Returns (pass, skip, fail) counts. See issues\n");
+    out.push_str("// with \"timeout after 60s\". Returns (pass, skip, fail, hadTimeout). When\n");
+    out.push_str("// `hadTimeout` is true, at least one goroutine is still running the CGo\n");
+    out.push_str("// call it was started for; callers MUST os.Exit() instead of Close()ing\n");
+    out.push_str("// the Client, because the leaked goroutine still holds a pointer to its\n");
+    out.push_str("// FFI handle. Closing in that window is a use-after-free. See issues\n");
     out.push_str("// #287, #290.\n");
-    out.push_str("func ValidateAllEndpoints(c *Client) (int, int, int) {\n");
+    out.push_str("func ValidateAllEndpoints(c *Client) (int, int, int, bool) {\n");
     out.push_str("\tpass, skip, fail := 0, 0, 0\n");
+    out.push_str("\thadTimeout := false\n");
     out.push_str("\tvar err error\n\n");
 
     for endpoint in endpoints
@@ -3712,7 +3717,7 @@ fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
             .unwrap();
             writeln!(
                 out,
-                "\tclassify({label:?}, {:?}, err, &pass, &skip, &fail)",
+                "\tclassify({label:?}, {:?}, err, &pass, &skip, &fail, &hadTimeout)",
                 mode.min_tier
             )
             .unwrap();
@@ -3720,13 +3725,15 @@ fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
         out.push('\n');
     }
 
-    out.push_str("\treturn pass, skip, fail\n");
+    out.push_str("\treturn pass, skip, fail, hadTimeout\n");
     out.push_str("}\n\n");
     out.push_str("// classify maps a live call outcome into PASS / SKIP / FAIL buckets.\n");
     out.push_str("// `declaredMinTier` is echoed on tier-permission skips so the caller can\n");
-    out.push_str("// see which documented tier the server refused.\n");
+    out.push_str("// see which documented tier the server refused. When the call timed\n");
+    out.push_str("// out, `hadTimeout` is set -- callers use it to decide whether to skip\n");
+    out.push_str("// Close() on the client (which would race with the leaked goroutine).\n");
     out.push_str(
-        "func classify(label, declaredMinTier string, err error, pass, skip, fail *int) {\n",
+        "func classify(label, declaredMinTier string, err error, pass, skip, fail *int, hadTimeout *bool) {\n",
     );
     out.push_str("\tif err == nil {\n");
     out.push_str("\t\tfmt.Printf(\"  %-60s PASS\\n\", label)\n");
@@ -3736,6 +3743,7 @@ fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("\tif errors.Is(err, errCellTimeout) {\n");
     out.push_str("\t\tfmt.Printf(\"  %-60s FAIL  timeout after 60s\\n\", label)\n");
     out.push_str("\t\t*fail++\n");
+    out.push_str("\t\t*hadTimeout = true\n");
     out.push_str("\t\treturn\n");
     out.push_str("\t}\n");
     out.push_str("\tlowered := strings.ToLower(err.Error())\n");
