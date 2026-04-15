@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Full-vocabulary wildcard support for option contract parameters** (#284) -- brought the option contract params (`expiration`, `strike`, `right`) into alignment with the full vocabulary that ThetaData's v3 MDDS server and `openapiv3.yaml` document:
+  - `validate_expiration` accepts `*` (wildcard), `YYYYMMDD`, and `YYYY-MM-DD`. The legacy `0` sentinel is still accepted on the SDK surface and translated to `*` on the wire in `direct::normalize_expiration`, because the server rejects a literal `0` with `InvalidArgument -- Error parsing expiration Cannot parse date string: 0`. ISO-dashed dates are canonicalized to `YYYYMMDD` on the wire.
+  - New `validate_strike` accepts `*` / `0` / empty (all treated as wildcard), or a positive decimal (e.g. `"550"`, `"17.5"`).
+  - New `direct::wire_strike_opt` maps wildcard sentinels to `None` so `ContractSpec.strike` is left unset on the proto. Upstream treats the field as optional with a documented `*` default; sending the unset form is what produces the documented default behavior.
+  - New `direct::wire_right_opt` maps `*` / `both` / `0` / empty to `None` for the same reason; single sides (`C`, `P`, `call`, `put`) normalize to `call` / `put` on the wire.
+  - `required_strike` / `optional_strike` accessors added to `EndpointArgs`; the endpoint generator now dispatches the `Strike` param type to them.
+  - Before this change the SDK had no working path to the server's bulk-chain mode: `*` was rejected client-side by `validate_expiration`, and `0` was rejected server-side. Pulling a full option chain's open interest for QQQ required a 34-expiration serial loop (~22s). A single bulk call now returns all 10,158 rows in ~1s.
+  - Live-verified against production across 64 parameter-mode combinations on `option_snapshot_open_interest` -- every cross of `{*, 0, YYYYMMDD, YYYY-MM-DD}` × `{*, 0, 550, ""}` × `{*, both, C, P}` returns correct, internally-consistent row counts (full chain / half per side / per-expiration / exact single-contract lookup).
+  - Applies to every option snapshot, history, and at-time endpoint that builds a `ContractSpec`.
+
 ### Added
 
 - **Public API redesign doc** (#282) -- \`docs/public-api-redesign.md\` charters the layered ergonomic-façade migration plan (exact generated surface as canonical parity layer, handwritten \`historical\` / \`realtime\` / \`analytics\` façades on top, typed value foundations, Python result containers, spec enrichment, compatibility window, semver cleanup). The streaming category is named \`realtime\` rather than \`live\` to avoid overloading \`live\`'s CI / run-mode meanings.
