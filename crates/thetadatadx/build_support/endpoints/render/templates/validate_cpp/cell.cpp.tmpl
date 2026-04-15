@@ -1,1 +1,3 @@
-        cell({endpoint:?}, {mode:?}, {min_tier:?}, [&] {{ return client.{endpoint_name}({args}); }});
+        // {endpoint}::{mode}
+        //   rationale: {rationale}
+        cell({endpoint:?}, {mode:?}, {min_tier:?}, {rationale:?}, [&] {{ return client.{endpoint_name}({args}); }});

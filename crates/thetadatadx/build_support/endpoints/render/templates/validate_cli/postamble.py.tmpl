@@ -42,7 +42,7 @@ def _json_row_count(output: str) -> int:
             return 1
     return 0
 
-for endpoint, mode, min_tier, argv in CELLS:
+for endpoint, mode, min_tier, rationale, argv in CELLS:
     label = f"{endpoint}::{mode}"
     t0 = time.monotonic()
     try:
@@ -59,7 +59,8 @@ for endpoint, mode, min_tier, argv in CELLS:
         print(f"  {label:60s} FAIL  timeout after {PER_CELL_TIMEOUT_SECS}s")
         fail_count += 1
         records.append({
-            "endpoint": endpoint, "mode": mode, "status": "FAIL",
+            "endpoint": endpoint, "mode": mode, "rationale": rationale,
+            "status": "FAIL",
             "row_count": 0, "duration_ms": duration_ms, "detail": "timeout after 60s",
         })
         continue
@@ -86,11 +87,15 @@ for endpoint, mode, min_tier, argv in CELLS:
         pass_count += 1
     else:
         status = "FAIL"
-        detail = output.strip()[:200]
+        # CLI stdout can contain embedded newlines (panics, multi-line errors);
+        # keeping them in `detail` would wreck row alignment in
+        # validate_agreement.py's disagreement table. Escape at the producer.
+        detail = output.strip().replace("\n", "\\n").replace("\r", "\\r")[:200]
         print(f"  {label:60s} FAIL  {output.strip()}")
         fail_count += 1
     records.append({
-        "endpoint": endpoint, "mode": mode, "status": status,
+        "endpoint": endpoint, "mode": mode, "rationale": rationale,
+        "status": status,
         "row_count": row_count, "duration_ms": duration_ms, "detail": detail,
     })
 

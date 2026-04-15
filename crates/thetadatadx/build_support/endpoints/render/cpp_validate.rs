@@ -45,6 +45,7 @@ pub(super) fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
                 endpoint = endpoint.name,
                 mode = mode.name,
                 min_tier = mode.min_tier,
+                rationale = mode.rationale,
                 endpoint_name = endpoint.name,
                 args = args,
             )

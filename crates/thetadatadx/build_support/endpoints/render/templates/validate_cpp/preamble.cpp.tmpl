@@ -42,6 +42,10 @@ std::string lower(std::string value) {
 struct CellRecord {
     std::string endpoint;
     std::string mode;
+    // rationale is the one-sentence cell description from the generator
+    // (rationale_for_mode in build_support/endpoints/modes.rs); surfaces
+    // in scripts/validate_agreement.py disagreement output.
+    std::string rationale;
     std::string status;
     int row_count = 0;
     long long duration_ms = 0;
@@ -89,9 +93,9 @@ int main(int argc, char** argv) {
         auto config = tdx::Config::production();
         auto client = tdx::Client::connect(creds, config);
 
-        auto cell = [&](const char* endpoint, const char* mode, const char* declared_min_tier, auto&& call) {
+        auto cell = [&](const char* endpoint, const char* mode, const char* declared_min_tier, const char* rationale, auto&& call) {
             const std::string label = std::string(endpoint) + "::" + mode;
-            CellRecord rec{endpoint, mode, std::string{}, 0, 0, std::string{}};
+            CellRecord rec{endpoint, mode, rationale, std::string{}, 0, 0, std::string{}};
             // If a prior cell timed out, its worker thread is still running
             // an FFI call against `client`. The FFI is not thread-safe on the
             // same handle (ffi/src/lib.rs:21), so we must NOT issue another
@@ -151,7 +155,12 @@ int main(int argc, char** argv) {
                     std::cout << "  " << std::left << std::setw(60) << label << " FAIL  " << e.what() << std::endl;
                     ++fail;
                     rec.status = "FAIL";
+                    // Runtime error messages can contain embedded newlines;
+                    // escape them so the agreement-table row stays on one
+                    // line (see scripts/validate_agreement.py).
                     std::string d = e.what();
+                    for (size_t pos = 0; (pos = d.find('\n', pos)) != std::string::npos; ) { d.replace(pos, 1, "\\n"); pos += 2; }
+                    for (size_t pos = 0; (pos = d.find('\r', pos)) != std::string::npos; ) { d.replace(pos, 1, "\\r"); pos += 2; }
                     if (d.size() > 200) { d = d.substr(0, 200); }
                     rec.detail = std::move(d);
                 }

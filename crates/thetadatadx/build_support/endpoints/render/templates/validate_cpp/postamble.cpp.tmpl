@@ -14,6 +14,7 @@
             const auto& r = records[i];
             artifact << "    {\"endpoint\": \"" << json_escape(r.endpoint) << "\", ";
             artifact << "\"mode\": \"" << json_escape(r.mode) << "\", ";
+            artifact << "\"rationale\": \"" << json_escape(r.rationale) << "\", ";
             artifact << "\"status\": \"" << json_escape(r.status) << "\", ";
             artifact << "\"row_count\": " << r.row_count << ", ";
             artifact << "\"duration_ms\": " << r.duration_ms << ", ";
