@@ -20,9 +20,14 @@ var errCellTimeout = errors.New("cell timeout after 60s")
 
 // CellRecord is one row of the validator's per-cell JSON artifact used
 // by the cross-language agreement check. `Status` is PASS|SKIP|FAIL.
+// `Rationale` is the one-sentence description from the generator
+// (rationale_for_mode in build_support/endpoints/modes.rs); it surfaces
+// in scripts/validate_agreement.py disagreement output so a FAIL line
+// carries the feature description, not just the mode name.
 type CellRecord struct {
 	Endpoint   string `json:"endpoint"`
 	Mode       string `json:"mode"`
+	Rationale  string `json:"rationale"`
 	Status     string `json:"status"`
 	RowCount   int    `json:"row_count"`
 	DurationMS int64  `json:"duration_ms"`

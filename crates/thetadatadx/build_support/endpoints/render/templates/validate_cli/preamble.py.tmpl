@@ -31,7 +31,9 @@ REPO = pathlib.Path(__file__).resolve().parents[1]
 TDX = REPO / "target" / "release" / ("tdx.exe" if os.name == "nt" else "tdx")
 ARTIFACT_PATH = REPO / "artifacts" / "validator_cli.json"
 
-# (endpoint, mode_name, declared_min_tier, [argv...])
+# (endpoint, mode_name, declared_min_tier, rationale, [argv...])
 # `declared_min_tier` is informational only (printed on tier-permission
-# skips so you can see which modes the server refused).
+# skips so you can see which modes the server refused). `rationale` is a
+# one-sentence description of what the cell proves; surfaces in the
+# per-cell JSON artifact and in scripts/validate_agreement.py output.
 CELLS = [

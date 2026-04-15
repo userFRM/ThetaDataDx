@@ -35,7 +35,10 @@ ARTIFACT_PATH = pathlib.Path(__file__).resolve().parents[1] / "artifacts" / "val
 
 client = ThetaDataDx(Credentials.from_file(sys.argv[1]), Config.production())
 
-# (endpoint, mode_name, declared_min_tier, callable)
+# (endpoint, mode_name, declared_min_tier, rationale, callable)
 # `declared_min_tier` is informational only (printed on tier-permission
-# skips so you can see which modes the server refused).
+# skips so you can see which modes the server refused). `rationale` is a
+# one-sentence description of what the cell proves; it surfaces in the
+# per-cell JSON artifact and in the cross-language agreement disagreement
+# output (see scripts/validate_agreement.py).
 CELLS = [

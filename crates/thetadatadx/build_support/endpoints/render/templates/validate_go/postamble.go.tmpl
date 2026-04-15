@@ -4,20 +4,20 @@
 // recordAborted adds a SKIP record for a cell that didn't run because an
 // earlier cell timed out. The ffi is not thread-safe on the same handle,
 // so we refuse to issue more calls once a worker has been leaked.
-func recordAborted(endpoint, mode string, skip *int, records []CellRecord) []CellRecord {
+func recordAborted(endpoint, mode, rationale string, skip *int, records []CellRecord) []CellRecord {
 	label := endpoint + "::" + mode
 	fmt.Printf("  %-60s SKIP: aborted-after-timeout\n", label)
 	*skip++
 	return append(records, CellRecord{
-		Endpoint: endpoint, Mode: mode, Status: "SKIP", Detail: "aborted-after-timeout",
+		Endpoint: endpoint, Mode: mode, Rationale: rationale, Status: "SKIP", Detail: "aborted-after-timeout",
 	})
 }
 
 // classify maps a live call outcome into PASS / SKIP / FAIL buckets and
 // appends a CellRecord for the agreement-check JSON artifact.
-func classify(endpoint, mode, declaredMinTier string, r cellResult, pass, skip, fail *int, hadTimeout *bool, records []CellRecord) []CellRecord {
+func classify(endpoint, mode, declaredMinTier, rationale string, r cellResult, pass, skip, fail *int, hadTimeout *bool, records []CellRecord) []CellRecord {
 	label := endpoint + "::" + mode
-	rec := CellRecord{Endpoint: endpoint, Mode: mode, RowCount: r.rowCount}
+	rec := CellRecord{Endpoint: endpoint, Mode: mode, Rationale: rationale, RowCount: r.rowCount}
 	if r.err == nil {
 		fmt.Printf("  %-60s PASS\n", label)
 		*pass++
@@ -50,7 +50,10 @@ func classify(endpoint, mode, declaredMinTier string, r cellResult, pass, skip, 
 	fmt.Printf("  %-60s FAIL  %v\n", label, r.err)
 	*fail++
 	rec.Status = "FAIL"
-	detail := r.err.Error()
+	// gRPC / transport errors can contain embedded newlines; escape them
+	// so the agreement-table row stays single-line.
+	detail := strings.ReplaceAll(r.err.Error(), "\n", "\\n")
+	detail = strings.ReplaceAll(detail, "\r", "\\r")
 	if len(detail) > 200 {
 		detail = detail[:200]
 	}

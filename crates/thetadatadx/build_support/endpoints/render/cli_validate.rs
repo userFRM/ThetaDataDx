@@ -42,6 +42,7 @@ pub(super) fn render_cli_validate(endpoints: &[GeneratedEndpoint]) -> String {
                 endpoint = endpoint.name,
                 mode = mode.name,
                 min_tier = mode.min_tier,
+                rationale = mode.rationale,
                 args = tokens,
             )
             .unwrap();

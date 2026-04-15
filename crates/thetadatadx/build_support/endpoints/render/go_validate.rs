@@ -43,6 +43,7 @@ pub(super) fn render_go_validate(endpoints: &[GeneratedEndpoint]) -> String {
                 endpoint = endpoint.name,
                 mode = mode.name,
                 min_tier = mode.min_tier,
+                rationale = mode.rationale,
                 go_method_name = go_name,
                 args = args,
             )
