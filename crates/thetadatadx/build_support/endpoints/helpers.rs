@@ -454,9 +454,10 @@ pub(super) fn ffi_from_vec_expr(return_type: &str) -> &'static str {
 pub(super) fn ffi_header_return_type(return_type: &str) -> &'static str {
     match return_type {
         "OptionContracts" => "TdxOptionContractArray",
-        "StringList" | "EodTicks" | "OhlcTicks" | "TradeTicks" | "QuoteTicks"
-        | "TradeQuoteTicks" | "OpenInterestTicks" | "MarketValueTicks" | "GreeksTicks"
-        | "IvTicks" | "PriceTicks" | "CalendarDays" | "InterestRateTicks" => "TdxTickArray",
+        "StringList" => "TdxStringArray",
+        "EodTicks" | "OhlcTicks" | "TradeTicks" | "QuoteTicks" | "TradeQuoteTicks"
+        | "OpenInterestTicks" | "MarketValueTicks" | "GreeksTicks" | "IvTicks" | "PriceTicks"
+        | "CalendarDays" | "InterestRateTicks" => "TdxTickArray",
         other => panic!("unsupported Go/C header return type: {other}"),
     }
 }

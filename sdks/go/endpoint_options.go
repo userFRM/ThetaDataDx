@@ -7,9 +7,13 @@ package thetadatadx
 */
 import "C"
 
-import "unsafe"
+import (
+	"time"
+	"unsafe"
+)
 
 // EndpointRequestOptions contains the shared optional request fields projected from endpoint_surface.toml.
+// TimeoutMs is the cross-cutting per-call deadline (W3); see WithTimeoutMs.
 type EndpointRequestOptions struct {
 	// Venue/exchange filter
 	Venue *string
@@ -43,6 +47,11 @@ type EndpointRequestOptions struct {
 	UseMarketValue *bool
 	// Use NBBO for underlyer price
 	UnderlyerUseNBBO *bool
+	// TimeoutMs is the per-call deadline in milliseconds. When set, on
+	// expiry the in-flight gRPC call is cancelled and the returned error
+	// carries "Request deadline exceeded". The Client handle stays usable
+	// for subsequent calls. See WithTimeoutMs / WithDeadline.
+	TimeoutMs *uint64
 }
 
 // EndpointOption applies one optional request field to an endpoint request.
@@ -189,6 +198,26 @@ func WithUnderlyerUseNBBO(value bool) EndpointOption {
 	}
 }
 
+// WithTimeoutMs sets the per-call deadline in milliseconds. On expiry
+// the in-flight gRPC call is cancelled (the underlying stream is
+// dropped, freeing the request semaphore) and the call returns an
+// error containing "Request deadline exceeded".
+func WithTimeoutMs(value uint64) EndpointOption {
+	return func(options *EndpointRequestOptions) {
+		valueCopy := value
+		options.TimeoutMs = &valueCopy
+	}
+}
+
+// WithDeadline sets the per-call deadline as a time.Duration; see WithTimeoutMs.
+func WithDeadline(value time.Duration) EndpointOption {
+	ms := uint64(value / time.Millisecond)
+	return func(options *EndpointRequestOptions) {
+		msCopy := ms
+		options.TimeoutMs = &msCopy
+	}
+}
+
 func endpointRequestOptionsToC(opts *EndpointRequestOptions) (*C.TdxEndpointRequestOptions, func()) {
 	if opts == nil {
 		return nil, func() {}
@@ -286,6 +315,10 @@ func endpointRequestOptionsToC(opts *EndpointRequestOptions) (*C.TdxEndpointRequ
 			cOpts.underlyer_use_nbbo = 0
 		}
 		cOpts.has_underlyer_use_nbbo = 1
+	}
+	if opts.TimeoutMs != nil {
+		cOpts.timeout_ms = C.uint64_t(*opts.TimeoutMs)
+		cOpts.has_timeout_ms = 1
 	}
 
 	return cOpts, free
