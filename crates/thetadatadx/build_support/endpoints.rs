@@ -3537,13 +3537,18 @@ fn render_python_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("and are classified `SKIP: tier-permission`. Real configuration bugs\n");
     out.push_str("(invalid arguments, wire-format errors) surface as `FAIL`. See issue\n");
     out.push_str("#287.\n\n");
-    out.push_str("Each cell is bounded by a 60-second per-call timeout\n");
-    out.push_str("(concurrent.futures.ThreadPoolExecutor). A stuck cell classifies as\n");
-    out.push_str("FAIL with `timeout after 60s` rather than stalling CI indefinitely --\n");
-    out.push_str("a human should investigate whether the fixture is too broad or the\n");
-    out.push_str("server is misbehaving. See issue #290.\n\"\"\"\n");
-    out.push_str("import concurrent.futures\n");
-    out.push_str("import sys\n\n");
+    out.push_str("Each cell is bounded by a 60-second per-call timeout enforced by a\n");
+    out.push_str("daemon `threading.Thread` + `queue.Queue.get(timeout=...)`. A stuck\n");
+    out.push_str("cell classifies as FAIL with `timeout after 60s`. On completion we\n");
+    out.push_str("call `os._exit()` to bypass the interpreter's non-daemon-thread join\n");
+    out.push_str("and atexit machinery -- otherwise any truly-wedged PyO3 call would\n");
+    out.push_str("block process teardown. Daemon threads are abruptly killed at\n");
+    out.push_str("`_exit`, which is exactly what we want for a single-shot validator.\n");
+    out.push_str("See issue #290.\n\"\"\"\n");
+    out.push_str("import os\n");
+    out.push_str("import queue\n");
+    out.push_str("import sys\n");
+    out.push_str("import threading\n\n");
     out.push_str("from thetadatadx import Credentials, Config, ThetaDataDx\n\n");
     out.push_str("PER_CELL_TIMEOUT_SECS = 60\n\n");
     out.push_str(
@@ -3574,57 +3579,66 @@ fn render_python_validate(endpoints: &[GeneratedEndpoint]) -> String {
         }
     }
     out.push_str("]\n\n");
-    out.push_str("pass_count = skip_count = fail_count = 0\n");
-    // A single-worker ThreadPoolExecutor per cell. The SDK's PyO3 methods
-    // release the GIL while blocked on the network, so the executor future
-    // *can* be timed out. But if a future blocks inside native code that
-    // never yields, cancel() is a no-op -- the background thread leaks for
-    // the rest of the process. That's acceptable for a validator: the
-    // process exits at the end, and surfacing a stuck cell as FAIL is
-    // strictly better than hanging CI.
+    out.push_str("pass_count = skip_count = fail_count = 0\n\n");
+    // Daemon thread + queue: a stuck call leaves the daemon thread running,
+    // and os._exit() at the end kills it without waiting. Unlike
+    // ThreadPoolExecutor, we don't register an atexit joiner -- that's the
+    // precise reason a raw daemon thread is used here.
+    out.push_str("def _run_with_timeout(call, timeout):\n");
+    out.push_str("    \"\"\"Run `call()` on a daemon thread; return (kind, value).\n\n");
+    out.push_str("    kind is 'ok' (value is the return), 'err' (value is the exception),\n");
+    out.push_str("    or 'timeout' (value is None). A stuck call leaks the daemon thread\n");
+    out.push_str("    until process exit, which os._exit() at end-of-script kills cleanly.\n");
+    out.push_str("    \"\"\"\n");
+    out.push_str("    q: \"queue.Queue[tuple[str, object]]\" = queue.Queue(maxsize=1)\n\n");
+    out.push_str("    def _worker():\n");
+    out.push_str("        try:\n");
+    out.push_str("            q.put((\"ok\", call()))\n");
+    out.push_str("        except BaseException as exc:  # noqa: BLE001\n");
+    out.push_str("            q.put((\"err\", exc))\n\n");
+    out.push_str("    t = threading.Thread(target=_worker, daemon=True)\n");
+    out.push_str("    t.start()\n");
+    out.push_str("    try:\n");
+    out.push_str("        return q.get(timeout=timeout)\n");
+    out.push_str("    except queue.Empty:\n");
+    out.push_str("        return (\"timeout\", None)\n\n");
     out.push_str("for endpoint, mode, min_tier, call in CELLS:\n");
     out.push_str("    label = f\"{endpoint}::{mode}\"\n");
-    // Do NOT use a `with` block: ThreadPoolExecutor.__exit__ calls
-    // shutdown(wait=True), which would block forever if the worker thread is
-    // stuck in a blocking PyO3 call. Instead, manually shutdown(wait=False)
-    // so the stuck thread leaks until process exit -- acceptable for a
-    // one-shot validator, the strictly-better alternative to hanging CI.
-    out.push_str("    pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)\n");
-    out.push_str("    future = pool.submit(call)\n");
-    out.push_str("    try:\n");
-    out.push_str("        future.result(timeout=PER_CELL_TIMEOUT_SECS)\n");
-    out.push_str("        print(f\"  {label:60s} PASS\")\n");
+    out.push_str("    kind, value = _run_with_timeout(call, PER_CELL_TIMEOUT_SECS)\n");
+    out.push_str("    if kind == \"ok\":\n");
+    out.push_str("        print(f\"  {label:60s} PASS\", flush=True)\n");
     out.push_str("        pass_count += 1\n");
-    out.push_str("    except concurrent.futures.TimeoutError:\n");
+    out.push_str("    elif kind == \"timeout\":\n");
     out.push_str(
-        "        print(f\"  {label:60s} FAIL  timeout after {PER_CELL_TIMEOUT_SECS}s\")\n",
+        "        print(f\"  {label:60s} FAIL  timeout after {PER_CELL_TIMEOUT_SECS}s\", flush=True)\n",
     );
     out.push_str("        fail_count += 1\n");
-    out.push_str("    except Exception as e:\n");
-    out.push_str("        msg = str(e).lower()\n");
+    out.push_str("    else:  # 'err'\n");
+    out.push_str("        msg = str(value).lower()\n");
     out.push_str("        if \"permission\" in msg or \"subscription\" in msg:\n");
     out.push_str(
-        "            print(f\"  {label:60s} SKIP: tier-permission (declared min_tier={min_tier})\")\n",
+        "            print(f\"  {label:60s} SKIP: tier-permission (declared min_tier={min_tier})\", flush=True)\n",
     );
     out.push_str("            skip_count += 1\n");
     out.push_str("        elif \"no data found\" in msg:\n");
-    out.push_str("            print(f\"  {label:60s} PASS  (no data)\")\n");
+    out.push_str("            print(f\"  {label:60s} PASS  (no data)\", flush=True)\n");
     out.push_str("            pass_count += 1\n");
     out.push_str("        else:\n");
-    out.push_str("            print(f\"  {label:60s} FAIL  {e}\")\n");
+    out.push_str("            print(f\"  {label:60s} FAIL  {value}\", flush=True)\n");
     out.push_str("            fail_count += 1\n");
-    out.push_str("    finally:\n");
-    out.push_str("        # wait=False so we don't block on a stuck worker thread;\n");
-    out.push_str(
-        "        # cancel_futures=True prevents queued (never-started) work from running.\n",
-    );
-    out.push_str("        pool.shutdown(wait=False, cancel_futures=True)\n");
     out.push('\n');
     out.push_str(
-        "print(f\"\\nPython: {pass_count} PASS, {skip_count} SKIP, {fail_count} FAIL\")\n",
+        "print(f\"\\nPython: {pass_count} PASS, {skip_count} SKIP, {fail_count} FAIL\", flush=True)\n",
     );
-    out.push_str("print(f\"COUNTS:{pass_count}:{skip_count}:{fail_count}\")\n");
-    out.push_str("sys.exit(1 if fail_count > 0 else 0)\n");
+    out.push_str("print(f\"COUNTS:{pass_count}:{skip_count}:{fail_count}\", flush=True)\n");
+    // os._exit bypasses Python's interpreter shutdown, which otherwise joins
+    // non-daemon threads (and ThreadPoolExecutor's atexit hook). A timed-out
+    // PyO3 call sitting on a daemon thread is killed abruptly by _exit, which
+    // is exactly the behavior we want for a single-shot validator. sys.stdout
+    // is already flushed above via flush=True on every print.
+    out.push_str("sys.stdout.flush()\n");
+    out.push_str("sys.stderr.flush()\n");
+    out.push_str("os._exit(1 if fail_count > 0 else 0)\n");
     out
 }
 
@@ -3758,12 +3772,17 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("// live account tier come back as a permission error and are classified\n");
     out.push_str("// SKIP: tier-permission. Real configuration bugs surface as FAIL. Cells\n");
     out.push_str("// that don't finish within 60 seconds classify as FAIL with \"timeout\n");
-    out.push_str("// after 60s\" (the worker thread is detached and leaks until the blocking\n");
-    out.push_str("// call returns on its own, which is acceptable for a single-shot\n");
-    out.push_str("// validator). See issues #287, #290.\n");
+    out.push_str("// after 60s\". The worker thread is detached and keeps running the SDK\n");
+    out.push_str("// call; to avoid a use-after-free race between that leaked thread and\n");
+    out.push_str("// the Client/Config/Credentials destructors on main's unwind, the\n");
+    out.push_str("// validator exits via std::_Exit whenever any timeout fired -- skipping\n");
+    out.push_str("// destructors is exactly what we want when a leaked thread might still\n");
+    out.push_str("// touch FFI state. When no timeouts fired the normal return path is\n");
+    out.push_str("// taken so RAII runs as usual. See issues #287, #290.\n");
     out.push_str("#include <algorithm>\n");
     out.push_str("#include <cctype>\n");
     out.push_str("#include <chrono>\n");
+    out.push_str("#include <cstdlib>\n");
     out.push_str("#include <future>\n");
     out.push_str("#include <iomanip>\n");
     out.push_str("#include <iostream>\n");
@@ -3787,7 +3806,11 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("    const std::string creds_path = argc > 1 ? argv[1] : \"creds.txt\";\n");
     out.push_str("    int pass = 0;\n");
     out.push_str("    int skip = 0;\n");
-    out.push_str("    int fail = 0;\n\n");
+    out.push_str("    int fail = 0;\n");
+    out.push_str("    // Track whether any cell timed out. Leaked worker threads racing with\n");
+    out.push_str("    // RAII Close() on client/config/creds would be UB, so we _Exit at end\n");
+    out.push_str("    // if this flag is set instead of returning.\n");
+    out.push_str("    bool any_timeout = false;\n\n");
     out.push_str("    try {\n");
     out.push_str("        auto creds = tdx::Credentials::from_file(creds_path);\n");
     out.push_str("        auto config = tdx::Config::production();\n");
@@ -3799,7 +3822,9 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("                // std::packaged_task + detached std::thread so a timed-out\n");
     out.push_str("                // future doesn't block in its destructor (which std::async's\n");
     out.push_str("                // future does). Worker thread leaks until the SDK call\n");
-    out.push_str("                // returns; acceptable for a one-shot validator.\n");
+    out.push_str("                // returns; we flag any_timeout so main exits via _Exit and\n");
+    out.push_str("                // avoids destroying the Client handle while the leaked\n");
+    out.push_str("                // thread may still be reading from it (UAF).\n");
     out.push_str("                using Result = decltype(call());\n");
     out.push_str(
         "                std::packaged_task<Result()> task(std::forward<decltype(call)>(call));\n",
@@ -3813,6 +3838,7 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
         "                    std::cout << \"  \" << std::left << std::setw(60) << label << \" FAIL  timeout after 60s\" << std::endl;\n",
     );
     out.push_str("                    ++fail;\n");
+    out.push_str("                    any_timeout = true;\n");
     out.push_str("                    return;\n");
     out.push_str("                }\n");
     out.push_str("                (void)future.get();\n");
@@ -3879,6 +3905,14 @@ fn render_cpp_validate(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str(
         "    std::cout << \"COUNTS:\" << pass << \":\" << skip << \":\" << fail << std::endl;\n",
     );
+    out.push_str("    std::cout.flush();\n");
+    out.push_str("    std::cerr.flush();\n");
+    out.push_str("    if (any_timeout) {\n");
+    out.push_str("        // Skip destructors -- leaked worker thread may still be reading\n");
+    out.push_str("        // Client/Config/Credentials FFI handles. _Exit terminates the\n");
+    out.push_str("        // process without unwinding.\n");
+    out.push_str("        std::_Exit(fail > 0 ? 1 : 0);\n");
+    out.push_str("    }\n");
     out.push_str("    return fail > 0 ? 1 : 0;\n");
     out.push_str("}\n");
     out

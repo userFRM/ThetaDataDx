@@ -5,12 +5,17 @@
 // live account tier come back as a permission error and are classified
 // SKIP: tier-permission. Real configuration bugs surface as FAIL. Cells
 // that don't finish within 60 seconds classify as FAIL with "timeout
-// after 60s" (the worker thread is detached and leaks until the blocking
-// call returns on its own, which is acceptable for a single-shot
-// validator). See issues #287, #290.
+// after 60s". The worker thread is detached and keeps running the SDK
+// call; to avoid a use-after-free race between that leaked thread and
+// the Client/Config/Credentials destructors on main's unwind, the
+// validator exits via std::_Exit whenever any timeout fired -- skipping
+// destructors is exactly what we want when a leaked thread might still
+// touch FFI state. When no timeouts fired the normal return path is
+// taken so RAII runs as usual. See issues #287, #290.
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <cstdlib>
 #include <future>
 #include <iomanip>
 #include <iostream>
@@ -38,6 +43,10 @@ int main(int argc, char** argv) {
     int pass = 0;
     int skip = 0;
     int fail = 0;
+    // Track whether any cell timed out. Leaked worker threads racing with
+    // RAII Close() on client/config/creds would be UB, so we _Exit at end
+    // if this flag is set instead of returning.
+    bool any_timeout = false;
 
     try {
         auto creds = tdx::Credentials::from_file(creds_path);
@@ -49,7 +58,9 @@ int main(int argc, char** argv) {
                 // std::packaged_task + detached std::thread so a timed-out
                 // future doesn't block in its destructor (which std::async's
                 // future does). Worker thread leaks until the SDK call
-                // returns; acceptable for a one-shot validator.
+                // returns; we flag any_timeout so main exits via _Exit and
+                // avoids destroying the Client handle while the leaked
+                // thread may still be reading from it (UAF).
                 using Result = decltype(call());
                 std::packaged_task<Result()> task(std::forward<decltype(call)>(call));
                 auto future = task.get_future();
@@ -57,6 +68,7 @@ int main(int argc, char** argv) {
                 if (future.wait_for(kPerCellTimeout) == std::future_status::timeout) {
                     std::cout << "  " << std::left << std::setw(60) << label << " FAIL  timeout after 60s" << std::endl;
                     ++fail;
+                    any_timeout = true;
                     return;
                 }
                 (void)future.get();
@@ -269,5 +281,13 @@ int main(int argc, char** argv) {
 
     std::cout << "\nC++: " << pass << " PASS, " << skip << " SKIP, " << fail << " FAIL" << std::endl;
     std::cout << "COUNTS:" << pass << ":" << skip << ":" << fail << std::endl;
+    std::cout.flush();
+    std::cerr.flush();
+    if (any_timeout) {
+        // Skip destructors -- leaked worker thread may still be reading
+        // Client/Config/Credentials FFI handles. _Exit terminates the
+        // process without unwinding.
+        std::_Exit(fail > 0 ? 1 : 0);
+    }
     return fail > 0 ? 1 : 0;
 }

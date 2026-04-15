@@ -11,14 +11,19 @@ and are classified `SKIP: tier-permission`. Real configuration bugs
 (invalid arguments, wire-format errors) surface as `FAIL`. See issue
 #287.
 
-Each cell is bounded by a 60-second per-call timeout
-(concurrent.futures.ThreadPoolExecutor). A stuck cell classifies as
-FAIL with `timeout after 60s` rather than stalling CI indefinitely --
-a human should investigate whether the fixture is too broad or the
-server is misbehaving. See issue #290.
+Each cell is bounded by a 60-second per-call timeout enforced by a
+daemon `threading.Thread` + `queue.Queue.get(timeout=...)`. A stuck
+cell classifies as FAIL with `timeout after 60s`. On completion we
+call `os._exit()` to bypass the interpreter's non-daemon-thread join
+and atexit machinery -- otherwise any truly-wedged PyO3 call would
+block process teardown. Daemon threads are abruptly killed at
+`_exit`, which is exactly what we want for a single-shot validator.
+See issue #290.
 """
-import concurrent.futures
+import os
+import queue
 import sys
+import threading
 
 from thetadatadx import Credentials, Config, ThetaDataDx
 
@@ -218,33 +223,52 @@ CELLS = [
 ]
 
 pass_count = skip_count = fail_count = 0
+
+def _run_with_timeout(call, timeout):
+    """Run `call()` on a daemon thread; return (kind, value).
+
+    kind is 'ok' (value is the return), 'err' (value is the exception),
+    or 'timeout' (value is None). A stuck call leaks the daemon thread
+    until process exit, which os._exit() at end-of-script kills cleanly.
+    """
+    q: "queue.Queue[tuple[str, object]]" = queue.Queue(maxsize=1)
+
+    def _worker():
+        try:
+            q.put(("ok", call()))
+        except BaseException as exc:  # noqa: BLE001
+            q.put(("err", exc))
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+    try:
+        return q.get(timeout=timeout)
+    except queue.Empty:
+        return ("timeout", None)
+
 for endpoint, mode, min_tier, call in CELLS:
     label = f"{endpoint}::{mode}"
-    pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-    future = pool.submit(call)
-    try:
-        future.result(timeout=PER_CELL_TIMEOUT_SECS)
-        print(f"  {label:60s} PASS")
+    kind, value = _run_with_timeout(call, PER_CELL_TIMEOUT_SECS)
+    if kind == "ok":
+        print(f"  {label:60s} PASS", flush=True)
         pass_count += 1
-    except concurrent.futures.TimeoutError:
-        print(f"  {label:60s} FAIL  timeout after {PER_CELL_TIMEOUT_SECS}s")
+    elif kind == "timeout":
+        print(f"  {label:60s} FAIL  timeout after {PER_CELL_TIMEOUT_SECS}s", flush=True)
         fail_count += 1
-    except Exception as e:
-        msg = str(e).lower()
+    else:  # 'err'
+        msg = str(value).lower()
         if "permission" in msg or "subscription" in msg:
-            print(f"  {label:60s} SKIP: tier-permission (declared min_tier={min_tier})")
+            print(f"  {label:60s} SKIP: tier-permission (declared min_tier={min_tier})", flush=True)
             skip_count += 1
         elif "no data found" in msg:
-            print(f"  {label:60s} PASS  (no data)")
+            print(f"  {label:60s} PASS  (no data)", flush=True)
             pass_count += 1
         else:
-            print(f"  {label:60s} FAIL  {e}")
+            print(f"  {label:60s} FAIL  {value}", flush=True)
             fail_count += 1
-    finally:
-        # wait=False so we don't block on a stuck worker thread;
-        # cancel_futures=True prevents queued (never-started) work from running.
-        pool.shutdown(wait=False, cancel_futures=True)
 
-print(f"\nPython: {pass_count} PASS, {skip_count} SKIP, {fail_count} FAIL")
-print(f"COUNTS:{pass_count}:{skip_count}:{fail_count}")
-sys.exit(1 if fail_count > 0 else 0)
+print(f"\nPython: {pass_count} PASS, {skip_count} SKIP, {fail_count} FAIL", flush=True)
+print(f"COUNTS:{pass_count}:{skip_count}:{fail_count}", flush=True)
+sys.stdout.flush()
+sys.stderr.flush()
+os._exit(1 if fail_count > 0 else 0)

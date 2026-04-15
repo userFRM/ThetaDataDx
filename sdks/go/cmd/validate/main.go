@@ -34,21 +34,26 @@ func main() {
 	if err != nil {
 		log.Fatalf("creds: %v", err)
 	}
-	defer c.Close()
 
 	cfg := thetadatadx.ProductionConfig()
-	defer cfg.Close()
 
 	client, err := thetadatadx.Connect(c, cfg)
 	if err != nil {
 		log.Fatalf("connect: %v", err)
 	}
-	defer client.Close()
 
+	// NOTE: no deferred Close() on client/cfg/creds. If ValidateAllEndpoints
+	// timed out on any cell, the underlying goroutine is still running a CGo
+	// call against the client handle. Calling Close() here would race with
+	// that leaked goroutine and cause a use-after-free in the FFI layer
+	// (see issue #290). Instead we os.Exit directly -- the OS reclaims the
+	// process's memory and descriptors regardless. A follow-up that plumbs
+	// context.Context through the SDK would let us Close cleanly again.
 	pass, skip, fail := thetadatadx.ValidateAllEndpoints(client)
 	fmt.Printf("\nGo: %d PASS, %d SKIP, %d FAIL\n", pass, skip, fail)
 	fmt.Printf("COUNTS:%d:%d:%d\n", pass, skip, fail)
 	if fail > 0 {
 		os.Exit(1)
 	}
+	os.Exit(0)
 }

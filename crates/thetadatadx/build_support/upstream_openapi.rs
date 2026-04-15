@@ -123,6 +123,14 @@ impl UpstreamOpenApi {
         // Tracks whether we've seen a `paths:` top-level key. `components:` or
         // anything else at column 0 resets us out of paths mode.
         let mut in_paths_section = false;
+        // Count ANY endpoint referencing either `expiration` or
+        // `expiration_no_star` across the whole file. If the snapshot has
+        // zero such references, upstream has almost certainly renamed the
+        // component (or restructured the params block) and we must fail the
+        // build — otherwise the generator would silently default every
+        // option endpoint to "wildcard-allowed" and emit wildcard modes that
+        // the server rejects.
+        let mut saw_any_expiration_ref = false;
 
         for (line_no, raw_line) in text.lines().enumerate() {
             let line = raw_line.trim_end();
@@ -200,8 +208,10 @@ impl UpstreamOpenApi {
                 let rest = rest.trim();
                 if ref_points_at(rest, "expiration_no_star") {
                     uses_expiration_no_star = true;
+                    saw_any_expiration_ref = true;
                 } else if ref_points_at(rest, "expiration") {
                     uses_expiration = true;
+                    saw_any_expiration_ref = true;
                 }
                 continue;
             }
@@ -222,6 +232,20 @@ impl UpstreamOpenApi {
 
         if by_operation.is_empty() {
             return Err("parsed 0 endpoints from snapshot -- upstream YAML shape changed?".into());
+        }
+        // Fail closed if we parsed endpoints but saw zero references to either
+        // expiration parameter variant. Upstream currently binds ~15 option
+        // endpoints to one of these two components, so zero refs means the
+        // component was renamed or the params structure drifted — silently
+        // defaulting every endpoint to "wildcard-allowed" would spray the
+        // matrix with cells that the v3 server rejects.
+        if !saw_any_expiration_ref {
+            return Err("parsed the snapshot but found zero references to either \
+                 #/components/parameters/expiration or expiration_no_star. \
+                 Upstream likely renamed the expiration parameter component; \
+                 update build_support/upstream_openapi.rs to match the new \
+                 shape and refresh the snapshot."
+                .into());
         }
         Ok(Self { by_operation })
     }
@@ -419,6 +443,8 @@ paths:
     x-min-subscription: standard
     get:
       operationId: option_snapshot_trade
+      parameters:
+        - $ref: "#/components/parameters/expiration_no_star"
 "##;
         let spec = UpstreamOpenApi::parse(text).expect("parse ok");
         assert_eq!(spec.len(), 2);
@@ -442,6 +468,35 @@ paths:
         let empty = "openapi: 3.1.0\ninfo:\n  title: empty\n";
         let err = UpstreamOpenApi::parse(empty).expect_err("should fail");
         assert!(err.contains("0 endpoints"), "got: {err}");
+    }
+
+    #[test]
+    fn errors_when_expiration_component_missing() {
+        // Well-formed shape but zero references to either expiration variant.
+        // This is the "upstream silently renamed the expiration parameter"
+        // scenario we need to catch.
+        let text = r##"
+paths:
+  /stock/snapshot/ohlc:
+    x-min-subscription: value
+    get:
+      operationId: stock_snapshot_ohlc
+      parameters:
+        - $ref: "#/components/parameters/multi_symbol"
+  /option/snapshot/trade:
+    x-min-subscription: standard
+    get:
+      operationId: option_snapshot_trade
+      parameters:
+        - $ref: "#/components/parameters/single_symbol"
+        - $ref: "#/components/parameters/expiration_strict"
+        - $ref: "#/components/parameters/strike"
+"##;
+        let err = UpstreamOpenApi::parse(text).expect_err("should fail");
+        assert!(
+            err.contains("expiration_no_star") || err.contains("renamed"),
+            "got: {err}"
+        );
     }
 
     #[test]
