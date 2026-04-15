@@ -73,14 +73,65 @@ fn normalize_right(right: &str) -> String {
         .to_string()
 }
 
+/// Canonicalize the `expiration` parameter for the v3 MDDS server.
+///
+/// Upstream's `openapiv3.yaml` documents the accepted expiration vocabulary
+/// as `YYYY-MM-DD`, `YYYYMMDD`, or `*` for all expirations. We also accept
+/// the legacy `"0"` sentinel and translate it to `"*"` here because the
+/// server rejects `"0"` directly with `InvalidArgument -- Error parsing
+/// expiration Cannot parse date string: 0`. ISO-dashed dates are
+/// canonicalized to the compact `YYYYMMDD` form on the wire.
+pub(crate) fn normalize_expiration(expiration: &str) -> String {
+    match expiration {
+        "0" => "*".to_string(),
+        v if crate::validate::is_iso_date(v) => v.replace('-', ""),
+        other => other.to_string(),
+    }
+}
+
+/// Map the SDK's `strike` surface vocabulary to the wire representation.
+///
+/// Upstream documents `strike` as an optional query parameter: if omitted,
+/// the server applies its default (`*` wildcard). Our SDK-level surface
+/// forces the caller to always pass a value, so we reinterpret the
+/// wildcard sentinels (`*`, `0`, empty) as "leave the `ContractSpec.strike`
+/// proto field unset" — same wire outcome as the upstream documented
+/// omission. All other values forward verbatim.
+pub(crate) fn wire_strike_opt(strike: &str) -> Option<String> {
+    if strike.is_empty() || strike == "*" || strike == "0" {
+        None
+    } else {
+        Some(strike.to_string())
+    }
+}
+
+/// Map the SDK's `right` surface vocabulary to the wire representation.
+///
+/// Same pattern as `wire_strike_opt`: upstream treats `right` as optional
+/// with `both` as the implicit "no filter" state. `*`, `both`, `0`, and
+/// empty all collapse to proto-unset; single sides (`C`/`P`/`call`/`put`)
+/// normalize to `"call"`/`"put"` on the wire.
+pub(crate) fn wire_right_opt(right: &str) -> Option<String> {
+    match right.to_ascii_lowercase().as_str() {
+        "" | "*" | "0" | "both" => None,
+        _ => Some(normalize_right(right)),
+    }
+}
+
 /// Helper: build a `proto::ContractSpec` from the four standard option params.
+///
+/// `symbol` and `expiration` are required by the v3 server. `strike` and
+/// `right` are optional at the wire level (server applies wildcard defaults
+/// when unset); our SDK surface promotes them to required positional args
+/// and reinterprets wildcard sentinels as proto-unset via `wire_strike_opt`
+/// and `wire_right_opt`.
 macro_rules! contract_spec {
     ($symbol:expr, $expiration:expr, $strike:expr, $right:expr) => {
         Some(proto::ContractSpec {
             symbol: $symbol.to_string(),
-            expiration: $expiration.to_string(),
-            strike: Some($strike.to_string()),
-            right: Some(normalize_right(&$right.to_string())),
+            expiration: normalize_expiration(&$expiration.to_string()),
+            strike: wire_strike_opt(&$strike.to_string()),
+            right: wire_right_opt(&$right.to_string()),
         })
     };
 }
@@ -633,5 +684,60 @@ mod tests {
         assert!((ticks[0].open - 15000.0).abs() < 1e-10);
         assert!((ticks[0].close - 15100.0).abs() < 1e-10);
         assert_eq!(ticks[0].date, 20240301);
+    }
+
+    // ── Wire-translation tests ────────────────────────────────────────────
+
+    #[test]
+    fn normalize_expiration_translates_legacy_zero_to_star() {
+        assert_eq!(normalize_expiration("0"), "*");
+    }
+
+    #[test]
+    fn normalize_expiration_passes_star_through() {
+        assert_eq!(normalize_expiration("*"), "*");
+    }
+
+    #[test]
+    fn normalize_expiration_passes_compact_date_through() {
+        assert_eq!(normalize_expiration("20260417"), "20260417");
+    }
+
+    #[test]
+    fn normalize_expiration_strips_iso_dashes() {
+        assert_eq!(normalize_expiration("2026-04-17"), "20260417");
+    }
+
+    #[test]
+    fn wire_strike_opt_treats_wildcards_as_unset() {
+        assert_eq!(wire_strike_opt(""), None);
+        assert_eq!(wire_strike_opt("0"), None);
+        assert_eq!(wire_strike_opt("*"), None);
+    }
+
+    #[test]
+    fn wire_strike_opt_forwards_real_strikes() {
+        assert_eq!(wire_strike_opt("550"), Some("550".to_string()));
+        assert_eq!(wire_strike_opt("17.5"), Some("17.5".to_string()));
+    }
+
+    #[test]
+    fn wire_right_opt_treats_wildcards_as_unset() {
+        assert_eq!(wire_right_opt(""), None);
+        assert_eq!(wire_right_opt("*"), None);
+        assert_eq!(wire_right_opt("0"), None);
+        assert_eq!(wire_right_opt("both"), None);
+        assert_eq!(wire_right_opt("BOTH"), None);
+        assert_eq!(wire_right_opt("Both"), None);
+    }
+
+    #[test]
+    fn wire_right_opt_forwards_single_sides_normalized() {
+        assert_eq!(wire_right_opt("C"), Some("call".to_string()));
+        assert_eq!(wire_right_opt("c"), Some("call".to_string()));
+        assert_eq!(wire_right_opt("call"), Some("call".to_string()));
+        assert_eq!(wire_right_opt("CALL"), Some("call".to_string()));
+        assert_eq!(wire_right_opt("P"), Some("put".to_string()));
+        assert_eq!(wire_right_opt("put"), Some("put".to_string()));
     }
 }

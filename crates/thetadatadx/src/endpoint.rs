@@ -124,22 +124,44 @@ impl EndpointArgs {
         Ok(Some(value))
     }
 
-    /// Read a required expiration argument (`YYYYMMDD` or `"0"` wildcard).
+    /// Read a required expiration argument.
     ///
-    /// ThetaData supports `expiration="0"` as a wildcard meaning "all
-    /// expirations" for bulk option queries.
+    /// Accepts `*` / `0` (wildcard sentinels), `YYYYMMDD`, or `YYYY-MM-DD`.
+    /// Wire-level canonicalization happens in `direct::normalize_expiration`.
     pub fn required_expiration(&self, key: &str) -> Result<&str, EndpointError> {
         let value = self.required_str(key)?;
         validate_expiration(value, key)?;
         Ok(value)
     }
 
-    /// Read an optional expiration argument (`YYYYMMDD` or `"0"` wildcard).
+    /// Read an optional expiration argument.
+    ///
+    /// Accepts `*` / `0` (wildcard sentinels), `YYYYMMDD`, or `YYYY-MM-DD`.
     pub fn optional_expiration(&self, key: &str) -> Result<Option<&str>, EndpointError> {
         let Some(value) = self.optional_str(key)? else {
             return Ok(None);
         };
         validate_expiration(value, key)?;
+        Ok(Some(value))
+    }
+
+    /// Read a required strike argument.
+    ///
+    /// Accepts `*` / `0` / empty (wildcard sentinels) or a positive decimal
+    /// (e.g. `"550"`, `"17.5"`). Wildcards become proto-unset on the wire
+    /// via `direct::wire_strike_opt` so the server applies its default.
+    pub fn required_strike(&self, key: &str) -> Result<&str, EndpointError> {
+        let value = self.required_str(key)?;
+        validate_strike(value, key)?;
+        Ok(value)
+    }
+
+    /// Read an optional strike argument.
+    pub fn optional_strike(&self, key: &str) -> Result<Option<&str>, EndpointError> {
+        let Some(value) = self.optional_str(key)? else {
+            return Ok(None);
+        };
+        validate_strike(value, key)?;
         Ok(Some(value))
     }
 
@@ -381,7 +403,7 @@ pub fn parse_raw_arg_value(
 // Canonical validation — delegates to the shared `validate` module.
 use crate::validate::{
     parse_bool, parse_symbols, validate_date, validate_expiration, validate_interval,
-    validate_right, validate_symbol, validate_year,
+    validate_right, validate_strike, validate_symbol, validate_year,
 };
 
 include!(concat!(env!("OUT_DIR"), "/endpoint_generated.rs"));
@@ -448,15 +470,36 @@ mod tests {
 
     #[test]
     fn required_expiration_rejects_invalid_formats() {
+        // ISO-dashed `YYYY-MM-DD` is now valid; assert on an actually-invalid form.
         let mut args = EndpointArgs::new();
         args.insert(
             "expiration".into(),
-            EndpointArgValue::Str("2026-04-10".into()),
+            EndpointArgValue::Str("2026/04/10".into()),
         );
         let err = args.required_expiration("expiration").unwrap_err();
         assert!(
-            matches!(err, EndpointError::InvalidParams(message) if message.contains("exactly 8 digits"))
+            matches!(err, EndpointError::InvalidParams(message) if message.contains("expiration"))
         );
+    }
+
+    #[test]
+    fn required_expiration_accepts_iso_dashed() {
+        let mut args = EndpointArgs::new();
+        args.insert(
+            "expiration".into(),
+            EndpointArgValue::Str("2026-04-17".into()),
+        );
+        assert_eq!(
+            args.required_expiration("expiration").unwrap(),
+            "2026-04-17"
+        );
+    }
+
+    #[test]
+    fn required_expiration_accepts_star_wildcard() {
+        let mut args = EndpointArgs::new();
+        args.insert("expiration".into(), EndpointArgValue::Str("*".into()));
+        assert_eq!(args.required_expiration("expiration").unwrap(), "*");
     }
 
     #[test]
