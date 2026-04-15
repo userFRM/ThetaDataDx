@@ -665,6 +665,111 @@ class AgreementTests(unittest.TestCase):
         self.assertEqual(code, 1, "right C vs P is a real disagreement")
         self.assertIn("right", _diff_section(err))
 
+    # ------------------------------------------------------------------
+    # Round 5 -- nested empty-container handling (Codex r5 finding).
+    # Earlier rounds elided stripped-empty containers and made
+    # `{"meta": {}}` false-pass against `{}`. Fix: `_canonicalize_row`
+    # strips only LEAF sentinels; sub-dicts and sub-lists are preserved
+    # even when they become empty via stripping. `_flatten` re-emits
+    # empty containers with their path as a marker.
+    # ------------------------------------------------------------------
+
+    def test_originally_empty_container_does_not_false_pass(self) -> None:
+        # `{"meta": {}}` (producer intentionally emitted an empty meta
+        # sub-dict as a real data point) must DISAGREE with `{}` (meta
+        # is completely absent). Earlier rounds silently elided both to
+        # empty flat-maps and false-passed -- Codex r5 caught this.
+        _write_artifact(
+            self.artifacts,
+            "python",
+            [_base_record("option_history_ohlc", "concrete", first_row={"meta": {}})],
+        )
+        _write_artifact(
+            self.artifacts,
+            "go",
+            [_base_record("option_history_ohlc", "concrete", first_row={})],
+        )
+        for lang in ("cli", "cpp"):
+            _write_artifact(
+                self.artifacts,
+                lang,
+                [_base_record("option_history_ohlc", "concrete", first_row={})],
+            )
+        code, _, err = self._run()
+        self.assertEqual(
+            code, 1,
+            "present-empty container must NOT false-pass against absent key",
+        )
+        # Diff should surface the field `meta` (python has it as empty
+        # dict; others don't have it at all).
+        self.assertIn("meta", err)
+
+    def test_stripped_empty_container_via_sentinel_agrees(self) -> None:
+        # `{"contract": {"expiration": null}}` strips the leaf sentinel
+        # but preserves the empty `contract` container. Compares equal
+        # to `{"contract": {}}` (producer emitted empty container
+        # directly). Both canonicalize to `{"contract": {}}`.
+        _write_artifact(
+            self.artifacts,
+            "python",
+            [_base_record(
+                "option_history_ohlc", "concrete",
+                first_row={"contract": {"expiration": None}},
+            )],
+        )
+        for lang in ("cli", "go", "cpp"):
+            _write_artifact(
+                self.artifacts,
+                lang,
+                [_base_record(
+                    "option_history_ohlc", "concrete",
+                    first_row={"contract": {}},
+                )],
+            )
+        code, out, _ = self._run()
+        self.assertEqual(
+            code, 0,
+            "stripped-empty container must agree with originally-empty container",
+        )
+        self.assertIn("1 cells agree across", out)
+
+    def test_stripped_empty_container_vs_absent_parent_disagrees(self) -> None:
+        # Team-lead flagged this case as debatable. We pick DISAGREE
+        # because real first_row schemas emit contract-id fields at the
+        # TOP level -- no producer in the ecosystem (Python tick_columnar,
+        # Go tick_structs, server format.rs) nests a `contract` sub-dict.
+        # If a hypothetical producer started doing so, surfacing the
+        # divergence is safer than silently eliding it.
+        #
+        # Sub-dicts are preserved as empty dicts by _canonicalize_row;
+        # `{"contract": {"expiration": 0}}` -> `{"contract": {}}` which
+        # differs from `{}` (which flattens to `<root>: {}`).
+        _write_artifact(
+            self.artifacts,
+            "python",
+            [_base_record(
+                "option_history_ohlc", "concrete",
+                first_row={"contract": {"expiration": 0}},
+            )],
+        )
+        _write_artifact(
+            self.artifacts,
+            "go",
+            [_base_record("option_history_ohlc", "concrete", first_row={})],
+        )
+        for lang in ("cli", "cpp"):
+            _write_artifact(
+                self.artifacts,
+                lang,
+                [_base_record("option_history_ohlc", "concrete", first_row={})],
+            )
+        code, _, err = self._run()
+        self.assertEqual(
+            code, 1,
+            "container present (stripped-empty) vs container absent must disagree",
+        )
+        self.assertIn("contract", err)
+
 
 def _diff_section(text: str) -> str:
     """Return just the field-level diff rows, stripping headers / status

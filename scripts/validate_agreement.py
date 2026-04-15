@@ -83,6 +83,31 @@ Consumer-side canonicalization (`_canonicalize_row`) handles:
    `_time`): negative value -> `None`. Same reasoning -- every SDK
    emits negative-ms sentinels as raw ints.
 
+Empty-container rule (Codex r5)
+-------------------------------
+
+Sentinel stripping applies only to LEAF values (scalars whose field
+name puts them in the sentinel set). Sub-dicts and sub-lists are never
+elided from their parent, even if all their children get stripped:
+
+  {"contract": {"expiration": 0}}     canonicalizes to
+  {"contract": {}}                    (sentinel leaf stripped, container
+                                       preserved as empty dict)
+
+The flatten phase then emits `contract: {}` as a distinct field path,
+so a producer that legitimately emits an empty container (e.g.
+`{"meta": {}}`) still differs from one that omits the key entirely
+(`{}` emits `<root>: {}`). This was the Codex round-5 finding: earlier
+rounds elided stripped-empty containers and caused `{"meta": {}}` to
+false-pass against `{}`.
+
+Downstream consequence: `{"contract": {"expiration": 0}}` and `{}`
+DISAGREE post-canonicalization. That's intentional -- real producers
+emit contract-id fields at the top level of `first_row` (never nested),
+so any nested structure is hypothetical, and surfacing divergence is
+safer than silently eliding "producer A emitted an empty container
+here; producer B didn't".
+
 Defense in depth: producers SHOULD canonicalize too, but the consumer
 is the authoritative enforcer. A producer bug (mixed-case key, stray
 NaN, float precision regression, sentinel mapped to `null` vs raw int)
@@ -270,13 +295,21 @@ def _canonicalize_row(value: Any, key: str = "") -> Any:
       * ms-shaped fields: negative value -> None
       * strike-shaped fields: value `0.0` -> None
       * right-shaped fields: value `""` or int `0` -> None
-      * post-canonical None -> stripped from the dict for any field in
-        `_SENTINEL_SHAPED_FIELDS`. This makes producer divergence on
-        omit-vs-null-vs-sentinel-value invisible to the diff engine
-        (Go `omitempty` strips zero contract-ids; server skips them in
-        `tools/server/src/format.rs:89`; Python emits raw `0`/`""`;
-        CLI emits raw `0`/`""` after round-3). All four shapes converge
-        to "field absent from the dict" post-canonicalization.
+      * post-canonical None -> stripped from the dict for LEAF fields
+        whose name is in `_SENTINEL_SHAPED_FIELDS`. This makes producer
+        divergence on omit-vs-null-vs-sentinel-value invisible to the
+        diff engine (Go `omitempty` strips zero contract-ids; server
+        skips them in `tools/server/src/format.rs:89`; Python emits raw
+        `0`/`""`; CLI emits raw `0`/`""` after round-3). All four
+        shapes converge to "field absent from the dict" post-
+        canonicalization.
+
+    Sub-dicts and sub-lists are NEVER elided from their parent, even if
+    all their children get stripped. `{"contract": {"expiration": 0}}`
+    canonicalizes to `{"contract": {}}` (empty container preserved),
+    not `{}` (container elided). This distinguishes "producer emitted
+    an empty container here" from "producer omitted the container
+    entirely" -- see module docstring "Empty-container rule" for why.
 
     This is the authoritative enforcer of the first_row contract -- a
     producer bug (mixed-case key, non-finite float, precision regression,
@@ -370,18 +403,30 @@ def _flatten(obj: Any, prefix: str = "") -> dict[str, Any]:
     dicts by key name. Leaves are anything that isn't a dict or list
     (strings, numbers, bools, None).
 
-    Empty dicts and empty lists contribute zero entries -- there's
-    nothing to diff inside them, and treating "no fields" as a sentinel
-    `<root>` entry would flag a noisy mismatch any time post-canonical
-    sentinel stripping leaves one SDK with an empty contract-id block.
+    Empty dicts and empty lists emit a dedicated marker at their path
+    (the empty container itself). This makes `{"meta": {}}` differ from
+    `{}` (the `meta` key emits `meta: {}` while `{}` emits `<root>: {}`
+    -- distinct field paths), so a producer that legitimately emits an
+    empty container doesn't false-pass against one that omits the key.
+    Sentinel stripping in `_canonicalize_row` strips only LEAF sentinels,
+    never sub-dicts, so a container that becomes empty via stripping
+    (e.g., `{"contract": {"expiration": 0}}` -> `{"contract": {}}`) still
+    emits its `contract: {}` marker -- treated as a real data point
+    identical to a producer that emitted `{"contract": {}}` directly.
     """
     out: dict[str, Any] = {}
     if isinstance(obj, dict):
+        if not obj:
+            out[prefix or "<root>"] = {}
+            return out
         for k in sorted(obj):
             v = obj[k]
             path = f"{prefix}.{k}" if prefix else str(k)
             out.update(_flatten(v, path))
     elif isinstance(obj, list):
+        if not obj:
+            out[prefix or "<root>"] = []
+            return out
         for i, v in enumerate(obj):
             path = f"{prefix}[{i}]"
             out.update(_flatten(v, path))
