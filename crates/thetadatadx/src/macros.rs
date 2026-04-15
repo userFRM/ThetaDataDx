@@ -76,12 +76,17 @@ macro_rules! list_endpoint {
             #[doc = "Variant with a per-call deadline. On expiry the in-flight gRPC"]
             #[doc = "call is cancelled and `Err(Error::Timeout)` is returned; the"]
             #[doc = "`DirectClient` is left intact for subsequent calls."]
+            #[doc = ""]
+            #[doc = "`Duration::ZERO` is normalized to \"no deadline\" for parity with"]
+            #[doc = "the builder-style endpoints; pass a positive `Duration` for"]
+            #[doc = "near-instant expiration."]
             /// # Errors
             ///
             /// Returns `Error::Timeout` if `deadline` elapses, otherwise the same
             /// errors as the deadline-less variant.
             pub async fn [<$name _with_deadline>](&self, deadline: std::time::Duration, $($arg : $arg_ty),*) -> Result<Vec<String>, Error> {
-                self.[<__ $name _impl>](Some(deadline), $($arg),*).await
+                let normalized = if deadline.is_zero() { None } else { Some(deadline) };
+                self.[<__ $name _impl>](normalized, $($arg),*).await
             }
 
             #[allow(non_snake_case, clippy::too_many_arguments)] // Reason: synthetic-name impl shared between deadline / no-deadline entry points.
@@ -176,9 +181,16 @@ macro_rules! parsed_endpoint {
             /// builder's future resolves to `Err(Error::Timeout)`. The
             /// underlying `DirectClient` is unaffected; subsequent calls
             /// on the same handle succeed.
+            ///
+            /// `Duration::ZERO` is normalized to "no deadline". The
+            /// alternative — wrapping in `tokio::time::timeout(ZERO, ...)` —
+            /// would fire on the first poll and never let the call complete,
+            /// almost certainly not the caller's intent. Pass a positive
+            /// `Duration` (e.g. `Duration::from_millis(1)`) for a near-instant
+            /// expiration.
             #[must_use]
             pub fn with_deadline(mut self, duration: std::time::Duration) -> Self {
-                self.deadline = Some(duration);
+                self.deadline = if duration.is_zero() { None } else { Some(duration) };
                 self
             }
         }

@@ -54,16 +54,25 @@ impl EndpointArgs {
     /// gRPC call is cancelled (the future is dropped, freeing its
     /// `request_semaphore` permit and the tonic stream) and the call
     /// returns [`crate::Error::Timeout`].
+    ///
+    /// `ms == 0` is normalized to "no deadline" (i.e. `None`). The
+    /// alternative — wrapping in `tokio::time::timeout(Duration::ZERO, ...)` —
+    /// would fire immediately on the first poll and never let the call
+    /// complete, which is almost certainly not what a caller passing 0
+    /// intended. The invariant is: `EndpointArgs::timeout_ms()` is `None` or
+    /// `Some(n)` with `n > 0`.
     #[must_use]
     pub fn with_timeout_ms(mut self, ms: u64) -> Self {
-        self.timeout_ms = Some(ms);
+        self.timeout_ms = if ms == 0 { None } else { Some(ms) };
         self
     }
 
     /// In-place equivalent of [`Self::with_timeout_ms`] for `&mut self` callers
     /// (FFI dispatch shims that already hold a `&mut EndpointArgs`).
+    ///
+    /// `ms == 0` is normalized to "no deadline" — see [`Self::with_timeout_ms`].
     pub fn set_timeout_ms(&mut self, ms: u64) {
-        self.timeout_ms = Some(ms);
+        self.timeout_ms = if ms == 0 { None } else { Some(ms) };
     }
 
     /// Configured per-call deadline in milliseconds, if any.
@@ -482,6 +491,31 @@ mod tests {
         let mut args = EndpointArgs::new().with_timeout_ms(60_000);
         args.clear_timeout();
         assert_eq!(args.timeout_ms(), None);
+    }
+
+    /// `timeout_ms == 0` is sentinel for "no deadline" (W3 round-2 fix).
+    /// Storing `Some(0)` would wrap the dispatch in
+    /// `tokio::time::timeout(Duration::ZERO, ...)`, which fires on the first
+    /// poll and prevents any call from completing.
+    #[test]
+    fn with_timeout_ms_zero_means_no_deadline() {
+        let args = EndpointArgs::new().with_timeout_ms(0);
+        assert_eq!(args.timeout_ms(), None);
+    }
+
+    /// `set_timeout_ms(0)` matches the same normalization as `with_timeout_ms`.
+    #[test]
+    fn set_timeout_ms_zero_means_no_deadline() {
+        let mut args = EndpointArgs::new().with_timeout_ms(60_000);
+        args.set_timeout_ms(0);
+        assert_eq!(args.timeout_ms(), None);
+    }
+
+    /// Positive timeout values pass through unchanged.
+    #[test]
+    fn with_timeout_ms_positive_value_stored() {
+        let args = EndpointArgs::new().with_timeout_ms(1);
+        assert_eq!(args.timeout_ms(), Some(1));
     }
 
     #[test]
