@@ -164,14 +164,31 @@ def main() -> int:
     if disagreements:
         print("\nDISAGREEMENTS:", file=sys.stderr)
         for (endpoint, mode), present in disagreements[: args.max_cell_diff_rows]:
+            # Determine the disagreement kind so the header carries useful
+            # context (status mismatch vs. row-count mismatch on PASS).
+            statuses = {rec.get("status") for rec in present.values()}
+            kind = "status disagreement" if len(statuses) > 1 else "row-count disagreement"
             label = f"{endpoint}::{mode}"
-            print(f"  {label}", file=sys.stderr)
+            # All SDKs see the same generator output for a given cell, so
+            # rationale is identical across present[lang]; pick whichever is
+            # available. Fall back to "(missing)" if no SDK populated it
+            # (older artifacts written before this field landed).
+            rationale = next(
+                (rec.get("rationale") for rec in present.values() if rec.get("rationale")),
+                "(missing)",
+            )
+            print(f"  {label}  [{kind}]", file=sys.stderr)
+            print(f"    rationale: {rationale}", file=sys.stderr)
+            print(
+                f"    {'sdk':8s} | {'status':6s} | {'rows':5s} | detail",
+                file=sys.stderr,
+            )
             for lang in sorted(present):
                 rec = present[lang]
                 print(
-                    f"    {lang:8s} status={rec.get('status'):<4} "
-                    f"rows={rec.get('row_count'):<5} "
-                    f"detail={rec.get('detail', '')[:80]!r}",
+                    f"    {lang:8s} | {str(rec.get('status', '')):6s} | "
+                    f"{str(rec.get('row_count', '')):5s} | "
+                    f"{(rec.get('detail') or '')[:80]}",
                     file=sys.stderr,
                 )
         if len(disagreements) > args.max_cell_diff_rows:
