@@ -38,12 +38,10 @@ jobs:
             label: windows py3.12
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: ./.github/actions/setup-rust-deps
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
-      - uses: Swatinem/rust-cache@v2
-      - uses: ./.github/actions/install-protoc
       - run: cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces --locked -- --check
       - shell: bash
         run: python -m pip install --upgrade pip "maturin>=1.9.4,<2.0"
@@ -82,12 +80,10 @@ jobs:
         python: ["3.9", "3.14"]
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: ./.github/actions/setup-rust-deps
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
-      - uses: Swatinem/rust-cache@v2
-      - uses: ./.github/actions/install-protoc
       - run: cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces --locked -- --check
       - shell: bash
         run: python -m pip install --upgrade pip "maturin>=1.9.4,<2.0"
@@ -104,12 +100,10 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: ./.github/actions/setup-rust-deps
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - uses: Swatinem/rust-cache@v2
-      - uses: ./.github/actions/install-protoc
       - run: cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces --locked -- --check
       - shell: bash
         run: python -m pip install --upgrade pip "maturin>=1.9.4,<2.0"
