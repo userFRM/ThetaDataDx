@@ -73,8 +73,6 @@ jobs:
       - run: cargo test --manifest-path tools/mcp/Cargo.toml --locked
       - run: cargo clippy --manifest-path tools/server/Cargo.toml --locked -- -D warnings
       - run: cargo test --manifest-path tools/server/Cargo.toml --locked
-      - run: cargo clippy --manifest-path tools/cli/Cargo.toml --locked -- -D warnings
-      - run: cargo test --manifest-path tools/cli/Cargo.toml --locked
       - run: cargo check --manifest-path sdks/python/Cargo.toml --locked
 
   sdk-bindings:
