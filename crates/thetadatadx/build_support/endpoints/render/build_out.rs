@@ -69,6 +69,10 @@ const VALIDATOR_TEMPLATES: &[&str] = &[
     "python/with_deadline_builder.py.tmpl",
     "ffi/symbols_extract.rs.tmpl",
     "ffi/cstr_extract.rs.tmpl",
+    "direct/stream_method_header.rs.tmpl",
+    "direct/stub_call_error_arm.rs.tmpl",
+    "direct/for_each_chunk_body.rs.tmpl",
+    "direct/metrics_result_block.rs.tmpl",
 ];
 
 fn generate_endpoint_registry(parsed: &ParsedEndpoints) -> Result<(), Box<dyn std::error::Error>> {
