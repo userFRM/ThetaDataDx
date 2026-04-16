@@ -761,15 +761,6 @@ fn push_cpp_doc_comment(out: &mut String, indent: &str, doc: &str) {
 }
 
 fn python_type(param_type: ParamType) -> &'static str {
-    // Invariant enforced in `validate_method_spec`: only `FpssConnect`
-    // declares `CredentialsRef`/`ConfigRef` params, and it targets
-    // `CppFpss` exclusively (never `PythonUnified`). Any future method
-    // that mixes these param types with Python targets must update the
-    // validator before reaching this helper.
-    debug_assert!(
-        !matches!(param_type, ParamType::CredentialsRef | ParamType::ConfigRef),
-        "python_type called with credentials/config ref; validate_method_spec should have rejected this"
-    );
     match param_type {
         ParamType::String => "&str",
         ParamType::F64 => "f64",
@@ -853,14 +844,6 @@ fn mcp_param_description(param: &ParamSpec) -> &str {
 }
 
 fn mcp_json_type(param_type: ParamType) -> &'static str {
-    // Invariant enforced in `validate_utility_spec` + `validate_method_spec`:
-    // MCP-targeted specs (utilities and, prospectively, methods) never
-    // declare `CredentialsRef`/`ConfigRef` params — those are reserved for
-    // `FpssConnect` which targets `CppFpss` exclusively.
-    debug_assert!(
-        !matches!(param_type, ParamType::CredentialsRef | ParamType::ConfigRef),
-        "mcp_json_type called with credentials/config ref; validate_*_spec should have rejected this"
-    );
     match param_type {
         ParamType::String => "string",
         ParamType::F64 => "number",
