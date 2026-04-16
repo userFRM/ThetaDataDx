@@ -30,13 +30,6 @@ pub(super) fn builder_params(endpoint: &GeneratedEndpoint) -> Vec<&GeneratedPara
         .collect()
 }
 
-pub(super) fn has_builder_params(endpoint: &GeneratedEndpoint) -> bool {
-    endpoint
-        .params
-        .iter()
-        .any(|param| !is_method_call_param(param))
-}
-
 pub(super) fn collect_builder_params(endpoints: &[GeneratedEndpoint]) -> Vec<GeneratedParam> {
     let mut seen = HashSet::new();
     let mut params = Vec::new();
