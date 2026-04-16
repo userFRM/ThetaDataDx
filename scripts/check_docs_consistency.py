@@ -32,6 +32,15 @@ BUILDER_PARAMS = {
     if param.get("binding") == "builder"
 }
 
+# Global request-level options (not per-endpoint builder params, but still
+# required fields on `TdxEndpointRequestOptions` / `EndpointRequestOptions`
+# so the FFI struct layout must include them).
+GLOBAL_REQUEST_OPTIONS = {opt["name"] for opt in SURFACE.get("request_options_global", [])}
+
+# All fields the request-options structs must expose (per-endpoint builders +
+# cross-cutting globals). Drift in either direction is a bug.
+ALL_OPTION_FIELDS = BUILDER_PARAMS | GLOBAL_REQUEST_OPTIONS
+
 
 def endpoint_kind(endpoint: dict) -> str:
     kind = endpoint.get("kind")
@@ -304,9 +313,9 @@ def check_endpoint_option_surface() -> None:
     )
     # Exclude has_* sentinel flags (FFI implementation detail, not builder params)
     rust_fields = {f for f in rust_fields if not f.startswith("has_")}
-    if rust_fields != BUILDER_PARAMS:
-        missing = sorted(BUILDER_PARAMS - rust_fields)
-        extra = sorted(rust_fields - BUILDER_PARAMS)
+    if rust_fields != ALL_OPTION_FIELDS:
+        missing = sorted(ALL_OPTION_FIELDS - rust_fields)
+        extra = sorted(rust_fields - ALL_OPTION_FIELDS)
         fail(
             "ffi/src/endpoint_request_options.rs endpoint option fields drifted from endpoint_surface.toml. "
             f"missing={missing or '[]'} extra={extra or '[]'}"
@@ -319,13 +328,13 @@ def check_endpoint_option_surface() -> None:
         c_fields = extract_struct_fields(
             path,
             r"typedef struct \{(.*?)\n\}\s*TdxEndpointRequestOptions;",
-            r"^\s*(?:const char\*|int32_t|double)\s+([a-z_]+);",
+            r"^\s*(?:const char\*|int32_t|double|uint64_t)\s+([a-z_]+);",
         )
         # Exclude has_* sentinel flags (FFI implementation detail, not builder params)
         c_fields = {f for f in c_fields if not f.startswith("has_")}
-        if c_fields != BUILDER_PARAMS:
-            missing = sorted(BUILDER_PARAMS - c_fields)
-            extra = sorted(c_fields - BUILDER_PARAMS)
+        if c_fields != ALL_OPTION_FIELDS:
+            missing = sorted(ALL_OPTION_FIELDS - c_fields)
+            extra = sorted(c_fields - ALL_OPTION_FIELDS)
             fail(
                 f"{path.relative_to(ROOT)} endpoint option fields drifted from endpoint_surface.toml. "
                 f"missing={missing or '[]'} extra={extra or '[]'}"
@@ -336,7 +345,7 @@ def check_endpoint_option_surface() -> None:
         r"type EndpointRequestOptions struct \{(.*?)\n\}",
         r"^\s*([A-Z][A-Za-z0-9]+)\s+\*",
     )
-    expected_go_fields = {snake_to_go(name) for name in BUILDER_PARAMS}
+    expected_go_fields = {snake_to_go(name) for name in ALL_OPTION_FIELDS}
     if go_fields != expected_go_fields:
         missing = sorted(expected_go_fields - go_fields)
         extra = sorted(go_fields - expected_go_fields)
@@ -350,9 +359,9 @@ def check_endpoint_option_surface() -> None:
         r"struct EndpointRequestOptions \{(.*?)\n\};",
         r"^\s*std::optional<[^>]+>\s+([a-z_]+);",
     )
-    if cpp_fields != BUILDER_PARAMS:
-        missing = sorted(BUILDER_PARAMS - cpp_fields)
-        extra = sorted(cpp_fields - BUILDER_PARAMS)
+    if cpp_fields != ALL_OPTION_FIELDS:
+        missing = sorted(ALL_OPTION_FIELDS - cpp_fields)
+        extra = sorted(cpp_fields - ALL_OPTION_FIELDS)
         fail(
             "sdks/cpp/include/endpoint_options.hpp.inc EndpointRequestOptions fields drifted from endpoint_surface.toml. "
             f"missing={missing or '[]'} extra={extra or '[]'}"
