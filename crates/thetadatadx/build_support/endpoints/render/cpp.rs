@@ -70,42 +70,12 @@ pub(super) fn render_cpp_options(params: &[GeneratedParam]) -> String {
         "    explicit FfiEndpointRequestOptions(const EndpointRequestOptions& options) {\n",
     );
     for param in params {
-        match param.param_type.as_str() {
-            "Int" => {
-                writeln!(out, "        if (options.{0}) {{", param.name).unwrap();
-                writeln!(out, "            raw.{0} = *options.{0};", param.name).unwrap();
-                writeln!(out, "            raw.has_{0} = 1;", param.name).unwrap();
-                out.push_str("        }\n");
-            }
-            "Float" => {
-                writeln!(out, "        if (options.{0}) {{", param.name).unwrap();
-                writeln!(out, "            raw.{0} = *options.{0};", param.name).unwrap();
-                writeln!(out, "            raw.has_{0} = 1;", param.name).unwrap();
-                out.push_str("        }\n");
-            }
-            "Bool" => {
-                writeln!(out, "        if (options.{0}) {{", param.name).unwrap();
-                writeln!(
-                    out,
-                    "            raw.{0} = *options.{0} ? 1 : 0;",
-                    param.name
-                )
-                .unwrap();
-                writeln!(out, "            raw.has_{0} = 1;", param.name).unwrap();
-                out.push_str("        }\n");
-            }
-            _ => {
-                writeln!(out, "        if (options.{0}) {{", param.name).unwrap();
-                writeln!(out, "            {0}_storage = *options.{0};", param.name).unwrap();
-                writeln!(
-                    out,
-                    "            raw.{0} = {0}_storage.c_str();",
-                    param.name
-                )
-                .unwrap();
-                out.push_str("        }\n");
-            }
-        }
+        let template = match param.param_type.as_str() {
+            "Int" | "Float" => include_str!("templates/cpp/ffi_numeric_case.cpp.tmpl"),
+            "Bool" => include_str!("templates/cpp/ffi_bool_case.cpp.tmpl"),
+            _ => include_str!("templates/cpp/ffi_string_case.cpp.tmpl"),
+        };
+        out.push_str(&template.replace("__PARAM__", &param.name));
     }
     out.push_str("        if (options.timeout_ms) {\n");
     out.push_str("            raw.timeout_ms = *options.timeout_ms;\n");
