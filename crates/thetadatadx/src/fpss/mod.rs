@@ -151,9 +151,10 @@ pub struct FpssClient {
     /// Monotonically increasing request ID counter.
     next_req_id: AtomicI32,
     /// Active per-contract subscriptions for reconnection.
-    pub(super) active_subs: Mutex<Vec<(SubscriptionKind, Contract)>>,
+    pub(in crate::fpss) active_subs: Mutex<Vec<(SubscriptionKind, Contract)>>,
     /// Active full-type (firehose) subscriptions for reconnection.
-    pub(super) active_full_subs: Mutex<Vec<(SubscriptionKind, tdbe::types::enums::SecType)>>,
+    pub(in crate::fpss) active_full_subs:
+        Mutex<Vec<(SubscriptionKind, tdbe::types::enums::SecType)>>,
     /// Server-assigned contract ID mapping.
     contract_map: Arc<Mutex<HashMap<i32, Contract>>>,
     /// The server address we connected to.

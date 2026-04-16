@@ -44,7 +44,7 @@ No-JVM ThetaData Terminal - native Rust SDK for direct market data access.
 
 ```toml
 [dependencies]
-thetadatadx = "7.0"
+thetadatadx = "7.2"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 

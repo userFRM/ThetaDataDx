@@ -11,7 +11,7 @@ description: Install ThetaDataDx for Rust, Python, Go, or C++.
 ```toml [Rust]
 # Add to your Cargo.toml
 [dependencies]
-thetadatadx = "7.0"
+thetadatadx = "7.2"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 ```bash [Python]

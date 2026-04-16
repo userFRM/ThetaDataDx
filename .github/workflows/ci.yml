@@ -259,8 +259,20 @@ jobs:
           cp artifacts/windows-msvc/thetadatadx_ffi.dll.lib release-assets/thetadatadx_ffi-windows-msvc.dll.lib
           cp artifacts/windows-gnu/thetadatadx_ffi.dll release-assets/thetadatadx_ffi-windows-gnu.dll
           find artifacts/windows-gnu -maxdepth 1 -type f -name 'libthetadatadx_ffi*.a' -exec cp {} release-assets/ \;
+      - name: Resolve release notes body
+        id: release_notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate=".github/release-notes/${GITHUB_REF_NAME}.md"
+          if [ -f "$candidate" ]; then
+            echo "body_path=$candidate" >> "$GITHUB_OUTPUT"
+          else
+            echo "body_path=" >> "$GITHUB_OUTPUT"
+          fi
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          body_path: ${{ steps.release_notes.outputs.body_path }}
           files: |
             release-assets/*
