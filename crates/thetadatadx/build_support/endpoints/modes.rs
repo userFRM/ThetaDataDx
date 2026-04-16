@@ -413,25 +413,10 @@ fn paired_optional_fixture(
         .to_string()
 }
 
-/// Expand the baseline (wildcard/concrete) modes with one `with_<name>` cell
-/// per optional param the endpoint accepts, plus one `all_optionals` cell
-/// that sets every applicable optional at once.
-///
-/// Design decisions:
-/// * Start-time/end-time are a single `with_intraday_window` mode rather than
-///   two independent cells. The SDK accepts them independently but sending
-///   only one half makes the time window implicit which the server rejects.
-/// * Start-date/end-date are a single `with_date_range` mode, and only
-///   emitted if the endpoint has BOTH optional params. Sending only one
-///   half is an invalid argument on the wire.
-/// * The rest pair 1:1 with a single `with_<param_name>` mode.
-/// * The `all_optionals` mode collects every applicable representative value
-///   into one call — proves the SDK can serialize them all together.
-///
-/// No cell is ever deduplicated against another by wire shape: even if two
-/// generated modes would hit the server with identical bytes, we keep both
-/// so the cross-language agreement check can detect SDKs that diverge
-/// *only* on that cell. See PR #291 / issue #290.
+/// Append `with_<name>` cells (one per optional), plus paired compound modes
+/// (`with_intraday_window`, `with_date_range`) and an `all_optionals` cell.
+/// Paired modes are only emitted when both halves are optional on the
+/// endpoint — sending one half alone is invalid on the wire.
 fn append_optional_modes(
     endpoint: &GeneratedEndpoint,
     fixtures: &TestFixtures,

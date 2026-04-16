@@ -21,15 +21,8 @@ pub(super) fn render_cli_validate(
         .iter()
         .filter(|endpoint| !is_streaming_endpoint(endpoint))
     {
-        // CLI skips modes with builder overrides. The CLI's positional-arg
-        // model means isolating a single optional would require passing
-        // empty strings for the preceding optionals, which `insert_raw`
-        // rejects. Rather than emit fake cells that look like they exercise
-        // the optional but in fact send the bare concrete args (which was
-        // the prior state Codex flagged), we drop those cells entirely.
-        // The cross-language agreement script already handles cells missing
-        // from one SDK as an info-level note. Follow-up: convert the CLI to
-        // flag-style optionals (#290).
+        // CLI uses positional args, so builder-override cells (single-optional
+        // isolation) are unrepresentable; drop them. See issue #290.
         for mode in test_modes_for(endpoint, fixtures)
             .into_iter()
             .filter(|mode| mode.builder_overrides.is_empty())

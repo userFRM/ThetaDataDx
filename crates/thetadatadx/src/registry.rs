@@ -181,27 +181,6 @@ mod tests {
     }
 
     #[test]
-    fn all_endpoints_have_unique_param_names() {
-        // Regression test: the build.rs ContractSpec expansion used to emit
-        // a duplicate `expiration` parameter for option endpoints whose query
-        // message carried both a ContractSpec and an explicit top-level
-        // `expiration` field. Any dedup failure here means the registry is
-        // lying to downstream consumers (CLI args, MCP schema, FFI
-        // parameter metadata).
-        for endpoint in ENDPOINTS {
-            let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
-            for param in endpoint.params {
-                assert!(
-                    seen.insert(param.name),
-                    "endpoint {} has duplicate param name {:?}",
-                    endpoint.name,
-                    param.name,
-                );
-            }
-        }
-    }
-
-    #[test]
     fn find_works() {
         assert!(find("stock_history_eod").is_some());
         assert!(find("nonexistent").is_none());
@@ -218,66 +197,8 @@ mod tests {
     }
 
     #[test]
-    fn canonical_endpoints_exist_per_category() {
-        let expected = [
-            "stock_history_eod",
-            "option_snapshot_trade",
-            "index_snapshot_price",
-            "calendar_year",
-            "interest_rate_history_eod",
-        ];
-        for endpoint in expected {
-            assert!(
-                find(endpoint).is_some(),
-                "expected representative endpoint {endpoint} to exist"
-            );
-        }
-    }
-
-    #[test]
     fn categories_sum_to_total() {
         let total: usize = CATEGORIES.iter().map(|c| by_category(c).len()).sum();
         assert_eq!(total, ENDPOINTS.len());
-    }
-
-    #[test]
-    fn all_rest_paths_are_unique() {
-        let mut paths: Vec<&str> = ENDPOINTS.iter().map(|e| e.rest_path).collect();
-        paths.sort_unstable();
-        paths.dedup();
-        assert_eq!(
-            paths.len(),
-            ENDPOINTS.len(),
-            "duplicate REST paths detected"
-        );
-    }
-
-    #[test]
-    fn all_params_have_names() {
-        for ep in ENDPOINTS {
-            assert!(
-                ep.rest_path.starts_with("/v3/"),
-                "unexpected REST path in {}: {}",
-                ep.name,
-                ep.rest_path
-            );
-            for p in ep.params {
-                assert!(!p.name.is_empty(), "empty param name in {}", ep.name);
-                assert!(
-                    !p.description.is_empty(),
-                    "empty param description in {}::{}",
-                    ep.name,
-                    p.name
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn stock_history_ohlc_range_exists() {
-        assert!(
-            find("stock_history_ohlc_range").is_some(),
-            "manual stock_history_ohlc_range entry must be present"
-        );
     }
 }

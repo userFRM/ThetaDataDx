@@ -12,16 +12,6 @@ var tlsReaderMarkers = []string{
 	"stringArrayToGo(", // Helper that itself reads LAST_ERROR — callers must pin before invoking (the helper also self-pins defensively).
 }
 
-// tlsHelpers enumerates the hand-written Go functions that are
-// themselves TLS readers. The build-time pin audit skips them
-// when counting expected-pinned methods so self-pinning helpers
-// don't double-count.
-var tlsHelpers = []string{
-	"lastError", // Go-side wrapper around C.tdx_last_error that returns a trimmed Go string.
-	"lastErrorRaw", // Lower-level wrapper returning the raw *C.char from LAST_ERROR.
-	"fpssCall", // FPSS cgo invocation helper that maps a C status + LAST_ERROR into a Go error.
-}
-
 // expectedPinnedMethods is derived from the current non-test Go
 // source tree: every function body that reads the FFI thread-local
 // error slot must pin its goroutine to one OS thread.

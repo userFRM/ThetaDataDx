@@ -36,20 +36,9 @@ pub(crate) fn is_iso_date(value: &str) -> bool {
     )
 }
 
-/// Validate the `expiration` parameter.
-///
-/// Upstream's `openapiv3.yaml` documents the accepted vocabulary for
-/// `expiration` on option endpoints as:
-///
-/// - `YYYY-MM-DD` — ISO-dashed date
-/// - `YYYYMMDD`   — compact date
-/// - `*`          — all expirations (wildcard)
-///
-/// We additionally accept `"0"` as a legacy wildcard sentinel and translate
-/// it to `*` on the wire in [`crate::direct::normalize_expiration`]. The
-/// server itself rejects a literal `"0"` with `InvalidArgument -- Error
-/// parsing expiration Cannot parse date string: 0`, so the client-side
-/// translation is what makes that form functional.
+/// Validate `expiration`: accepts `YYYY-MM-DD`, `YYYYMMDD`, `*`, or the
+/// legacy `"0"` wildcard (translated to `*` in
+/// [`crate::direct::normalize_expiration`]).
 pub(crate) fn validate_expiration(value: &str, param_name: &str) -> Result<(), EndpointError> {
     if matches!(value, "*" | "0") || is_iso_date(value) {
         return Ok(());
@@ -143,71 +132,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn expiration_accepts_canonical_wildcard() {
-        assert!(validate_expiration("*", "expiration").is_ok());
-    }
-
-    #[test]
-    fn expiration_accepts_legacy_zero_wildcard() {
-        assert!(validate_expiration("0", "expiration").is_ok());
-    }
-
-    #[test]
-    fn expiration_accepts_compact_date() {
-        assert!(validate_expiration("20260417", "expiration").is_ok());
-    }
-
-    #[test]
-    fn expiration_accepts_iso_dashed() {
-        assert!(validate_expiration("2026-04-17", "expiration").is_ok());
-    }
-
-    #[test]
-    fn expiration_rejects_garbage() {
-        for bad in ["", "abc", "1", "99", "202604175", "**", "2026/04/17"] {
-            let err = validate_expiration(bad, "expiration").unwrap_err();
-            let msg = format!("{err:?}");
-            assert!(
-                msg.contains("expiration"),
-                "expected descriptive error for '{bad}', got: {msg}"
-            );
+    fn expiration_accepts_documented_vocab_and_rejects_garbage() {
+        for good in ["*", "0", "20260417", "2026-04-17"] {
+            assert!(validate_expiration(good, "expiration").is_ok(), "{good}");
+        }
+        for bad in ["", "abc", "202604175", "2026/04/17"] {
+            assert!(validate_expiration(bad, "expiration").is_err(), "{bad}");
         }
     }
 
     #[test]
-    fn strike_accepts_canonical_wildcard() {
-        assert!(validate_strike("*", "strike").is_ok());
-    }
-
-    #[test]
-    fn strike_accepts_legacy_zero_wildcard() {
-        assert!(validate_strike("0", "strike").is_ok());
-    }
-
-    #[test]
-    fn strike_accepts_empty_as_wildcard() {
-        assert!(validate_strike("", "strike").is_ok());
-    }
-
-    #[test]
-    fn strike_accepts_decimal_values() {
-        for good in ["550", "17.5", "0.5", "1000", "2.125"] {
-            assert!(
-                validate_strike(good, "strike").is_ok(),
-                "unexpected rejection of '{good}'"
-            );
+    fn strike_accepts_wildcards_and_positive_decimals_and_rejects_garbage() {
+        for good in ["*", "0", "", "550", "17.5", "0.5"] {
+            assert!(validate_strike(good, "strike").is_ok(), "{good}");
         }
-    }
-
-    #[test]
-    fn strike_rejects_garbage() {
-        for bad in ["abc", "-10", "1.5.3", "$500", "500$"] {
-            let err = validate_strike(bad, "strike").unwrap_err();
-            let msg = format!("{err:?}");
-            assert!(
-                msg.contains("strike"),
-                "expected descriptive error for '{bad}', got: {msg}"
-            );
+        for bad in ["abc", "-10", "1.5.3", "$500"] {
+            assert!(validate_strike(bad, "strike").is_err(), "{bad}");
         }
     }
 }

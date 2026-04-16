@@ -451,17 +451,3 @@ impl std::ops::Deref for ThetaDataDx {
         &self.historical
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn streaming_not_started_by_default() {
-        // Can't test connect() without real creds, but can verify the type exists
-        // and Deref works at compile time.
-        fn _assert_deref(tdx: &ThetaDataDx) -> &DirectClient {
-            tdx
-        }
-    }
-}

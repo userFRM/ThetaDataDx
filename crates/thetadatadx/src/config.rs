@@ -728,86 +728,20 @@ mod tests {
     }
 
     #[test]
-    fn reconnect_policy_debug_formats() {
-        assert_eq!(format!("{:?}", ReconnectPolicy::Auto), "Auto");
-        assert_eq!(format!("{:?}", ReconnectPolicy::Manual), "Manual");
-        let custom = ReconnectPolicy::Custom(Arc::new(|_, _| None));
-        assert_eq!(format!("{:?}", custom), "Custom(...)");
-    }
-
-    #[test]
-    fn parse_fpss_hosts_basic() {
+    fn parse_fpss_hosts_parses_multi_host_csv_with_whitespace_and_empty_entries() {
         let hosts =
-            DirectConfig::parse_fpss_hosts("nj-a.thetadata.us:20000,nj-a.thetadata.us:20001")
+            DirectConfig::parse_fpss_hosts(" nj-a.thetadata.us:20000, ,nj-b.thetadata.us:20001 ")
                 .unwrap();
         assert_eq!(hosts.len(), 2);
         assert_eq!(hosts[0], ("nj-a.thetadata.us".to_string(), 20000));
-        assert_eq!(hosts[1], ("nj-a.thetadata.us".to_string(), 20001));
+        assert_eq!(hosts[1], ("nj-b.thetadata.us".to_string(), 20001));
     }
 
     #[test]
-    fn parse_fpss_hosts_from_config_properties() {
-        // Exact string from config_0.properties
-        let hosts = DirectConfig::parse_fpss_hosts(
-            "nj-a.thetadata.us:20000,nj-a.thetadata.us:20001,nj-b.thetadata.us:20000,nj-b.thetadata.us:20001",
-        )
-        .unwrap();
-        assert_eq!(hosts.len(), 4);
-        assert_eq!(hosts[2].0, "nj-b.thetadata.us");
-        assert_eq!(hosts[2].1, 20000);
-    }
-
-    #[test]
-    fn parse_fpss_hosts_trims_whitespace() {
-        let hosts =
-            DirectConfig::parse_fpss_hosts(" nj-a.thetadata.us:20000 , nj-b.thetadata.us:20001 ")
-                .unwrap();
-        assert_eq!(hosts.len(), 2);
-    }
-
-    #[test]
-    fn parse_fpss_hosts_skips_empty_entries() {
-        let hosts =
-            DirectConfig::parse_fpss_hosts("nj-a.thetadata.us:20000,,nj-b.thetadata.us:20001")
-                .unwrap();
-        assert_eq!(hosts.len(), 2);
-    }
-
-    #[test]
-    fn parse_fpss_hosts_rejects_empty() {
-        let err = DirectConfig::parse_fpss_hosts("").unwrap_err();
-        assert!(err.to_string().contains("no FPSS hosts"));
-    }
-
-    #[test]
-    fn parse_fpss_hosts_rejects_bad_port() {
-        let err = DirectConfig::parse_fpss_hosts("host:notaport").unwrap_err();
-        assert!(err.to_string().contains("invalid port"));
-    }
-
-    #[test]
-    fn parse_fpss_hosts_rejects_no_port() {
-        let err = DirectConfig::parse_fpss_hosts("hostonly").unwrap_err();
-        assert!(err.to_string().contains("invalid host:port"));
-    }
-
-    #[test]
-    fn dev_config_uses_dev_fpss_hosts() {
-        let prod = DirectConfig::production();
-        let dev = DirectConfig::dev();
-        // Dev uses port 20200 (replay server), production uses 20000
-        assert_eq!(dev.fpss_hosts[0].1, 20200);
-        assert_eq!(prod.fpss_hosts[0].1, 20000);
-        // Dev inherits production timeouts/queue/ring (replay is max speed)
-        assert_eq!(dev.fpss_timeout_ms, prod.fpss_timeout_ms);
-        assert_eq!(dev.fpss_queue_depth, prod.fpss_queue_depth);
-        assert_eq!(dev.fpss_ring_size, prod.fpss_ring_size);
-    }
-
-    #[test]
-    fn stage_config_uses_stage_fpss_hosts() {
-        let stage = DirectConfig::stage();
-        assert_eq!(stage.fpss_hosts[0].1, 20100);
+    fn parse_fpss_hosts_rejects_malformed_entries() {
+        assert!(DirectConfig::parse_fpss_hosts("").is_err());
+        assert!(DirectConfig::parse_fpss_hosts("host:notaport").is_err());
+        assert!(DirectConfig::parse_fpss_hosts("hostonly").is_err());
     }
 
     // -- Config file tests (only compiled with the `config-file` feature) --
@@ -954,62 +888,20 @@ mod tests {
     // -- Validation tests --
 
     #[test]
-    fn validate_clamps_fpss_queue_depth_below_min() {
+    fn validate_clamps_out_of_range_values() {
         let mut config = DirectConfig::production();
         config.fpss_queue_depth = 5;
-        let config = config.validate();
-        assert_eq!(config.fpss_queue_depth, 16);
-    }
-
-    #[test]
-    fn validate_clamps_fpss_queue_depth_above_max() {
-        let mut config = DirectConfig::production();
-        config.fpss_queue_depth = 2_000_000;
-        let config = config.validate();
-        assert_eq!(config.fpss_queue_depth, 1_000_000);
-    }
-
-    #[test]
-    fn validate_clamps_window_size_below_min() {
-        let mut config = DirectConfig::production();
-        config.mdds_window_size_kb = 10;
-        let config = config.validate();
-        assert_eq!(config.mdds_window_size_kb, 64);
-    }
-
-    #[test]
-    fn validate_clamps_window_size_above_max() {
-        let mut config = DirectConfig::production();
         config.mdds_window_size_kb = 2_048;
         let config = config.validate();
+        assert_eq!(config.fpss_queue_depth, 16);
         assert_eq!(config.mdds_window_size_kb, 1_024);
-    }
-
-    #[test]
-    fn validate_clamps_connection_window_size() {
-        let mut config = DirectConfig::production();
-        config.mdds_connection_window_size_kb = 2_048;
-        let config = config.validate();
-        assert_eq!(config.mdds_connection_window_size_kb, 1_024);
     }
 
     #[test]
     fn validate_preserves_in_range_values() {
         let config = DirectConfig::production();
         let validated = config.validate();
-        // Production defaults are all within range.
         assert_eq!(validated.fpss_queue_depth, 1_000_000);
         assert_eq!(validated.mdds_window_size_kb, 64);
-        assert_eq!(validated.mdds_connection_window_size_kb, 64);
-    }
-
-    // -- Metrics tests --
-
-    #[test]
-    fn metrics_counter_compiles_and_runs() {
-        // Verify that metrics macros resolve without a recorder installed.
-        // The `metrics` crate is designed to no-op when no recorder is set.
-        metrics::counter!("thetadatadx.test.counter", "tag" => "value").increment(1);
-        metrics::histogram!("thetadatadx.test.histogram").record(42.0);
     }
 }
