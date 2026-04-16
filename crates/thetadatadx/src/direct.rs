@@ -84,13 +84,16 @@ pub(crate) fn wire_strike_opt(strike: &str) -> Option<String> {
 /// filter" state and `*` as its explicit wildcard. Both collapse to
 /// proto-unset here so the server applies the documented default; single
 /// sides (`C` / `P` / `call` / `put`, any case) normalize to `"call"` /
-/// `"put"`. Any other input reaches
-/// [`crate::wire_semantics::normalize_right`] via
-/// [`crate::right::parse_right`], which panics with a descriptive message
-/// on unrecognized values — matching the panic-on-bad-right convention
-/// used by [`crate::fpss::protocol::Contract::option`].
-pub(crate) fn wire_right_opt(right: &str) -> Option<String> {
-    crate::wire_semantics::wire_right_opt(right)
+/// `"put"`. Any other input produces
+/// [`Error::Config`](crate::error::Error::Config) carrying the message
+/// from [`crate::right::parse_right`].
+///
+/// # Errors
+///
+/// Returns `Error::Config` if `right` is not one of the accepted SDK
+/// surface forms.
+pub(crate) fn wire_right_opt(right: &str) -> Result<Option<String>, Error> {
+    crate::wire_semantics::wire_right_opt(right).map_err(Error::from)
 }
 
 /// Helper: build a `proto::ContractSpec` from the four standard option params.
@@ -106,7 +109,7 @@ macro_rules! contract_spec {
             symbol: $symbol.to_string(),
             expiration: normalize_expiration(&$expiration.to_string()),
             strike: wire_strike_opt(&$strike.to_string()),
-            right: wire_right_opt(&$right.to_string()),
+            right: wire_right_opt(&$right.to_string())?,
         })
     };
 }
@@ -698,33 +701,32 @@ mod tests {
 
     #[test]
     fn wire_right_opt_treats_wildcards_as_unset() {
-        assert_eq!(wire_right_opt("*"), None);
-        assert_eq!(wire_right_opt("both"), None);
-        assert_eq!(wire_right_opt("BOTH"), None);
-        assert_eq!(wire_right_opt("Both"), None);
+        assert_eq!(wire_right_opt("*").unwrap(), None);
+        assert_eq!(wire_right_opt("both").unwrap(), None);
+        assert_eq!(wire_right_opt("BOTH").unwrap(), None);
+        assert_eq!(wire_right_opt("Both").unwrap(), None);
     }
 
     #[test]
-    #[should_panic(expected = "invalid option right")]
     fn wire_right_opt_rejects_undocumented_forms() {
-        // Matches Contract::option's panic-on-bad-right convention;
-        // validate_right catches these earlier on the endpoint path.
-        let _ = wire_right_opt("");
+        // validate_right catches these earlier on the endpoint path;
+        // wire_right_opt is the last defense and now returns an error
+        // instead of panicking across FFI.
+        assert!(wire_right_opt("").is_err());
     }
 
     #[test]
-    #[should_panic(expected = "invalid option right")]
     fn wire_right_opt_rejects_zero_sentinel() {
-        let _ = wire_right_opt("0");
+        assert!(wire_right_opt("0").is_err());
     }
 
     #[test]
     fn wire_right_opt_forwards_single_sides_normalized() {
-        assert_eq!(wire_right_opt("C"), Some("call".to_string()));
-        assert_eq!(wire_right_opt("c"), Some("call".to_string()));
-        assert_eq!(wire_right_opt("call"), Some("call".to_string()));
-        assert_eq!(wire_right_opt("CALL"), Some("call".to_string()));
-        assert_eq!(wire_right_opt("P"), Some("put".to_string()));
-        assert_eq!(wire_right_opt("put"), Some("put".to_string()));
+        assert_eq!(wire_right_opt("C").unwrap(), Some("call".to_string()));
+        assert_eq!(wire_right_opt("c").unwrap(), Some("call".to_string()));
+        assert_eq!(wire_right_opt("call").unwrap(), Some("call".to_string()));
+        assert_eq!(wire_right_opt("CALL").unwrap(), Some("call".to_string()));
+        assert_eq!(wire_right_opt("P").unwrap(), Some("put".to_string()));
+        assert_eq!(wire_right_opt("put").unwrap(), Some("put".to_string()));
     }
 }

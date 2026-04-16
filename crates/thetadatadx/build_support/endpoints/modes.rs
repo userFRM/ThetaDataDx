@@ -516,7 +516,13 @@ fn canonicalize_wire_arg(param_name: &str, value: &str) -> String {
     match param_name {
         "expiration" => normalize_expiration(value),
         "strike" => wire_strike_opt(value).unwrap_or_else(|| UNSET_WIRE_ARG_SENTINEL.to_string()),
-        "right" => wire_right_opt(value).unwrap_or_else(|| UNSET_WIRE_ARG_SENTINEL.to_string()),
+        // Build-time only: fixture inputs come from this repo's TOML, so a
+        // bad `right` here is a build script bug -- treat it as the sentinel
+        // and let the downstream validator flag it.
+        "right" => wire_right_opt(value)
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| UNSET_WIRE_ARG_SENTINEL.to_string()),
         _ => value.to_string(),
     }
 }
