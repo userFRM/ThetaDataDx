@@ -1778,7 +1778,9 @@ fn decode_frame(
                 tracing::debug!(id, contract = %contract, "contract assigned");
                 // Pre-render the symbol string once and cache as Arc<str>
                 // so resolve_symbol() on the hot path is just Arc::clone.
-                let symbol_str: Arc<str> = Arc::from(contract.to_string().as_str());
+                // `Arc::<str>::from(String)` consumes the String's heap buffer
+                // directly instead of allocating a fresh copy from the &str.
+                let symbol_str: Arc<str> = Arc::<str>::from(contract.to_string());
                 // Insert into thread-local cache (zero-lock hot-path lookups).
                 local_symbols.insert(id, symbol_str);
                 // Also update shared map for external callers (contract_map(),
