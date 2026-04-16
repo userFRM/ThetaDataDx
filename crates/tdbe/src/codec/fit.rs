@@ -56,11 +56,7 @@ impl FitRows {
     /// Number of decoded rows.
     #[must_use]
     pub fn len(&self) -> usize {
-        if self.num_columns == 0 {
-            0
-        } else {
-            self.data.len() / self.num_columns
-        }
+        self.data.len().checked_div(self.num_columns).unwrap_or(0)
     }
 
     /// Whether no rows were decoded.
