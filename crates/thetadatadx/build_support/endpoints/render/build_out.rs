@@ -50,6 +50,13 @@ const VALIDATOR_TEMPLATES: &[&str] = &[
     "validate_cpp/preamble.cpp.tmpl",
     "validate_cpp/cell.cpp.tmpl",
     "validate_cpp/postamble.cpp.tmpl",
+    // Emitter body templates (W8).
+    "go/with_timeout_ms.go.tmpl",
+    "go/with_deadline.go.tmpl",
+    "go/int_case.go.tmpl",
+    "go/float_case.go.tmpl",
+    "go/bool_case.go.tmpl",
+    "go/string_case.go.tmpl",
 ];
 
 fn generate_endpoint_registry(parsed: &ParsedEndpoints) -> Result<(), Box<dyn std::error::Error>> {

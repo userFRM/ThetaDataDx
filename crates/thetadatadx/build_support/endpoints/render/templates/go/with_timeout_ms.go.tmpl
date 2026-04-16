@@ -1,0 +1,11 @@
+// WithTimeoutMs sets the per-call deadline in milliseconds. On expiry
+// the in-flight gRPC call is cancelled (the underlying stream is
+// dropped, freeing the request semaphore) and the call returns an
+// error containing "Request deadline exceeded".
+func WithTimeoutMs(value uint64) EndpointOption {
+	return func(options *EndpointRequestOptions) {
+		valueCopy := value
+		options.TimeoutMs = &valueCopy
+	}
+}
+
