@@ -375,6 +375,11 @@ pub fn extract_price_column(table: &proto::DataTable, header: &str) -> Vec<Optio
 /// in column-oriented endpoints like Greeks/calendar which use `extract_number_column`
 /// (which returns `Option`). For tick parsing, defaulting to 0 is correct and
 /// matches the Java terminal's behavior.
+///
+/// `NullValue` is expected and silent. Any other type mismatch (Price, Text,
+/// etc.) is logged at `warn` level with the column index and observed type —
+/// these indicate upstream schema drift and should be surfaced in production
+/// logs, not buried at `trace`.
 // Reason: protocol-defined integer widths from Java FPSS specification.
 #[allow(clippy::cast_possible_truncation)]
 pub(crate) fn row_number(row: &proto::DataValueList, idx: usize) -> i32 {
@@ -386,11 +391,12 @@ pub(crate) fn row_number(row: &proto::DataValueList, idx: usize) -> i32 {
             // v3 MDDS returns Timestamp for time columns.
             // Extract milliseconds-of-day (ET timezone).
             proto::data_value::DataType::Timestamp(ts) => Some(timestamp_to_ms_of_day(ts.epoch_ms)),
+            proto::data_value::DataType::NullValue(_) => None,
             other => {
-                tracing::trace!(
+                tracing::warn!(
                     column = idx,
                     data_type = ?other,
-                    "unexpected cell type in tick row, defaulting to 0"
+                    "row_number: unexpected cell type, defaulting to 0 (schema drift?)"
                 );
                 None
             }
@@ -451,6 +457,10 @@ pub(crate) fn row_price_f64(row: &proto::DataValueList, idx: usize) -> f64 {
 /// Handles both `Number` cells (raw f64) and `Price` cells (value + `price_type`
 /// encoding). The v3 MDDS server sends Greeks, IV, and other f64 fields as
 /// Price-encoded values.
+///
+/// `NullValue` is expected and silent. Any other type mismatch (Timestamp,
+/// Text, etc.) is logged at `warn` level with the column index and observed
+/// type so schema drift is visible in production logs.
 // Reason: market-data i64 values are within f64 mantissa range; items defined near usage.
 #[allow(clippy::items_after_statements, clippy::cast_precision_loss)]
 pub(crate) fn row_float(row: &proto::DataValueList, idx: usize) -> f64 {
@@ -471,7 +481,15 @@ pub(crate) fn row_float(row: &proto::DataValueList, idx: usize) -> f64 {
                     }
                 }
             }
-            _ => None,
+            proto::data_value::DataType::NullValue(_) => None,
+            other => {
+                tracing::warn!(
+                    column = idx,
+                    data_type = ?other,
+                    "row_float: unexpected cell type, defaulting to 0.0 (schema drift?)"
+                );
+                None
+            }
         })
         .unwrap_or(0.0)
 }
