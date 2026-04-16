@@ -2742,9 +2742,24 @@ pub unsafe extern "C" fn tdx_unified_reconnect(handle: *const TdxUnified) -> i32
     }
     let handle = unsafe { &*handle };
 
-    // Save active subscriptions
-    let saved_subs = handle.inner.active_subscriptions().unwrap_or_default();
-    let saved_full_subs = handle.inner.active_full_subscriptions().unwrap_or_default();
+    // Save active subscriptions. If streaming isn't running (or the
+    // subscription locks are poisoned upstream) we must abort the
+    // reconnect -- silently falling back to an empty list drops every
+    // subscription on the floor.
+    let saved_subs = match handle.inner.active_subscriptions() {
+        Ok(subs) => subs,
+        Err(e) => {
+            set_error(&e.to_string());
+            return -1;
+        }
+    };
+    let saved_full_subs = match handle.inner.active_full_subscriptions() {
+        Ok(subs) => subs,
+        Err(e) => {
+            set_error(&e.to_string());
+            return -1;
+        }
+    };
 
     // Stop streaming
     handle.inner.stop_streaming();
