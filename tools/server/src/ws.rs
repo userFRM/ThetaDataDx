@@ -471,16 +471,41 @@ fn contract_to_json(c: &Contract) -> sonic_rs::Value {
 
 /// Start the FPSS -> WebSocket bridge via `ThetaDataDx::start_streaming()`.
 ///
-/// Registers a callback that broadcasts events to WS clients.
+/// The Disruptor callback runs on a blocking consumer thread and must stay
+/// cheap. It only: (1) updates the contract map and connection flags,
+/// (2) hands a cloned event to an unbounded channel. A dedicated tokio task
+/// locks the map, serializes the JSON, and fans out to every WS client.
 pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
     let contract_map: Arc<Mutex<HashMap<i32, Contract>>> = state.contract_map();
-    let map_clone = Arc::clone(&contract_map);
-    let state_clone = state.clone();
+    let map_for_cb = Arc::clone(&contract_map);
+    let map_for_task = Arc::clone(&contract_map);
+    let state_for_cb = state.clone();
+    let state_for_task = state.clone();
+
+    // Unbounded mpsc keeps the Disruptor callback non-blocking even if the
+    // broadcast task is briefly slow. Memory is bounded by channel drain
+    // rate; clients get bounded per-client backpressure inside broadcast_ws.
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<FpssEvent>();
+
+    tokio::spawn(async move {
+        while let Some(event) = rx.recv().await {
+            let json = {
+                let map = map_for_task.lock().unwrap_or_else(|e| e.into_inner());
+                fpss_event_to_ws_json(&event, &map)
+            };
+            if let Some(ws_json) = json {
+                let msg: Arc<str> = Arc::from(ws_json);
+                state_for_task.broadcast_ws(msg);
+            }
+        }
+    });
 
     state.tdx().start_streaming(move |event: &FpssEvent| {
-        // Track contract assignments.
+        // Track contract assignments. Must happen on the callback thread so
+        // the broadcast task sees the mapping before it serializes the next
+        // event that references it.
         if let FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) = event {
-            if let Ok(mut map) = map_clone.lock() {
+            if let Ok(mut map) = map_for_cb.lock() {
                 map.insert(*id, contract.clone());
             }
         }
@@ -488,20 +513,16 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
         // Update connection status.
         match event {
             FpssEvent::Control(FpssControl::LoginSuccess { .. }) => {
-                state_clone.set_fpss_connected(true);
+                state_for_cb.set_fpss_connected(true);
             }
             FpssEvent::Control(FpssControl::Disconnected { .. }) => {
-                state_clone.set_fpss_connected(false);
+                state_for_cb.set_fpss_connected(false);
             }
             _ => {}
         }
 
-        // Serialize once, fan out as Arc<str> (zero-copy per client).
-        let map = map_clone.lock().unwrap_or_else(|e| e.into_inner());
-        if let Some(ws_json) = fpss_event_to_ws_json(event, &map) {
-            let msg: Arc<str> = Arc::from(ws_json);
-            state_clone.broadcast_ws(msg);
-        }
+        // Hand off for serialization + broadcast. Callback returns immediately.
+        let _ = tx.send(event.clone());
     })?;
 
     state.set_fpss_connected(true);

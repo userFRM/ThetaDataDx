@@ -39,16 +39,73 @@ const MAX_DIGITS: usize = 10;
 /// DATE marker byte (0xCE as unsigned). In Java's signed byte world this is -50.
 const DATE_MARKER: u8 = 0xCE;
 
-/// Decode a FIT buffer in bulk, returning all rows as `Vec<Vec<i32>>`.
+/// Row-major buffer of decoded FIT ticks.
 ///
-/// This is a higher-level convenience that reads all rows from `buf` and
-/// applies delta decompression, returning absolute values per row.
+/// Stores all rows contiguously in a single `Vec<i32>` with `num_columns`
+/// stride, rather than a `Vec<Vec<i32>>` that allocates per-row. Callers
+/// get rows via [`row`](Self::row) or iterate with [`iter`](Self::iter).
 ///
-/// Each inner `Vec<i32>` has exactly `fields_per_row` elements (zero-padded).
+/// For `N` rows of `C` columns this is one allocation instead of `N+1`.
+#[derive(Debug, Clone)]
+pub struct FitRows {
+    data: Vec<i32>,
+    num_columns: usize,
+}
+
+impl FitRows {
+    /// Number of decoded rows.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.data.len().checked_div(self.num_columns).unwrap_or(0)
+    }
+
+    /// Whether no rows were decoded.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
+    /// Column count (same for every row).
+    #[must_use]
+    pub fn num_columns(&self) -> usize {
+        self.num_columns
+    }
+
+    /// Borrow the row at index `i`. Panics if `i >= self.len()`.
+    #[must_use]
+    pub fn row(&self, i: usize) -> &[i32] {
+        let start = i * self.num_columns;
+        &self.data[start..start + self.num_columns]
+    }
+
+    /// Iterator over rows as slices.
+    pub fn iter(&self) -> impl Iterator<Item = &[i32]> + '_ {
+        self.data.chunks_exact(self.num_columns.max(1))
+    }
+
+    /// Consume into a `Vec<Vec<i32>>`. Reallocates per row; prefer
+    /// [`iter`](Self::iter) or [`row`](Self::row).
+    #[must_use]
+    pub fn into_vec_of_vec(self) -> Vec<Vec<i32>> {
+        if self.num_columns == 0 {
+            return Vec::new();
+        }
+        self.data
+            .chunks_exact(self.num_columns)
+            .map(<[i32]>::to_vec)
+            .collect()
+    }
+}
+
+/// Decode a FIT buffer in bulk, returning all rows in a single flat
+/// allocation.
+///
+/// Each row has exactly `fields_per_row` elements (zero-padded); use
+/// [`FitRows::row`] / [`FitRows::iter`] to access them.
 #[must_use]
-pub fn decode_fit_buffer_bulk(buf: &[u8], fields_per_row: usize) -> Vec<Vec<i32>> {
+pub fn decode_fit_buffer_bulk(buf: &[u8], fields_per_row: usize) -> FitRows {
     let mut reader = FitReader::new(buf);
-    let mut rows = Vec::new();
+    let mut data: Vec<i32> = Vec::new();
     let mut prev = vec![0i32; fields_per_row];
     let mut alloc = vec![0i32; fields_per_row];
     let mut first = true;
@@ -66,9 +123,12 @@ pub fn decode_fit_buffer_bulk(buf: &[u8], fields_per_row: usize) -> Vec<Vec<i32>
             apply_deltas(&mut alloc, &prev, n);
             prev.copy_from_slice(&alloc);
         }
-        rows.push(alloc.clone());
+        data.extend_from_slice(&alloc);
     }
-    rows
+    FitRows {
+        data,
+        num_columns: fields_per_row,
+    }
 }
 
 /// Stateful FIT stream reader.

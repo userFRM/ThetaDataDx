@@ -307,7 +307,11 @@ enum IoCommand {
 /// Source: `FPSSClient.java` -- main connection/reconnection state machine.
 pub struct FpssClient {
     /// Channel to send write commands to the I/O thread.
-    cmd_tx: std_mpsc::Sender<IoCommand>,
+    ///
+    /// `std::sync::mpsc::Sender` is `Send` but explicitly not `Sync` -- concurrent
+    /// `&self.send()` calls are UB. The `Mutex` makes `FpssClient: Sync` sound
+    /// under stdlib's own contract.
+    cmd_tx: Mutex<std_mpsc::Sender<IoCommand>>,
     /// Handle to the I/O thread (blocking TLS read + write drain).
     io_handle: Option<JoinHandle<()>>,
     /// Handle to the ping heartbeat thread.
@@ -327,12 +331,6 @@ pub struct FpssClient {
     /// The server address we connected to.
     server_addr: String,
 }
-
-// SAFETY: `Sender<IoCommand>` is `Send` but not `Sync`; however `Sender::send(&self)`
-// is internally synchronized and safe to call from multiple threads. `JoinHandle`
-// fields are only consumed in `Drop::drop(&mut self)` which requires exclusive access.
-// All other fields are `Send+Sync` or behind `Mutex`/`Atomic`.
-unsafe impl Sync for FpssClient {}
 
 impl FpssClient {
     /// Connect to a `ThetaData` FPSS server, authenticate, and start processing
@@ -523,7 +521,7 @@ impl FpssClient {
             })?;
 
         Ok(FpssClient {
-            cmd_tx,
+            cmd_tx: Mutex::new(cmd_tx),
             io_handle: Some(io_handle),
             ping_handle: Some(ping_handle),
             shutdown,
@@ -620,15 +618,10 @@ impl FpssClient {
         let req_id = self.next_req_id.fetch_add(1, Ordering::Relaxed);
         let payload = protocol::build_full_type_subscribe_payload(req_id, sec_type);
 
-        self.cmd_tx
-            .send(IoCommand::WriteFrame {
-                code: StreamMsgType::Trade,
-                payload,
-            })
-            .map_err(|_| Error::Fpss {
-                kind: crate::error::FpssErrorKind::Disconnected,
-                message: "I/O thread has exited".to_string(),
-            })?;
+        self.send_cmd(IoCommand::WriteFrame {
+            code: StreamMsgType::Trade,
+            payload,
+        })?;
 
         tracing::debug!(req_id, sec_type = ?sec_type, "sent full trade subscription");
 
@@ -664,15 +657,10 @@ impl FpssClient {
         let req_id = self.next_req_id.fetch_add(1, Ordering::Relaxed);
         let payload = protocol::build_full_type_subscribe_payload(req_id, sec_type);
 
-        self.cmd_tx
-            .send(IoCommand::WriteFrame {
-                code: StreamMsgType::OpenInterest,
-                payload,
-            })
-            .map_err(|_| Error::Fpss {
-                kind: crate::error::FpssErrorKind::Disconnected,
-                message: "I/O thread has exited".to_string(),
-            })?;
+        self.send_cmd(IoCommand::WriteFrame {
+            code: StreamMsgType::OpenInterest,
+            payload,
+        })?;
 
         tracing::debug!(req_id, sec_type = ?sec_type, "sent full open interest subscription");
 
@@ -706,15 +694,10 @@ impl FpssClient {
         let req_id = self.next_req_id.fetch_add(1, Ordering::Relaxed);
         let payload = protocol::build_full_type_subscribe_payload(req_id, sec_type);
 
-        self.cmd_tx
-            .send(IoCommand::WriteFrame {
-                code: StreamMsgType::RemoveTrade,
-                payload,
-            })
-            .map_err(|_| Error::Fpss {
-                kind: crate::error::FpssErrorKind::Disconnected,
-                message: "I/O thread has exited".to_string(),
-            })?;
+        self.send_cmd(IoCommand::WriteFrame {
+            code: StreamMsgType::RemoveTrade,
+            payload,
+        })?;
 
         // Remove from tracked subscriptions
         {
@@ -747,15 +730,10 @@ impl FpssClient {
         let req_id = self.next_req_id.fetch_add(1, Ordering::Relaxed);
         let payload = protocol::build_full_type_subscribe_payload(req_id, sec_type);
 
-        self.cmd_tx
-            .send(IoCommand::WriteFrame {
-                code: StreamMsgType::RemoveOpenInterest,
-                payload,
-            })
-            .map_err(|_| Error::Fpss {
-                kind: crate::error::FpssErrorKind::Disconnected,
-                message: "I/O thread has exited".to_string(),
-            })?;
+        self.send_cmd(IoCommand::WriteFrame {
+            code: StreamMsgType::RemoveOpenInterest,
+            payload,
+        })?;
 
         // Remove from tracked subscriptions
         {
@@ -808,12 +786,7 @@ impl FpssClient {
         let payload = build_subscribe_payload(req_id, contract);
         let code = kind.subscribe_code();
 
-        self.cmd_tx
-            .send(IoCommand::WriteFrame { code, payload })
-            .map_err(|_| Error::Fpss {
-                kind: crate::error::FpssErrorKind::Disconnected,
-                message: "I/O thread has exited".to_string(),
-            })?;
+        self.send_cmd(IoCommand::WriteFrame { code, payload })?;
 
         // Track for reconnection
         {
@@ -841,12 +814,7 @@ impl FpssClient {
         let payload = build_subscribe_payload(req_id, contract);
         let code = kind.unsubscribe_code();
 
-        self.cmd_tx
-            .send(IoCommand::WriteFrame { code, payload })
-            .map_err(|_| Error::Fpss {
-                kind: crate::error::FpssErrorKind::Disconnected,
-                message: "I/O thread has exited".to_string(),
-            })?;
+        self.send_cmd(IoCommand::WriteFrame { code, payload })?;
 
         // Remove from tracked subscriptions
         {
@@ -877,7 +845,7 @@ impl FpssClient {
         tracing::info!(server = %self.server_addr, "shutting down FPSS client");
 
         // Send shutdown command to I/O thread (which will send STOP to server).
-        let _ = self.cmd_tx.send(IoCommand::Shutdown);
+        let _ = self.send_cmd(IoCommand::Shutdown);
 
         // Clear active subscriptions on explicit shutdown. Involuntary disconnects
         // preserve the lists so `reconnect()` can re-subscribe automatically.
@@ -966,6 +934,19 @@ impl FpssClient {
         }
         Ok(())
     }
+
+    /// Send a command to the I/O thread. Maps channel-send failure to a
+    /// `Disconnected` FPSS error.
+    fn send_cmd(&self, cmd: IoCommand) -> Result<(), Error> {
+        self.cmd_tx
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .send(cmd)
+            .map_err(|_| Error::Fpss {
+                kind: crate::error::FpssErrorKind::Disconnected,
+                message: "I/O thread has exited".to_string(),
+            })
+    }
 }
 
 impl Drop for FpssClient {
@@ -973,7 +954,7 @@ impl Drop for FpssClient {
         // Signal shutdown if not already done.
         self.shutdown.store(true, Ordering::Release);
         // Send shutdown command so I/O thread exits its loop.
-        let _ = self.cmd_tx.send(IoCommand::Shutdown);
+        let _ = self.send_cmd(IoCommand::Shutdown);
 
         // Join background threads.
         if let Some(h) = self.ping_handle.take() {
@@ -1797,7 +1778,9 @@ fn decode_frame(
                 tracing::debug!(id, contract = %contract, "contract assigned");
                 // Pre-render the symbol string once and cache as Arc<str>
                 // so resolve_symbol() on the hot path is just Arc::clone.
-                let symbol_str: Arc<str> = Arc::from(contract.to_string().as_str());
+                // `Arc::<str>::from(String)` consumes the String's heap buffer
+                // directly instead of allocating a fresh copy from the &str.
+                let symbol_str: Arc<str> = Arc::<str>::from(contract.to_string());
                 // Insert into thread-local cache (zero-lock hot-path lookups).
                 local_symbols.insert(id, symbol_str);
                 // Also update shared map for external callers (contract_map(),
@@ -2252,13 +2235,7 @@ where
         let payload = build_subscribe_payload(-1, contract);
         let code = kind.subscribe_code();
 
-        client
-            .cmd_tx
-            .send(IoCommand::WriteFrame { code, payload })
-            .map_err(|_| Error::Fpss {
-                kind: crate::error::FpssErrorKind::Disconnected,
-                message: "I/O thread exited during reconnect".to_string(),
-            })?;
+        client.send_cmd(IoCommand::WriteFrame { code, payload })?;
 
         tracing::debug!(
             kind = ?kind,
@@ -2272,13 +2249,7 @@ where
         let payload = protocol::build_full_type_subscribe_payload(-1, *sec_type);
         let code = kind.subscribe_code();
 
-        client
-            .cmd_tx
-            .send(IoCommand::WriteFrame { code, payload })
-            .map_err(|_| Error::Fpss {
-                kind: crate::error::FpssErrorKind::Disconnected,
-                message: "I/O thread exited during reconnect".to_string(),
-            })?;
+        client.send_cmd(IoCommand::WriteFrame { code, payload })?;
 
         tracing::debug!(
             kind = ?kind,

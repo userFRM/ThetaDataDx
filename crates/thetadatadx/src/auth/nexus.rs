@@ -76,7 +76,10 @@ struct AuthRequest<'a> {
 ///
 /// Only the fields we need are deserialized; unknown fields are ignored
 /// via `#[serde(deny_unknown_fields)]` being absent.
-#[derive(Debug, Deserialize)]
+///
+/// `Debug` is implemented manually so `session_id` (a bearer token used in
+/// every MDDS request) is never written to logs.
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthResponse {
     /// Session UUID — the primary auth token for MDDS gRPC requests.
@@ -87,6 +90,16 @@ pub struct AuthResponse {
 
     /// ISO 8601 timestamp of session creation.
     pub session_created: Option<String>,
+}
+
+impl std::fmt::Debug for AuthResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AuthResponse")
+            .field("session_id", &"***")
+            .field("user", &self.user)
+            .field("session_created", &self.session_created)
+            .finish()
+    }
 }
 
 /// User info returned by the Nexus auth endpoint.
@@ -294,5 +307,17 @@ mod tests {
     fn terminal_key_is_valid_uuid() {
         // Sanity check: the hardcoded terminal key should be a valid UUID.
         Uuid::parse_str(TERMINAL_KEY).expect("TERMINAL_KEY must be a valid UUID");
+    }
+
+    #[test]
+    fn auth_response_debug_redacts_session_id() {
+        let resp = AuthResponse {
+            session_id: "11111111-2222-3333-4444-555555555555".to_string(),
+            user: None,
+            session_created: None,
+        };
+        let dbg = format!("{resp:?}");
+        assert!(!dbg.contains("11111111"), "session_id leaked: {dbg}");
+        assert!(dbg.contains("***"), "session_id not redacted: {dbg}");
     }
 }

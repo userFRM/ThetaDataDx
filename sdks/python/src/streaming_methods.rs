@@ -50,7 +50,7 @@ impl ThetaDataDx {
         strike: &str,
         right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
+        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right).map_err(to_py_err)?;
         self.tdx.subscribe_quotes(&contract).map_err(to_py_err)
     }
 
@@ -62,7 +62,7 @@ impl ThetaDataDx {
         strike: &str,
         right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
+        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right).map_err(to_py_err)?;
         self.tdx.subscribe_trades(&contract).map_err(to_py_err)
     }
 
@@ -74,7 +74,7 @@ impl ThetaDataDx {
         strike: &str,
         right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
+        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right).map_err(to_py_err)?;
         self.tdx.subscribe_open_interest(&contract).map_err(to_py_err)
     }
 
@@ -116,7 +116,7 @@ impl ThetaDataDx {
         strike: &str,
         right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
+        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right).map_err(to_py_err)?;
         self.tdx.unsubscribe_quotes(&contract).map_err(to_py_err)
     }
 
@@ -128,7 +128,7 @@ impl ThetaDataDx {
         strike: &str,
         right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
+        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right).map_err(to_py_err)?;
         self.tdx.unsubscribe_trades(&contract).map_err(to_py_err)
     }
 
@@ -140,7 +140,7 @@ impl ThetaDataDx {
         strike: &str,
         right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
+        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right).map_err(to_py_err)?;
         self.tdx.unsubscribe_open_interest(&contract).map_err(to_py_err)
     }
 
@@ -202,8 +202,27 @@ impl ThetaDataDx {
         drop(rx_outer);
         let timeout = std::time::Duration::from_millis(timeout_ms);
         let result = py.detach(move || {
-            let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());
-            rx.recv_timeout(timeout).ok()
+            // Poll with `try_recv` + short sleep so the inner lock is only
+            // held for nanoseconds per iteration. A blocking `recv_timeout`
+            // would pin the mutex for the full timeout and serialize any
+            // concurrent `next_event` / `reconnect` caller behind it.
+            let deadline = std::time::Instant::now() + timeout;
+            let poll_interval = std::time::Duration::from_millis(1);
+            loop {
+                {
+                    let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());
+                    match rx.try_recv() {
+                        Ok(event) => return Some(event),
+                        Err(std::sync::mpsc::TryRecvError::Disconnected) => return None,
+                        Err(std::sync::mpsc::TryRecvError::Empty) => {}
+                    }
+                }
+                let now = std::time::Instant::now();
+                if now >= deadline {
+                    return None;
+                }
+                std::thread::sleep(poll_interval.min(deadline - now));
+            }
         });
         match result {
             Some(event) => Ok(Some(buffered_event_to_py(py, &event))),

@@ -101,6 +101,23 @@ pub fn d2(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     d1(s, x, v, r, q, t) - v * t.sqrt()
 }
 
+/// Compute `d1` and `d2` together, sharing `t.sqrt()`.
+///
+/// Callers that need both values should use this helper; calling `d1()` and
+/// then `d2()` separately recomputes `d1` inside `d2` and double-pays the
+/// `sqrt`/`ln`/`exp` cost of the formula.
+// Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
+#[allow(clippy::many_single_char_names)]
+#[inline]
+fn d1_d2(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> (f64, f64) {
+    if is_degenerate(v, t) {
+        return (0.0, 0.0);
+    }
+    let v_sqrt_t = v * t.sqrt();
+    let d1 = ((s / x).ln() + t * (r - q + v * v / 2.0)) / v_sqrt_t;
+    (d1, d1 - v_sqrt_t)
+}
+
 fn e1_from_d1(d1_val: f64) -> f64 {
     (-d1_val.powi(2) / 2.0).exp()
 }
@@ -119,8 +136,7 @@ pub fn value(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f
         };
         return intrinsic;
     }
-    let d1_val = d1(s, x, v, r, q, t);
-    let d2_val = d2(s, x, v, r, q, t);
+    let (d1_val, d2_val) = d1_d2(s, x, v, r, q, t);
     if is_call {
         s * (-q * t).exp() * norm_cdf(d1_val) - (-r * t).exp() * x * norm_cdf(d2_val)
     } else {
@@ -150,8 +166,7 @@ pub fn theta(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f
     if is_degenerate(v, t) {
         return 0.0;
     }
-    let d1_val = d1(s, x, v, r, q, t);
-    let d2_val = d2(s, x, v, r, q, t);
+    let (d1_val, d2_val) = d1_d2(s, x, v, r, q, t);
     let term1 = -(-q * t).exp() * (s * f1(d1_val) * v) / (2.0 * t.sqrt());
     if is_call {
         (term1 - r * x * (-r * t).exp() * norm_cdf(d2_val)
@@ -233,8 +248,7 @@ pub fn vanna(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
     }
-    let d1_val = d1(s, x, v, r, q, t);
-    let d2_val = d2(s, x, v, r, q, t);
+    let (d1_val, d2_val) = d1_d2(s, x, v, r, q, t);
     -(-q * t).exp() * f1(d1_val) * d2_val / v
 }
 
@@ -245,8 +259,7 @@ pub fn charm(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64, is_call: bool) -> f
     if is_degenerate(v, t) {
         return 0.0;
     }
-    let d1_val = d1(s, x, v, r, q, t);
-    let d2_val = d2(s, x, v, r, q, t);
+    let (d1_val, d2_val) = d1_d2(s, x, v, r, q, t);
     let p1 = (2.0 * (r - q) * t - d2_val * v * t.sqrt()) / (2.0 * t * v * t.sqrt());
     if is_call {
         q * (-q * t).exp() * norm_cdf(d1_val) - (-q * t).exp() * f1(d1_val) * p1
@@ -262,8 +275,7 @@ pub fn vomma(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
     }
-    let d1_val = d1(s, x, v, r, q, t);
-    let d2_val = d2(s, x, v, r, q, t);
+    let (d1_val, d2_val) = d1_d2(s, x, v, r, q, t);
     vega(s, x, v, r, q, t) * (d1_val * d2_val / v)
 }
 
@@ -274,8 +286,7 @@ pub fn veta(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
     }
-    let d1_val = d1(s, x, v, r, q, t);
-    let d2_val = d2(s, x, v, r, q, t);
+    let (d1_val, d2_val) = d1_d2(s, x, v, r, q, t);
     -s * (-q * t).exp()
         * f1(d1_val)
         * t.sqrt()
@@ -300,8 +311,7 @@ pub fn zomma(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
     }
-    let d1_val = d1(s, x, v, r, q, t);
-    let d2_val = d2(s, x, v, r, q, t);
+    let (d1_val, d2_val) = d1_d2(s, x, v, r, q, t);
     (-q * t).exp() * f1(d1_val) * (d1_val * d2_val - 1.0) / (s * v * v * t.sqrt())
 }
 
@@ -312,8 +322,7 @@ pub fn color(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
     }
-    let d1_val = d1(s, x, v, r, q, t);
-    let d2_val = d2(s, x, v, r, q, t);
+    let (d1_val, d2_val) = d1_d2(s, x, v, r, q, t);
     -(-q * t).exp() * f1(d1_val) / (2.0 * s * t * v * t.sqrt())
         * (2.0 * q * t
             + 1.0
@@ -327,8 +336,7 @@ pub fn ultima(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
     }
-    let d1_val = d1(s, x, v, r, q, t);
-    let d2_val = d2(s, x, v, r, q, t);
+    let (d1_val, d2_val) = d1_d2(s, x, v, r, q, t);
     let out = -vega(s, x, v, r, q, t) / (v * v)
         * (d1_val * d2_val * (1.0 - d1_val * d2_val) + d1_val * d1_val + d2_val * d2_val);
     out.clamp(-100.0, 100.0)

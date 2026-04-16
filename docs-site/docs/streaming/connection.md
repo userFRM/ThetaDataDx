@@ -255,7 +255,7 @@ tdx.subscribe_trades(&Contract::stock("MSFT"))?;
 tdx.subscribe_all(&Contract::stock("TSLA"))?;
 
 // Option quotes
-let opt = Contract::option("SPY", "20261218", "600", "C");
+let opt = Contract::option("SPY", "20261218", "600", "C")?;
 tdx.subscribe_quotes(&opt)?;
 
 // Open interest

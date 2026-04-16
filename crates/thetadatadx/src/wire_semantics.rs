@@ -11,14 +11,12 @@ pub(crate) const DEFAULT_STOCK_VENUE: &str = "nqb";
 /// Lowercase string expected by the MDDS server (`"call"` / `"put"` /
 /// `"both"`).
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if `right` is not one of the accepted SDK surface forms.
-pub(crate) fn normalize_right(right: &str) -> String {
-    tdbe::right::parse_right(right)
-        .unwrap_or_else(|err| panic!("{err}"))
-        .as_mdds_str()
-        .to_string()
+/// Returns the underlying `tdbe::right::parse_right` error if `right`
+/// is not one of the accepted SDK surface forms.
+pub(crate) fn normalize_right(right: &str) -> Result<String, tdbe::error::Error> {
+    Ok(tdbe::right::parse_right(right)?.as_mdds_str().to_string())
 }
 
 /// Canonicalize the `expiration` parameter for the MDDS server.
@@ -43,11 +41,16 @@ pub(crate) fn wire_strike_opt(strike: &str) -> Option<String> {
 }
 
 /// Map the SDK `right` vocabulary to the wire representation.
-pub(crate) fn wire_right_opt(right: &str) -> Option<String> {
-    match tdbe::right::parse_right(right).unwrap_or_else(|err| panic!("{err}")) {
-        tdbe::right::ParsedRight::Both => None,
+///
+/// # Errors
+///
+/// Returns the underlying `tdbe::right::parse_right` error if `right`
+/// is not one of the accepted SDK surface forms.
+pub(crate) fn wire_right_opt(right: &str) -> Result<Option<String>, tdbe::error::Error> {
+    match tdbe::right::parse_right(right)? {
+        tdbe::right::ParsedRight::Both => Ok(None),
         tdbe::right::ParsedRight::Call | tdbe::right::ParsedRight::Put => {
-            Some(normalize_right(right))
+            Ok(Some(normalize_right(right)?))
         }
     }
 }

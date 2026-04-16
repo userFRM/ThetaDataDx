@@ -40,6 +40,8 @@
 
 use tdbe::types::enums::{RemoveReason, SecType, StreamMsgType, StreamResponseType};
 
+use crate::error::Error;
+
 /// Maximum payload size for a single FPSS frame (1-byte length field).
 ///
 /// Source: `PacketStream.java` — `LEN` field is a single unsigned byte.
@@ -142,31 +144,48 @@ impl Contract {
     ///   (case-insensitive). FPSS per-contract subscriptions cannot carry
     ///   the `both` / `*` wildcard, so those values are rejected.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics with a descriptive message if `exp_date`, `strike`, or
-    /// `right` cannot be parsed. This matches the existing panic-on-
-    /// invalid-input style for strike/expiration. Use
-    /// [`crate::right::parse_right_strict`] upstream for fallible parsing
-    /// of untrusted input.
-    pub fn option(root: impl Into<String>, exp_date: &str, strike: &str, right: &str) -> Self {
+    /// Returns [`Error::Config`] if `exp_date` is not a valid integer date,
+    /// if `right` cannot be parsed to a single side, if `strike` is not a
+    /// valid f64, or if `strike * 1000` would overflow `i32`.
+    pub fn option(
+        root: impl Into<String>,
+        exp_date: &str,
+        strike: &str,
+        right: &str,
+    ) -> Result<Self, Error> {
         let exp: i32 = exp_date
             .replace('-', "")
             .parse()
-            .expect("invalid expiration date");
-        let is_call = crate::right::parse_right_strict(right)
-            .unwrap_or_else(|err| panic!("{err}"))
+            .map_err(|e| Error::Config(format!("invalid expiration date {exp_date:?}: {e}")))?;
+        let is_call = crate::right::parse_right_strict(right)?
             .as_is_call()
-            .expect("parse_right_strict guarantees single-side resolution");
-        let strike_dollars: f64 = strike.parse().expect("invalid strike price");
-        let strike_raw = (strike_dollars * 1000.0).round() as i32;
-        Self {
+            .ok_or_else(|| {
+                Error::Config("parse_right_strict returned Both despite strict mode".to_string())
+            })?;
+        let strike_dollars: f64 = strike
+            .parse()
+            .map_err(|e| Error::Config(format!("invalid strike price {strike:?}: {e}")))?;
+        let strike_scaled = (strike_dollars * 1000.0).round();
+        if !strike_scaled.is_finite()
+            || strike_scaled < f64::from(i32::MIN)
+            || strike_scaled > f64::from(i32::MAX)
+        {
+            return Err(Error::Config(format!(
+                "strike {strike_dollars} out of i32 range after *1000 scaling"
+            )));
+        }
+        // Reason: bounds checked above.
+        #[allow(clippy::cast_possible_truncation)]
+        let strike_raw = strike_scaled as i32;
+        Ok(Self {
             root: root.into(),
             sec_type: SecType::Option,
             exp_date: Some(exp),
             is_call: Some(is_call),
             strike: Some(strike_raw),
-        }
+        })
     }
 
     /// Construct from raw wire-format values (integer expiration, bool call/put, raw strike).
@@ -661,7 +680,7 @@ mod tests {
 
     #[test]
     fn option_contract_roundtrip() {
-        let c = Contract::option("SPY", "20261218", "60", "C");
+        let c = Contract::option("SPY", "20261218", "60", "C").unwrap();
         let bytes = c.to_bytes();
         // Java: 12 + root.length() = 12 + 3 = 15 total bytes, size byte = 15
         assert_eq!(bytes.len(), 15);
@@ -796,7 +815,7 @@ mod tests {
 
     #[test]
     fn contract_display_option() {
-        let c = Contract::option("SPY", "20261218", "45", "P");
+        let c = Contract::option("SPY", "20261218", "45", "P").unwrap();
         assert_eq!(c.to_string(), "SPY OPTION 20261218 P 45000");
     }
 
@@ -856,7 +875,7 @@ mod tests {
         // Java: root="SPY" (3 bytes), sec=OPTION, exp=20261218, isCall=true, strike=60000
         // Java allocates: 12 + 3 = 15 bytes
         // Wire: [15, 3, 'S','P','Y', sec_type, exp(4), is_call(1), strike(4)]
-        let c = Contract::option("SPY", "20261218", "60", "C");
+        let c = Contract::option("SPY", "20261218", "60", "C").unwrap();
         let bytes = c.to_bytes();
         assert_eq!(bytes[0], 15); // size byte = 12 + root.length()
         assert_eq!(bytes[1], 3); // root_len
@@ -880,6 +899,24 @@ mod tests {
         assert_eq!(&bytes[2..5], b"SPX");
         assert_eq!(bytes[5], SecType::Index as u8);
         assert_eq!(bytes.len(), 6);
+    }
+
+    #[test]
+    fn option_rejects_invalid_strike() {
+        // Garbage strike string -- must return Err, not panic.
+        assert!(Contract::option("SPY", "20261218", "not-a-number", "C").is_err());
+    }
+
+    #[test]
+    fn option_rejects_overflowing_strike() {
+        // Strike * 1000 exceeds i32::MAX. Must return Err, not wrap silently.
+        assert!(Contract::option("SPY", "20261218", "3000000", "C").is_err());
+    }
+
+    #[test]
+    fn option_rejects_invalid_expiration() {
+        // Non-numeric expiration -- must return Err, not panic.
+        assert!(Contract::option("SPY", "not-a-date", "60", "C").is_err());
     }
 
     #[test]
