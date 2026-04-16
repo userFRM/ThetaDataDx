@@ -80,36 +80,36 @@ jobs:
   sdk-bindings:
     name: SDK Bindings (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    needs: check
-    timeout-minutes: 45
+    needs: build-ffi
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             go_enabled: true
+            ffi_artifact: ffi-linux-x86_64
           - os: macos-latest
             go_enabled: true
+            ffi_artifact: ffi-macos-arm64
           - os: windows-latest
             go_enabled: true
+            ffi_artifact: ffi-windows-msvc-x86_64
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
       - if: matrix.go_enabled
         uses: actions/setup-go@v6
         with:
           go-version: "1.23"
-      - uses: Swatinem/rust-cache@v2
-      - uses: ./.github/actions/install-protoc
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.ffi_artifact }}
+          path: target/release/
       - if: runner.os == 'Windows' && matrix.go_enabled
-        shell: bash
-        run: rustup target add x86_64-pc-windows-gnu
-      - run: cargo build --release -p thetadatadx-ffi --locked
-      - if: runner.os == 'Windows' && matrix.go_enabled
-        shell: bash
-        env:
-          CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER: gcc
-        run: cargo build --release --target x86_64-pc-windows-gnu -p thetadatadx-ffi --locked
+        uses: actions/download-artifact@v8
+        with:
+          name: ffi-windows-gnu-x86_64
+          path: target/x86_64-pc-windows-gnu/release/
       - run: cmake -S sdks/cpp -B build/cpp
       - run: cmake --build build/cpp --config Release --target thetadatadx_cpp
       - if: matrix.go_enabled
