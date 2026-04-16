@@ -82,9 +82,10 @@ def _extract_first_row(parsed):
         return _canonicalize(parsed)
     return None
 
-for endpoint, mode, min_tier, rationale, argv in CELLS:
+for endpoint, mode, min_tier, rationale, argv, slow in CELLS:
     label = f"{endpoint}::{mode}"
     t0 = time.monotonic()
+    cell_timeout_ms = SLOW_MODE_TIMEOUT_MS if slow else PER_CELL_TIMEOUT_MS
     try:
         proc = subprocess.run(
             # --format json-raw keeps dates as YYYYMMDD ints and ms_of_day as raw
@@ -95,7 +96,7 @@ for endpoint, mode, min_tier, rationale, argv in CELLS:
             # instead of being SIGKILLed by the subprocess kill-switch below.
             [
                 str(TDX), "--creds", creds,
-                "--timeout-ms", str(PER_CELL_TIMEOUT_MS),
+                "--timeout-ms", str(cell_timeout_ms),
                 *argv, "--format", "json-raw",
             ],
             cwd=REPO,

@@ -36,7 +36,15 @@ pub(super) fn render_go_validate(
                 }
             }
             // Cross-cutting deadline (W3): SDK enforces and cancels on expiry.
-            args_parts.push("WithTimeoutMs(perCellTimeoutMs)".into());
+            // Bulk-chain / all-strike cells use `slowModeTimeoutMs` since a
+            // full option chain payload legitimately takes longer than 60s.
+            let timeout_sym = if matches!(mode.name.as_str(), "all_strikes_one_exp" | "bulk_chain")
+            {
+                "slowModeTimeoutMs"
+            } else {
+                "perCellTimeoutMs"
+            };
+            args_parts.push(format!("WithTimeoutMs({timeout_sym})"));
             let args = args_parts.join(", ");
             write!(
                 out,

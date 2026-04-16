@@ -16,10 +16,11 @@ func classify(endpoint, mode, declaredMinTier, rationale string, v interface{}, 
 	// Per-call deadline elapsed: SDK cancelled the in-flight gRPC stream
 	// (the next cell runs normally on the same *Client).
 	if strings.Contains(lowered, "request deadline exceeded") {
-		fmt.Printf("  %-60s FAIL  timeout after 60s\n", label)
+		secs := int(dur / time.Second)
+		fmt.Printf("  %-60s FAIL  timeout after %ds\n", label, secs)
 		*fail++
 		rec.Status = "FAIL"
-		rec.Detail = "timeout after 60s"
+		rec.Detail = fmt.Sprintf("timeout after %ds", secs)
 		rec.RowCount = 0
 		return append(records, rec)
 	}

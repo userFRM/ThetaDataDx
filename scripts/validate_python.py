@@ -11,11 +11,14 @@ and are classified `SKIP: tier-permission`. Real configuration bugs
 (invalid arguments, wire-format errors) surface as `FAIL`. See issue
 #287.
 
-Each cell carries a 60-second per-call deadline that the Rust SDK enforces
-via `tokio::time::timeout`. On expiry the in-flight gRPC stream is
-cancelled and a RuntimeError carrying "Request deadline exceeded" is
-raised. The `ThetaDataDx` handle stays usable for subsequent cells.
-See [docs/dev/w3-async-cancellation-design.md] (W3).
+Each cell carries a per-call deadline that the Rust SDK enforces via
+`tokio::time::timeout`. Concrete and list-style cells use the 60-second
+baseline; bulk cells (`all_strikes_one_exp`, `bulk_chain` on option
+history / at-time endpoints) use 180 seconds because a full-chain
+payload legitimately takes longer than a minute. On expiry the in-flight
+gRPC stream is cancelled and a RuntimeError carrying "Request deadline
+exceeded" is raised. The `ThetaDataDx` handle stays usable for
+subsequent cells. See [docs/dev/w3-async-cancellation-design.md] (W3).
 """
 import json
 import pathlib
@@ -25,6 +28,7 @@ import time
 from thetadatadx import Credentials, Config, ThetaDataDx
 
 PER_CELL_TIMEOUT_MS = 60_000
+SLOW_MODE_TIMEOUT_MS = 180_000
 ARTIFACT_PATH = pathlib.Path(__file__).resolve().parents[1] / "artifacts" / "validator_python.json"
 
 client = ThetaDataDx(Credentials.from_file(sys.argv[1]), Config.production())
@@ -150,13 +154,13 @@ CELLS = [
     ("option_snapshot_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.option_snapshot_ohlc("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_ohlc::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_snapshot_ohlc", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_ohlc("SPY", "20250321", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_ohlc", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_ohlc("SPY", "20250321", "*", "both", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_snapshot_ohlc::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_snapshot_ohlc", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_snapshot_ohlc("SPY", "*", "570", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_ohlc::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_snapshot_ohlc", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_ohlc("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_ohlc", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_ohlc("SPY", "*", "*", "both", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_snapshot_ohlc::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_snapshot_ohlc", "with_max_dte", "value", "max_dte=30 optional filter wiring", lambda: client.option_snapshot_ohlc("SPY", "20250321", "570", "C", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -174,7 +178,7 @@ CELLS = [
     ("option_snapshot_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_snapshot_trade("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_trade::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_snapshot_trade", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_trade("SPY", "20250321", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_trade", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_trade("SPY", "20250321", "*", "both", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_snapshot_trade::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
     ("option_snapshot_trade", "with_strike_range", "standard", "strike_range=10 optional filter wiring", lambda: client.option_snapshot_trade("SPY", "20250321", "570", "C", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -189,13 +193,13 @@ CELLS = [
     ("option_snapshot_quote", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.option_snapshot_quote("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_quote::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_snapshot_quote", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_quote("SPY", "20250321", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_quote", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_quote("SPY", "20250321", "*", "both", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_snapshot_quote::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_snapshot_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_snapshot_quote("SPY", "*", "570", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_quote::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_snapshot_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_quote("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_quote("SPY", "*", "*", "both", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_snapshot_quote::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_snapshot_quote", "with_max_dte", "value", "max_dte=30 optional filter wiring", lambda: client.option_snapshot_quote("SPY", "20250321", "570", "C", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -213,13 +217,13 @@ CELLS = [
     ("option_snapshot_open_interest", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.option_snapshot_open_interest("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_open_interest::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_snapshot_open_interest", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_open_interest("SPY", "20250321", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_open_interest", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_open_interest("SPY", "20250321", "*", "both", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_snapshot_open_interest::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_snapshot_open_interest", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_snapshot_open_interest("SPY", "*", "570", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_open_interest::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_snapshot_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_open_interest("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_open_interest("SPY", "*", "*", "both", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_snapshot_open_interest::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_snapshot_open_interest", "with_max_dte", "value", "max_dte=30 optional filter wiring", lambda: client.option_snapshot_open_interest("SPY", "20250321", "570", "C", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -237,13 +241,13 @@ CELLS = [
     ("option_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_snapshot_market_value("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_market_value::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_snapshot_market_value", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_market_value("SPY", "20250321", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_market_value", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_market_value("SPY", "20250321", "*", "both", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_snapshot_market_value::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_snapshot_market_value", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_snapshot_market_value("SPY", "*", "570", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_market_value::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_snapshot_market_value", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_market_value("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_market_value", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_market_value("SPY", "*", "*", "both", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_snapshot_market_value::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_snapshot_market_value", "with_max_dte", "standard", "max_dte=30 optional filter wiring", lambda: client.option_snapshot_market_value("SPY", "20250321", "570", "C", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -261,13 +265,13 @@ CELLS = [
     ("option_snapshot_greeks_implied_volatility", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_implied_volatility::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_snapshot_greeks_implied_volatility", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_greeks_implied_volatility", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "*", "both", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_snapshot_greeks_implied_volatility::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_snapshot_greeks_implied_volatility", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_snapshot_greeks_implied_volatility("SPY", "*", "570", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_implied_volatility::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_snapshot_greeks_implied_volatility", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_greeks_implied_volatility("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_greeks_implied_volatility", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_greeks_implied_volatility("SPY", "*", "*", "both", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_snapshot_greeks_implied_volatility::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_snapshot_greeks_implied_volatility", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -303,13 +307,13 @@ CELLS = [
     ("option_snapshot_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_all::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_snapshot_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_greeks_all("SPY", "20250321", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_greeks_all("SPY", "20250321", "*", "both", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_snapshot_greeks_all::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_snapshot_greeks_all", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_snapshot_greeks_all("SPY", "*", "570", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_all::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_snapshot_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_greeks_all("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_greeks_all("SPY", "*", "*", "both", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_snapshot_greeks_all::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_snapshot_greeks_all", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -345,13 +349,13 @@ CELLS = [
     ("option_snapshot_greeks_first_order", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_first_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_snapshot_greeks_first_order", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_greeks_first_order("SPY", "20250321", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_greeks_first_order", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_greeks_first_order("SPY", "20250321", "*", "both", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_snapshot_greeks_first_order::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_snapshot_greeks_first_order", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_snapshot_greeks_first_order("SPY", "*", "570", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_first_order::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_snapshot_greeks_first_order", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_greeks_first_order("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_greeks_first_order", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_greeks_first_order("SPY", "*", "*", "both", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_snapshot_greeks_first_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_snapshot_greeks_first_order", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -387,13 +391,13 @@ CELLS = [
     ("option_snapshot_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_second_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_snapshot_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_greeks_second_order("SPY", "20250321", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_greeks_second_order("SPY", "20250321", "*", "both", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_snapshot_greeks_second_order::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_snapshot_greeks_second_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_snapshot_greeks_second_order("SPY", "*", "570", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_second_order::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_snapshot_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_greeks_second_order("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_greeks_second_order("SPY", "*", "*", "both", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_snapshot_greeks_second_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_snapshot_greeks_second_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -429,13 +433,13 @@ CELLS = [
     ("option_snapshot_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_third_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_snapshot_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_greeks_third_order("SPY", "20250321", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_greeks_third_order("SPY", "20250321", "*", "both", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_snapshot_greeks_third_order::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_snapshot_greeks_third_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_snapshot_greeks_third_order("SPY", "*", "570", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_third_order::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_snapshot_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_greeks_third_order("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_greeks_third_order("SPY", "*", "*", "both", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_snapshot_greeks_third_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_snapshot_greeks_third_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -471,13 +475,13 @@ CELLS = [
     ("option_history_eod", "concrete", "free", "required params set, no optionals — baseline wire path", lambda: client.option_history_eod("SPY", "20250321", "570", "C", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_eod::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_eod", "all_strikes_one_exp", "free", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_eod("SPY", "20250321", "*", "both", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_eod", "all_strikes_one_exp", "free", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_eod("SPY", "20250321", "*", "both", "20250303", "20250303", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_eod::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_history_eod", "all_exps_one_strike", "free", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_eod("SPY", "*", "570", "both", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_eod::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_history_eod", "bulk_chain", "free", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_eod("SPY", "*", "*", "both", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_eod", "bulk_chain", "free", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_eod("SPY", "*", "*", "both", "20250303", "20250303", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_eod::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_history_eod", "with_max_dte", "free", "max_dte=30 optional filter wiring", lambda: client.option_history_eod("SPY", "20250321", "570", "C", "20250303", "20250303", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -492,7 +496,7 @@ CELLS = [
     ("option_history_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.option_history_ohlc("SPY", "20250321", "570", "C", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_ohlc::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_ohlc", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_ohlc("SPY", "20250321", "*", "both", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_ohlc", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_ohlc("SPY", "20250321", "*", "both", "20250303", "60000", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_ohlc::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_ohlc", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_ohlc("SPY", "20250321", "570", "C", "20250303", "60000", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -510,13 +514,13 @@ CELLS = [
     ("option_history_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade("SPY", "20250321", "570", "C", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_trade", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_trade("SPY", "20250321", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_trade("SPY", "20250321", "*", "both", "20250303", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_trade::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_history_trade", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade("SPY", "*", "570", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_history_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_trade("SPY", "*", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_trade("SPY", "*", "*", "both", "20250303", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_trade::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_trade", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade("SPY", "20250321", "570", "C", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -537,13 +541,13 @@ CELLS = [
     ("option_history_quote", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.option_history_quote("SPY", "20250321", "570", "C", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_quote::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_quote", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_quote("SPY", "20250321", "*", "both", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_quote", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_quote("SPY", "20250321", "*", "both", "20250303", "60000", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_quote::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_history_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_quote("SPY", "*", "570", "both", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_quote::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_history_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_quote("SPY", "*", "*", "both", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_quote("SPY", "*", "*", "both", "20250303", "60000", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_quote::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_quote", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_quote("SPY", "20250321", "570", "C", "20250303", "60000", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -564,13 +568,13 @@ CELLS = [
     ("option_history_trade_quote", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade_quote("SPY", "20250321", "570", "C", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_quote::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_trade_quote", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_trade_quote("SPY", "20250321", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_quote", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_trade_quote("SPY", "20250321", "*", "both", "20250303", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_trade_quote::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_history_trade_quote", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade_quote("SPY", "*", "570", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_quote::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_history_trade_quote", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_trade_quote("SPY", "*", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_quote", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_trade_quote("SPY", "*", "*", "both", "20250303", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_trade_quote::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_trade_quote", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade_quote("SPY", "20250321", "570", "C", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -594,13 +598,13 @@ CELLS = [
     ("option_history_open_interest", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.option_history_open_interest("SPY", "20250321", "570", "C", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_open_interest::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_open_interest", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_open_interest("SPY", "20250321", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_open_interest", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_open_interest("SPY", "20250321", "*", "both", "20250303", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_open_interest::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_history_open_interest", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_open_interest("SPY", "*", "570", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_open_interest::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_history_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_open_interest("SPY", "*", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_open_interest("SPY", "*", "*", "both", "20250303", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_open_interest::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
     ("option_history_open_interest", "with_date_range", "value", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_open_interest("SPY", "20250321", "570", "C", "20250303", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -618,13 +622,13 @@ CELLS = [
     ("option_history_greeks_eod", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_eod::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_greeks_eod", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_greeks_eod("SPY", "20250321", "*", "both", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_eod", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_greeks_eod("SPY", "20250321", "*", "both", "20250303", "20250303", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_greeks_eod::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_history_greeks_eod", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_greeks_eod("SPY", "*", "570", "both", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_eod::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_history_greeks_eod", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_greeks_eod("SPY", "*", "*", "both", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_eod", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_greeks_eod("SPY", "*", "*", "both", "20250303", "20250303", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_greeks_eod::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_greeks_eod", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250303", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -654,7 +658,7 @@ CELLS = [
     ("option_history_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_greeks_all("SPY", "20250321", "570", "C", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_all::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_greeks_all("SPY", "20250321", "*", "both", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_greeks_all("SPY", "20250321", "*", "both", "20250303", "60000", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_greeks_all::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_greeks_all", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_greeks_all("SPY", "20250321", "570", "C", "20250303", "60000", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -684,13 +688,13 @@ CELLS = [
     ("option_history_trade_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_all::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_trade_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_trade_greeks_all("SPY", "20250321", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_trade_greeks_all("SPY", "20250321", "*", "both", "20250303", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_trade_greeks_all::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_history_trade_greeks_all", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade_greeks_all("SPY", "*", "570", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_all::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_history_trade_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_trade_greeks_all("SPY", "*", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_trade_greeks_all("SPY", "*", "*", "both", "20250303", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_trade_greeks_all::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_trade_greeks_all", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -723,7 +727,7 @@ CELLS = [
     ("option_history_greeks_first_order", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_history_greeks_first_order("SPY", "20250321", "570", "C", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_first_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_greeks_first_order", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_greeks_first_order("SPY", "20250321", "*", "both", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_first_order", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_greeks_first_order("SPY", "20250321", "*", "both", "20250303", "60000", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_greeks_first_order::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_greeks_first_order", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", "570", "C", "20250303", "60000", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -753,13 +757,13 @@ CELLS = [
     ("option_history_trade_greeks_first_order", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_trade_greeks_first_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_first_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", "*", "both", "20250303", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_history_trade_greeks_first_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade_greeks_first_order("SPY", "*", "570", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_history_trade_greeks_first_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_trade_greeks_first_order("SPY", "*", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_first_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_trade_greeks_first_order("SPY", "*", "*", "both", "20250303", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_trade_greeks_first_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -792,7 +796,7 @@ CELLS = [
     ("option_history_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_greeks_second_order("SPY", "20250321", "570", "C", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_second_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_greeks_second_order("SPY", "20250321", "*", "both", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_greeks_second_order("SPY", "20250321", "*", "both", "20250303", "60000", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_greeks_second_order::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_greeks_second_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", "570", "C", "20250303", "60000", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -822,13 +826,13 @@ CELLS = [
     ("option_history_trade_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_trade_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", "*", "both", "20250303", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_history_trade_greeks_second_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade_greeks_second_order("SPY", "*", "570", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_history_trade_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_trade_greeks_second_order("SPY", "*", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_trade_greeks_second_order("SPY", "*", "*", "both", "20250303", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_trade_greeks_second_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -861,7 +865,7 @@ CELLS = [
     ("option_history_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_greeks_third_order("SPY", "20250321", "570", "C", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_third_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_greeks_third_order("SPY", "20250321", "*", "both", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_greeks_third_order("SPY", "20250321", "*", "both", "20250303", "60000", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_greeks_third_order::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_greeks_third_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", "570", "C", "20250303", "60000", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -891,13 +895,13 @@ CELLS = [
     ("option_history_trade_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_trade_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", "*", "both", "20250303", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_history_trade_greeks_third_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade_greeks_third_order("SPY", "*", "570", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_history_trade_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_trade_greeks_third_order("SPY", "*", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_trade_greeks_third_order("SPY", "*", "*", "both", "20250303", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_trade_greeks_third_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -930,7 +934,7 @@ CELLS = [
     ("option_history_greeks_implied_volatility", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_implied_volatility::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_greeks_implied_volatility", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", "*", "both", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_implied_volatility", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", "*", "both", "20250303", "60000", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_greeks_implied_volatility::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_greeks_implied_volatility", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", "60000", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -960,13 +964,13 @@ CELLS = [
     ("option_history_trade_greeks_implied_volatility", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_trade_greeks_implied_volatility", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_implied_volatility", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "*", "both", "20250303", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_history_trade_greeks_implied_volatility", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "*", "570", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_history_trade_greeks_implied_volatility", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "*", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_implied_volatility", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "*", "*", "both", "20250303", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_trade_greeks_implied_volatility", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -999,13 +1003,13 @@ CELLS = [
     ("option_at_time_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_at_time_trade("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_at_time_trade::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_at_time_trade", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_at_time_trade("SPY", "20250321", "*", "both", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_at_time_trade", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_at_time_trade("SPY", "20250321", "*", "both", "20250303", "20250303", "12:00:00.000", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_at_time_trade::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_at_time_trade", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_at_time_trade("SPY", "*", "570", "both", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_at_time_trade::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_at_time_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_at_time_trade("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_at_time_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_at_time_trade("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_at_time_trade::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_at_time_trade", "with_max_dte", "standard", "max_dte=30 optional filter wiring", lambda: client.option_at_time_trade("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1020,13 +1024,13 @@ CELLS = [
     ("option_at_time_quote", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.option_at_time_quote("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_at_time_quote::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_at_time_quote", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_at_time_quote("SPY", "20250321", "*", "both", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_at_time_quote", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_at_time_quote("SPY", "20250321", "*", "both", "20250303", "20250303", "12:00:00.000", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_at_time_quote::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_at_time_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_at_time_quote("SPY", "*", "570", "both", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_at_time_quote::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_at_time_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_at_time_quote("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_at_time_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_at_time_quote("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_at_time_quote::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_at_time_quote", "with_max_dte", "value", "max_dte=30 optional filter wiring", lambda: client.option_at_time_quote("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1141,13 +1145,13 @@ for endpoint, mode, min_tier, rationale, call in CELLS:
         # stream and raised RuntimeError carrying our timeout sentinel.
         # No daemon threads to clean up — the next cell runs immediately.
         if "request deadline exceeded" in msg:
-            print(f"  {label:60s} FAIL  timeout after {PER_CELL_TIMEOUT_MS//1000}s", flush=True)
+            print(f"  {label:60s} FAIL  timeout after {duration_ms//1000}s", flush=True)
             fail_count += 1
             records.append({
                 "endpoint": endpoint, "mode": mode, "rationale": rationale,
                 "status": "FAIL",
                 "row_count": 0, "duration_ms": duration_ms,
-                "detail": f"timeout after {PER_CELL_TIMEOUT_MS//1000}s",
+                "detail": f"timeout after {duration_ms//1000}s",
             })
             continue
         if "permission" in msg or "subscription" in msg:

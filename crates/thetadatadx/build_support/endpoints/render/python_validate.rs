@@ -37,8 +37,16 @@ pub(super) fn render_python_validate(
             }
             // Cross-cutting per-call deadline (W3): SDK cancels the in-flight
             // gRPC stream on expiry and raises a RuntimeError; no daemon
-            // thread / os._exit gymnastics needed any more.
-            args_parts.push("timeout_ms=PER_CELL_TIMEOUT_MS".into());
+            // thread / os._exit gymnastics needed any more. Bulk-chain /
+            // all-strike modes use `SLOW_MODE_TIMEOUT_MS` since a full
+            // option chain payload legitimately takes longer than 60s.
+            let timeout_sym = if matches!(mode.name.as_str(), "all_strikes_one_exp" | "bulk_chain")
+            {
+                "SLOW_MODE_TIMEOUT_MS"
+            } else {
+                "PER_CELL_TIMEOUT_MS"
+            };
+            args_parts.push(format!("timeout_ms={timeout_sym}"));
             let args = args_parts.join(", ");
             write!(
                 out,
