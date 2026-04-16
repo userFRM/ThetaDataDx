@@ -622,7 +622,7 @@ fn collapse_redundant_wires(endpoint: &GeneratedEndpoint, modes: Vec<TestMode>) 
         if has_stock_venue_default && !pairs.iter().any(|(k, _)| k == "venue") {
             pairs.push((
                 "venue".to_string(),
-                super::super::wire_semantics::DEFAULT_STOCK_VENUE.to_string(),
+                super::super::wire_semantics_runtime::DEFAULT_STOCK_VENUE.to_string(),
             ));
         }
         pairs.sort();

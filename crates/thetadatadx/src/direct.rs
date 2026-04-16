@@ -54,20 +54,6 @@ const TERMINAL_VERSION: &str = env!("CARGO_PKG_VERSION");
 // in lib.rs. All invocations are now generated from `endpoint_surface.toml` at
 // build time.
 
-/// Normalize the `right` parameter for the v3 MDDS server.
-///
-/// Delegates to [`crate::wire_semantics::normalize_right`], which is shared
-/// with the build-time mode-canonicalization path so the accepted wire
-/// vocabulary lives in one implementation.
-///
-/// # Panics
-///
-/// Panics with a descriptive message on unrecognised input.
-#[allow(dead_code)]
-fn normalize_right(right: &str) -> String {
-    crate::wire_semantics::normalize_right(right)
-}
-
 /// Canonicalize the `expiration` parameter for the v3 MDDS server.
 ///
 /// Upstream's `openapiv3.yaml` documents the accepted expiration vocabulary
@@ -98,7 +84,8 @@ pub(crate) fn wire_strike_opt(strike: &str) -> Option<String> {
 /// filter" state and `*` as its explicit wildcard. Both collapse to
 /// proto-unset here so the server applies the documented default; single
 /// sides (`C` / `P` / `call` / `put`, any case) normalize to `"call"` /
-/// `"put"`. Any other input reaches [`normalize_right`] via
+/// `"put"`. Any other input reaches
+/// [`crate::wire_semantics::normalize_right`] via
 /// [`crate::right::parse_right`], which panics with a descriptive message
 /// on unrecognized values — matching the panic-on-bad-right convention
 /// used by [`crate::fpss::protocol::Contract::option`].

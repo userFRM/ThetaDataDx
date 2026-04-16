@@ -1,3 +1,10 @@
+// Reason: shared between build.rs (which calls `generate`) and the
+// `generate_sdk_surfaces` binary (which calls only the `*_sdk_generated_files`
+// entry points) via `#[path]`. Not every helper is reachable from both
+// entry points, so mark the whole module as allowed-dead once rather than
+// annotating each helper individually.
+#![allow(dead_code, unused_imports)]
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  Code-generate tick structs + parsers from tick_schema.toml
 // ─────────────────────────────────────────────────────────────────────────────

@@ -101,7 +101,6 @@ pub mod registry;
 pub mod right;
 pub mod unified;
 pub(crate) mod validate;
-#[allow(dead_code)]
 pub(crate) mod wire_semantics;
 
 // Macro definitions invoked by generated endpoint code and handwritten

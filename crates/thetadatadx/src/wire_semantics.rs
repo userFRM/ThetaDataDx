@@ -1,18 +1,18 @@
-//! Shared wire-level canonicalization rules.
+//! Shared wire-level canonicalization rules (runtime side).
 //!
 //! These rules are consumed in two places:
 //! - runtime request building in `direct.rs`
-//! - build-time mode collapsing in `build_support/endpoints/modes.rs`
+//! - build-time mode collapsing in `build_support/endpoints/modes.rs` (via
+//!   `#[path]` reuse of this file plus the build-only companion at
+//!   `build_support/wire_semantics.rs`)
 //!
-//! Keeping them here removes the old "mirror the runtime logic in build
-//! support" seam. The semantics live once and both sides import them.
+//! Keeping the *runtime* rules here means the module has no dead code when
+//! compiled as part of the crate. Items that are only used at build time
+//! (e.g. `canonicalize_wire_arg`, `UNSET_WIRE_ARG_SENTINEL`) live in
+//! `build_support/wire_semantics.rs`.
 
 /// Stock endpoints default an omitted `venue` to NQB.
 pub(crate) const DEFAULT_STOCK_VENUE: &str = "nqb";
-
-/// Canonical token used by build-time wire-shape signatures for
-/// proto-unset optional fields.
-pub(crate) const UNSET_WIRE_ARG_SENTINEL: &str = "<unset>";
 
 /// Lowercase string expected by the MDDS server (`"call"` / `"put"` /
 /// `"both"`).
@@ -55,19 +55,6 @@ pub(crate) fn wire_right_opt(right: &str) -> Option<String> {
         tdbe::right::ParsedRight::Call | tdbe::right::ParsedRight::Put => {
             Some(normalize_right(right))
         }
-    }
-}
-
-/// Canonicalize an argument the same way the runtime request builder does.
-///
-/// Build-time mode collapsing uses this to decide whether two cells produce
-/// identical wire requests.
-pub(crate) fn canonicalize_wire_arg(param_name: &str, value: &str) -> String {
-    match param_name {
-        "expiration" => normalize_expiration(value),
-        "strike" => wire_strike_opt(value).unwrap_or_else(|| UNSET_WIRE_ARG_SENTINEL.to_string()),
-        "right" => wire_right_opt(value).unwrap_or_else(|| UNSET_WIRE_ARG_SENTINEL.to_string()),
-        _ => value.to_string(),
     }
 }
 

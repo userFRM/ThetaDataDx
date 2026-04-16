@@ -149,6 +149,8 @@ enum ParamType {
 struct GoFfiSpec {
     #[serde(default)]
     tls_reader_markers: Vec<TlsReaderMarker>,
+    #[serde(default)]
+    tls_helpers: Vec<TlsHelper>,
 }
 
 /// A substring that, when present on a Go source line, identifies an FFI
@@ -160,6 +162,16 @@ struct GoFfiSpec {
 #[serde(deny_unknown_fields)]
 struct TlsReaderMarker {
     substring: String,
+    description: String,
+}
+
+/// A hand-written Go helper (method or function) that is itself a TLS
+/// reader. The generated timeout-pin audit skips these entries when counting
+/// expected-pinned methods so self-pinning helpers don't double-count.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TlsHelper {
+    method_name: String,
     description: String,
 }
 
@@ -273,6 +285,7 @@ fn render_sdk_generated_files(
             contents: render_go_timeout_pin_generated_test(
                 repo_root,
                 &spec.go_ffi.tls_reader_markers,
+                &spec.go_ffi.tls_helpers,
                 &[
                     ("fpss_methods.go", go_fpss_methods_src.as_str()),
                     ("utilities.go", go_utilities_src.as_str()),
@@ -350,6 +363,20 @@ fn validate_spec(spec: &SdkSurfaceSpec) -> Result<(), Box<dyn std::error::Error>
             return Err(format!(
                 "sdk_surface.toml go_ffi.tls_reader_markers contains duplicate substring '{}'",
                 marker.substring
+            )
+            .into());
+        }
+    }
+
+    let mut seen_tls_helpers = std::collections::HashSet::new();
+    for helper in &spec.go_ffi.tls_helpers {
+        if helper.method_name.trim().is_empty() {
+            return Err("sdk_surface.toml go_ffi.tls_helpers contains an empty method_name".into());
+        }
+        if !seen_tls_helpers.insert(helper.method_name.as_str()) {
+            return Err(format!(
+                "sdk_surface.toml go_ffi.tls_helpers contains duplicate method_name '{}'",
+                helper.method_name
             )
             .into());
         }
@@ -696,6 +723,12 @@ fn expect_method_targets_subset(
     Ok(())
 }
 
+// Note: `expected` is an ordered slice rather than a set. Callers pass a
+// canonical ordering (e.g. `[PythonUnified, GoFpss, CppFpss]`) and the
+// generator relies on this ordering when emitting per-target dispatch
+// sections, so deterministic output depends on the slice order matching the
+// TOML-declared ordering. If that invariant ever needs to be relaxed,
+// convert both sides to a `BTreeSet<MethodTarget>` before comparing.
 fn expect_exact_method_targets(
     method: &MethodSpec,
     expected: &[MethodTarget],
@@ -940,6 +973,15 @@ fn push_cpp_doc_comment(out: &mut String, indent: &str, doc: &str) {
 }
 
 fn python_type(param_type: ParamType) -> &'static str {
+    // Invariant enforced in `validate_method_spec`: only `FpssConnect`
+    // declares `CredentialsRef`/`ConfigRef` params, and it targets
+    // `CppFpss` exclusively (never `PythonUnified`). Any future method
+    // that mixes these param types with Python targets must update the
+    // validator before reaching this helper.
+    debug_assert!(
+        !matches!(param_type, ParamType::CredentialsRef | ParamType::ConfigRef),
+        "python_type called with credentials/config ref; validate_method_spec should have rejected this"
+    );
     match param_type {
         ParamType::String => "&str",
         ParamType::F64 => "f64",
@@ -981,11 +1023,56 @@ fn mcp_param_name(param: &ParamSpec) -> &str {
     param.mcp_name.as_deref().unwrap_or(&param.name)
 }
 
+/// Look up a utility param by its canonical TOML `name` field.
+///
+/// Used by dispatch-arm emitters so the generated CLI/MCP arg keys follow
+/// the param's declared `cli_name`/`mcp_name` (via [`cli_param_name`] /
+/// [`mcp_param_name`]) rather than being hardcoded in the emitter.
+fn find_utility_param<'a>(utility: &'a UtilitySpec, name: &str) -> &'a ParamSpec {
+    utility
+        .params
+        .iter()
+        .find(|p| p.name == name)
+        .unwrap_or_else(|| {
+            panic!(
+                "sdk_surface.toml: utility '{}' is missing required param '{}'",
+                utility.name, name
+            )
+        })
+}
+
+/// Emit a CLI `get_arg(...).parse()` block that fetches the TOML-declared
+/// `cli_name` for `param_name`, binds it to Rust local `rust_local`, and
+/// formats the "invalid {cli_name}" error message from the CLI-facing key.
+fn emit_cli_f64_arg(out: &mut String, utility: &UtilitySpec, param_name: &str, rust_local: &str) {
+    let cli_key = cli_param_name(find_utility_param(utility, param_name));
+    writeln!(
+        out,
+        "            let {rust_local}: f64 = get_arg(sub_m, {})",
+        rust_string_literal(cli_key)
+    )
+    .unwrap();
+    out.push_str("                .parse()\n");
+    writeln!(
+        out,
+        "                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid {cli_key}: {{e}}\")))?;"
+    )
+    .unwrap();
+}
+
 fn mcp_param_description(param: &ParamSpec) -> &str {
     param.mcp_description.as_deref().unwrap_or(&param.doc)
 }
 
 fn mcp_json_type(param_type: ParamType) -> &'static str {
+    // Invariant enforced in `validate_utility_spec` + `validate_method_spec`:
+    // MCP-targeted specs (utilities and, prospectively, methods) never
+    // declare `CredentialsRef`/`ConfigRef` params — those are reserved for
+    // `FpssConnect` which targets `CppFpss` exclusively.
+    debug_assert!(
+        !matches!(param_type, ParamType::CredentialsRef | ParamType::ConfigRef),
+        "mcp_json_type called with credentials/config ref; validate_*_spec should have rejected this"
+    );
     match param_type {
         ParamType::String => "string",
         ParamType::F64 => "number",
@@ -1073,10 +1160,15 @@ fn render_go_utility_functions(
 fn render_go_timeout_pin_generated_test(
     repo_root: &Path,
     tls_reader_markers: &[TlsReaderMarker],
+    tls_helpers: &[TlsHelper],
     generated_overrides: &[(&str, &str)],
 ) -> Result<String, Box<dyn std::error::Error>> {
-    let expected_pinned_methods =
-        count_go_tls_reader_methods(repo_root, tls_reader_markers, generated_overrides)?;
+    let expected_pinned_methods = count_go_tls_reader_methods(
+        repo_root,
+        tls_reader_markers,
+        tls_helpers,
+        generated_overrides,
+    )?;
     let mut out = String::new();
     out.push_str("// Code generated by build.rs from sdk_surface.toml; DO NOT EDIT.\n\n");
     out.push_str("package thetadatadx\n\n");
@@ -1085,6 +1177,15 @@ fn render_go_timeout_pin_generated_test(
     out.push_str("var tlsReaderMarkers = []string{\n");
     for marker in tls_reader_markers {
         writeln!(out, "\t{:?}, // {}", marker.substring, marker.description)?;
+    }
+    out.push_str("}\n\n");
+    out.push_str("// tlsHelpers enumerates the hand-written Go functions that are\n");
+    out.push_str("// themselves TLS readers. The build-time pin audit skips them\n");
+    out.push_str("// when counting expected-pinned methods so self-pinning helpers\n");
+    out.push_str("// don't double-count.\n");
+    out.push_str("var tlsHelpers = []string{\n");
+    for helper in tls_helpers {
+        writeln!(out, "\t{:?}, // {}", helper.method_name, helper.description)?;
     }
     out.push_str("}\n\n");
     out.push_str("// expectedPinnedMethods is derived from the current non-test Go\n");
@@ -2216,15 +2317,55 @@ fn mcp_execute_arm(utility: &UtilitySpec) -> String {
             out.push_str("            })))\n");
         }
         UtilityKind::AllGreeks => {
-            out.push_str("            let spot = param_or_return!(arg_f64(args, \"spot\"));\n");
-            out.push_str("            let strike = param_or_return!(arg_f64(args, \"strike\"));\n");
-            out.push_str("            let rate = param_or_return!(arg_f64(args, \"rate\"));\n");
-            out.push_str("            let div_yield = param_or_return!(arg_f64(args, \"dividend_yield\"));\n");
-            out.push_str(
-                "            let tte = param_or_return!(arg_f64(args, \"time_to_expiry\"));\n",
-            );
-            out.push_str("            let option_price = param_or_return!(arg_f64(args, \"option_price\"));\n");
-            out.push_str("            let right = param_or_return!(arg_str(args, \"right\"));\n");
+            let spot_key = mcp_param_name(find_utility_param(utility, "spot"));
+            let strike_key = mcp_param_name(find_utility_param(utility, "strike"));
+            let rate_key = mcp_param_name(find_utility_param(utility, "rate"));
+            let div_key = mcp_param_name(find_utility_param(utility, "div_yield"));
+            let tte_key = mcp_param_name(find_utility_param(utility, "tte"));
+            let option_price_key = mcp_param_name(find_utility_param(utility, "option_price"));
+            let right_key = mcp_param_name(find_utility_param(utility, "right"));
+            writeln!(
+                out,
+                "            let spot = param_or_return!(arg_f64(args, {}));",
+                rust_string_literal(spot_key)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "            let strike = param_or_return!(arg_f64(args, {}));",
+                rust_string_literal(strike_key)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "            let rate = param_or_return!(arg_f64(args, {}));",
+                rust_string_literal(rate_key)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "            let div_yield = param_or_return!(arg_f64(args, {}));",
+                rust_string_literal(div_key)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "            let tte = param_or_return!(arg_f64(args, {}));",
+                rust_string_literal(tte_key)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "            let option_price = param_or_return!(arg_f64(args, {}));",
+                rust_string_literal(option_price_key)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "            let right = param_or_return!(arg_str(args, {}));",
+                rust_string_literal(right_key)
+            )
+            .unwrap();
             out.push_str("            param_or_return!(thetadatadx::parse_right_strict(&right).map_err(|e| e.to_string()));\n");
             out.push_str("            let g = tdbe::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, &right);\n");
             out.push_str("            Some(Ok(json!({\n");
@@ -2239,15 +2380,55 @@ fn mcp_execute_arm(utility: &UtilitySpec) -> String {
             out.push_str("            })))\n");
         }
         UtilityKind::ImpliedVolatility => {
-            out.push_str("            let spot = param_or_return!(arg_f64(args, \"spot\"));\n");
-            out.push_str("            let strike = param_or_return!(arg_f64(args, \"strike\"));\n");
-            out.push_str("            let rate = param_or_return!(arg_f64(args, \"rate\"));\n");
-            out.push_str("            let div_yield = param_or_return!(arg_f64(args, \"dividend_yield\"));\n");
-            out.push_str(
-                "            let tte = param_or_return!(arg_f64(args, \"time_to_expiry\"));\n",
-            );
-            out.push_str("            let option_price = param_or_return!(arg_f64(args, \"option_price\"));\n");
-            out.push_str("            let right = param_or_return!(arg_str(args, \"right\"));\n");
+            let spot_key = mcp_param_name(find_utility_param(utility, "spot"));
+            let strike_key = mcp_param_name(find_utility_param(utility, "strike"));
+            let rate_key = mcp_param_name(find_utility_param(utility, "rate"));
+            let div_key = mcp_param_name(find_utility_param(utility, "div_yield"));
+            let tte_key = mcp_param_name(find_utility_param(utility, "tte"));
+            let option_price_key = mcp_param_name(find_utility_param(utility, "option_price"));
+            let right_key = mcp_param_name(find_utility_param(utility, "right"));
+            writeln!(
+                out,
+                "            let spot = param_or_return!(arg_f64(args, {}));",
+                rust_string_literal(spot_key)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "            let strike = param_or_return!(arg_f64(args, {}));",
+                rust_string_literal(strike_key)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "            let rate = param_or_return!(arg_f64(args, {}));",
+                rust_string_literal(rate_key)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "            let div_yield = param_or_return!(arg_f64(args, {}));",
+                rust_string_literal(div_key)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "            let tte = param_or_return!(arg_f64(args, {}));",
+                rust_string_literal(tte_key)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "            let option_price = param_or_return!(arg_f64(args, {}));",
+                rust_string_literal(option_price_key)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "            let right = param_or_return!(arg_str(args, {}));",
+                rust_string_literal(right_key)
+            )
+            .unwrap();
             out.push_str("            param_or_return!(thetadatadx::parse_right_strict(&right).map_err(|e| e.to_string()));\n");
             out.push_str("            let (iv, err) = tdbe::greeks::implied_volatility(spot, strike, rate, div_yield, tte, option_price, &right);\n");
             out.push_str("            Some(Ok(json!({\n");
@@ -2357,25 +2538,19 @@ fn cli_dispatch_arm(utility: &UtilitySpec) -> String {
                 rust_string_literal(cli_name)
             )
             .unwrap();
-            out.push_str("            let spot: f64 = get_arg(sub_m, \"spot\")\n");
-            out.push_str("                .parse()\n");
-            out.push_str("                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid spot: {e}\")))?;\n");
-            out.push_str("            let strike: f64 = get_arg(sub_m, \"strike\")\n");
-            out.push_str("                .parse()\n");
-            out.push_str("                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid strike: {e}\")))?;\n");
-            out.push_str("            let rate: f64 = get_arg(sub_m, \"rate\")\n");
-            out.push_str("                .parse()\n");
-            out.push_str("                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid rate: {e}\")))?;\n");
-            out.push_str("            let div_yield: f64 = get_arg(sub_m, \"dividend\")\n");
-            out.push_str("                .parse()\n");
-            out.push_str("                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid dividend: {e}\")))?;\n");
-            out.push_str("            let tte: f64 = get_arg(sub_m, \"time\")\n");
-            out.push_str("                .parse()\n");
-            out.push_str("                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid time: {e}\")))?;\n");
-            out.push_str("            let option_price: f64 = get_arg(sub_m, \"option_price\")\n");
-            out.push_str("                .parse()\n");
-            out.push_str("                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid option_price: {e}\")))?;\n");
-            out.push_str("            let right = get_arg(sub_m, \"right\");\n");
+            emit_cli_f64_arg(&mut out, utility, "spot", "spot");
+            emit_cli_f64_arg(&mut out, utility, "strike", "strike");
+            emit_cli_f64_arg(&mut out, utility, "rate", "rate");
+            emit_cli_f64_arg(&mut out, utility, "div_yield", "div_yield");
+            emit_cli_f64_arg(&mut out, utility, "tte", "tte");
+            emit_cli_f64_arg(&mut out, utility, "option_price", "option_price");
+            let right_key = cli_param_name(find_utility_param(utility, "right"));
+            writeln!(
+                out,
+                "            let right = get_arg(sub_m, {});",
+                rust_string_literal(right_key)
+            )
+            .unwrap();
             out.push_str("            thetadatadx::parse_right_strict(right)?;\n");
             out.push_str("            let g = tdbe::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, right);\n");
             out.push_str(
@@ -2407,25 +2582,19 @@ fn cli_dispatch_arm(utility: &UtilitySpec) -> String {
                 rust_string_literal(cli_name)
             )
             .unwrap();
-            out.push_str("            let spot: f64 = get_arg(sub_m, \"spot\")\n");
-            out.push_str("                .parse()\n");
-            out.push_str("                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid spot: {e}\")))?;\n");
-            out.push_str("            let strike: f64 = get_arg(sub_m, \"strike\")\n");
-            out.push_str("                .parse()\n");
-            out.push_str("                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid strike: {e}\")))?;\n");
-            out.push_str("            let rate: f64 = get_arg(sub_m, \"rate\")\n");
-            out.push_str("                .parse()\n");
-            out.push_str("                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid rate: {e}\")))?;\n");
-            out.push_str("            let div_yield: f64 = get_arg(sub_m, \"dividend\")\n");
-            out.push_str("                .parse()\n");
-            out.push_str("                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid dividend: {e}\")))?;\n");
-            out.push_str("            let tte: f64 = get_arg(sub_m, \"time\")\n");
-            out.push_str("                .parse()\n");
-            out.push_str("                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid time: {e}\")))?;\n");
-            out.push_str("            let option_price: f64 = get_arg(sub_m, \"option_price\")\n");
-            out.push_str("                .parse()\n");
-            out.push_str("                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid option_price: {e}\")))?;\n");
-            out.push_str("            let right = get_arg(sub_m, \"right\");\n");
+            emit_cli_f64_arg(&mut out, utility, "spot", "spot");
+            emit_cli_f64_arg(&mut out, utility, "strike", "strike");
+            emit_cli_f64_arg(&mut out, utility, "rate", "rate");
+            emit_cli_f64_arg(&mut out, utility, "div_yield", "div_yield");
+            emit_cli_f64_arg(&mut out, utility, "tte", "tte");
+            emit_cli_f64_arg(&mut out, utility, "option_price", "option_price");
+            let right_key = cli_param_name(find_utility_param(utility, "right"));
+            writeln!(
+                out,
+                "            let right = get_arg(sub_m, {});",
+                rust_string_literal(right_key)
+            )
+            .unwrap();
             out.push_str("            thetadatadx::parse_right_strict(right)?;\n");
             out.push_str("            let (iv, iv_error) = tdbe::greeks::implied_volatility(spot, strike, rate, div_yield, tte, option_price, right);\n");
             out.push_str(
@@ -2475,8 +2644,9 @@ fn inject_os_thread_pin(src: &str, tls_reader_markers: &[TlsReaderMarker]) -> St
                 out.push_str("    runtime.LockOSThread()\n");
                 out.push_str("    defer runtime.UnlockOSThread()\n");
             }
-            for k in (i + 1)..=j.min(lines.len().saturating_sub(1)) {
-                out.push_str(lines[k]);
+            let end = j.min(lines.len().saturating_sub(1));
+            for body_line in lines.iter().skip(i + 1).take(end.saturating_sub(i)) {
+                out.push_str(body_line);
             }
             i = j + 1;
             continue;
@@ -2490,6 +2660,7 @@ fn inject_os_thread_pin(src: &str, tls_reader_markers: &[TlsReaderMarker]) -> St
 fn count_go_tls_reader_methods(
     repo_root: &Path,
     tls_reader_markers: &[TlsReaderMarker],
+    tls_helpers: &[TlsHelper],
     generated_overrides: &[(&str, &str)],
 ) -> Result<usize, Box<dyn std::error::Error>> {
     let go_dir = repo_root.join("sdks/go");
@@ -2530,7 +2701,7 @@ fn count_go_tls_reader_methods(
             let Some(method_name) = extract_go_method_name(line) else {
                 continue;
             };
-            if is_go_tls_helper(method_name) {
+            if tls_helpers.iter().any(|h| h.method_name == method_name) {
                 continue;
             }
             let body_end = find_go_method_body_end(&lines, idx + 1);
@@ -2566,8 +2737,4 @@ fn find_go_method_body_end(lines: &[&str], from: usize) -> usize {
         }
     }
     lines.len()
-}
-
-fn is_go_tls_helper(method_name: &str) -> bool {
-    matches!(method_name, "lastError" | "lastErrorRaw" | "fpssCall")
 }
