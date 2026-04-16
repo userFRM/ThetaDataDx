@@ -39,29 +39,6 @@ use tdbe::types::enums::RemoveReason;
 
 use crate::error::Error;
 
-/// Clamp a `usize` value to `[min, max]`, logging a warning if it was out of range.
-fn clamp_with_warning(value: usize, min: usize, max: usize, name: &str) -> usize {
-    if value < min {
-        tracing::warn!(
-            field = name,
-            value,
-            min,
-            "config value below minimum, clamped"
-        );
-        min
-    } else if value > max {
-        tracing::warn!(
-            field = name,
-            value,
-            max,
-            "config value above maximum, clamped"
-        );
-        max
-    } else {
-        value
-    }
-}
-
 /// Controls FPSS reconnection behavior after a disconnect.
 ///
 /// # Default
@@ -379,16 +356,9 @@ impl DirectConfig {
     /// loading from a TOML file or modifying fields programmatically.
     #[must_use]
     pub fn validate(mut self) -> Self {
-        self.fpss_queue_depth =
-            clamp_with_warning(self.fpss_queue_depth, 16, 1_000_000, "fpss_queue_depth");
-        self.mdds_window_size_kb =
-            clamp_with_warning(self.mdds_window_size_kb, 64, 1_024, "mdds_window_size_kb");
-        self.mdds_connection_window_size_kb = clamp_with_warning(
-            self.mdds_connection_window_size_kb,
-            64,
-            1_024,
-            "mdds_connection_window_size_kb",
-        );
+        self.fpss_queue_depth = self.fpss_queue_depth.clamp(16, 1_000_000);
+        self.mdds_window_size_kb = self.mdds_window_size_kb.clamp(64, 1_024);
+        self.mdds_connection_window_size_kb = self.mdds_connection_window_size_kb.clamp(64, 1_024);
         self
     }
 
