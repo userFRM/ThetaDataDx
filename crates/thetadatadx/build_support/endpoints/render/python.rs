@@ -116,32 +116,17 @@ fn render_python_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
             })
             .collect::<Vec<_>>()
             .join(", ");
-        out.push_str("            runtime()\n");
-        out.push_str("                .block_on(async {\n");
-        out.push_str("                    if let Some(ms) = timeout_ms {\n");
-        write!(
-            out,
-            "                        self.tdx.{}_with_deadline(std::time::Duration::from_millis(ms){})",
-            endpoint.name,
-            if positional_args.is_empty() {
-                String::new()
-            } else {
-                format!(", {positional_args}")
-            }
-        )
-        .unwrap();
-        out.push_str(".await\n");
-        out.push_str("                    } else {\n");
-        write!(
-            out,
-            "                        self.tdx.{}({})",
-            endpoint.name, positional_args
-        )
-        .unwrap();
-        out.push_str(".await\n");
-        out.push_str("                    }\n");
-        out.push_str("                })\n");
-        out.push_str("                .map_err(to_py_err)\n");
+        let leading_comma_args = if positional_args.is_empty() {
+            String::new()
+        } else {
+            format!(", {positional_args}")
+        };
+        out.push_str(
+            &include_str!("templates/python/string_list_dispatch.py.tmpl")
+                .replace("__NAME__", &endpoint.name)
+                .replace("__LEADING_COMMA_ARGS__", &leading_comma_args)
+                .replace("__POSITIONAL_ARGS__", &positional_args),
+        );
     } else {
         // Builder-backed endpoints: chain optional setters + with_deadline.
         let positional_args = method_params
@@ -171,23 +156,15 @@ fn render_python_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
             .unwrap();
             out.push_str("            }\n");
         }
-        out.push_str("            if let Some(ms) = timeout_ms {\n");
-        out.push_str(
-            "                request = request.with_deadline(std::time::Duration::from_millis(ms));\n",
-        );
-        out.push_str("            }\n");
+        out.push_str(include_str!(
+            "templates/python/with_deadline_builder.py.tmpl"
+        ));
         if is_streaming_kind {
-            out.push_str("            let mut collected = Vec::new();\n");
-            out.push_str("            runtime()\n");
-            out.push_str(
-                "                .block_on(request.stream(|chunk| collected.extend_from_slice(chunk)))\n",
-            );
-            out.push_str("                .map_err(to_py_err)?;\n");
-            out.push_str("            pyo3::PyResult::Ok(collected)\n");
+            out.push_str(include_str!("templates/python/streaming_dispatch.py.tmpl"));
         } else {
-            out.push_str("            runtime()\n");
-            out.push_str("                .block_on(async { request.await })\n");
-            out.push_str("                .map_err(to_py_err)\n");
+            out.push_str(include_str!(
+                "templates/python/non_streaming_dispatch.py.tmpl"
+            ));
         }
     }
     if is_string_list {

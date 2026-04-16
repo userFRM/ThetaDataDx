@@ -1,0 +1,9 @@
+            runtime()
+                .block_on(async {
+                    if let Some(ms) = timeout_ms {
+                        self.tdx.__NAME___with_deadline(std::time::Duration::from_millis(ms)__LEADING_COMMA_ARGS__).await
+                    } else {
+                        self.tdx.__NAME__(__POSITIONAL_ARGS__).await
+                    }
+                })
+                .map_err(to_py_err)

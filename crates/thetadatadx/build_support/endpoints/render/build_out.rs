@@ -60,6 +60,10 @@ const VALIDATOR_TEMPLATES: &[&str] = &[
     "cpp/with_timeout_ms.cpp.tmpl",
     "cpp/with_deadline.cpp.tmpl",
     "cpp/option_contracts_convert.cpp.tmpl",
+    "python/string_list_dispatch.py.tmpl",
+    "python/streaming_dispatch.py.tmpl",
+    "python/non_streaming_dispatch.py.tmpl",
+    "python/with_deadline_builder.py.tmpl",
 ];
 
 fn generate_endpoint_registry(parsed: &ParsedEndpoints) -> Result<(), Box<dyn std::error::Error>> {
