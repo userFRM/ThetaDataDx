@@ -522,36 +522,18 @@ fn canonicalize_wire_arg(param_name: &str, value: &str) -> String {
 }
 
 /// Collapse cells whose post-canonicalization wire shape is identical down
-/// to a single canonical cell.
+/// to a single canonical cell. Two modes with equal signatures marshal
+/// byte-identical proto messages, so keeping both would only multiply
+/// validator runtime without adding coverage.
 ///
-/// The signature combines:
-/// * positional args run through [`canonicalize_wire_arg`]
-///   per-param name,
-///   which mirrors the runtime's `expiration`/`strike`/`right` rewriting;
-/// * builder-override pairs, also canonicalized, sorted, **and** with stock
-///   endpoints' `"venue" → "nqb"` default synthesized in whenever the
-///   endpoint's `venue` param is absent from the mode's overrides.
-///   See `render/direct.rs` for the runtime default.
-///
-/// Two modes with equal signatures will marshal byte-identical proto
-/// messages, so collapsing them removes only redundant runtime cost.
-///
-/// Collapsing rules:
-/// * Group modes by their canonicalized signature.
-/// * Within each group keep the lowest-index entry, so canonical modes like
-///   `concrete`/`bulk_chain` win over a later `with_<name>` whose override
-///   happened to match an existing fixture.
-/// * Append the names of collapsed siblings to the kept cell's rationale as
-///   `(also covers: a, b)` so the downstream agreement output makes the
-///   roll-up visible.
-///
-/// This is the audit step from W6: before it, cells with overlapping wire
-/// shapes co-existed silently. After it, no two emitted cells for a given
-/// endpoint share a wire shape; siblings are documented inline.
+/// The signature combines positional args and builder-override pairs run
+/// through [`canonicalize_wire_arg`] (mirroring the runtime's
+/// `expiration`/`strike`/`right` rewriting), plus the stock-endpoint
+/// `venue=nqb` default synthesized in when absent. Within each bucket we
+/// keep the lowest-index entry so canonical modes win over later
+/// `with_<name>` duplicates.
 fn collapse_redundant_wires(endpoint: &GeneratedEndpoint, modes: Vec<TestMode>) -> Vec<TestMode> {
     use std::collections::BTreeMap;
-    // Canonicalized wire signature: positional args + sorted override pairs,
-    // with runtime-equivalent normalization applied to both sides.
     type WireSignature = (Vec<String>, Vec<(String, String)>);
 
     let method_param_names: Vec<String> = method_params(endpoint)
@@ -568,11 +550,9 @@ fn collapse_redundant_wires(endpoint: &GeneratedEndpoint, modes: Vec<TestMode>) 
             .iter()
             .map(|(k, v)| (k.clone(), canonicalize_wire_arg(k, v)))
             .collect();
-        // Synthesize the stock-endpoint `venue=nqb` default when the mode
-        // doesn't override it: the runtime fills this in at request-build
-        // time (`render/direct.rs`), so omitting it here would make
-        // `concrete` and `with_venue` look like distinct wire shapes
-        // despite producing identical proto messages.
+        // Stock endpoints default `venue=nqb` at the runtime call site
+        // (`render/direct.rs`). Synthesize it here so modes that omit
+        // `venue` don't look distinct from modes that set it to `nqb`.
         if has_stock_venue_default && !pairs.iter().any(|(k, _)| k == "venue") {
             pairs.push((
                 "venue".to_string(),
@@ -596,41 +576,18 @@ fn collapse_redundant_wires(endpoint: &GeneratedEndpoint, modes: Vec<TestMode>) 
             .collect()
     };
 
-    let mut buckets: BTreeMap<WireSignature, Vec<usize>> = BTreeMap::new();
+    let mut buckets: BTreeMap<WireSignature, usize> = BTreeMap::new();
     for (idx, mode) in modes.iter().enumerate() {
         let key = (
             canonical_args(&mode.args),
             canonical_overrides(&mode.builder_overrides),
         );
-        buckets.entry(key).or_default().push(idx);
+        buckets
+            .entry(key)
+            .and_modify(|e| *e = (*e).min(idx))
+            .or_insert(idx);
     }
-    let mut keep_idx: Vec<(usize, Vec<String>)> = buckets
-        .values()
-        .map(|indices| {
-            let canonical = *indices.iter().min().unwrap();
-            let collapsed: Vec<String> = indices
-                .iter()
-                .filter(|&&i| i != canonical)
-                .map(|&i| modes[i].name.clone())
-                .collect();
-            (canonical, collapsed)
-        })
-        .collect();
-    keep_idx.sort_by_key(|(idx, _)| *idx);
-
-    let mut out = Vec::with_capacity(keep_idx.len());
-    for (idx, collapsed) in keep_idx {
-        let mut mode = modes[idx].clone();
-        if !collapsed.is_empty() {
-            // Build the appended rationale at generator runtime, then leak it
-            // to satisfy the `&'static str` field — generator runs once per
-            // build so the lifetime cost is one allocation per collapsed
-            // group, never freed across the build's lifetime. Kept under
-            // 200 chars to stay readable in the agreement table.
-            let extended = format!("{} (also covers: {})", mode.rationale, collapsed.join(", "));
-            mode.rationale = Box::leak(extended.into_boxed_str());
-        }
-        out.push(mode);
-    }
-    out
+    let mut keep_idx: Vec<usize> = buckets.into_values().collect();
+    keep_idx.sort_unstable();
+    keep_idx.into_iter().map(|idx| modes[idx].clone()).collect()
 }

@@ -44,35 +44,35 @@ CELLS = [
     #   rationale: list/calendar/rate baseline call — no parameter variation
     ("stock_list_dates", "basic", "free", "list/calendar/rate baseline call — no parameter variation", lambda: client.stock_list_dates("TRADE", "AAPL", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_snapshot_ohlc::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
-    ("stock_snapshot_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: with_venue)", lambda: client.stock_snapshot_ohlc(["AAPL"], timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("stock_snapshot_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.stock_snapshot_ohlc(["AAPL"], timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_snapshot_ohlc::with_min_time
-    #   rationale: min_time=09:45:00 optional filter wiring (also covers: all_optionals)
-    ("stock_snapshot_ohlc", "with_min_time", "value", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", lambda: client.stock_snapshot_ohlc(["AAPL"], min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: min_time=09:45:00 optional filter wiring
+    ("stock_snapshot_ohlc", "with_min_time", "value", "min_time=09:45:00 optional filter wiring", lambda: client.stock_snapshot_ohlc(["AAPL"], min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_snapshot_trade::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
-    ("stock_snapshot_trade", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: with_venue)", lambda: client.stock_snapshot_trade(["AAPL"], timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("stock_snapshot_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.stock_snapshot_trade(["AAPL"], timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_snapshot_trade::with_min_time
-    #   rationale: min_time=09:45:00 optional filter wiring (also covers: all_optionals)
-    ("stock_snapshot_trade", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", lambda: client.stock_snapshot_trade(["AAPL"], min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: min_time=09:45:00 optional filter wiring
+    ("stock_snapshot_trade", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", lambda: client.stock_snapshot_trade(["AAPL"], min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_snapshot_quote::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
-    ("stock_snapshot_quote", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: with_venue)", lambda: client.stock_snapshot_quote(["AAPL"], timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("stock_snapshot_quote", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.stock_snapshot_quote(["AAPL"], timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_snapshot_quote::with_min_time
-    #   rationale: min_time=09:45:00 optional filter wiring (also covers: all_optionals)
-    ("stock_snapshot_quote", "with_min_time", "value", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", lambda: client.stock_snapshot_quote(["AAPL"], min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: min_time=09:45:00 optional filter wiring
+    ("stock_snapshot_quote", "with_min_time", "value", "min_time=09:45:00 optional filter wiring", lambda: client.stock_snapshot_quote(["AAPL"], min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_snapshot_market_value::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
-    ("stock_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: with_venue)", lambda: client.stock_snapshot_market_value(["AAPL"], timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("stock_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.stock_snapshot_market_value(["AAPL"], timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_snapshot_market_value::with_min_time
-    #   rationale: min_time=09:45:00 optional filter wiring (also covers: all_optionals)
-    ("stock_snapshot_market_value", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", lambda: client.stock_snapshot_market_value(["AAPL"], min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: min_time=09:45:00 optional filter wiring
+    ("stock_snapshot_market_value", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", lambda: client.stock_snapshot_market_value(["AAPL"], min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_eod::concrete
     #   rationale: required params set, no optionals — baseline wire path
     ("stock_history_eod", "concrete", "free", "required params set, no optionals — baseline wire path", lambda: client.stock_history_eod("AAPL", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_ohlc::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
-    ("stock_history_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: with_venue)", lambda: client.stock_history_ohlc("AAPL", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("stock_history_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.stock_history_ohlc("AAPL", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_ohlc::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("stock_history_ohlc", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", lambda: client.stock_history_ohlc("AAPL", "20250303", "60000", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -83,8 +83,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("stock_history_ohlc", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: client.stock_history_ohlc("AAPL", "20250303", "60000", start_time="09:30:00", end_time="10:00:00", venue="nqb", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_trade::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
-    ("stock_history_trade", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: with_venue)", lambda: client.stock_history_trade("AAPL", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("stock_history_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.stock_history_trade("AAPL", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_trade::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("stock_history_trade", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", lambda: client.stock_history_trade("AAPL", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -95,8 +95,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("stock_history_trade", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.stock_history_trade("AAPL", "20250303", start_time="09:30:00", end_time="10:00:00", venue="nqb", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_quote::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
-    ("stock_history_quote", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: with_venue)", lambda: client.stock_history_quote("AAPL", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("stock_history_quote", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.stock_history_quote("AAPL", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_quote::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("stock_history_quote", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", lambda: client.stock_history_quote("AAPL", "20250303", "60000", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -107,8 +107,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("stock_history_quote", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: client.stock_history_quote("AAPL", "20250303", "60000", start_time="09:30:00", end_time="10:00:00", venue="nqb", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_trade_quote::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
-    ("stock_history_trade_quote", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: with_venue)", lambda: client.stock_history_trade_quote("AAPL", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("stock_history_trade_quote", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.stock_history_trade_quote("AAPL", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_trade_quote::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("stock_history_trade_quote", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", lambda: client.stock_history_trade_quote("AAPL", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -122,11 +122,11 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("stock_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.stock_history_trade_quote("AAPL", "20250303", start_time="09:30:00", end_time="10:00:00", exclusive=True, venue="nqb", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_at_time_trade::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: with_venue, all_optionals)
-    ("stock_at_time_trade", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: with_venue, all_optionals)", lambda: client.stock_at_time_trade("AAPL", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("stock_at_time_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.stock_at_time_trade("AAPL", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_at_time_quote::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: with_venue, all_optionals)
-    ("stock_at_time_quote", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: with_venue, all_optionals)", lambda: client.stock_at_time_quote("AAPL", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("stock_at_time_quote", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.stock_at_time_quote("AAPL", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_list_symbols::basic
     #   rationale: list/calendar/rate baseline call — no parameter variation
     ("option_list_symbols", "basic", "free", "list/calendar/rate baseline call — no parameter variation", lambda: client.option_list_symbols(timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -143,11 +143,11 @@ CELLS = [
     #   rationale: required params set, no optionals — baseline wire path
     ("option_list_contracts", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.option_list_contracts("TRADE", "SPY", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_list_contracts::with_max_dte
-    #   rationale: max_dte=30 optional filter wiring (also covers: all_optionals)
-    ("option_list_contracts", "with_max_dte", "value", "max_dte=30 optional filter wiring (also covers: all_optionals)", lambda: client.option_list_contracts("TRADE", "SPY", "20250303", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: max_dte=30 optional filter wiring
+    ("option_list_contracts", "with_max_dte", "value", "max_dte=30 optional filter wiring", lambda: client.option_list_contracts("TRADE", "SPY", "20250303", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_ohlc::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_snapshot_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_snapshot_ohlc("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_snapshot_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.option_snapshot_ohlc("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_ohlc::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_snapshot_ohlc", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_ohlc("SPY", "20250321", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -155,8 +155,8 @@ CELLS = [
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_snapshot_ohlc", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_snapshot_ohlc("SPY", "*", "570", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_ohlc::bulk_chain
-    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-    ("option_snapshot_ohlc", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", lambda: client.option_snapshot_ohlc("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+    ("option_snapshot_ohlc", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_ohlc("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_ohlc::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_snapshot_ohlc", "with_max_dte", "value", "max_dte=30 optional filter wiring", lambda: client.option_snapshot_ohlc("SPY", "20250321", "570", "C", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -170,8 +170,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_snapshot_ohlc", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_snapshot_ohlc("SPY", "20250321", "570", "C", max_dte=30, strike_range=10, min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_trade::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_snapshot_trade", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_snapshot_trade("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_snapshot_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_snapshot_trade("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_trade::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_snapshot_trade", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_trade("SPY", "20250321", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -185,8 +185,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_snapshot_trade", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_snapshot_trade("SPY", "20250321", "570", "C", strike_range=10, min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_quote::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_snapshot_quote", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_snapshot_quote("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_snapshot_quote", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.option_snapshot_quote("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_quote::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_snapshot_quote", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_quote("SPY", "20250321", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -194,8 +194,8 @@ CELLS = [
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_snapshot_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_snapshot_quote("SPY", "*", "570", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_quote::bulk_chain
-    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-    ("option_snapshot_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", lambda: client.option_snapshot_quote("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+    ("option_snapshot_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_quote("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_quote::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_snapshot_quote", "with_max_dte", "value", "max_dte=30 optional filter wiring", lambda: client.option_snapshot_quote("SPY", "20250321", "570", "C", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -209,8 +209,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_snapshot_quote", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_snapshot_quote("SPY", "20250321", "570", "C", max_dte=30, strike_range=10, min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_open_interest::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_snapshot_open_interest", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_snapshot_open_interest("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_snapshot_open_interest", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.option_snapshot_open_interest("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_open_interest::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_snapshot_open_interest", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_open_interest("SPY", "20250321", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -218,8 +218,8 @@ CELLS = [
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_snapshot_open_interest", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_snapshot_open_interest("SPY", "*", "570", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_open_interest::bulk_chain
-    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-    ("option_snapshot_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", lambda: client.option_snapshot_open_interest("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+    ("option_snapshot_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_open_interest("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_open_interest::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_snapshot_open_interest", "with_max_dte", "value", "max_dte=30 optional filter wiring", lambda: client.option_snapshot_open_interest("SPY", "20250321", "570", "C", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -233,8 +233,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_snapshot_open_interest", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_snapshot_open_interest("SPY", "20250321", "570", "C", max_dte=30, strike_range=10, min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_market_value::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_snapshot_market_value("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_snapshot_market_value("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_market_value::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_snapshot_market_value", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_market_value("SPY", "20250321", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -242,8 +242,8 @@ CELLS = [
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_snapshot_market_value", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_snapshot_market_value("SPY", "*", "570", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_market_value::bulk_chain
-    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-    ("option_snapshot_market_value", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", lambda: client.option_snapshot_market_value("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+    ("option_snapshot_market_value", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_market_value("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_market_value::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_snapshot_market_value", "with_max_dte", "standard", "max_dte=30 optional filter wiring", lambda: client.option_snapshot_market_value("SPY", "20250321", "570", "C", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -257,8 +257,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_snapshot_market_value", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_snapshot_market_value("SPY", "20250321", "570", "C", max_dte=30, strike_range=10, min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_implied_volatility::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_snapshot_greeks_implied_volatility", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_snapshot_greeks_implied_volatility", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_implied_volatility::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_snapshot_greeks_implied_volatility", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -266,8 +266,8 @@ CELLS = [
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_snapshot_greeks_implied_volatility", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_snapshot_greeks_implied_volatility("SPY", "*", "570", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_implied_volatility::bulk_chain
-    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-    ("option_snapshot_greeks_implied_volatility", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", lambda: client.option_snapshot_greeks_implied_volatility("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+    ("option_snapshot_greeks_implied_volatility", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_greeks_implied_volatility("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_implied_volatility::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_snapshot_greeks_implied_volatility", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -299,8 +299,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_snapshot_greeks_implied_volatility", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, version="dg3", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_all::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_snapshot_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_snapshot_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_all::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_snapshot_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_greeks_all("SPY", "20250321", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -308,8 +308,8 @@ CELLS = [
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_snapshot_greeks_all", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_snapshot_greeks_all("SPY", "*", "570", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_all::bulk_chain
-    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-    ("option_snapshot_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", lambda: client.option_snapshot_greeks_all("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+    ("option_snapshot_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_greeks_all("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_all::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_snapshot_greeks_all", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -341,8 +341,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_snapshot_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, version="dg3", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_first_order::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_snapshot_greeks_first_order", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_snapshot_greeks_first_order", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_first_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_snapshot_greeks_first_order", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_greeks_first_order("SPY", "20250321", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -350,8 +350,8 @@ CELLS = [
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_snapshot_greeks_first_order", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_snapshot_greeks_first_order("SPY", "*", "570", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_first_order::bulk_chain
-    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-    ("option_snapshot_greeks_first_order", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", lambda: client.option_snapshot_greeks_first_order("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+    ("option_snapshot_greeks_first_order", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_greeks_first_order("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_first_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_snapshot_greeks_first_order", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -383,8 +383,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_snapshot_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, version="dg3", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_second_order::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_snapshot_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_snapshot_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_second_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_snapshot_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_greeks_second_order("SPY", "20250321", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -392,8 +392,8 @@ CELLS = [
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_snapshot_greeks_second_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_snapshot_greeks_second_order("SPY", "*", "570", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_second_order::bulk_chain
-    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-    ("option_snapshot_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", lambda: client.option_snapshot_greeks_second_order("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+    ("option_snapshot_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_greeks_second_order("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_second_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_snapshot_greeks_second_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -425,8 +425,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_snapshot_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, version="dg3", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_third_order::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_snapshot_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_snapshot_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_third_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_snapshot_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_snapshot_greeks_third_order("SPY", "20250321", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -434,8 +434,8 @@ CELLS = [
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_snapshot_greeks_third_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_snapshot_greeks_third_order("SPY", "*", "570", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_third_order::bulk_chain
-    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-    ("option_snapshot_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", lambda: client.option_snapshot_greeks_third_order("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+    ("option_snapshot_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_snapshot_greeks_third_order("SPY", "*", "*", "both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_third_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_snapshot_greeks_third_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -467,8 +467,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_snapshot_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, version="dg3", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_eod::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_history_eod", "concrete", "free", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_history_eod("SPY", "20250321", "570", "C", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_history_eod", "concrete", "free", "required params set, no optionals — baseline wire path", lambda: client.option_history_eod("SPY", "20250321", "570", "C", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_eod::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_history_eod", "all_strikes_one_exp", "free", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_eod("SPY", "20250321", "*", "both", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -476,8 +476,8 @@ CELLS = [
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_history_eod", "all_exps_one_strike", "free", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_eod("SPY", "*", "570", "both", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_eod::bulk_chain
-    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-    ("option_history_eod", "bulk_chain", "free", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", lambda: client.option_history_eod("SPY", "*", "*", "both", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+    ("option_history_eod", "bulk_chain", "free", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_eod("SPY", "*", "*", "both", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_eod::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_history_eod", "with_max_dte", "free", "max_dte=30 optional filter wiring", lambda: client.option_history_eod("SPY", "20250321", "570", "C", "20250303", "20250303", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -488,8 +488,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_history_eod", "all_optionals", "free", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_eod("SPY", "20250321", "570", "C", "20250303", "20250303", max_dte=30, strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_ohlc::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_history_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_history_ohlc("SPY", "20250321", "570", "C", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_history_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.option_history_ohlc("SPY", "20250321", "570", "C", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_ohlc::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_history_ohlc", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_ohlc("SPY", "20250321", "*", "both", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -506,8 +506,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_history_ohlc", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_ohlc("SPY", "20250321", "570", "C", "20250303", "60000", start_time="09:30:00", end_time="10:00:00", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_history_trade", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_history_trade("SPY", "20250321", "570", "C", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_history_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade("SPY", "20250321", "570", "C", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_history_trade", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_trade("SPY", "20250321", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -515,8 +515,8 @@ CELLS = [
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_history_trade", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade("SPY", "*", "570", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade::bulk_chain
-    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-    ("option_history_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", lambda: client.option_history_trade("SPY", "*", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+    ("option_history_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_trade("SPY", "*", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_trade", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade("SPY", "20250321", "570", "C", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -533,8 +533,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_history_trade", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_trade("SPY", "20250321", "570", "C", "20250303", start_time="09:30:00", end_time="10:00:00", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_quote::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_history_quote", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_history_quote("SPY", "20250321", "570", "C", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_history_quote", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.option_history_quote("SPY", "20250321", "570", "C", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_quote::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_history_quote", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_quote("SPY", "20250321", "*", "both", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -542,8 +542,8 @@ CELLS = [
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_history_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_quote("SPY", "*", "570", "both", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_quote::bulk_chain
-    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-    ("option_history_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", lambda: client.option_history_quote("SPY", "*", "*", "both", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+    ("option_history_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_quote("SPY", "*", "*", "both", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_quote::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_quote", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_quote("SPY", "20250321", "570", "C", "20250303", "60000", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -560,8 +560,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_history_quote", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_quote("SPY", "20250321", "570", "C", "20250303", "60000", start_time="09:30:00", end_time="10:00:00", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_quote::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_history_trade_quote", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_history_trade_quote("SPY", "20250321", "570", "C", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_history_trade_quote", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade_quote("SPY", "20250321", "570", "C", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_quote::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_history_trade_quote", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_trade_quote("SPY", "20250321", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -569,8 +569,8 @@ CELLS = [
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_history_trade_quote", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade_quote("SPY", "*", "570", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_quote::bulk_chain
-    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-    ("option_history_trade_quote", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", lambda: client.option_history_trade_quote("SPY", "*", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+    ("option_history_trade_quote", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_trade_quote("SPY", "*", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_quote::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_trade_quote", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade_quote("SPY", "20250321", "570", "C", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -590,8 +590,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_trade_quote("SPY", "20250321", "570", "C", "20250303", start_time="09:30:00", end_time="10:00:00", exclusive=True, max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_open_interest::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_history_open_interest", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_history_open_interest("SPY", "20250321", "570", "C", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_history_open_interest", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.option_history_open_interest("SPY", "20250321", "570", "C", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_open_interest::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_history_open_interest", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_open_interest("SPY", "20250321", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -599,8 +599,8 @@ CELLS = [
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_history_open_interest", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_open_interest("SPY", "*", "570", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_open_interest::bulk_chain
-    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-    ("option_history_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", lambda: client.option_history_open_interest("SPY", "*", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+    ("option_history_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_open_interest("SPY", "*", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_open_interest::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
     ("option_history_open_interest", "with_date_range", "value", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_open_interest("SPY", "20250321", "570", "C", "20250303", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -614,8 +614,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_history_open_interest", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_open_interest("SPY", "20250321", "570", "C", "20250303", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_eod::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_history_greeks_eod", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_history_greeks_eod", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_eod::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_history_greeks_eod", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_greeks_eod("SPY", "20250321", "*", "both", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -623,8 +623,8 @@ CELLS = [
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_history_greeks_eod", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_greeks_eod("SPY", "*", "570", "both", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_eod::bulk_chain
-    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-    ("option_history_greeks_eod", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", lambda: client.option_history_greeks_eod("SPY", "*", "*", "both", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+    ("option_history_greeks_eod", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_greeks_eod("SPY", "*", "*", "both", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_eod::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_greeks_eod", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250303", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -650,8 +650,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_history_greeks_eod", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250303", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", underlyer_use_nbbo=True, max_dte=30, strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_all::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_history_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_history_greeks_all("SPY", "20250321", "570", "C", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_history_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_greeks_all("SPY", "20250321", "570", "C", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_all::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_history_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_greeks_all("SPY", "20250321", "*", "both", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -680,8 +680,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_history_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_greeks_all("SPY", "20250321", "570", "C", "20250303", "60000", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_all::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_history_trade_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_history_trade_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_all::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_history_trade_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_trade_greeks_all("SPY", "20250321", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -689,8 +689,8 @@ CELLS = [
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_history_trade_greeks_all", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade_greeks_all("SPY", "*", "570", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_all::bulk_chain
-    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-    ("option_history_trade_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", lambda: client.option_history_trade_greeks_all("SPY", "*", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+    ("option_history_trade_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_trade_greeks_all("SPY", "*", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_all::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_trade_greeks_all", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -719,8 +719,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_history_trade_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_first_order::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_history_greeks_first_order", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_history_greeks_first_order("SPY", "20250321", "570", "C", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_history_greeks_first_order", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_history_greeks_first_order("SPY", "20250321", "570", "C", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_first_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_history_greeks_first_order", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_greeks_first_order("SPY", "20250321", "*", "both", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -749,8 +749,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_history_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", "570", "C", "20250303", "60000", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_history_trade_greeks_first_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_history_trade_greeks_first_order", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_history_trade_greeks_first_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -758,8 +758,8 @@ CELLS = [
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_history_trade_greeks_first_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade_greeks_first_order("SPY", "*", "570", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::bulk_chain
-    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-    ("option_history_trade_greeks_first_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", lambda: client.option_history_trade_greeks_first_order("SPY", "*", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+    ("option_history_trade_greeks_first_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_trade_greeks_first_order("SPY", "*", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_trade_greeks_first_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -788,8 +788,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_history_trade_greeks_first_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_second_order::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_history_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_history_greeks_second_order("SPY", "20250321", "570", "C", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_history_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_greeks_second_order("SPY", "20250321", "570", "C", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_second_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_history_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_greeks_second_order("SPY", "20250321", "*", "both", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -818,8 +818,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_history_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", "570", "C", "20250303", "60000", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_history_trade_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_history_trade_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_history_trade_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -827,8 +827,8 @@ CELLS = [
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_history_trade_greeks_second_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade_greeks_second_order("SPY", "*", "570", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::bulk_chain
-    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-    ("option_history_trade_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", lambda: client.option_history_trade_greeks_second_order("SPY", "*", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+    ("option_history_trade_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_trade_greeks_second_order("SPY", "*", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_trade_greeks_second_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -857,8 +857,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_history_trade_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_third_order::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_history_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_history_greeks_third_order("SPY", "20250321", "570", "C", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_history_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_greeks_third_order("SPY", "20250321", "570", "C", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_third_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_history_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_greeks_third_order("SPY", "20250321", "*", "both", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -887,8 +887,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_history_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", "570", "C", "20250303", "60000", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_history_trade_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_history_trade_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_history_trade_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -896,8 +896,8 @@ CELLS = [
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_history_trade_greeks_third_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade_greeks_third_order("SPY", "*", "570", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::bulk_chain
-    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-    ("option_history_trade_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", lambda: client.option_history_trade_greeks_third_order("SPY", "*", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+    ("option_history_trade_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_trade_greeks_third_order("SPY", "*", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_trade_greeks_third_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -926,8 +926,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_history_trade_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_implied_volatility::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_history_greeks_implied_volatility", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_history_greeks_implied_volatility", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_implied_volatility::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_history_greeks_implied_volatility", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", "*", "both", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -956,8 +956,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_history_greeks_implied_volatility", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", "60000", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_history_trade_greeks_implied_volatility", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_history_trade_greeks_implied_volatility", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_history_trade_greeks_implied_volatility", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -965,8 +965,8 @@ CELLS = [
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_history_trade_greeks_implied_volatility", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "*", "570", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::bulk_chain
-    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-    ("option_history_trade_greeks_implied_volatility", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "*", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+    ("option_history_trade_greeks_implied_volatility", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "*", "*", "both", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_trade_greeks_implied_volatility", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -995,8 +995,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_history_trade_greeks_implied_volatility", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_at_time_trade::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_at_time_trade", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_at_time_trade("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_at_time_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_at_time_trade("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_at_time_trade::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_at_time_trade", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_at_time_trade("SPY", "20250321", "*", "both", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1004,8 +1004,8 @@ CELLS = [
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_at_time_trade", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_at_time_trade("SPY", "*", "570", "both", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_at_time_trade::bulk_chain
-    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-    ("option_at_time_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", lambda: client.option_at_time_trade("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+    ("option_at_time_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_at_time_trade("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_at_time_trade::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_at_time_trade", "with_max_dte", "standard", "max_dte=30 optional filter wiring", lambda: client.option_at_time_trade("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1016,8 +1016,8 @@ CELLS = [
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("option_at_time_trade", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_at_time_trade("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", max_dte=30, strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_at_time_quote::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-    ("option_at_time_quote", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", lambda: client.option_at_time_quote("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("option_at_time_quote", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.option_at_time_quote("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_at_time_quote::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
     ("option_at_time_quote", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", lambda: client.option_at_time_quote("SPY", "20250321", "*", "both", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1025,8 +1025,8 @@ CELLS = [
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
     ("option_at_time_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_at_time_quote("SPY", "*", "570", "both", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_at_time_quote::bulk_chain
-    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-    ("option_at_time_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", lambda: client.option_at_time_quote("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+    ("option_at_time_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: client.option_at_time_quote("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_at_time_quote::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_at_time_quote", "with_max_dte", "value", "max_dte=30 optional filter wiring", lambda: client.option_at_time_quote("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1046,20 +1046,20 @@ CELLS = [
     #   rationale: required params set, no optionals — baseline wire path
     ("index_snapshot_ohlc", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.index_snapshot_ohlc(["SPX"], timeout_ms=PER_CELL_TIMEOUT_MS)),
     # index_snapshot_ohlc::with_min_time
-    #   rationale: min_time=09:45:00 optional filter wiring (also covers: all_optionals)
-    ("index_snapshot_ohlc", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", lambda: client.index_snapshot_ohlc(["SPX"], min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: min_time=09:45:00 optional filter wiring
+    ("index_snapshot_ohlc", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", lambda: client.index_snapshot_ohlc(["SPX"], min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # index_snapshot_price::concrete
     #   rationale: required params set, no optionals — baseline wire path
     ("index_snapshot_price", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.index_snapshot_price(["SPX"], timeout_ms=PER_CELL_TIMEOUT_MS)),
     # index_snapshot_price::with_min_time
-    #   rationale: min_time=09:45:00 optional filter wiring (also covers: all_optionals)
-    ("index_snapshot_price", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", lambda: client.index_snapshot_price(["SPX"], min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: min_time=09:45:00 optional filter wiring
+    ("index_snapshot_price", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", lambda: client.index_snapshot_price(["SPX"], min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # index_snapshot_market_value::concrete
     #   rationale: required params set, no optionals — baseline wire path
     ("index_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.index_snapshot_market_value(["SPX"], timeout_ms=PER_CELL_TIMEOUT_MS)),
     # index_snapshot_market_value::with_min_time
-    #   rationale: min_time=09:45:00 optional filter wiring (also covers: all_optionals)
-    ("index_snapshot_market_value", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", lambda: client.index_snapshot_market_value(["SPX"], min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: min_time=09:45:00 optional filter wiring
+    ("index_snapshot_market_value", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", lambda: client.index_snapshot_market_value(["SPX"], min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # index_history_eod::concrete
     #   rationale: required params set, no optionals — baseline wire path
     ("index_history_eod", "concrete", "free", "required params set, no optionals — baseline wire path", lambda: client.index_history_eod("SPX", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1067,8 +1067,8 @@ CELLS = [
     #   rationale: required params set, no optionals — baseline wire path
     ("index_history_ohlc", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.index_history_ohlc("SPX", "20250303", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # index_history_ohlc::with_intraday_window
-    #   rationale: start_time + end_time pair — intraday window optional wiring (also covers: all_optionals)
-    ("index_history_ohlc", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring (also covers: all_optionals)", lambda: client.index_history_ohlc("SPX", "20250303", "20250303", "60000", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: start_time + end_time pair — intraday window optional wiring
+    ("index_history_ohlc", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", lambda: client.index_history_ohlc("SPX", "20250303", "20250303", "60000", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # index_history_price::concrete
     #   rationale: required params set, no optionals — baseline wire path
     ("index_history_price", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.index_history_price("SPX", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1097,11 +1097,11 @@ CELLS = [
     #   rationale: list/calendar/rate baseline call — no parameter variation
     ("interest_rate_history_eod", "basic", "free", "list/calendar/rate baseline call — no parameter variation", lambda: client.interest_rate_history_eod("SOFR", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_ohlc_range::concrete
-    #   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
-    ("stock_history_ohlc_range", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: with_venue)", lambda: client.stock_history_ohlc_range("AAPL", "20250303", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: required params set, no optionals — baseline wire path
+    ("stock_history_ohlc_range", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.stock_history_ohlc_range("AAPL", "20250303", "20250303", "60000", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_ohlc_range::with_intraday_window
-    #   rationale: start_time + end_time pair — intraday window optional wiring (also covers: all_optionals)
-    ("stock_history_ohlc_range", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring (also covers: all_optionals)", lambda: client.stock_history_ohlc_range("AAPL", "20250303", "20250303", "60000", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: start_time + end_time pair — intraday window optional wiring
+    ("stock_history_ohlc_range", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", lambda: client.stock_history_ohlc_range("AAPL", "20250303", "20250303", "60000", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
 ]
 
 pass_count = skip_count = fail_count = 0
