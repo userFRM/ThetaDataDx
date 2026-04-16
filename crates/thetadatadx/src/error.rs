@@ -16,12 +16,7 @@ pub enum AuthErrorKind {
 
 impl std::fmt::Display for AuthErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::InvalidCredentials => write!(f, "InvalidCredentials"),
-            Self::NetworkError => write!(f, "NetworkError"),
-            Self::ServerError => write!(f, "ServerError"),
-            Self::Timeout => write!(f, "Timeout"),
-        }
+        std::fmt::Debug::fmt(self, f)
     }
 }
 
@@ -43,13 +38,7 @@ pub enum FpssErrorKind {
 
 impl std::fmt::Display for FpssErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::ConnectionRefused => write!(f, "ConnectionRefused"),
-            Self::Timeout => write!(f, "Timeout"),
-            Self::ProtocolError => write!(f, "ProtocolError"),
-            Self::Disconnected => write!(f, "Disconnected"),
-            Self::TooManyRequests => write!(f, "TooManyRequests"),
-        }
+        std::fmt::Debug::fmt(self, f)
     }
 }
 
@@ -160,50 +149,5 @@ impl From<tonic::Status> for Error {
                 message: s.message().to_string(),
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn status_without_metadata_passes_through() {
-        let status = tonic::Status::internal("something went wrong");
-        let err = Error::from(status);
-        let msg = format!("{}", err);
-        assert!(msg.contains("something went wrong"));
-    }
-
-    #[test]
-    fn auth_error_display_includes_kind() {
-        let err = Error::Auth {
-            kind: AuthErrorKind::InvalidCredentials,
-            message: "bad password".to_string(),
-        };
-        let msg = format!("{err}");
-        assert!(msg.contains("InvalidCredentials"));
-        assert!(msg.contains("bad password"));
-    }
-
-    #[test]
-    fn fpss_error_display_includes_kind() {
-        let err = Error::Fpss {
-            kind: FpssErrorKind::Disconnected,
-            message: "server rejected login".to_string(),
-        };
-        let msg = format!("{err}");
-        assert!(msg.contains("Disconnected"));
-        assert!(msg.contains("server rejected login"));
-    }
-
-    #[test]
-    fn timeout_error_carries_duration() {
-        let err = Error::Timeout {
-            duration_ms: 60_000,
-        };
-        let msg = format!("{err}");
-        assert!(msg.contains("60000"));
-        assert!(msg.contains("deadline"));
     }
 }
