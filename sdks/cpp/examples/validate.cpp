@@ -141,35 +141,35 @@ int main(int argc, char** argv) {
         //   rationale: list/calendar/rate baseline call — no parameter variation
         cell("stock_list_dates", "basic", "free", "list/calendar/rate baseline call — no parameter variation", [&] { return client.stock_list_dates("TRADE", "AAPL", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_snapshot_ohlc::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
-        cell("stock_snapshot_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: with_venue)", [&] { return client.stock_snapshot_ohlc(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("stock_snapshot_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", [&] { return client.stock_snapshot_ohlc(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_snapshot_ohlc::with_min_time
-        //   rationale: min_time=09:45:00 optional filter wiring (also covers: all_optionals)
-        cell("stock_snapshot_ohlc", "with_min_time", "value", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", [&] { return client.stock_snapshot_ohlc(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: min_time=09:45:00 optional filter wiring
+        cell("stock_snapshot_ohlc", "with_min_time", "value", "min_time=09:45:00 optional filter wiring", [&] { return client.stock_snapshot_ohlc(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_snapshot_trade::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
-        cell("stock_snapshot_trade", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: with_venue)", [&] { return client.stock_snapshot_trade(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("stock_snapshot_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", [&] { return client.stock_snapshot_trade(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_snapshot_trade::with_min_time
-        //   rationale: min_time=09:45:00 optional filter wiring (also covers: all_optionals)
-        cell("stock_snapshot_trade", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", [&] { return client.stock_snapshot_trade(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: min_time=09:45:00 optional filter wiring
+        cell("stock_snapshot_trade", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", [&] { return client.stock_snapshot_trade(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_snapshot_quote::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
-        cell("stock_snapshot_quote", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: with_venue)", [&] { return client.stock_snapshot_quote(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("stock_snapshot_quote", "concrete", "value", "required params set, no optionals — baseline wire path", [&] { return client.stock_snapshot_quote(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_snapshot_quote::with_min_time
-        //   rationale: min_time=09:45:00 optional filter wiring (also covers: all_optionals)
-        cell("stock_snapshot_quote", "with_min_time", "value", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", [&] { return client.stock_snapshot_quote(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: min_time=09:45:00 optional filter wiring
+        cell("stock_snapshot_quote", "with_min_time", "value", "min_time=09:45:00 optional filter wiring", [&] { return client.stock_snapshot_quote(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_snapshot_market_value::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
-        cell("stock_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: with_venue)", [&] { return client.stock_snapshot_market_value(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("stock_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path", [&] { return client.stock_snapshot_market_value(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_snapshot_market_value::with_min_time
-        //   rationale: min_time=09:45:00 optional filter wiring (also covers: all_optionals)
-        cell("stock_snapshot_market_value", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", [&] { return client.stock_snapshot_market_value(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: min_time=09:45:00 optional filter wiring
+        cell("stock_snapshot_market_value", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", [&] { return client.stock_snapshot_market_value(std::vector<std::string>{"AAPL"}, tdx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_eod::concrete
         //   rationale: required params set, no optionals — baseline wire path
         cell("stock_history_eod", "concrete", "free", "required params set, no optionals — baseline wire path", [&] { return client.stock_history_eod("AAPL", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_ohlc::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
-        cell("stock_history_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: with_venue)", [&] { return client.stock_history_ohlc("AAPL", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("stock_history_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", [&] { return client.stock_history_ohlc("AAPL", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_ohlc::with_intraday_window
         //   rationale: start_time + end_time pair — intraday window optional wiring
         cell("stock_history_ohlc", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", [&] { return client.stock_history_ohlc("AAPL", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -180,8 +180,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("stock_history_ohlc", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.stock_history_ohlc("AAPL", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_venue("nqb").with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_trade::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
-        cell("stock_history_trade", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: with_venue)", [&] { return client.stock_history_trade("AAPL", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("stock_history_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", [&] { return client.stock_history_trade("AAPL", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_trade::with_intraday_window
         //   rationale: start_time + end_time pair — intraday window optional wiring
         cell("stock_history_trade", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", [&] { return client.stock_history_trade("AAPL", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -192,8 +192,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("stock_history_trade", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.stock_history_trade("AAPL", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_venue("nqb").with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_quote::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
-        cell("stock_history_quote", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: with_venue)", [&] { return client.stock_history_quote("AAPL", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("stock_history_quote", "concrete", "value", "required params set, no optionals — baseline wire path", [&] { return client.stock_history_quote("AAPL", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_quote::with_intraday_window
         //   rationale: start_time + end_time pair — intraday window optional wiring
         cell("stock_history_quote", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", [&] { return client.stock_history_quote("AAPL", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -204,8 +204,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("stock_history_quote", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.stock_history_quote("AAPL", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_venue("nqb").with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_trade_quote::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
-        cell("stock_history_trade_quote", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: with_venue)", [&] { return client.stock_history_trade_quote("AAPL", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("stock_history_trade_quote", "concrete", "standard", "required params set, no optionals — baseline wire path", [&] { return client.stock_history_trade_quote("AAPL", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_trade_quote::with_intraday_window
         //   rationale: start_time + end_time pair — intraday window optional wiring
         cell("stock_history_trade_quote", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", [&] { return client.stock_history_trade_quote("AAPL", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -219,11 +219,11 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("stock_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.stock_history_trade_quote("AAPL", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_exclusive(true).with_venue("nqb").with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_at_time_trade::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: with_venue, all_optionals)
-        cell("stock_at_time_trade", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: with_venue, all_optionals)", [&] { return client.stock_at_time_trade("AAPL", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("stock_at_time_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", [&] { return client.stock_at_time_trade("AAPL", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_at_time_quote::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: with_venue, all_optionals)
-        cell("stock_at_time_quote", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: with_venue, all_optionals)", [&] { return client.stock_at_time_quote("AAPL", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("stock_at_time_quote", "concrete", "value", "required params set, no optionals — baseline wire path", [&] { return client.stock_at_time_quote("AAPL", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_list_symbols::basic
         //   rationale: list/calendar/rate baseline call — no parameter variation
         cell("option_list_symbols", "basic", "free", "list/calendar/rate baseline call — no parameter variation", [&] { return client.option_list_symbols(tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -240,11 +240,11 @@ int main(int argc, char** argv) {
         //   rationale: required params set, no optionals — baseline wire path
         cell("option_list_contracts", "concrete", "value", "required params set, no optionals — baseline wire path", [&] { return client.option_list_contracts("TRADE", "SPY", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_list_contracts::with_max_dte
-        //   rationale: max_dte=30 optional filter wiring (also covers: all_optionals)
-        cell("option_list_contracts", "with_max_dte", "value", "max_dte=30 optional filter wiring (also covers: all_optionals)", [&] { return client.option_list_contracts("TRADE", "SPY", "20250303", tdx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: max_dte=30 optional filter wiring
+        cell("option_list_contracts", "with_max_dte", "value", "max_dte=30 optional filter wiring", [&] { return client.option_list_contracts("TRADE", "SPY", "20250303", tdx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_ohlc::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_snapshot_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_snapshot_ohlc("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_snapshot_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", [&] { return client.option_snapshot_ohlc("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_ohlc::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_snapshot_ohlc", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_snapshot_ohlc("SPY", "20250321", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -252,8 +252,8 @@ int main(int argc, char** argv) {
         //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
         cell("option_snapshot_ohlc", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_ohlc("SPY", "*", "570", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_ohlc::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-        cell("option_snapshot_ohlc", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", [&] { return client.option_snapshot_ohlc("SPY", "*", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+        cell("option_snapshot_ohlc", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_snapshot_ohlc("SPY", "*", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_ohlc::with_max_dte
         //   rationale: max_dte=30 optional filter wiring
         cell("option_snapshot_ohlc", "with_max_dte", "value", "max_dte=30 optional filter wiring", [&] { return client.option_snapshot_ohlc("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -267,8 +267,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_snapshot_ohlc", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_snapshot_ohlc("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_trade::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_snapshot_trade", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_snapshot_trade("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_snapshot_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", [&] { return client.option_snapshot_trade("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_trade::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_snapshot_trade", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_snapshot_trade("SPY", "20250321", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -282,8 +282,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_snapshot_trade", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_snapshot_trade("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_strike_range(10).with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_quote::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_snapshot_quote", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_snapshot_quote("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_snapshot_quote", "concrete", "value", "required params set, no optionals — baseline wire path", [&] { return client.option_snapshot_quote("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_quote::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_snapshot_quote", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_snapshot_quote("SPY", "20250321", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -291,8 +291,8 @@ int main(int argc, char** argv) {
         //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
         cell("option_snapshot_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_quote("SPY", "*", "570", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_quote::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-        cell("option_snapshot_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", [&] { return client.option_snapshot_quote("SPY", "*", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+        cell("option_snapshot_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_snapshot_quote("SPY", "*", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_quote::with_max_dte
         //   rationale: max_dte=30 optional filter wiring
         cell("option_snapshot_quote", "with_max_dte", "value", "max_dte=30 optional filter wiring", [&] { return client.option_snapshot_quote("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -306,8 +306,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_snapshot_quote", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_snapshot_quote("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_open_interest::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_snapshot_open_interest", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_snapshot_open_interest("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_snapshot_open_interest", "concrete", "value", "required params set, no optionals — baseline wire path", [&] { return client.option_snapshot_open_interest("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_open_interest::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_snapshot_open_interest", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_snapshot_open_interest("SPY", "20250321", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -315,8 +315,8 @@ int main(int argc, char** argv) {
         //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
         cell("option_snapshot_open_interest", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_open_interest("SPY", "*", "570", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_open_interest::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-        cell("option_snapshot_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", [&] { return client.option_snapshot_open_interest("SPY", "*", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+        cell("option_snapshot_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_snapshot_open_interest("SPY", "*", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_open_interest::with_max_dte
         //   rationale: max_dte=30 optional filter wiring
         cell("option_snapshot_open_interest", "with_max_dte", "value", "max_dte=30 optional filter wiring", [&] { return client.option_snapshot_open_interest("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -330,8 +330,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_snapshot_open_interest", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_snapshot_open_interest("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_market_value::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_snapshot_market_value("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path", [&] { return client.option_snapshot_market_value("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_market_value::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_snapshot_market_value", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_snapshot_market_value("SPY", "20250321", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -339,8 +339,8 @@ int main(int argc, char** argv) {
         //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
         cell("option_snapshot_market_value", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_market_value("SPY", "*", "570", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_market_value::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-        cell("option_snapshot_market_value", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", [&] { return client.option_snapshot_market_value("SPY", "*", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+        cell("option_snapshot_market_value", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_snapshot_market_value("SPY", "*", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_market_value::with_max_dte
         //   rationale: max_dte=30 optional filter wiring
         cell("option_snapshot_market_value", "with_max_dte", "standard", "max_dte=30 optional filter wiring", [&] { return client.option_snapshot_market_value("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -354,8 +354,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_snapshot_market_value", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_snapshot_market_value("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_implied_volatility::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_snapshot_greeks_implied_volatility", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_snapshot_greeks_implied_volatility", "concrete", "standard", "required params set, no optionals — baseline wire path", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_implied_volatility::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_snapshot_greeks_implied_volatility", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -363,8 +363,8 @@ int main(int argc, char** argv) {
         //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
         cell("option_snapshot_greeks_implied_volatility", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "*", "570", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_implied_volatility::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-        cell("option_snapshot_greeks_implied_volatility", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "*", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+        cell("option_snapshot_greeks_implied_volatility", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "*", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_implied_volatility::with_annual_dividend
         //   rationale: annual_dividend=0.015 optional Greeks-input wiring
         cell("option_snapshot_greeks_implied_volatility", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -396,8 +396,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_snapshot_greeks_implied_volatility", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_version("dg3").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_all::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_snapshot_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_snapshot_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_all::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_snapshot_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -405,8 +405,8 @@ int main(int argc, char** argv) {
         //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
         cell("option_snapshot_greeks_all", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_greeks_all("SPY", "*", "570", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_all::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-        cell("option_snapshot_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", [&] { return client.option_snapshot_greeks_all("SPY", "*", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+        cell("option_snapshot_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_snapshot_greeks_all("SPY", "*", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_all::with_annual_dividend
         //   rationale: annual_dividend=0.015 optional Greeks-input wiring
         cell("option_snapshot_greeks_all", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -438,8 +438,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_snapshot_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_version("dg3").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_first_order::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_snapshot_greeks_first_order", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_snapshot_greeks_first_order", "concrete", "standard", "required params set, no optionals — baseline wire path", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_first_order::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_snapshot_greeks_first_order", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -447,8 +447,8 @@ int main(int argc, char** argv) {
         //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
         cell("option_snapshot_greeks_first_order", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_greeks_first_order("SPY", "*", "570", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_first_order::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-        cell("option_snapshot_greeks_first_order", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", [&] { return client.option_snapshot_greeks_first_order("SPY", "*", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+        cell("option_snapshot_greeks_first_order", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_snapshot_greeks_first_order("SPY", "*", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_first_order::with_annual_dividend
         //   rationale: annual_dividend=0.015 optional Greeks-input wiring
         cell("option_snapshot_greeks_first_order", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -480,8 +480,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_snapshot_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_version("dg3").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_second_order::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_snapshot_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_snapshot_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_second_order::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_snapshot_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -489,8 +489,8 @@ int main(int argc, char** argv) {
         //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
         cell("option_snapshot_greeks_second_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_greeks_second_order("SPY", "*", "570", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_second_order::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-        cell("option_snapshot_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", [&] { return client.option_snapshot_greeks_second_order("SPY", "*", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+        cell("option_snapshot_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_snapshot_greeks_second_order("SPY", "*", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_second_order::with_annual_dividend
         //   rationale: annual_dividend=0.015 optional Greeks-input wiring
         cell("option_snapshot_greeks_second_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -522,8 +522,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_snapshot_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_version("dg3").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_third_order::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_snapshot_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_snapshot_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_third_order::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_snapshot_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -531,8 +531,8 @@ int main(int argc, char** argv) {
         //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
         cell("option_snapshot_greeks_third_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_greeks_third_order("SPY", "*", "570", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_third_order::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-        cell("option_snapshot_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", [&] { return client.option_snapshot_greeks_third_order("SPY", "*", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+        cell("option_snapshot_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_snapshot_greeks_third_order("SPY", "*", "*", "both", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_third_order::with_annual_dividend
         //   rationale: annual_dividend=0.015 optional Greeks-input wiring
         cell("option_snapshot_greeks_third_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -564,8 +564,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_snapshot_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_version("dg3").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_eod::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_history_eod", "concrete", "free", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_history_eod("SPY", "20250321", "570", "C", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_history_eod", "concrete", "free", "required params set, no optionals — baseline wire path", [&] { return client.option_history_eod("SPY", "20250321", "570", "C", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_eod::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_history_eod", "all_strikes_one_exp", "free", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_eod("SPY", "20250321", "*", "both", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -573,8 +573,8 @@ int main(int argc, char** argv) {
         //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
         cell("option_history_eod", "all_exps_one_strike", "free", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_eod("SPY", "*", "570", "both", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_eod::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-        cell("option_history_eod", "bulk_chain", "free", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", [&] { return client.option_history_eod("SPY", "*", "*", "both", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+        cell("option_history_eod", "bulk_chain", "free", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_eod("SPY", "*", "*", "both", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_eod::with_max_dte
         //   rationale: max_dte=30 optional filter wiring
         cell("option_history_eod", "with_max_dte", "free", "max_dte=30 optional filter wiring", [&] { return client.option_history_eod("SPY", "20250321", "570", "C", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -585,8 +585,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_eod", "all_optionals", "free", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_eod("SPY", "20250321", "570", "C", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_max_dte(30).with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_ohlc::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_history_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_history_ohlc("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_history_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", [&] { return client.option_history_ohlc("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_ohlc::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_history_ohlc", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_ohlc("SPY", "20250321", "*", "both", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -603,8 +603,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_ohlc", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_ohlc("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_history_trade", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_history_trade("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_history_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", [&] { return client.option_history_trade("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_history_trade", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_trade("SPY", "20250321", "*", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -612,8 +612,8 @@ int main(int argc, char** argv) {
         //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
         cell("option_history_trade", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_trade("SPY", "*", "570", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-        cell("option_history_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", [&] { return client.option_history_trade("SPY", "*", "*", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+        cell("option_history_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_trade("SPY", "*", "*", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade::with_intraday_window
         //   rationale: start_time + end_time pair — intraday window optional wiring
         cell("option_history_trade", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_trade("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -630,8 +630,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_trade", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_trade("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_quote::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_history_quote", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_history_quote("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_history_quote", "concrete", "value", "required params set, no optionals — baseline wire path", [&] { return client.option_history_quote("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_quote::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_history_quote", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_quote("SPY", "20250321", "*", "both", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -639,8 +639,8 @@ int main(int argc, char** argv) {
         //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
         cell("option_history_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_quote("SPY", "*", "570", "both", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_quote::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-        cell("option_history_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", [&] { return client.option_history_quote("SPY", "*", "*", "both", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+        cell("option_history_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_quote("SPY", "*", "*", "both", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_quote::with_intraday_window
         //   rationale: start_time + end_time pair — intraday window optional wiring
         cell("option_history_quote", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_quote("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -657,8 +657,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_quote", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_quote("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_quote::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_history_trade_quote", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_history_trade_quote("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_history_trade_quote", "concrete", "standard", "required params set, no optionals — baseline wire path", [&] { return client.option_history_trade_quote("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_quote::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_history_trade_quote", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_trade_quote("SPY", "20250321", "*", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -666,8 +666,8 @@ int main(int argc, char** argv) {
         //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
         cell("option_history_trade_quote", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_trade_quote("SPY", "*", "570", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_quote::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-        cell("option_history_trade_quote", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", [&] { return client.option_history_trade_quote("SPY", "*", "*", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+        cell("option_history_trade_quote", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_trade_quote("SPY", "*", "*", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_quote::with_intraday_window
         //   rationale: start_time + end_time pair — intraday window optional wiring
         cell("option_history_trade_quote", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_trade_quote("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -687,8 +687,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_trade_quote("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_exclusive(true).with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_open_interest::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_history_open_interest", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_history_open_interest("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_history_open_interest", "concrete", "value", "required params set, no optionals — baseline wire path", [&] { return client.option_history_open_interest("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_open_interest::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_history_open_interest", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_open_interest("SPY", "20250321", "*", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -696,8 +696,8 @@ int main(int argc, char** argv) {
         //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
         cell("option_history_open_interest", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_open_interest("SPY", "*", "570", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_open_interest::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-        cell("option_history_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", [&] { return client.option_history_open_interest("SPY", "*", "*", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+        cell("option_history_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_open_interest("SPY", "*", "*", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_open_interest::with_date_range
         //   rationale: start_date + end_date pair — date range optional wiring
         cell("option_history_open_interest", "with_date_range", "value", "start_date + end_date pair — date range optional wiring", [&] { return client.option_history_open_interest("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -711,8 +711,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_open_interest", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_open_interest("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_eod::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_history_greeks_eod", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_history_greeks_eod", "concrete", "standard", "required params set, no optionals — baseline wire path", [&] { return client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_eod::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_history_greeks_eod", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_greeks_eod("SPY", "20250321", "*", "both", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -720,8 +720,8 @@ int main(int argc, char** argv) {
         //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
         cell("option_history_greeks_eod", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_greeks_eod("SPY", "*", "570", "both", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_eod::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-        cell("option_history_greeks_eod", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", [&] { return client.option_history_greeks_eod("SPY", "*", "*", "both", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+        cell("option_history_greeks_eod", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_greeks_eod("SPY", "*", "*", "both", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_eod::with_annual_dividend
         //   rationale: annual_dividend=0.015 optional Greeks-input wiring
         cell("option_history_greeks_eod", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", [&] { return client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -747,8 +747,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_greeks_eod", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_underlyer_use_nbbo(true).with_max_dte(30).with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_all::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_history_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_history_greeks_all("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_history_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path", [&] { return client.option_history_greeks_all("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_all::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_history_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_greeks_all("SPY", "20250321", "*", "both", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -777,8 +777,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_greeks_all("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_all::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_history_trade_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_history_trade_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_all::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_history_trade_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", "*", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -786,8 +786,8 @@ int main(int argc, char** argv) {
         //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
         cell("option_history_trade_greeks_all", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_trade_greeks_all("SPY", "*", "570", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_all::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-        cell("option_history_trade_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", [&] { return client.option_history_trade_greeks_all("SPY", "*", "*", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+        cell("option_history_trade_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_trade_greeks_all("SPY", "*", "*", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_all::with_intraday_window
         //   rationale: start_time + end_time pair — intraday window optional wiring
         cell("option_history_trade_greeks_all", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -816,8 +816,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_trade_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_first_order::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_history_greeks_first_order", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_history_greeks_first_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_history_greeks_first_order", "concrete", "standard", "required params set, no optionals — baseline wire path", [&] { return client.option_history_greeks_first_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_first_order::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_history_greeks_first_order", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_greeks_first_order("SPY", "20250321", "*", "both", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -846,8 +846,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_greeks_first_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_first_order::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_history_trade_greeks_first_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_history_trade_greeks_first_order", "concrete", "professional", "required params set, no optionals — baseline wire path", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_first_order::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_history_trade_greeks_first_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", "*", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -855,8 +855,8 @@ int main(int argc, char** argv) {
         //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
         cell("option_history_trade_greeks_first_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_trade_greeks_first_order("SPY", "*", "570", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_first_order::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-        cell("option_history_trade_greeks_first_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", [&] { return client.option_history_trade_greeks_first_order("SPY", "*", "*", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+        cell("option_history_trade_greeks_first_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_trade_greeks_first_order("SPY", "*", "*", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_first_order::with_intraday_window
         //   rationale: start_time + end_time pair — intraday window optional wiring
         cell("option_history_trade_greeks_first_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -885,8 +885,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_trade_greeks_first_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_second_order::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_history_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_history_greeks_second_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_history_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path", [&] { return client.option_history_greeks_second_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_second_order::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_history_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_greeks_second_order("SPY", "20250321", "*", "both", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -915,8 +915,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_greeks_second_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_second_order::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_history_trade_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_history_trade_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_second_order::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_history_trade_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", "*", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -924,8 +924,8 @@ int main(int argc, char** argv) {
         //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
         cell("option_history_trade_greeks_second_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_trade_greeks_second_order("SPY", "*", "570", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_second_order::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-        cell("option_history_trade_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", [&] { return client.option_history_trade_greeks_second_order("SPY", "*", "*", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+        cell("option_history_trade_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_trade_greeks_second_order("SPY", "*", "*", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_second_order::with_intraday_window
         //   rationale: start_time + end_time pair — intraday window optional wiring
         cell("option_history_trade_greeks_second_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -954,8 +954,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_trade_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_third_order::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_history_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_history_greeks_third_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_history_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path", [&] { return client.option_history_greeks_third_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_third_order::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_history_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_greeks_third_order("SPY", "20250321", "*", "both", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -984,8 +984,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_greeks_third_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_third_order::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_history_trade_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_history_trade_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_third_order::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_history_trade_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", "*", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -993,8 +993,8 @@ int main(int argc, char** argv) {
         //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
         cell("option_history_trade_greeks_third_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_trade_greeks_third_order("SPY", "*", "570", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_third_order::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-        cell("option_history_trade_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", [&] { return client.option_history_trade_greeks_third_order("SPY", "*", "*", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+        cell("option_history_trade_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_trade_greeks_third_order("SPY", "*", "*", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_third_order::with_intraday_window
         //   rationale: start_time + end_time pair — intraday window optional wiring
         cell("option_history_trade_greeks_third_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1023,8 +1023,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_trade_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_implied_volatility::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_history_greeks_implied_volatility", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_history_greeks_implied_volatility", "concrete", "standard", "required params set, no optionals — baseline wire path", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_implied_volatility::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_history_greeks_implied_volatility", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", "*", "both", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1053,8 +1053,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_greeks_implied_volatility", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_implied_volatility::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_history_trade_greeks_implied_volatility", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_history_trade_greeks_implied_volatility", "concrete", "professional", "required params set, no optionals — baseline wire path", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_implied_volatility::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_history_trade_greeks_implied_volatility", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "*", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1062,8 +1062,8 @@ int main(int argc, char** argv) {
         //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
         cell("option_history_trade_greeks_implied_volatility", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "*", "570", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_implied_volatility::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-        cell("option_history_trade_greeks_implied_volatility", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "*", "*", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+        cell("option_history_trade_greeks_implied_volatility", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "*", "*", "both", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_implied_volatility::with_intraday_window
         //   rationale: start_time + end_time pair — intraday window optional wiring
         cell("option_history_trade_greeks_implied_volatility", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1092,8 +1092,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_trade_greeks_implied_volatility", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_at_time_trade::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_at_time_trade", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_at_time_trade("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_at_time_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", [&] { return client.option_at_time_trade("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_at_time_trade::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_at_time_trade", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_at_time_trade("SPY", "20250321", "*", "both", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1101,8 +1101,8 @@ int main(int argc, char** argv) {
         //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
         cell("option_at_time_trade", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_at_time_trade("SPY", "*", "570", "both", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_at_time_trade::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-        cell("option_at_time_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", [&] { return client.option_at_time_trade("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+        cell("option_at_time_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_at_time_trade("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_at_time_trade::with_max_dte
         //   rationale: max_dte=30 optional filter wiring
         cell("option_at_time_trade", "with_max_dte", "standard", "max_dte=30 optional filter wiring", [&] { return client.option_at_time_trade("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1113,8 +1113,8 @@ int main(int argc, char** argv) {
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_at_time_trade", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_at_time_trade("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_max_dte(30).with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_at_time_quote::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
-        cell("option_at_time_quote", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", [&] { return client.option_at_time_quote("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("option_at_time_quote", "concrete", "value", "required params set, no optionals — baseline wire path", [&] { return client.option_at_time_quote("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_at_time_quote::all_strikes_one_exp
         //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
         cell("option_at_time_quote", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_at_time_quote("SPY", "20250321", "*", "both", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1122,8 +1122,8 @@ int main(int argc, char** argv) {
         //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
         cell("option_at_time_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_at_time_quote("SPY", "*", "570", "both", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_at_time_quote::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
-        cell("option_at_time_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", [&] { return client.option_at_time_quote("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
+        cell("option_at_time_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_at_time_quote("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_at_time_quote::with_max_dte
         //   rationale: max_dte=30 optional filter wiring
         cell("option_at_time_quote", "with_max_dte", "value", "max_dte=30 optional filter wiring", [&] { return client.option_at_time_quote("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", tdx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1143,20 +1143,20 @@ int main(int argc, char** argv) {
         //   rationale: required params set, no optionals — baseline wire path
         cell("index_snapshot_ohlc", "concrete", "standard", "required params set, no optionals — baseline wire path", [&] { return client.index_snapshot_ohlc(std::vector<std::string>{"SPX"}, tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // index_snapshot_ohlc::with_min_time
-        //   rationale: min_time=09:45:00 optional filter wiring (also covers: all_optionals)
-        cell("index_snapshot_ohlc", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", [&] { return client.index_snapshot_ohlc(std::vector<std::string>{"SPX"}, tdx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: min_time=09:45:00 optional filter wiring
+        cell("index_snapshot_ohlc", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", [&] { return client.index_snapshot_ohlc(std::vector<std::string>{"SPX"}, tdx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
         // index_snapshot_price::concrete
         //   rationale: required params set, no optionals — baseline wire path
         cell("index_snapshot_price", "concrete", "standard", "required params set, no optionals — baseline wire path", [&] { return client.index_snapshot_price(std::vector<std::string>{"SPX"}, tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // index_snapshot_price::with_min_time
-        //   rationale: min_time=09:45:00 optional filter wiring (also covers: all_optionals)
-        cell("index_snapshot_price", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", [&] { return client.index_snapshot_price(std::vector<std::string>{"SPX"}, tdx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: min_time=09:45:00 optional filter wiring
+        cell("index_snapshot_price", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", [&] { return client.index_snapshot_price(std::vector<std::string>{"SPX"}, tdx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
         // index_snapshot_market_value::concrete
         //   rationale: required params set, no optionals — baseline wire path
         cell("index_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path", [&] { return client.index_snapshot_market_value(std::vector<std::string>{"SPX"}, tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // index_snapshot_market_value::with_min_time
-        //   rationale: min_time=09:45:00 optional filter wiring (also covers: all_optionals)
-        cell("index_snapshot_market_value", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", [&] { return client.index_snapshot_market_value(std::vector<std::string>{"SPX"}, tdx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: min_time=09:45:00 optional filter wiring
+        cell("index_snapshot_market_value", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", [&] { return client.index_snapshot_market_value(std::vector<std::string>{"SPX"}, tdx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
         // index_history_eod::concrete
         //   rationale: required params set, no optionals — baseline wire path
         cell("index_history_eod", "concrete", "free", "required params set, no optionals — baseline wire path", [&] { return client.index_history_eod("SPX", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1164,8 +1164,8 @@ int main(int argc, char** argv) {
         //   rationale: required params set, no optionals — baseline wire path
         cell("index_history_ohlc", "concrete", "standard", "required params set, no optionals — baseline wire path", [&] { return client.index_history_ohlc("SPX", "20250303", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // index_history_ohlc::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring (also covers: all_optionals)
-        cell("index_history_ohlc", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring (also covers: all_optionals)", [&] { return client.index_history_ohlc("SPX", "20250303", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair — intraday window optional wiring
+        cell("index_history_ohlc", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", [&] { return client.index_history_ohlc("SPX", "20250303", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
         // index_history_price::concrete
         //   rationale: required params set, no optionals — baseline wire path
         cell("index_history_price", "concrete", "value", "required params set, no optionals — baseline wire path", [&] { return client.index_history_price("SPX", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1194,11 +1194,11 @@ int main(int argc, char** argv) {
         //   rationale: list/calendar/rate baseline call — no parameter variation
         cell("interest_rate_history_eod", "basic", "free", "list/calendar/rate baseline call — no parameter variation", [&] { return client.interest_rate_history_eod("SOFR", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_ohlc_range::concrete
-        //   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
-        cell("stock_history_ohlc_range", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: with_venue)", [&] { return client.stock_history_ohlc_range("AAPL", "20250303", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, no optionals — baseline wire path
+        cell("stock_history_ohlc_range", "concrete", "value", "required params set, no optionals — baseline wire path", [&] { return client.stock_history_ohlc_range("AAPL", "20250303", "20250303", "60000", tdx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_ohlc_range::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring (also covers: all_optionals)
-        cell("stock_history_ohlc_range", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring (also covers: all_optionals)", [&] { return client.stock_history_ohlc_range("AAPL", "20250303", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair — intraday window optional wiring
+        cell("stock_history_ohlc_range", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", [&] { return client.stock_history_ohlc_range("AAPL", "20250303", "20250303", "60000", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
     } catch (const std::exception& e) {
         std::cerr << "validator bootstrap failure: " << e.what() << std::endl;
         return 1;

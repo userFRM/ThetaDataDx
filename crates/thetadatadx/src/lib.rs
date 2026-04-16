@@ -111,15 +111,7 @@ mod macros;
 
 pub mod direct;
 
-/// Generated protobuf types from `external.proto`.
-///
-/// Contains all wire types in a single package `BetaEndpoints`:
-/// - Shared types: `AuthToken`, `ContractSpec`, `Price`, `DataValue`, `DataValueList`,
-///   `DataTable`, `ResponseData`, `CompressionAlgo`, `CompressionDescription`,
-///   `TimeZone`, `ZonedDateTime`, `QueryInfo`
-/// - 60 request/response types (`StockHistoryEodRequest`, `OptionSnapshotQuoteRequest`, ...)
-/// - gRPC client stub (`beta_theta_terminal_client::BetaThetaTerminalClient`)
-// Generated code -- not under our control.
+/// Generated protobuf types from `external.proto` (package `BetaEndpoints`).
 #[allow(clippy::pedantic)]
 pub mod proto {
     tonic::include_proto!("beta_endpoints");

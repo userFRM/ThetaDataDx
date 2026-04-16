@@ -376,62 +376,22 @@ pub(super) fn test_modes_for(
     )
 }
 
-/// Look up the representative value for a builder-bound optional parameter
-/// from `[test_fixtures.optional_defaults]`. Returns `None` if the TOML has
-/// no entry; the pre-flight check in `parser.rs::validate_test_fixtures`
-/// rejects every endpoint whose builder param lacks an entry, so the `None`
-/// branch is a defense in depth — only fires if the validator is bypassed.
-fn optional_fixture_value<'a>(fixtures: &'a TestFixtures, param_name: &str) -> Option<&'a str> {
+/// Look up the representative value for a builder-bound optional parameter.
+/// `parser.rs::validate_test_fixtures` already guarantees every in-use key
+/// is present in `optional_defaults`; a missing row means the validator
+/// was bypassed.
+fn optional_fixture_value<'a>(fixtures: &'a TestFixtures, param_name: &str) -> &'a str {
     fixtures
         .optional_defaults
         .get(param_name)
         .map(String::as_str)
+        .unwrap_or_else(|| panic!("test_fixtures.optional_defaults is missing key '{param_name}'"))
 }
 
-/// Same as [`optional_fixture_value`] but for paired modes
-/// (`with_intraday_window`, `with_date_range`) where the fixture row is
-/// guaranteed by the design — both halves of the pair have to have
-/// fixtures because the SDK rejects the half-set wire shape. Panics with
-/// full context (endpoint, mode, key) so a missing row is debuggable
-/// without `RUST_BACKTRACE=1`.
-fn paired_optional_fixture(
-    fixtures: &TestFixtures,
-    endpoint: &GeneratedEndpoint,
-    mode_name: &str,
-    param_name: &str,
-) -> String {
-    optional_fixture_value(fixtures, param_name)
-        .unwrap_or_else(|| {
-            panic!(
-                "test_fixtures.optional_defaults is missing key '{param_name}' (needed for \
-                 {endpoint}.{mode_name}); add a row in endpoint_surface.toml. Note: \
-                 parser.rs::validate_test_fixtures should have caught this earlier — if you see \
-                 this panic, the validator was bypassed.",
-                endpoint = endpoint.name,
-            )
-        })
-        .to_string()
-}
-
-/// Expand the baseline (wildcard/concrete) modes with one `with_<name>` cell
-/// per optional param the endpoint accepts, plus one `all_optionals` cell
-/// that sets every applicable optional at once.
-///
-/// Design decisions:
-/// * Start-time/end-time are a single `with_intraday_window` mode rather than
-///   two independent cells. The SDK accepts them independently but sending
-///   only one half makes the time window implicit which the server rejects.
-/// * Start-date/end-date are a single `with_date_range` mode, and only
-///   emitted if the endpoint has BOTH optional params. Sending only one
-///   half is an invalid argument on the wire.
-/// * The rest pair 1:1 with a single `with_<param_name>` mode.
-/// * The `all_optionals` mode collects every applicable representative value
-///   into one call — proves the SDK can serialize them all together.
-///
-/// No cell is ever deduplicated against another by wire shape: even if two
-/// generated modes would hit the server with identical bytes, we keep both
-/// so the cross-language agreement check can detect SDKs that diverge
-/// *only* on that cell. See PR #291 / issue #290.
+/// Append `with_<name>` cells (one per optional), plus paired compound modes
+/// (`with_intraday_window`, `with_date_range`) and an `all_optionals` cell.
+/// Paired modes are only emitted when both halves are optional on the
+/// endpoint — sending one half alone is invalid on the wire.
 fn append_optional_modes(
     endpoint: &GeneratedEndpoint,
     fixtures: &TestFixtures,
@@ -457,11 +417,11 @@ fn append_optional_modes(
         let overrides = vec![
             (
                 "start_time".to_string(),
-                paired_optional_fixture(fixtures, endpoint, "with_intraday_window", "start_time"),
+                optional_fixture_value(fixtures, "start_time").to_string(),
             ),
             (
                 "end_time".to_string(),
-                paired_optional_fixture(fixtures, endpoint, "with_intraday_window", "end_time"),
+                optional_fixture_value(fixtures, "end_time").to_string(),
             ),
         ];
         modes.push(TestMode {
@@ -483,11 +443,11 @@ fn append_optional_modes(
         let overrides = vec![
             (
                 "start_date".to_string(),
-                paired_optional_fixture(fixtures, endpoint, "with_date_range", "start_date"),
+                optional_fixture_value(fixtures, "start_date").to_string(),
             ),
             (
                 "end_date".to_string(),
-                paired_optional_fixture(fixtures, endpoint, "with_date_range", "end_date"),
+                optional_fixture_value(fixtures, "end_date").to_string(),
             ),
         ];
         modes.push(TestMode {
@@ -502,21 +462,12 @@ fn append_optional_modes(
         handled.insert("end_date".into());
     }
 
-    // Per-parameter `with_<name>` modes for everything else. Every entry in
-    // `optional_names` is guaranteed to have an `optional_defaults` row by
-    // `parser.rs::validate_test_fixtures`, so a missing fixture here is a
-    // bypassed-validator bug, not a routine "skip the cell" path.
+    // Per-parameter `with_<name>` modes for everything else.
     for param_name in &optional_names {
         if handled.contains(param_name) {
             continue;
         }
-        let value = optional_fixture_value(fixtures, param_name).unwrap_or_else(|| {
-            panic!(
-                "test_fixtures.optional_defaults is missing key '{param_name}' (needed for \
-                 {endpoint}.with_{param_name}); add a row in endpoint_surface.toml.",
-                endpoint = endpoint.name
-            )
-        });
+        let value = optional_fixture_value(fixtures, param_name);
         // Rationale carries the exact fixture literal so the cell's text
         // can never drift from `optional_fixture_value`. `String` is
         // promoted to `&'static str` via `Box::leak` — generator runs once
@@ -533,19 +484,10 @@ fn append_optional_modes(
         });
     }
 
-    // `all_optionals` mode — set every applicable optional at once. Uses
-    // the compound fixtures for paired params (single intraday window, single
-    // date range) so the compound cell and this one agree on wire shape.
-    // Same fail-fast contract as the `with_<name>` loop above.
+    // `all_optionals` mode — set every applicable optional at once.
     let mut all_overrides: Vec<(String, String)> = Vec::new();
     for param_name in &optional_names {
-        let value = optional_fixture_value(fixtures, param_name).unwrap_or_else(|| {
-            panic!(
-                "test_fixtures.optional_defaults is missing key '{param_name}' (needed for \
-                 {endpoint}.all_optionals); add a row in endpoint_surface.toml.",
-                endpoint = endpoint.name
-            )
-        });
+        let value = optional_fixture_value(fixtures, param_name);
         all_overrides.push((param_name.clone(), value.to_string()));
     }
     if !all_overrides.is_empty() {
@@ -562,37 +504,36 @@ fn append_optional_modes(
     modes
 }
 
+/// Canonical token used by build-time wire-shape signatures for
+/// proto-unset optional fields.
+const UNSET_WIRE_ARG_SENTINEL: &str = "<unset>";
+
+/// Canonicalize an argument the same way the runtime request builder does.
+/// Used by `collapse_redundant_wires` to decide whether two cells produce
+/// identical wire requests.
+fn canonicalize_wire_arg(param_name: &str, value: &str) -> String {
+    use super::super::wire_semantics::{normalize_expiration, wire_right_opt, wire_strike_opt};
+    match param_name {
+        "expiration" => normalize_expiration(value),
+        "strike" => wire_strike_opt(value).unwrap_or_else(|| UNSET_WIRE_ARG_SENTINEL.to_string()),
+        "right" => wire_right_opt(value).unwrap_or_else(|| UNSET_WIRE_ARG_SENTINEL.to_string()),
+        _ => value.to_string(),
+    }
+}
+
 /// Collapse cells whose post-canonicalization wire shape is identical down
-/// to a single canonical cell.
+/// to a single canonical cell. Two modes with equal signatures marshal
+/// byte-identical proto messages, so keeping both would only multiply
+/// validator runtime without adding coverage.
 ///
-/// The signature combines:
-/// * positional args run through [`super::super::wire_semantics::canonicalize_wire_arg`]
-///   per-param name,
-///   which mirrors the runtime's `expiration`/`strike`/`right` rewriting;
-/// * builder-override pairs, also canonicalized, sorted, **and** with stock
-///   endpoints' `"venue" → "nqb"` default synthesized in whenever the
-///   endpoint's `venue` param is absent from the mode's overrides.
-///   See `render/direct.rs` for the runtime default.
-///
-/// Two modes with equal signatures will marshal byte-identical proto
-/// messages, so collapsing them removes only redundant runtime cost.
-///
-/// Collapsing rules:
-/// * Group modes by their canonicalized signature.
-/// * Within each group keep the lowest-index entry, so canonical modes like
-///   `concrete`/`bulk_chain` win over a later `with_<name>` whose override
-///   happened to match an existing fixture.
-/// * Append the names of collapsed siblings to the kept cell's rationale as
-///   `(also covers: a, b)` so the downstream agreement output makes the
-///   roll-up visible.
-///
-/// This is the audit step from W6: before it, cells with overlapping wire
-/// shapes co-existed silently. After it, no two emitted cells for a given
-/// endpoint share a wire shape; siblings are documented inline.
+/// The signature combines positional args and builder-override pairs run
+/// through [`canonicalize_wire_arg`] (mirroring the runtime's
+/// `expiration`/`strike`/`right` rewriting), plus the stock-endpoint
+/// `venue=nqb` default synthesized in when absent. Within each bucket we
+/// keep the lowest-index entry so canonical modes win over later
+/// `with_<name>` duplicates.
 fn collapse_redundant_wires(endpoint: &GeneratedEndpoint, modes: Vec<TestMode>) -> Vec<TestMode> {
     use std::collections::BTreeMap;
-    // Canonicalized wire signature: positional args + sorted override pairs,
-    // with runtime-equivalent normalization applied to both sides.
     type WireSignature = (Vec<String>, Vec<(String, String)>);
 
     let method_param_names: Vec<String> = method_params(endpoint)
@@ -607,22 +548,15 @@ fn collapse_redundant_wires(endpoint: &GeneratedEndpoint, modes: Vec<TestMode>) 
     let canonical_overrides = |overrides: &[(String, String)]| -> Vec<(String, String)> {
         let mut pairs: Vec<(String, String)> = overrides
             .iter()
-            .map(|(k, v)| {
-                (
-                    k.clone(),
-                    super::super::wire_semantics::canonicalize_wire_arg(k, v),
-                )
-            })
+            .map(|(k, v)| (k.clone(), canonicalize_wire_arg(k, v)))
             .collect();
-        // Synthesize the stock-endpoint `venue=nqb` default when the mode
-        // doesn't override it: the runtime fills this in at request-build
-        // time (`render/direct.rs`), so omitting it here would make
-        // `concrete` and `with_venue` look like distinct wire shapes
-        // despite producing identical proto messages.
+        // Stock endpoints default `venue=nqb` at the runtime call site
+        // (`render/direct.rs`). Synthesize it here so modes that omit
+        // `venue` don't look distinct from modes that set it to `nqb`.
         if has_stock_venue_default && !pairs.iter().any(|(k, _)| k == "venue") {
             pairs.push((
                 "venue".to_string(),
-                super::super::wire_semantics_runtime::DEFAULT_STOCK_VENUE.to_string(),
+                super::super::wire_semantics::DEFAULT_STOCK_VENUE.to_string(),
             ));
         }
         pairs.sort();
@@ -637,46 +571,23 @@ fn collapse_redundant_wires(endpoint: &GeneratedEndpoint, modes: Vec<TestMode>) 
                     .get(i)
                     .map(String::as_str)
                     .unwrap_or_default();
-                super::super::wire_semantics::canonicalize_wire_arg(name, v)
+                canonicalize_wire_arg(name, v)
             })
             .collect()
     };
 
-    let mut buckets: BTreeMap<WireSignature, Vec<usize>> = BTreeMap::new();
+    let mut buckets: BTreeMap<WireSignature, usize> = BTreeMap::new();
     for (idx, mode) in modes.iter().enumerate() {
         let key = (
             canonical_args(&mode.args),
             canonical_overrides(&mode.builder_overrides),
         );
-        buckets.entry(key).or_default().push(idx);
+        buckets
+            .entry(key)
+            .and_modify(|e| *e = (*e).min(idx))
+            .or_insert(idx);
     }
-    let mut keep_idx: Vec<(usize, Vec<String>)> = buckets
-        .values()
-        .map(|indices| {
-            let canonical = *indices.iter().min().unwrap();
-            let collapsed: Vec<String> = indices
-                .iter()
-                .filter(|&&i| i != canonical)
-                .map(|&i| modes[i].name.clone())
-                .collect();
-            (canonical, collapsed)
-        })
-        .collect();
-    keep_idx.sort_by_key(|(idx, _)| *idx);
-
-    let mut out = Vec::with_capacity(keep_idx.len());
-    for (idx, collapsed) in keep_idx {
-        let mut mode = modes[idx].clone();
-        if !collapsed.is_empty() {
-            // Build the appended rationale at generator runtime, then leak it
-            // to satisfy the `&'static str` field — generator runs once per
-            // build so the lifetime cost is one allocation per collapsed
-            // group, never freed across the build's lifetime. Kept under
-            // 200 chars to stay readable in the agreement table.
-            let extended = format!("{} (also covers: {})", mode.rationale, collapsed.join(", "));
-            mode.rationale = Box::leak(extended.into_boxed_str());
-        }
-        out.push(mode);
-    }
-    out
+    let mut keep_idx: Vec<usize> = buckets.into_values().collect();
+    keep_idx.sort_unstable();
+    keep_idx.into_iter().map(|idx| modes[idx].clone()).collect()
 }

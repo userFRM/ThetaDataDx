@@ -200,14 +200,6 @@ def check_static_docs() -> None:
         ROOT / "docs-site/public/thetadatadx.yaml",
         'description: ET wall-clock time in HH:MM:SS.SSS (e.g. "09:30:00.000" for 9:30 AM ET; legacy "34200000" is also accepted)',
     )
-    expect_contains(
-        ROOT / "examples/test_all_endpoints.sh",
-        'stock at_time_trade AAPL 20260401 20260402 09:30:00.000',
-    )
-    expect_contains(
-        ROOT / "examples/test_all_endpoints.sh",
-        'index history_price SPX 20260402 60000',
-    )
     expect_not_contains(
         ROOT / "docs-site/docs/api-reference.md",
         'Ms from midnight ET',

@@ -149,30 +149,16 @@ enum ParamType {
 struct GoFfiSpec {
     #[serde(default)]
     tls_reader_markers: Vec<TlsReaderMarker>,
-    #[serde(default)]
-    tls_helpers: Vec<TlsHelper>,
 }
 
 /// A substring that, when present on a Go source line, identifies an FFI
 /// thread-local error read. The enclosing function must have executed
 /// `runtime.LockOSThread()` + `defer runtime.UnlockOSThread()` before
-/// reaching such a line. See `sdk_surface.toml` for the authoritative
-/// description of each marker.
+/// reaching such a line.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct TlsReaderMarker {
     substring: String,
-    description: String,
-}
-
-/// A hand-written Go helper (method or function) that is itself a TLS
-/// reader. The generated timeout-pin audit skips these entries when counting
-/// expected-pinned methods so self-pinning helpers don't double-count.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct TlsHelper {
-    method_name: String,
-    description: String,
 }
 
 struct GeneratedSourceFile {
@@ -181,7 +167,7 @@ struct GeneratedSourceFile {
 }
 
 pub fn write_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    for file in render_sdk_generated_files(repo_root)? {
+    for file in render_sdk_generated_files()? {
         let path = repo_root.join(file.relative_path);
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -192,7 +178,7 @@ pub fn write_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
 }
 
 pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    for file in render_sdk_generated_files(repo_root)? {
+    for file in render_sdk_generated_files()? {
         let path = repo_root.join(file.relative_path);
         let actual = std::fs::read_to_string(&path)?;
         if actual.replace("\r\n", "\n") != file.contents {
@@ -206,9 +192,7 @@ pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
     Ok(())
 }
 
-fn render_sdk_generated_files(
-    repo_root: &Path,
-) -> Result<Vec<GeneratedSourceFile>, Box<dyn std::error::Error>> {
+fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std::error::Error>> {
     let spec = load_sdk_surface_spec()?;
     validate_spec(&spec)?;
 
@@ -274,23 +258,11 @@ fn render_sdk_generated_files(
         },
         GeneratedSourceFile {
             relative_path: "sdks/go/fpss_methods.go",
-            contents: go_fpss_methods_src.clone(),
+            contents: go_fpss_methods_src,
         },
         GeneratedSourceFile {
             relative_path: "sdks/go/utilities.go",
-            contents: go_utilities_src.clone(),
-        },
-        GeneratedSourceFile {
-            relative_path: "sdks/go/timeout_pin_generated_test.go",
-            contents: render_go_timeout_pin_generated_test(
-                repo_root,
-                &spec.go_ffi.tls_reader_markers,
-                &spec.go_ffi.tls_helpers,
-                &[
-                    ("fpss_methods.go", go_fpss_methods_src.as_str()),
-                    ("utilities.go", go_utilities_src.as_str()),
-                ],
-            )?,
+            contents: go_utilities_src,
         },
         GeneratedSourceFile {
             relative_path: "sdks/cpp/include/fpss.hpp.inc",
@@ -368,20 +340,6 @@ fn validate_spec(spec: &SdkSurfaceSpec) -> Result<(), Box<dyn std::error::Error>
         }
     }
 
-    let mut seen_tls_helpers = std::collections::HashSet::new();
-    for helper in &spec.go_ffi.tls_helpers {
-        if helper.method_name.trim().is_empty() {
-            return Err("sdk_surface.toml go_ffi.tls_helpers contains an empty method_name".into());
-        }
-        if !seen_tls_helpers.insert(helper.method_name.as_str()) {
-            return Err(format!(
-                "sdk_surface.toml go_ffi.tls_helpers contains duplicate method_name '{}'",
-                helper.method_name
-            )
-            .into());
-        }
-    }
-
     Ok(())
 }
 
@@ -397,209 +355,6 @@ fn validate_method_spec(method: &MethodSpec) -> Result<(), Box<dyn std::error::E
         &format!("method '{}' params", method.name),
         method.params.iter().map(|param| param.name.clone()),
     )?;
-
-    match method.kind {
-        MethodKind::StartStreaming => {
-            expect_method_name(method, "start_streaming")?;
-            expect_exact_method_targets(method, &[MethodTarget::PythonUnified])?;
-            expect_param_layout(method, &[])?;
-            expect_none(&method.runtime_call, &method.name, "runtime_call")?;
-            expect_none(&method.ffi_call, &method.name, "ffi_call")?;
-            expect_none(&method.config_variant, &method.name, "config_variant")?;
-        }
-        MethodKind::IsStreaming => {
-            expect_method_name(method, "is_streaming")?;
-            expect_exact_method_targets(method, &[MethodTarget::PythonUnified])?;
-            expect_param_layout(method, &[])?;
-            expect_none(&method.runtime_call, &method.name, "runtime_call")?;
-            expect_none(&method.ffi_call, &method.name, "ffi_call")?;
-            expect_none(&method.config_variant, &method.name, "config_variant")?;
-        }
-        MethodKind::StockContractCall => {
-            expect_method_targets_subset(
-                method,
-                &[
-                    MethodTarget::PythonUnified,
-                    MethodTarget::GoFpss,
-                    MethodTarget::CppFpss,
-                ],
-            )?;
-            expect_param_layout(method, &[("symbol", ParamType::String)])?;
-            expect_some(&method.runtime_call, &method.name, "runtime_call")?;
-            expect_some(&method.ffi_call, &method.name, "ffi_call")?;
-            expect_none(&method.config_variant, &method.name, "config_variant")?;
-        }
-        MethodKind::OptionContractCall => {
-            expect_method_targets_subset(
-                method,
-                &[
-                    MethodTarget::PythonUnified,
-                    MethodTarget::GoFpss,
-                    MethodTarget::CppFpss,
-                ],
-            )?;
-            expect_param_layout(
-                method,
-                &[
-                    ("symbol", ParamType::String),
-                    ("expiration", ParamType::String),
-                    ("strike", ParamType::String),
-                    ("right", ParamType::String),
-                ],
-            )?;
-            expect_some(&method.runtime_call, &method.name, "runtime_call")?;
-            expect_some(&method.ffi_call, &method.name, "ffi_call")?;
-            expect_none(&method.config_variant, &method.name, "config_variant")?;
-        }
-        MethodKind::FullCall => {
-            expect_method_targets_subset(
-                method,
-                &[
-                    MethodTarget::PythonUnified,
-                    MethodTarget::GoFpss,
-                    MethodTarget::CppFpss,
-                ],
-            )?;
-            expect_param_layout(method, &[("sec_type", ParamType::String)])?;
-            expect_some(&method.runtime_call, &method.name, "runtime_call")?;
-            expect_some(&method.ffi_call, &method.name, "ffi_call")?;
-            expect_none(&method.config_variant, &method.name, "config_variant")?;
-        }
-        MethodKind::ContractMap => {
-            expect_method_name(method, "contract_map")?;
-            expect_method_targets_subset(
-                method,
-                &[
-                    MethodTarget::PythonUnified,
-                    MethodTarget::GoFpss,
-                    MethodTarget::CppFpss,
-                ],
-            )?;
-            expect_param_layout(method, &[])?;
-        }
-        MethodKind::ContractLookup => {
-            expect_method_name(method, "contract_lookup")?;
-            expect_method_targets_subset(
-                method,
-                &[
-                    MethodTarget::PythonUnified,
-                    MethodTarget::GoFpss,
-                    MethodTarget::CppFpss,
-                ],
-            )?;
-            expect_param_layout(method, &[("id", ParamType::I32)])?;
-        }
-        MethodKind::ActiveSubscriptions => {
-            expect_method_name(method, "active_subscriptions")?;
-            expect_method_targets_subset(
-                method,
-                &[
-                    MethodTarget::PythonUnified,
-                    MethodTarget::GoFpss,
-                    MethodTarget::CppFpss,
-                ],
-            )?;
-            expect_param_layout(method, &[])?;
-        }
-        MethodKind::NextEvent => {
-            expect_method_name(method, "next_event")?;
-            expect_method_targets_subset(
-                method,
-                &[
-                    MethodTarget::PythonUnified,
-                    MethodTarget::GoFpss,
-                    MethodTarget::CppFpss,
-                ],
-            )?;
-            expect_param_layout(method, &[("timeout_ms", ParamType::U64)])?;
-        }
-        MethodKind::Reconnect => {
-            expect_method_name(method, "reconnect")?;
-            expect_method_targets_subset(
-                method,
-                &[
-                    MethodTarget::PythonUnified,
-                    MethodTarget::GoFpss,
-                    MethodTarget::CppFpss,
-                ],
-            )?;
-            expect_param_layout(method, &[])?;
-        }
-        MethodKind::StopStreaming => {
-            expect_method_name(method, "stop_streaming")?;
-            expect_exact_method_targets(method, &[MethodTarget::PythonUnified])?;
-            expect_param_layout(method, &[])?;
-        }
-        MethodKind::Shutdown => {
-            expect_method_name(method, "shutdown")?;
-            expect_method_targets_subset(
-                method,
-                &[
-                    MethodTarget::PythonUnified,
-                    MethodTarget::GoFpss,
-                    MethodTarget::CppFpss,
-                ],
-            )?;
-            expect_param_layout(method, &[])?;
-        }
-        MethodKind::IsAuthenticated => {
-            expect_method_name(method, "is_authenticated")?;
-            expect_method_targets_subset(method, &[MethodTarget::GoFpss, MethodTarget::CppFpss])?;
-            expect_param_layout(method, &[])?;
-        }
-        MethodKind::FpssConnect => {
-            expect_method_name(method, "connect")?;
-            expect_exact_method_targets(method, &[MethodTarget::CppFpss])?;
-            expect_param_layout(
-                method,
-                &[
-                    ("creds", ParamType::CredentialsRef),
-                    ("config", ParamType::ConfigRef),
-                ],
-            )?;
-        }
-        MethodKind::CredentialsFromFile => {
-            expect_method_name(method, "credentials_from_file")?;
-            expect_exact_method_targets(method, &[MethodTarget::CppLifecycle])?;
-            expect_param_layout(method, &[("path", ParamType::String)])?;
-        }
-        MethodKind::CredentialsFromEmail => {
-            expect_method_name(method, "credentials_from_email")?;
-            expect_exact_method_targets(method, &[MethodTarget::CppLifecycle])?;
-            expect_param_layout(
-                method,
-                &[
-                    ("email", ParamType::String),
-                    ("password", ParamType::String),
-                ],
-            )?;
-        }
-        MethodKind::ConfigConstructor => {
-            let variant = expect_some(&method.config_variant, &method.name, "config_variant")?;
-            expect_method_name(method, &format!("config_{variant}"))?;
-            expect_exact_method_targets(method, &[MethodTarget::CppLifecycle])?;
-            expect_param_layout(method, &[])?;
-            if !matches!(variant, "production" | "dev" | "stage") {
-                return Err(format!(
-                    "method '{}' has unsupported config_variant '{}'",
-                    method.name, variant
-                )
-                .into());
-            }
-        }
-        MethodKind::ClientConnect => {
-            expect_method_name(method, "client_connect")?;
-            expect_exact_method_targets(method, &[MethodTarget::CppLifecycle])?;
-            expect_param_layout(
-                method,
-                &[
-                    ("creds", ParamType::CredentialsRef),
-                    ("config", ParamType::ConfigRef),
-                ],
-            )?;
-        }
-    }
-
     for param in &method.params {
         if !param.enum_values.is_empty() && param.param_type != ParamType::String {
             return Err(format!(
@@ -609,6 +364,139 @@ fn validate_method_spec(method: &MethodSpec) -> Result<(), Box<dyn std::error::E
             .into());
         }
     }
+
+    // Per-kind shape: (expected_name, allowed_targets, exact_targets, params).
+    // `expected_name = None` means the name varies per endpoint inside the
+    // kind (StockContractCall, OptionContractCall, FullCall). The
+    // runtime_call/ffi_call/config_variant fields aren't validated here —
+    // the code generator fails loudly when it tries to use a missing one.
+    const PY: MethodTarget = MethodTarget::PythonUnified;
+    const GO: MethodTarget = MethodTarget::GoFpss;
+    const CPP: MethodTarget = MethodTarget::CppFpss;
+    const LIFE: MethodTarget = MethodTarget::CppLifecycle;
+    let shape: (Option<&str>, &[MethodTarget], bool, &[(&str, ParamType)]) = match method.kind {
+        MethodKind::StartStreaming => (Some("start_streaming"), &[PY], true, &[]),
+        MethodKind::IsStreaming => (Some("is_streaming"), &[PY], true, &[]),
+        MethodKind::StockContractCall => (
+            None,
+            &[PY, GO, CPP],
+            false,
+            &[("symbol", ParamType::String)],
+        ),
+        MethodKind::OptionContractCall => (
+            None,
+            &[PY, GO, CPP],
+            false,
+            &[
+                ("symbol", ParamType::String),
+                ("expiration", ParamType::String),
+                ("strike", ParamType::String),
+                ("right", ParamType::String),
+            ],
+        ),
+        MethodKind::FullCall => (
+            None,
+            &[PY, GO, CPP],
+            false,
+            &[("sec_type", ParamType::String)],
+        ),
+        MethodKind::ContractMap => (Some("contract_map"), &[PY, GO, CPP], false, &[]),
+        MethodKind::ContractLookup => (
+            Some("contract_lookup"),
+            &[PY, GO, CPP],
+            false,
+            &[("id", ParamType::I32)],
+        ),
+        MethodKind::ActiveSubscriptions => {
+            (Some("active_subscriptions"), &[PY, GO, CPP], false, &[])
+        }
+        MethodKind::NextEvent => (
+            Some("next_event"),
+            &[PY, GO, CPP],
+            false,
+            &[("timeout_ms", ParamType::U64)],
+        ),
+        MethodKind::Reconnect => (Some("reconnect"), &[PY, GO, CPP], false, &[]),
+        MethodKind::StopStreaming => (Some("stop_streaming"), &[PY], true, &[]),
+        MethodKind::Shutdown => (Some("shutdown"), &[PY, GO, CPP], false, &[]),
+        MethodKind::IsAuthenticated => (Some("is_authenticated"), &[GO, CPP], false, &[]),
+        MethodKind::FpssConnect => (
+            Some("connect"),
+            &[CPP],
+            true,
+            &[
+                ("creds", ParamType::CredentialsRef),
+                ("config", ParamType::ConfigRef),
+            ],
+        ),
+        MethodKind::CredentialsFromFile => (
+            Some("credentials_from_file"),
+            &[LIFE],
+            true,
+            &[("path", ParamType::String)],
+        ),
+        MethodKind::CredentialsFromEmail => (
+            Some("credentials_from_email"),
+            &[LIFE],
+            true,
+            &[
+                ("email", ParamType::String),
+                ("password", ParamType::String),
+            ],
+        ),
+        MethodKind::ConfigConstructor => {
+            // Name is data-dependent (`config_<variant>`); check it here so
+            // the shared name check below can be skipped for this arm.
+            let variant = method
+                .config_variant
+                .as_deref()
+                .ok_or_else(|| format!("method '{}' must declare config_variant", method.name))?;
+            if !matches!(variant, "production" | "dev" | "stage") {
+                return Err(format!(
+                    "method '{}' has unsupported config_variant '{}'",
+                    method.name, variant
+                )
+                .into());
+            }
+            let expected_name = format!("config_{variant}");
+            if method.name != expected_name {
+                return Err(format!(
+                    "method kind ConfigConstructor must use name '{expected_name}', got '{}'",
+                    method.name
+                )
+                .into());
+            }
+            (None, &[LIFE], true, &[])
+        }
+        MethodKind::ClientConnect => (
+            Some("client_connect"),
+            &[LIFE],
+            true,
+            &[
+                ("creds", ParamType::CredentialsRef),
+                ("config", ParamType::ConfigRef),
+            ],
+        ),
+    };
+    let (expected_name, allowed_targets, exact_targets, params) = shape;
+
+    if let Some(name) = expected_name {
+        if method.name != name {
+            return Err(format!(
+                "method kind {:?} must use name '{name}', got '{}'",
+                method.kind, method.name
+            )
+            .into());
+        }
+    }
+    check_targets(
+        &method.name,
+        "method",
+        &method.targets,
+        allowed_targets,
+        exact_targets,
+    )?;
+    check_param_layout(&method.name, "method", &method.params, params)?;
 
     Ok(())
 }
@@ -639,209 +527,109 @@ fn validate_utility_spec(utility: &UtilitySpec) -> Result<(), Box<dyn std::error
         }
     }
 
-    match utility.kind {
-        UtilityKind::Auth => {
-            if utility.name != "auth" {
-                return Err("utility kind Auth must use name 'auth'".into());
-            }
-            expect_exact_utility_targets(utility, &[UtilityTarget::Cli])?;
-            expect_utility_param_layout(utility, &[])?;
-        }
-        UtilityKind::Ping => {
-            if utility.name != "ping" {
-                return Err("utility kind Ping must use name 'ping'".into());
-            }
-            expect_exact_utility_targets(utility, &[UtilityTarget::Mcp])?;
-            expect_utility_param_layout(utility, &[])?;
-        }
-        UtilityKind::AllGreeks => {
-            if utility.name != "all_greeks" {
-                return Err("utility kind AllGreeks must use name 'all_greeks'".into());
-            }
-            expect_utility_targets_subset(
-                utility,
-                &[
-                    UtilityTarget::Python,
-                    UtilityTarget::Go,
-                    UtilityTarget::Cpp,
-                    UtilityTarget::Mcp,
-                    UtilityTarget::Cli,
-                ],
-            )?;
-            expect_utility_param_layout(utility, &offline_greeks_param_layout())?;
-        }
-        UtilityKind::ImpliedVolatility => {
-            if utility.name != "implied_volatility" {
-                return Err(
-                    "utility kind ImpliedVolatility must use name 'implied_volatility'".into(),
-                );
-            }
-            expect_utility_targets_subset(
-                utility,
-                &[
-                    UtilityTarget::Python,
-                    UtilityTarget::Go,
-                    UtilityTarget::Cpp,
-                    UtilityTarget::Mcp,
-                    UtilityTarget::Cli,
-                ],
-            )?;
-            expect_utility_param_layout(utility, &offline_greeks_param_layout())?;
-        }
-    }
+    use UtilityTarget::{Cli, Cpp, Go, Mcp, Python};
+    let greeks_params = offline_greeks_param_layout();
+    let (expected_name, allowed_targets, exact_targets, params): (
+        &str,
+        &[UtilityTarget],
+        bool,
+        &[(&str, ParamType)],
+    ) = match utility.kind {
+        UtilityKind::Auth => ("auth", &[Cli], true, &[]),
+        UtilityKind::Ping => ("ping", &[Mcp], true, &[]),
+        UtilityKind::AllGreeks => (
+            "all_greeks",
+            &[Python, Go, Cpp, Mcp, Cli],
+            false,
+            &greeks_params,
+        ),
+        UtilityKind::ImpliedVolatility => (
+            "implied_volatility",
+            &[Python, Go, Cpp, Mcp, Cli],
+            false,
+            &greeks_params,
+        ),
+    };
 
-    Ok(())
-}
-
-fn expect_method_name(
-    method: &MethodSpec,
-    expected: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    if method.name != expected {
+    if utility.name != expected_name {
         return Err(format!(
-            "method kind {:?} must use name '{}', got '{}'",
-            method.kind, expected, method.name
+            "utility kind {:?} must use name '{expected_name}', got '{}'",
+            utility.kind, utility.name
         )
         .into());
     }
+    check_utility_targets(utility, allowed_targets, exact_targets)?;
+    check_param_layout(&utility.name, "utility", &utility.params, params)?;
+
     Ok(())
 }
 
-fn expect_method_targets_subset(
-    method: &MethodSpec,
+fn check_targets(
+    owner: &str,
+    label: &str,
+    actual: &[MethodTarget],
     allowed: &[MethodTarget],
+    exact: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    for target in &method.targets {
+    for target in actual {
         if !allowed.contains(target) {
-            return Err(format!(
-                "method '{}' declares unsupported target {:?}",
-                method.name, target
-            )
-            .into());
+            return Err(format!("{label} '{owner}' declares unsupported target {target:?}").into());
         }
     }
-    Ok(())
-}
-
-// Note: `expected` is an ordered slice rather than a set. Callers pass a
-// canonical ordering (e.g. `[PythonUnified, GoFpss, CppFpss]`) and the
-// generator relies on this ordering when emitting per-target dispatch
-// sections, so deterministic output depends on the slice order matching the
-// TOML-declared ordering. If that invariant ever needs to be relaxed,
-// convert both sides to a `BTreeSet<MethodTarget>` before comparing.
-fn expect_exact_method_targets(
-    method: &MethodSpec,
-    expected: &[MethodTarget],
-) -> Result<(), Box<dyn std::error::Error>> {
-    expect_method_targets_subset(method, expected)?;
-    if method.targets.len() != expected.len() {
-        return Err(format!(
-            "method '{}' must target exactly {:?}, got {:?}",
-            method.name, expected, method.targets
-        )
-        .into());
+    if exact && actual.len() != allowed.len() {
+        return Err(
+            format!("{label} '{owner}' must target exactly {allowed:?}, got {actual:?}").into(),
+        );
     }
     Ok(())
 }
 
-fn expect_utility_targets_subset(
+fn check_utility_targets(
     utility: &UtilitySpec,
     allowed: &[UtilityTarget],
+    exact: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     for target in &utility.targets {
         if !allowed.contains(target) {
             return Err(format!(
-                "utility '{}' declares unsupported target {:?}",
-                utility.name, target
+                "utility '{}' declares unsupported target {target:?}",
+                utility.name
             )
             .into());
         }
     }
-    Ok(())
-}
-
-fn expect_exact_utility_targets(
-    utility: &UtilitySpec,
-    expected: &[UtilityTarget],
-) -> Result<(), Box<dyn std::error::Error>> {
-    expect_utility_targets_subset(utility, expected)?;
-    if utility.targets.len() != expected.len() {
+    if exact && utility.targets.len() != allowed.len() {
         return Err(format!(
-            "utility '{}' must target exactly {:?}, got {:?}",
-            utility.name, expected, utility.targets
+            "utility '{}' must target exactly {allowed:?}, got {:?}",
+            utility.name, utility.targets
         )
         .into());
     }
     Ok(())
 }
 
-fn expect_param_layout(
-    method: &MethodSpec,
+fn check_param_layout(
+    owner: &str,
+    label: &str,
+    actual: &[ParamSpec],
     expected: &[(&str, ParamType)],
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if method.params.len() != expected.len() {
+    if actual.len() != expected.len() {
         return Err(format!(
-            "method '{}' expected {} params but found {}",
-            method.name,
+            "{label} '{owner}' expected {} params but found {}",
             expected.len(),
-            method.params.len()
+            actual.len()
         )
         .into());
     }
-    for (param, (name, kind)) in method.params.iter().zip(expected.iter()) {
+    for (param, (name, kind)) in actual.iter().zip(expected.iter()) {
         if param.name != *name || param.param_type != *kind {
             return Err(format!(
-                "method '{}' expected param ({name}, {kind:?}) but found ({}, {:?})",
-                method.name, param.name, param.param_type
+                "{label} '{owner}' expected param ({name}, {kind:?}) but found ({}, {:?})",
+                param.name, param.param_type
             )
             .into());
         }
-    }
-    Ok(())
-}
-
-fn expect_utility_param_layout(
-    utility: &UtilitySpec,
-    expected: &[(&str, ParamType)],
-) -> Result<(), Box<dyn std::error::Error>> {
-    if utility.params.len() != expected.len() {
-        return Err(format!(
-            "utility '{}' expected {} params but found {}",
-            utility.name,
-            expected.len(),
-            utility.params.len()
-        )
-        .into());
-    }
-    for (param, (name, kind)) in utility.params.iter().zip(expected.iter()) {
-        if param.name != *name || param.param_type != *kind {
-            return Err(format!(
-                "utility '{}' expected param ({name}, {kind:?}) but found ({}, {:?})",
-                utility.name, param.name, param.param_type
-            )
-            .into());
-        }
-    }
-    Ok(())
-}
-
-fn expect_some<'a>(
-    value: &'a Option<String>,
-    owner: &str,
-    field: &str,
-) -> Result<&'a str, Box<dyn std::error::Error>> {
-    value
-        .as_deref()
-        .ok_or_else(|| format!("'{owner}' must declare {field}").into())
-}
-
-fn expect_none(
-    value: &Option<String>,
-    owner: &str,
-    field: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    if value.is_some() {
-        return Err(format!("'{owner}' must not declare {field}").into());
     }
     Ok(())
 }
@@ -973,15 +761,6 @@ fn push_cpp_doc_comment(out: &mut String, indent: &str, doc: &str) {
 }
 
 fn python_type(param_type: ParamType) -> &'static str {
-    // Invariant enforced in `validate_method_spec`: only `FpssConnect`
-    // declares `CredentialsRef`/`ConfigRef` params, and it targets
-    // `CppFpss` exclusively (never `PythonUnified`). Any future method
-    // that mixes these param types with Python targets must update the
-    // validator before reaching this helper.
-    debug_assert!(
-        !matches!(param_type, ParamType::CredentialsRef | ParamType::ConfigRef),
-        "python_type called with credentials/config ref; validate_method_spec should have rejected this"
-    );
     match param_type {
         ParamType::String => "&str",
         ParamType::F64 => "f64",
@@ -1065,14 +844,6 @@ fn mcp_param_description(param: &ParamSpec) -> &str {
 }
 
 fn mcp_json_type(param_type: ParamType) -> &'static str {
-    // Invariant enforced in `validate_utility_spec` + `validate_method_spec`:
-    // MCP-targeted specs (utilities and, prospectively, methods) never
-    // declare `CredentialsRef`/`ConfigRef` params — those are reserved for
-    // `FpssConnect` which targets `CppFpss` exclusively.
-    debug_assert!(
-        !matches!(param_type, ParamType::CredentialsRef | ParamType::ConfigRef),
-        "mcp_json_type called with credentials/config ref; validate_*_spec should have rejected this"
-    );
     match param_type {
         ParamType::String => "string",
         ParamType::F64 => "number",
@@ -1160,48 +931,6 @@ fn render_go_utility_functions(
         out.push('\n');
     }
     out
-}
-
-fn render_go_timeout_pin_generated_test(
-    repo_root: &Path,
-    tls_reader_markers: &[TlsReaderMarker],
-    tls_helpers: &[TlsHelper],
-    generated_overrides: &[(&str, &str)],
-) -> Result<String, Box<dyn std::error::Error>> {
-    let expected_pinned_methods = count_go_tls_reader_methods(
-        repo_root,
-        tls_reader_markers,
-        tls_helpers,
-        generated_overrides,
-    )?;
-    let mut out = String::new();
-    // Go spec header (see render_go_fpss_methods for the rationale).
-    out.push_str("// Code generated by build.rs from sdk_surface.toml; DO NOT EDIT.\n\n");
-    out.push_str("package thetadatadx\n\n");
-    out.push_str("// tlsReaderMarkers is the single source of truth for the static\n");
-    out.push_str("// Go TLS-reader audit in timeout_pin_test.go.\n");
-    out.push_str("var tlsReaderMarkers = []string{\n");
-    for marker in tls_reader_markers {
-        writeln!(out, "\t{:?}, // {}", marker.substring, marker.description)?;
-    }
-    out.push_str("}\n\n");
-    out.push_str("// tlsHelpers enumerates the hand-written Go functions that are\n");
-    out.push_str("// themselves TLS readers. The build-time pin audit skips them\n");
-    out.push_str("// when counting expected-pinned methods so self-pinning helpers\n");
-    out.push_str("// don't double-count.\n");
-    out.push_str("var tlsHelpers = []string{\n");
-    for helper in tls_helpers {
-        writeln!(out, "\t{:?}, // {}", helper.method_name, helper.description)?;
-    }
-    out.push_str("}\n\n");
-    out.push_str("// expectedPinnedMethods is derived from the current non-test Go\n");
-    out.push_str("// source tree: every function body that reads the FFI thread-local\n");
-    out.push_str("// error slot must pin its goroutine to one OS thread.\n");
-    writeln!(
-        out,
-        "const expectedPinnedMethods = {expected_pinned_methods}"
-    )?;
-    Ok(out)
 }
 
 fn render_cpp_fpss_decls(methods: &[&MethodSpec]) -> String {
@@ -2661,86 +2390,4 @@ fn inject_os_thread_pin(src: &str, tls_reader_markers: &[TlsReaderMarker]) -> St
         i += 1;
     }
     out
-}
-
-fn count_go_tls_reader_methods(
-    repo_root: &Path,
-    tls_reader_markers: &[TlsReaderMarker],
-    tls_helpers: &[TlsHelper],
-    generated_overrides: &[(&str, &str)],
-) -> Result<usize, Box<dyn std::error::Error>> {
-    let go_dir = repo_root.join("sdks/go");
-    let mut files: Vec<_> = std::fs::read_dir(&go_dir)?
-        .filter_map(Result::ok)
-        .filter_map(|entry| {
-            let path = entry.path();
-            let file_name = path.file_name()?.to_str()?;
-            if path.extension().and_then(|ext| ext.to_str()) == Some("go")
-                && !file_name.ends_with("_test.go")
-            {
-                Some((file_name.to_string(), path))
-            } else {
-                None
-            }
-        })
-        .collect();
-    files.sort_by(|a, b| a.0.cmp(&b.0));
-
-    let generated_overrides: std::collections::HashMap<&str, &str> =
-        generated_overrides.iter().copied().collect();
-
-    let mut count = 0usize;
-    for (file_name, path) in files {
-        let contents = if let Some(generated) = generated_overrides.get(file_name.as_str()) {
-            (*generated).to_string()
-        } else {
-            std::fs::read_to_string(path)?
-        };
-        let lines: Vec<&str> = contents
-            .split('\n')
-            .map(|line| line.trim_end_matches('\r'))
-            .collect();
-        for (idx, line) in lines.iter().enumerate() {
-            if !line.starts_with("func ") || !line.ends_with('{') {
-                continue;
-            }
-            let Some(method_name) = extract_go_method_name(line) else {
-                continue;
-            };
-            if tls_helpers.iter().any(|h| h.method_name == method_name) {
-                continue;
-            }
-            let body_end = find_go_method_body_end(&lines, idx + 1);
-            let body = &lines[idx + 1..body_end];
-            if body.iter().any(|body_line| {
-                tls_reader_markers
-                    .iter()
-                    .any(|marker| body_line.contains(&marker.substring))
-            }) {
-                count += 1;
-            }
-        }
-    }
-    Ok(count)
-}
-
-fn extract_go_method_name(line: &str) -> Option<&str> {
-    let rest = line.strip_prefix("func ")?;
-    let rest = if rest.starts_with('(') {
-        let end = rest.find(") ")?;
-        &rest[end + 2..]
-    } else {
-        rest
-    };
-    let end = rest.find('(')?;
-    Some(rest[..end].trim())
-}
-
-fn find_go_method_body_end(lines: &[&str], from: usize) -> usize {
-    for (idx, line) in lines.iter().enumerate().skip(from) {
-        if line.starts_with('}') {
-            return idx;
-        }
-    }
-    lines.len()
 }

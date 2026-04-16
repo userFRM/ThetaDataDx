@@ -1,15 +1,9 @@
-//! Shared wire-level canonicalization rules (runtime side).
+//! Shared wire-level canonicalization rules.
 //!
-//! These rules are consumed in two places:
+//! Consumed by:
 //! - runtime request building in `direct.rs`
 //! - build-time mode collapsing in `build_support/endpoints/modes.rs` (via
-//!   `#[path]` reuse of this file plus the build-only companion at
-//!   `build_support/wire_semantics.rs`)
-//!
-//! Keeping the *runtime* rules here means the module has no dead code when
-//! compiled as part of the crate. Items that are only used at build time
-//! (e.g. `canonicalize_wire_arg`, `UNSET_WIRE_ARG_SENTINEL`) live in
-//! `build_support/wire_semantics.rs`.
+//!   `#[path]` reuse of this file)
 
 /// Stock endpoints default an omitted `venue` to NQB.
 pub(crate) const DEFAULT_STOCK_VENUE: &str = "nqb";

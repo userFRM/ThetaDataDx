@@ -53,17 +53,6 @@ pub struct SubscriptionInfo {
     pub options: String,
 }
 
-fn tier_name(level: Option<i32>) -> String {
-    match level {
-        Some(0) => "Free".to_string(),
-        Some(1) => "Value".to_string(),
-        Some(2) => "Standard".to_string(),
-        Some(3) => "Pro".to_string(),
-        Some(n) => format!("Unknown({n})"),
-        None => "Unknown".to_string(),
-    }
-}
-
 /// Current state of the streaming connection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
@@ -431,9 +420,17 @@ impl ThetaDataDx {
 
     /// Get subscription tier information captured at authentication time.
     pub fn subscription_info(&self) -> SubscriptionInfo {
+        let tier = |level: Option<i32>| match level {
+            Some(0) => "Free".to_string(),
+            Some(1) => "Value".to_string(),
+            Some(2) => "Standard".to_string(),
+            Some(3) => "Pro".to_string(),
+            Some(n) => format!("Unknown({n})"),
+            None => "Unknown".to_string(),
+        };
         SubscriptionInfo {
-            stock: tier_name(self.historical.stock_tier()),
-            options: tier_name(self.historical.options_tier()),
+            stock: tier(self.historical.stock_tier()),
+            options: tier(self.historical.options_tier()),
         }
     }
 }
@@ -449,19 +446,5 @@ impl std::ops::Deref for ThetaDataDx {
     type Target = DirectClient;
     fn deref(&self) -> &DirectClient {
         &self.historical
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn streaming_not_started_by_default() {
-        // Can't test connect() without real creds, but can verify the type exists
-        // and Deref works at compile time.
-        fn _assert_deref(tdx: &ThetaDataDx) -> &DirectClient {
-            tdx
-        }
     }
 }

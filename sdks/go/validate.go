@@ -76,63 +76,63 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// stock_snapshot_ohlc::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.StockSnapshotOHLC([]string{"AAPL"}, WithTimeoutMs(perCellTimeoutMs))
-		records = classify("stock_snapshot_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: with_venue)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("stock_snapshot_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// stock_snapshot_ohlc::with_min_time
-	//   rationale: min_time=09:45:00 optional filter wiring (also covers: all_optionals)
+	//   rationale: min_time=09:45:00 optional filter wiring
 	{
 		t0 := time.Now()
 		v, e := c.StockSnapshotOHLC([]string{"AAPL"}, WithMinTime("09:45:00"), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("stock_snapshot_ohlc", "with_min_time", "value", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("stock_snapshot_ohlc", "with_min_time", "value", "min_time=09:45:00 optional filter wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 
 	// stock_snapshot_trade::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.StockSnapshotTrade([]string{"AAPL"}, WithTimeoutMs(perCellTimeoutMs))
-		records = classify("stock_snapshot_trade", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: with_venue)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("stock_snapshot_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// stock_snapshot_trade::with_min_time
-	//   rationale: min_time=09:45:00 optional filter wiring (also covers: all_optionals)
+	//   rationale: min_time=09:45:00 optional filter wiring
 	{
 		t0 := time.Now()
 		v, e := c.StockSnapshotTrade([]string{"AAPL"}, WithMinTime("09:45:00"), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("stock_snapshot_trade", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("stock_snapshot_trade", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 
 	// stock_snapshot_quote::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.StockSnapshotQuote([]string{"AAPL"}, WithTimeoutMs(perCellTimeoutMs))
-		records = classify("stock_snapshot_quote", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: with_venue)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("stock_snapshot_quote", "concrete", "value", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// stock_snapshot_quote::with_min_time
-	//   rationale: min_time=09:45:00 optional filter wiring (also covers: all_optionals)
+	//   rationale: min_time=09:45:00 optional filter wiring
 	{
 		t0 := time.Now()
 		v, e := c.StockSnapshotQuote([]string{"AAPL"}, WithMinTime("09:45:00"), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("stock_snapshot_quote", "with_min_time", "value", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("stock_snapshot_quote", "with_min_time", "value", "min_time=09:45:00 optional filter wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 
 	// stock_snapshot_market_value::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.StockSnapshotMarketValue([]string{"AAPL"}, WithTimeoutMs(perCellTimeoutMs))
-		records = classify("stock_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: with_venue)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("stock_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// stock_snapshot_market_value::with_min_time
-	//   rationale: min_time=09:45:00 optional filter wiring (also covers: all_optionals)
+	//   rationale: min_time=09:45:00 optional filter wiring
 	{
 		t0 := time.Now()
 		v, e := c.StockSnapshotMarketValue([]string{"AAPL"}, WithMinTime("09:45:00"), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("stock_snapshot_market_value", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("stock_snapshot_market_value", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 
 	// stock_history_eod::concrete
@@ -144,11 +144,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// stock_history_ohlc::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.StockHistoryOHLC("AAPL", "20250303", "60000", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("stock_history_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: with_venue)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("stock_history_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// stock_history_ohlc::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -173,11 +173,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// stock_history_trade::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.StockHistoryTrade("AAPL", "20250303", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("stock_history_trade", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: with_venue)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("stock_history_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// stock_history_trade::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -202,11 +202,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// stock_history_quote::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.StockHistoryQuote("AAPL", "20250303", "60000", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("stock_history_quote", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: with_venue)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("stock_history_quote", "concrete", "value", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// stock_history_quote::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -231,11 +231,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// stock_history_trade_quote::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.StockHistoryTradeQuote("AAPL", "20250303", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("stock_history_trade_quote", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: with_venue)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("stock_history_trade_quote", "concrete", "standard", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// stock_history_trade_quote::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -267,19 +267,19 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// stock_at_time_trade::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: with_venue, all_optionals)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.StockAtTimeTrade("AAPL", "20250303", "20250303", "12:00:00.000", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("stock_at_time_trade", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: with_venue, all_optionals)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("stock_at_time_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 
 	// stock_at_time_quote::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: with_venue, all_optionals)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.StockAtTimeQuote("AAPL", "20250303", "20250303", "12:00:00.000", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("stock_at_time_quote", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: with_venue, all_optionals)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("stock_at_time_quote", "concrete", "value", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 
 	// option_list_symbols::basic
@@ -322,19 +322,19 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("option_list_contracts", "concrete", "value", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_list_contracts::with_max_dte
-	//   rationale: max_dte=30 optional filter wiring (also covers: all_optionals)
+	//   rationale: max_dte=30 optional filter wiring
 	{
 		t0 := time.Now()
 		v, e := c.OptionListContracts("TRADE", "SPY", "20250303", WithMaxDTE(int32(30)), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_list_contracts", "with_max_dte", "value", "max_dte=30 optional filter wiring (also covers: all_optionals)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_list_contracts", "with_max_dte", "value", "max_dte=30 optional filter wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 
 	// option_snapshot_ohlc::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionSnapshotOHLC("SPY", "20250321", "570", "C", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_snapshot_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_snapshot_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_ohlc::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -351,11 +351,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("option_snapshot_ohlc", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_ohlc::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
 		v, e := c.OptionSnapshotOHLC("SPY", "*", "*", "both", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_snapshot_ohlc", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_snapshot_ohlc", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_ohlc::with_max_dte
 	//   rationale: max_dte=30 optional filter wiring
@@ -387,11 +387,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_snapshot_trade::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionSnapshotTrade("SPY", "20250321", "570", "C", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_snapshot_trade", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_snapshot_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_trade::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -423,11 +423,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_snapshot_quote::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionSnapshotQuote("SPY", "20250321", "570", "C", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_snapshot_quote", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_snapshot_quote", "concrete", "value", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_quote::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -444,11 +444,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("option_snapshot_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_quote::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
 		v, e := c.OptionSnapshotQuote("SPY", "*", "*", "both", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_snapshot_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_snapshot_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_quote::with_max_dte
 	//   rationale: max_dte=30 optional filter wiring
@@ -480,11 +480,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_snapshot_open_interest::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionSnapshotOpenInterest("SPY", "20250321", "570", "C", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_snapshot_open_interest", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_snapshot_open_interest", "concrete", "value", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_open_interest::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -501,11 +501,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("option_snapshot_open_interest", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_open_interest::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
 		v, e := c.OptionSnapshotOpenInterest("SPY", "*", "*", "both", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_snapshot_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_snapshot_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_open_interest::with_max_dte
 	//   rationale: max_dte=30 optional filter wiring
@@ -537,11 +537,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_snapshot_market_value::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionSnapshotMarketValue("SPY", "20250321", "570", "C", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_market_value::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -558,11 +558,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("option_snapshot_market_value", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_market_value::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
 		v, e := c.OptionSnapshotMarketValue("SPY", "*", "*", "both", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_snapshot_market_value", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_snapshot_market_value", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_market_value::with_max_dte
 	//   rationale: max_dte=30 optional filter wiring
@@ -594,11 +594,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_snapshot_greeks_implied_volatility::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_snapshot_greeks_implied_volatility", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_snapshot_greeks_implied_volatility", "concrete", "standard", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_implied_volatility::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -615,11 +615,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("option_snapshot_greeks_implied_volatility", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_implied_volatility::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
 		v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "*", "*", "both", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_snapshot_greeks_implied_volatility", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_snapshot_greeks_implied_volatility", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_implied_volatility::with_annual_dividend
 	//   rationale: annual_dividend=0.015 optional Greeks-input wiring
@@ -693,11 +693,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_snapshot_greeks_all::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_snapshot_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_snapshot_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_all::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -714,11 +714,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("option_snapshot_greeks_all", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_all::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
 		v, e := c.OptionSnapshotGreeksAll("SPY", "*", "*", "both", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_snapshot_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_snapshot_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_all::with_annual_dividend
 	//   rationale: annual_dividend=0.015 optional Greeks-input wiring
@@ -792,11 +792,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_snapshot_greeks_first_order::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_snapshot_greeks_first_order", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_snapshot_greeks_first_order", "concrete", "standard", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_first_order::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -813,11 +813,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("option_snapshot_greeks_first_order", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_first_order::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
 		v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "*", "*", "both", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_snapshot_greeks_first_order", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_snapshot_greeks_first_order", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_first_order::with_annual_dividend
 	//   rationale: annual_dividend=0.015 optional Greeks-input wiring
@@ -891,11 +891,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_snapshot_greeks_second_order::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_snapshot_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_snapshot_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_second_order::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -912,11 +912,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("option_snapshot_greeks_second_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_second_order::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
 		v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "*", "*", "both", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_snapshot_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_snapshot_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_second_order::with_annual_dividend
 	//   rationale: annual_dividend=0.015 optional Greeks-input wiring
@@ -990,11 +990,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_snapshot_greeks_third_order::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_snapshot_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_snapshot_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_third_order::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -1011,11 +1011,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("option_snapshot_greeks_third_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_third_order::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
 		v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "*", "*", "both", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_snapshot_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_snapshot_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_third_order::with_annual_dividend
 	//   rationale: annual_dividend=0.015 optional Greeks-input wiring
@@ -1089,11 +1089,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_history_eod::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_eod", "concrete", "free", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_eod", "concrete", "free", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_eod::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -1110,11 +1110,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("option_history_eod", "all_exps_one_strike", "free", "expiration=* — sent as literal `*` on the wire (server fan-out)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_eod::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryEOD("SPY", "*", "*", "both", "20250303", "20250303", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_eod", "bulk_chain", "free", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_eod", "bulk_chain", "free", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_eod::with_max_dte
 	//   rationale: max_dte=30 optional filter wiring
@@ -1139,11 +1139,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_history_ohlc::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryOHLC("SPY", "20250321", "570", "C", "20250303", "60000", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_ohlc::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -1182,11 +1182,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_history_trade::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryTrade("SPY", "20250321", "570", "C", "20250303", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_trade", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -1203,11 +1203,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("option_history_trade", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryTrade("SPY", "*", "*", "both", "20250303", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -1246,11 +1246,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_history_quote::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryQuote("SPY", "20250321", "570", "C", "20250303", "60000", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_quote", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_quote", "concrete", "value", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_quote::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -1267,11 +1267,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("option_history_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_quote::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryQuote("SPY", "*", "*", "both", "20250303", "60000", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_quote::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -1310,11 +1310,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_history_trade_quote::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryTradeQuote("SPY", "20250321", "570", "C", "20250303", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_trade_quote", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_trade_quote", "concrete", "standard", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_quote::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -1331,11 +1331,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("option_history_trade_quote", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_quote::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryTradeQuote("SPY", "*", "*", "both", "20250303", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_trade_quote", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_trade_quote", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_quote::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -1381,11 +1381,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_history_open_interest::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryOpenInterest("SPY", "20250321", "570", "C", "20250303", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_open_interest", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_open_interest", "concrete", "value", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_open_interest::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -1402,11 +1402,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("option_history_open_interest", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_open_interest::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryOpenInterest("SPY", "*", "*", "both", "20250303", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_open_interest::with_date_range
 	//   rationale: start_date + end_date pair — date range optional wiring
@@ -1438,11 +1438,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_history_greeks_eod::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_greeks_eod", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_greeks_eod", "concrete", "standard", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_greeks_eod::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -1459,11 +1459,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("option_history_greeks_eod", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_greeks_eod::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryGreeksEOD("SPY", "*", "*", "both", "20250303", "20250303", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_greeks_eod", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_greeks_eod", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_greeks_eod::with_annual_dividend
 	//   rationale: annual_dividend=0.015 optional Greeks-input wiring
@@ -1523,11 +1523,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_history_greeks_all::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "570", "C", "20250303", "60000", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_greeks_all::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -1594,11 +1594,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_history_trade_greeks_all::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_trade_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_trade_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_all::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -1615,11 +1615,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("option_history_trade_greeks_all", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_all::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryTradeGreeksAll("SPY", "*", "*", "both", "20250303", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_trade_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_trade_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_all::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -1686,11 +1686,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_history_greeks_first_order::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_greeks_first_order", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_greeks_first_order", "concrete", "standard", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_greeks_first_order::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -1757,11 +1757,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_history_trade_greeks_first_order::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_trade_greeks_first_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_trade_greeks_first_order", "concrete", "professional", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_first_order::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -1778,11 +1778,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("option_history_trade_greeks_first_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_first_order::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "*", "*", "both", "20250303", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_trade_greeks_first_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_trade_greeks_first_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_first_order::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -1849,11 +1849,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_history_greeks_second_order::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_greeks_second_order::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -1920,11 +1920,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_history_trade_greeks_second_order::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_trade_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_trade_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_second_order::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -1941,11 +1941,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("option_history_trade_greeks_second_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_second_order::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "*", "*", "both", "20250303", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_trade_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_trade_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_second_order::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -2012,11 +2012,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_history_greeks_third_order::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_greeks_third_order::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -2083,11 +2083,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_history_trade_greeks_third_order::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_trade_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_trade_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_third_order::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -2104,11 +2104,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("option_history_trade_greeks_third_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_third_order::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "*", "*", "both", "20250303", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_trade_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_trade_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_third_order::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -2175,11 +2175,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_history_greeks_implied_volatility::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", "60000", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_greeks_implied_volatility", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_greeks_implied_volatility", "concrete", "standard", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_greeks_implied_volatility::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -2246,11 +2246,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_history_trade_greeks_implied_volatility::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_trade_greeks_implied_volatility", "concrete", "professional", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_trade_greeks_implied_volatility", "concrete", "professional", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_implied_volatility::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -2267,11 +2267,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("option_history_trade_greeks_implied_volatility", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_implied_volatility::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
 		v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "*", "*", "both", "20250303", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_trade_greeks_implied_volatility", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_history_trade_greeks_implied_volatility", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_implied_volatility::with_intraday_window
 	//   rationale: start_time + end_time pair — intraday window optional wiring
@@ -2338,11 +2338,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_at_time_trade::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionAtTimeTrade("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_at_time_trade", "concrete", "standard", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_at_time_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_at_time_trade::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -2359,11 +2359,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("option_at_time_trade", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_at_time_trade::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
 		v, e := c.OptionAtTimeTrade("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_at_time_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_at_time_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_at_time_trade::with_max_dte
 	//   rationale: max_dte=30 optional filter wiring
@@ -2388,11 +2388,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// option_at_time_quote::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: concrete_iso)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.OptionAtTimeQuote("SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_at_time_quote", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: concrete_iso)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_at_time_quote", "concrete", "value", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_at_time_quote::all_strikes_one_exp
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
@@ -2409,11 +2409,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("option_at_time_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_at_time_quote::bulk_chain
-	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)
+	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
 		v, e := c.OptionAtTimeQuote("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_at_time_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode (also covers: legacy_zero_wildcard)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("option_at_time_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_at_time_quote::with_max_dte
 	//   rationale: max_dte=30 optional filter wiring
@@ -2461,11 +2461,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("index_snapshot_ohlc", "concrete", "standard", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// index_snapshot_ohlc::with_min_time
-	//   rationale: min_time=09:45:00 optional filter wiring (also covers: all_optionals)
+	//   rationale: min_time=09:45:00 optional filter wiring
 	{
 		t0 := time.Now()
 		v, e := c.IndexSnapshotOHLC([]string{"SPX"}, WithMinTime("09:45:00"), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("index_snapshot_ohlc", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("index_snapshot_ohlc", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 
 	// index_snapshot_price::concrete
@@ -2476,11 +2476,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("index_snapshot_price", "concrete", "standard", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// index_snapshot_price::with_min_time
-	//   rationale: min_time=09:45:00 optional filter wiring (also covers: all_optionals)
+	//   rationale: min_time=09:45:00 optional filter wiring
 	{
 		t0 := time.Now()
 		v, e := c.IndexSnapshotPrice([]string{"SPX"}, WithMinTime("09:45:00"), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("index_snapshot_price", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("index_snapshot_price", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 
 	// index_snapshot_market_value::concrete
@@ -2491,11 +2491,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("index_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// index_snapshot_market_value::with_min_time
-	//   rationale: min_time=09:45:00 optional filter wiring (also covers: all_optionals)
+	//   rationale: min_time=09:45:00 optional filter wiring
 	{
 		t0 := time.Now()
 		v, e := c.IndexSnapshotMarketValue([]string{"SPX"}, WithMinTime("09:45:00"), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("index_snapshot_market_value", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring (also covers: all_optionals)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("index_snapshot_market_value", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 
 	// index_history_eod::concrete
@@ -2514,11 +2514,11 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		records = classify("index_history_ohlc", "concrete", "standard", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// index_history_ohlc::with_intraday_window
-	//   rationale: start_time + end_time pair — intraday window optional wiring (also covers: all_optionals)
+	//   rationale: start_time + end_time pair — intraday window optional wiring
 	{
 		t0 := time.Now()
 		v, e := c.IndexHistoryOHLC("SPX", "20250303", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("index_history_ohlc", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring (also covers: all_optionals)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("index_history_ohlc", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 
 	// index_history_price::concrete
@@ -2591,18 +2591,18 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	}
 
 	// stock_history_ohlc_range::concrete
-	//   rationale: required params set, no optionals — baseline wire path (also covers: with_venue)
+	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
 		v, e := c.StockHistoryOHLCRange("AAPL", "20250303", "20250303", "60000", WithTimeoutMs(perCellTimeoutMs))
-		records = classify("stock_history_ohlc_range", "concrete", "value", "required params set, no optionals — baseline wire path (also covers: with_venue)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("stock_history_ohlc_range", "concrete", "value", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// stock_history_ohlc_range::with_intraday_window
-	//   rationale: start_time + end_time pair — intraday window optional wiring (also covers: all_optionals)
+	//   rationale: start_time + end_time pair — intraday window optional wiring
 	{
 		t0 := time.Now()
 		v, e := c.StockHistoryOHLCRange("AAPL", "20250303", "20250303", "60000", WithStartTime("09:30:00"), WithEndTime("10:00:00"), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("stock_history_ohlc_range", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring (also covers: all_optionals)", v, e, time.Since(t0), &pass, &skip, &fail, records)
+		records = classify("stock_history_ohlc_range", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 
 	return pass, skip, fail, records
