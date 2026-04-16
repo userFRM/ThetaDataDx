@@ -128,6 +128,15 @@ impl From<tdbe::error::Error> for Error {
     }
 }
 
+impl From<crate::decode::DecodeError> for Error {
+    fn from(err: crate::decode::DecodeError) -> Self {
+        // Per-cell decode failures surface through the same channel as
+        // protobuf decode failures so callers pattern-match a single
+        // `Error::Decode` variant.
+        Self::Decode(err.to_string())
+    }
+}
+
 impl From<tonic::Status> for Error {
     fn from(s: tonic::Status) -> Self {
         // Extract http_status_code from gRPC metadata and enrich the error

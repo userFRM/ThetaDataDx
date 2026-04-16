@@ -235,7 +235,9 @@ macro_rules! parsed_endpoint {
                         };
                         metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
                             .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
-                        Ok($parser(&table))
+                        // Strict decode: type mismatch in any cell propagates
+                        // as Error::Decode via `From<DecodeError>`.
+                        $parser(&table).map_err(Error::from)
                     };
                     $crate::macros::run_with_optional_deadline(deadline, inner).await
                 })
