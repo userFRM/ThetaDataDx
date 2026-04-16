@@ -1,0 +1,13 @@
+        match &result {
+            Ok(()) => {
+                metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => __ENDPOINT_NAME__)
+                    .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
+            }
+            Err(_) => {
+                metrics::counter!("thetadatadx.grpc.errors", "endpoint" => __ENDPOINT_NAME__).increment(1);
+            }
+        }
+        result
+    }
+}
+

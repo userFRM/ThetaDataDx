@@ -1,0 +1,5 @@
+	if opts.__FIELD__ != nil {
+		value := C.CString(*opts.__FIELD__)
+		cOpts.__PARAM__ = value
+		allocations = append(allocations, unsafe.Pointer(value))
+	}

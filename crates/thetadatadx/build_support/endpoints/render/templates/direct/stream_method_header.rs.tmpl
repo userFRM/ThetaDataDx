@@ -1,0 +1,10 @@
+
+    /// Execute the streaming request, calling `handler` for each chunk.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error`] if the gRPC call fails or response parsing fails.
+    pub async fn stream<F>(self, mut handler: F) -> Result<(), Error>
+    where
+        F: FnMut(&[__TICK_TYPE__]),
+    {

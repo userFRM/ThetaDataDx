@@ -157,40 +157,12 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
 
     for param in &method_params {
         if param.param_type == "Symbols" {
-            out.push_str(
-                "    let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {\n",
-            );
-            out.push_str("        Some(values) => values,\n");
-            out.push_str("        None => return empty,\n");
-            out.push_str("    };\n");
-            out.push_str("    args.insert(\n");
-            out.push_str("        \"symbol\".to_string(),\n");
-            out.push_str("        thetadatadx::EndpointArgValue::Str(symbols.join(\",\")),\n");
-            out.push_str("    );\n");
+            out.push_str(include_str!("templates/ffi/symbols_extract.rs.tmpl"));
         } else {
-            writeln!(
-                out,
-                "    let {} = match unsafe {{ cstr_to_str({}) }} {{",
-                param.name, param.name
-            )
-            .unwrap();
-            out.push_str("        Some(value) => value,\n");
-            writeln!(
-                out,
-                "        None => {{\n            set_error(\"{} is null or invalid UTF-8\");\n            return empty;\n        }}",
-                param.name
-            )
-            .unwrap();
-            out.push_str("    };\n");
-            out.push_str("    args.insert(\n");
-            writeln!(out, "        {:?}.to_string(),", param.name).unwrap();
-            writeln!(
-                out,
-                "        thetadatadx::EndpointArgValue::Str({}.to_string()),",
-                param.name
-            )
-            .unwrap();
-            out.push_str("    );\n");
+            out.push_str(
+                &include_str!("templates/ffi/cstr_extract.rs.tmpl")
+                    .replace("__NAME__", &param.name),
+            );
         }
     }
 

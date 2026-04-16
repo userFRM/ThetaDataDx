@@ -1,0 +1,8 @@
+        let result = client.for_each_chunk(stream, |_headers, rows| {
+            let table = proto::DataTable {
+                headers: _headers.to_vec(),
+                data_table: rows.to_vec(),
+            };
+            let ticks = __PARSER_NAME__(&table);
+            handler(&ticks);
+        }).await;

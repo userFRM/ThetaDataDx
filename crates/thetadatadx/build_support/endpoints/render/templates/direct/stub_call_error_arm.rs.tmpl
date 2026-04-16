@@ -1,0 +1,7 @@
+        let stream = match client.stub().__GRPC_NAME__(request).await {
+            Ok(resp) => resp.into_inner(),
+            Err(e) => {
+                metrics::counter!("thetadatadx.grpc.errors", "endpoint" => __ENDPOINT_NAME_LITERAL__).increment(1);
+                return Err(e.into());
+            }
+        };

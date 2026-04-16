@@ -218,15 +218,10 @@ pub(super) fn generate_direct_streaming_endpoint(out: &mut String, endpoint: &Ge
         out.push_str("        self\n");
         out.push_str("    }\n");
     }
-    out.push_str("\n    /// Execute the streaming request, calling `handler` for each chunk.\n");
-    out.push_str("    ///\n");
-    out.push_str("    /// # Errors\n");
-    out.push_str("    ///\n");
-    out.push_str("    /// Returns [`Error`] if the gRPC call fails or response parsing fails.\n");
-    out.push_str("    pub async fn stream<F>(self, mut handler: F) -> Result<(), Error>\n");
-    out.push_str("    where\n");
-    writeln!(out, "        F: FnMut(&[{tick_type}]),").unwrap();
-    out.push_str("    {\n");
+    out.push_str(
+        &include_str!("templates/direct/stream_method_header.rs.tmpl")
+            .replace("__TICK_TYPE__", tick_type),
+    );
     writeln!(out, "        let {builder_name} {{").unwrap();
     out.push_str("            client,\n");
     for param in &method_params {
@@ -297,55 +292,20 @@ pub(super) fn generate_direct_streaming_endpoint(out: &mut String, endpoint: &Ge
         out.push_str("            }),\n");
     }
     out.push_str("        };\n");
-    writeln!(
-        out,
-        "        let stream = match client.stub().{}(request).await {{",
-        endpoint.grpc_name
-    )
-    .unwrap();
-    out.push_str("            Ok(resp) => resp.into_inner(),\n");
-    out.push_str("            Err(e) => {\n");
-    writeln!(
-        out,
-        "                metrics::counter!(\"thetadatadx.grpc.errors\", \"endpoint\" => {:?}).increment(1);",
-        endpoint.name
-    )
-    .unwrap();
-    out.push_str("                return Err(e.into());\n");
-    out.push_str("            }\n");
-    out.push_str("        };\n");
-    out.push_str("        let result = client.for_each_chunk(stream, |_headers, rows| {\n");
-    out.push_str("            let table = proto::DataTable {\n");
-    out.push_str("                headers: _headers.to_vec(),\n");
-    out.push_str("                data_table: rows.to_vec(),\n");
-    out.push_str("            };\n");
-    writeln!(out, "            let ticks = {parser_name}(&table);").unwrap();
-    out.push_str("            handler(&ticks);\n");
-    out.push_str("        }).await;\n");
-    out.push_str("        match &result {\n");
-    out.push_str("            Ok(()) => {\n");
-    writeln!(
-        out,
-        "                metrics::histogram!(\"thetadatadx.grpc.latency_ms\", \"endpoint\" => {:?})",
-        endpoint.name
-    )
-    .unwrap();
+    let endpoint_name_literal = format!("{:?}", endpoint.name);
     out.push_str(
-        "                    .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);\n",
+        &include_str!("templates/direct/stub_call_error_arm.rs.tmpl")
+            .replace("__GRPC_NAME__", &endpoint.grpc_name)
+            .replace("__ENDPOINT_NAME_LITERAL__", &endpoint_name_literal),
     );
-    out.push_str("            }\n");
-    out.push_str("            Err(_) => {\n");
-    writeln!(
-        out,
-        "                metrics::counter!(\"thetadatadx.grpc.errors\", \"endpoint\" => {:?}).increment(1);",
-        endpoint.name
-    )
-    .unwrap();
-    out.push_str("            }\n");
-    out.push_str("        }\n");
-    out.push_str("        result\n");
-    out.push_str("    }\n");
-    out.push_str("}\n\n");
+    out.push_str(
+        &include_str!("templates/direct/for_each_chunk_body.rs.tmpl")
+            .replace("__PARSER_NAME__", parser_name),
+    );
+    out.push_str(
+        &include_str!("templates/direct/metrics_result_block.rs.tmpl")
+            .replace("__ENDPOINT_NAME__", &endpoint_name_literal),
+    );
 
     writeln!(out, "impl DirectClient {{").unwrap();
     write!(out, "    pub fn {}(&self", endpoint.name).unwrap();

@@ -89,36 +89,8 @@ pub(super) fn render_go_options(params: &[GeneratedParam]) -> String {
     // Cross-cutting per-call deadline (W3). The Go-idiomatic name is
     // WithTimeout (time.Duration) plus WithTimeoutMs (uint64) so callers can
     // pick whichever flavor matches their existing code.
-    out.push_str("// WithTimeoutMs sets the per-call deadline in milliseconds. On expiry\n");
-    out.push_str("// the in-flight gRPC call is cancelled (the underlying stream is\n");
-    out.push_str("// dropped, freeing the request semaphore) and the call returns an\n");
-    out.push_str("// error containing \"Request deadline exceeded\".\n");
-    out.push_str("func WithTimeoutMs(value uint64) EndpointOption {\n");
-    out.push_str("\treturn func(options *EndpointRequestOptions) {\n");
-    out.push_str("\t\tvalueCopy := value\n");
-    out.push_str("\t\toptions.TimeoutMs = &valueCopy\n");
-    out.push_str("\t}\n");
-    out.push_str("}\n\n");
-
-    out.push_str(
-        "// WithDeadline sets the per-call deadline as a time.Duration; see WithTimeoutMs.\n",
-    );
-    out.push_str("// A negative duration means \"deadline already in the past\" and clamps\n");
-    out.push_str("// to 1 ms (immediate expiration). Without the clamp, the conversion\n");
-    out.push_str("// to uint64 would silently wrap to a multi-century value, the opposite\n");
-    out.push_str("// of the caller's intent.\n");
-    out.push_str("func WithDeadline(value time.Duration) EndpointOption {\n");
-    out.push_str("\tvar ms uint64\n");
-    out.push_str("\tif value < 0 {\n");
-    out.push_str("\t\tms = 1\n");
-    out.push_str("\t} else {\n");
-    out.push_str("\t\tms = uint64(value / time.Millisecond)\n");
-    out.push_str("\t}\n");
-    out.push_str("\treturn func(options *EndpointRequestOptions) {\n");
-    out.push_str("\t\tmsCopy := ms\n");
-    out.push_str("\t\toptions.TimeoutMs = &msCopy\n");
-    out.push_str("\t}\n");
-    out.push_str("}\n\n");
+    out.push_str(include_str!("templates/go/with_timeout_ms.go.tmpl"));
+    out.push_str(include_str!("templates/go/with_deadline.go.tmpl"));
 
     out.push_str("func endpointRequestOptionsToC(opts *EndpointRequestOptions) (*C.TdxEndpointRequestOptions, func()) {\n");
     out.push_str("\tif opts == nil {\n\t\treturn nil, func() {}\n\t}\n\n");
@@ -131,47 +103,17 @@ pub(super) fn render_go_options(params: &[GeneratedParam]) -> String {
     out.push_str("\t}\n\n");
     for param in params {
         let field_name = to_go_exported_name(&param.name);
-        match param.param_type.as_str() {
-            "Int" => {
-                writeln!(out, "\tif opts.{field_name} != nil {{").unwrap();
-                writeln!(
-                    out,
-                    "\t\tcOpts.{0} = C.int32_t(*opts.{1})",
-                    param.name, field_name
-                )
-                .unwrap();
-                writeln!(out, "\t\tcOpts.has_{} = 1", param.name).unwrap();
-                out.push_str("\t}\n");
-            }
-            "Float" => {
-                writeln!(out, "\tif opts.{field_name} != nil {{").unwrap();
-                writeln!(
-                    out,
-                    "\t\tcOpts.{0} = C.double(*opts.{1})",
-                    param.name, field_name
-                )
-                .unwrap();
-                writeln!(out, "\t\tcOpts.has_{} = 1", param.name).unwrap();
-                out.push_str("\t}\n");
-            }
-            "Bool" => {
-                writeln!(out, "\tif opts.{field_name} != nil {{").unwrap();
-                writeln!(out, "\t\tif *opts.{field_name} {{").unwrap();
-                writeln!(out, "\t\t\tcOpts.{0} = 1", param.name).unwrap();
-                out.push_str("\t\t} else {\n");
-                writeln!(out, "\t\t\tcOpts.{0} = 0", param.name).unwrap();
-                out.push_str("\t\t}\n");
-                writeln!(out, "\t\tcOpts.has_{} = 1", param.name).unwrap();
-                out.push_str("\t}\n");
-            }
-            _ => {
-                writeln!(out, "\tif opts.{field_name} != nil {{").unwrap();
-                writeln!(out, "\t\tvalue := C.CString(*opts.{field_name})").unwrap();
-                writeln!(out, "\t\tcOpts.{0} = value", param.name).unwrap();
-                out.push_str("\t\tallocations = append(allocations, unsafe.Pointer(value))\n");
-                out.push_str("\t}\n");
-            }
-        }
+        let template = match param.param_type.as_str() {
+            "Int" => include_str!("templates/go/int_case.go.tmpl"),
+            "Float" => include_str!("templates/go/float_case.go.tmpl"),
+            "Bool" => include_str!("templates/go/bool_case.go.tmpl"),
+            _ => include_str!("templates/go/string_case.go.tmpl"),
+        };
+        out.push_str(
+            &template
+                .replace("__FIELD__", &field_name)
+                .replace("__PARAM__", &param.name),
+        );
     }
     // Cross-cutting per-call deadline.
     out.push_str("\tif opts.TimeoutMs != nil {\n");
