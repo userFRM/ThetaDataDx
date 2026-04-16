@@ -424,22 +424,26 @@ pub(super) fn ffi_output_variant(return_type: &str) -> &'static str {
     }
 }
 
-pub(super) fn ffi_from_vec_expr(return_type: &str) -> &'static str {
+/// Returns the `#[repr(C)]` array type name for the given `EndpointOutput`
+/// variant (e.g. `TdxEodTickArray`). The emitter wraps `<type>::from_vec(...)`
+/// — which returns `Result<Self, NulError>` — in an inline match that routes
+/// interior-NUL failures through the FFI error slot.
+pub(super) fn ffi_from_vec_array_type(return_type: &str) -> &'static str {
     match return_type {
-        "StringList" => "TdxStringArray::from_vec(values)",
-        "EodTicks" => "TdxEodTickArray::from_vec(values)",
-        "OhlcTicks" => "TdxOhlcTickArray::from_vec(values)",
-        "TradeTicks" => "TdxTradeTickArray::from_vec(values)",
-        "QuoteTicks" => "TdxQuoteTickArray::from_vec(values)",
-        "TradeQuoteTicks" => "TdxTradeQuoteTickArray::from_vec(values)",
-        "OpenInterestTicks" => "TdxOpenInterestTickArray::from_vec(values)",
-        "MarketValueTicks" => "TdxMarketValueTickArray::from_vec(values)",
-        "GreeksTicks" => "TdxGreeksTickArray::from_vec(values)",
-        "IvTicks" => "TdxIvTickArray::from_vec(values)",
-        "PriceTicks" => "TdxPriceTickArray::from_vec(values)",
-        "CalendarDays" => "TdxCalendarDayArray::from_vec(values)",
-        "InterestRateTicks" => "TdxInterestRateTickArray::from_vec(values)",
-        "OptionContracts" => "TdxOptionContractArray::from_vec(values)",
+        "StringList" => "TdxStringArray",
+        "OptionContracts" => "TdxOptionContractArray",
+        "EodTicks" => "TdxEodTickArray",
+        "OhlcTicks" => "TdxOhlcTickArray",
+        "TradeTicks" => "TdxTradeTickArray",
+        "QuoteTicks" => "TdxQuoteTickArray",
+        "TradeQuoteTicks" => "TdxTradeQuoteTickArray",
+        "OpenInterestTicks" => "TdxOpenInterestTickArray",
+        "MarketValueTicks" => "TdxMarketValueTickArray",
+        "GreeksTicks" => "TdxGreeksTickArray",
+        "IvTicks" => "TdxIvTickArray",
+        "PriceTicks" => "TdxPriceTickArray",
+        "CalendarDays" => "TdxCalendarDayArray",
+        "InterestRateTicks" => "TdxInterestRateTickArray",
         other => panic!("unsupported FFI from_vec return type: {other}"),
     }
 }

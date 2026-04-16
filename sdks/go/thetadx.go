@@ -14,20 +14,16 @@ import (
 	"unsafe"
 )
 
-// lastError returns the most recent FFI error string.
+// lastError returns the most recent FFI error string, or "" if none is set.
+// Callers that need to distinguish "error" from "no error" (e.g. after a
+// sentinel-returning call like a list endpoint that returns `{nil, 0}` on
+// both success-with-no-rows and failure) MUST rely on `!= ""` rather than
+// a non-empty guard against a fallback string.
+//
+// The slot is a Rust thread_local, so the tdx_clear_error / FFI call /
+// lastError read sequence must run on a single OS thread — wrappers pin the
+// goroutine via runtime.LockOSThread.
 func lastError() string {
-	p := C.tdx_last_error()
-	if p == nil {
-		return "unknown error"
-	}
-	return C.GoString(p)
-}
-
-// lastErrorRaw returns the FFI error string verbatim, with empty-string
-// indicating "no error set since the last tdx_clear_error". Used by
-// stringArrayToGo to disambiguate a successful empty result from a
-// failure-with-empty-sentinel (e.g. timeout on a list endpoint).
-func lastErrorRaw() string {
 	p := C.tdx_last_error()
 	if p == nil {
 		return ""
@@ -48,7 +44,7 @@ func lastErrorRaw() string {
 // pin the goroutine via `runtime.LockOSThread()` + deferred unlock
 // before entering this helper (W3 round-3 fix). Without the pin, Go's
 // runtime can migrate the goroutine mid-sequence and the post-call
-// `lastErrorRaw()` below would read a stale/empty slot on the wrong
+// `lastError()` below would read a stale/empty slot on the wrong
 // OS thread.
 //
 // We also pin here defensively — Lock/UnlockOSThread nest safely, so
@@ -58,7 +54,7 @@ func lastErrorRaw() string {
 func stringArrayToGo(arr C.TdxStringArray) ([]string, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	if e := lastErrorRaw(); e != "" {
+	if e := lastError(); e != "" {
 		C.tdx_string_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
 	}

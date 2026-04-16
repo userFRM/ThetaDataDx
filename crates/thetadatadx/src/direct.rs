@@ -9,13 +9,13 @@
 //! # Architecture
 //!
 //! ```text
-//! Credentials --> nexus::authenticate() --> SessionToken
+//! Credentials --> nexus::authenticate() --> AuthResponse.session_id
 //!                                              |
 //!              +-------------------------------+
 //!              |
 //!       DirectClient
 //!        |-- mdds_stub: BetaThetaTerminalClient  (gRPC, historical data)
-//!        \-- session: SessionToken               (UUID in every QueryInfo)
+//!        \-- session_uuid: String                (UUID in every QueryInfo)
 //! ```
 //!
 //! Every MDDS request wraps parameters in a `QueryInfo` that carries the session
@@ -30,7 +30,7 @@ use std::time::Duration;
 
 use tokio_stream::StreamExt;
 
-use crate::auth::{self, Credentials, SessionToken};
+use crate::auth::{self, Credentials};
 use crate::config::DirectConfig;
 use crate::decode;
 use crate::error::Error;
@@ -132,8 +132,8 @@ macro_rules! contract_spec {
 /// # }
 /// ```
 pub struct DirectClient {
-    /// Session token from Nexus auth (UUID embedded in every request).
-    session: SessionToken,
+    /// Session UUID from Nexus auth (embedded in every request).
+    session_uuid: String,
     /// gRPC channel to MDDS server.
     channel: tonic::transport::Channel,
     /// Configuration snapshot (retained for diagnostics/reconnect).
@@ -169,10 +169,10 @@ impl DirectClient {
         // Step 1: Authenticate against Nexus API.
         tracing::info!(mdds = %config.mdds_uri(), "authenticating with Nexus API");
         let auth_resp = auth::authenticate(creds).await?;
-        let session = SessionToken::from_response(&auth_resp)?;
+        let session_uuid = auth_resp.session_id.clone();
 
         tracing::debug!(
-            session_id_prefix = %&session.session_uuid[..8.min(session.session_uuid.len())],
+            session_id_prefix = %&session_uuid[..8.min(session_uuid.len())],
             stock_tier = ?auth_resp.user.as_ref().and_then(|u| u.stock_subscription),
             "session established (session_id redacted)"
         );
@@ -209,7 +209,7 @@ impl DirectClient {
 
         let query_info_template = proto::QueryInfo {
             auth_token: Some(proto::AuthToken {
-                session_uuid: session.session_uuid.clone(),
+                session_uuid: session_uuid.clone(),
             }),
             query_parameters,
             client_type: CLIENT_TYPE.to_string(),
@@ -244,7 +244,7 @@ impl DirectClient {
         let options_tier = auth_resp.user.as_ref().and_then(|u| u.options_subscription);
 
         Ok(Self {
-            session,
+            session_uuid,
             channel,
             config,
             query_info_template,
@@ -378,7 +378,7 @@ impl DirectClient {
     /// Return the session UUID string.
     #[must_use]
     pub fn session_uuid(&self) -> &str {
-        &self.session.session_uuid
+        &self.session_uuid
     }
 
     /// Stock subscription tier from Nexus auth response (0=Free, 1=Value, 2=Standard, 3=Pro).

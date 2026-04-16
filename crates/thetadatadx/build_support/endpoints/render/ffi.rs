@@ -10,7 +10,7 @@
 use std::fmt::Write as _;
 
 use super::super::helpers::{
-    c_option_value_type, ffi_array_type, ffi_from_vec_expr, ffi_option_has_flag,
+    c_option_value_type, ffi_array_type, ffi_from_vec_array_type, ffi_option_has_flag,
     ffi_option_insert_expr, ffi_option_value_type, ffi_output_variant, is_streaming_endpoint,
     method_params,
 };
@@ -118,7 +118,7 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
     let method_params = method_params(endpoint);
     let array_type = ffi_array_type(&endpoint.return_type);
     let output_variant = ffi_output_variant(&endpoint.return_type);
-    let from_vec_expr = ffi_from_vec_expr(&endpoint.return_type);
+    let from_vec_type = ffi_from_vec_array_type(&endpoint.return_type);
     let mut out = String::new();
 
     writeln!(
@@ -183,10 +183,16 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("    }) {\n");
     writeln!(
         out,
-        "        Ok(thetadatadx::EndpointOutput::{}(values)) => {},",
-        output_variant, from_vec_expr
+        "        Ok(thetadatadx::EndpointOutput::{}(values)) => match {}::from_vec(values) {{",
+        output_variant, from_vec_type
     )
     .unwrap();
+    out.push_str("            Ok(arr) => arr,\n");
+    out.push_str("            Err(e) => {\n");
+    out.push_str("                set_error(&format!(\"interior NUL in server string: {e}\"));\n");
+    out.push_str("                empty\n");
+    out.push_str("            }\n");
+    out.push_str("        },\n");
     out.push_str("        Ok(other) => {\n");
     writeln!(
         out,

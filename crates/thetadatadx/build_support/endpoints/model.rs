@@ -34,14 +34,16 @@ pub(super) struct SurfaceSpec {
 }
 
 /// A cross-cutting request-level option (e.g. `timeout_ms`).
+///
+/// Schema-validation-only: fields exist to enforce the TOML shape via serde
+/// (`deny_unknown_fields` + required keys) but are not read by the Rust
+/// generator today. The docs-consistency drift check uses the raw TOML.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[allow(dead_code)]
 pub(super) struct SurfaceGlobalRequestOption {
-    #[allow(dead_code)]
     pub(super) name: String,
-    #[allow(dead_code)]
     pub(super) description: String,
-    #[allow(dead_code)]
     #[serde(rename = "type")]
     pub(super) ty: String,
 }

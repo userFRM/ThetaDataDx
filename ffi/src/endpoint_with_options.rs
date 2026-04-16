@@ -23,7 +23,13 @@ pub unsafe extern "C" fn tdx_stock_list_symbols_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_list_symbols", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::StringList(values)) => TdxStringArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for stock_list_symbols: {other:?}"));
             empty
@@ -84,7 +90,13 @@ pub unsafe extern "C" fn tdx_stock_list_dates_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_list_dates", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::StringList(values)) => TdxStringArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for stock_list_dates: {other:?}"));
             empty
@@ -129,7 +141,13 @@ pub unsafe extern "C" fn tdx_stock_snapshot_ohlc_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_ohlc", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => TdxOhlcTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for stock_snapshot_ohlc: {other:?}"));
             empty
@@ -174,7 +192,13 @@ pub unsafe extern "C" fn tdx_stock_snapshot_trade_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_trade", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => TdxTradeTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match TdxTradeTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for stock_snapshot_trade: {other:?}"));
             empty
@@ -219,7 +243,13 @@ pub unsafe extern "C" fn tdx_stock_snapshot_quote_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_quote", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => TdxQuoteTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match TdxQuoteTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for stock_snapshot_quote: {other:?}"));
             empty
@@ -264,7 +294,13 @@ pub unsafe extern "C" fn tdx_stock_snapshot_market_value_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_market_value", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => TdxMarketValueTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => match TdxMarketValueTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for stock_snapshot_market_value: {other:?}"));
             empty
@@ -338,7 +374,13 @@ pub unsafe extern "C" fn tdx_stock_history_eod_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_eod", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::EodTicks(values)) => TdxEodTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::EodTicks(values)) => match TdxEodTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for stock_history_eod: {other:?}"));
             empty
@@ -412,7 +454,13 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_ohlc", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => TdxOhlcTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for stock_history_ohlc: {other:?}"));
             empty
@@ -473,7 +521,13 @@ pub unsafe extern "C" fn tdx_stock_history_trade_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_trade", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => TdxTradeTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match TdxTradeTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for stock_history_trade: {other:?}"));
             empty
@@ -547,7 +601,13 @@ pub unsafe extern "C" fn tdx_stock_history_quote_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_quote", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => TdxQuoteTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match TdxQuoteTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for stock_history_quote: {other:?}"));
             empty
@@ -608,7 +668,13 @@ pub unsafe extern "C" fn tdx_stock_history_trade_quote_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_trade_quote", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::TradeQuoteTicks(values)) => TdxTradeQuoteTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::TradeQuoteTicks(values)) => match TdxTradeQuoteTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for stock_history_trade_quote: {other:?}"));
             empty
@@ -695,7 +761,13 @@ pub unsafe extern "C" fn tdx_stock_at_time_trade_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_at_time_trade", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => TdxTradeTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match TdxTradeTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for stock_at_time_trade: {other:?}"));
             empty
@@ -782,7 +854,13 @@ pub unsafe extern "C" fn tdx_stock_at_time_quote_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_at_time_quote", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => TdxQuoteTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match TdxQuoteTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for stock_at_time_quote: {other:?}"));
             empty
@@ -817,7 +895,13 @@ pub unsafe extern "C" fn tdx_option_list_symbols_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_symbols", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::StringList(values)) => TdxStringArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_list_symbols: {other:?}"));
             empty
@@ -917,7 +1001,13 @@ pub unsafe extern "C" fn tdx_option_list_dates_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_dates", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::StringList(values)) => TdxStringArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_list_dates: {other:?}"));
             empty
@@ -965,7 +1055,13 @@ pub unsafe extern "C" fn tdx_option_list_expirations_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_expirations", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::StringList(values)) => TdxStringArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_list_expirations: {other:?}"));
             empty
@@ -1026,7 +1122,13 @@ pub unsafe extern "C" fn tdx_option_list_strikes_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_strikes", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::StringList(values)) => TdxStringArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_list_strikes: {other:?}"));
             empty
@@ -1100,7 +1202,13 @@ pub unsafe extern "C" fn tdx_option_list_contracts_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_contracts", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::OptionContracts(values)) => TdxOptionContractArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::OptionContracts(values)) => match TdxOptionContractArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_list_contracts: {other:?}"));
             empty
@@ -1187,7 +1295,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_ohlc_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_ohlc", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => TdxOhlcTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_snapshot_ohlc: {other:?}"));
             empty
@@ -1274,7 +1388,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_trade_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_trade", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => TdxTradeTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match TdxTradeTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_snapshot_trade: {other:?}"));
             empty
@@ -1361,7 +1481,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_quote_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_quote", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => TdxQuoteTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match TdxQuoteTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_snapshot_quote: {other:?}"));
             empty
@@ -1448,7 +1574,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_open_interest_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_open_interest", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::OpenInterestTicks(values)) => TdxOpenInterestTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::OpenInterestTicks(values)) => match TdxOpenInterestTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_snapshot_open_interest: {other:?}"));
             empty
@@ -1535,7 +1667,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_market_value_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_market_value", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => TdxMarketValueTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => match TdxMarketValueTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_snapshot_market_value: {other:?}"));
             empty
@@ -1622,7 +1760,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_implied_volatility_with_opti
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_implied_volatility", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::IvTicks(values)) => TdxIvTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::IvTicks(values)) => match TdxIvTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_snapshot_greeks_implied_volatility: {other:?}"));
             empty
@@ -1709,7 +1853,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_all_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_all", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => TdxGreeksTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_snapshot_greeks_all: {other:?}"));
             empty
@@ -1796,7 +1946,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_first_order_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_first_order", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => TdxGreeksTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_snapshot_greeks_first_order: {other:?}"));
             empty
@@ -1883,7 +2039,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_second_order_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_second_order", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => TdxGreeksTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_snapshot_greeks_second_order: {other:?}"));
             empty
@@ -1970,7 +2132,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_third_order_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_third_order", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => TdxGreeksTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_snapshot_greeks_third_order: {other:?}"));
             empty
@@ -2083,7 +2251,13 @@ pub unsafe extern "C" fn tdx_option_history_eod_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_eod", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::EodTicks(values)) => TdxEodTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::EodTicks(values)) => match TdxEodTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_history_eod: {other:?}"));
             empty
@@ -2196,7 +2370,13 @@ pub unsafe extern "C" fn tdx_option_history_ohlc_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_ohlc", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => TdxOhlcTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_history_ohlc: {other:?}"));
             empty
@@ -2296,7 +2476,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => TdxTradeTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match TdxTradeTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_history_trade: {other:?}"));
             empty
@@ -2409,7 +2595,13 @@ pub unsafe extern "C" fn tdx_option_history_quote_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_quote", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => TdxQuoteTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match TdxQuoteTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_history_quote: {other:?}"));
             empty
@@ -2509,7 +2701,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_quote_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_quote", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::TradeQuoteTicks(values)) => TdxTradeQuoteTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::TradeQuoteTicks(values)) => match TdxTradeQuoteTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_history_trade_quote: {other:?}"));
             empty
@@ -2609,7 +2807,13 @@ pub unsafe extern "C" fn tdx_option_history_open_interest_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_open_interest", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::OpenInterestTicks(values)) => TdxOpenInterestTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::OpenInterestTicks(values)) => match TdxOpenInterestTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_history_open_interest: {other:?}"));
             empty
@@ -2722,7 +2926,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_eod", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => TdxGreeksTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_eod: {other:?}"));
             empty
@@ -2835,7 +3045,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_all", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => TdxGreeksTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_all: {other:?}"));
             empty
@@ -2935,7 +3151,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_all", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => TdxGreeksTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_history_trade_greeks_all: {other:?}"));
             empty
@@ -3048,7 +3270,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_first_order", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => TdxGreeksTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_first_order: {other:?}"));
             empty
@@ -3148,7 +3376,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_option
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_first_order", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => TdxGreeksTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_history_trade_greeks_first_order: {other:?}"));
             empty
@@ -3261,7 +3495,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_second_order", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => TdxGreeksTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_second_order: {other:?}"));
             empty
@@ -3361,7 +3601,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_optio
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_second_order", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => TdxGreeksTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_history_trade_greeks_second_order: {other:?}"));
             empty
@@ -3474,7 +3720,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_third_order", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => TdxGreeksTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_third_order: {other:?}"));
             empty
@@ -3574,7 +3826,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_option
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_third_order", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => TdxGreeksTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_history_trade_greeks_third_order: {other:?}"));
             empty
@@ -3687,7 +3945,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_with_optio
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_implied_volatility", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::IvTicks(values)) => TdxIvTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::IvTicks(values)) => match TdxIvTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_implied_volatility: {other:?}"));
             empty
@@ -3787,7 +4051,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_with
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_implied_volatility", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::IvTicks(values)) => TdxIvTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::IvTicks(values)) => match TdxIvTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_history_trade_greeks_implied_volatility: {other:?}"));
             empty
@@ -3913,7 +4183,13 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_at_time_trade", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => TdxTradeTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match TdxTradeTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_at_time_trade: {other:?}"));
             empty
@@ -4039,7 +4315,13 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_at_time_quote", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => TdxQuoteTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match TdxQuoteTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for option_at_time_quote: {other:?}"));
             empty
@@ -4074,7 +4356,13 @@ pub unsafe extern "C" fn tdx_index_list_symbols_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_list_symbols", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::StringList(values)) => TdxStringArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for index_list_symbols: {other:?}"));
             empty
@@ -4122,7 +4410,13 @@ pub unsafe extern "C" fn tdx_index_list_dates_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_list_dates", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::StringList(values)) => TdxStringArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for index_list_dates: {other:?}"));
             empty
@@ -4167,7 +4461,13 @@ pub unsafe extern "C" fn tdx_index_snapshot_ohlc_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_ohlc", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => TdxOhlcTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for index_snapshot_ohlc: {other:?}"));
             empty
@@ -4212,7 +4512,13 @@ pub unsafe extern "C" fn tdx_index_snapshot_price_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_price", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::PriceTicks(values)) => TdxPriceTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::PriceTicks(values)) => match TdxPriceTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for index_snapshot_price: {other:?}"));
             empty
@@ -4257,7 +4563,13 @@ pub unsafe extern "C" fn tdx_index_snapshot_market_value_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_market_value", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => TdxMarketValueTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => match TdxMarketValueTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for index_snapshot_market_value: {other:?}"));
             empty
@@ -4331,7 +4643,13 @@ pub unsafe extern "C" fn tdx_index_history_eod_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_eod", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::EodTicks(values)) => TdxEodTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::EodTicks(values)) => match TdxEodTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for index_history_eod: {other:?}"));
             empty
@@ -4418,7 +4736,13 @@ pub unsafe extern "C" fn tdx_index_history_ohlc_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_ohlc", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => TdxOhlcTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for index_history_ohlc: {other:?}"));
             empty
@@ -4492,7 +4816,13 @@ pub unsafe extern "C" fn tdx_index_history_price_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_price", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::PriceTicks(values)) => TdxPriceTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::PriceTicks(values)) => match TdxPriceTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for index_history_price: {other:?}"));
             empty
@@ -4579,7 +4909,13 @@ pub unsafe extern "C" fn tdx_index_at_time_price_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_at_time_price", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::PriceTicks(values)) => TdxPriceTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::PriceTicks(values)) => match TdxPriceTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for index_at_time_price: {other:?}"));
             empty
@@ -4614,7 +4950,13 @@ pub unsafe extern "C" fn tdx_calendar_open_today_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_open_today", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => TdxCalendarDayArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => match TdxCalendarDayArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for calendar_open_today: {other:?}"));
             empty
@@ -4662,7 +5004,13 @@ pub unsafe extern "C" fn tdx_calendar_on_date_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_on_date", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => TdxCalendarDayArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => match TdxCalendarDayArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for calendar_on_date: {other:?}"));
             empty
@@ -4710,7 +5058,13 @@ pub unsafe extern "C" fn tdx_calendar_year_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_year", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => TdxCalendarDayArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => match TdxCalendarDayArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for calendar_year: {other:?}"));
             empty
@@ -4784,7 +5138,13 @@ pub unsafe extern "C" fn tdx_interest_rate_history_eod_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "interest_rate_history_eod", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::InterestRateTicks(values)) => TdxInterestRateTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::InterestRateTicks(values)) => match TdxInterestRateTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for interest_rate_history_eod: {other:?}"));
             empty
@@ -4871,7 +5231,13 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_range_with_options(
     match runtime().block_on(async {
         thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_ohlc_range", &args).await
     }) {
-        Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => TdxOhlcTickArray::from_vec(values),
+        Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
+            Ok(arr) => arr,
+            Err(e) => {
+                set_error(&format!("interior NUL in server string: {e}"));
+                empty
+            }
+        },
         Ok(other) => {
             set_error(&format!("internal error: unexpected endpoint output for stock_history_ohlc_range: {other:?}"));
             empty
