@@ -220,7 +220,7 @@ pub(super) fn generate_direct_streaming_endpoint(out: &mut String, endpoint: &Ge
     }
     out.push_str(
         &include_str!("templates/direct/stream_method_header.rs.tmpl")
-            .replace("__TICK_TYPE__", &tick_type),
+            .replace("__TICK_TYPE__", tick_type),
     );
     writeln!(out, "        let {builder_name} {{").unwrap();
     out.push_str("            client,\n");
@@ -300,7 +300,7 @@ pub(super) fn generate_direct_streaming_endpoint(out: &mut String, endpoint: &Ge
     );
     out.push_str(
         &include_str!("templates/direct/for_each_chunk_body.rs.tmpl")
-            .replace("__PARSER_NAME__", &parser_name),
+            .replace("__PARSER_NAME__", parser_name),
     );
     out.push_str(
         &include_str!("templates/direct/metrics_result_block.rs.tmpl")
