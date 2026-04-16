@@ -217,9 +217,14 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
             out.push_str("    }\n\n");
         }
         if needs_opt_float {
+            // `f64` columns (greeks, IV, interest rates) legitimately arrive
+            // as Price or Number on the v3 MDDS server; dispatch on the wire
+            // type the same way Java's `dataValue2Object` does (PRICE →
+            // BigDecimal, NUMBER → Long). See `row_price_f64` for the
+            // accept-list.
             out.push_str("    fn opt_float(row: &crate::proto::DataValueList, idx: Option<usize>) -> Result<f64, DecodeError> {\n");
             out.push_str("        match idx {\n");
-            out.push_str("            Some(i) => Ok(row_float(row, i)?.unwrap_or(0.0)),\n");
+            out.push_str("            Some(i) => Ok(row_price_f64(row, i)?.unwrap_or(0.0)),\n");
             out.push_str("            None => Ok(0.0),\n");
             out.push_str("        }\n");
             out.push_str("    }\n\n");
@@ -349,7 +354,7 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
                 if is_required {
                     writeln!(
                         out,
-                        "                {}: row_float(row, {var})?.unwrap_or(0.0),",
+                        "                {}: row_price_f64(row, {var})?.unwrap_or(0.0),",
                         col.field
                     )
                     .unwrap();
