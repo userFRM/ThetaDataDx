@@ -360,24 +360,28 @@ params = [
 
 # ─────────────────────────────────────────────────────────────────────────────
 # FFI thread-local-error reader markers (W3 / W7c)
+# Substrings that, when present on a Go source line, identify an FFI
+# thread-local error read. `inject_os_thread_pin` requires the enclosing
+# function to pin its goroutine before reaching such a line.
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Go-side wrapper that reads LAST_ERROR after a failing FFI call.
 [[go_ffi.tls_reader_markers]]
 substring = "lastError("
-description = "Go-side wrapper that reads LAST_ERROR after a failing FFI call."
 
+# Lower-level wrapper returning the raw *C.char from LAST_ERROR.
 [[go_ffi.tls_reader_markers]]
 substring = "lastErrorRaw("
-description = "Lower-level wrapper returning the raw `*C.char` from LAST_ERROR."
 
+# FPSS cgo invocation followed by an inline LAST_ERROR check.
 [[go_ffi.tls_reader_markers]]
 substring = "f.fpssCall("
-description = "FPSS cgo invocation followed by an inline LAST_ERROR check."
 
+# Direct cgo call into the C FFI's tdx_last_error symbol.
 [[go_ffi.tls_reader_markers]]
 substring = "C.tdx_last_error("
-description = "Direct cgo call into the C FFI's `tdx_last_error` symbol."
 
+# Helper that itself reads LAST_ERROR — callers must pin before invoking
+# (the helper also self-pins defensively).
 [[go_ffi.tls_reader_markers]]
 substring = "stringArrayToGo("
-description = "Helper that itself reads LAST_ERROR — callers must pin before invoking (the helper also self-pins defensively)."
