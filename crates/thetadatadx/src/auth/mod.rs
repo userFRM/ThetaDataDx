@@ -8,7 +8,7 @@
 //! # Auth flow (from decompiled Java — `AuthenticationManager`)
 //!
 //! ```text
-//! creds.txt --> Credentials --> nexus::authenticate() --> SessionToken
+//! creds.txt --> Credentials --> nexus::authenticate() --> AuthResponse.session_id
 //!                                                           |
 //!                         +---------------------------------+
 //!                         |
@@ -20,4 +20,4 @@ pub mod creds;
 pub mod nexus;
 
 pub use creds::Credentials;
-pub use nexus::{authenticate, AuthResponse, AuthUser, SessionToken};
+pub use nexus::{authenticate, AuthResponse, AuthUser};

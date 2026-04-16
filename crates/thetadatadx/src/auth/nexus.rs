@@ -286,32 +286,6 @@ pub async fn authenticate(creds: &Credentials) -> Result<AuthResponse, Error> {
     Ok(auth)
 }
 
-/// The session UUID parsed from an `AuthResponse`.
-///
-/// Thin wrapper to ensure the UUID was validated at parse time.
-#[derive(Debug, Clone)]
-pub struct SessionToken {
-    /// The raw UUID string, as returned by the Nexus API.
-    pub session_uuid: String,
-}
-
-impl SessionToken {
-    /// Extract and validate the session token from an auth response.
-    /// # Errors
-    ///
-    /// Returns an error on network, authentication, or parsing failure.
-    pub fn from_response(resp: &AuthResponse) -> Result<Self, Error> {
-        let _uuid = Uuid::parse_str(&resp.session_id).map_err(|e| Error::Auth {
-            kind: crate::error::AuthErrorKind::ServerError,
-            message: format!("invalid session UUID '{}': {e}", resp.session_id),
-        })?;
-
-        Ok(Self {
-            session_uuid: resp.session_id.clone(),
-        })
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -320,27 +294,5 @@ mod tests {
     fn terminal_key_is_valid_uuid() {
         // Sanity check: the hardcoded terminal key should be a valid UUID.
         Uuid::parse_str(TERMINAL_KEY).expect("TERMINAL_KEY must be a valid UUID");
-    }
-
-    #[test]
-    fn session_token_from_valid_response() {
-        let resp = AuthResponse {
-            session_id: "550e8400-e29b-41d4-a716-446655440000".to_string(),
-            user: None,
-            session_created: None,
-        };
-        let token = SessionToken::from_response(&resp).unwrap();
-        assert_eq!(token.session_uuid, resp.session_id);
-    }
-
-    #[test]
-    fn session_token_rejects_garbage() {
-        let resp = AuthResponse {
-            session_id: "not-a-uuid".to_string(),
-            user: None,
-            session_created: None,
-        };
-        let err = SessionToken::from_response(&resp).unwrap_err();
-        assert!(err.to_string().contains("invalid session UUID"));
     }
 }
