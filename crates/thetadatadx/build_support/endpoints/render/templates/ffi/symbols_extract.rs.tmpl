@@ -1,0 +1,8 @@
+    let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
+        Some(values) => values,
+        None => return empty,
+    };
+    args.insert(
+        "symbol".to_string(),
+        thetadatadx::EndpointArgValue::Str(symbols.join(",")),
+    );
