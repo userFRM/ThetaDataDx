@@ -272,7 +272,7 @@ fn bench_parse_trade_ticks_100(c: &mut Criterion) {
     let table = build_trade_data_table(100);
     c.bench_function("parse_trade_ticks_100", |b| {
         b.iter(|| {
-            black_box(parse_trade_ticks(black_box(&table)));
+            black_box(parse_trade_ticks(black_box(&table)).expect("benchmark fixture"));
         });
     });
 }
@@ -281,7 +281,7 @@ fn bench_parse_quote_ticks_100(c: &mut Criterion) {
     let table = build_quote_data_table(100);
     c.bench_function("parse_quote_ticks_100", |b| {
         b.iter(|| {
-            black_box(parse_quote_ticks(black_box(&table)));
+            black_box(parse_quote_ticks(black_box(&table)).expect("benchmark fixture"));
         });
     });
 }
@@ -290,7 +290,7 @@ fn bench_parse_ohlc_ticks_100(c: &mut Criterion) {
     let table = build_ohlc_data_table(100);
     c.bench_function("parse_ohlc_ticks_100", |b| {
         b.iter(|| {
-            black_box(parse_ohlc_ticks(black_box(&table)));
+            black_box(parse_ohlc_ticks(black_box(&table)).expect("benchmark fixture"));
         });
     });
 }

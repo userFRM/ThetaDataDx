@@ -1,8 +1,21 @@
+        // Strict decode: a type mismatch inside a chunk sets `decode_error`
+        // and short-circuits further handler calls; the error is returned
+        // after `for_each_chunk` completes (it eats closure output).
+        let mut decode_error: Option<Error> = None;
         let result = client.for_each_chunk(stream, |_headers, rows| {
+            if decode_error.is_some() {
+                return;
+            }
             let table = proto::DataTable {
                 headers: _headers.to_vec(),
                 data_table: rows.to_vec(),
             };
-            let ticks = __PARSER_NAME__(&table);
-            handler(&ticks);
+            match __PARSER_NAME__(&table) {
+                Ok(ticks) => handler(&ticks),
+                Err(e) => decode_error = Some(Error::from(e)),
+            }
         }).await;
+        let result = result.and_then(|()| match decode_error {
+            Some(e) => Err(e),
+            None => Ok(()),
+        });

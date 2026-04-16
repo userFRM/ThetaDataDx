@@ -626,7 +626,7 @@ mod tests {
             headers: vec!["ms_of_day".into(), "open".into(), "date".into()],
             data_table: vec![],
         };
-        let ticks = decode::parse_eod_ticks(&table);
+        let ticks = decode::parse_eod_ticks(&table).unwrap();
         assert!(ticks.is_empty());
     }
 
@@ -656,7 +656,7 @@ mod tests {
                 ],
             }],
         };
-        let ticks = decode::parse_eod_ticks(&table);
+        let ticks = decode::parse_eod_ticks(&table).unwrap();
         assert_eq!(ticks.len(), 1);
         assert_eq!(ticks[0].ms_of_day, 34200000);
         assert!((ticks[0].open - 15000.0).abs() < 1e-10);

@@ -6,6 +6,39 @@ use tdbe::types::tick::{
     CalendarDay, EodTick, GreeksTick, InterestRateTick, IvTick, MarketValueTick, OhlcTick,
     OpenInterestTick, OptionContract, PriceTick, QuoteTick, TradeQuoteTick, TradeTick,
 };
+use thiserror::Error as ThisError;
+
+/// Per-cell decode failure. Produced by the `row_*` helpers when a cell does
+/// not match the column's declared type, or when the requested column index is
+/// past the end of the row. Mirrors the Java terminal's `IllegalArgumentException`
+/// path in `PojoMessageUtils.convert`.
+#[derive(Debug, ThisError, PartialEq, Eq)]
+pub enum DecodeError {
+    /// Cell exists but its `DataType` variant does not match the declared
+    /// schema for this column.
+    #[error("column {column}: expected {expected}, got {observed}")]
+    TypeMismatch {
+        column: usize,
+        expected: &'static str,
+        observed: &'static str,
+    },
+    /// Row has fewer cells than the requested column index.
+    #[error("column {column}: missing cell")]
+    MissingCell { column: usize },
+}
+
+/// Name the `DataType` variant for error messages. `None` is treated as a
+/// missing `data_type` oneof (protobuf cell with no variant set).
+pub(crate) fn observed_name(dt: Option<&proto::data_value::DataType>) -> &'static str {
+    match dt {
+        Some(proto::data_value::DataType::Number(_)) => "Number",
+        Some(proto::data_value::DataType::Text(_)) => "Text",
+        Some(proto::data_value::DataType::Price(_)) => "Price",
+        Some(proto::data_value::DataType::Timestamp(_)) => "Timestamp",
+        Some(proto::data_value::DataType::NullValue(_)) => "NullValue",
+        None => "Unset",
+    }
+}
 
 /// Header aliases: v3 MDDS uses different column names than the tick schema.
 /// This maps schema names to their v3 equivalents so parsers work with both.
@@ -198,21 +231,36 @@ pub(crate) fn timestamp_to_date(epoch_ms: u64) -> i32 {
     (y as i32) * 10_000 + (m as i32) * 100 + (d as i32)
 }
 
-/// Extract a date (YYYYMMDD) or `ms_of_day` from a Timestamp cell.
+/// Extract a date (YYYYMMDD) from a `Number` or `Timestamp` cell, strictly.
 ///
 /// Used by generated parsers when the `date` field maps to a `timestamp` column.
+/// `Number` carries the date already in YYYYMMDD form; `Timestamp` is converted
+/// to an Eastern-Time YYYYMMDD integer. `NullValue` yields `Ok(None)`; any
+/// other type yields `Err(TypeMismatch)`.
+///
+/// # Errors
+///
+/// Returns [`DecodeError::TypeMismatch`] if the cell is neither a `Number`,
+/// `Timestamp`, nor `NullValue`, and [`DecodeError::MissingCell`] if the row
+/// has no cell at `idx` (out of bounds or protobuf oneof unset).
 // Reason: number values from protobuf fit in i32 for date/integer fields.
 #[allow(clippy::cast_possible_truncation)]
-pub(crate) fn row_date(row: &proto::DataValueList, idx: usize) -> i32 {
-    row.values
-        .get(idx)
-        .and_then(|dv| dv.data_type.as_ref())
-        .and_then(|dt| match dt {
-            proto::data_value::DataType::Number(n) => Some(*n as i32),
-            proto::data_value::DataType::Timestamp(ts) => Some(timestamp_to_date(ts.epoch_ms)),
-            _ => None,
-        })
-        .unwrap_or(0)
+pub(crate) fn row_date(row: &proto::DataValueList, idx: usize) -> Result<Option<i32>, DecodeError> {
+    let Some(dv) = row.values.get(idx) else {
+        return Err(DecodeError::MissingCell { column: idx });
+    };
+    match dv.data_type.as_ref() {
+        Some(proto::data_value::DataType::Number(n)) => Ok(Some(*n as i32)),
+        Some(proto::data_value::DataType::Timestamp(ts)) => {
+            Ok(Some(timestamp_to_date(ts.epoch_ms)))
+        }
+        Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
+        other => Err(DecodeError::TypeMismatch {
+            column: idx,
+            expected: "Number|Timestamp",
+            observed: observed_name(other),
+        }),
+    }
 }
 
 thread_local! {
@@ -368,167 +416,212 @@ pub fn extract_price_column(table: &proto::DataTable, header: &str) -> Vec<Optio
         .collect()
 }
 
-/// Helper to get a number from a row at a given column index, defaulting to 0.
+/// Decode an `i32`-valued cell with Java-matching strict semantics.
 ///
-/// Returns 0 for missing cells, `NullValue` cells, or non-Number types.
-/// Tick schemas don't have nullable fields in practice — `NullValue` only appears
-/// in column-oriented endpoints like Greeks/calendar which use `extract_number_column`
-/// (which returns `Option`). For tick parsing, defaulting to 0 is correct and
-/// matches the Java terminal's behavior.
+/// Accepts:
+/// - `Number(n)` → `Ok(Some(n as i32))`.
+/// - `Timestamp(ts)` → `Ok(Some(ms_of_day))` — v3 MDDS sends time columns as
+///   proto `Timestamp`; the parser expects milliseconds-of-day in Eastern Time.
+/// - `NullValue` → `Ok(None)`, matching Java `null` return.
 ///
-/// `NullValue` is expected and silent. Any other type mismatch (Price, Text,
-/// etc.) is logged at `warn` level with the column index and observed type —
-/// these indicate upstream schema drift and should be surfaced in production
-/// logs, not buried at `trace`.
+/// Any other variant produces [`DecodeError::TypeMismatch`]. A row shorter than
+/// `idx` (or a cell whose oneof is unset) produces [`DecodeError::MissingCell`].
+///
+/// # Errors
+///
+/// See variant list above.
 // Reason: protocol-defined integer widths from Java FPSS specification.
 #[allow(clippy::cast_possible_truncation)]
-pub(crate) fn row_number(row: &proto::DataValueList, idx: usize) -> i32 {
-    row.values
-        .get(idx)
-        .and_then(|dv| dv.data_type.as_ref())
-        .and_then(|dt| match dt {
-            proto::data_value::DataType::Number(n) => Some(*n as i32),
-            // v3 MDDS returns Timestamp for time columns.
-            // Extract milliseconds-of-day (ET timezone).
-            proto::data_value::DataType::Timestamp(ts) => Some(timestamp_to_ms_of_day(ts.epoch_ms)),
-            proto::data_value::DataType::NullValue(_) => None,
-            other => {
-                tracing::warn!(
-                    column = idx,
-                    data_type = ?other,
-                    "row_number: unexpected cell type, defaulting to 0 (schema drift?)"
-                );
-                None
-            }
-        })
-        .unwrap_or(0)
+pub(crate) fn row_number(
+    row: &proto::DataValueList,
+    idx: usize,
+) -> Result<Option<i32>, DecodeError> {
+    let Some(dv) = row.values.get(idx) else {
+        return Err(DecodeError::MissingCell { column: idx });
+    };
+    match dv.data_type.as_ref() {
+        Some(proto::data_value::DataType::Number(n)) => Ok(Some(*n as i32)),
+        Some(proto::data_value::DataType::Timestamp(ts)) => {
+            Ok(Some(timestamp_to_ms_of_day(ts.epoch_ms)))
+        }
+        Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
+        other => Err(DecodeError::TypeMismatch {
+            column: idx,
+            expected: "Number|Timestamp",
+            observed: observed_name(other),
+        }),
+    }
 }
 
-/// Extract raw price value from a Price cell (test-only helper).
-#[cfg(test)]
-#[allow(clippy::cast_possible_truncation)]
-fn row_price_value(row: &proto::DataValueList, idx: usize) -> i32 {
-    row.values
-        .get(idx)
-        .and_then(|dv| dv.data_type.as_ref())
-        .and_then(|dt| match dt {
-            proto::data_value::DataType::Price(p) => Some(p.value),
-            _ => None,
-        })
-        .unwrap_or(0)
-}
-
-/// Extract raw price type from a Price cell (test-only helper).
-#[cfg(test)]
-#[allow(clippy::cast_possible_truncation)]
-fn row_price_type(row: &proto::DataValueList, idx: usize) -> i32 {
-    row.values
-        .get(idx)
-        .and_then(|dv| dv.data_type.as_ref())
-        .and_then(|dt| match dt {
-            proto::data_value::DataType::Price(p) => Some(p.r#type),
-            _ => None,
-        })
-        .unwrap_or(0)
-}
-
-/// Decode a Price cell directly to `f64` using the cell's own `price_type`.
+/// Extract raw price value from a `Price` cell (test-only helper).
 ///
-/// For Number cells, returns the number cast to `f64`.
-/// This is the primary accessor for the f64-native price API.
+/// `Price(p)` → `Ok(Some(p.value))`; `NullValue` → `Ok(None)`; other types
+/// error. Missing cell errors.
+///
+/// # Errors
+///
+/// See [`row_number`].
+#[cfg(test)]
+#[allow(clippy::cast_possible_truncation)]
+fn row_price_value(row: &proto::DataValueList, idx: usize) -> Result<Option<i32>, DecodeError> {
+    let Some(dv) = row.values.get(idx) else {
+        return Err(DecodeError::MissingCell { column: idx });
+    };
+    match dv.data_type.as_ref() {
+        Some(proto::data_value::DataType::Price(p)) => Ok(Some(p.value)),
+        Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
+        other => Err(DecodeError::TypeMismatch {
+            column: idx,
+            expected: "Price",
+            observed: observed_name(other),
+        }),
+    }
+}
+
+/// Extract raw price type from a `Price` cell (test-only helper).
+///
+/// # Errors
+///
+/// See [`row_price_value`].
+#[cfg(test)]
+#[allow(clippy::cast_possible_truncation)]
+fn row_price_type(row: &proto::DataValueList, idx: usize) -> Result<Option<i32>, DecodeError> {
+    let Some(dv) = row.values.get(idx) else {
+        return Err(DecodeError::MissingCell { column: idx });
+    };
+    match dv.data_type.as_ref() {
+        Some(proto::data_value::DataType::Price(p)) => Ok(Some(p.r#type)),
+        Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
+        other => Err(DecodeError::TypeMismatch {
+            column: idx,
+            expected: "Price",
+            observed: observed_name(other),
+        }),
+    }
+}
+
+/// Decode a price-valued cell to `f64`, using the cell's own `price_type`.
+///
+/// Accepts both `Price` (the schema type) and `Number` — v3 MDDS occasionally
+/// sends whole-dollar quantities as plain `Number` cells where the schema
+/// would otherwise expect `Price`. `NullValue` returns `Ok(None)`.
+///
+/// # Errors
+///
+/// Errors on any other cell type or missing cell.
 // Reason: protocol-defined integer widths from Java FPSS specification.
 #[allow(clippy::cast_possible_truncation)]
-pub(crate) fn row_price_f64(row: &proto::DataValueList, idx: usize) -> f64 {
-    row.values
-        .get(idx)
-        .and_then(|dv| dv.data_type.as_ref())
-        .map(|dt| match dt {
-            proto::data_value::DataType::Price(p) => {
-                tdbe::types::price::Price::new(p.value, p.r#type).to_f64()
-            }
-            proto::data_value::DataType::Number(n) => *n as f64,
-            _ => 0.0,
-        })
-        .unwrap_or(0.0)
+pub(crate) fn row_price_f64(
+    row: &proto::DataValueList,
+    idx: usize,
+) -> Result<Option<f64>, DecodeError> {
+    let Some(dv) = row.values.get(idx) else {
+        return Err(DecodeError::MissingCell { column: idx });
+    };
+    match dv.data_type.as_ref() {
+        Some(proto::data_value::DataType::Price(p)) => Ok(Some(
+            tdbe::types::price::Price::new(p.value, p.r#type).to_f64(),
+        )),
+        Some(proto::data_value::DataType::Number(n)) => Ok(Some(*n as f64)),
+        Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
+        other => Err(DecodeError::TypeMismatch {
+            column: idx,
+            expected: "Price|Number",
+            observed: observed_name(other),
+        }),
+    }
 }
 
-/// Helper to get an f64 from a row at a given column index, defaulting to 0.0.
+/// Decode an `f64`-valued cell.
 ///
-/// Handles both `Number` cells (raw f64) and `Price` cells (value + `price_type`
-/// encoding). The v3 MDDS server sends Greeks, IV, and other f64 fields as
-/// Price-encoded values.
+/// Accepts `Number(n)` only (greeks, IV, interest rates). `NullValue` returns
+/// `Ok(None)`. Float-as-Price decoding is deliberately kept in [`row_price_f64`]
+/// so that this helper fails loudly when a greek column is served as a `Price`
+/// cell against schema.
 ///
-/// `NullValue` is expected and silent. Any other type mismatch (Timestamp,
-/// Text, etc.) is logged at `warn` level with the column index and observed
-/// type so schema drift is visible in production logs.
-// Reason: market-data i64 values are within f64 mantissa range; items defined near usage.
-#[allow(clippy::items_after_statements, clippy::cast_precision_loss)]
-pub(crate) fn row_float(row: &proto::DataValueList, idx: usize) -> f64 {
-    row.values
-        .get(idx)
-        .and_then(|dv| dv.data_type.as_ref())
-        .and_then(|dt| match dt {
-            proto::data_value::DataType::Number(n) => Some(*n as f64),
-            proto::data_value::DataType::Price(p) => {
-                if p.r#type == 0 {
-                    Some(0.0)
-                } else {
-                    let exp = p.r#type - 10;
-                    if exp >= 0 {
-                        Some(f64::from(p.value) * 10f64.powi(exp))
-                    } else {
-                        Some(f64::from(p.value) / 10f64.powi(-exp))
-                    }
-                }
-            }
-            proto::data_value::DataType::NullValue(_) => None,
-            other => {
-                tracing::warn!(
-                    column = idx,
-                    data_type = ?other,
-                    "row_float: unexpected cell type, defaulting to 0.0 (schema drift?)"
-                );
-                None
-            }
-        })
-        .unwrap_or(0.0)
+/// # Errors
+///
+/// Errors on non-`Number` / non-null cells or missing cells.
+// Reason: market-data i64 values are within f64 mantissa range.
+#[allow(clippy::cast_precision_loss)]
+pub(crate) fn row_float(
+    row: &proto::DataValueList,
+    idx: usize,
+) -> Result<Option<f64>, DecodeError> {
+    let Some(dv) = row.values.get(idx) else {
+        return Err(DecodeError::MissingCell { column: idx });
+    };
+    match dv.data_type.as_ref() {
+        Some(proto::data_value::DataType::Number(n)) => Ok(Some(*n as f64)),
+        Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
+        other => Err(DecodeError::TypeMismatch {
+            column: idx,
+            expected: "Number",
+            observed: observed_name(other),
+        }),
+    }
 }
 
-/// Helper to get a String from a row at a given column index, defaulting to empty.
-// Reason: inline helper defined near its usage in generated code.
-#[allow(clippy::items_after_statements)]
-pub(crate) fn row_text(row: &proto::DataValueList, idx: usize) -> String {
-    row.values
-        .get(idx)
-        .and_then(|dv| dv.data_type.as_ref())
-        .and_then(|dt| match dt {
-            proto::data_value::DataType::Text(s) => Some(s.clone()),
-            _ => None,
-        })
-        .unwrap_or_default()
+/// Decode a text-valued cell.
+///
+/// `Text(s)` → `Ok(Some(s))`, `NullValue` → `Ok(None)`.
+///
+/// # Errors
+///
+/// Errors on any other cell type or missing cell.
+pub(crate) fn row_text(
+    row: &proto::DataValueList,
+    idx: usize,
+) -> Result<Option<String>, DecodeError> {
+    let Some(dv) = row.values.get(idx) else {
+        return Err(DecodeError::MissingCell { column: idx });
+    };
+    match dv.data_type.as_ref() {
+        Some(proto::data_value::DataType::Text(s)) => Ok(Some(s.clone())),
+        Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
+        other => Err(DecodeError::TypeMismatch {
+            column: idx,
+            expected: "Text",
+            observed: observed_name(other),
+        }),
+    }
 }
 
-/// Helper to get an i64 from a row at a given column index, defaulting to 0.
+/// Decode an `i64`-valued cell.
 ///
-/// Handles Price cells in addition to Number cells (MDDS may send large
-/// integer fields encoded as Price). Currently only exercised in tests,
-/// but kept for future i64 column types.
+/// `Number(n)` → `Ok(Some(n))`; `Price(p)` → `Ok(Some(p.to_f64() as i64))`
+/// because v3 MDDS may send large integer fields encoded as `Price`;
+/// `NullValue` → `Ok(None)`.
+///
+/// Gated on `cfg(test)` because the current `tick_schema.toml` has no i64
+/// columns. When a schema later adds one, the generator emits
+/// `row_number_i64` references and this gate must be removed.
+///
+/// # Errors
+///
+/// Errors on any other cell type or missing cell.
 // Reason: protocol-defined integer widths from Java FPSS specification.
 #[cfg(test)]
-#[allow(clippy::items_after_statements)]
-fn row_number_i64(row: &proto::DataValueList, idx: usize) -> i64 {
-    row.values
-        .get(idx)
-        .and_then(|dv| dv.data_type.as_ref())
-        .and_then(|dt| match dt {
-            proto::data_value::DataType::Number(n) => Some(*n),
-            // MDDS may send large integer fields as Price cells.
-            proto::data_value::DataType::Price(p) => {
-                Some(tdbe::Price::new(p.value, p.r#type).to_f64() as i64)
-            }
-            _ => None,
-        })
-        .unwrap_or(0)
+#[allow(clippy::cast_possible_truncation)]
+pub(crate) fn row_number_i64(
+    row: &proto::DataValueList,
+    idx: usize,
+) -> Result<Option<i64>, DecodeError> {
+    let Some(dv) = row.values.get(idx) else {
+        return Err(DecodeError::MissingCell { column: idx });
+    };
+    match dv.data_type.as_ref() {
+        Some(proto::data_value::DataType::Number(n)) => Ok(Some(*n)),
+        Some(proto::data_value::DataType::Price(p)) => {
+            Ok(Some(tdbe::Price::new(p.value, p.r#type).to_f64() as i64))
+        }
+        Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
+        other => Err(DecodeError::TypeMismatch {
+            column: idx,
+            expected: "Number|Price",
+            observed: observed_name(other),
+        }),
+    }
 }
 
 // Generated code -- parser functions from tick_schema.toml by build.rs.
@@ -539,10 +632,31 @@ mod decode_generated {
 }
 pub use decode_generated::*;
 
+/// Borrow the cell at `idx`, returning an error if the row is too short.
+fn cell_type(
+    row: &proto::DataValueList,
+    idx: usize,
+) -> Result<Option<&proto::data_value::DataType>, DecodeError> {
+    let Some(dv) = row.values.get(idx) else {
+        return Err(DecodeError::MissingCell { column: idx });
+    };
+    Ok(dv.data_type.as_ref())
+}
+
 /// Hand-written parser for `OptionContract` that handles the v3 server's
 /// text-formatted fields (expiration as ISO date, right as "PUT"/"CALL").
-#[must_use]
-pub fn parse_option_contracts_v3(table: &crate::proto::DataTable) -> Vec<OptionContract> {
+///
+/// The `expiration` and `right` columns legitimately arrive as either `Number`
+/// or `Text` depending on the upstream version, so the parser dispatches on
+/// the cell's own type rather than coalescing silently. Mismatched types
+/// propagate as [`DecodeError::TypeMismatch`].
+///
+/// # Errors
+///
+/// Returns [`DecodeError`] on type mismatch or missing cell.
+pub fn parse_option_contracts_v3(
+    table: &crate::proto::DataTable,
+) -> Result<Vec<OptionContract>, DecodeError> {
     let h: Vec<&str> = table
         .headers
         .iter()
@@ -550,7 +664,7 @@ pub fn parse_option_contracts_v3(table: &crate::proto::DataTable) -> Vec<OptionC
         .collect();
 
     let Some(root_idx) = find_header(&h, "root") else {
-        return vec![];
+        return Ok(vec![]);
     };
     let exp_idx = find_header(&h, "expiration");
     let strike_idx = find_header(&h, "strike");
@@ -560,42 +674,59 @@ pub fn parse_option_contracts_v3(table: &crate::proto::DataTable) -> Vec<OptionC
         .data_table
         .iter()
         .map(|row| {
-            let root = row_text(row, root_idx);
+            let root = row_text(row, root_idx)?.unwrap_or_default();
 
-            // Expiration: may be YYYYMMDD int or ISO date string "2026-04-13"
-            let expiration = exp_idx.map_or(0, |i| {
-                let n = row_number(row, i);
-                if n != 0 {
-                    return n;
-                }
-                // Try text: "2026-04-13" -> 20260413
-                let s = row_text(row, i);
-                parse_iso_date(&s)
-            });
+            // Expiration: `Number` carries YYYYMMDD directly; `Text` carries
+            // an ISO "2026-04-13" that we parse here. Null / absent → 0.
+            let expiration = match exp_idx {
+                Some(i) => match cell_type(row, i)? {
+                    Some(proto::data_value::DataType::Number(n)) => *n as i32,
+                    Some(proto::data_value::DataType::Text(s)) => parse_iso_date(s),
+                    Some(proto::data_value::DataType::NullValue(_)) | None => 0,
+                    other => {
+                        return Err(DecodeError::TypeMismatch {
+                            column: i,
+                            expected: "Number|Text",
+                            observed: observed_name(other),
+                        });
+                    }
+                },
+                None => 0,
+            };
 
-            // Strike: decode to f64 from Price or Number cell.
-            let strike = strike_idx.map_or(0.0, |i| row_price_f64(row, i));
+            let strike = match strike_idx {
+                Some(i) => row_price_f64(row, i)?.unwrap_or(0.0),
+                None => 0.0,
+            };
 
-            // Right: may be int or text "PUT"/"CALL"/"C"/"P"
-            let right = right_idx.map_or(0, |i| {
-                let n = row_number(row, i);
-                if n != 0 {
-                    return n;
-                }
-                let s = row_text(row, i);
-                match s.as_str() {
-                    "CALL" | "C" => 67, // ASCII 'C'
-                    "PUT" | "P" => 80,  // ASCII 'P'
-                    _ => 0,
-                }
-            });
+            // Right: `Number` carries the ASCII code directly; `Text` carries
+            // "PUT"/"CALL"/"P"/"C". Null / absent / unknown text → 0.
+            let right = match right_idx {
+                Some(i) => match cell_type(row, i)? {
+                    Some(proto::data_value::DataType::Number(n)) => *n as i32,
+                    Some(proto::data_value::DataType::Text(s)) => match s.as_str() {
+                        "CALL" | "C" => 67, // ASCII 'C'
+                        "PUT" | "P" => 80,  // ASCII 'P'
+                        _ => 0,
+                    },
+                    Some(proto::data_value::DataType::NullValue(_)) | None => 0,
+                    other => {
+                        return Err(DecodeError::TypeMismatch {
+                            column: i,
+                            expected: "Number|Text",
+                            observed: observed_name(other),
+                        });
+                    }
+                },
+                None => 0,
+            };
 
-            OptionContract {
+            Ok(OptionContract {
                 root,
                 expiration,
                 strike,
                 right,
-            }
+            })
         })
         .collect()
 }
@@ -681,8 +812,15 @@ fn calendar_type_text(s: &str) -> (i32, i32) {
 /// | `status`     | `type`        | Text        | See [`CALENDAR_STATUS_OPEN`] etc.     |
 ///
 /// Note: `calendar_on_date` and `calendar_open_today` omit the `date` column.
-#[must_use]
-pub fn parse_calendar_days_v3(table: &crate::proto::DataTable) -> Vec<CalendarDay> {
+/// Each column dispatches on the cell's own type rather than coalescing
+/// silently — mismatched types propagate as [`DecodeError::TypeMismatch`].
+///
+/// # Errors
+///
+/// Returns [`DecodeError`] on type mismatch or missing cell.
+pub fn parse_calendar_days_v3(
+    table: &crate::proto::DataTable,
+) -> Result<Vec<CalendarDay>, DecodeError> {
     let h: Vec<&str> = table
         .headers
         .iter()
@@ -698,67 +836,81 @@ pub fn parse_calendar_days_v3(table: &crate::proto::DataTable) -> Vec<CalendarDa
         .data_table
         .iter()
         .map(|row| {
-            // date: Text "2025-01-01" -> YYYYMMDD, or Number, or Timestamp
-            let date = date_idx.map_or(0, |i| {
-                // Try Number/Timestamp first (generated parser path)
-                let n = row_number(row, i);
-                if n != 0 {
-                    return n;
-                }
-                // v3: Text "2025-01-01"
-                let s = row_text(row, i);
-                if !s.is_empty() {
-                    return parse_iso_date(&s);
-                }
-                0
-            });
+            // date: Number carries YYYYMMDD, Timestamp converts to ET date,
+            // Text "2025-01-01" parses to YYYYMMDD. Null/absent → 0.
+            let date = match date_idx {
+                Some(i) => match cell_type(row, i)? {
+                    Some(proto::data_value::DataType::Number(n)) => *n as i32,
+                    Some(proto::data_value::DataType::Timestamp(ts)) => {
+                        timestamp_to_date(ts.epoch_ms)
+                    }
+                    Some(proto::data_value::DataType::Text(s)) => parse_iso_date(s),
+                    Some(proto::data_value::DataType::NullValue(_)) | None => 0,
+                    other => {
+                        return Err(DecodeError::TypeMismatch {
+                            column: i,
+                            expected: "Number|Timestamp|Text",
+                            observed: observed_name(other),
+                        });
+                    }
+                },
+                None => 0,
+            };
 
-            // type: Text "open"/"full_close"/"early_close"/"weekend"
-            let (is_open, status) = type_idx.map_or((0, 0), |i| {
-                let s = row_text(row, i);
-                if !s.is_empty() {
-                    return calendar_type_text(&s);
-                }
-                // Fallback: try as Number (future-proofing)
-                let n = row_number(row, i);
-                (i32::from(n != 0), n)
-            });
+            // type: Text "open"/"full_close"/"early_close"/"weekend"; Number
+            // kept as a future-proofing path. Null/absent → (0, 0).
+            let (is_open, status) = match type_idx {
+                Some(i) => match cell_type(row, i)? {
+                    Some(proto::data_value::DataType::Text(s)) => calendar_type_text(s),
+                    Some(proto::data_value::DataType::Number(n)) => {
+                        let n = *n as i32;
+                        (i32::from(n != 0), n)
+                    }
+                    Some(proto::data_value::DataType::NullValue(_)) | None => (0, 0),
+                    other => {
+                        return Err(DecodeError::TypeMismatch {
+                            column: i,
+                            expected: "Text|Number",
+                            observed: observed_name(other),
+                        });
+                    }
+                },
+                None => (0, 0),
+            };
 
-            // open: Text "09:30:00" -> ms_of_day, or Null/Number
-            let open_time = open_idx.map_or(0, |i| {
-                let n = row_number(row, i);
-                if n != 0 {
-                    return n;
-                }
-                let s = row_text(row, i);
-                if !s.is_empty() {
-                    return parse_time_text(&s);
-                }
-                0
-            });
+            let open_time = decode_calendar_time(row, open_idx)?;
+            let close_time = decode_calendar_time(row, close_idx)?;
 
-            // close: Text "16:00:00" -> ms_of_day, or Null/Number
-            let close_time = close_idx.map_or(0, |i| {
-                let n = row_number(row, i);
-                if n != 0 {
-                    return n;
-                }
-                let s = row_text(row, i);
-                if !s.is_empty() {
-                    return parse_time_text(&s);
-                }
-                0
-            });
-
-            CalendarDay {
+            Ok(CalendarDay {
                 date,
                 is_open,
                 open_time,
                 close_time,
                 status,
-            }
+            })
         })
         .collect()
+}
+
+/// Decode a calendar `open`/`close` column. `Text "HH:MM:SS"` → ms-of-day;
+/// `Number` kept as future-proofing. Null / absent column → 0.
+fn decode_calendar_time(
+    row: &proto::DataValueList,
+    idx: Option<usize>,
+) -> Result<i32, DecodeError> {
+    let Some(i) = idx else {
+        return Ok(0);
+    };
+    match cell_type(row, i)? {
+        Some(proto::data_value::DataType::Text(s)) => Ok(parse_time_text(s)),
+        Some(proto::data_value::DataType::Number(n)) => Ok(*n as i32),
+        Some(proto::data_value::DataType::NullValue(_)) | None => Ok(0),
+        other => Err(DecodeError::TypeMismatch {
+            column: i,
+            expected: "Text|Number",
+            observed: observed_name(other),
+        }),
+    }
 }
 #[cfg(test)]
 mod tests {
@@ -809,49 +961,133 @@ mod tests {
     #[test]
     fn row_number_returns_value_for_number_cell() {
         let row = row_of(vec![dv_number(42)]);
-        assert_eq!(row_number(&row, 0), 42);
+        assert_eq!(row_number(&row, 0).unwrap(), Some(42));
     }
 
     #[test]
-    fn row_number_returns_0_for_null_cell() {
+    fn row_number_returns_none_for_null_cell() {
         let row = row_of(vec![dv_null()]);
-        assert_eq!(row_number(&row, 0), 0);
+        assert_eq!(row_number(&row, 0).unwrap(), None);
     }
 
     #[test]
-    fn row_number_returns_0_for_missing_cell() {
+    fn row_number_errors_on_unset_cell() {
+        // An oneof-unset DataValue is a wire-protocol anomaly. Java's
+        // `PojoMessageUtils.convert` hits the default arm for
+        // `DATATYPE_NOT_SET` and throws `IllegalArgumentException`; we
+        // surface it as `TypeMismatch { observed: "Unset" }`.
         let row = row_of(vec![dv_missing()]);
-        assert_eq!(row_number(&row, 0), 0);
+        assert_eq!(
+            row_number(&row, 0),
+            Err(DecodeError::TypeMismatch {
+                column: 0,
+                expected: "Number|Timestamp",
+                observed: "Unset",
+            })
+        );
     }
 
     #[test]
-    fn row_number_returns_0_for_out_of_bounds() {
+    fn row_number_errors_on_out_of_bounds() {
         let row = row_of(vec![]);
-        assert_eq!(row_number(&row, 5), 0);
+        assert_eq!(
+            row_number(&row, 5),
+            Err(DecodeError::MissingCell { column: 5 })
+        );
+    }
+
+    #[test]
+    fn row_number_errors_on_text_cell() {
+        let row = row_of(vec![dv_text("oops")]);
+        assert_eq!(
+            row_number(&row, 0),
+            Err(DecodeError::TypeMismatch {
+                column: 0,
+                expected: "Number|Timestamp",
+                observed: "Text",
+            })
+        );
+    }
+
+    #[test]
+    fn row_number_errors_on_price_cell() {
+        let row = row_of(vec![dv_price(12345, 10)]);
+        assert_eq!(
+            row_number(&row, 0),
+            Err(DecodeError::TypeMismatch {
+                column: 0,
+                expected: "Number|Timestamp",
+                observed: "Price",
+            })
+        );
+    }
+
+    #[test]
+    fn row_number_accepts_timestamp_for_time_columns() {
+        // v3 MDDS sends `ms_of_day` as a Timestamp.
+        let epoch_ms: u64 = 1_775_050_200_000; // 2026-04-01 09:30 ET
+        let row = row_of(vec![dv_timestamp(epoch_ms)]);
+        assert_eq!(row_number(&row, 0).unwrap(), Some(34_200_000));
+    }
+
+    #[test]
+    fn row_float_errors_on_price_cell() {
+        // f64 columns (greeks, IV) must NOT silently accept Price cells;
+        // if a server sends a Price for a Number-declared column it's a
+        // schema drift we want to catch, not coalesce.
+        let row = row_of(vec![dv_price(12345, 10)]);
+        assert_eq!(
+            row_float(&row, 0),
+            Err(DecodeError::TypeMismatch {
+                column: 0,
+                expected: "Number",
+                observed: "Price",
+            })
+        );
+    }
+
+    #[test]
+    fn row_text_errors_on_number_cell() {
+        let row = row_of(vec![dv_number(42)]);
+        assert_eq!(
+            row_text(&row, 0),
+            Err(DecodeError::TypeMismatch {
+                column: 0,
+                expected: "Text",
+                observed: "Number",
+            })
+        );
+    }
+
+    #[test]
+    fn row_price_f64_accepts_number_cell() {
+        // Documented v3 MDDS behavior: f64 fields may arrive as plain Number.
+        let row = row_of(vec![dv_number(1_500_000)]);
+        assert_eq!(row_price_f64(&row, 0).unwrap(), Some(1_500_000.0));
     }
 
     #[test]
     fn row_price_value_returns_value_for_price_cell() {
         let row = row_of(vec![dv_price(12345, 10)]);
-        assert_eq!(row_price_value(&row, 0), 12345);
+        assert_eq!(row_price_value(&row, 0).unwrap(), Some(12345));
     }
 
     #[test]
-    fn row_price_value_returns_0_for_null_cell() {
+    fn row_price_value_returns_none_for_null_cell() {
         let row = row_of(vec![dv_null()]);
-        assert_eq!(row_price_value(&row, 0), 0);
+        assert_eq!(row_price_value(&row, 0).unwrap(), None);
     }
 
     #[test]
     fn row_price_type_returns_type_for_price_cell() {
         let row = row_of(vec![dv_price(12345, 10)]);
-        assert_eq!(row_price_type(&row, 0), 10);
+        assert_eq!(row_price_type(&row, 0).unwrap(), Some(10));
     }
 
     #[test]
-    fn row_price_type_returns_0_for_null_cell() {
+    fn row_price_type_returns_none_for_null_cell() {
         let row = row_of(vec![dv_null()]);
-        assert_eq!(row_price_type(&row, 0), 0);
+        assert_eq!(row_price_type(&row, 0).unwrap(), None);
     }
 
     #[test]
@@ -895,7 +1131,7 @@ mod tests {
             ])],
         };
 
-        let ticks = parse_trade_ticks(&table);
+        let ticks = parse_trade_ticks(&table).unwrap();
         assert_eq!(ticks.len(), 1);
         let tick = &ticks[0];
         assert_eq!(tick.ms_of_day, 34200000);
@@ -1012,7 +1248,7 @@ mod tests {
             ])],
         };
 
-        let days = parse_calendar_days_v3(&table);
+        let days = parse_calendar_days_v3(&table).unwrap();
         assert_eq!(days.len(), 1);
         let d = &days[0];
         assert_eq!(d.date, 20250101);
@@ -1035,7 +1271,7 @@ mod tests {
             ])],
         };
 
-        let days = parse_calendar_days_v3(&table);
+        let days = parse_calendar_days_v3(&table).unwrap();
         assert_eq!(days.len(), 1);
         let d = &days[0];
         assert_eq!(d.date, 0); // no date column
@@ -1058,7 +1294,7 @@ mod tests {
             ])],
         };
 
-        let days = parse_calendar_days_v3(&table);
+        let days = parse_calendar_days_v3(&table).unwrap();
         assert_eq!(days.len(), 1);
         let d = &days[0];
         assert_eq!(d.date, 20251128);
@@ -1075,7 +1311,7 @@ mod tests {
             data_table: vec![row_of(vec![dv_text("weekend"), dv_null(), dv_null()])],
         };
 
-        let days = parse_calendar_days_v3(&table);
+        let days = parse_calendar_days_v3(&table).unwrap();
         assert_eq!(days.len(), 1);
         let d = &days[0];
         assert_eq!(d.is_open, 0);
@@ -1115,7 +1351,7 @@ mod tests {
             ])],
         };
 
-        let ticks = parse_eod_ticks(&table);
+        let ticks = parse_eod_ticks(&table).unwrap();
         assert_eq!(ticks.len(), 1);
         assert_eq!(ticks[0].ms_of_day, 34_200_000);
         assert_eq!(ticks[0].ms_of_day2, 34_200_000);
@@ -1126,27 +1362,54 @@ mod tests {
 
     #[test]
     fn row_number_i64_decodes_price_cells() {
-        // MDDS sends market_bid etc. as Price cells, not Number cells.
+        // MDDS sends large integer fields as Price cells, not Number cells.
         // Price encoding: price_type centered at 10.
         //   type=10 → value as-is, type=13 → value * 10^3, type=7 → value / 10^3
         // Example: Price { value: 3842, type: 19 } = 3842 * 10^9 = 3_842_000_000_000
         let row = row_of(vec![dv_price(3842, 19)]);
-        let result = row_number_i64(&row, 0);
         assert_eq!(
-            result, 3_842_000_000_000_i64,
-            "Price cell should decode to i64 via tdbe::Price"
+            row_number_i64(&row, 0).unwrap(),
+            Some(3_842_000_000_000_i64)
         );
     }
 
     #[test]
     fn row_number_i64_still_decodes_number_cells() {
         let row = row_of(vec![dv_number(999_999_999)]);
-        assert_eq!(row_number_i64(&row, 0), 999_999_999);
+        assert_eq!(row_number_i64(&row, 0).unwrap(), Some(999_999_999));
     }
 
     #[test]
-    fn row_number_i64_returns_0_for_null() {
+    fn row_number_i64_returns_none_for_null() {
         let row = row_of(vec![dv_null()]);
-        assert_eq!(row_number_i64(&row, 0), 0);
+        assert_eq!(row_number_i64(&row, 0).unwrap(), None);
+    }
+
+    #[test]
+    fn row_number_i64_errors_on_text_cell() {
+        let row = row_of(vec![dv_text("oops")]);
+        assert_eq!(
+            row_number_i64(&row, 0),
+            Err(DecodeError::TypeMismatch {
+                column: 0,
+                expected: "Number|Price",
+                observed: "Text",
+            })
+        );
+    }
+
+    #[test]
+    fn parse_trade_ticks_propagates_type_mismatch() {
+        // A Text cell in an i32 column is a schema violation — the parser
+        // must surface it, not silently coerce to 0.
+        let table = proto::DataTable {
+            headers: vec!["ms_of_day".into(), "price".into()],
+            data_table: vec![row_of(vec![dv_text("not-a-number"), dv_price(15000, 10)])],
+        };
+        let err = parse_trade_ticks(&table).unwrap_err();
+        assert!(
+            matches!(err, DecodeError::TypeMismatch { .. }),
+            "expected TypeMismatch, got {err:?}"
+        );
     }
 }
