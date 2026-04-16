@@ -274,7 +274,7 @@ fn render_go_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
     // or a failure (e.g. timeout). Consult the error slot directly.
     writeln!(
         out,
-        "\tif e := lastErrorRaw(); e != \"\" {{\n\t\t{}(arr)\n\t\treturn nil, fmt.Errorf(\"thetadatadx: %s\", e)\n\t}}",
+        "\tif e := lastError(); e != \"\" {{\n\t\t{}(arr)\n\t\treturn nil, fmt.Errorf(\"thetadatadx: %s\", e)\n\t}}",
         ffi_free_fn(&endpoint.return_type)
     )
     .unwrap();

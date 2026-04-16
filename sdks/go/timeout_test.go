@@ -10,7 +10,7 @@ import (
 // TestStringListEndpointTimeoutReturnsError covers Finding 2 end-to-end:
 // `stock_list_symbols` returns `{nullptr, 0}` for both success-empty
 // (rare) AND failure-empty (e.g. timeout). With the W3 round-2 fix the
-// Go wrapper must consult `tdx_last_error` via `lastErrorRaw()` and
+// Go wrapper must consult `tdx_last_error` via `lastError()` and
 // surface a real error, not silently return `(nil, nil)`.
 //
 // Gated on `THETADX_TEST_CREDS=path/to/creds.txt` because it needs
