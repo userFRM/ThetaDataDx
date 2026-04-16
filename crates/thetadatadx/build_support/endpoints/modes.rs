@@ -376,41 +376,16 @@ pub(super) fn test_modes_for(
     )
 }
 
-/// Look up the representative value for a builder-bound optional parameter
-/// from `[test_fixtures.optional_defaults]`. Returns `None` if the TOML has
-/// no entry; the pre-flight check in `parser.rs::validate_test_fixtures`
-/// rejects every endpoint whose builder param lacks an entry, so the `None`
-/// branch is a defense in depth — only fires if the validator is bypassed.
-fn optional_fixture_value<'a>(fixtures: &'a TestFixtures, param_name: &str) -> Option<&'a str> {
+/// Look up the representative value for a builder-bound optional parameter.
+/// `parser.rs::validate_test_fixtures` already guarantees every in-use key
+/// is present in `optional_defaults`; a missing row means the validator
+/// was bypassed.
+fn optional_fixture_value<'a>(fixtures: &'a TestFixtures, param_name: &str) -> &'a str {
     fixtures
         .optional_defaults
         .get(param_name)
         .map(String::as_str)
-}
-
-/// Same as [`optional_fixture_value`] but for paired modes
-/// (`with_intraday_window`, `with_date_range`) where the fixture row is
-/// guaranteed by the design — both halves of the pair have to have
-/// fixtures because the SDK rejects the half-set wire shape. Panics with
-/// full context (endpoint, mode, key) so a missing row is debuggable
-/// without `RUST_BACKTRACE=1`.
-fn paired_optional_fixture(
-    fixtures: &TestFixtures,
-    endpoint: &GeneratedEndpoint,
-    mode_name: &str,
-    param_name: &str,
-) -> String {
-    optional_fixture_value(fixtures, param_name)
-        .unwrap_or_else(|| {
-            panic!(
-                "test_fixtures.optional_defaults is missing key '{param_name}' (needed for \
-                 {endpoint}.{mode_name}); add a row in endpoint_surface.toml. Note: \
-                 parser.rs::validate_test_fixtures should have caught this earlier — if you see \
-                 this panic, the validator was bypassed.",
-                endpoint = endpoint.name,
-            )
-        })
-        .to_string()
+        .unwrap_or_else(|| panic!("test_fixtures.optional_defaults is missing key '{param_name}'"))
 }
 
 /// Append `with_<name>` cells (one per optional), plus paired compound modes
@@ -442,11 +417,11 @@ fn append_optional_modes(
         let overrides = vec![
             (
                 "start_time".to_string(),
-                paired_optional_fixture(fixtures, endpoint, "with_intraday_window", "start_time"),
+                optional_fixture_value(fixtures, "start_time").to_string(),
             ),
             (
                 "end_time".to_string(),
-                paired_optional_fixture(fixtures, endpoint, "with_intraday_window", "end_time"),
+                optional_fixture_value(fixtures, "end_time").to_string(),
             ),
         ];
         modes.push(TestMode {
@@ -468,11 +443,11 @@ fn append_optional_modes(
         let overrides = vec![
             (
                 "start_date".to_string(),
-                paired_optional_fixture(fixtures, endpoint, "with_date_range", "start_date"),
+                optional_fixture_value(fixtures, "start_date").to_string(),
             ),
             (
                 "end_date".to_string(),
-                paired_optional_fixture(fixtures, endpoint, "with_date_range", "end_date"),
+                optional_fixture_value(fixtures, "end_date").to_string(),
             ),
         ];
         modes.push(TestMode {
@@ -487,21 +462,12 @@ fn append_optional_modes(
         handled.insert("end_date".into());
     }
 
-    // Per-parameter `with_<name>` modes for everything else. Every entry in
-    // `optional_names` is guaranteed to have an `optional_defaults` row by
-    // `parser.rs::validate_test_fixtures`, so a missing fixture here is a
-    // bypassed-validator bug, not a routine "skip the cell" path.
+    // Per-parameter `with_<name>` modes for everything else.
     for param_name in &optional_names {
         if handled.contains(param_name) {
             continue;
         }
-        let value = optional_fixture_value(fixtures, param_name).unwrap_or_else(|| {
-            panic!(
-                "test_fixtures.optional_defaults is missing key '{param_name}' (needed for \
-                 {endpoint}.with_{param_name}); add a row in endpoint_surface.toml.",
-                endpoint = endpoint.name
-            )
-        });
+        let value = optional_fixture_value(fixtures, param_name);
         // Rationale carries the exact fixture literal so the cell's text
         // can never drift from `optional_fixture_value`. `String` is
         // promoted to `&'static str` via `Box::leak` — generator runs once
@@ -518,19 +484,10 @@ fn append_optional_modes(
         });
     }
 
-    // `all_optionals` mode — set every applicable optional at once. Uses
-    // the compound fixtures for paired params (single intraday window, single
-    // date range) so the compound cell and this one agree on wire shape.
-    // Same fail-fast contract as the `with_<name>` loop above.
+    // `all_optionals` mode — set every applicable optional at once.
     let mut all_overrides: Vec<(String, String)> = Vec::new();
     for param_name in &optional_names {
-        let value = optional_fixture_value(fixtures, param_name).unwrap_or_else(|| {
-            panic!(
-                "test_fixtures.optional_defaults is missing key '{param_name}' (needed for \
-                 {endpoint}.all_optionals); add a row in endpoint_surface.toml.",
-                endpoint = endpoint.name
-            )
-        });
+        let value = optional_fixture_value(fixtures, param_name);
         all_overrides.push((param_name.clone(), value.to_string()));
     }
     if !all_overrides.is_empty() {
