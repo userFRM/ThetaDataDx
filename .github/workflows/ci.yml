@@ -85,35 +85,27 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            go_enabled: true
-          - os: macos-latest
-            go_enabled: true
-          - os: windows-latest
-            go_enabled: true
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
-      - if: matrix.go_enabled
-        uses: actions/setup-go@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: "1.23"
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/install-protoc
-      - if: runner.os == 'Windows' && matrix.go_enabled
+      - if: runner.os == 'Windows'
         shell: bash
         run: rustup target add x86_64-pc-windows-gnu
       - run: cargo build --release -p thetadatadx-ffi --locked
-      - if: runner.os == 'Windows' && matrix.go_enabled
+      - if: runner.os == 'Windows'
         shell: bash
         env:
           CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER: gcc
         run: cargo build --release --target x86_64-pc-windows-gnu -p thetadatadx-ffi --locked
       - run: cmake -S sdks/cpp -B build/cpp
       - run: cmake --build build/cpp --config Release --target thetadatadx_cpp
-      - if: matrix.go_enabled
-        shell: bash
+      - shell: bash
         working-directory: sdks/go
         run: |
           set -euo pipefail
