@@ -20,11 +20,7 @@ mod sdk_surface;
 mod ticks;
 #[path = "../../build_support/upstream_openapi.rs"]
 mod upstream_openapi;
-// Runtime wire-canonicalization rules (reused at build time via `#[path]`).
 #[path = "../../src/wire_semantics.rs"]
-mod wire_semantics_runtime;
-// Build-time-only extensions that pair with `wire_semantics_runtime`.
-#[path = "../../build_support/wire_semantics.rs"]
 mod wire_semantics;
 
 fn repo_root() -> PathBuf {

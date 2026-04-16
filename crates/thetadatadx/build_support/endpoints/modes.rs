@@ -547,11 +547,28 @@ fn append_optional_modes(
     modes
 }
 
+/// Canonical token used by build-time wire-shape signatures for
+/// proto-unset optional fields.
+const UNSET_WIRE_ARG_SENTINEL: &str = "<unset>";
+
+/// Canonicalize an argument the same way the runtime request builder does.
+/// Used by `collapse_redundant_wires` to decide whether two cells produce
+/// identical wire requests.
+fn canonicalize_wire_arg(param_name: &str, value: &str) -> String {
+    use super::super::wire_semantics::{normalize_expiration, wire_right_opt, wire_strike_opt};
+    match param_name {
+        "expiration" => normalize_expiration(value),
+        "strike" => wire_strike_opt(value).unwrap_or_else(|| UNSET_WIRE_ARG_SENTINEL.to_string()),
+        "right" => wire_right_opt(value).unwrap_or_else(|| UNSET_WIRE_ARG_SENTINEL.to_string()),
+        _ => value.to_string(),
+    }
+}
+
 /// Collapse cells whose post-canonicalization wire shape is identical down
 /// to a single canonical cell.
 ///
 /// The signature combines:
-/// * positional args run through [`super::super::wire_semantics::canonicalize_wire_arg`]
+/// * positional args run through [`canonicalize_wire_arg`]
 ///   per-param name,
 ///   which mirrors the runtime's `expiration`/`strike`/`right` rewriting;
 /// * builder-override pairs, also canonicalized, sorted, **and** with stock
@@ -592,12 +609,7 @@ fn collapse_redundant_wires(endpoint: &GeneratedEndpoint, modes: Vec<TestMode>) 
     let canonical_overrides = |overrides: &[(String, String)]| -> Vec<(String, String)> {
         let mut pairs: Vec<(String, String)> = overrides
             .iter()
-            .map(|(k, v)| {
-                (
-                    k.clone(),
-                    super::super::wire_semantics::canonicalize_wire_arg(k, v),
-                )
-            })
+            .map(|(k, v)| (k.clone(), canonicalize_wire_arg(k, v)))
             .collect();
         // Synthesize the stock-endpoint `venue=nqb` default when the mode
         // doesn't override it: the runtime fills this in at request-build
@@ -607,7 +619,7 @@ fn collapse_redundant_wires(endpoint: &GeneratedEndpoint, modes: Vec<TestMode>) 
         if has_stock_venue_default && !pairs.iter().any(|(k, _)| k == "venue") {
             pairs.push((
                 "venue".to_string(),
-                super::super::wire_semantics_runtime::DEFAULT_STOCK_VENUE.to_string(),
+                super::super::wire_semantics::DEFAULT_STOCK_VENUE.to_string(),
             ));
         }
         pairs.sort();
@@ -622,7 +634,7 @@ fn collapse_redundant_wires(endpoint: &GeneratedEndpoint, modes: Vec<TestMode>) 
                     .get(i)
                     .map(String::as_str)
                     .unwrap_or_default();
-                super::super::wire_semantics::canonicalize_wire_arg(name, v)
+                canonicalize_wire_arg(name, v)
             })
             .collect()
     };

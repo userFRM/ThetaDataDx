@@ -10,6 +10,7 @@
 //! remain separate.
 
 use crate::endpoint::EndpointError;
+use crate::wire_semantics::is_iso_date;
 
 pub(crate) fn validate_date(value: &str, param_name: &str) -> Result<(), EndpointError> {
     if value.len() != 8 || !value.bytes().all(|b| b.is_ascii_digit()) {
@@ -18,22 +19,6 @@ pub(crate) fn validate_date(value: &str, param_name: &str) -> Result<(), Endpoin
         )));
     }
     Ok(())
-}
-
-/// Match `YYYY-MM-DD` (ISO-dashed date). Shared by the validator and the
-/// wire-level canonicalizer in `direct::normalize_expiration`.
-pub(crate) fn is_iso_date(value: &str) -> bool {
-    let mut parts = value.splitn(3, '-');
-    matches!(
-        (parts.next(), parts.next(), parts.next(), parts.next()),
-        (Some(y), Some(m), Some(d), None)
-            if y.len() == 4
-                && m.len() == 2
-                && d.len() == 2
-                && y.bytes().all(|b| b.is_ascii_digit())
-                && m.bytes().all(|b| b.is_ascii_digit())
-                && d.bytes().all(|b| b.is_ascii_digit())
-    )
 }
 
 /// Validate `expiration`: accepts `YYYY-MM-DD`, `YYYYMMDD`, `*`, or the

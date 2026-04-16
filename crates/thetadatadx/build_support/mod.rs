@@ -8,9 +8,8 @@
 mod endpoints;
 mod ticks;
 mod upstream_openapi;
-mod wire_semantics;
 #[path = "../src/wire_semantics.rs"]
-mod wire_semantics_runtime;
+mod wire_semantics;
 
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     tonic_prost_build::configure()
