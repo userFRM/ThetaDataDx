@@ -177,3 +177,76 @@ pub(super) enum IoCommand {
     /// Graceful shutdown: send STOP, then exit the I/O loop.
     Shutdown,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tdbe::types::price::Price;
+
+    #[test]
+    fn fpss_event_default_exists() {
+        let _evt: FpssEvent = Default::default();
+    }
+
+    #[test]
+    fn fpss_control_reconnecting_variant() {
+        let evt = FpssEvent::Control(FpssControl::Reconnecting {
+            reason: RemoveReason::ServerRestarting,
+            attempt: 1,
+            delay_ms: 2000,
+        });
+        if let FpssEvent::Control(FpssControl::Reconnecting {
+            reason,
+            attempt,
+            delay_ms,
+        }) = &evt
+        {
+            assert_eq!(*reason, RemoveReason::ServerRestarting);
+            assert_eq!(*attempt, 1);
+            assert_eq!(*delay_ms, 2000);
+        } else {
+            panic!("expected Reconnecting");
+        }
+    }
+
+    #[test]
+    fn fpss_control_reconnected_variant() {
+        let evt = FpssEvent::Control(FpssControl::Reconnected);
+        assert!(matches!(&evt, FpssEvent::Control(FpssControl::Reconnected)));
+    }
+
+    #[test]
+    fn fpss_event_split_data_control() {
+        let data_evt = FpssEvent::Data(FpssData::Trade {
+            contract_id: 42,
+            symbol: Arc::from(""),
+            ms_of_day: 0,
+            sequence: 0,
+            ext_condition1: 0,
+            ext_condition2: 0,
+            ext_condition3: 0,
+            ext_condition4: 0,
+            condition: 0,
+            size: 100,
+            exchange: 0,
+            price: Price::new(15025, 8).to_f64(),
+            condition_flags: 0,
+            price_flags: 0,
+            volume_type: 0,
+            records_back: 0,
+            date: 20240315,
+            received_at_ns: 0,
+        });
+        match &data_evt {
+            FpssEvent::Data(FpssData::Trade {
+                contract_id, price, ..
+            }) => {
+                assert_eq!(*contract_id, 42);
+                assert!((*price - 150.25).abs() < f64::EPSILON);
+            }
+            other => panic!("expected Data(Trade), got {other:?}"),
+        }
+        let ctrl = FpssEvent::Control(FpssControl::MarketOpen);
+        assert!(matches!(&ctrl, FpssEvent::Control(FpssControl::MarketOpen)));
+    }
+}

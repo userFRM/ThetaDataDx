@@ -171,4 +171,33 @@ mod tests {
         assert_eq!(reconnect_delay(RemoveReason::Unspecified), Some(2_000));
         assert_eq!(reconnect_delay(RemoveReason::TimedOut), Some(2_000));
     }
+
+    #[test]
+    fn reconnect_policy_default_is_auto() {
+        let policy: ReconnectPolicy = Default::default();
+        assert!(matches!(policy, ReconnectPolicy::Auto));
+    }
+
+    #[test]
+    fn reconnect_policy_custom_works() {
+        let policy = ReconnectPolicy::Custom(std::sync::Arc::new(|reason, attempt| {
+            if attempt > 3 {
+                return None;
+            }
+            match reason {
+                RemoveReason::TooManyRequests => Some(Duration::from_secs(60)),
+                _ => Some(Duration::from_secs(1)),
+            }
+        }));
+        if let ReconnectPolicy::Custom(f) = &policy {
+            assert_eq!(f(RemoveReason::TimedOut, 1), Some(Duration::from_secs(1)));
+            assert_eq!(
+                f(RemoveReason::TooManyRequests, 2),
+                Some(Duration::from_secs(60))
+            );
+            assert_eq!(f(RemoveReason::TimedOut, 4), None);
+        } else {
+            panic!("expected Custom");
+        }
+    }
 }
