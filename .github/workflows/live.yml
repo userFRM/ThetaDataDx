@@ -49,26 +49,17 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        include:
-          - os: ubuntu-latest
-            go_enabled: true
-          - os: macos-latest
-            go_enabled: true
-          - os: windows-latest
-            go_enabled: true
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: ./.github/actions/setup-rust-deps
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - if: matrix.go_enabled
-        uses: actions/setup-go@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: "1.23"
-      - uses: Swatinem/rust-cache@v2
-      - uses: ./.github/actions/install-protoc
-      - if: runner.os == 'Windows' && matrix.go_enabled
+      - if: runner.os == 'Windows'
         shell: bash
         run: rustup target add x86_64-pc-windows-gnu
       - name: Materialize creds.txt
@@ -84,7 +75,7 @@ jobs:
               encoding="utf-8",
           )
       - run: cargo build --release -p thetadatadx-cli -p thetadatadx-ffi --locked
-      - if: runner.os == 'Windows' && matrix.go_enabled
+      - if: runner.os == 'Windows'
         shell: bash
         env:
           CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER: gcc
@@ -131,31 +122,31 @@ jobs:
         run: |
           $env:PATH = "${{ github.workspace }}\target\release;$env:PATH"
           .\build\cpp\Release\thetadatadx_fpss_smoke.exe creds.txt
-      - if: matrix.go_enabled && runner.os == 'Linux'
+      - if: runner.os == 'Linux'
         shell: bash
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/target/release
           CGO_LDFLAGS: -L${{ github.workspace }}/target/release
         run: cd sdks/go && go run ./cmd/live_smoke ../../creds.txt
-      - if: matrix.go_enabled && runner.os == 'Linux'
+      - if: runner.os == 'Linux'
         shell: bash
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/target/release
           CGO_LDFLAGS: -L${{ github.workspace }}/target/release
         run: cd sdks/go && go run ./cmd/fpss_smoke ../../creds.txt
-      - if: matrix.go_enabled && runner.os == 'macOS'
+      - if: runner.os == 'macOS'
         shell: bash
         env:
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/target/release
           CGO_LDFLAGS: -L${{ github.workspace }}/target/release
         run: cd sdks/go && go run ./cmd/live_smoke ../../creds.txt
-      - if: matrix.go_enabled && runner.os == 'macOS'
+      - if: runner.os == 'macOS'
         shell: bash
         env:
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/target/release
           CGO_LDFLAGS: -L${{ github.workspace }}/target/release
         run: cd sdks/go && go run ./cmd/fpss_smoke ../../creds.txt
-      - if: matrix.go_enabled && runner.os == 'Windows'
+      - if: runner.os == 'Windows'
         shell: pwsh
         env:
           CGO_LDFLAGS: -L${{ github.workspace }}\target\x86_64-pc-windows-gnu\release
@@ -163,7 +154,7 @@ jobs:
           $env:PATH = "${{ github.workspace }}\target\x86_64-pc-windows-gnu\release;$env:PATH"
           cd sdks/go
           go run ./cmd/live_smoke ${{ github.workspace }}\creds.txt
-      - if: matrix.go_enabled && runner.os == 'Windows'
+      - if: runner.os == 'Windows'
         shell: pwsh
         env:
           CGO_LDFLAGS: -L${{ github.workspace }}\target\x86_64-pc-windows-gnu\release
@@ -182,26 +173,17 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        include:
-          - os: ubuntu-latest
-            go_enabled: true
-          - os: macos-latest
-            go_enabled: true
-          - os: windows-latest
-            go_enabled: true
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: ./.github/actions/setup-rust-deps
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - if: matrix.go_enabled
-        uses: actions/setup-go@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: "1.23"
-      - uses: Swatinem/rust-cache@v2
-      - uses: ./.github/actions/install-protoc
-      - if: runner.os == 'Windows' && matrix.go_enabled
+      - if: runner.os == 'Windows'
         shell: bash
         run: rustup target add x86_64-pc-windows-gnu
       - name: Materialize creds.txt
@@ -217,7 +199,7 @@ jobs:
               encoding="utf-8",
           )
       - run: cargo build --release -p thetadatadx-cli -p thetadatadx-ffi --locked
-      - if: runner.os == 'Windows' && matrix.go_enabled
+      - if: runner.os == 'Windows'
         shell: bash
         env:
           CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER: gcc
@@ -247,19 +229,19 @@ jobs:
         run: |
           $env:PATH = "${{ github.workspace }}\target\release;$env:PATH"
           .\build\cpp\Release\thetadatadx_validate.exe creds.txt
-      - if: matrix.go_enabled && runner.os == 'Linux'
+      - if: runner.os == 'Linux'
         shell: bash
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/target/release
           CGO_LDFLAGS: -L${{ github.workspace }}/target/release
         run: cd sdks/go && go run ./cmd/validate ../../creds.txt
-      - if: matrix.go_enabled && runner.os == 'macOS'
+      - if: runner.os == 'macOS'
         shell: bash
         env:
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/target/release
           CGO_LDFLAGS: -L${{ github.workspace }}/target/release
         run: cd sdks/go && go run ./cmd/validate ../../creds.txt
-      - if: matrix.go_enabled && runner.os == 'Windows'
+      - if: runner.os == 'Windows'
         shell: pwsh
         env:
           CGO_LDFLAGS: -L${{ github.workspace }}\target\x86_64-pc-windows-gnu\release
@@ -276,15 +258,13 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: ./.github/actions/setup-rust-deps
       - uses: actions/setup-go@v6
         with:
           go-version: "1.23"
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - uses: Swatinem/rust-cache@v2
-      - uses: ./.github/actions/install-protoc
       - name: Materialize creds.txt
         shell: python
         env:
