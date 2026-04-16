@@ -893,17 +893,21 @@ macro_rules! tick_array_type {
         }
 
         impl $name {
-            pub(crate) fn from_vec(v: Vec<$tick>) -> Self {
+            /// Infallible for tick types (no `CString` allocation). Returns
+            /// `Result` to match the signature of fallible sibling arrays
+            /// (`TdxStringArray`, `TdxOptionContractArray`) so the shared
+            /// FFI endpoint macros stay generic over `$array_type`.
+            pub(crate) fn from_vec(v: Vec<$tick>) -> Result<Self, std::ffi::NulError> {
                 let len = v.len();
                 if len == 0 {
-                    return Self {
+                    return Ok(Self {
                         data: ptr::null(),
                         len: 0,
-                    };
+                    });
                 }
                 let boxed = v.into_boxed_slice();
                 let data = Box::into_raw(boxed) as *const $tick;
-                Self { data, len }
+                Ok(Self { data, len })
             }
 
             unsafe fn free(self) {
@@ -981,29 +985,28 @@ pub struct TdxOptionContractArray {
 }
 
 impl TdxOptionContractArray {
-    fn from_vec(contracts: Vec<tdbe::OptionContract>) -> Self {
+    fn from_vec(contracts: Vec<tdbe::OptionContract>) -> Result<Self, std::ffi::NulError> {
         let len = contracts.len();
         if len == 0 {
-            return Self {
+            return Ok(Self {
                 data: ptr::null(),
                 len: 0,
-            };
+            });
         }
-        let ffi_contracts: Vec<TdxOptionContract> = contracts
+        let ffi_contracts = contracts
             .into_iter()
             .map(|c| {
-                let root = CString::new(c.root).unwrap_or_default();
-                TdxOptionContract {
-                    root: root.into_raw().cast_const(),
+                Ok(TdxOptionContract {
+                    root: CString::new(c.root)?.into_raw().cast_const(),
                     expiration: c.expiration,
                     strike: c.strike,
                     right: c.right,
-                }
+                })
             })
-            .collect();
+            .collect::<Result<Vec<_>, std::ffi::NulError>>()?;
         let boxed = ffi_contracts.into_boxed_slice();
         let data = Box::into_raw(boxed) as *const TdxOptionContract;
-        Self { data, len }
+        Ok(Self { data, len })
     }
 }
 
@@ -1041,21 +1044,21 @@ pub struct TdxStringArray {
 }
 
 impl TdxStringArray {
-    fn from_vec(strings: Vec<String>) -> Self {
+    fn from_vec(strings: Vec<String>) -> Result<Self, std::ffi::NulError> {
         let len = strings.len();
         if len == 0 {
-            return Self {
+            return Ok(Self {
                 data: ptr::null(),
                 len: 0,
-            };
+            });
         }
-        let cstrings: Vec<*const c_char> = strings
+        let cstrings = strings
             .into_iter()
-            .map(|s| CString::new(s).unwrap_or_default().into_raw().cast_const())
-            .collect();
+            .map(|s| CString::new(s).map(|c| c.into_raw().cast_const()))
+            .collect::<Result<Vec<*const c_char>, std::ffi::NulError>>()?;
         let boxed = cstrings.into_boxed_slice();
         let data = Box::into_raw(boxed) as *const *const c_char;
-        Self { data, len }
+        Ok(Self { data, len })
     }
 }
 
@@ -1098,7 +1101,13 @@ macro_rules! ffi_list_endpoint_no_params {
             }
             let client = unsafe { &*client };
             match runtime().block_on(async { client.inner.$method().await }) {
-                Ok(items) => TdxStringArray::from_vec(items),
+                Ok(items) => match TdxStringArray::from_vec(items) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                },
                 Err(e) => {
                     set_error(&e.to_string());
                     empty
@@ -1136,7 +1145,13 @@ macro_rules! ffi_list_endpoint {
                 };
             )+
             match runtime().block_on(async { client.inner.$method($($param),+).await }) {
-                Ok(items) => TdxStringArray::from_vec(items),
+                Ok(items) => match TdxStringArray::from_vec(items) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                },
                 Err(e) => {
                     set_error(&e.to_string());
                     empty
@@ -1203,7 +1218,13 @@ macro_rules! ffi_typed_snapshot_endpoint {
             };
             let refs: Vec<&str> = syms.iter().map(|s| s.as_str()).collect();
             match runtime().block_on(async { client.inner.$method(&refs).await }) {
-                Ok(ticks) => $array_type::from_vec(ticks),
+                Ok(ticks) => match $array_type::from_vec(ticks) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                },
                 Err(e) => {
                     set_error(&e.to_string());
                     empty
@@ -1235,7 +1256,13 @@ macro_rules! ffi_typed_snapshot_endpoint {
             };
             let refs: Vec<&str> = syms.iter().map(|s| s.as_str()).collect();
             match runtime().block_on(async { client.inner.$method(&refs).await }) {
-                Ok(ticks) => $array_type::from_vec(ticks),
+                Ok(ticks) => match $array_type::from_vec(ticks) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                },
                 Err(e) => {
                     set_error(&e.to_string());
                     empty
@@ -1274,7 +1301,13 @@ macro_rules! ffi_typed_endpoint {
                 };
             )+
             match runtime().block_on(async { client.inner.$method($($param),+).await }) {
-                Ok(ticks) => $array_type::from_vec(ticks),
+                Ok(ticks) => match $array_type::from_vec(ticks) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                },
                 Err(e) => {
                     set_error(&e.to_string());
                     empty
@@ -1300,7 +1333,13 @@ macro_rules! ffi_typed_endpoint_no_params {
             }
             let client = unsafe { &*client };
             match runtime().block_on(async { client.inner.$method().await }) {
-                Ok(ticks) => $array_type::from_vec(ticks),
+                Ok(ticks) => match $array_type::from_vec(ticks) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                },
                 Err(e) => {
                     set_error(&e.to_string());
                     empty
