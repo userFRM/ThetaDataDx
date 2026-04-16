@@ -2521,7 +2521,13 @@ pub unsafe extern "C" fn tdx_unified_subscribe_option_quotes(
             return -1;
         };
     let handle = unsafe { &*handle };
-    let contract = thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt);
+    let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
+        Ok(c) => c,
+        Err(e) => {
+            set_error(&e.to_string());
+            return -1;
+        }
+    };
     match handle.inner.subscribe_quotes(&contract) {
         Ok(()) => 0,
         Err(e) => {
@@ -2553,7 +2559,13 @@ pub unsafe extern "C" fn tdx_unified_subscribe_option_trades(
             return -1;
         };
     let handle = unsafe { &*handle };
-    let contract = thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt);
+    let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
+        Ok(c) => c,
+        Err(e) => {
+            set_error(&e.to_string());
+            return -1;
+        }
+    };
     match handle.inner.subscribe_trades(&contract) {
         Ok(()) => 0,
         Err(e) => {
@@ -2585,7 +2597,13 @@ pub unsafe extern "C" fn tdx_unified_subscribe_option_open_interest(
             return -1;
         };
     let handle = unsafe { &*handle };
-    let contract = thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt);
+    let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
+        Ok(c) => c,
+        Err(e) => {
+            set_error(&e.to_string());
+            return -1;
+        }
+    };
     match handle.inner.subscribe_open_interest(&contract) {
         Ok(()) => 0,
         Err(e) => {
@@ -2617,7 +2635,13 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe_option_quotes(
             return -1;
         };
     let handle = unsafe { &*handle };
-    let contract = thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt);
+    let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
+        Ok(c) => c,
+        Err(e) => {
+            set_error(&e.to_string());
+            return -1;
+        }
+    };
     match handle.inner.unsubscribe_quotes(&contract) {
         Ok(()) => 0,
         Err(e) => {
@@ -2649,7 +2673,13 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe_option_trades(
             return -1;
         };
     let handle = unsafe { &*handle };
-    let contract = thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt);
+    let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
+        Ok(c) => c,
+        Err(e) => {
+            set_error(&e.to_string());
+            return -1;
+        }
+    };
     match handle.inner.unsubscribe_trades(&contract) {
         Ok(()) => 0,
         Err(e) => {
@@ -2681,7 +2711,13 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe_option_open_interest(
             return -1;
         };
     let handle = unsafe { &*handle };
-    let contract = thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt);
+    let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
+        Ok(c) => c,
+        Err(e) => {
+            set_error(&e.to_string());
+            return -1;
+        }
+    };
     match handle.inner.unsubscribe_open_interest(&contract) {
         Ok(()) => 0,
         Err(e) => {
@@ -3687,7 +3723,13 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_option_quotes(
         set_error("FPSS client is shut down");
         return -1;
     };
-    let contract = thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt);
+    let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
+        Ok(c) => c,
+        Err(e) => {
+            set_error(&e.to_string());
+            return -1;
+        }
+    };
     match client.subscribe_quotes(&contract) {
         Ok(()) => 0,
         Err(e) => {
@@ -3729,7 +3771,13 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_option_trades(
         set_error("FPSS client is shut down");
         return -1;
     };
-    let contract = thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt);
+    let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
+        Ok(c) => c,
+        Err(e) => {
+            set_error(&e.to_string());
+            return -1;
+        }
+    };
     match client.subscribe_trades(&contract) {
         Ok(()) => 0,
         Err(e) => {
@@ -3771,7 +3819,13 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_option_open_interest(
         set_error("FPSS client is shut down");
         return -1;
     };
-    let contract = thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt);
+    let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
+        Ok(c) => c,
+        Err(e) => {
+            set_error(&e.to_string());
+            return -1;
+        }
+    };
     match client.subscribe_open_interest(&contract) {
         Ok(()) => 0,
         Err(e) => {
@@ -3813,7 +3867,13 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_option_quotes(
         set_error("FPSS client is shut down");
         return -1;
     };
-    let contract = thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt);
+    let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
+        Ok(c) => c,
+        Err(e) => {
+            set_error(&e.to_string());
+            return -1;
+        }
+    };
     match client.unsubscribe_quotes(&contract) {
         Ok(()) => 0,
         Err(e) => {
@@ -3855,7 +3915,13 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_option_trades(
         set_error("FPSS client is shut down");
         return -1;
     };
-    let contract = thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt);
+    let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
+        Ok(c) => c,
+        Err(e) => {
+            set_error(&e.to_string());
+            return -1;
+        }
+    };
     match client.unsubscribe_trades(&contract) {
         Ok(()) => 0,
         Err(e) => {
@@ -3897,7 +3963,13 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_option_open_interest(
         set_error("FPSS client is shut down");
         return -1;
     };
-    let contract = thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt);
+    let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
+        Ok(c) => c,
+        Err(e) => {
+            set_error(&e.to_string());
+            return -1;
+        }
+    };
     match client.unsubscribe_open_interest(&contract) {
         Ok(()) => 0,
         Err(e) => {

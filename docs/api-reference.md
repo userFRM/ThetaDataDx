@@ -927,7 +927,7 @@ Constructors:
 Contract::stock("AAPL")
 Contract::index("SPX")
 Contract::rate("SOFR")
-Contract::option("SPY", "20261218", "60", "C")
+Contract::option("SPY", "20261218", "60", "C")? // Result<Contract, Error>
 ```
 
 Serialization:

@@ -50,7 +50,7 @@ impl ThetaDataDx {
         strike: &str,
         right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
+        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right).map_err(to_py_err)?;
         self.tdx.subscribe_quotes(&contract).map_err(to_py_err)
     }
 
@@ -62,7 +62,7 @@ impl ThetaDataDx {
         strike: &str,
         right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
+        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right).map_err(to_py_err)?;
         self.tdx.subscribe_trades(&contract).map_err(to_py_err)
     }
 
@@ -74,7 +74,7 @@ impl ThetaDataDx {
         strike: &str,
         right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
+        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right).map_err(to_py_err)?;
         self.tdx.subscribe_open_interest(&contract).map_err(to_py_err)
     }
 
@@ -116,7 +116,7 @@ impl ThetaDataDx {
         strike: &str,
         right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
+        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right).map_err(to_py_err)?;
         self.tdx.unsubscribe_quotes(&contract).map_err(to_py_err)
     }
 
@@ -128,7 +128,7 @@ impl ThetaDataDx {
         strike: &str,
         right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
+        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right).map_err(to_py_err)?;
         self.tdx.unsubscribe_trades(&contract).map_err(to_py_err)
     }
 
@@ -140,7 +140,7 @@ impl ThetaDataDx {
         strike: &str,
         right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
+        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right).map_err(to_py_err)?;
         self.tdx.unsubscribe_open_interest(&contract).map_err(to_py_err)
     }
 

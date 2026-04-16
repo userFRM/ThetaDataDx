@@ -1086,7 +1086,7 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             out.push_str("    ) -> PyResult<()> {\n");
             writeln!(
                 out,
-                "        let contract = fpss::protocol::Contract::option({}, {}, {}, {});",
+                "        let contract = fpss::protocol::Contract::option({}, {}, {}, {}).map_err(to_py_err)?;",
                 method.params[0].name,
                 method.params[1].name,
                 method.params[2].name,

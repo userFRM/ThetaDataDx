@@ -1416,8 +1416,8 @@ async fn main() -> Result<(), thetadatadx::Error> {
     let strikes = tdx.option_list_strikes(symbol, exp).await?;
     for strike in &strikes {
         // Subscribe to both calls and puts
-        tdx.subscribe_quotes(&Contract::option(symbol, exp, strike, "C"))?;
-        tdx.subscribe_quotes(&Contract::option(symbol, exp, strike, "P"))?;
+        tdx.subscribe_quotes(&Contract::option(symbol, exp, strike, "C")?)?;
+        tdx.subscribe_quotes(&Contract::option(symbol, exp, strike, "P")?)?;
     }
     println!("Live chain: {} {}  ({} contracts)", symbol, exp, strikes.len() * 2);
 
