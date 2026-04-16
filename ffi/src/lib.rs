@@ -633,11 +633,39 @@ fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
 
 // ── Helper: C string to &str ──
 
-unsafe fn cstr_to_str<'a>(p: *const c_char) -> Option<&'a str> {
+/// Decode a possibly-null C string pointer.
+///
+/// - `p.is_null()` → `Ok(None)` (caller chose not to pass this argument).
+/// - Non-null with valid UTF-8 → `Ok(Some(&str))`.
+/// - Non-null with invalid UTF-8 → `Err(Utf8Error)`.
+///
+/// Callers must distinguish these cases: a null pointer is usually a
+/// legal "omit this optional arg" sentinel, while invalid UTF-8 is a bug
+/// in the caller that should be surfaced through `tdx_last_error`.
+unsafe fn cstr_to_str<'a>(p: *const c_char) -> Result<Option<&'a str>, std::str::Utf8Error> {
     if p.is_null() {
-        return None;
+        return Ok(None);
     }
-    unsafe { CStr::from_ptr(p) }.to_str().ok()
+    unsafe { CStr::from_ptr(p) }.to_str().map(Some)
+}
+
+/// Extract a required C string arg. On failure, calls `set_error` with a
+/// message that distinguishes null-pointer vs invalid-UTF-8 and returns
+/// the given fallback value from the enclosing function.
+macro_rules! require_cstr {
+    ($p:ident, $fallback:expr) => {
+        match unsafe { cstr_to_str($p) } {
+            Ok(Some(s)) => s,
+            Ok(None) => {
+                set_error(concat!(stringify!($p), " is null"));
+                return $fallback;
+            }
+            Err(e) => {
+                set_error(&format!("{} is not valid UTF-8: {e}", stringify!($p)));
+                return $fallback;
+            }
+        }
+    };
 }
 
 fn insert_optional_str_arg(
@@ -645,16 +673,17 @@ fn insert_optional_str_arg(
     key: &str,
     raw: *const c_char,
 ) -> Result<(), String> {
-    if raw.is_null() {
-        return Ok(());
+    match unsafe { cstr_to_str(raw) } {
+        Ok(None) => Ok(()),
+        Ok(Some(value)) => {
+            args.insert(
+                key.to_string(),
+                thetadatadx::EndpointArgValue::Str(value.to_string()),
+            );
+            Ok(())
+        }
+        Err(e) => Err(format!("{key} is not valid UTF-8: {e}")),
     }
-    let value =
-        unsafe { cstr_to_str(raw) }.ok_or_else(|| format!("{key} is null or invalid UTF-8"))?;
-    args.insert(
-        key.to_string(),
-        thetadatadx::EndpointArgValue::Str(value.to_string()),
-    );
-    Ok(())
 }
 
 fn insert_int_arg(args: &mut thetadatadx::EndpointArgs, key: &str, value: i32) {
@@ -696,17 +725,27 @@ pub unsafe extern "C" fn tdx_credentials_new(
     email: *const c_char,
     password: *const c_char,
 ) -> *mut TdxCredentials {
-    let email = if let Some(s) = unsafe { cstr_to_str(email) } {
-        s
-    } else {
-        set_error("email is null or invalid UTF-8");
-        return ptr::null_mut();
+    let email = match unsafe { cstr_to_str(email) } {
+        Ok(Some(s)) => s,
+        Ok(None) => {
+            set_error("email is null");
+            return ptr::null_mut();
+        }
+        Err(e) => {
+            set_error(&format!("email is not valid UTF-8: {e}"));
+            return ptr::null_mut();
+        }
     };
-    let password = if let Some(s) = unsafe { cstr_to_str(password) } {
-        s
-    } else {
-        set_error("password is null or invalid UTF-8");
-        return ptr::null_mut();
+    let password = match unsafe { cstr_to_str(password) } {
+        Ok(Some(s)) => s,
+        Ok(None) => {
+            set_error("password is null");
+            return ptr::null_mut();
+        }
+        Err(e) => {
+            set_error(&format!("password is not valid UTF-8: {e}"));
+            return ptr::null_mut();
+        }
     };
     let creds = thetadatadx::Credentials::new(email, password);
     Box::into_raw(Box::new(TdxCredentials { inner: creds }))
@@ -717,11 +756,16 @@ pub unsafe extern "C" fn tdx_credentials_new(
 /// Returns null on error (check `tdx_last_error()`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_credentials_from_file(path: *const c_char) -> *mut TdxCredentials {
-    let path = if let Some(s) = unsafe { cstr_to_str(path) } {
-        s
-    } else {
-        set_error("path is null or invalid UTF-8");
-        return ptr::null_mut();
+    let path = match unsafe { cstr_to_str(path) } {
+        Ok(Some(s)) => s,
+        Ok(None) => {
+            set_error("path is null");
+            return ptr::null_mut();
+        }
+        Err(e) => {
+            set_error(&format!("path is not valid UTF-8: {e}"));
+            return ptr::null_mut();
+        }
     };
     match thetadatadx::Credentials::from_file(path) {
         Ok(creds) => Box::into_raw(Box::new(TdxCredentials { inner: creds })),
@@ -1137,9 +1181,16 @@ macro_rules! ffi_list_endpoint {
             let client = unsafe { &*client };
             $(
                 let $param = match unsafe { cstr_to_str($param) } {
-                    Some(s) => s,
-                    None => {
-                        set_error(concat!(stringify!($param), " is null or invalid UTF-8"));
+                    Ok(Some(s)) => s,
+                    Ok(None) => {
+                        set_error(concat!(stringify!($param), " is null"));
+                        return empty;
+                    }
+                    Err(e) => {
+                        set_error(&format!(
+                            "{} is not valid UTF-8: {e}",
+                            stringify!($param)
+                        ));
                         return empty;
                     }
                 };
@@ -1182,11 +1233,16 @@ unsafe fn parse_symbol_array(
     let ptrs = unsafe { std::slice::from_raw_parts(symbols, symbols_len) };
     let mut out = Vec::with_capacity(symbols_len);
     for (i, &p) in ptrs.iter().enumerate() {
-        if let Some(s) = unsafe { cstr_to_str(p) } {
-            out.push(s.to_owned())
-        } else {
-            set_error(&format!("symbols[{i}] is null or invalid UTF-8"));
-            return None;
+        match unsafe { cstr_to_str(p) } {
+            Ok(Some(s)) => out.push(s.to_owned()),
+            Ok(None) => {
+                set_error(&format!("symbols[{i}] is null"));
+                return None;
+            }
+            Err(e) => {
+                set_error(&format!("symbols[{i}] is not valid UTF-8: {e}"));
+                return None;
+            }
         }
     }
     Some(out)
@@ -1293,9 +1349,16 @@ macro_rules! ffi_typed_endpoint {
             let client = unsafe { &*client };
             $(
                 let $param = match unsafe { cstr_to_str($param) } {
-                    Some(s) => s,
-                    None => {
-                        set_error(concat!(stringify!($param), " is null or invalid UTF-8"));
+                    Ok(Some(s)) => s,
+                    Ok(None) => {
+                        set_error(concat!(stringify!($param), " is null"));
+                        return empty;
+                    }
+                    Err(e) => {
+                        set_error(&format!(
+                            "{} is not valid UTF-8: {e}",
+                            stringify!($param)
+                        ));
                         return empty;
                     }
                 };
@@ -1830,10 +1893,7 @@ pub unsafe extern "C" fn tdx_all_greeks(
     option_price: f64,
     right: *const c_char,
 ) -> *mut TdxGreeksResult {
-    let Some(right_str) = (unsafe { cstr_to_str(right) }) else {
-        set_error("right is null or invalid UTF-8");
-        return std::ptr::null_mut();
-    };
+    let right_str = require_cstr!(right, std::ptr::null_mut());
     if let Err(e) = thetadatadx::parse_right_strict(right_str) {
         set_error(&e.to_string());
         return std::ptr::null_mut();
@@ -1901,10 +1961,7 @@ pub unsafe extern "C" fn tdx_implied_volatility(
         set_error("output pointers must not be null");
         return -1;
     }
-    let Some(right_str) = (unsafe { cstr_to_str(right) }) else {
-        set_error("right is null or invalid UTF-8");
-        return -1;
-    };
+    let right_str = require_cstr!(right, -1);
     if let Err(e) = thetadatadx::parse_right_strict(right_str) {
         set_error(&e.to_string());
         return -1;
@@ -2193,12 +2250,7 @@ pub unsafe extern "C" fn tdx_unified_subscribe_quotes(
         set_error("unified handle is null");
         return -1;
     }
-    let symbol = if let Some(s) = unsafe { cstr_to_str(symbol) } {
-        s
-    } else {
-        set_error("symbol is null or invalid UTF-8");
-        return -1;
-    };
+    let symbol = require_cstr!(symbol, -1);
     let handle = unsafe { &*handle };
     let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
     match handle.inner.subscribe_quotes(&contract) {
@@ -2222,12 +2274,7 @@ pub unsafe extern "C" fn tdx_unified_subscribe_trades(
         set_error("unified handle is null");
         return -1;
     }
-    let symbol = if let Some(s) = unsafe { cstr_to_str(symbol) } {
-        s
-    } else {
-        set_error("symbol is null or invalid UTF-8");
-        return -1;
-    };
+    let symbol = require_cstr!(symbol, -1);
     let handle = unsafe { &*handle };
     let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
     match handle.inner.subscribe_trades(&contract) {
@@ -2251,12 +2298,7 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe_quotes(
         set_error("unified handle is null");
         return -1;
     }
-    let symbol = if let Some(s) = unsafe { cstr_to_str(symbol) } {
-        s
-    } else {
-        set_error("symbol is null or invalid UTF-8");
-        return -1;
-    };
+    let symbol = require_cstr!(symbol, -1);
     let handle = unsafe { &*handle };
     let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
     match handle.inner.unsubscribe_quotes(&contract) {
@@ -2280,12 +2322,7 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe_trades(
         set_error("unified handle is null");
         return -1;
     }
-    let symbol = if let Some(s) = unsafe { cstr_to_str(symbol) } {
-        s
-    } else {
-        set_error("symbol is null or invalid UTF-8");
-        return -1;
-    };
+    let symbol = require_cstr!(symbol, -1);
     let handle = unsafe { &*handle };
     let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
     match handle.inner.unsubscribe_trades(&contract) {
@@ -2307,12 +2344,7 @@ pub unsafe extern "C" fn tdx_unified_subscribe_open_interest(
         set_error("unified handle is null");
         return -1;
     }
-    let symbol = if let Some(s) = unsafe { cstr_to_str(symbol) } {
-        s
-    } else {
-        set_error("symbol is null");
-        return -1;
-    };
+    let symbol = require_cstr!(symbol, -1);
     let handle = unsafe { &*handle };
     let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
     match handle.inner.subscribe_open_interest(&contract) {
@@ -2335,12 +2367,7 @@ pub unsafe extern "C" fn tdx_unified_subscribe_full_trades(
         set_error("unified handle is null");
         return -1;
     }
-    let sec_type_str = if let Some(s) = unsafe { cstr_to_str(sec_type) } {
-        s
-    } else {
-        set_error("sec_type is null");
-        return -1;
-    };
+    let sec_type_str = require_cstr!(sec_type, -1);
     let st = match sec_type_str.to_uppercase().as_str() {
         "STOCK" => tdbe::types::enums::SecType::Stock,
         "OPTION" => tdbe::types::enums::SecType::Option,
@@ -2371,12 +2398,7 @@ pub unsafe extern "C" fn tdx_unified_subscribe_full_open_interest(
         set_error("unified handle is null");
         return -1;
     }
-    let sec_type_str = if let Some(s) = unsafe { cstr_to_str(sec_type) } {
-        s
-    } else {
-        set_error("sec_type is null");
-        return -1;
-    };
+    let sec_type_str = require_cstr!(sec_type, -1);
     let st = match sec_type_str.to_uppercase().as_str() {
         "STOCK" => tdbe::types::enums::SecType::Stock,
         "OPTION" => tdbe::types::enums::SecType::Option,
@@ -2407,12 +2429,7 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe_full_trades(
         set_error("unified handle is null");
         return -1;
     }
-    let sec_type_str = if let Some(s) = unsafe { cstr_to_str(sec_type) } {
-        s
-    } else {
-        set_error("sec_type is null");
-        return -1;
-    };
+    let sec_type_str = require_cstr!(sec_type, -1);
     let st = match sec_type_str.to_uppercase().as_str() {
         "STOCK" => tdbe::types::enums::SecType::Stock,
         "OPTION" => tdbe::types::enums::SecType::Option,
@@ -2443,12 +2460,7 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe_full_open_interest(
         set_error("unified handle is null");
         return -1;
     }
-    let sec_type_str = if let Some(s) = unsafe { cstr_to_str(sec_type) } {
-        s
-    } else {
-        set_error("sec_type is null");
-        return -1;
-    };
+    let sec_type_str = require_cstr!(sec_type, -1);
     let st = match sec_type_str.to_uppercase().as_str() {
         "STOCK" => tdbe::types::enums::SecType::Stock,
         "OPTION" => tdbe::types::enums::SecType::Option,
@@ -2478,12 +2490,7 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe_open_interest(
         set_error("unified handle is null");
         return -1;
     }
-    let symbol = if let Some(s) = unsafe { cstr_to_str(symbol) } {
-        s
-    } else {
-        set_error("symbol is null");
-        return -1;
-    };
+    let symbol = require_cstr!(symbol, -1);
     let handle = unsafe { &*handle };
     let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
     match handle.inner.unsubscribe_open_interest(&contract) {
@@ -3081,12 +3088,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_quotes(
         set_error("FPSS handle is null");
         return -1;
     }
-    let symbol = if let Some(s) = unsafe { cstr_to_str(symbol) } {
-        s
-    } else {
-        set_error("symbol is null or invalid UTF-8");
-        return -1;
-    };
+    let symbol = require_cstr!(symbol, -1);
     let handle = unsafe { &*handle };
     let guard = handle
         .inner
@@ -3120,12 +3122,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_trades(
         set_error("FPSS handle is null");
         return -1;
     }
-    let symbol = if let Some(s) = unsafe { cstr_to_str(symbol) } {
-        s
-    } else {
-        set_error("symbol is null or invalid UTF-8");
-        return -1;
-    };
+    let symbol = require_cstr!(symbol, -1);
     let handle = unsafe { &*handle };
     let guard = handle
         .inner
@@ -3159,12 +3156,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_quotes(
         set_error("FPSS handle is null");
         return -1;
     }
-    let symbol = if let Some(s) = unsafe { cstr_to_str(symbol) } {
-        s
-    } else {
-        set_error("symbol is null or invalid UTF-8");
-        return -1;
-    };
+    let symbol = require_cstr!(symbol, -1);
     let handle = unsafe { &*handle };
     let guard = handle
         .inner
@@ -3198,12 +3190,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_trades(
         set_error("FPSS handle is null");
         return -1;
     }
-    let symbol = if let Some(s) = unsafe { cstr_to_str(symbol) } {
-        s
-    } else {
-        set_error("symbol is null or invalid UTF-8");
-        return -1;
-    };
+    let symbol = require_cstr!(symbol, -1);
     let handle = unsafe { &*handle };
     let guard = handle
         .inner
@@ -3237,12 +3224,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_open_interest(
         set_error("FPSS handle is null");
         return -1;
     }
-    let symbol = if let Some(s) = unsafe { cstr_to_str(symbol) } {
-        s
-    } else {
-        set_error("symbol is null or invalid UTF-8");
-        return -1;
-    };
+    let symbol = require_cstr!(symbol, -1);
     let handle = unsafe { &*handle };
     let guard = handle
         .inner
@@ -3276,12 +3258,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_open_interest(
         set_error("FPSS handle is null");
         return -1;
     }
-    let symbol = if let Some(s) = unsafe { cstr_to_str(symbol) } {
-        s
-    } else {
-        set_error("symbol is null or invalid UTF-8");
-        return -1;
-    };
+    let symbol = require_cstr!(symbol, -1);
     let handle = unsafe { &*handle };
     let guard = handle
         .inner
@@ -3317,12 +3294,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_full_trades(
         set_error("FPSS handle is null");
         return -1;
     }
-    let sec_type_str = if let Some(s) = unsafe { cstr_to_str(sec_type) } {
-        s
-    } else {
-        set_error("sec_type is null or invalid UTF-8");
-        return -1;
-    };
+    let sec_type_str = require_cstr!(sec_type, -1);
     let st = match sec_type_str.to_uppercase().as_str() {
         "STOCK" => tdbe::types::enums::SecType::Stock,
         "OPTION" => tdbe::types::enums::SecType::Option,
@@ -3368,12 +3340,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_full_open_interest(
         set_error("FPSS handle is null");
         return -1;
     }
-    let sec_type_str = if let Some(s) = unsafe { cstr_to_str(sec_type) } {
-        s
-    } else {
-        set_error("sec_type is null or invalid UTF-8");
-        return -1;
-    };
+    let sec_type_str = require_cstr!(sec_type, -1);
     let st = match sec_type_str.to_uppercase().as_str() {
         "STOCK" => tdbe::types::enums::SecType::Stock,
         "OPTION" => tdbe::types::enums::SecType::Option,
@@ -3419,12 +3386,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_full_trades(
         set_error("FPSS handle is null");
         return -1;
     }
-    let sec_type_str = if let Some(s) = unsafe { cstr_to_str(sec_type) } {
-        s
-    } else {
-        set_error("sec_type is null or invalid UTF-8");
-        return -1;
-    };
+    let sec_type_str = require_cstr!(sec_type, -1);
     let st = match sec_type_str.to_uppercase().as_str() {
         "STOCK" => tdbe::types::enums::SecType::Stock,
         "OPTION" => tdbe::types::enums::SecType::Option,
@@ -3470,12 +3432,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_full_open_interest(
         set_error("FPSS handle is null");
         return -1;
     }
-    let sec_type_str = if let Some(s) = unsafe { cstr_to_str(sec_type) } {
-        s
-    } else {
-        set_error("sec_type is null or invalid UTF-8");
-        return -1;
-    };
+    let sec_type_str = require_cstr!(sec_type, -1);
     let st = match sec_type_str.to_uppercase().as_str() {
         "STOCK" => tdbe::types::enums::SecType::Stock,
         "OPTION" => tdbe::types::enums::SecType::Option,
@@ -3662,30 +3619,10 @@ unsafe fn parse_option_args<'a>(
     strike: *const c_char,
     right: *const c_char,
 ) -> Option<(&'a str, &'a str, &'a str, &'a str)> {
-    let sym = if let Some(s) = unsafe { cstr_to_str(symbol) } {
-        s
-    } else {
-        set_error("symbol is null or invalid UTF-8");
-        return None;
-    };
-    let exp = if let Some(s) = unsafe { cstr_to_str(expiration) } {
-        s
-    } else {
-        set_error("expiration is null or invalid UTF-8");
-        return None;
-    };
-    let stk = if let Some(s) = unsafe { cstr_to_str(strike) } {
-        s
-    } else {
-        set_error("strike is null or invalid UTF-8");
-        return None;
-    };
-    let rt = if let Some(s) = unsafe { cstr_to_str(right) } {
-        s
-    } else {
-        set_error("right is null or invalid UTF-8");
-        return None;
-    };
+    let sym = require_cstr!(symbol, None);
+    let exp = require_cstr!(expiration, None);
+    let stk = require_cstr!(strike, None);
+    let rt = require_cstr!(right, None);
     Some((sym, exp, stk, rt))
 }
 

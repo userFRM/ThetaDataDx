@@ -59,9 +59,13 @@ pub unsafe extern "C" fn tdx_stock_list_dates_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let request_type = match unsafe { cstr_to_str(request_type) } {
-        Some(value) => value,
-        None => {
-            set_error("request_type is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("request_type is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("request_type is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -70,9 +74,13 @@ pub unsafe extern "C" fn tdx_stock_list_dates_with_options(
         thetadatadx::EndpointArgValue::Str(request_type.to_string()),
     );
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -332,9 +340,13 @@ pub unsafe extern "C" fn tdx_stock_history_eod_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -343,9 +355,13 @@ pub unsafe extern "C" fn tdx_stock_history_eod_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let start_date = match unsafe { cstr_to_str(start_date) } {
-        Some(value) => value,
-        None => {
-            set_error("start_date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("start_date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("start_date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -354,9 +370,13 @@ pub unsafe extern "C" fn tdx_stock_history_eod_with_options(
         thetadatadx::EndpointArgValue::Str(start_date.to_string()),
     );
     let end_date = match unsafe { cstr_to_str(end_date) } {
-        Some(value) => value,
-        None => {
-            set_error("end_date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("end_date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("end_date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -412,9 +432,13 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -423,9 +447,13 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let date = match unsafe { cstr_to_str(date) } {
-        Some(value) => value,
-        None => {
-            set_error("date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -434,9 +462,13 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_with_options(
         thetadatadx::EndpointArgValue::Str(date.to_string()),
     );
     let interval = match unsafe { cstr_to_str(interval) } {
-        Some(value) => value,
-        None => {
-            set_error("interval is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("interval is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("interval is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -490,9 +522,13 @@ pub unsafe extern "C" fn tdx_stock_history_trade_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -501,9 +537,13 @@ pub unsafe extern "C" fn tdx_stock_history_trade_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let date = match unsafe { cstr_to_str(date) } {
-        Some(value) => value,
-        None => {
-            set_error("date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -559,9 +599,13 @@ pub unsafe extern "C" fn tdx_stock_history_quote_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -570,9 +614,13 @@ pub unsafe extern "C" fn tdx_stock_history_quote_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let date = match unsafe { cstr_to_str(date) } {
-        Some(value) => value,
-        None => {
-            set_error("date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -581,9 +629,13 @@ pub unsafe extern "C" fn tdx_stock_history_quote_with_options(
         thetadatadx::EndpointArgValue::Str(date.to_string()),
     );
     let interval = match unsafe { cstr_to_str(interval) } {
-        Some(value) => value,
-        None => {
-            set_error("interval is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("interval is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("interval is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -637,9 +689,13 @@ pub unsafe extern "C" fn tdx_stock_history_trade_quote_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -648,9 +704,13 @@ pub unsafe extern "C" fn tdx_stock_history_trade_quote_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let date = match unsafe { cstr_to_str(date) } {
-        Some(value) => value,
-        None => {
-            set_error("date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -708,9 +768,13 @@ pub unsafe extern "C" fn tdx_stock_at_time_trade_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -719,9 +783,13 @@ pub unsafe extern "C" fn tdx_stock_at_time_trade_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let start_date = match unsafe { cstr_to_str(start_date) } {
-        Some(value) => value,
-        None => {
-            set_error("start_date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("start_date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("start_date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -730,9 +798,13 @@ pub unsafe extern "C" fn tdx_stock_at_time_trade_with_options(
         thetadatadx::EndpointArgValue::Str(start_date.to_string()),
     );
     let end_date = match unsafe { cstr_to_str(end_date) } {
-        Some(value) => value,
-        None => {
-            set_error("end_date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("end_date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("end_date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -741,9 +813,13 @@ pub unsafe extern "C" fn tdx_stock_at_time_trade_with_options(
         thetadatadx::EndpointArgValue::Str(end_date.to_string()),
     );
     let time_of_day = match unsafe { cstr_to_str(time_of_day) } {
-        Some(value) => value,
-        None => {
-            set_error("time_of_day is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("time_of_day is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("time_of_day is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -801,9 +877,13 @@ pub unsafe extern "C" fn tdx_stock_at_time_quote_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -812,9 +892,13 @@ pub unsafe extern "C" fn tdx_stock_at_time_quote_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let start_date = match unsafe { cstr_to_str(start_date) } {
-        Some(value) => value,
-        None => {
-            set_error("start_date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("start_date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("start_date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -823,9 +907,13 @@ pub unsafe extern "C" fn tdx_stock_at_time_quote_with_options(
         thetadatadx::EndpointArgValue::Str(start_date.to_string()),
     );
     let end_date = match unsafe { cstr_to_str(end_date) } {
-        Some(value) => value,
-        None => {
-            set_error("end_date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("end_date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("end_date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -834,9 +922,13 @@ pub unsafe extern "C" fn tdx_stock_at_time_quote_with_options(
         thetadatadx::EndpointArgValue::Str(end_date.to_string()),
     );
     let time_of_day = match unsafe { cstr_to_str(time_of_day) } {
-        Some(value) => value,
-        None => {
-            set_error("time_of_day is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("time_of_day is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("time_of_day is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -937,9 +1029,13 @@ pub unsafe extern "C" fn tdx_option_list_dates_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let request_type = match unsafe { cstr_to_str(request_type) } {
-        Some(value) => value,
-        None => {
-            set_error("request_type is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("request_type is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("request_type is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -948,9 +1044,13 @@ pub unsafe extern "C" fn tdx_option_list_dates_with_options(
         thetadatadx::EndpointArgValue::Str(request_type.to_string()),
     );
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -959,9 +1059,13 @@ pub unsafe extern "C" fn tdx_option_list_dates_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -970,9 +1074,13 @@ pub unsafe extern "C" fn tdx_option_list_dates_with_options(
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -981,9 +1089,13 @@ pub unsafe extern "C" fn tdx_option_list_dates_with_options(
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1035,9 +1147,13 @@ pub unsafe extern "C" fn tdx_option_list_expirations_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1091,9 +1207,13 @@ pub unsafe extern "C" fn tdx_option_list_strikes_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1102,9 +1222,13 @@ pub unsafe extern "C" fn tdx_option_list_strikes_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1160,9 +1284,13 @@ pub unsafe extern "C" fn tdx_option_list_contracts_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let request_type = match unsafe { cstr_to_str(request_type) } {
-        Some(value) => value,
-        None => {
-            set_error("request_type is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("request_type is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("request_type is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1171,9 +1299,13 @@ pub unsafe extern "C" fn tdx_option_list_contracts_with_options(
         thetadatadx::EndpointArgValue::Str(request_type.to_string()),
     );
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1182,9 +1314,13 @@ pub unsafe extern "C" fn tdx_option_list_contracts_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let date = match unsafe { cstr_to_str(date) } {
-        Some(value) => value,
-        None => {
-            set_error("date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1242,9 +1378,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_ohlc_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1253,9 +1393,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_ohlc_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1264,9 +1408,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_ohlc_with_options(
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1275,9 +1423,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_ohlc_with_options(
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1335,9 +1487,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_trade_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1346,9 +1502,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_trade_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1357,9 +1517,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_trade_with_options(
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1368,9 +1532,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_trade_with_options(
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1428,9 +1596,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_quote_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1439,9 +1611,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_quote_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1450,9 +1626,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_quote_with_options(
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1461,9 +1641,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_quote_with_options(
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1521,9 +1705,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_open_interest_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1532,9 +1720,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_open_interest_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1543,9 +1735,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_open_interest_with_options(
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1554,9 +1750,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_open_interest_with_options(
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1614,9 +1814,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_market_value_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1625,9 +1829,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_market_value_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1636,9 +1844,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_market_value_with_options(
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1647,9 +1859,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_market_value_with_options(
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1707,9 +1923,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_implied_volatility_with_opti
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1718,9 +1938,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_implied_volatility_with_opti
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1729,9 +1953,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_implied_volatility_with_opti
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1740,9 +1968,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_implied_volatility_with_opti
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1800,9 +2032,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_all_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1811,9 +2047,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_all_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1822,9 +2062,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_all_with_options(
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1833,9 +2077,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_all_with_options(
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1893,9 +2141,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_first_order_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1904,9 +2156,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_first_order_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1915,9 +2171,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_first_order_with_options(
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1926,9 +2186,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_first_order_with_options(
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1986,9 +2250,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_second_order_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -1997,9 +2265,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_second_order_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2008,9 +2280,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_second_order_with_options(
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2019,9 +2295,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_second_order_with_options(
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2079,9 +2359,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_third_order_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2090,9 +2374,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_third_order_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2101,9 +2389,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_third_order_with_options(
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2112,9 +2404,13 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_third_order_with_options(
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2176,9 +2472,13 @@ pub unsafe extern "C" fn tdx_option_history_eod_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2187,9 +2487,13 @@ pub unsafe extern "C" fn tdx_option_history_eod_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2198,9 +2502,13 @@ pub unsafe extern "C" fn tdx_option_history_eod_with_options(
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2209,9 +2517,13 @@ pub unsafe extern "C" fn tdx_option_history_eod_with_options(
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2220,9 +2532,13 @@ pub unsafe extern "C" fn tdx_option_history_eod_with_options(
         thetadatadx::EndpointArgValue::Str(right.to_string()),
     );
     let start_date = match unsafe { cstr_to_str(start_date) } {
-        Some(value) => value,
-        None => {
-            set_error("start_date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("start_date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("start_date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2231,9 +2547,13 @@ pub unsafe extern "C" fn tdx_option_history_eod_with_options(
         thetadatadx::EndpointArgValue::Str(start_date.to_string()),
     );
     let end_date = match unsafe { cstr_to_str(end_date) } {
-        Some(value) => value,
-        None => {
-            set_error("end_date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("end_date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("end_date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2295,9 +2615,13 @@ pub unsafe extern "C" fn tdx_option_history_ohlc_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2306,9 +2630,13 @@ pub unsafe extern "C" fn tdx_option_history_ohlc_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2317,9 +2645,13 @@ pub unsafe extern "C" fn tdx_option_history_ohlc_with_options(
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2328,9 +2660,13 @@ pub unsafe extern "C" fn tdx_option_history_ohlc_with_options(
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2339,9 +2675,13 @@ pub unsafe extern "C" fn tdx_option_history_ohlc_with_options(
         thetadatadx::EndpointArgValue::Str(right.to_string()),
     );
     let date = match unsafe { cstr_to_str(date) } {
-        Some(value) => value,
-        None => {
-            set_error("date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2350,9 +2690,13 @@ pub unsafe extern "C" fn tdx_option_history_ohlc_with_options(
         thetadatadx::EndpointArgValue::Str(date.to_string()),
     );
     let interval = match unsafe { cstr_to_str(interval) } {
-        Some(value) => value,
-        None => {
-            set_error("interval is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("interval is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("interval is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2412,9 +2756,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2423,9 +2771,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2434,9 +2786,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_with_options(
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2445,9 +2801,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_with_options(
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2456,9 +2816,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_with_options(
         thetadatadx::EndpointArgValue::Str(right.to_string()),
     );
     let date = match unsafe { cstr_to_str(date) } {
-        Some(value) => value,
-        None => {
-            set_error("date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2520,9 +2884,13 @@ pub unsafe extern "C" fn tdx_option_history_quote_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2531,9 +2899,13 @@ pub unsafe extern "C" fn tdx_option_history_quote_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2542,9 +2914,13 @@ pub unsafe extern "C" fn tdx_option_history_quote_with_options(
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2553,9 +2929,13 @@ pub unsafe extern "C" fn tdx_option_history_quote_with_options(
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2564,9 +2944,13 @@ pub unsafe extern "C" fn tdx_option_history_quote_with_options(
         thetadatadx::EndpointArgValue::Str(right.to_string()),
     );
     let date = match unsafe { cstr_to_str(date) } {
-        Some(value) => value,
-        None => {
-            set_error("date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2575,9 +2959,13 @@ pub unsafe extern "C" fn tdx_option_history_quote_with_options(
         thetadatadx::EndpointArgValue::Str(date.to_string()),
     );
     let interval = match unsafe { cstr_to_str(interval) } {
-        Some(value) => value,
-        None => {
-            set_error("interval is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("interval is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("interval is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2637,9 +3025,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_quote_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2648,9 +3040,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_quote_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2659,9 +3055,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_quote_with_options(
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2670,9 +3070,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_quote_with_options(
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2681,9 +3085,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_quote_with_options(
         thetadatadx::EndpointArgValue::Str(right.to_string()),
     );
     let date = match unsafe { cstr_to_str(date) } {
-        Some(value) => value,
-        None => {
-            set_error("date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2743,9 +3151,13 @@ pub unsafe extern "C" fn tdx_option_history_open_interest_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2754,9 +3166,13 @@ pub unsafe extern "C" fn tdx_option_history_open_interest_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2765,9 +3181,13 @@ pub unsafe extern "C" fn tdx_option_history_open_interest_with_options(
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2776,9 +3196,13 @@ pub unsafe extern "C" fn tdx_option_history_open_interest_with_options(
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2787,9 +3211,13 @@ pub unsafe extern "C" fn tdx_option_history_open_interest_with_options(
         thetadatadx::EndpointArgValue::Str(right.to_string()),
     );
     let date = match unsafe { cstr_to_str(date) } {
-        Some(value) => value,
-        None => {
-            set_error("date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2851,9 +3279,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2862,9 +3294,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2873,9 +3309,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2884,9 +3324,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2895,9 +3339,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
         thetadatadx::EndpointArgValue::Str(right.to_string()),
     );
     let start_date = match unsafe { cstr_to_str(start_date) } {
-        Some(value) => value,
-        None => {
-            set_error("start_date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("start_date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("start_date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2906,9 +3354,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
         thetadatadx::EndpointArgValue::Str(start_date.to_string()),
     );
     let end_date = match unsafe { cstr_to_str(end_date) } {
-        Some(value) => value,
-        None => {
-            set_error("end_date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("end_date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("end_date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2970,9 +3422,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2981,9 +3437,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -2992,9 +3452,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3003,9 +3467,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3014,9 +3482,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
         thetadatadx::EndpointArgValue::Str(right.to_string()),
     );
     let date = match unsafe { cstr_to_str(date) } {
-        Some(value) => value,
-        None => {
-            set_error("date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3025,9 +3497,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
         thetadatadx::EndpointArgValue::Str(date.to_string()),
     );
     let interval = match unsafe { cstr_to_str(interval) } {
-        Some(value) => value,
-        None => {
-            set_error("interval is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("interval is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("interval is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3087,9 +3563,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3098,9 +3578,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3109,9 +3593,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3120,9 +3608,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3131,9 +3623,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
         thetadatadx::EndpointArgValue::Str(right.to_string()),
     );
     let date = match unsafe { cstr_to_str(date) } {
-        Some(value) => value,
-        None => {
-            set_error("date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3195,9 +3691,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3206,9 +3706,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3217,9 +3721,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3228,9 +3736,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3239,9 +3751,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
         thetadatadx::EndpointArgValue::Str(right.to_string()),
     );
     let date = match unsafe { cstr_to_str(date) } {
-        Some(value) => value,
-        None => {
-            set_error("date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3250,9 +3766,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
         thetadatadx::EndpointArgValue::Str(date.to_string()),
     );
     let interval = match unsafe { cstr_to_str(interval) } {
-        Some(value) => value,
-        None => {
-            set_error("interval is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("interval is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("interval is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3312,9 +3832,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_option
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3323,9 +3847,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_option
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3334,9 +3862,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_option
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3345,9 +3877,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_option
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3356,9 +3892,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_option
         thetadatadx::EndpointArgValue::Str(right.to_string()),
     );
     let date = match unsafe { cstr_to_str(date) } {
-        Some(value) => value,
-        None => {
-            set_error("date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3420,9 +3960,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3431,9 +3975,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3442,9 +3990,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3453,9 +4005,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3464,9 +4020,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
         thetadatadx::EndpointArgValue::Str(right.to_string()),
     );
     let date = match unsafe { cstr_to_str(date) } {
-        Some(value) => value,
-        None => {
-            set_error("date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3475,9 +4035,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
         thetadatadx::EndpointArgValue::Str(date.to_string()),
     );
     let interval = match unsafe { cstr_to_str(interval) } {
-        Some(value) => value,
-        None => {
-            set_error("interval is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("interval is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("interval is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3537,9 +4101,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_optio
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3548,9 +4116,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_optio
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3559,9 +4131,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_optio
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3570,9 +4146,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_optio
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3581,9 +4161,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_optio
         thetadatadx::EndpointArgValue::Str(right.to_string()),
     );
     let date = match unsafe { cstr_to_str(date) } {
-        Some(value) => value,
-        None => {
-            set_error("date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3645,9 +4229,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3656,9 +4244,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3667,9 +4259,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3678,9 +4274,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3689,9 +4289,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
         thetadatadx::EndpointArgValue::Str(right.to_string()),
     );
     let date = match unsafe { cstr_to_str(date) } {
-        Some(value) => value,
-        None => {
-            set_error("date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3700,9 +4304,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
         thetadatadx::EndpointArgValue::Str(date.to_string()),
     );
     let interval = match unsafe { cstr_to_str(interval) } {
-        Some(value) => value,
-        None => {
-            set_error("interval is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("interval is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("interval is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3762,9 +4370,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_option
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3773,9 +4385,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_option
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3784,9 +4400,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_option
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3795,9 +4415,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_option
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3806,9 +4430,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_option
         thetadatadx::EndpointArgValue::Str(right.to_string()),
     );
     let date = match unsafe { cstr_to_str(date) } {
-        Some(value) => value,
-        None => {
-            set_error("date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3870,9 +4498,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_with_optio
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3881,9 +4513,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_with_optio
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3892,9 +4528,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_with_optio
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3903,9 +4543,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_with_optio
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3914,9 +4558,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_with_optio
         thetadatadx::EndpointArgValue::Str(right.to_string()),
     );
     let date = match unsafe { cstr_to_str(date) } {
-        Some(value) => value,
-        None => {
-            set_error("date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3925,9 +4573,13 @@ pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_with_optio
         thetadatadx::EndpointArgValue::Str(date.to_string()),
     );
     let interval = match unsafe { cstr_to_str(interval) } {
-        Some(value) => value,
-        None => {
-            set_error("interval is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("interval is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("interval is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3987,9 +4639,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_with
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -3998,9 +4654,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_with
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4009,9 +4669,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_with
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4020,9 +4684,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_with
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4031,9 +4699,13 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_with
         thetadatadx::EndpointArgValue::Str(right.to_string()),
     );
     let date = match unsafe { cstr_to_str(date) } {
-        Some(value) => value,
-        None => {
-            set_error("date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4097,9 +4769,13 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4108,9 +4784,13 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4119,9 +4799,13 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4130,9 +4814,13 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4141,9 +4829,13 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
         thetadatadx::EndpointArgValue::Str(right.to_string()),
     );
     let start_date = match unsafe { cstr_to_str(start_date) } {
-        Some(value) => value,
-        None => {
-            set_error("start_date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("start_date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("start_date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4152,9 +4844,13 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
         thetadatadx::EndpointArgValue::Str(start_date.to_string()),
     );
     let end_date = match unsafe { cstr_to_str(end_date) } {
-        Some(value) => value,
-        None => {
-            set_error("end_date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("end_date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("end_date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4163,9 +4859,13 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
         thetadatadx::EndpointArgValue::Str(end_date.to_string()),
     );
     let time_of_day = match unsafe { cstr_to_str(time_of_day) } {
-        Some(value) => value,
-        None => {
-            set_error("time_of_day is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("time_of_day is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("time_of_day is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4229,9 +4929,13 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4240,9 +4944,13 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let expiration = match unsafe { cstr_to_str(expiration) } {
-        Some(value) => value,
-        None => {
-            set_error("expiration is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("expiration is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("expiration is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4251,9 +4959,13 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
         thetadatadx::EndpointArgValue::Str(expiration.to_string()),
     );
     let strike = match unsafe { cstr_to_str(strike) } {
-        Some(value) => value,
-        None => {
-            set_error("strike is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("strike is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("strike is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4262,9 +4974,13 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
         thetadatadx::EndpointArgValue::Str(strike.to_string()),
     );
     let right = match unsafe { cstr_to_str(right) } {
-        Some(value) => value,
-        None => {
-            set_error("right is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("right is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("right is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4273,9 +4989,13 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
         thetadatadx::EndpointArgValue::Str(right.to_string()),
     );
     let start_date = match unsafe { cstr_to_str(start_date) } {
-        Some(value) => value,
-        None => {
-            set_error("start_date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("start_date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("start_date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4284,9 +5004,13 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
         thetadatadx::EndpointArgValue::Str(start_date.to_string()),
     );
     let end_date = match unsafe { cstr_to_str(end_date) } {
-        Some(value) => value,
-        None => {
-            set_error("end_date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("end_date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("end_date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4295,9 +5019,13 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
         thetadatadx::EndpointArgValue::Str(end_date.to_string()),
     );
     let time_of_day = match unsafe { cstr_to_str(time_of_day) } {
-        Some(value) => value,
-        None => {
-            set_error("time_of_day is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("time_of_day is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("time_of_day is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4390,9 +5118,13 @@ pub unsafe extern "C" fn tdx_index_list_dates_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4601,9 +5333,13 @@ pub unsafe extern "C" fn tdx_index_history_eod_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4612,9 +5348,13 @@ pub unsafe extern "C" fn tdx_index_history_eod_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let start_date = match unsafe { cstr_to_str(start_date) } {
-        Some(value) => value,
-        None => {
-            set_error("start_date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("start_date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("start_date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4623,9 +5363,13 @@ pub unsafe extern "C" fn tdx_index_history_eod_with_options(
         thetadatadx::EndpointArgValue::Str(start_date.to_string()),
     );
     let end_date = match unsafe { cstr_to_str(end_date) } {
-        Some(value) => value,
-        None => {
-            set_error("end_date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("end_date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("end_date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4683,9 +5427,13 @@ pub unsafe extern "C" fn tdx_index_history_ohlc_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4694,9 +5442,13 @@ pub unsafe extern "C" fn tdx_index_history_ohlc_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let start_date = match unsafe { cstr_to_str(start_date) } {
-        Some(value) => value,
-        None => {
-            set_error("start_date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("start_date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("start_date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4705,9 +5457,13 @@ pub unsafe extern "C" fn tdx_index_history_ohlc_with_options(
         thetadatadx::EndpointArgValue::Str(start_date.to_string()),
     );
     let end_date = match unsafe { cstr_to_str(end_date) } {
-        Some(value) => value,
-        None => {
-            set_error("end_date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("end_date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("end_date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4716,9 +5472,13 @@ pub unsafe extern "C" fn tdx_index_history_ohlc_with_options(
         thetadatadx::EndpointArgValue::Str(end_date.to_string()),
     );
     let interval = match unsafe { cstr_to_str(interval) } {
-        Some(value) => value,
-        None => {
-            set_error("interval is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("interval is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("interval is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4774,9 +5534,13 @@ pub unsafe extern "C" fn tdx_index_history_price_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4785,9 +5549,13 @@ pub unsafe extern "C" fn tdx_index_history_price_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let date = match unsafe { cstr_to_str(date) } {
-        Some(value) => value,
-        None => {
-            set_error("date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4796,9 +5564,13 @@ pub unsafe extern "C" fn tdx_index_history_price_with_options(
         thetadatadx::EndpointArgValue::Str(date.to_string()),
     );
     let interval = match unsafe { cstr_to_str(interval) } {
-        Some(value) => value,
-        None => {
-            set_error("interval is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("interval is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("interval is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4856,9 +5628,13 @@ pub unsafe extern "C" fn tdx_index_at_time_price_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4867,9 +5643,13 @@ pub unsafe extern "C" fn tdx_index_at_time_price_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let start_date = match unsafe { cstr_to_str(start_date) } {
-        Some(value) => value,
-        None => {
-            set_error("start_date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("start_date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("start_date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4878,9 +5658,13 @@ pub unsafe extern "C" fn tdx_index_at_time_price_with_options(
         thetadatadx::EndpointArgValue::Str(start_date.to_string()),
     );
     let end_date = match unsafe { cstr_to_str(end_date) } {
-        Some(value) => value,
-        None => {
-            set_error("end_date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("end_date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("end_date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4889,9 +5673,13 @@ pub unsafe extern "C" fn tdx_index_at_time_price_with_options(
         thetadatadx::EndpointArgValue::Str(end_date.to_string()),
     );
     let time_of_day = match unsafe { cstr_to_str(time_of_day) } {
-        Some(value) => value,
-        None => {
-            set_error("time_of_day is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("time_of_day is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("time_of_day is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -4984,9 +5772,13 @@ pub unsafe extern "C" fn tdx_calendar_on_date_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let date = match unsafe { cstr_to_str(date) } {
-        Some(value) => value,
-        None => {
-            set_error("date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -5038,9 +5830,13 @@ pub unsafe extern "C" fn tdx_calendar_year_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let year = match unsafe { cstr_to_str(year) } {
-        Some(value) => value,
-        None => {
-            set_error("year is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("year is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("year is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -5096,9 +5892,13 @@ pub unsafe extern "C" fn tdx_interest_rate_history_eod_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -5107,9 +5907,13 @@ pub unsafe extern "C" fn tdx_interest_rate_history_eod_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let start_date = match unsafe { cstr_to_str(start_date) } {
-        Some(value) => value,
-        None => {
-            set_error("start_date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("start_date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("start_date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -5118,9 +5922,13 @@ pub unsafe extern "C" fn tdx_interest_rate_history_eod_with_options(
         thetadatadx::EndpointArgValue::Str(start_date.to_string()),
     );
     let end_date = match unsafe { cstr_to_str(end_date) } {
-        Some(value) => value,
-        None => {
-            set_error("end_date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("end_date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("end_date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -5178,9 +5986,13 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_range_with_options(
 
     let mut args = thetadatadx::EndpointArgs::new();
     let symbol = match unsafe { cstr_to_str(symbol) } {
-        Some(value) => value,
-        None => {
-            set_error("symbol is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("symbol is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("symbol is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -5189,9 +6001,13 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_range_with_options(
         thetadatadx::EndpointArgValue::Str(symbol.to_string()),
     );
     let start_date = match unsafe { cstr_to_str(start_date) } {
-        Some(value) => value,
-        None => {
-            set_error("start_date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("start_date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("start_date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -5200,9 +6016,13 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_range_with_options(
         thetadatadx::EndpointArgValue::Str(start_date.to_string()),
     );
     let end_date = match unsafe { cstr_to_str(end_date) } {
-        Some(value) => value,
-        None => {
-            set_error("end_date is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("end_date is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("end_date is not valid UTF-8: {e}"));
             return empty;
         }
     };
@@ -5211,9 +6031,13 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_range_with_options(
         thetadatadx::EndpointArgValue::Str(end_date.to_string()),
     );
     let interval = match unsafe { cstr_to_str(interval) } {
-        Some(value) => value,
-        None => {
-            set_error("interval is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("interval is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("interval is not valid UTF-8: {e}"));
             return empty;
         }
     };

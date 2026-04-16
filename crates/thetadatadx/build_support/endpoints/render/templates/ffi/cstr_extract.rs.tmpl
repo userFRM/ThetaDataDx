@@ -1,7 +1,11 @@
     let __NAME__ = match unsafe { cstr_to_str(__NAME__) } {
-        Some(value) => value,
-        None => {
-            set_error("__NAME__ is null or invalid UTF-8");
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            set_error("__NAME__ is null");
+            return empty;
+        }
+        Err(e) => {
+            set_error(&format!("__NAME__ is not valid UTF-8: {e}"));
             return empty;
         }
     };
