@@ -132,22 +132,22 @@ impl From<tonic::Status> for Error {
     fn from(s: tonic::Status) -> Self {
         // Extract http_status_code from gRPC metadata and enrich the error
         // message with the ThetaData error name when available.
-        let metadata_str = format!("{:?}", s.metadata());
-        if let Some(td_err) = tdbe::errors::error_from_grpc_metadata(&metadata_str) {
-            Self::Grpc {
-                status: format!("{:?}", s.code()),
-                message: format!(
-                    "{} (ThetaData: {} -- {})",
-                    s.message(),
-                    td_err.name,
-                    td_err.description
-                ),
-            }
-        } else {
-            Self::Grpc {
-                status: format!("{:?}", s.code()),
-                message: s.message().to_string(),
-            }
-        }
+        let td_err = s
+            .metadata()
+            .get(tdbe::errors::HTTP_STATUS_CODE_KEY)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse::<u16>().ok())
+            .and_then(tdbe::errors::error_from_http_code);
+        let status = format!("{:?}", s.code());
+        let message = match td_err {
+            Some(td) => format!(
+                "{} (ThetaData: {} -- {})",
+                s.message(),
+                td.name,
+                td.description
+            ),
+            None => s.message().to_string(),
+        };
+        Self::Grpc { status, message }
     }
 }

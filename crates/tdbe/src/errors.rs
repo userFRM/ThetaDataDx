@@ -92,27 +92,8 @@ pub fn error_from_http_code(code: u16) -> Option<&'static ThetaDataError> {
     ERRORS.iter().find(|e| e.http_code == code)
 }
 
-/// Extract an `http_status_code` from gRPC metadata text and look it up.
-///
-/// The metadata string is expected to contain `http_status_code=NNN` or just
-/// the numeric code itself. Returns `None` if no valid code is found or the
-/// code is not in the known error table.
-#[must_use]
-pub fn error_from_grpc_metadata(metadata: &str) -> Option<&'static ThetaDataError> {
-    // Try "http_status_code=NNN" first.
-    if let Some(pos) = metadata.find("http_status_code=") {
-        let after = &metadata[pos + "http_status_code=".len()..];
-        let num_str: String = after.chars().take_while(char::is_ascii_digit).collect();
-        if let Ok(code) = num_str.parse::<u16>() {
-            return error_from_http_code(code);
-        }
-    }
-    // Fallback: try parsing the whole string as a number.
-    if let Ok(code) = metadata.trim().parse::<u16>() {
-        return error_from_http_code(code);
-    }
-    None
-}
+/// Metadata key carrying the ThetaData HTTP status in gRPC responses.
+pub const HTTP_STATUS_CODE_KEY: &str = "http_status_code";
 
 /// Human-readable error name for an HTTP status code, or `"UNKNOWN"`.
 #[inline]
@@ -137,32 +118,6 @@ mod tests {
     fn unknown_code() {
         assert!(error_from_http_code(999).is_none());
         assert!(error_from_http_code(500).is_none());
-    }
-
-    #[test]
-    fn grpc_metadata_key_value() {
-        let meta = "http_status_code=473";
-        let err = error_from_grpc_metadata(meta).unwrap();
-        assert_eq!(err.name, "INVALID_PARAMS");
-    }
-
-    #[test]
-    fn grpc_metadata_embedded() {
-        let meta = "some_prefix http_status_code=476 some_suffix";
-        let err = error_from_grpc_metadata(meta).unwrap();
-        assert_eq!(err.name, "WRONG_IP");
-    }
-
-    #[test]
-    fn grpc_metadata_bare_number() {
-        let err = error_from_grpc_metadata("471").unwrap();
-        assert_eq!(err.name, "PERMISSION");
-    }
-
-    #[test]
-    fn grpc_metadata_unknown() {
-        assert!(error_from_grpc_metadata("garbage").is_none());
-        assert!(error_from_grpc_metadata("http_status_code=999").is_none());
     }
 
     #[test]
