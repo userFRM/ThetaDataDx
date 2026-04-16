@@ -32,6 +32,12 @@ pub(super) fn render_cli_validate(
                 .map(|token| format!("{token:?}"))
                 .collect::<Vec<_>>()
                 .join(", ");
+            // Full-chain / all-strike bulk modes legitimately stream more
+            // than a 60s-per-cell budget allows on `option_history_*` and
+            // `option_at_time_*`. Mark them so the postamble picks a
+            // longer deadline for just those cells. See
+            // [`SLOW_MODE_TIMEOUT_MS`] in the postamble.
+            let slow = matches!(mode.name.as_str(), "all_strikes_one_exp" | "bulk_chain");
             write!(
                 out,
                 include_str!("templates/validate_cli/cell.py.tmpl"),
@@ -40,6 +46,7 @@ pub(super) fn render_cli_validate(
                 min_tier = mode.min_tier,
                 rationale = mode.rationale,
                 args = tokens,
+                slow = if slow { "True" } else { "False" },
             )
             .unwrap();
         }

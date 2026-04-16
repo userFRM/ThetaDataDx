@@ -37,13 +37,13 @@ for endpoint, mode, min_tier, rationale, call in CELLS:
         # stream and raised RuntimeError carrying our timeout sentinel.
         # No daemon threads to clean up — the next cell runs immediately.
         if "request deadline exceeded" in msg:
-            print(f"  {label:60s} FAIL  timeout after {PER_CELL_TIMEOUT_MS//1000}s", flush=True)
+            print(f"  {label:60s} FAIL  timeout after {duration_ms//1000}s", flush=True)
             fail_count += 1
             records.append({
                 "endpoint": endpoint, "mode": mode, "rationale": rationale,
                 "status": "FAIL",
                 "row_count": 0, "duration_ms": duration_ms,
-                "detail": f"timeout after {PER_CELL_TIMEOUT_MS//1000}s",
+                "detail": f"timeout after {duration_ms//1000}s",
             })
             continue
         if "permission" in msg or "subscription" in msg:

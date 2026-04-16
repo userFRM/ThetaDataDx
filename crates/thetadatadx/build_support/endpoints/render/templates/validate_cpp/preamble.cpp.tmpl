@@ -5,13 +5,15 @@
 // live account tier come back as a permission error and are classified
 // SKIP: tier-permission. Real configuration bugs surface as FAIL.
 //
-// Per-cell deadline (W3): each cell sets
-// EndpointRequestOptions::timeout_ms = 60_000 so the Rust SDK enforces
-// the budget via tokio::time::timeout and cancels the in-flight gRPC
-// stream on expiry; the throw surfaces as a tdx::Error carrying
-// "Request deadline exceeded". RAII destructors run normally because
-// the SDK has already cleaned up its in-flight state. See issues #287,
-// #290 and [docs/dev/w3-async-cancellation-design.md].
+// Per-cell deadline (W3): concrete and list-style cells set
+// EndpointRequestOptions::timeout_ms = 60_000; bulk-chain / all-strike
+// cells use 180_000 because a full option chain payload legitimately
+// takes longer than a minute. The Rust SDK enforces the budget via
+// tokio::time::timeout and cancels the in-flight gRPC stream on expiry;
+// the throw surfaces as a tdx::Error carrying "Request deadline
+// exceeded". RAII destructors run normally because the SDK has already
+// cleaned up its in-flight state. See issues #287, #290 and
+// [docs/dev/w3-async-cancellation-design.md].
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -29,6 +31,7 @@
 namespace {
 
 constexpr uint64_t kPerCellTimeoutMs = 60'000;
+constexpr uint64_t kSlowModeTimeoutMs = 180'000;
 
 std::string lower(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
@@ -102,10 +105,11 @@ int main(int argc, char** argv) {
                 if (msg.find("request deadline exceeded") != std::string::npos) {
                     // SDK cancelled the in-flight gRPC stream on deadline elapse;
                     // the next cell runs normally on the same Client handle.
-                    std::cout << "  " << std::left << std::setw(60) << label << " FAIL  timeout after 60s" << std::endl;
+                    const long long elapsed_s = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - t0).count();
+                    std::cout << "  " << std::left << std::setw(60) << label << " FAIL  timeout after " << elapsed_s << "s" << std::endl;
                     ++fail;
                     rec.status = "FAIL";
-                    rec.detail = "timeout after 60s";
+                    rec.detail = "timeout after " + std::to_string(elapsed_s) + "s";
                 } else if (msg.find("permission") != std::string::npos || msg.find("subscription") != std::string::npos) {
                     std::cout << "  " << std::left << std::setw(60) << label << " SKIP: tier-permission (declared min_tier=" << declared_min_tier << ")" << std::endl;
                     ++skip;

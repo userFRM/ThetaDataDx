@@ -11,12 +11,15 @@ and are classified `SKIP: tier-permission`. Real configuration bugs
 (invalid arguments, wire-format errors) surface as `FAIL`. See issue
 #287.
 
-Each cell is bounded by a 60-second per-call deadline that the CLI
-forwards to the SDK via `--timeout-ms 60000` (W3). On expiry the SDK
-cancels the in-flight gRPC stream and the subprocess exits cleanly with
-an error containing "Request deadline exceeded". A 90-second subprocess
-timeout remains as a safety net in case the SDK itself wedges (it
-shouldn't), in which case the OS reaps the child via SIGKILL.
+Each cell is bounded by a per-call deadline that the CLI forwards to the
+SDK via `--timeout-ms` (W3). Concrete and list-style cells get the
+60-second baseline; bulk cells flagged `slow=True` (`all_strikes_one_exp`,
+`bulk_chain` on option history / at-time endpoints) get 180 seconds
+because a full-chain payload legitimately takes longer than a minute.
+On expiry the SDK cancels the in-flight gRPC stream and the subprocess
+exits cleanly with an error containing "Request deadline exceeded". The
+subprocess kill-switch remains as a safety net in case the SDK itself
+wedges (it shouldn't), in which case the OS reaps the child via SIGKILL.
 See issues #287, #290.
 """
 from __future__ import annotations
@@ -29,18 +32,21 @@ import sys
 import time
 
 PER_CELL_TIMEOUT_MS = 60_000
-# Subprocess kill-switch one-and-a-half times the SDK budget. Triggers
-# only if the SDK itself wedges past its own deadline (it shouldn't);
-# the OS reaps the child via SIGKILL on expiry.
-SUBPROCESS_KILL_SECS = (PER_CELL_TIMEOUT_MS * 3) // 2000
+SLOW_MODE_TIMEOUT_MS = 180_000
+# Subprocess kill-switch one-and-a-half times the slowest SDK budget.
+# Triggers only if the SDK itself wedges past its own deadline (it
+# shouldn't); the OS reaps the child via SIGKILL on expiry.
+SUBPROCESS_KILL_SECS = (SLOW_MODE_TIMEOUT_MS * 3) // 2000
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 TDX = REPO / "target" / "release" / ("tdx.exe" if os.name == "nt" else "tdx")
 ARTIFACT_PATH = REPO / "artifacts" / "validator_cli.json"
 
-# (endpoint, mode_name, declared_min_tier, rationale, [argv...])
+# (endpoint, mode_name, declared_min_tier, rationale, [argv...], slow)
 # `declared_min_tier` is informational only (printed on tier-permission
 # skips so you can see which modes the server refused). `rationale` is a
 # one-sentence description of what the cell proves; surfaces in the
 # per-cell JSON artifact and in scripts/validate_agreement.py output.
+# `slow` selects `SLOW_MODE_TIMEOUT_MS` over `PER_CELL_TIMEOUT_MS` for
+# bulk-chain / all-strike cells whose payload doesn't fit in 60s.
 CELLS = [

@@ -25,7 +25,7 @@ must stay aligned with the schema.
 |:-------------|:----------------|:-----------------------------------|:--------|
 | `i32`        | `i32`           | `row_number(row, i)`               | `0`     |
 | `i64`        | `i64`           | `row_number_i64(row, i)`           | `0`     |
-| `f64`        | `f64`           | `row_float(row, i)`                | `0.0`   |
+| `f64`        | `f64`           | `row_price_f64(row, i)` (accepts `Price` or `Number`) | `0.0`   |
 | `String`     | `String`        | `row_text(row, i)`                 | `""`    |
 | `price`      | `i32`           | `row_price_value(row, i)` or `row_number(row, i)` depending on whether the column carries Price-typed cells | `0` |
 | `price_value`| `i32`           | Always `row_price_value(row, i)`   | `0`     |

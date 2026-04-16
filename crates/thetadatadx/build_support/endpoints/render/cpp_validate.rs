@@ -41,8 +41,17 @@ pub(super) fn render_cpp_validate(
                 .iter()
                 .filter_map(|(name, value)| cpp_builder_setter(endpoint, name, value))
                 .collect();
+            // Bulk-chain / all-strike cells use `kSlowModeTimeoutMs` since
+            // a full option chain payload legitimately takes longer than
+            // 60s; all other cells use `kPerCellTimeoutMs`.
+            let timeout_sym = if matches!(mode.name.as_str(), "all_strikes_one_exp" | "bulk_chain")
+            {
+                "kSlowModeTimeoutMs"
+            } else {
+                "kPerCellTimeoutMs"
+            };
             args_parts.push(format!(
-                "tdx::EndpointRequestOptions{{}}{setters}.with_timeout_ms(kPerCellTimeoutMs)"
+                "tdx::EndpointRequestOptions{{}}{setters}.with_timeout_ms({timeout_sym})"
             ));
             let args = args_parts.join(", ");
             write!(

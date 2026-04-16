@@ -9,11 +9,16 @@ import (
 	"time"
 )
 
-// perCellTimeoutMs caps each live cell at 60 seconds. The Rust SDK
+// perCellTimeoutMs caps each live cell at 60 seconds; slowModeTimeoutMs
+// applies to bulk-chain / all-strike cells whose full option chain
+// payload legitimately takes longer than a minute. The Rust SDK
 // enforces the deadline via tokio::time::timeout and cancels the
 // in-flight gRPC stream on expiry; the *Client handle stays usable.
 // See [docs/dev/w3-async-cancellation-design.md] (W3).
-const perCellTimeoutMs uint64 = 60_000
+const (
+	perCellTimeoutMs  uint64 = 60_000
+	slowModeTimeoutMs uint64 = 180_000
+)
 
 // CellRecord is one row of the validator's per-cell JSON artifact used
 // by the cross-language agreement check. `Status` is PASS|SKIP|FAIL.
@@ -340,7 +345,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionSnapshotOHLC("SPY", "20250321", "*", "both", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionSnapshotOHLC("SPY", "20250321", "*", "both", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_snapshot_ohlc", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_ohlc::all_exps_one_strike
@@ -354,7 +359,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
-		v, e := c.OptionSnapshotOHLC("SPY", "*", "*", "both", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionSnapshotOHLC("SPY", "*", "*", "both", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_snapshot_ohlc", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_ohlc::with_max_dte
@@ -397,7 +402,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionSnapshotTrade("SPY", "20250321", "*", "both", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionSnapshotTrade("SPY", "20250321", "*", "both", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_snapshot_trade", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_trade::with_strike_range
@@ -433,7 +438,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionSnapshotQuote("SPY", "20250321", "*", "both", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionSnapshotQuote("SPY", "20250321", "*", "both", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_snapshot_quote", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_quote::all_exps_one_strike
@@ -447,7 +452,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
-		v, e := c.OptionSnapshotQuote("SPY", "*", "*", "both", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionSnapshotQuote("SPY", "*", "*", "both", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_snapshot_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_quote::with_max_dte
@@ -490,7 +495,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionSnapshotOpenInterest("SPY", "20250321", "*", "both", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionSnapshotOpenInterest("SPY", "20250321", "*", "both", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_snapshot_open_interest", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_open_interest::all_exps_one_strike
@@ -504,7 +509,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
-		v, e := c.OptionSnapshotOpenInterest("SPY", "*", "*", "both", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionSnapshotOpenInterest("SPY", "*", "*", "both", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_snapshot_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_open_interest::with_max_dte
@@ -547,7 +552,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionSnapshotMarketValue("SPY", "20250321", "*", "both", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionSnapshotMarketValue("SPY", "20250321", "*", "both", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_snapshot_market_value", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_market_value::all_exps_one_strike
@@ -561,7 +566,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
-		v, e := c.OptionSnapshotMarketValue("SPY", "*", "*", "both", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionSnapshotMarketValue("SPY", "*", "*", "both", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_snapshot_market_value", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_market_value::with_max_dte
@@ -604,7 +609,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "*", "both", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "*", "both", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_snapshot_greeks_implied_volatility", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_implied_volatility::all_exps_one_strike
@@ -618,7 +623,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
-		v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "*", "*", "both", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "*", "*", "both", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_snapshot_greeks_implied_volatility", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_implied_volatility::with_annual_dividend
@@ -703,7 +708,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "*", "both", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "*", "both", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_snapshot_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_all::all_exps_one_strike
@@ -717,7 +722,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
-		v, e := c.OptionSnapshotGreeksAll("SPY", "*", "*", "both", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionSnapshotGreeksAll("SPY", "*", "*", "both", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_snapshot_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_all::with_annual_dividend
@@ -802,7 +807,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "*", "both", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "*", "both", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_snapshot_greeks_first_order", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_first_order::all_exps_one_strike
@@ -816,7 +821,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
-		v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "*", "*", "both", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "*", "*", "both", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_snapshot_greeks_first_order", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_first_order::with_annual_dividend
@@ -901,7 +906,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "*", "both", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "*", "both", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_snapshot_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_second_order::all_exps_one_strike
@@ -915,7 +920,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
-		v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "*", "*", "both", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "*", "*", "both", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_snapshot_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_second_order::with_annual_dividend
@@ -1000,7 +1005,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "*", "both", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "*", "both", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_snapshot_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_third_order::all_exps_one_strike
@@ -1014,7 +1019,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
-		v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "*", "*", "both", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "*", "*", "both", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_snapshot_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_third_order::with_annual_dividend
@@ -1099,7 +1104,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryEOD("SPY", "20250321", "*", "both", "20250303", "20250303", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryEOD("SPY", "20250321", "*", "both", "20250303", "20250303", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_eod", "all_strikes_one_exp", "free", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_eod::all_exps_one_strike
@@ -1113,7 +1118,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryEOD("SPY", "*", "*", "both", "20250303", "20250303", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryEOD("SPY", "*", "*", "both", "20250303", "20250303", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_eod", "bulk_chain", "free", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_eod::with_max_dte
@@ -1149,7 +1154,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryOHLC("SPY", "20250321", "*", "both", "20250303", "60000", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryOHLC("SPY", "20250321", "*", "both", "20250303", "60000", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_ohlc", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_ohlc::with_intraday_window
@@ -1192,7 +1197,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryTrade("SPY", "20250321", "*", "both", "20250303", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryTrade("SPY", "20250321", "*", "both", "20250303", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_trade", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade::all_exps_one_strike
@@ -1206,7 +1211,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryTrade("SPY", "*", "*", "both", "20250303", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryTrade("SPY", "*", "*", "both", "20250303", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade::with_intraday_window
@@ -1256,7 +1261,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryQuote("SPY", "20250321", "*", "both", "20250303", "60000", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryQuote("SPY", "20250321", "*", "both", "20250303", "60000", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_quote", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_quote::all_exps_one_strike
@@ -1270,7 +1275,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryQuote("SPY", "*", "*", "both", "20250303", "60000", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryQuote("SPY", "*", "*", "both", "20250303", "60000", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_quote::with_intraday_window
@@ -1320,7 +1325,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryTradeQuote("SPY", "20250321", "*", "both", "20250303", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryTradeQuote("SPY", "20250321", "*", "both", "20250303", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_trade_quote", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_quote::all_exps_one_strike
@@ -1334,7 +1339,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryTradeQuote("SPY", "*", "*", "both", "20250303", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryTradeQuote("SPY", "*", "*", "both", "20250303", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_trade_quote", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_quote::with_intraday_window
@@ -1391,7 +1396,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryOpenInterest("SPY", "20250321", "*", "both", "20250303", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryOpenInterest("SPY", "20250321", "*", "both", "20250303", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_open_interest", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_open_interest::all_exps_one_strike
@@ -1405,7 +1410,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryOpenInterest("SPY", "*", "*", "both", "20250303", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryOpenInterest("SPY", "*", "*", "both", "20250303", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_open_interest::with_date_range
@@ -1448,7 +1453,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "*", "both", "20250303", "20250303", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "*", "both", "20250303", "20250303", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_greeks_eod", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_greeks_eod::all_exps_one_strike
@@ -1462,7 +1467,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryGreeksEOD("SPY", "*", "*", "both", "20250303", "20250303", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryGreeksEOD("SPY", "*", "*", "both", "20250303", "20250303", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_greeks_eod", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_greeks_eod::with_annual_dividend
@@ -1533,7 +1538,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "*", "both", "20250303", "60000", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "*", "both", "20250303", "60000", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_greeks_all::with_intraday_window
@@ -1604,7 +1609,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "*", "both", "20250303", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "*", "both", "20250303", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_trade_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_all::all_exps_one_strike
@@ -1618,7 +1623,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryTradeGreeksAll("SPY", "*", "*", "both", "20250303", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryTradeGreeksAll("SPY", "*", "*", "both", "20250303", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_trade_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_all::with_intraday_window
@@ -1696,7 +1701,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "*", "both", "20250303", "60000", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "*", "both", "20250303", "60000", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_greeks_first_order", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_greeks_first_order::with_intraday_window
@@ -1767,7 +1772,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "*", "both", "20250303", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "*", "both", "20250303", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_trade_greeks_first_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_first_order::all_exps_one_strike
@@ -1781,7 +1786,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "*", "*", "both", "20250303", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "*", "*", "both", "20250303", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_trade_greeks_first_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_first_order::with_intraday_window
@@ -1859,7 +1864,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "*", "both", "20250303", "60000", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "*", "both", "20250303", "60000", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_greeks_second_order::with_intraday_window
@@ -1930,7 +1935,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "*", "both", "20250303", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "*", "both", "20250303", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_trade_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_second_order::all_exps_one_strike
@@ -1944,7 +1949,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "*", "*", "both", "20250303", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "*", "*", "both", "20250303", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_trade_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_second_order::with_intraday_window
@@ -2022,7 +2027,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "*", "both", "20250303", "60000", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "*", "both", "20250303", "60000", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_greeks_third_order::with_intraday_window
@@ -2093,7 +2098,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "*", "both", "20250303", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "*", "both", "20250303", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_trade_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_third_order::all_exps_one_strike
@@ -2107,7 +2112,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "*", "*", "both", "20250303", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "*", "*", "both", "20250303", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_trade_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_third_order::with_intraday_window
@@ -2185,7 +2190,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "*", "both", "20250303", "60000", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "*", "both", "20250303", "60000", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_greeks_implied_volatility", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_greeks_implied_volatility::with_intraday_window
@@ -2256,7 +2261,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "*", "both", "20250303", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "*", "both", "20250303", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_trade_greeks_implied_volatility", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_implied_volatility::all_exps_one_strike
@@ -2270,7 +2275,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
-		v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "*", "*", "both", "20250303", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "*", "*", "both", "20250303", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_history_trade_greeks_implied_volatility", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_implied_volatility::with_intraday_window
@@ -2348,7 +2353,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionAtTimeTrade("SPY", "20250321", "*", "both", "20250303", "20250303", "12:00:00.000", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionAtTimeTrade("SPY", "20250321", "*", "both", "20250303", "20250303", "12:00:00.000", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_at_time_trade", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_at_time_trade::all_exps_one_strike
@@ -2362,7 +2367,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
-		v, e := c.OptionAtTimeTrade("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionAtTimeTrade("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_at_time_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_at_time_trade::with_max_dte
@@ -2398,7 +2403,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
 	{
 		t0 := time.Now()
-		v, e := c.OptionAtTimeQuote("SPY", "20250321", "*", "both", "20250303", "20250303", "12:00:00.000", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionAtTimeQuote("SPY", "20250321", "*", "both", "20250303", "20250303", "12:00:00.000", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_at_time_quote", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_at_time_quote::all_exps_one_strike
@@ -2412,7 +2417,7 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
 	{
 		t0 := time.Now()
-		v, e := c.OptionAtTimeQuote("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000", WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.OptionAtTimeQuote("SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000", WithTimeoutMs(slowModeTimeoutMs))
 		records = classify("option_at_time_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_at_time_quote::with_max_dte
@@ -2623,10 +2628,11 @@ func classify(endpoint, mode, declaredMinTier, rationale string, v interface{}, 
 	// Per-call deadline elapsed: SDK cancelled the in-flight gRPC stream
 	// (the next cell runs normally on the same *Client).
 	if strings.Contains(lowered, "request deadline exceeded") {
-		fmt.Printf("  %-60s FAIL  timeout after 60s\n", label)
+		secs := int(dur / time.Second)
+		fmt.Printf("  %-60s FAIL  timeout after %ds\n", label, secs)
 		*fail++
 		rec.Status = "FAIL"
-		rec.Detail = "timeout after 60s"
+		rec.Detail = fmt.Sprintf("timeout after %ds", secs)
 		rec.RowCount = 0
 		return append(records, rec)
 	}

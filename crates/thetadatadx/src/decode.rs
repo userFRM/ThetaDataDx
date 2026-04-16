@@ -536,36 +536,6 @@ pub(crate) fn row_price_f64(
     }
 }
 
-/// Decode an `f64`-valued cell.
-///
-/// Accepts `Number(n)` only (greeks, IV, interest rates). `NullValue` returns
-/// `Ok(None)`. Float-as-Price decoding is deliberately kept in [`row_price_f64`]
-/// so that this helper fails loudly when a greek column is served as a `Price`
-/// cell against schema.
-///
-/// # Errors
-///
-/// Errors on non-`Number` / non-null cells or missing cells.
-// Reason: market-data i64 values are within f64 mantissa range.
-#[allow(clippy::cast_precision_loss)]
-pub(crate) fn row_float(
-    row: &proto::DataValueList,
-    idx: usize,
-) -> Result<Option<f64>, DecodeError> {
-    let Some(dv) = row.values.get(idx) else {
-        return Err(DecodeError::MissingCell { column: idx });
-    };
-    match dv.data_type.as_ref() {
-        Some(proto::data_value::DataType::Number(n)) => Ok(Some(*n as f64)),
-        Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
-        other => Err(DecodeError::TypeMismatch {
-            column: idx,
-            expected: "Number",
-            observed: observed_name(other),
-        }),
-    }
-}
-
 /// Decode a text-valued cell.
 ///
 /// `Text(s)` → `Ok(Some(s))`, `NullValue` → `Ok(None)`.
@@ -1070,22 +1040,6 @@ mod tests {
         let epoch_ms: u64 = 1_775_050_200_000; // 2026-04-01 09:30 ET
         let row = row_of(vec![dv_timestamp(epoch_ms)]);
         assert_eq!(row_number(&row, 0).unwrap(), Some(34_200_000));
-    }
-
-    #[test]
-    fn row_float_errors_on_price_cell() {
-        // f64 columns (greeks, IV) must NOT silently accept Price cells;
-        // if a server sends a Price for a Number-declared column it's a
-        // schema drift we want to catch, not coalesce.
-        let row = row_of(vec![dv_price(12345, 10)]);
-        assert_eq!(
-            row_float(&row, 0),
-            Err(DecodeError::TypeMismatch {
-                column: 0,
-                expected: "Number",
-                observed: "Price",
-            })
-        );
     }
 
     #[test]
@@ -1599,5 +1553,48 @@ mod tests {
                 observed: "Unset",
             }
         );
+    }
+
+    #[test]
+    fn parse_greeks_ticks_decodes_price_encoded_greeks() {
+        // Regression: v7.2.0 strict decode rejected Price cells for Greek
+        // columns, but the v3 MDDS server sends Greeks as Price-encoded
+        // values (mirroring Java's `dataValue2Object` -> BigDecimal path).
+        // Live run #24520486541 on main surfaced this as
+        //   "column 13: expected Number, got Price"
+        // on `option_snapshot_greeks_first_order::bulk_chain` and peers.
+        // Pin Price-cell decoding for both IV and a Greek so a future
+        // strict-Number tightening can't re-break it silently.
+        let table = proto::DataTable {
+            headers: vec![
+                "ms_of_day".into(),
+                "implied_volatility".into(),
+                "delta".into(),
+            ],
+            data_table: vec![row_of(vec![
+                dv_number(34_200_000),
+                // IV = 0.1234 encoded with price_type = 6 (value * 10^-4).
+                dv_price(1234, 6),
+                // Delta = 0.5 encoded with price_type = 9 (value * 10^-1).
+                dv_price(5, 9),
+            ])],
+        };
+        let ticks = parse_greeks_ticks(&table).unwrap();
+        assert_eq!(ticks.len(), 1);
+        assert!((ticks[0].implied_volatility - 0.1234).abs() < 1e-10);
+        assert!((ticks[0].delta - 0.5).abs() < 1e-10);
+    }
+
+    #[test]
+    fn parse_greeks_ticks_still_decodes_number_cells() {
+        // Companion to the Price-cell regression test: Number cells must
+        // still decode, matching Java's dispatch-on-wire-type semantics.
+        let table = proto::DataTable {
+            headers: vec!["ms_of_day".into(), "implied_volatility".into()],
+            data_table: vec![row_of(vec![dv_number(34_200_000), dv_number(0)])],
+        };
+        let ticks = parse_greeks_ticks(&table).unwrap();
+        assert_eq!(ticks.len(), 1);
+        assert!(ticks[0].implied_volatility.abs() < 1e-10);
     }
 }

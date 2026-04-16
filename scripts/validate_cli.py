@@ -11,12 +11,15 @@ and are classified `SKIP: tier-permission`. Real configuration bugs
 (invalid arguments, wire-format errors) surface as `FAIL`. See issue
 #287.
 
-Each cell is bounded by a 60-second per-call deadline that the CLI
-forwards to the SDK via `--timeout-ms 60000` (W3). On expiry the SDK
-cancels the in-flight gRPC stream and the subprocess exits cleanly with
-an error containing "Request deadline exceeded". A 90-second subprocess
-timeout remains as a safety net in case the SDK itself wedges (it
-shouldn't), in which case the OS reaps the child via SIGKILL.
+Each cell is bounded by a per-call deadline that the CLI forwards to the
+SDK via `--timeout-ms` (W3). Concrete and list-style cells get the
+60-second baseline; bulk cells flagged `slow=True` (`all_strikes_one_exp`,
+`bulk_chain` on option history / at-time endpoints) get 180 seconds
+because a full-chain payload legitimately takes longer than a minute.
+On expiry the SDK cancels the in-flight gRPC stream and the subprocess
+exits cleanly with an error containing "Request deadline exceeded". The
+subprocess kill-switch remains as a safety net in case the SDK itself
+wedges (it shouldn't), in which case the OS reaps the child via SIGKILL.
 See issues #287, #290.
 """
 from __future__ import annotations
@@ -29,423 +32,426 @@ import sys
 import time
 
 PER_CELL_TIMEOUT_MS = 60_000
-# Subprocess kill-switch one-and-a-half times the SDK budget. Triggers
-# only if the SDK itself wedges past its own deadline (it shouldn't);
-# the OS reaps the child via SIGKILL on expiry.
-SUBPROCESS_KILL_SECS = (PER_CELL_TIMEOUT_MS * 3) // 2000
+SLOW_MODE_TIMEOUT_MS = 180_000
+# Subprocess kill-switch one-and-a-half times the slowest SDK budget.
+# Triggers only if the SDK itself wedges past its own deadline (it
+# shouldn't); the OS reaps the child via SIGKILL on expiry.
+SUBPROCESS_KILL_SECS = (SLOW_MODE_TIMEOUT_MS * 3) // 2000
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 TDX = REPO / "target" / "release" / ("tdx.exe" if os.name == "nt" else "tdx")
 ARTIFACT_PATH = REPO / "artifacts" / "validator_cli.json"
 
-# (endpoint, mode_name, declared_min_tier, rationale, [argv...])
+# (endpoint, mode_name, declared_min_tier, rationale, [argv...], slow)
 # `declared_min_tier` is informational only (printed on tier-permission
 # skips so you can see which modes the server refused). `rationale` is a
 # one-sentence description of what the cell proves; surfaces in the
 # per-cell JSON artifact and in scripts/validate_agreement.py output.
+# `slow` selects `SLOW_MODE_TIMEOUT_MS` over `PER_CELL_TIMEOUT_MS` for
+# bulk-chain / all-strike cells whose payload doesn't fit in 60s.
 CELLS = [
     # stock_list_symbols::basic
     #   rationale: list/calendar/rate baseline call — no parameter variation
-    ("stock_list_symbols", "basic", "free", "list/calendar/rate baseline call — no parameter variation", ["stock", "list_symbols"]),
+    ("stock_list_symbols", "basic", "free", "list/calendar/rate baseline call — no parameter variation", ["stock", "list_symbols"], False),
     # stock_list_dates::basic
     #   rationale: list/calendar/rate baseline call — no parameter variation
-    ("stock_list_dates", "basic", "free", "list/calendar/rate baseline call — no parameter variation", ["stock", "list_dates", "TRADE", "AAPL"]),
+    ("stock_list_dates", "basic", "free", "list/calendar/rate baseline call — no parameter variation", ["stock", "list_dates", "TRADE", "AAPL"], False),
     # stock_snapshot_ohlc::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("stock_snapshot_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", ["stock", "snapshot_ohlc", "AAPL"]),
+    ("stock_snapshot_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", ["stock", "snapshot_ohlc", "AAPL"], False),
     # stock_snapshot_trade::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("stock_snapshot_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", ["stock", "snapshot_trade", "AAPL"]),
+    ("stock_snapshot_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", ["stock", "snapshot_trade", "AAPL"], False),
     # stock_snapshot_quote::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("stock_snapshot_quote", "concrete", "value", "required params set, no optionals — baseline wire path", ["stock", "snapshot_quote", "AAPL"]),
+    ("stock_snapshot_quote", "concrete", "value", "required params set, no optionals — baseline wire path", ["stock", "snapshot_quote", "AAPL"], False),
     # stock_snapshot_market_value::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("stock_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path", ["stock", "snapshot_market_value", "AAPL"]),
+    ("stock_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path", ["stock", "snapshot_market_value", "AAPL"], False),
     # stock_history_eod::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("stock_history_eod", "concrete", "free", "required params set, no optionals — baseline wire path", ["stock", "history_eod", "AAPL", "20250303", "20250303"]),
+    ("stock_history_eod", "concrete", "free", "required params set, no optionals — baseline wire path", ["stock", "history_eod", "AAPL", "20250303", "20250303"], False),
     # stock_history_ohlc::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("stock_history_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", ["stock", "history_ohlc", "AAPL", "20250303", "60000"]),
+    ("stock_history_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", ["stock", "history_ohlc", "AAPL", "20250303", "60000"], False),
     # stock_history_trade::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("stock_history_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", ["stock", "history_trade", "AAPL", "20250303"]),
+    ("stock_history_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", ["stock", "history_trade", "AAPL", "20250303"], False),
     # stock_history_quote::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("stock_history_quote", "concrete", "value", "required params set, no optionals — baseline wire path", ["stock", "history_quote", "AAPL", "20250303", "60000"]),
+    ("stock_history_quote", "concrete", "value", "required params set, no optionals — baseline wire path", ["stock", "history_quote", "AAPL", "20250303", "60000"], False),
     # stock_history_trade_quote::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("stock_history_trade_quote", "concrete", "standard", "required params set, no optionals — baseline wire path", ["stock", "history_trade_quote", "AAPL", "20250303"]),
+    ("stock_history_trade_quote", "concrete", "standard", "required params set, no optionals — baseline wire path", ["stock", "history_trade_quote", "AAPL", "20250303"], False),
     # stock_at_time_trade::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("stock_at_time_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", ["stock", "at_time_trade", "AAPL", "20250303", "20250303", "12:00:00.000"]),
+    ("stock_at_time_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", ["stock", "at_time_trade", "AAPL", "20250303", "20250303", "12:00:00.000"], False),
     # stock_at_time_quote::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("stock_at_time_quote", "concrete", "value", "required params set, no optionals — baseline wire path", ["stock", "at_time_quote", "AAPL", "20250303", "20250303", "12:00:00.000"]),
+    ("stock_at_time_quote", "concrete", "value", "required params set, no optionals — baseline wire path", ["stock", "at_time_quote", "AAPL", "20250303", "20250303", "12:00:00.000"], False),
     # option_list_symbols::basic
     #   rationale: list/calendar/rate baseline call — no parameter variation
-    ("option_list_symbols", "basic", "free", "list/calendar/rate baseline call — no parameter variation", ["option", "list_symbols"]),
+    ("option_list_symbols", "basic", "free", "list/calendar/rate baseline call — no parameter variation", ["option", "list_symbols"], False),
     # option_list_dates::basic
     #   rationale: list/calendar/rate baseline call — no parameter variation
-    ("option_list_dates", "basic", "free", "list/calendar/rate baseline call — no parameter variation", ["option", "list_dates", "TRADE", "SPY", "20250321", "570", "C"]),
+    ("option_list_dates", "basic", "free", "list/calendar/rate baseline call — no parameter variation", ["option", "list_dates", "TRADE", "SPY", "20250321", "570", "C"], False),
     # option_list_expirations::basic
     #   rationale: list/calendar/rate baseline call — no parameter variation
-    ("option_list_expirations", "basic", "free", "list/calendar/rate baseline call — no parameter variation", ["option", "list_expirations", "SPY"]),
+    ("option_list_expirations", "basic", "free", "list/calendar/rate baseline call — no parameter variation", ["option", "list_expirations", "SPY"], False),
     # option_list_strikes::basic
     #   rationale: list/calendar/rate baseline call — no parameter variation
-    ("option_list_strikes", "basic", "free", "list/calendar/rate baseline call — no parameter variation", ["option", "list_strikes", "SPY", "20250321"]),
+    ("option_list_strikes", "basic", "free", "list/calendar/rate baseline call — no parameter variation", ["option", "list_strikes", "SPY", "20250321"], False),
     # option_list_contracts::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_list_contracts", "concrete", "value", "required params set, no optionals — baseline wire path", ["option", "list_contracts", "TRADE", "SPY", "20250303"]),
+    ("option_list_contracts", "concrete", "value", "required params set, no optionals — baseline wire path", ["option", "list_contracts", "TRADE", "SPY", "20250303"], False),
     # option_snapshot_ohlc::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_snapshot_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", ["option", "snapshot_ohlc", "SPY", "20250321", "570", "C"]),
+    ("option_snapshot_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", ["option", "snapshot_ohlc", "SPY", "20250321", "570", "C"], False),
     # option_snapshot_ohlc::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_snapshot_ohlc", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "snapshot_ohlc", "SPY", "20250321", "*", "both"]),
+    ("option_snapshot_ohlc", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "snapshot_ohlc", "SPY", "20250321", "*", "both"], True),
     # option_snapshot_ohlc::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_snapshot_ohlc", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "snapshot_ohlc", "SPY", "*", "570", "both"]),
+    ("option_snapshot_ohlc", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "snapshot_ohlc", "SPY", "*", "570", "both"], False),
     # option_snapshot_ohlc::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_snapshot_ohlc", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "snapshot_ohlc", "SPY", "*", "*", "both"]),
+    ("option_snapshot_ohlc", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "snapshot_ohlc", "SPY", "*", "*", "both"], True),
     # option_snapshot_trade::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_snapshot_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", ["option", "snapshot_trade", "SPY", "20250321", "570", "C"]),
+    ("option_snapshot_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", ["option", "snapshot_trade", "SPY", "20250321", "570", "C"], False),
     # option_snapshot_trade::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_snapshot_trade", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "snapshot_trade", "SPY", "20250321", "*", "both"]),
+    ("option_snapshot_trade", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "snapshot_trade", "SPY", "20250321", "*", "both"], True),
     # option_snapshot_quote::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_snapshot_quote", "concrete", "value", "required params set, no optionals — baseline wire path", ["option", "snapshot_quote", "SPY", "20250321", "570", "C"]),
+    ("option_snapshot_quote", "concrete", "value", "required params set, no optionals — baseline wire path", ["option", "snapshot_quote", "SPY", "20250321", "570", "C"], False),
     # option_snapshot_quote::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_snapshot_quote", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "snapshot_quote", "SPY", "20250321", "*", "both"]),
+    ("option_snapshot_quote", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "snapshot_quote", "SPY", "20250321", "*", "both"], True),
     # option_snapshot_quote::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_snapshot_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "snapshot_quote", "SPY", "*", "570", "both"]),
+    ("option_snapshot_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "snapshot_quote", "SPY", "*", "570", "both"], False),
     # option_snapshot_quote::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_snapshot_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "snapshot_quote", "SPY", "*", "*", "both"]),
+    ("option_snapshot_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "snapshot_quote", "SPY", "*", "*", "both"], True),
     # option_snapshot_open_interest::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_snapshot_open_interest", "concrete", "value", "required params set, no optionals — baseline wire path", ["option", "snapshot_open_interest", "SPY", "20250321", "570", "C"]),
+    ("option_snapshot_open_interest", "concrete", "value", "required params set, no optionals — baseline wire path", ["option", "snapshot_open_interest", "SPY", "20250321", "570", "C"], False),
     # option_snapshot_open_interest::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_snapshot_open_interest", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "snapshot_open_interest", "SPY", "20250321", "*", "both"]),
+    ("option_snapshot_open_interest", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "snapshot_open_interest", "SPY", "20250321", "*", "both"], True),
     # option_snapshot_open_interest::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_snapshot_open_interest", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "snapshot_open_interest", "SPY", "*", "570", "both"]),
+    ("option_snapshot_open_interest", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "snapshot_open_interest", "SPY", "*", "570", "both"], False),
     # option_snapshot_open_interest::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_snapshot_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "snapshot_open_interest", "SPY", "*", "*", "both"]),
+    ("option_snapshot_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "snapshot_open_interest", "SPY", "*", "*", "both"], True),
     # option_snapshot_market_value::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path", ["option", "snapshot_market_value", "SPY", "20250321", "570", "C"]),
+    ("option_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path", ["option", "snapshot_market_value", "SPY", "20250321", "570", "C"], False),
     # option_snapshot_market_value::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_snapshot_market_value", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "snapshot_market_value", "SPY", "20250321", "*", "both"]),
+    ("option_snapshot_market_value", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "snapshot_market_value", "SPY", "20250321", "*", "both"], True),
     # option_snapshot_market_value::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_snapshot_market_value", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "snapshot_market_value", "SPY", "*", "570", "both"]),
+    ("option_snapshot_market_value", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "snapshot_market_value", "SPY", "*", "570", "both"], False),
     # option_snapshot_market_value::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_snapshot_market_value", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "snapshot_market_value", "SPY", "*", "*", "both"]),
+    ("option_snapshot_market_value", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "snapshot_market_value", "SPY", "*", "*", "both"], True),
     # option_snapshot_greeks_implied_volatility::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_snapshot_greeks_implied_volatility", "concrete", "standard", "required params set, no optionals — baseline wire path", ["option", "snapshot_greeks_implied_volatility", "SPY", "20250321", "570", "C"]),
+    ("option_snapshot_greeks_implied_volatility", "concrete", "standard", "required params set, no optionals — baseline wire path", ["option", "snapshot_greeks_implied_volatility", "SPY", "20250321", "570", "C"], False),
     # option_snapshot_greeks_implied_volatility::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_snapshot_greeks_implied_volatility", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "snapshot_greeks_implied_volatility", "SPY", "20250321", "*", "both"]),
+    ("option_snapshot_greeks_implied_volatility", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "snapshot_greeks_implied_volatility", "SPY", "20250321", "*", "both"], True),
     # option_snapshot_greeks_implied_volatility::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_snapshot_greeks_implied_volatility", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "snapshot_greeks_implied_volatility", "SPY", "*", "570", "both"]),
+    ("option_snapshot_greeks_implied_volatility", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "snapshot_greeks_implied_volatility", "SPY", "*", "570", "both"], False),
     # option_snapshot_greeks_implied_volatility::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_snapshot_greeks_implied_volatility", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "snapshot_greeks_implied_volatility", "SPY", "*", "*", "both"]),
+    ("option_snapshot_greeks_implied_volatility", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "snapshot_greeks_implied_volatility", "SPY", "*", "*", "both"], True),
     # option_snapshot_greeks_all::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_snapshot_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path", ["option", "snapshot_greeks_all", "SPY", "20250321", "570", "C"]),
+    ("option_snapshot_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path", ["option", "snapshot_greeks_all", "SPY", "20250321", "570", "C"], False),
     # option_snapshot_greeks_all::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_snapshot_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "snapshot_greeks_all", "SPY", "20250321", "*", "both"]),
+    ("option_snapshot_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "snapshot_greeks_all", "SPY", "20250321", "*", "both"], True),
     # option_snapshot_greeks_all::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_snapshot_greeks_all", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "snapshot_greeks_all", "SPY", "*", "570", "both"]),
+    ("option_snapshot_greeks_all", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "snapshot_greeks_all", "SPY", "*", "570", "both"], False),
     # option_snapshot_greeks_all::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_snapshot_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "snapshot_greeks_all", "SPY", "*", "*", "both"]),
+    ("option_snapshot_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "snapshot_greeks_all", "SPY", "*", "*", "both"], True),
     # option_snapshot_greeks_first_order::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_snapshot_greeks_first_order", "concrete", "standard", "required params set, no optionals — baseline wire path", ["option", "snapshot_greeks_first_order", "SPY", "20250321", "570", "C"]),
+    ("option_snapshot_greeks_first_order", "concrete", "standard", "required params set, no optionals — baseline wire path", ["option", "snapshot_greeks_first_order", "SPY", "20250321", "570", "C"], False),
     # option_snapshot_greeks_first_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_snapshot_greeks_first_order", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "snapshot_greeks_first_order", "SPY", "20250321", "*", "both"]),
+    ("option_snapshot_greeks_first_order", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "snapshot_greeks_first_order", "SPY", "20250321", "*", "both"], True),
     # option_snapshot_greeks_first_order::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_snapshot_greeks_first_order", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "snapshot_greeks_first_order", "SPY", "*", "570", "both"]),
+    ("option_snapshot_greeks_first_order", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "snapshot_greeks_first_order", "SPY", "*", "570", "both"], False),
     # option_snapshot_greeks_first_order::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_snapshot_greeks_first_order", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "snapshot_greeks_first_order", "SPY", "*", "*", "both"]),
+    ("option_snapshot_greeks_first_order", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "snapshot_greeks_first_order", "SPY", "*", "*", "both"], True),
     # option_snapshot_greeks_second_order::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_snapshot_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path", ["option", "snapshot_greeks_second_order", "SPY", "20250321", "570", "C"]),
+    ("option_snapshot_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path", ["option", "snapshot_greeks_second_order", "SPY", "20250321", "570", "C"], False),
     # option_snapshot_greeks_second_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_snapshot_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "snapshot_greeks_second_order", "SPY", "20250321", "*", "both"]),
+    ("option_snapshot_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "snapshot_greeks_second_order", "SPY", "20250321", "*", "both"], True),
     # option_snapshot_greeks_second_order::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_snapshot_greeks_second_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "snapshot_greeks_second_order", "SPY", "*", "570", "both"]),
+    ("option_snapshot_greeks_second_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "snapshot_greeks_second_order", "SPY", "*", "570", "both"], False),
     # option_snapshot_greeks_second_order::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_snapshot_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "snapshot_greeks_second_order", "SPY", "*", "*", "both"]),
+    ("option_snapshot_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "snapshot_greeks_second_order", "SPY", "*", "*", "both"], True),
     # option_snapshot_greeks_third_order::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_snapshot_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path", ["option", "snapshot_greeks_third_order", "SPY", "20250321", "570", "C"]),
+    ("option_snapshot_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path", ["option", "snapshot_greeks_third_order", "SPY", "20250321", "570", "C"], False),
     # option_snapshot_greeks_third_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_snapshot_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "snapshot_greeks_third_order", "SPY", "20250321", "*", "both"]),
+    ("option_snapshot_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "snapshot_greeks_third_order", "SPY", "20250321", "*", "both"], True),
     # option_snapshot_greeks_third_order::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_snapshot_greeks_third_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "snapshot_greeks_third_order", "SPY", "*", "570", "both"]),
+    ("option_snapshot_greeks_third_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "snapshot_greeks_third_order", "SPY", "*", "570", "both"], False),
     # option_snapshot_greeks_third_order::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_snapshot_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "snapshot_greeks_third_order", "SPY", "*", "*", "both"]),
+    ("option_snapshot_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "snapshot_greeks_third_order", "SPY", "*", "*", "both"], True),
     # option_history_eod::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_eod", "concrete", "free", "required params set, no optionals — baseline wire path", ["option", "history_eod", "SPY", "20250321", "570", "C", "20250303", "20250303"]),
+    ("option_history_eod", "concrete", "free", "required params set, no optionals — baseline wire path", ["option", "history_eod", "SPY", "20250321", "570", "C", "20250303", "20250303"], False),
     # option_history_eod::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_eod", "all_strikes_one_exp", "free", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_eod", "SPY", "20250321", "*", "both", "20250303", "20250303"]),
+    ("option_history_eod", "all_strikes_one_exp", "free", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_eod", "SPY", "20250321", "*", "both", "20250303", "20250303"], True),
     # option_history_eod::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_history_eod", "all_exps_one_strike", "free", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "history_eod", "SPY", "*", "570", "both", "20250303", "20250303"]),
+    ("option_history_eod", "all_exps_one_strike", "free", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "history_eod", "SPY", "*", "570", "both", "20250303", "20250303"], False),
     # option_history_eod::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_history_eod", "bulk_chain", "free", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "history_eod", "SPY", "*", "*", "both", "20250303", "20250303"]),
+    ("option_history_eod", "bulk_chain", "free", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "history_eod", "SPY", "*", "*", "both", "20250303", "20250303"], True),
     # option_history_ohlc::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", ["option", "history_ohlc", "SPY", "20250321", "570", "C", "20250303", "60000"]),
+    ("option_history_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", ["option", "history_ohlc", "SPY", "20250321", "570", "C", "20250303", "60000"], False),
     # option_history_ohlc::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_ohlc", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_ohlc", "SPY", "20250321", "*", "both", "20250303", "60000"]),
+    ("option_history_ohlc", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_ohlc", "SPY", "20250321", "*", "both", "20250303", "60000"], True),
     # option_history_trade::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", ["option", "history_trade", "SPY", "20250321", "570", "C", "20250303"]),
+    ("option_history_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", ["option", "history_trade", "SPY", "20250321", "570", "C", "20250303"], False),
     # option_history_trade::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_trade", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_trade", "SPY", "20250321", "*", "both", "20250303"]),
+    ("option_history_trade", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_trade", "SPY", "20250321", "*", "both", "20250303"], True),
     # option_history_trade::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_history_trade", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "history_trade", "SPY", "*", "570", "both", "20250303"]),
+    ("option_history_trade", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "history_trade", "SPY", "*", "570", "both", "20250303"], False),
     # option_history_trade::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_history_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "history_trade", "SPY", "*", "*", "both", "20250303"]),
+    ("option_history_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "history_trade", "SPY", "*", "*", "both", "20250303"], True),
     # option_history_quote::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_quote", "concrete", "value", "required params set, no optionals — baseline wire path", ["option", "history_quote", "SPY", "20250321", "570", "C", "20250303", "60000"]),
+    ("option_history_quote", "concrete", "value", "required params set, no optionals — baseline wire path", ["option", "history_quote", "SPY", "20250321", "570", "C", "20250303", "60000"], False),
     # option_history_quote::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_quote", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_quote", "SPY", "20250321", "*", "both", "20250303", "60000"]),
+    ("option_history_quote", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_quote", "SPY", "20250321", "*", "both", "20250303", "60000"], True),
     # option_history_quote::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_history_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "history_quote", "SPY", "*", "570", "both", "20250303", "60000"]),
+    ("option_history_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "history_quote", "SPY", "*", "570", "both", "20250303", "60000"], False),
     # option_history_quote::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_history_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "history_quote", "SPY", "*", "*", "both", "20250303", "60000"]),
+    ("option_history_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "history_quote", "SPY", "*", "*", "both", "20250303", "60000"], True),
     # option_history_trade_quote::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_trade_quote", "concrete", "standard", "required params set, no optionals — baseline wire path", ["option", "history_trade_quote", "SPY", "20250321", "570", "C", "20250303"]),
+    ("option_history_trade_quote", "concrete", "standard", "required params set, no optionals — baseline wire path", ["option", "history_trade_quote", "SPY", "20250321", "570", "C", "20250303"], False),
     # option_history_trade_quote::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_trade_quote", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_trade_quote", "SPY", "20250321", "*", "both", "20250303"]),
+    ("option_history_trade_quote", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_trade_quote", "SPY", "20250321", "*", "both", "20250303"], True),
     # option_history_trade_quote::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_history_trade_quote", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "history_trade_quote", "SPY", "*", "570", "both", "20250303"]),
+    ("option_history_trade_quote", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "history_trade_quote", "SPY", "*", "570", "both", "20250303"], False),
     # option_history_trade_quote::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_history_trade_quote", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "history_trade_quote", "SPY", "*", "*", "both", "20250303"]),
+    ("option_history_trade_quote", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "history_trade_quote", "SPY", "*", "*", "both", "20250303"], True),
     # option_history_open_interest::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_open_interest", "concrete", "value", "required params set, no optionals — baseline wire path", ["option", "history_open_interest", "SPY", "20250321", "570", "C", "20250303"]),
+    ("option_history_open_interest", "concrete", "value", "required params set, no optionals — baseline wire path", ["option", "history_open_interest", "SPY", "20250321", "570", "C", "20250303"], False),
     # option_history_open_interest::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_open_interest", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_open_interest", "SPY", "20250321", "*", "both", "20250303"]),
+    ("option_history_open_interest", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_open_interest", "SPY", "20250321", "*", "both", "20250303"], True),
     # option_history_open_interest::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_history_open_interest", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "history_open_interest", "SPY", "*", "570", "both", "20250303"]),
+    ("option_history_open_interest", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "history_open_interest", "SPY", "*", "570", "both", "20250303"], False),
     # option_history_open_interest::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_history_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "history_open_interest", "SPY", "*", "*", "both", "20250303"]),
+    ("option_history_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "history_open_interest", "SPY", "*", "*", "both", "20250303"], True),
     # option_history_greeks_eod::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_greeks_eod", "concrete", "standard", "required params set, no optionals — baseline wire path", ["option", "history_greeks_eod", "SPY", "20250321", "570", "C", "20250303", "20250303"]),
+    ("option_history_greeks_eod", "concrete", "standard", "required params set, no optionals — baseline wire path", ["option", "history_greeks_eod", "SPY", "20250321", "570", "C", "20250303", "20250303"], False),
     # option_history_greeks_eod::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_greeks_eod", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_greeks_eod", "SPY", "20250321", "*", "both", "20250303", "20250303"]),
+    ("option_history_greeks_eod", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_greeks_eod", "SPY", "20250321", "*", "both", "20250303", "20250303"], True),
     # option_history_greeks_eod::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_history_greeks_eod", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "history_greeks_eod", "SPY", "*", "570", "both", "20250303", "20250303"]),
+    ("option_history_greeks_eod", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "history_greeks_eod", "SPY", "*", "570", "both", "20250303", "20250303"], False),
     # option_history_greeks_eod::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_history_greeks_eod", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "history_greeks_eod", "SPY", "*", "*", "both", "20250303", "20250303"]),
+    ("option_history_greeks_eod", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "history_greeks_eod", "SPY", "*", "*", "both", "20250303", "20250303"], True),
     # option_history_greeks_all::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path", ["option", "history_greeks_all", "SPY", "20250321", "570", "C", "20250303", "60000"]),
+    ("option_history_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path", ["option", "history_greeks_all", "SPY", "20250321", "570", "C", "20250303", "60000"], False),
     # option_history_greeks_all::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_greeks_all", "SPY", "20250321", "*", "both", "20250303", "60000"]),
+    ("option_history_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_greeks_all", "SPY", "20250321", "*", "both", "20250303", "60000"], True),
     # option_history_trade_greeks_all::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_trade_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path", ["option", "history_trade_greeks_all", "SPY", "20250321", "570", "C", "20250303"]),
+    ("option_history_trade_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path", ["option", "history_trade_greeks_all", "SPY", "20250321", "570", "C", "20250303"], False),
     # option_history_trade_greeks_all::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_trade_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_trade_greeks_all", "SPY", "20250321", "*", "both", "20250303"]),
+    ("option_history_trade_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_trade_greeks_all", "SPY", "20250321", "*", "both", "20250303"], True),
     # option_history_trade_greeks_all::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_history_trade_greeks_all", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "history_trade_greeks_all", "SPY", "*", "570", "both", "20250303"]),
+    ("option_history_trade_greeks_all", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "history_trade_greeks_all", "SPY", "*", "570", "both", "20250303"], False),
     # option_history_trade_greeks_all::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_history_trade_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "history_trade_greeks_all", "SPY", "*", "*", "both", "20250303"]),
+    ("option_history_trade_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "history_trade_greeks_all", "SPY", "*", "*", "both", "20250303"], True),
     # option_history_greeks_first_order::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_greeks_first_order", "concrete", "standard", "required params set, no optionals — baseline wire path", ["option", "history_greeks_first_order", "SPY", "20250321", "570", "C", "20250303", "60000"]),
+    ("option_history_greeks_first_order", "concrete", "standard", "required params set, no optionals — baseline wire path", ["option", "history_greeks_first_order", "SPY", "20250321", "570", "C", "20250303", "60000"], False),
     # option_history_greeks_first_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_greeks_first_order", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_greeks_first_order", "SPY", "20250321", "*", "both", "20250303", "60000"]),
+    ("option_history_greeks_first_order", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_greeks_first_order", "SPY", "20250321", "*", "both", "20250303", "60000"], True),
     # option_history_trade_greeks_first_order::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_trade_greeks_first_order", "concrete", "professional", "required params set, no optionals — baseline wire path", ["option", "history_trade_greeks_first_order", "SPY", "20250321", "570", "C", "20250303"]),
+    ("option_history_trade_greeks_first_order", "concrete", "professional", "required params set, no optionals — baseline wire path", ["option", "history_trade_greeks_first_order", "SPY", "20250321", "570", "C", "20250303"], False),
     # option_history_trade_greeks_first_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_trade_greeks_first_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_trade_greeks_first_order", "SPY", "20250321", "*", "both", "20250303"]),
+    ("option_history_trade_greeks_first_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_trade_greeks_first_order", "SPY", "20250321", "*", "both", "20250303"], True),
     # option_history_trade_greeks_first_order::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_history_trade_greeks_first_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "history_trade_greeks_first_order", "SPY", "*", "570", "both", "20250303"]),
+    ("option_history_trade_greeks_first_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "history_trade_greeks_first_order", "SPY", "*", "570", "both", "20250303"], False),
     # option_history_trade_greeks_first_order::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_history_trade_greeks_first_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "history_trade_greeks_first_order", "SPY", "*", "*", "both", "20250303"]),
+    ("option_history_trade_greeks_first_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "history_trade_greeks_first_order", "SPY", "*", "*", "both", "20250303"], True),
     # option_history_greeks_second_order::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path", ["option", "history_greeks_second_order", "SPY", "20250321", "570", "C", "20250303", "60000"]),
+    ("option_history_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path", ["option", "history_greeks_second_order", "SPY", "20250321", "570", "C", "20250303", "60000"], False),
     # option_history_greeks_second_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_greeks_second_order", "SPY", "20250321", "*", "both", "20250303", "60000"]),
+    ("option_history_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_greeks_second_order", "SPY", "20250321", "*", "both", "20250303", "60000"], True),
     # option_history_trade_greeks_second_order::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_trade_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path", ["option", "history_trade_greeks_second_order", "SPY", "20250321", "570", "C", "20250303"]),
+    ("option_history_trade_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path", ["option", "history_trade_greeks_second_order", "SPY", "20250321", "570", "C", "20250303"], False),
     # option_history_trade_greeks_second_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_trade_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_trade_greeks_second_order", "SPY", "20250321", "*", "both", "20250303"]),
+    ("option_history_trade_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_trade_greeks_second_order", "SPY", "20250321", "*", "both", "20250303"], True),
     # option_history_trade_greeks_second_order::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_history_trade_greeks_second_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "history_trade_greeks_second_order", "SPY", "*", "570", "both", "20250303"]),
+    ("option_history_trade_greeks_second_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "history_trade_greeks_second_order", "SPY", "*", "570", "both", "20250303"], False),
     # option_history_trade_greeks_second_order::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_history_trade_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "history_trade_greeks_second_order", "SPY", "*", "*", "both", "20250303"]),
+    ("option_history_trade_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "history_trade_greeks_second_order", "SPY", "*", "*", "both", "20250303"], True),
     # option_history_greeks_third_order::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path", ["option", "history_greeks_third_order", "SPY", "20250321", "570", "C", "20250303", "60000"]),
+    ("option_history_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path", ["option", "history_greeks_third_order", "SPY", "20250321", "570", "C", "20250303", "60000"], False),
     # option_history_greeks_third_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_greeks_third_order", "SPY", "20250321", "*", "both", "20250303", "60000"]),
+    ("option_history_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_greeks_third_order", "SPY", "20250321", "*", "both", "20250303", "60000"], True),
     # option_history_trade_greeks_third_order::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_trade_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path", ["option", "history_trade_greeks_third_order", "SPY", "20250321", "570", "C", "20250303"]),
+    ("option_history_trade_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path", ["option", "history_trade_greeks_third_order", "SPY", "20250321", "570", "C", "20250303"], False),
     # option_history_trade_greeks_third_order::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_trade_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_trade_greeks_third_order", "SPY", "20250321", "*", "both", "20250303"]),
+    ("option_history_trade_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_trade_greeks_third_order", "SPY", "20250321", "*", "both", "20250303"], True),
     # option_history_trade_greeks_third_order::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_history_trade_greeks_third_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "history_trade_greeks_third_order", "SPY", "*", "570", "both", "20250303"]),
+    ("option_history_trade_greeks_third_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "history_trade_greeks_third_order", "SPY", "*", "570", "both", "20250303"], False),
     # option_history_trade_greeks_third_order::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_history_trade_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "history_trade_greeks_third_order", "SPY", "*", "*", "both", "20250303"]),
+    ("option_history_trade_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "history_trade_greeks_third_order", "SPY", "*", "*", "both", "20250303"], True),
     # option_history_greeks_implied_volatility::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_greeks_implied_volatility", "concrete", "standard", "required params set, no optionals — baseline wire path", ["option", "history_greeks_implied_volatility", "SPY", "20250321", "570", "C", "20250303", "60000"]),
+    ("option_history_greeks_implied_volatility", "concrete", "standard", "required params set, no optionals — baseline wire path", ["option", "history_greeks_implied_volatility", "SPY", "20250321", "570", "C", "20250303", "60000"], False),
     # option_history_greeks_implied_volatility::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_greeks_implied_volatility", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_greeks_implied_volatility", "SPY", "20250321", "*", "both", "20250303", "60000"]),
+    ("option_history_greeks_implied_volatility", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_greeks_implied_volatility", "SPY", "20250321", "*", "both", "20250303", "60000"], True),
     # option_history_trade_greeks_implied_volatility::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_trade_greeks_implied_volatility", "concrete", "professional", "required params set, no optionals — baseline wire path", ["option", "history_trade_greeks_implied_volatility", "SPY", "20250321", "570", "C", "20250303"]),
+    ("option_history_trade_greeks_implied_volatility", "concrete", "professional", "required params set, no optionals — baseline wire path", ["option", "history_trade_greeks_implied_volatility", "SPY", "20250321", "570", "C", "20250303"], False),
     # option_history_trade_greeks_implied_volatility::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_history_trade_greeks_implied_volatility", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_trade_greeks_implied_volatility", "SPY", "20250321", "*", "both", "20250303"]),
+    ("option_history_trade_greeks_implied_volatility", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "history_trade_greeks_implied_volatility", "SPY", "20250321", "*", "both", "20250303"], True),
     # option_history_trade_greeks_implied_volatility::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_history_trade_greeks_implied_volatility", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "history_trade_greeks_implied_volatility", "SPY", "*", "570", "both", "20250303"]),
+    ("option_history_trade_greeks_implied_volatility", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "history_trade_greeks_implied_volatility", "SPY", "*", "570", "both", "20250303"], False),
     # option_history_trade_greeks_implied_volatility::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_history_trade_greeks_implied_volatility", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "history_trade_greeks_implied_volatility", "SPY", "*", "*", "both", "20250303"]),
+    ("option_history_trade_greeks_implied_volatility", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "history_trade_greeks_implied_volatility", "SPY", "*", "*", "both", "20250303"], True),
     # option_at_time_trade::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_at_time_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", ["option", "at_time_trade", "SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000"]),
+    ("option_at_time_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", ["option", "at_time_trade", "SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000"], False),
     # option_at_time_trade::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_at_time_trade", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "at_time_trade", "SPY", "20250321", "*", "both", "20250303", "20250303", "12:00:00.000"]),
+    ("option_at_time_trade", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "at_time_trade", "SPY", "20250321", "*", "both", "20250303", "20250303", "12:00:00.000"], True),
     # option_at_time_trade::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_at_time_trade", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "at_time_trade", "SPY", "*", "570", "both", "20250303", "20250303", "12:00:00.000"]),
+    ("option_at_time_trade", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "at_time_trade", "SPY", "*", "570", "both", "20250303", "20250303", "12:00:00.000"], False),
     # option_at_time_trade::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_at_time_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "at_time_trade", "SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000"]),
+    ("option_at_time_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "at_time_trade", "SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000"], True),
     # option_at_time_quote::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_at_time_quote", "concrete", "value", "required params set, no optionals — baseline wire path", ["option", "at_time_quote", "SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000"]),
+    ("option_at_time_quote", "concrete", "value", "required params set, no optionals — baseline wire path", ["option", "at_time_quote", "SPY", "20250321", "570", "C", "20250303", "20250303", "12:00:00.000"], False),
     # option_at_time_quote::all_strikes_one_exp
     #   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-    ("option_at_time_quote", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "at_time_quote", "SPY", "20250321", "*", "both", "20250303", "20250303", "12:00:00.000"]),
+    ("option_at_time_quote", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", ["option", "at_time_quote", "SPY", "20250321", "*", "both", "20250303", "20250303", "12:00:00.000"], True),
     # option_at_time_quote::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_at_time_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "at_time_quote", "SPY", "*", "570", "both", "20250303", "20250303", "12:00:00.000"]),
+    ("option_at_time_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", ["option", "at_time_quote", "SPY", "*", "570", "both", "20250303", "20250303", "12:00:00.000"], False),
     # option_at_time_quote::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-    ("option_at_time_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "at_time_quote", "SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000"]),
+    ("option_at_time_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", ["option", "at_time_quote", "SPY", "*", "*", "both", "20250303", "20250303", "12:00:00.000"], True),
     # index_list_symbols::basic
     #   rationale: list/calendar/rate baseline call — no parameter variation
-    ("index_list_symbols", "basic", "free", "list/calendar/rate baseline call — no parameter variation", ["index", "list_symbols"]),
+    ("index_list_symbols", "basic", "free", "list/calendar/rate baseline call — no parameter variation", ["index", "list_symbols"], False),
     # index_list_dates::basic
     #   rationale: list/calendar/rate baseline call — no parameter variation
-    ("index_list_dates", "basic", "free", "list/calendar/rate baseline call — no parameter variation", ["index", "list_dates", "SPX"]),
+    ("index_list_dates", "basic", "free", "list/calendar/rate baseline call — no parameter variation", ["index", "list_dates", "SPX"], False),
     # index_snapshot_ohlc::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("index_snapshot_ohlc", "concrete", "standard", "required params set, no optionals — baseline wire path", ["index", "snapshot_ohlc", "SPX"]),
+    ("index_snapshot_ohlc", "concrete", "standard", "required params set, no optionals — baseline wire path", ["index", "snapshot_ohlc", "SPX"], False),
     # index_snapshot_price::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("index_snapshot_price", "concrete", "standard", "required params set, no optionals — baseline wire path", ["index", "snapshot_price", "SPX"]),
+    ("index_snapshot_price", "concrete", "standard", "required params set, no optionals — baseline wire path", ["index", "snapshot_price", "SPX"], False),
     # index_snapshot_market_value::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("index_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path", ["index", "snapshot_market_value", "SPX"]),
+    ("index_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path", ["index", "snapshot_market_value", "SPX"], False),
     # index_history_eod::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("index_history_eod", "concrete", "free", "required params set, no optionals — baseline wire path", ["index", "history_eod", "SPX", "20250303", "20250303"]),
+    ("index_history_eod", "concrete", "free", "required params set, no optionals — baseline wire path", ["index", "history_eod", "SPX", "20250303", "20250303"], False),
     # index_history_ohlc::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("index_history_ohlc", "concrete", "standard", "required params set, no optionals — baseline wire path", ["index", "history_ohlc", "SPX", "20250303", "20250303", "60000"]),
+    ("index_history_ohlc", "concrete", "standard", "required params set, no optionals — baseline wire path", ["index", "history_ohlc", "SPX", "20250303", "20250303", "60000"], False),
     # index_history_price::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("index_history_price", "concrete", "value", "required params set, no optionals — baseline wire path", ["index", "history_price", "SPX", "20250303", "60000"]),
+    ("index_history_price", "concrete", "value", "required params set, no optionals — baseline wire path", ["index", "history_price", "SPX", "20250303", "60000"], False),
     # index_at_time_price::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("index_at_time_price", "concrete", "value", "required params set, no optionals — baseline wire path", ["index", "at_time_price", "SPX", "20250303", "20250303", "12:00:00.000"]),
+    ("index_at_time_price", "concrete", "value", "required params set, no optionals — baseline wire path", ["index", "at_time_price", "SPX", "20250303", "20250303", "12:00:00.000"], False),
     # calendar_open_today::basic
     #   rationale: list/calendar/rate baseline call — no parameter variation
-    ("calendar_open_today", "basic", "free", "list/calendar/rate baseline call — no parameter variation", ["calendar", "open_today"]),
+    ("calendar_open_today", "basic", "free", "list/calendar/rate baseline call — no parameter variation", ["calendar", "open_today"], False),
     # calendar_on_date::basic
     #   rationale: list/calendar/rate baseline call — no parameter variation
-    ("calendar_on_date", "basic", "value", "list/calendar/rate baseline call — no parameter variation", ["calendar", "on_date", "20250303"]),
+    ("calendar_on_date", "basic", "value", "list/calendar/rate baseline call — no parameter variation", ["calendar", "on_date", "20250303"], False),
     # calendar_year::basic
     #   rationale: list/calendar/rate baseline call — no parameter variation
-    ("calendar_year", "basic", "value", "list/calendar/rate baseline call — no parameter variation", ["calendar", "year", "2025"]),
+    ("calendar_year", "basic", "value", "list/calendar/rate baseline call — no parameter variation", ["calendar", "year", "2025"], False),
     # interest_rate_history_eod::basic
     #   rationale: list/calendar/rate baseline call — no parameter variation
-    ("interest_rate_history_eod", "basic", "free", "list/calendar/rate baseline call — no parameter variation", ["rate", "history_eod", "SOFR", "20250303", "20250303"]),
+    ("interest_rate_history_eod", "basic", "free", "list/calendar/rate baseline call — no parameter variation", ["rate", "history_eod", "SOFR", "20250303", "20250303"], False),
     # stock_history_ohlc_range::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("stock_history_ohlc_range", "concrete", "value", "required params set, no optionals — baseline wire path", ["stock", "history_ohlc_range", "AAPL", "20250303", "20250303", "60000"]),
+    ("stock_history_ohlc_range", "concrete", "value", "required params set, no optionals — baseline wire path", ["stock", "history_ohlc_range", "AAPL", "20250303", "20250303", "60000"], False),
 ]
 
 if not TDX.exists():
@@ -530,9 +536,10 @@ def _extract_first_row(parsed):
         return _canonicalize(parsed)
     return None
 
-for endpoint, mode, min_tier, rationale, argv in CELLS:
+for endpoint, mode, min_tier, rationale, argv, slow in CELLS:
     label = f"{endpoint}::{mode}"
     t0 = time.monotonic()
+    cell_timeout_ms = SLOW_MODE_TIMEOUT_MS if slow else PER_CELL_TIMEOUT_MS
     try:
         proc = subprocess.run(
             # --format json-raw keeps dates as YYYYMMDD ints and ms_of_day as raw
@@ -543,7 +550,7 @@ for endpoint, mode, min_tier, rationale, argv in CELLS:
             # instead of being SIGKILLed by the subprocess kill-switch below.
             [
                 str(TDX), "--creds", creds,
-                "--timeout-ms", str(PER_CELL_TIMEOUT_MS),
+                "--timeout-ms", str(cell_timeout_ms),
                 *argv, "--format", "json-raw",
             ],
             cwd=REPO,

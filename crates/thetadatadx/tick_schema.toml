@@ -6,7 +6,7 @@
 # Column types:
 #   i32     -> row_number(row, i)                         default: 0
 #   i64     -> row_number_i64(row, i)                     default: 0
-#   f64     -> row_float(row, i)                          default: 0.0
+#   f64     -> row_price_f64(row, i) (accepts Price|Number)  default: 0.0
 #   String  -> row_text(row, i)                           default: ""
 #   price   -> decode to f64 via Price::new(raw, pt).to_f64()
 #   eod_num -> EOD numeric/time field: Price/Number direct, Timestamp -> ms_of_day
