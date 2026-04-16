@@ -65,7 +65,7 @@ int main() {
     }
 
     // Greeks (no server connection needed)
-    auto g = tdx::all_greeks(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, true);
+    auto g = tdx::all_greeks(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, "C");
     std::cout << "IV=" << g.iv << " Delta=" << g.delta << std::endl;
 }
 ```

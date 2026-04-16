@@ -14,12 +14,8 @@ import (
 	"unsafe"
 )
 
-// AllGreeks computes all Black-Scholes Greeks + IV locally.
-//
-// right accepts "C"/"P" or "call"/"put" case-insensitively. Returns an error
-// if the underlying FFI call fails; invalid right strings cause the native
-// tdbe layer to panic, which the FFI wrapper surfaces as a null result.
-func AllGreeks(spot, strike, rate, divYield, tte, optionPrice float64, right string) (*Greeks, error) {
+// AllGreeks Compute all 22 Black-Scholes Greeks + IV in one call.
+func AllGreeks(spot float64, strike float64, rate float64, divYield float64, tte float64, optionPrice float64, right string) (*Greeks, error) {
     runtime.LockOSThread()
     defer runtime.UnlockOSThread()
     cRight := C.CString(right)
@@ -30,35 +26,33 @@ func AllGreeks(spot, strike, rate, divYield, tte, optionPrice float64, right str
     }
     defer C.tdx_greeks_result_free(ptr)
     return &Greeks{
-        Value:     float64(ptr.value),
-        Delta:     float64(ptr.delta),
-        Gamma:     float64(ptr.gamma),
-        Theta:     float64(ptr.theta),
-        Vega:      float64(ptr.vega),
-        Rho:       float64(ptr.rho),
-        IV:        float64(ptr.iv),
-        IVError:   float64(ptr.iv_error),
-        Vanna:     float64(ptr.vanna),
-        Charm:     float64(ptr.charm),
-        Vomma:     float64(ptr.vomma),
-        Veta:      float64(ptr.veta),
-        Speed:     float64(ptr.speed),
-        Zomma:     float64(ptr.zomma),
-        Color:     float64(ptr.color),
-        Ultima:    float64(ptr.ultima),
-        D1:        float64(ptr.d1),
-        D2:        float64(ptr.d2),
+        Value: float64(ptr.value),
+        IV: float64(ptr.iv),
+        IVError: float64(ptr.iv_error),
+        Delta: float64(ptr.delta),
+        Gamma: float64(ptr.gamma),
+        Theta: float64(ptr.theta),
+        Vega: float64(ptr.vega),
+        Rho: float64(ptr.rho),
+        Vanna: float64(ptr.vanna),
+        Charm: float64(ptr.charm),
+        Vomma: float64(ptr.vomma),
+        Veta: float64(ptr.veta),
+        Speed: float64(ptr.speed),
+        Zomma: float64(ptr.zomma),
+        Color: float64(ptr.color),
+        Ultima: float64(ptr.ultima),
+        D1: float64(ptr.d1),
+        D2: float64(ptr.d2),
         DualDelta: float64(ptr.dual_delta),
         DualGamma: float64(ptr.dual_gamma),
-        Epsilon:   float64(ptr.epsilon),
-        Lambda:    float64(ptr.lambda),
+        Epsilon: float64(ptr.epsilon),
+        Lambda: float64(ptr.lambda),
     }, nil
 }
 
-// ImpliedVolatility computes implied volatility locally.
-//
-// right accepts "C"/"P" or "call"/"put" case-insensitively.
-func ImpliedVolatility(spot, strike, rate, divYield, tte, optionPrice float64, right string) (float64, float64, error) {
+// ImpliedVolatility Compute implied volatility via bisection.
+func ImpliedVolatility(spot float64, strike float64, rate float64, divYield float64, tte float64, optionPrice float64, right string) (float64, float64, error) {
     runtime.LockOSThread()
     defer runtime.UnlockOSThread()
     cRight := C.CString(right)

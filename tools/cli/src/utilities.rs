@@ -5,48 +5,80 @@ fn add_generated_utility_commands(mut app: Command) -> Command {
     app = app.subcommand(
         Command::new("greeks")
             .about("Compute Black-Scholes Greeks (offline, no server needed)")
-            .arg(Arg::new("spot").required(true).help("Spot price"))
-            .arg(Arg::new("strike").required(true).help("Strike price"))
+            .arg(
+                Arg::new("spot")
+                    .required(true)
+                    .help("Spot price."),
+            )
+            .arg(
+                Arg::new("strike")
+                    .required(true)
+                    .help("Strike price."),
+            )
             .arg(
                 Arg::new("rate")
                     .required(true)
-                    .help("Risk-free rate (e.g. 0.05)"),
+                    .help("Risk-free rate."),
             )
             .arg(
                 Arg::new("dividend")
                     .required(true)
-                    .help("Dividend yield (e.g. 0.015)"),
+                    .help("Dividend yield."),
             )
             .arg(
                 Arg::new("time")
                     .required(true)
-                    .help("Time to expiration in years (e.g. 0.082 for ~30 days)"),
+                    .help("Time to expiration in years."),
             )
-            .arg(Arg::new("option_price").required(true).help("Option price"))
+            .arg(
+                Arg::new("option_price")
+                    .required(true)
+                    .help("Option price."),
+            )
             .arg(
                 Arg::new("right")
                     .required(true)
-                    .help("Option side: \"C\"/\"P\" or \"call\"/\"put\" (case-insensitive)"),
-            ),
+                    .help("Option side: C/P or call/put (case-insensitive)."),
+            )
     );
     app = app.subcommand(
         Command::new("iv")
             .about("Compute implied volatility only (offline, no server needed)")
-            .arg(Arg::new("spot").required(true).help("Spot price"))
-            .arg(Arg::new("strike").required(true).help("Strike price"))
-            .arg(Arg::new("rate").required(true).help("Risk-free rate"))
-            .arg(Arg::new("dividend").required(true).help("Dividend yield"))
+            .arg(
+                Arg::new("spot")
+                    .required(true)
+                    .help("Spot price."),
+            )
+            .arg(
+                Arg::new("strike")
+                    .required(true)
+                    .help("Strike price."),
+            )
+            .arg(
+                Arg::new("rate")
+                    .required(true)
+                    .help("Risk-free rate."),
+            )
+            .arg(
+                Arg::new("dividend")
+                    .required(true)
+                    .help("Dividend yield."),
+            )
             .arg(
                 Arg::new("time")
                     .required(true)
-                    .help("Time to expiration in years"),
+                    .help("Time to expiration in years."),
             )
-            .arg(Arg::new("option_price").required(true).help("Option price"))
+            .arg(
+                Arg::new("option_price")
+                    .required(true)
+                    .help("Option price."),
+            )
             .arg(
                 Arg::new("right")
                     .required(true)
-                    .help("Option side: \"C\"/\"P\" or \"call\"/\"put\" (case-insensitive)"),
-            ),
+                    .help("Option side: C/P or call/put (case-insensitive)."),
+            )
     );
     app
 }
@@ -98,17 +130,17 @@ async fn try_run_generated_utility(
         Some(("greeks", sub_m)) => {
             let spot: f64 = get_arg(sub_m, "spot")
                 .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid spot price: {e}")))?;
+                .map_err(|e| thetadatadx::Error::Config(format!("invalid spot: {e}")))?;
             let strike: f64 = get_arg(sub_m, "strike")
                 .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid strike price: {e}")))?;
+                .map_err(|e| thetadatadx::Error::Config(format!("invalid strike: {e}")))?;
             let rate: f64 = get_arg(sub_m, "rate")
                 .parse()
                 .map_err(|e| thetadatadx::Error::Config(format!("invalid rate: {e}")))?;
-            let dividend: f64 = get_arg(sub_m, "dividend")
+            let div_yield: f64 = get_arg(sub_m, "dividend")
                 .parse()
                 .map_err(|e| thetadatadx::Error::Config(format!("invalid dividend: {e}")))?;
-            let time: f64 = get_arg(sub_m, "time")
+            let tte: f64 = get_arg(sub_m, "time")
                 .parse()
                 .map_err(|e| thetadatadx::Error::Config(format!("invalid time: {e}")))?;
             let option_price: f64 = get_arg(sub_m, "option_price")
@@ -116,8 +148,7 @@ async fn try_run_generated_utility(
                 .map_err(|e| thetadatadx::Error::Config(format!("invalid option_price: {e}")))?;
             let right = get_arg(sub_m, "right");
             thetadatadx::parse_right_strict(right)?;
-
-            let g = tdbe::greeks::all_greeks(spot, strike, rate, dividend, time, option_price, right);
+            let g = tdbe::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, right);
             let mut td = TabularData::new(vec!["greek", "value"]);
             let rows = [
                 ("value", g.value),
@@ -128,8 +159,6 @@ async fn try_run_generated_utility(
                 ("theta", g.theta),
                 ("vega", g.vega),
                 ("rho", g.rho),
-                ("d1", g.d1),
-                ("d2", g.d2),
                 ("vanna", g.vanna),
                 ("charm", g.charm),
                 ("vomma", g.vomma),
@@ -138,6 +167,8 @@ async fn try_run_generated_utility(
                 ("zomma", g.zomma),
                 ("color", g.color),
                 ("ultima", g.ultima),
+                ("d1", g.d1),
+                ("d2", g.d2),
                 ("dual_delta", g.dual_delta),
                 ("dual_gamma", g.dual_gamma),
                 ("epsilon", g.epsilon),
@@ -152,17 +183,17 @@ async fn try_run_generated_utility(
         Some(("iv", sub_m)) => {
             let spot: f64 = get_arg(sub_m, "spot")
                 .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid spot price: {e}")))?;
+                .map_err(|e| thetadatadx::Error::Config(format!("invalid spot: {e}")))?;
             let strike: f64 = get_arg(sub_m, "strike")
                 .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid strike price: {e}")))?;
+                .map_err(|e| thetadatadx::Error::Config(format!("invalid strike: {e}")))?;
             let rate: f64 = get_arg(sub_m, "rate")
                 .parse()
                 .map_err(|e| thetadatadx::Error::Config(format!("invalid rate: {e}")))?;
-            let dividend: f64 = get_arg(sub_m, "dividend")
+            let div_yield: f64 = get_arg(sub_m, "dividend")
                 .parse()
                 .map_err(|e| thetadatadx::Error::Config(format!("invalid dividend: {e}")))?;
-            let time: f64 = get_arg(sub_m, "time")
+            let tte: f64 = get_arg(sub_m, "time")
                 .parse()
                 .map_err(|e| thetadatadx::Error::Config(format!("invalid time: {e}")))?;
             let option_price: f64 = get_arg(sub_m, "option_price")
@@ -170,16 +201,7 @@ async fn try_run_generated_utility(
                 .map_err(|e| thetadatadx::Error::Config(format!("invalid option_price: {e}")))?;
             let right = get_arg(sub_m, "right");
             thetadatadx::parse_right_strict(right)?;
-
-            let (iv, iv_error) = tdbe::greeks::implied_volatility(
-                spot,
-                strike,
-                rate,
-                dividend,
-                time,
-                option_price,
-                right,
-            );
+            let (iv, iv_error) = tdbe::greeks::implied_volatility(spot, strike, rate, div_yield, tte, option_price, right);
             let mut td = TabularData::new(vec!["iv", "iv_error"]);
             td.push(vec![format!("{iv:.8}"), format!("{iv_error:.8}")]);
             td.render(fmt);

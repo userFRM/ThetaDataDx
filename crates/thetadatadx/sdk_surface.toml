@@ -1,158 +1,366 @@
 # Declarative non-endpoint SDK/tool surface specification.
 #
-# endpoint_surface.toml remains the source of truth for validated request/response
+# endpoint_surface.toml remains the SSOT for validated request/response
 # endpoints backed by the upstream proto. This file covers the remaining
-# non-endpoint projections that still need checked-in generation:
-#   - offline utilities
+# non-endpoint projections:
+#   - FPSS/unified public methods
+#   - offline utility functions
 #   - CLI/MCP utility commands and tools
-#   - FPSS / unified wrapper methods exposed by public SDKs
-#   - small C++ lifecycle wrapper implementations
+#   - small C++ lifecycle wrappers
 #
-# Scope: method names and language targets are defined here. Signatures,
-# docstrings, and implementations are hardcoded in build_support/sdk_surface.rs.
-# Full SSOT for non-endpoint surfaces (where TOML also declares parameter types
-# and return types) is tracked as future work.
+# This spec now declares the public method set, parameter lists, target
+# projections, and user-facing docs. build_support/sdk_surface.rs is only the
+# renderer: it maps semantic kinds below onto language-specific code templates.
 
-version = 1
+version = 2
 
-# Python uses PyO3 to call the Rust SDK directly. Go and C++ call through
-# the C FFI. All three SDKs expose the same public FPSS operations:
-# stock-level subscription, option-level subscription, full-type
-# subscription, contract_map, contract_lookup, reconnect, active
-# subscriptions, and event polling. Historical callback endpoints
-# (*_stream) remain Rust-only because they rely on per-chunk callbacks.
-python_unified = [
-  "start_streaming",
-  "is_streaming",
-  "subscribe_quotes",
-  "subscribe_trades",
-  "subscribe_open_interest",
-  "subscribe_option_quotes",
-  "subscribe_option_trades",
-  "subscribe_option_open_interest",
-  "subscribe_full_trades",
-  "subscribe_full_open_interest",
-  "unsubscribe_full_trades",
-  "unsubscribe_full_open_interest",
-  "unsubscribe_quotes",
-  "unsubscribe_trades",
-  "unsubscribe_open_interest",
-  "unsubscribe_option_quotes",
-  "unsubscribe_option_trades",
-  "unsubscribe_option_open_interest",
-  "contract_map",
-  "contract_lookup",
-  "active_subscriptions",
-  "next_event",
-  "reconnect",
-  "stop_streaming",
-  "shutdown",
+[[methods]]
+name = "start_streaming"
+kind = "start_streaming"
+doc = "Start FPSS streaming. Events are buffered; poll with next_event()."
+targets = ["python_unified"]
+
+[[methods]]
+name = "is_streaming"
+kind = "is_streaming"
+doc = "Whether the streaming connection is active."
+targets = ["python_unified"]
+
+[[methods]]
+name = "subscribe_quotes"
+kind = "stock_contract_call"
+doc = "Subscribe to real-time quote data for a stock symbol."
+runtime_call = "subscribe_quotes"
+ffi_call = "subscribe_quotes"
+targets = ["python_unified", "go_fpss", "cpp_fpss"]
+params = [{ name = "symbol", type = "string", doc = "Stock symbol." }]
+
+[[methods]]
+name = "subscribe_trades"
+kind = "stock_contract_call"
+doc = "Subscribe to real-time trade data for a stock symbol."
+runtime_call = "subscribe_trades"
+ffi_call = "subscribe_trades"
+targets = ["python_unified", "go_fpss", "cpp_fpss"]
+params = [{ name = "symbol", type = "string", doc = "Stock symbol." }]
+
+[[methods]]
+name = "subscribe_open_interest"
+kind = "stock_contract_call"
+doc = "Subscribe to open interest data for a stock symbol."
+runtime_call = "subscribe_open_interest"
+ffi_call = "subscribe_open_interest"
+targets = ["python_unified", "go_fpss", "cpp_fpss"]
+params = [{ name = "symbol", type = "string", doc = "Stock symbol." }]
+
+[[methods]]
+name = "subscribe_option_quotes"
+kind = "option_contract_call"
+doc = "Subscribe to quote data for an option contract."
+runtime_call = "subscribe_quotes"
+ffi_call = "subscribe_option_quotes"
+targets = ["python_unified", "go_fpss", "cpp_fpss"]
+params = [
+  { name = "symbol", type = "string", doc = "Underlying symbol." },
+  { name = "expiration", type = "string", doc = "Option expiration." },
+  { name = "strike", type = "string", doc = "Option strike." },
+  { name = "right", type = "string", doc = "Option side.", enum_values = ["C", "P", "c", "p", "call", "put", "CALL", "PUT", "Call", "Put"] },
 ]
 
-# Go FPSS uses C FFI with the same public FPSS method set as Python.
-go_fpss = [
-  "subscribe_quotes",
-  "subscribe_trades",
-  "subscribe_open_interest",
-  "subscribe_option_quotes",
-  "subscribe_option_trades",
-  "subscribe_option_open_interest",
-  "subscribe_full_trades",
-  "subscribe_full_open_interest",
-  "unsubscribe_quotes",
-  "unsubscribe_trades",
-  "unsubscribe_open_interest",
-  "unsubscribe_option_quotes",
-  "unsubscribe_option_trades",
-  "unsubscribe_option_open_interest",
-  "unsubscribe_full_trades",
-  "unsubscribe_full_open_interest",
-  "is_authenticated",
-  "contract_lookup",
-  "contract_map",
-  "active_subscriptions",
-  "next_event",
-  "reconnect",
-  "shutdown",
+[[methods]]
+name = "subscribe_option_trades"
+kind = "option_contract_call"
+doc = "Subscribe to trade data for an option contract."
+runtime_call = "subscribe_trades"
+ffi_call = "subscribe_option_trades"
+targets = ["python_unified", "go_fpss", "cpp_fpss"]
+params = [
+  { name = "symbol", type = "string", doc = "Underlying symbol." },
+  { name = "expiration", type = "string", doc = "Option expiration." },
+  { name = "strike", type = "string", doc = "Option strike." },
+  { name = "right", type = "string", doc = "Option side.", enum_values = ["C", "P", "c", "p", "call", "put", "CALL", "PUT", "Call", "Put"] },
 ]
 
-# C++ FPSS uses C FFI with the same public FPSS method set as Python.
-cpp_fpss = [
-  "connect",
-  "subscribe_quotes",
-  "subscribe_trades",
-  "subscribe_open_interest",
-  "subscribe_option_quotes",
-  "subscribe_option_trades",
-  "subscribe_option_open_interest",
-  "subscribe_full_trades",
-  "subscribe_full_open_interest",
-  "unsubscribe_quotes",
-  "unsubscribe_trades",
-  "unsubscribe_open_interest",
-  "unsubscribe_option_quotes",
-  "unsubscribe_option_trades",
-  "unsubscribe_option_open_interest",
-  "unsubscribe_full_trades",
-  "unsubscribe_full_open_interest",
-  "is_authenticated",
-  "contract_lookup",
-  "contract_map",
-  "active_subscriptions",
-  "next_event",
-  "reconnect",
-  "shutdown",
+[[methods]]
+name = "subscribe_option_open_interest"
+kind = "option_contract_call"
+doc = "Subscribe to open interest data for an option contract."
+runtime_call = "subscribe_open_interest"
+ffi_call = "subscribe_option_open_interest"
+targets = ["python_unified", "go_fpss", "cpp_fpss"]
+params = [
+  { name = "symbol", type = "string", doc = "Underlying symbol." },
+  { name = "expiration", type = "string", doc = "Option expiration." },
+  { name = "strike", type = "string", doc = "Option strike." },
+  { name = "right", type = "string", doc = "Option side.", enum_values = ["C", "P", "c", "p", "call", "put", "CALL", "PUT", "Call", "Put"] },
 ]
 
-cpp_lifecycle = [
-  "credentials_from_file",
-  "credentials_from_email",
-  "config_production",
-  "config_dev",
-  "config_stage",
-  "client_connect",
+[[methods]]
+name = "subscribe_full_trades"
+kind = "full_call"
+doc = "Subscribe to all trades for a security type."
+runtime_call = "subscribe_full_trades"
+ffi_call = "subscribe_full_trades"
+targets = ["python_unified", "go_fpss", "cpp_fpss"]
+params = [{ name = "sec_type", type = "string", doc = "Security type: STOCK, OPTION, or INDEX." }]
+
+[[methods]]
+name = "subscribe_full_open_interest"
+kind = "full_call"
+doc = "Subscribe to all open interest for a security type."
+runtime_call = "subscribe_full_open_interest"
+ffi_call = "subscribe_full_open_interest"
+targets = ["python_unified", "go_fpss", "cpp_fpss"]
+params = [{ name = "sec_type", type = "string", doc = "Security type: STOCK, OPTION, or INDEX." }]
+
+[[methods]]
+name = "unsubscribe_quotes"
+kind = "stock_contract_call"
+doc = "Unsubscribe from quote data for a stock symbol."
+runtime_call = "unsubscribe_quotes"
+ffi_call = "unsubscribe_quotes"
+targets = ["python_unified", "go_fpss", "cpp_fpss"]
+params = [{ name = "symbol", type = "string", doc = "Stock symbol." }]
+
+[[methods]]
+name = "unsubscribe_trades"
+kind = "stock_contract_call"
+doc = "Unsubscribe from trade data for a stock symbol."
+runtime_call = "unsubscribe_trades"
+ffi_call = "unsubscribe_trades"
+targets = ["python_unified", "go_fpss", "cpp_fpss"]
+params = [{ name = "symbol", type = "string", doc = "Stock symbol." }]
+
+[[methods]]
+name = "unsubscribe_open_interest"
+kind = "stock_contract_call"
+doc = "Unsubscribe from open interest data for a stock symbol."
+runtime_call = "unsubscribe_open_interest"
+ffi_call = "unsubscribe_open_interest"
+targets = ["python_unified", "go_fpss", "cpp_fpss"]
+params = [{ name = "symbol", type = "string", doc = "Stock symbol." }]
+
+[[methods]]
+name = "unsubscribe_option_quotes"
+kind = "option_contract_call"
+doc = "Unsubscribe from quote data for an option contract."
+runtime_call = "unsubscribe_quotes"
+ffi_call = "unsubscribe_option_quotes"
+targets = ["python_unified", "go_fpss", "cpp_fpss"]
+params = [
+  { name = "symbol", type = "string", doc = "Underlying symbol." },
+  { name = "expiration", type = "string", doc = "Option expiration." },
+  { name = "strike", type = "string", doc = "Option strike." },
+  { name = "right", type = "string", doc = "Option side.", enum_values = ["C", "P", "c", "p", "call", "put", "CALL", "PUT", "Call", "Put"] },
+]
+
+[[methods]]
+name = "unsubscribe_option_trades"
+kind = "option_contract_call"
+doc = "Unsubscribe from trade data for an option contract."
+runtime_call = "unsubscribe_trades"
+ffi_call = "unsubscribe_option_trades"
+targets = ["python_unified", "go_fpss", "cpp_fpss"]
+params = [
+  { name = "symbol", type = "string", doc = "Underlying symbol." },
+  { name = "expiration", type = "string", doc = "Option expiration." },
+  { name = "strike", type = "string", doc = "Option strike." },
+  { name = "right", type = "string", doc = "Option side.", enum_values = ["C", "P", "c", "p", "call", "put", "CALL", "PUT", "Call", "Put"] },
+]
+
+[[methods]]
+name = "unsubscribe_option_open_interest"
+kind = "option_contract_call"
+doc = "Unsubscribe from open interest data for an option contract."
+runtime_call = "unsubscribe_open_interest"
+ffi_call = "unsubscribe_option_open_interest"
+targets = ["python_unified", "go_fpss", "cpp_fpss"]
+params = [
+  { name = "symbol", type = "string", doc = "Underlying symbol." },
+  { name = "expiration", type = "string", doc = "Option expiration." },
+  { name = "strike", type = "string", doc = "Option strike." },
+  { name = "right", type = "string", doc = "Option side.", enum_values = ["C", "P", "c", "p", "call", "put", "CALL", "PUT", "Call", "Put"] },
+]
+
+[[methods]]
+name = "unsubscribe_full_trades"
+kind = "full_call"
+doc = "Unsubscribe from all trades for a security type."
+runtime_call = "unsubscribe_full_trades"
+ffi_call = "unsubscribe_full_trades"
+targets = ["python_unified", "go_fpss", "cpp_fpss"]
+params = [{ name = "sec_type", type = "string", doc = "Security type: STOCK, OPTION, or INDEX." }]
+
+[[methods]]
+name = "unsubscribe_full_open_interest"
+kind = "full_call"
+doc = "Unsubscribe from all open interest for a security type."
+runtime_call = "unsubscribe_full_open_interest"
+ffi_call = "unsubscribe_full_open_interest"
+targets = ["python_unified", "go_fpss", "cpp_fpss"]
+params = [{ name = "sec_type", type = "string", doc = "Security type: STOCK, OPTION, or INDEX." }]
+
+[[methods]]
+name = "contract_map"
+kind = "contract_map"
+doc = "Get the current contract map keyed by server-assigned contract ID."
+targets = ["python_unified", "go_fpss", "cpp_fpss"]
+
+[[methods]]
+name = "contract_lookup"
+kind = "contract_lookup"
+doc = "Look up a single contract by its server-assigned ID."
+targets = ["python_unified", "go_fpss", "cpp_fpss"]
+params = [{ name = "id", type = "i32", doc = "Server-assigned contract ID." }]
+
+[[methods]]
+name = "active_subscriptions"
+kind = "active_subscriptions"
+doc = "Get a snapshot of currently active subscriptions."
+targets = ["python_unified", "go_fpss", "cpp_fpss"]
+
+[[methods]]
+name = "next_event"
+kind = "next_event"
+doc = "Poll for the next FPSS event."
+targets = ["python_unified", "go_fpss", "cpp_fpss"]
+params = [{ name = "timeout_ms", type = "u64", doc = "Maximum time to wait in milliseconds." }]
+
+[[methods]]
+name = "reconnect"
+kind = "reconnect"
+doc = "Reconnect streaming and re-subscribe all previous subscriptions."
+targets = ["python_unified", "go_fpss", "cpp_fpss"]
+
+[[methods]]
+name = "stop_streaming"
+kind = "stop_streaming"
+doc = "Stop streaming while keeping the historical client usable."
+targets = ["python_unified"]
+
+[[methods]]
+name = "shutdown"
+kind = "shutdown"
+doc = "Shut down the FPSS streaming connection."
+targets = ["python_unified", "go_fpss", "cpp_fpss"]
+
+[[methods]]
+name = "is_authenticated"
+kind = "is_authenticated"
+doc = "Return true if the FPSS client is currently authenticated."
+targets = ["go_fpss", "cpp_fpss"]
+
+[[methods]]
+name = "connect"
+kind = "fpss_connect"
+doc = "Connect to FPSS streaming servers. Throws on failure."
+targets = ["cpp_fpss"]
+params = [
+  { name = "creds", type = "credentials_ref", doc = "Credentials handle." },
+  { name = "config", type = "config_ref", doc = "Configuration handle." },
+]
+
+[[methods]]
+name = "credentials_from_file"
+kind = "credentials_from_file"
+doc = "Load credentials from a file. Throws on failure."
+targets = ["cpp_lifecycle"]
+params = [{ name = "path", type = "string", doc = "Path to the credentials file." }]
+
+[[methods]]
+name = "credentials_from_email"
+kind = "credentials_from_email"
+doc = "Construct credentials from email and password. Throws on failure."
+targets = ["cpp_lifecycle"]
+params = [
+  { name = "email", type = "string", doc = "Account email." },
+  { name = "password", type = "string", doc = "Account password." },
+]
+
+[[methods]]
+name = "config_production"
+kind = "config_constructor"
+doc = "Create the production configuration."
+targets = ["cpp_lifecycle"]
+config_variant = "production"
+
+[[methods]]
+name = "config_dev"
+kind = "config_constructor"
+doc = "Create the dev replay configuration."
+targets = ["cpp_lifecycle"]
+config_variant = "dev"
+
+[[methods]]
+name = "config_stage"
+kind = "config_constructor"
+doc = "Create the staging configuration."
+targets = ["cpp_lifecycle"]
+config_variant = "stage"
+
+[[methods]]
+name = "client_connect"
+kind = "client_connect"
+doc = "Connect the unified client. Throws on failure."
+targets = ["cpp_lifecycle"]
+params = [
+  { name = "creds", type = "credentials_ref", doc = "Credentials handle." },
+  { name = "config", type = "config_ref", doc = "Configuration handle." },
 ]
 
 [[utilities]]
 name = "auth"
+kind = "auth"
+doc = "Test authentication and print session info."
+cli_about = "Test authentication and print session info"
 targets = ["cli"]
 
 [[utilities]]
 name = "ping"
+kind = "ping"
+doc = "Check MCP server status."
+mcp_description = "Check MCP server status. Returns uptime and connection info without hitting ThetaData servers."
 targets = ["mcp"]
 
 [[utilities]]
 name = "all_greeks"
+kind = "all_greeks"
+doc = "Compute all 22 Black-Scholes Greeks + IV in one call."
+cli_about = "Compute Black-Scholes Greeks (offline, no server needed)"
+mcp_description = "Compute all 22 Black-Scholes Greeks OFFLINE (no ThetaData server needed). Returns value, delta, gamma, theta, vega, rho, IV, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda."
 cli_name = "greeks"
 targets = ["python", "go", "cpp", "mcp", "cli"]
+params = [
+  { name = "spot", type = "f64", doc = "Spot price.", mcp_description = "Spot price (underlying)" },
+  { name = "strike", type = "f64", doc = "Strike price." },
+  { name = "rate", type = "f64", doc = "Risk-free rate.", mcp_description = "Risk-free rate (e.g. 0.05 for 5%)" },
+  { name = "div_yield", type = "f64", doc = "Dividend yield.", cli_name = "dividend", mcp_name = "dividend_yield", mcp_description = "Dividend yield (e.g. 0.02 for 2%)" },
+  { name = "tte", type = "f64", doc = "Time to expiration in years.", cli_name = "time", mcp_name = "time_to_expiry", mcp_description = "Time to expiration in years (e.g. 0.25 for 3 months)" },
+  { name = "option_price", type = "f64", doc = "Option price.", mcp_description = "Market price of the option" },
+  { name = "right", type = "string", doc = "Option side: C/P or call/put (case-insensitive).", mcp_description = "Option side: \"C\"/\"P\" or \"call\"/\"put\" (case-insensitive)", enum_values = ["C", "P", "c", "p", "call", "put", "CALL", "PUT", "Call", "Put"] },
+]
 
 [[utilities]]
 name = "implied_volatility"
+kind = "implied_volatility"
+doc = "Compute implied volatility via bisection."
+cli_about = "Compute implied volatility only (offline, no server needed)"
+mcp_description = "Compute implied volatility OFFLINE using bisection (no ThetaData server needed). Returns IV and error."
 cli_name = "iv"
 targets = ["python", "go", "cpp", "mcp", "cli"]
+params = [
+  { name = "spot", type = "f64", doc = "Spot price.", mcp_description = "Spot price (underlying)" },
+  { name = "strike", type = "f64", doc = "Strike price." },
+  { name = "rate", type = "f64", doc = "Risk-free rate.", mcp_description = "Risk-free rate (e.g. 0.05)" },
+  { name = "div_yield", type = "f64", doc = "Dividend yield.", cli_name = "dividend", mcp_name = "dividend_yield", mcp_description = "Dividend yield (e.g. 0.02)" },
+  { name = "tte", type = "f64", doc = "Time to expiration in years.", cli_name = "time", mcp_name = "time_to_expiry", mcp_description = "Time to expiration in years" },
+  { name = "option_price", type = "f64", doc = "Option price.", mcp_description = "Market price of the option" },
+  { name = "right", type = "string", doc = "Option side: C/P or call/put (case-insensitive).", mcp_description = "Option side: \"C\"/\"P\" or \"call\"/\"put\" (case-insensitive)", enum_values = ["C", "P", "c", "p", "call", "put", "CALL", "PUT", "Call", "Put"] },
+]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # FFI thread-local-error reader markers (W3 / W7c)
 # ─────────────────────────────────────────────────────────────────────────────
-# Substrings that identify a call site reading the FFI's thread-local error
-# slot (`ffi/src/lib.rs::LAST_ERROR`). Any Go source line containing one of
-# these consults the TLS, so the enclosing function MUST have executed
-# `runtime.LockOSThread()` (with a matching deferred unlock) before reaching
-# that line. See docs/dev/w3-async-cancellation-design.md, section
-# "cgo thread-local correctness".
-#
-# This list is the single source of truth consumed by BOTH sides:
-#
-#   * `build_support/sdk_surface.rs::inject_os_thread_pin` uses it at build
-#     time to decide which generated Go method bodies need the pin injected.
-#   * `sdks/go/tls_markers_generated_test.go` (generated) re-emits it as
-#     `tlsReaderMarkers`, consumed by `TestEveryFFIErrorReaderPinsOSThread`
-#     in `sdks/go/timeout_pin_test.go` to statically audit every Go function
-#     in the package for the required pin.
-#
-# Adding a marker here is all it takes: regenerate with
-# `cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces`
-# and both sides pick it up.
 
 [[go_ffi.tls_reader_markers]]
 substring = "lastError("
