@@ -61,8 +61,9 @@ pub enum Error {
     #[error("Decompression failed: {0}")]
     Decompress(String),
 
-    /// Protobuf decode failure.
-    #[error("Protobuf decode failed: {0}")]
+    /// Decode failure — covers both protobuf deserialization errors and
+    /// per-cell type-mismatch failures produced after the table is decoded.
+    #[error("Decode failed: {0}")]
     Decode(String),
 
     /// Query returned no data rows.

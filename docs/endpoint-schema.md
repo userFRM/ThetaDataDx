@@ -72,7 +72,7 @@ For each type in the schema:
 
 **Parser** (`decode_generated.rs`):
 ```rust
-pub fn parse_greeks_ticks(table: &crate::proto::DataTable) -> Vec<GreeksTick> {
+pub fn parse_greeks_ticks(table: &crate::proto::DataTable) -> Result<Vec<GreeksTick>, DecodeError> {
     // header lookup
     // required-header guards
     // row iteration with correct reader functions
