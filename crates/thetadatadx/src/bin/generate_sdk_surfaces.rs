@@ -9,19 +9,23 @@
 
 use std::path::PathBuf;
 
-// Reason: modules shared with build.rs via #[path]; many helpers are only called from build.rs.
-#[allow(dead_code)]
+// Reason: modules shared with build.rs via #[path]; each module carries its own
+// module-level `#![allow(dead_code, unused_imports)]` because not all helpers are
+// called from both entry points.
 #[path = "../../build_support/endpoints/mod.rs"]
 mod endpoints;
-#[allow(dead_code)]
 #[path = "../../build_support/sdk_surface.rs"]
 mod sdk_surface;
-#[allow(dead_code)]
 #[path = "../../build_support/ticks.rs"]
 mod ticks;
-#[allow(dead_code)]
 #[path = "../../build_support/upstream_openapi.rs"]
 mod upstream_openapi;
+// Runtime wire-canonicalization rules (reused at build time via `#[path]`).
+#[path = "../../src/wire_semantics.rs"]
+mod wire_semantics_runtime;
+// Build-time-only extensions that pair with `wire_semantics_runtime`.
+#[path = "../../build_support/wire_semantics.rs"]
+mod wire_semantics;
 
 fn repo_root() -> PathBuf {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));

@@ -5,10 +5,10 @@
 //! need declarative checked-in generation: offline utilities, FPSS/unified
 //! wrapper methods, and small public wrapper implementations.
 //!
-//! Implementation detail: method signatures are hardcoded in this file's match
-//! tables. The TOML (`sdk_surface.toml`) controls WHICH methods exist for WHICH
-//! languages, but HOW they're implemented (parameter types, return types, body)
-//! is in this renderer. See the TOML header for more context.
+//! The TOML (`sdk_surface.toml`) declares the public method set, parameters,
+//! target projections, and user-facing docs. This file is only the renderer:
+//! it maps the semantic kinds declared in TOML onto language-specific code
+//! templates.
 
 use std::fmt::Write as _;
 use std::path::Path;
@@ -20,24 +20,159 @@ use serde::Deserialize;
 struct SdkSurfaceSpec {
     version: u32,
     #[serde(default)]
+    methods: Vec<MethodSpec>,
+    #[serde(default)]
     utilities: Vec<UtilitySpec>,
+    /// Go-side FFI configuration. Holds the TLS-reader marker SSOT that
+    /// drives both `inject_os_thread_pin` (build-time body rewriter) and
+    /// the generated `tlsReaderMarkers` list consumed by the static-audit
+    /// test in `sdks/go/timeout_pin_test.go`.
     #[serde(default)]
-    python_unified: Vec<String>,
+    go_ffi: GoFfiSpec,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MethodSpec {
+    name: String,
+    kind: MethodKind,
+    doc: String,
+    targets: Vec<MethodTarget>,
     #[serde(default)]
-    go_fpss: Vec<String>,
+    params: Vec<ParamSpec>,
     #[serde(default)]
-    cpp_fpss: Vec<String>,
+    runtime_call: Option<String>,
     #[serde(default)]
-    cpp_lifecycle: Vec<String>,
+    ffi_call: Option<String>,
+    #[serde(default)]
+    config_variant: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum MethodKind {
+    StartStreaming,
+    IsStreaming,
+    StockContractCall,
+    OptionContractCall,
+    FullCall,
+    ContractMap,
+    ContractLookup,
+    ActiveSubscriptions,
+    NextEvent,
+    Reconnect,
+    StopStreaming,
+    Shutdown,
+    IsAuthenticated,
+    FpssConnect,
+    CredentialsFromFile,
+    CredentialsFromEmail,
+    ConfigConstructor,
+    ClientConnect,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum MethodTarget {
+    PythonUnified,
+    GoFpss,
+    CppFpss,
+    CppLifecycle,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct UtilitySpec {
     name: String,
+    kind: UtilityKind,
+    doc: String,
+    targets: Vec<UtilityTarget>,
+    #[serde(default)]
+    params: Vec<ParamSpec>,
     #[serde(default)]
     cli_name: Option<String>,
-    targets: Vec<String>,
+    #[serde(default)]
+    cli_about: Option<String>,
+    #[serde(default)]
+    mcp_description: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum UtilityKind {
+    Auth,
+    Ping,
+    AllGreeks,
+    ImpliedVolatility,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum UtilityTarget {
+    Python,
+    Go,
+    Cpp,
+    Mcp,
+    Cli,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ParamSpec {
+    name: String,
+    #[serde(rename = "type")]
+    param_type: ParamType,
+    doc: String,
+    #[serde(default)]
+    cli_name: Option<String>,
+    #[serde(default)]
+    mcp_name: Option<String>,
+    #[serde(default)]
+    mcp_description: Option<String>,
+    #[serde(default)]
+    enum_values: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum ParamType {
+    String,
+    F64,
+    I32,
+    U64,
+    CredentialsRef,
+    ConfigRef,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GoFfiSpec {
+    #[serde(default)]
+    tls_reader_markers: Vec<TlsReaderMarker>,
+    #[serde(default)]
+    tls_helpers: Vec<TlsHelper>,
+}
+
+/// A substring that, when present on a Go source line, identifies an FFI
+/// thread-local error read. The enclosing function must have executed
+/// `runtime.LockOSThread()` + `defer runtime.UnlockOSThread()` before
+/// reaching such a line. See `sdk_surface.toml` for the authoritative
+/// description of each marker.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TlsReaderMarker {
+    substring: String,
+    description: String,
+}
+
+/// A hand-written Go helper (method or function) that is itself a TLS
+/// reader. The generated timeout-pin audit skips these entries when counting
+/// expected-pinned methods so self-pinning helpers don't double-count.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TlsHelper {
+    method_name: String,
+    description: String,
 }
 
 struct GeneratedSourceFile {
@@ -46,7 +181,7 @@ struct GeneratedSourceFile {
 }
 
 pub fn write_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    for file in render_sdk_generated_files()? {
+    for file in render_sdk_generated_files(repo_root)? {
         let path = repo_root.join(file.relative_path);
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -57,7 +192,7 @@ pub fn write_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
 }
 
 pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    for file in render_sdk_generated_files()? {
+    for file in render_sdk_generated_files(repo_root)? {
         let path = repo_root.join(file.relative_path);
         let actual = std::fs::read_to_string(&path)?;
         if actual.replace("\r\n", "\n") != file.contents {
@@ -71,54 +206,119 @@ pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
     Ok(())
 }
 
-fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std::error::Error>> {
+fn render_sdk_generated_files(
+    repo_root: &Path,
+) -> Result<Vec<GeneratedSourceFile>, Box<dyn std::error::Error>> {
     let spec = load_sdk_surface_spec()?;
     validate_spec(&spec)?;
+
+    let python_unified_methods: Vec<&MethodSpec> = spec
+        .methods
+        .iter()
+        .filter(|method| method.targets.contains(&MethodTarget::PythonUnified))
+        .collect();
+    let go_fpss_methods: Vec<&MethodSpec> = spec
+        .methods
+        .iter()
+        .filter(|method| method.targets.contains(&MethodTarget::GoFpss))
+        .collect();
+    let cpp_fpss_methods: Vec<&MethodSpec> = spec
+        .methods
+        .iter()
+        .filter(|method| method.targets.contains(&MethodTarget::CppFpss))
+        .collect();
+    let cpp_lifecycle_methods: Vec<&MethodSpec> = spec
+        .methods
+        .iter()
+        .filter(|method| method.targets.contains(&MethodTarget::CppLifecycle))
+        .collect();
+    let python_utilities: Vec<&UtilitySpec> = spec
+        .utilities
+        .iter()
+        .filter(|utility| utility.targets.contains(&UtilityTarget::Python))
+        .collect();
+    let go_utilities: Vec<&UtilitySpec> = spec
+        .utilities
+        .iter()
+        .filter(|utility| utility.targets.contains(&UtilityTarget::Go))
+        .collect();
+    let cpp_utilities: Vec<&UtilitySpec> = spec
+        .utilities
+        .iter()
+        .filter(|utility| utility.targets.contains(&UtilityTarget::Cpp))
+        .collect();
+    let mcp_utilities: Vec<&UtilitySpec> = spec
+        .utilities
+        .iter()
+        .filter(|utility| utility.targets.contains(&UtilityTarget::Mcp))
+        .collect();
+    let cli_utilities: Vec<&UtilitySpec> = spec
+        .utilities
+        .iter()
+        .filter(|utility| utility.targets.contains(&UtilityTarget::Cli))
+        .collect();
+
+    let go_fpss_methods_src =
+        render_go_fpss_methods(&go_fpss_methods, &spec.go_ffi.tls_reader_markers);
+    let go_utilities_src =
+        render_go_utility_functions(&go_utilities, &spec.go_ffi.tls_reader_markers);
 
     Ok(vec![
         GeneratedSourceFile {
             relative_path: "sdks/python/src/streaming_methods.rs",
-            contents: render_python_streaming_methods(&spec.python_unified),
+            contents: render_python_streaming_methods(&python_unified_methods),
         },
         GeneratedSourceFile {
             relative_path: "sdks/python/src/utility_functions.rs",
-            contents: render_python_utility_functions(&spec.utilities),
+            contents: render_python_utility_functions(&python_utilities),
         },
         GeneratedSourceFile {
             relative_path: "sdks/go/fpss_methods.go",
-            contents: render_go_fpss_methods(&spec.go_fpss),
+            contents: go_fpss_methods_src.clone(),
         },
         GeneratedSourceFile {
             relative_path: "sdks/go/utilities.go",
-            contents: render_go_utility_functions(&spec.utilities),
+            contents: go_utilities_src.clone(),
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/go/timeout_pin_generated_test.go",
+            contents: render_go_timeout_pin_generated_test(
+                repo_root,
+                &spec.go_ffi.tls_reader_markers,
+                &spec.go_ffi.tls_helpers,
+                &[
+                    ("fpss_methods.go", go_fpss_methods_src.as_str()),
+                    ("utilities.go", go_utilities_src.as_str()),
+                ],
+            )?,
         },
         GeneratedSourceFile {
             relative_path: "sdks/cpp/include/fpss.hpp.inc",
-            contents: render_cpp_fpss_decls(&spec.cpp_fpss),
+            contents: render_cpp_fpss_decls(&cpp_fpss_methods),
         },
         GeneratedSourceFile {
             relative_path: "sdks/cpp/src/fpss.cpp.inc",
-            contents: render_cpp_fpss_defs(&spec.cpp_fpss),
+            contents: render_cpp_fpss_defs(&cpp_fpss_methods),
         },
         GeneratedSourceFile {
             relative_path: "sdks/cpp/include/utilities.hpp.inc",
-            contents: render_cpp_utility_decls(&spec.utilities),
+            contents: render_cpp_utility_decls(&cpp_utilities),
         },
         GeneratedSourceFile {
             relative_path: "sdks/cpp/src/utilities.cpp.inc",
-            contents: render_cpp_utility_defs(&spec.utilities),
+            contents: render_cpp_utility_defs(&cpp_utilities),
         },
         GeneratedSourceFile {
             relative_path: "sdks/cpp/src/lifecycle.cpp.inc",
-            contents: render_cpp_lifecycle_defs(&spec.cpp_lifecycle),
+            contents: render_cpp_lifecycle_defs(&cpp_lifecycle_methods),
         },
         GeneratedSourceFile {
             relative_path: "tools/mcp/src/utilities.rs",
-            contents: render_mcp_utilities(&spec.utilities),
+            contents: render_mcp_utilities(&mcp_utilities),
         },
         GeneratedSourceFile {
             relative_path: "tools/cli/src/utilities.rs",
-            contents: render_cli_utilities(&spec.utilities),
+            contents: render_cli_utilities(&cli_utilities),
         },
     ])
 }
@@ -132,155 +332,528 @@ fn load_sdk_surface_spec() -> Result<SdkSurfaceSpec, Box<dyn std::error::Error>>
 }
 
 fn validate_spec(spec: &SdkSurfaceSpec) -> Result<(), Box<dyn std::error::Error>> {
-    if spec.version != 1 {
+    if spec.version != 2 {
         return Err(format!("unsupported sdk_surface.toml version: {}", spec.version).into());
     }
 
-    validate_known_names(
-        "utility",
-        spec.utilities.iter().map(|item| item.name.as_str()),
-        &["auth", "ping", "all_greeks", "implied_volatility"],
-    )?;
-    validate_known_names(
-        "python_unified",
-        spec.python_unified.iter().map(String::as_str),
-        &[
-            "start_streaming",
-            "is_streaming",
-            "subscribe_quotes",
-            "subscribe_trades",
-            "subscribe_open_interest",
-            "subscribe_option_quotes",
-            "subscribe_option_trades",
-            "subscribe_option_open_interest",
-            "subscribe_full_trades",
-            "subscribe_full_open_interest",
-            "unsubscribe_full_trades",
-            "unsubscribe_full_open_interest",
-            "unsubscribe_quotes",
-            "unsubscribe_trades",
-            "unsubscribe_open_interest",
-            "unsubscribe_option_quotes",
-            "unsubscribe_option_trades",
-            "unsubscribe_option_open_interest",
-            "contract_map",
-            "contract_lookup",
-            "active_subscriptions",
-            "next_event",
-            "reconnect",
-            "stop_streaming",
-            "shutdown",
-        ],
-    )?;
-    validate_known_names(
-        "go_fpss",
-        spec.go_fpss.iter().map(String::as_str),
-        &[
-            "subscribe_quotes",
-            "subscribe_trades",
-            "subscribe_open_interest",
-            "subscribe_option_quotes",
-            "subscribe_option_trades",
-            "subscribe_option_open_interest",
-            "subscribe_full_trades",
-            "subscribe_full_open_interest",
-            "unsubscribe_quotes",
-            "unsubscribe_trades",
-            "unsubscribe_open_interest",
-            "unsubscribe_option_quotes",
-            "unsubscribe_option_trades",
-            "unsubscribe_option_open_interest",
-            "unsubscribe_full_trades",
-            "unsubscribe_full_open_interest",
-            "is_authenticated",
-            "contract_lookup",
-            "contract_map",
-            "active_subscriptions",
-            "next_event",
-            "reconnect",
-            "shutdown",
-        ],
-    )?;
-    validate_known_names(
-        "cpp_fpss",
-        spec.cpp_fpss.iter().map(String::as_str),
-        &[
-            "connect",
-            "subscribe_quotes",
-            "subscribe_trades",
-            "subscribe_open_interest",
-            "subscribe_option_quotes",
-            "subscribe_option_trades",
-            "subscribe_option_open_interest",
-            "subscribe_full_trades",
-            "subscribe_full_open_interest",
-            "unsubscribe_quotes",
-            "unsubscribe_trades",
-            "unsubscribe_open_interest",
-            "unsubscribe_option_quotes",
-            "unsubscribe_option_trades",
-            "unsubscribe_option_open_interest",
-            "unsubscribe_full_trades",
-            "unsubscribe_full_open_interest",
-            "is_authenticated",
-            "contract_lookup",
-            "contract_map",
-            "active_subscriptions",
-            "next_event",
-            "reconnect",
-            "shutdown",
-        ],
-    )?;
-    validate_known_names(
-        "cpp_lifecycle",
-        spec.cpp_lifecycle.iter().map(String::as_str),
-        &[
-            "credentials_from_file",
-            "credentials_from_email",
-            "config_production",
-            "config_dev",
-            "config_stage",
-            "client_connect",
-        ],
-    )?;
+    let mut seen_methods = std::collections::HashSet::new();
+    for method in &spec.methods {
+        if !seen_methods.insert(method.name.as_str()) {
+            return Err(format!("duplicate method '{}'", method.name).into());
+        }
+        validate_method_spec(method)?;
+    }
 
+    let mut seen_utilities = std::collections::HashSet::new();
     for utility in &spec.utilities {
-        for target in &utility.targets {
-            match target.as_str() {
-                "python" | "go" | "cpp" | "mcp" | "cli" => {}
-                other => {
-                    return Err(format!(
-                        "utility '{}' declares unknown target '{}'",
-                        utility.name, other
-                    )
-                    .into())
-                }
-            }
+        if !seen_utilities.insert(utility.name.as_str()) {
+            return Err(format!("duplicate utility '{}'", utility.name).into());
+        }
+        validate_utility_spec(utility)?;
+    }
+
+    let mut seen_tls_markers = std::collections::HashSet::new();
+    for marker in &spec.go_ffi.tls_reader_markers {
+        if marker.substring.trim().is_empty() {
+            return Err(
+                "sdk_surface.toml go_ffi.tls_reader_markers contains an empty substring".into(),
+            );
+        }
+        if !seen_tls_markers.insert(marker.substring.as_str()) {
+            return Err(format!(
+                "sdk_surface.toml go_ffi.tls_reader_markers contains duplicate substring '{}'",
+                marker.substring
+            )
+            .into());
+        }
+    }
+
+    let mut seen_tls_helpers = std::collections::HashSet::new();
+    for helper in &spec.go_ffi.tls_helpers {
+        if helper.method_name.trim().is_empty() {
+            return Err("sdk_surface.toml go_ffi.tls_helpers contains an empty method_name".into());
+        }
+        if !seen_tls_helpers.insert(helper.method_name.as_str()) {
+            return Err(format!(
+                "sdk_surface.toml go_ffi.tls_helpers contains duplicate method_name '{}'",
+                helper.method_name
+            )
+            .into());
         }
     }
 
     Ok(())
 }
 
-fn validate_known_names<'a, I>(
-    label: &str,
-    values: I,
-    known: &[&str],
-) -> Result<(), Box<dyn std::error::Error>>
+fn validate_method_spec(method: &MethodSpec) -> Result<(), Box<dyn std::error::Error>> {
+    if method.targets.is_empty() {
+        return Err(format!("method '{}' must declare at least one target", method.name).into());
+    }
+    ensure_unique_strings(
+        &format!("method '{}' targets", method.name),
+        method.targets.iter().map(|target| format!("{target:?}")),
+    )?;
+    ensure_unique_strings(
+        &format!("method '{}' params", method.name),
+        method.params.iter().map(|param| param.name.clone()),
+    )?;
+
+    match method.kind {
+        MethodKind::StartStreaming => {
+            expect_method_name(method, "start_streaming")?;
+            expect_exact_method_targets(method, &[MethodTarget::PythonUnified])?;
+            expect_param_layout(method, &[])?;
+            expect_none(&method.runtime_call, &method.name, "runtime_call")?;
+            expect_none(&method.ffi_call, &method.name, "ffi_call")?;
+            expect_none(&method.config_variant, &method.name, "config_variant")?;
+        }
+        MethodKind::IsStreaming => {
+            expect_method_name(method, "is_streaming")?;
+            expect_exact_method_targets(method, &[MethodTarget::PythonUnified])?;
+            expect_param_layout(method, &[])?;
+            expect_none(&method.runtime_call, &method.name, "runtime_call")?;
+            expect_none(&method.ffi_call, &method.name, "ffi_call")?;
+            expect_none(&method.config_variant, &method.name, "config_variant")?;
+        }
+        MethodKind::StockContractCall => {
+            expect_method_targets_subset(
+                method,
+                &[
+                    MethodTarget::PythonUnified,
+                    MethodTarget::GoFpss,
+                    MethodTarget::CppFpss,
+                ],
+            )?;
+            expect_param_layout(method, &[("symbol", ParamType::String)])?;
+            expect_some(&method.runtime_call, &method.name, "runtime_call")?;
+            expect_some(&method.ffi_call, &method.name, "ffi_call")?;
+            expect_none(&method.config_variant, &method.name, "config_variant")?;
+        }
+        MethodKind::OptionContractCall => {
+            expect_method_targets_subset(
+                method,
+                &[
+                    MethodTarget::PythonUnified,
+                    MethodTarget::GoFpss,
+                    MethodTarget::CppFpss,
+                ],
+            )?;
+            expect_param_layout(
+                method,
+                &[
+                    ("symbol", ParamType::String),
+                    ("expiration", ParamType::String),
+                    ("strike", ParamType::String),
+                    ("right", ParamType::String),
+                ],
+            )?;
+            expect_some(&method.runtime_call, &method.name, "runtime_call")?;
+            expect_some(&method.ffi_call, &method.name, "ffi_call")?;
+            expect_none(&method.config_variant, &method.name, "config_variant")?;
+        }
+        MethodKind::FullCall => {
+            expect_method_targets_subset(
+                method,
+                &[
+                    MethodTarget::PythonUnified,
+                    MethodTarget::GoFpss,
+                    MethodTarget::CppFpss,
+                ],
+            )?;
+            expect_param_layout(method, &[("sec_type", ParamType::String)])?;
+            expect_some(&method.runtime_call, &method.name, "runtime_call")?;
+            expect_some(&method.ffi_call, &method.name, "ffi_call")?;
+            expect_none(&method.config_variant, &method.name, "config_variant")?;
+        }
+        MethodKind::ContractMap => {
+            expect_method_name(method, "contract_map")?;
+            expect_method_targets_subset(
+                method,
+                &[
+                    MethodTarget::PythonUnified,
+                    MethodTarget::GoFpss,
+                    MethodTarget::CppFpss,
+                ],
+            )?;
+            expect_param_layout(method, &[])?;
+        }
+        MethodKind::ContractLookup => {
+            expect_method_name(method, "contract_lookup")?;
+            expect_method_targets_subset(
+                method,
+                &[
+                    MethodTarget::PythonUnified,
+                    MethodTarget::GoFpss,
+                    MethodTarget::CppFpss,
+                ],
+            )?;
+            expect_param_layout(method, &[("id", ParamType::I32)])?;
+        }
+        MethodKind::ActiveSubscriptions => {
+            expect_method_name(method, "active_subscriptions")?;
+            expect_method_targets_subset(
+                method,
+                &[
+                    MethodTarget::PythonUnified,
+                    MethodTarget::GoFpss,
+                    MethodTarget::CppFpss,
+                ],
+            )?;
+            expect_param_layout(method, &[])?;
+        }
+        MethodKind::NextEvent => {
+            expect_method_name(method, "next_event")?;
+            expect_method_targets_subset(
+                method,
+                &[
+                    MethodTarget::PythonUnified,
+                    MethodTarget::GoFpss,
+                    MethodTarget::CppFpss,
+                ],
+            )?;
+            expect_param_layout(method, &[("timeout_ms", ParamType::U64)])?;
+        }
+        MethodKind::Reconnect => {
+            expect_method_name(method, "reconnect")?;
+            expect_method_targets_subset(
+                method,
+                &[
+                    MethodTarget::PythonUnified,
+                    MethodTarget::GoFpss,
+                    MethodTarget::CppFpss,
+                ],
+            )?;
+            expect_param_layout(method, &[])?;
+        }
+        MethodKind::StopStreaming => {
+            expect_method_name(method, "stop_streaming")?;
+            expect_exact_method_targets(method, &[MethodTarget::PythonUnified])?;
+            expect_param_layout(method, &[])?;
+        }
+        MethodKind::Shutdown => {
+            expect_method_name(method, "shutdown")?;
+            expect_method_targets_subset(
+                method,
+                &[
+                    MethodTarget::PythonUnified,
+                    MethodTarget::GoFpss,
+                    MethodTarget::CppFpss,
+                ],
+            )?;
+            expect_param_layout(method, &[])?;
+        }
+        MethodKind::IsAuthenticated => {
+            expect_method_name(method, "is_authenticated")?;
+            expect_method_targets_subset(method, &[MethodTarget::GoFpss, MethodTarget::CppFpss])?;
+            expect_param_layout(method, &[])?;
+        }
+        MethodKind::FpssConnect => {
+            expect_method_name(method, "connect")?;
+            expect_exact_method_targets(method, &[MethodTarget::CppFpss])?;
+            expect_param_layout(
+                method,
+                &[
+                    ("creds", ParamType::CredentialsRef),
+                    ("config", ParamType::ConfigRef),
+                ],
+            )?;
+        }
+        MethodKind::CredentialsFromFile => {
+            expect_method_name(method, "credentials_from_file")?;
+            expect_exact_method_targets(method, &[MethodTarget::CppLifecycle])?;
+            expect_param_layout(method, &[("path", ParamType::String)])?;
+        }
+        MethodKind::CredentialsFromEmail => {
+            expect_method_name(method, "credentials_from_email")?;
+            expect_exact_method_targets(method, &[MethodTarget::CppLifecycle])?;
+            expect_param_layout(
+                method,
+                &[
+                    ("email", ParamType::String),
+                    ("password", ParamType::String),
+                ],
+            )?;
+        }
+        MethodKind::ConfigConstructor => {
+            let variant = expect_some(&method.config_variant, &method.name, "config_variant")?;
+            expect_method_name(method, &format!("config_{variant}"))?;
+            expect_exact_method_targets(method, &[MethodTarget::CppLifecycle])?;
+            expect_param_layout(method, &[])?;
+            if !matches!(variant, "production" | "dev" | "stage") {
+                return Err(format!(
+                    "method '{}' has unsupported config_variant '{}'",
+                    method.name, variant
+                )
+                .into());
+            }
+        }
+        MethodKind::ClientConnect => {
+            expect_method_name(method, "client_connect")?;
+            expect_exact_method_targets(method, &[MethodTarget::CppLifecycle])?;
+            expect_param_layout(
+                method,
+                &[
+                    ("creds", ParamType::CredentialsRef),
+                    ("config", ParamType::ConfigRef),
+                ],
+            )?;
+        }
+    }
+
+    for param in &method.params {
+        if !param.enum_values.is_empty() && param.param_type != ParamType::String {
+            return Err(format!(
+                "method '{}' param '{}' declares enum_values but is not a string",
+                method.name, param.name
+            )
+            .into());
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_utility_spec(utility: &UtilitySpec) -> Result<(), Box<dyn std::error::Error>> {
+    if utility.targets.is_empty() {
+        return Err(format!(
+            "utility '{}' must declare at least one target",
+            utility.name
+        )
+        .into());
+    }
+    ensure_unique_strings(
+        &format!("utility '{}' targets", utility.name),
+        utility.targets.iter().map(|target| format!("{target:?}")),
+    )?;
+    ensure_unique_strings(
+        &format!("utility '{}' params", utility.name),
+        utility.params.iter().map(|param| param.name.clone()),
+    )?;
+    for param in &utility.params {
+        if !param.enum_values.is_empty() && param.param_type != ParamType::String {
+            return Err(format!(
+                "utility '{}' param '{}' declares enum_values but is not a string",
+                utility.name, param.name
+            )
+            .into());
+        }
+    }
+
+    match utility.kind {
+        UtilityKind::Auth => {
+            if utility.name != "auth" {
+                return Err("utility kind Auth must use name 'auth'".into());
+            }
+            expect_exact_utility_targets(utility, &[UtilityTarget::Cli])?;
+            expect_utility_param_layout(utility, &[])?;
+        }
+        UtilityKind::Ping => {
+            if utility.name != "ping" {
+                return Err("utility kind Ping must use name 'ping'".into());
+            }
+            expect_exact_utility_targets(utility, &[UtilityTarget::Mcp])?;
+            expect_utility_param_layout(utility, &[])?;
+        }
+        UtilityKind::AllGreeks => {
+            if utility.name != "all_greeks" {
+                return Err("utility kind AllGreeks must use name 'all_greeks'".into());
+            }
+            expect_utility_targets_subset(
+                utility,
+                &[
+                    UtilityTarget::Python,
+                    UtilityTarget::Go,
+                    UtilityTarget::Cpp,
+                    UtilityTarget::Mcp,
+                    UtilityTarget::Cli,
+                ],
+            )?;
+            expect_utility_param_layout(utility, &offline_greeks_param_layout())?;
+        }
+        UtilityKind::ImpliedVolatility => {
+            if utility.name != "implied_volatility" {
+                return Err(
+                    "utility kind ImpliedVolatility must use name 'implied_volatility'".into(),
+                );
+            }
+            expect_utility_targets_subset(
+                utility,
+                &[
+                    UtilityTarget::Python,
+                    UtilityTarget::Go,
+                    UtilityTarget::Cpp,
+                    UtilityTarget::Mcp,
+                    UtilityTarget::Cli,
+                ],
+            )?;
+            expect_utility_param_layout(utility, &offline_greeks_param_layout())?;
+        }
+    }
+
+    Ok(())
+}
+
+fn expect_method_name(
+    method: &MethodSpec,
+    expected: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if method.name != expected {
+        return Err(format!(
+            "method kind {:?} must use name '{}', got '{}'",
+            method.kind, expected, method.name
+        )
+        .into());
+    }
+    Ok(())
+}
+
+fn expect_method_targets_subset(
+    method: &MethodSpec,
+    allowed: &[MethodTarget],
+) -> Result<(), Box<dyn std::error::Error>> {
+    for target in &method.targets {
+        if !allowed.contains(target) {
+            return Err(format!(
+                "method '{}' declares unsupported target {:?}",
+                method.name, target
+            )
+            .into());
+        }
+    }
+    Ok(())
+}
+
+// Note: `expected` is an ordered slice rather than a set. Callers pass a
+// canonical ordering (e.g. `[PythonUnified, GoFpss, CppFpss]`) and the
+// generator relies on this ordering when emitting per-target dispatch
+// sections, so deterministic output depends on the slice order matching the
+// TOML-declared ordering. If that invariant ever needs to be relaxed,
+// convert both sides to a `BTreeSet<MethodTarget>` before comparing.
+fn expect_exact_method_targets(
+    method: &MethodSpec,
+    expected: &[MethodTarget],
+) -> Result<(), Box<dyn std::error::Error>> {
+    expect_method_targets_subset(method, expected)?;
+    if method.targets.len() != expected.len() {
+        return Err(format!(
+            "method '{}' must target exactly {:?}, got {:?}",
+            method.name, expected, method.targets
+        )
+        .into());
+    }
+    Ok(())
+}
+
+fn expect_utility_targets_subset(
+    utility: &UtilitySpec,
+    allowed: &[UtilityTarget],
+) -> Result<(), Box<dyn std::error::Error>> {
+    for target in &utility.targets {
+        if !allowed.contains(target) {
+            return Err(format!(
+                "utility '{}' declares unsupported target {:?}",
+                utility.name, target
+            )
+            .into());
+        }
+    }
+    Ok(())
+}
+
+fn expect_exact_utility_targets(
+    utility: &UtilitySpec,
+    expected: &[UtilityTarget],
+) -> Result<(), Box<dyn std::error::Error>> {
+    expect_utility_targets_subset(utility, expected)?;
+    if utility.targets.len() != expected.len() {
+        return Err(format!(
+            "utility '{}' must target exactly {:?}, got {:?}",
+            utility.name, expected, utility.targets
+        )
+        .into());
+    }
+    Ok(())
+}
+
+fn expect_param_layout(
+    method: &MethodSpec,
+    expected: &[(&str, ParamType)],
+) -> Result<(), Box<dyn std::error::Error>> {
+    if method.params.len() != expected.len() {
+        return Err(format!(
+            "method '{}' expected {} params but found {}",
+            method.name,
+            expected.len(),
+            method.params.len()
+        )
+        .into());
+    }
+    for (param, (name, kind)) in method.params.iter().zip(expected.iter()) {
+        if param.name != *name || param.param_type != *kind {
+            return Err(format!(
+                "method '{}' expected param ({name}, {kind:?}) but found ({}, {:?})",
+                method.name, param.name, param.param_type
+            )
+            .into());
+        }
+    }
+    Ok(())
+}
+
+fn expect_utility_param_layout(
+    utility: &UtilitySpec,
+    expected: &[(&str, ParamType)],
+) -> Result<(), Box<dyn std::error::Error>> {
+    if utility.params.len() != expected.len() {
+        return Err(format!(
+            "utility '{}' expected {} params but found {}",
+            utility.name,
+            expected.len(),
+            utility.params.len()
+        )
+        .into());
+    }
+    for (param, (name, kind)) in utility.params.iter().zip(expected.iter()) {
+        if param.name != *name || param.param_type != *kind {
+            return Err(format!(
+                "utility '{}' expected param ({name}, {kind:?}) but found ({}, {:?})",
+                utility.name, param.name, param.param_type
+            )
+            .into());
+        }
+    }
+    Ok(())
+}
+
+fn expect_some<'a>(
+    value: &'a Option<String>,
+    owner: &str,
+    field: &str,
+) -> Result<&'a str, Box<dyn std::error::Error>> {
+    value
+        .as_deref()
+        .ok_or_else(|| format!("'{owner}' must declare {field}").into())
+}
+
+fn expect_none(
+    value: &Option<String>,
+    owner: &str,
+    field: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if value.is_some() {
+        return Err(format!("'{owner}' must not declare {field}").into());
+    }
+    Ok(())
+}
+
+fn ensure_unique_strings<I>(label: &str, values: I) -> Result<(), Box<dyn std::error::Error>>
 where
-    I: IntoIterator<Item = &'a str>,
+    I: IntoIterator<Item = String>,
 {
     let mut seen = std::collections::HashSet::new();
-    let allowed = known
-        .iter()
-        .copied()
-        .collect::<std::collections::HashSet<_>>();
     for value in values {
-        if !allowed.contains(value) {
-            return Err(format!("unknown {label} entry '{}'", value).into());
-        }
-        if !seen.insert(value.to_string()) {
-            return Err(format!("duplicate {label} entry '{}'", value).into());
+        if !seen.insert(value.clone()) {
+            return Err(format!("duplicate {label} entry '{value}'").into());
         }
     }
     Ok(())
@@ -290,36 +863,250 @@ fn generated_header() -> &'static str {
     "// @generated DO NOT EDIT — regenerated by build.rs from sdk_surface.toml\n\n"
 }
 
-fn render_python_streaming_methods(methods: &[String]) -> String {
+fn offline_greeks_param_layout() -> [(&'static str, ParamType); 7] {
+    [
+        ("spot", ParamType::F64),
+        ("strike", ParamType::F64),
+        ("rate", ParamType::F64),
+        ("div_yield", ParamType::F64),
+        ("tte", ParamType::F64),
+        ("option_price", ParamType::F64),
+        ("right", ParamType::String),
+    ]
+}
+
+fn greek_result_fields() -> [(&'static str, &'static str); 22] {
+    [
+        ("value", "value"),
+        ("iv", "iv"),
+        ("iv_error", "iv_error"),
+        ("delta", "delta"),
+        ("gamma", "gamma"),
+        ("theta", "theta"),
+        ("vega", "vega"),
+        ("rho", "rho"),
+        ("vanna", "vanna"),
+        ("charm", "charm"),
+        ("vomma", "vomma"),
+        ("veta", "veta"),
+        ("speed", "speed"),
+        ("zomma", "zomma"),
+        ("color", "color"),
+        ("ultima", "ultima"),
+        ("d1", "d1"),
+        ("d2", "d2"),
+        ("dual_delta", "dual_delta"),
+        ("dual_gamma", "dual_gamma"),
+        ("epsilon", "epsilon"),
+        ("lambda", "lambda"),
+    ]
+}
+
+fn rust_string_literal(value: &str) -> String {
+    format!("{value:?}")
+}
+
+fn rust_string_array_literal(values: &[String]) -> String {
+    let mut out = String::from("[");
+    for (index, value) in values.iter().enumerate() {
+        if index > 0 {
+            out.push_str(", ");
+        }
+        out.push_str(&rust_string_literal(value));
+    }
+    out.push(']');
+    out
+}
+
+fn pascal_case(value: &str) -> String {
+    let mut out = String::new();
+    for part in value.split('_').filter(|part| !part.is_empty()) {
+        let mut chars = part.chars();
+        if let Some(first) = chars.next() {
+            out.push(first.to_ascii_uppercase());
+            out.extend(chars);
+        }
+    }
+    out
+}
+
+fn lower_camel_case(value: &str) -> String {
+    let pascal = pascal_case(value);
+    let mut chars = pascal.chars();
+    let Some(first) = chars.next() else {
+        return String::new();
+    };
+    let mut out = String::new();
+    out.push(first.to_ascii_lowercase());
+    out.extend(chars);
+    out
+}
+
+fn go_exported_name(name: &str) -> String {
+    pascal_case(name)
+}
+
+fn go_param_name(name: &str) -> String {
+    lower_camel_case(name)
+}
+
+fn go_c_var(name: &str) -> String {
+    format!("c{}", pascal_case(name))
+}
+
+fn push_rust_doc_comment(out: &mut String, indent: &str, doc: &str) {
+    for line in doc.lines() {
+        writeln!(out, "{indent}/// {line}").unwrap();
+    }
+}
+
+fn push_cpp_doc_comment(out: &mut String, indent: &str, doc: &str) {
+    if doc.contains('\n') {
+        writeln!(out, "{indent}/**").unwrap();
+        for line in doc.lines() {
+            writeln!(out, "{indent} * {line}").unwrap();
+        }
+        writeln!(out, "{indent} */").unwrap();
+    } else {
+        writeln!(out, "{indent}/** {doc} */").unwrap();
+    }
+}
+
+fn python_type(param_type: ParamType) -> &'static str {
+    // Invariant enforced in `validate_method_spec`: only `FpssConnect`
+    // declares `CredentialsRef`/`ConfigRef` params, and it targets
+    // `CppFpss` exclusively (never `PythonUnified`). Any future method
+    // that mixes these param types with Python targets must update the
+    // validator before reaching this helper.
+    debug_assert!(
+        !matches!(param_type, ParamType::CredentialsRef | ParamType::ConfigRef),
+        "python_type called with credentials/config ref; validate_method_spec should have rejected this"
+    );
+    match param_type {
+        ParamType::String => "&str",
+        ParamType::F64 => "f64",
+        ParamType::I32 => "i32",
+        ParamType::U64 => "u64",
+        ParamType::CredentialsRef | ParamType::ConfigRef => {
+            panic!("credentials/config refs are not valid for Python emitters")
+        }
+    }
+}
+
+fn go_type(param_type: ParamType) -> &'static str {
+    match param_type {
+        ParamType::String => "string",
+        ParamType::F64 => "float64",
+        ParamType::I32 => "int",
+        ParamType::U64 => "uint64",
+        ParamType::CredentialsRef => "*Credentials",
+        ParamType::ConfigRef => "*Config",
+    }
+}
+
+fn cpp_type(param_type: ParamType) -> &'static str {
+    match param_type {
+        ParamType::String => "const std::string&",
+        ParamType::F64 => "double",
+        ParamType::I32 => "int",
+        ParamType::U64 => "uint64_t",
+        ParamType::CredentialsRef => "const Credentials&",
+        ParamType::ConfigRef => "const Config&",
+    }
+}
+
+fn cli_param_name(param: &ParamSpec) -> &str {
+    param.cli_name.as_deref().unwrap_or(&param.name)
+}
+
+fn mcp_param_name(param: &ParamSpec) -> &str {
+    param.mcp_name.as_deref().unwrap_or(&param.name)
+}
+
+/// Look up a utility param by its canonical TOML `name` field.
+///
+/// Used by dispatch-arm emitters so the generated CLI/MCP arg keys follow
+/// the param's declared `cli_name`/`mcp_name` (via [`cli_param_name`] /
+/// [`mcp_param_name`]) rather than being hardcoded in the emitter.
+fn find_utility_param<'a>(utility: &'a UtilitySpec, name: &str) -> &'a ParamSpec {
+    utility
+        .params
+        .iter()
+        .find(|p| p.name == name)
+        .unwrap_or_else(|| {
+            panic!(
+                "sdk_surface.toml: utility '{}' is missing required param '{}'",
+                utility.name, name
+            )
+        })
+}
+
+/// Emit a CLI `get_arg(...).parse()` block that fetches the TOML-declared
+/// `cli_name` for `param_name`, binds it to Rust local `rust_local`, and
+/// formats the "invalid {cli_name}" error message from the CLI-facing key.
+fn emit_cli_f64_arg(out: &mut String, utility: &UtilitySpec, param_name: &str, rust_local: &str) {
+    let cli_key = cli_param_name(find_utility_param(utility, param_name));
+    writeln!(
+        out,
+        "            let {rust_local}: f64 = get_arg(sub_m, {})",
+        rust_string_literal(cli_key)
+    )
+    .unwrap();
+    out.push_str("                .parse()\n");
+    writeln!(
+        out,
+        "                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid {cli_key}: {{e}}\")))?;"
+    )
+    .unwrap();
+}
+
+fn mcp_param_description(param: &ParamSpec) -> &str {
+    param.mcp_description.as_deref().unwrap_or(&param.doc)
+}
+
+fn mcp_json_type(param_type: ParamType) -> &'static str {
+    // Invariant enforced in `validate_utility_spec` + `validate_method_spec`:
+    // MCP-targeted specs (utilities and, prospectively, methods) never
+    // declare `CredentialsRef`/`ConfigRef` params — those are reserved for
+    // `FpssConnect` which targets `CppFpss` exclusively.
+    debug_assert!(
+        !matches!(param_type, ParamType::CredentialsRef | ParamType::ConfigRef),
+        "mcp_json_type called with credentials/config ref; validate_*_spec should have rejected this"
+    );
+    match param_type {
+        ParamType::String => "string",
+        ParamType::F64 => "number",
+        ParamType::I32 | ParamType::U64 => "integer",
+        ParamType::CredentialsRef | ParamType::ConfigRef => {
+            panic!("credentials/config refs are not valid for MCP emitters")
+        }
+    }
+}
+
+fn render_python_streaming_methods(methods: &[&MethodSpec]) -> String {
     let mut out = String::new();
     out.push_str(generated_header());
     out.push_str("#[pymethods]\n");
     out.push_str("impl ThetaDataDx {\n");
     for method in methods {
-        out.push_str(python_streaming_method(method));
+        out.push_str(&python_streaming_method(method));
         out.push('\n');
     }
     out.push_str("}\n");
     out
 }
 
-fn render_python_utility_functions(utilities: &[UtilitySpec]) -> String {
+fn render_python_utility_functions(utilities: &[&UtilitySpec]) -> String {
     let mut out = String::new();
     out.push_str(generated_header());
-    for utility in utilities
-        .iter()
-        .filter(|utility| utility.targets.iter().any(|target| target == "python"))
-    {
-        out.push_str(python_utility_function(&utility.name));
+    for utility in utilities {
+        out.push_str(&python_utility_function(utility));
         out.push('\n');
     }
     out.push_str(
         "fn register_generated_utility_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {\n",
     );
-    for utility in utilities
-        .iter()
-        .filter(|utility| utility.targets.iter().any(|target| target == "python"))
-    {
+    for utility in utilities {
         writeln!(
             out,
             "    m.add_function(wrap_pyfunction!({}, m)?)?;",
@@ -332,118 +1119,98 @@ fn render_python_utility_functions(utilities: &[UtilitySpec]) -> String {
     out
 }
 
-fn render_go_fpss_methods(methods: &[String]) -> String {
+fn render_go_fpss_methods(
+    methods: &[&MethodSpec],
+    tls_reader_markers: &[TlsReaderMarker],
+) -> String {
     let mut out = String::new();
+    // Go spec header: `^// Code generated .* DO NOT EDIT\.$` — see
+    // https://golang.org/s/generatedcode. Required for go vet / gofmt /
+    // staticcheck to recognize this as machine-generated. Non-Go
+    // emitters keep the uniform `@generated` form.
     out.push_str("// Code generated by build.rs from sdk_surface.toml; DO NOT EDIT.\n\n");
     out.push_str("package thetadatadx\n\n");
     out.push_str("/*\n#include \"ffi_bridge.h\"\n*/\nimport \"C\"\n\n");
     out.push_str("import (\n\t\"fmt\"\n\t\"runtime\"\n\t\"unsafe\"\n)\n\n");
-    // Every FPSS wrapper that reads the FFI's thread-local error slot
-    // MUST pin its goroutine to one OS thread for the full clear/call/
-    // check sequence (see `docs/dev/w3-async-cancellation-design.md`
-    // "cgo thread-local correctness" and `ffi/src/lib.rs::LAST_ERROR`).
-    // `inject_os_thread_pin` rewrites the bodies of methods that touch
-    // the error slot so they start with `runtime.LockOSThread()` +
-    // deferred unlock. Pure-read methods like `IsAuthenticated` and
-    // `NextEvent` (which don't read the TLS) pass through unchanged.
     for method in methods {
-        out.push_str(&inject_os_thread_pin(go_fpss_method(method)));
+        out.push_str(&inject_os_thread_pin(
+            &go_fpss_method(method),
+            tls_reader_markers,
+        ));
         out.push('\n');
     }
     out
 }
 
-/// Substrings that identify an FFI thread-local error read in generated
-/// Go code. Paired with `tlsReaderMarkers` in
-/// `sdks/go/timeout_pin_test.go` — both lists MUST stay byte-identical,
-/// enforced by the `go_tls_marker_list_mirrors_rust` integration test
-/// at `crates/thetadatadx/tests/go_tls_marker_parity.rs`. A divergent
-/// addition on either side fails that test naming the missing entries.
-const GO_TLS_READER_MARKERS: &[&str] = &[
-    "lastError(",
-    "lastErrorRaw(",
-    "f.fpssCall(",
-    "C.tdx_last_error(",
-    // Helpers that themselves read the TLS slot — callers must pin
-    // before invoking them.
-    "stringArrayToGo(",
-];
-
-/// Insert `runtime.LockOSThread()` + deferred unlock at the top of every
-/// Go method body in `src` whose body reads the FFI's thread-local error
-/// slot (any substring in `GO_TLS_READER_MARKERS`). Methods without
-/// TLS reads pass through unchanged.
-fn inject_os_thread_pin(src: &str) -> String {
-    // Work line-by-line. A new method opens with `func (<recv>) <Name>(` and
-    // the opening brace is always on the same line per our templates. The
-    // first blank line or non-indented line after the brace closes the body
-    // — we scan until we see a cgo/TLS read marker anywhere in the body;
-    // if found, the pin is injected right after the opening brace.
+fn render_go_utility_functions(
+    utilities: &[&UtilitySpec],
+    tls_reader_markers: &[TlsReaderMarker],
+) -> String {
     let mut out = String::new();
-    let lines: Vec<&str> = src.split_inclusive('\n').collect();
-    let mut i = 0;
-    while i < lines.len() {
-        let line = lines[i];
-        if line.starts_with("func ") && line.trim_end().ends_with('{') {
-            // Scan ahead to the matching `}` at column 0 for this method.
-            let mut j = i + 1;
-            let mut touches_tls = false;
-            while j < lines.len() {
-                let l = lines[j];
-                if l.starts_with('}') {
-                    break;
-                }
-                if GO_TLS_READER_MARKERS.iter().any(|m| l.contains(m)) {
-                    touches_tls = true;
-                }
-                j += 1;
-            }
-            out.push_str(line);
-            if touches_tls {
-                out.push_str("    runtime.LockOSThread()\n");
-                out.push_str("    defer runtime.UnlockOSThread()\n");
-            }
-            // Emit the rest of the body verbatim.
-            for k in (i + 1)..=j.min(lines.len().saturating_sub(1)) {
-                out.push_str(lines[k]);
-            }
-            i = j + 1;
-            continue;
-        }
-        out.push_str(line);
-        i += 1;
-    }
-    out
-}
-
-fn render_go_utility_functions(utilities: &[UtilitySpec]) -> String {
-    let mut out = String::new();
+    // Go spec header (see render_go_fpss_methods for the rationale).
     out.push_str("// Code generated by build.rs from sdk_surface.toml; DO NOT EDIT.\n\n");
     out.push_str("package thetadatadx\n\n");
     out.push_str("/*\n#include <stdlib.h>\n#include \"ffi_bridge.h\"\n*/\nimport \"C\"\n\n");
-    // `unsafe` is required for `unsafe.Pointer(cRight)` when freeing the
-    // C string allocated by `C.CString`. Keep the imports grouped so gofmt
-    // is happy. `runtime` is emitted by `inject_os_thread_pin` for
-    // utilities that read the FFI's thread-local error slot (see
-    // `docs/dev/w3-async-cancellation-design.md`).
     out.push_str("import (\n\t\"fmt\"\n\t\"runtime\"\n\t\"unsafe\"\n)\n\n");
-    for utility in utilities
-        .iter()
-        .filter(|utility| utility.targets.iter().any(|target| target == "go"))
-    {
-        out.push_str(&inject_os_thread_pin(go_utility_function(&utility.name)));
+    for utility in utilities {
+        out.push_str(&inject_os_thread_pin(
+            &go_utility_function(utility),
+            tls_reader_markers,
+        ));
         out.push('\n');
     }
     out
 }
 
-fn render_cpp_fpss_decls(methods: &[String]) -> String {
+fn render_go_timeout_pin_generated_test(
+    repo_root: &Path,
+    tls_reader_markers: &[TlsReaderMarker],
+    tls_helpers: &[TlsHelper],
+    generated_overrides: &[(&str, &str)],
+) -> Result<String, Box<dyn std::error::Error>> {
+    let expected_pinned_methods = count_go_tls_reader_methods(
+        repo_root,
+        tls_reader_markers,
+        tls_helpers,
+        generated_overrides,
+    )?;
+    let mut out = String::new();
+    // Go spec header (see render_go_fpss_methods for the rationale).
+    out.push_str("// Code generated by build.rs from sdk_surface.toml; DO NOT EDIT.\n\n");
+    out.push_str("package thetadatadx\n\n");
+    out.push_str("// tlsReaderMarkers is the single source of truth for the static\n");
+    out.push_str("// Go TLS-reader audit in timeout_pin_test.go.\n");
+    out.push_str("var tlsReaderMarkers = []string{\n");
+    for marker in tls_reader_markers {
+        writeln!(out, "\t{:?}, // {}", marker.substring, marker.description)?;
+    }
+    out.push_str("}\n\n");
+    out.push_str("// tlsHelpers enumerates the hand-written Go functions that are\n");
+    out.push_str("// themselves TLS readers. The build-time pin audit skips them\n");
+    out.push_str("// when counting expected-pinned methods so self-pinning helpers\n");
+    out.push_str("// don't double-count.\n");
+    out.push_str("var tlsHelpers = []string{\n");
+    for helper in tls_helpers {
+        writeln!(out, "\t{:?}, // {}", helper.method_name, helper.description)?;
+    }
+    out.push_str("}\n\n");
+    out.push_str("// expectedPinnedMethods is derived from the current non-test Go\n");
+    out.push_str("// source tree: every function body that reads the FFI thread-local\n");
+    out.push_str("// error slot must pin its goroutine to one OS thread.\n");
+    writeln!(
+        out,
+        "const expectedPinnedMethods = {expected_pinned_methods}"
+    )?;
+    Ok(out)
+}
+
+fn render_cpp_fpss_decls(methods: &[&MethodSpec]) -> String {
     let mut out = String::new();
     out.push_str(
         "    // @generated DO NOT EDIT — regenerated by build.rs from sdk_surface.toml\n\n",
     );
     for method in methods {
-        out.push_str(cpp_fpss_decl(method));
+        out.push_str(&cpp_fpss_decl(method));
         if !out.ends_with('\n') {
             out.push('\n');
         }
@@ -451,1042 +1218,852 @@ fn render_cpp_fpss_decls(methods: &[String]) -> String {
     out
 }
 
-fn render_cpp_fpss_defs(methods: &[String]) -> String {
+fn render_cpp_fpss_defs(methods: &[&MethodSpec]) -> String {
     let mut out = String::new();
     out.push_str(generated_header());
     for method in methods {
-        out.push_str(cpp_fpss_def(method));
+        out.push_str(&cpp_fpss_def(method));
         out.push('\n');
     }
     out
 }
 
-fn render_cpp_utility_decls(utilities: &[UtilitySpec]) -> String {
+fn render_cpp_utility_decls(utilities: &[&UtilitySpec]) -> String {
     let mut out = String::new();
     out.push_str("// @generated DO NOT EDIT — regenerated by build.rs from sdk_surface.toml\n\n");
-    for utility in utilities
-        .iter()
-        .filter(|utility| utility.targets.iter().any(|target| target == "cpp"))
-    {
-        out.push_str(cpp_utility_decl(&utility.name));
+    for utility in utilities {
+        out.push_str(&cpp_utility_decl(utility));
         out.push('\n');
     }
     out
 }
 
-fn render_cpp_utility_defs(utilities: &[UtilitySpec]) -> String {
+fn render_cpp_utility_defs(utilities: &[&UtilitySpec]) -> String {
     let mut out = String::new();
     out.push_str(generated_header());
-    for utility in utilities
-        .iter()
-        .filter(|utility| utility.targets.iter().any(|target| target == "cpp"))
-    {
-        out.push_str(cpp_utility_def(&utility.name));
+    for utility in utilities {
+        out.push_str(&cpp_utility_def(utility));
         out.push('\n');
     }
     out
 }
 
-fn render_cpp_lifecycle_defs(methods: &[String]) -> String {
+fn render_cpp_lifecycle_defs(methods: &[&MethodSpec]) -> String {
     let mut out = String::new();
     out.push_str(generated_header());
     for method in methods {
-        out.push_str(cpp_lifecycle_def(method));
+        out.push_str(&cpp_lifecycle_def(method));
         out.push('\n');
     }
     out
 }
 
-fn render_mcp_utilities(utilities: &[UtilitySpec]) -> String {
+fn render_mcp_utilities(utilities: &[&UtilitySpec]) -> String {
     let mut out = String::new();
     out.push_str(generated_header());
     out.push_str("fn push_generated_utility_tool_definitions(tools: &mut Vec<Value>) {\n");
-    for utility in utilities
-        .iter()
-        .filter(|utility| utility.targets.iter().any(|target| target == "mcp"))
-    {
-        out.push_str(mcp_tool_definition(&utility.name));
+    for utility in utilities {
+        out.push_str(&mcp_tool_definition(utility));
     }
     out.push_str("}\n\n");
     out.push_str(
-        "async fn try_execute_generated_utility(\n    client: &Option<ThetaDataDx>,\n    name: &str,\n    args: &Value,\n    start_time: std::time::Instant,\n) -> Option<Result<Value, ToolError>> {\n    let _ = client;\n    macro_rules! param_or_return {\n        ($expr:expr) => {\n            match $expr {\n                Ok(value) => value,\n                Err(error) => return Some(Err(ToolError::InvalidParams(error))),\n            }\n        };\n    }\n    match name {\n",
+        "async fn try_execute_generated_utility(\n    client: &Option<ThetaDataDx>,\n    name: &str,\n    args: &Value,\n    start_time: std::time::Instant,\n) -> Option<Result<Value, ToolError>> {\n    macro_rules! param_or_return {\n        ($expr:expr) => {\n            match $expr {\n                Ok(value) => value,\n                Err(error) => return Some(Err(ToolError::InvalidParams(error))),\n            }\n        };\n    }\n    match name {\n",
     );
-    for utility in utilities
-        .iter()
-        .filter(|utility| utility.targets.iter().any(|target| target == "mcp"))
-    {
-        out.push_str(mcp_execute_arm(&utility.name));
+    for utility in utilities {
+        out.push_str(&mcp_execute_arm(utility));
     }
     out.push_str("        _ => None,\n    }\n}\n");
     out
 }
 
-fn render_cli_utilities(utilities: &[UtilitySpec]) -> String {
+fn render_cli_utilities(utilities: &[&UtilitySpec]) -> String {
     let mut out = String::new();
     out.push_str(generated_header());
     out.push_str("fn add_generated_utility_commands(mut app: Command) -> Command {\n");
-    for utility in utilities
-        .iter()
-        .filter(|utility| utility.targets.iter().any(|target| target == "cli"))
-    {
+    for utility in utilities {
         out.push_str(&cli_command_builder(utility));
     }
     out.push_str("    app\n}\n\n");
     out.push_str(
         "async fn try_run_generated_utility(\n    subcommand: Option<(&str, &ArgMatches)>,\n    fmt: &OutputFormat,\n    creds_path: &str,\n) -> Result<bool, thetadatadx::Error> {\n    match subcommand {\n",
     );
-    for utility in utilities
-        .iter()
-        .filter(|utility| utility.targets.iter().any(|target| target == "cli"))
-    {
+    for utility in utilities {
         out.push_str(&cli_dispatch_arm(utility));
     }
     out.push_str("        _ => Ok(false),\n    }\n}\n");
     out
 }
 
-fn python_streaming_method(name: &str) -> &'static str {
-    match name {
-        "start_streaming" => {
-            r#"    /// Start FPSS streaming. Events are buffered; poll with ``next_event()``.
-    fn start_streaming(&self) -> PyResult<()> {
-        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();
-
-        self.tdx
-            .start_streaming(move |event: &fpss::FpssEvent| {
-                let buffered = fpss_event_to_buffered(event);
-                let _ = tx.send(buffered);
-            })
-            .map_err(to_py_err)?;
-
-        if let Ok(mut guard) = self.rx.lock() {
-            *guard = Some(Arc::new(Mutex::new(rx)));
+fn python_streaming_method(method: &MethodSpec) -> String {
+    let mut out = String::new();
+    push_rust_doc_comment(&mut out, "    ", &method.doc);
+    match method.kind {
+        MethodKind::StartStreaming => {
+            writeln!(out, "    fn {}(&self) -> PyResult<()> {{", method.name).unwrap();
+            out.push_str("        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();\n\n");
+            out.push_str("        self.tdx\n");
+            out.push_str("            .start_streaming(move |event: &fpss::FpssEvent| {\n");
+            out.push_str("                let buffered = fpss_event_to_buffered(event);\n");
+            out.push_str("                let _ = tx.send(buffered);\n");
+            out.push_str("            })\n");
+            out.push_str("            .map_err(to_py_err)?;\n\n");
+            out.push_str("        if let Ok(mut guard) = self.rx.lock() {\n");
+            out.push_str("            *guard = Some(Arc::new(Mutex::new(rx)));\n");
+            out.push_str("        }\n");
+            out.push_str("        Ok(())\n");
+            out.push_str("    }\n");
         }
-        Ok(())
-    }
-"#
+        MethodKind::IsStreaming => {
+            writeln!(out, "    fn {}(&self) -> bool {{", method.name).unwrap();
+            out.push_str("        self.tdx.is_streaming()\n");
+            out.push_str("    }\n");
         }
-        "is_streaming" => {
-            r#"    /// Whether the streaming connection is active.
-    fn is_streaming(&self) -> bool {
-        self.tdx.is_streaming()
-    }
-"#
+        MethodKind::StockContractCall => {
+            let param = &method.params[0];
+            writeln!(
+                out,
+                "    fn {}(&self, {}: {}) -> PyResult<()> {{",
+                method.name,
+                param.name,
+                python_type(param.param_type)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "        let contract = fpss::protocol::Contract::stock({});",
+                param.name
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "        self.tdx.{}(&contract).map_err(to_py_err)",
+                method.runtime_call.as_deref().unwrap()
+            )
+            .unwrap();
+            out.push_str("    }\n");
         }
-        "subscribe_quotes" => {
-            r#"    /// Subscribe to quote data for a stock symbol.
-    fn subscribe_quotes(&self, symbol: &str) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::stock(symbol);
-        self.tdx.subscribe_quotes(&contract).map_err(to_py_err)
-    }
-"#
-        }
-        "subscribe_trades" => {
-            r#"    /// Subscribe to trade data for a stock symbol.
-    fn subscribe_trades(&self, symbol: &str) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::stock(symbol);
-        self.tdx.subscribe_trades(&contract).map_err(to_py_err)
-    }
-"#
-        }
-        "subscribe_open_interest" => {
-            r#"    /// Subscribe to open interest data for a stock symbol.
-    fn subscribe_open_interest(&self, symbol: &str) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::stock(symbol);
-        self.tdx
-            .subscribe_open_interest(&contract)
-            .map_err(to_py_err)
-    }
-"#
-        }
-        "subscribe_option_quotes" => {
-            r#"    /// Subscribe to quote data for an option contract.
-    fn subscribe_option_quotes(
-        &self,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-    ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
-        self.tdx.subscribe_quotes(&contract).map_err(to_py_err)
-    }
-"#
-        }
-        "subscribe_option_trades" => {
-            r#"    /// Subscribe to trade data for an option contract.
-    fn subscribe_option_trades(
-        &self,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-    ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
-        self.tdx.subscribe_trades(&contract).map_err(to_py_err)
-    }
-"#
-        }
-        "subscribe_option_open_interest" => {
-            r#"    /// Subscribe to open interest data for an option contract.
-    fn subscribe_option_open_interest(
-        &self,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-    ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
-        self.tdx
-            .subscribe_open_interest(&contract)
-            .map_err(to_py_err)
-    }
-"#
-        }
-        "subscribe_full_trades" => {
-            r#"    /// Subscribe to all trades for a security type (full trade stream).
-    fn subscribe_full_trades(&self, sec_type: &str) -> PyResult<()> {
-        let st = parse_sec_type(sec_type)?;
-        self.tdx.subscribe_full_trades(st).map_err(to_py_err)
-    }
-"#
-        }
-        "subscribe_full_open_interest" => {
-            r#"    /// Subscribe to all open interest for a security type (full OI stream).
-    fn subscribe_full_open_interest(&self, sec_type: &str) -> PyResult<()> {
-        let st = parse_sec_type(sec_type)?;
-        self.tdx.subscribe_full_open_interest(st).map_err(to_py_err)
-    }
-"#
-        }
-        "unsubscribe_full_trades" => {
-            r#"    /// Unsubscribe from all trades for a security type (full trade stream).
-    fn unsubscribe_full_trades(&self, sec_type: &str) -> PyResult<()> {
-        let st = parse_sec_type(sec_type)?;
-        self.tdx.unsubscribe_full_trades(st).map_err(to_py_err)
-    }
-"#
-        }
-        "unsubscribe_full_open_interest" => {
-            r#"    /// Unsubscribe from all open interest for a security type (full OI stream).
-    fn unsubscribe_full_open_interest(&self, sec_type: &str) -> PyResult<()> {
-        let st = parse_sec_type(sec_type)?;
-        self.tdx
-            .unsubscribe_full_open_interest(st)
-            .map_err(to_py_err)
-    }
-"#
-        }
-        "unsubscribe_quotes" => {
-            r#"    /// Unsubscribe from quote data for a stock symbol.
-    fn unsubscribe_quotes(&self, symbol: &str) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::stock(symbol);
-        self.tdx.unsubscribe_quotes(&contract).map_err(to_py_err)
-    }
-"#
-        }
-        "unsubscribe_trades" => {
-            r#"    /// Unsubscribe from trade data for a stock symbol.
-    fn unsubscribe_trades(&self, symbol: &str) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::stock(symbol);
-        self.tdx.unsubscribe_trades(&contract).map_err(to_py_err)
-    }
-"#
-        }
-        "unsubscribe_open_interest" => {
-            r#"    /// Unsubscribe from open interest data for a stock symbol.
-    fn unsubscribe_open_interest(&self, symbol: &str) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::stock(symbol);
-        self.tdx
-            .unsubscribe_open_interest(&contract)
-            .map_err(to_py_err)
-    }
-"#
-        }
-        "unsubscribe_option_quotes" => {
-            r#"    /// Unsubscribe from quote data for an option contract.
-    fn unsubscribe_option_quotes(
-        &self,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-    ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
-        self.tdx.unsubscribe_quotes(&contract).map_err(to_py_err)
-    }
-"#
-        }
-        "unsubscribe_option_trades" => {
-            r#"    /// Unsubscribe from trade data for an option contract.
-    fn unsubscribe_option_trades(
-        &self,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-    ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
-        self.tdx.unsubscribe_trades(&contract).map_err(to_py_err)
-    }
-"#
-        }
-        "unsubscribe_option_open_interest" => {
-            r#"    /// Unsubscribe from open interest data for an option contract.
-    fn unsubscribe_option_open_interest(
-        &self,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-    ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
-        self.tdx
-            .unsubscribe_open_interest(&contract)
-            .map_err(to_py_err)
-    }
-"#
-        }
-        "contract_map" => {
-            r#"    /// Get the current contract map (server-assigned IDs -> contract strings).
-    fn contract_map(&self) -> PyResult<std::collections::HashMap<i32, String>> {
-        self.tdx
-            .contract_map()
-            .map(|m| m.into_iter().map(|(id, c)| (id, format!("{c}"))).collect())
-            .map_err(to_py_err)
-    }
-"#
-        }
-        "contract_lookup" => {
-            r#"    /// Look up a single contract by its server-assigned ID.
-    fn contract_lookup(&self, id: i32) -> PyResult<Option<String>> {
-        self.tdx
-            .contract_lookup(id)
-            .map(|opt| opt.map(|c| format!("{c}")))
-            .map_err(to_py_err)
-    }
-"#
-        }
-        "active_subscriptions" => {
-            r#"    /// Get a snapshot of currently active subscriptions.
-    fn active_subscriptions(&self) -> PyResult<Vec<std::collections::HashMap<String, String>>> {
-        self.tdx
-            .active_subscriptions()
-            .map(|subs| {
-                subs.into_iter()
-                    .map(|(kind, contract)| {
-                        let mut m = std::collections::HashMap::new();
-                        m.insert("kind".to_string(), format!("{kind:?}"));
-                        m.insert("contract".to_string(), format!("{contract}"));
-                        m
-                    })
-                    .collect()
-            })
-            .map_err(to_py_err)
-    }
-"#
-        }
-        "next_event" => {
-            r#"    /// Poll for the next FPSS event.
-    ///
-    /// Args:
-    ///     timeout_ms: Maximum time to wait in milliseconds.
-    ///
-    /// Returns:
-    ///     A dict with ``kind`` key indicating event type, or ``None`` if timeout.
-    ///     Raises ``RuntimeError`` if streaming has not been started.
-    fn next_event(&self, py: Python<'_>, timeout_ms: u64) -> PyResult<Option<Py<PyAny>>> {
-        let rx_outer = self.rx.lock().unwrap_or_else(|e| e.into_inner());
-        let rx_arc = match rx_outer.as_ref() {
-            Some(arc) => Arc::clone(arc),
-            None => {
-                return Err(PyRuntimeError::new_err(
-                    "streaming not started -- call start_streaming() first",
-                ))
+        MethodKind::OptionContractCall => {
+            writeln!(out, "    fn {}(", method.name).unwrap();
+            out.push_str("        &self,\n");
+            for param in &method.params {
+                writeln!(
+                    out,
+                    "        {}: {},",
+                    param.name,
+                    python_type(param.param_type)
+                )
+                .unwrap();
             }
-        };
-        drop(rx_outer);
-        let timeout = std::time::Duration::from_millis(timeout_ms);
-        let result = py.detach(move || {
-            let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());
-            rx.recv_timeout(timeout).ok()
-        });
-        match result {
-            Some(event) => Ok(Some(buffered_event_to_py(py, &event))),
-            None => Ok(None),
+            out.push_str("    ) -> PyResult<()> {\n");
+            writeln!(
+                out,
+                "        let contract = fpss::protocol::Contract::option({}, {}, {}, {});",
+                method.params[0].name,
+                method.params[1].name,
+                method.params[2].name,
+                method.params[3].name
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "        self.tdx.{}(&contract).map_err(to_py_err)",
+                method.runtime_call.as_deref().unwrap()
+            )
+            .unwrap();
+            out.push_str("    }\n");
         }
+        MethodKind::FullCall => {
+            let param = &method.params[0];
+            writeln!(
+                out,
+                "    fn {}(&self, {}: {}) -> PyResult<()> {{",
+                method.name,
+                param.name,
+                python_type(param.param_type)
+            )
+            .unwrap();
+            writeln!(out, "        let st = parse_sec_type({})?;", param.name).unwrap();
+            writeln!(
+                out,
+                "        self.tdx.{}(st).map_err(to_py_err)",
+                method.runtime_call.as_deref().unwrap()
+            )
+            .unwrap();
+            out.push_str("    }\n");
         }
-"#
+        MethodKind::ContractMap => {
+            writeln!(
+                out,
+                "    fn {}(&self) -> PyResult<std::collections::HashMap<i32, String>> {{",
+                method.name
+            )
+            .unwrap();
+            out.push_str("        self.tdx\n");
+            out.push_str("            .contract_map()\n");
+            out.push_str("            .map(|m| m.into_iter().map(|(id, c)| (id, format!(\"{c}\"))).collect())\n");
+            out.push_str("            .map_err(to_py_err)\n");
+            out.push_str("    }\n");
         }
-        "reconnect" => {
-            r#"    /// Reconnect streaming and re-subscribe all previous subscriptions.
-    fn reconnect(&self) -> PyResult<()> {
-        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();
-        self.tdx
-            .reconnect_streaming(move |event: &fpss::FpssEvent| {
-                let _ = tx.send(fpss_event_to_buffered(event));
-            })
-            .map_err(to_py_err)?;
-        if let Ok(mut guard) = self.rx.lock() {
-            *guard = Some(Arc::new(Mutex::new(rx)));
+        MethodKind::ContractLookup => {
+            let param = &method.params[0];
+            writeln!(
+                out,
+                "    fn {}(&self, {}: {}) -> PyResult<Option<String>> {{",
+                method.name,
+                param.name,
+                python_type(param.param_type)
+            )
+            .unwrap();
+            writeln!(out, "        self.tdx.contract_lookup({})", param.name).unwrap();
+            out.push_str("            .map(|opt| opt.map(|c| format!(\"{c}\")))\n");
+            out.push_str("            .map_err(to_py_err)\n");
+            out.push_str("    }\n");
         }
-        Ok(())
+        MethodKind::ActiveSubscriptions => {
+            writeln!(
+                out,
+                "    fn {}(&self) -> PyResult<Vec<std::collections::HashMap<String, String>>> {{",
+                method.name
+            )
+            .unwrap();
+            out.push_str("        self.tdx\n");
+            out.push_str("            .active_subscriptions()\n");
+            out.push_str("            .map(|subs| {\n");
+            out.push_str("                subs.into_iter()\n");
+            out.push_str("                    .map(|(kind, contract)| {\n");
+            out.push_str("                        let mut m = std::collections::HashMap::new();\n");
+            out.push_str(
+                "                        m.insert(\"kind\".to_string(), format!(\"{kind:?}\"));\n",
+            );
+            out.push_str("                        m.insert(\"contract\".to_string(), format!(\"{contract}\"));\n");
+            out.push_str("                        m\n");
+            out.push_str("                    })\n");
+            out.push_str("                    .collect()\n");
+            out.push_str("            })\n");
+            out.push_str("            .map_err(to_py_err)\n");
+            out.push_str("    }\n");
+        }
+        MethodKind::NextEvent => {
+            let param = &method.params[0];
+            writeln!(
+                out,
+                "    fn {}(&self, py: Python<'_>, {}: {}) -> PyResult<Option<Py<PyAny>>> {{",
+                method.name,
+                param.name,
+                python_type(param.param_type)
+            )
+            .unwrap();
+            out.push_str(
+                "        let rx_outer = self.rx.lock().unwrap_or_else(|e| e.into_inner());\n",
+            );
+            out.push_str("        let rx_arc = match rx_outer.as_ref() {\n");
+            out.push_str("            Some(arc) => Arc::clone(arc),\n");
+            out.push_str("            None => {\n");
+            out.push_str("                return Err(PyRuntimeError::new_err(\n");
+            out.push_str(
+                "                    \"streaming not started -- call start_streaming() first\",\n",
+            );
+            out.push_str("                ))\n");
+            out.push_str("            }\n");
+            out.push_str("        };\n");
+            out.push_str("        drop(rx_outer);\n");
+            writeln!(
+                out,
+                "        let timeout = std::time::Duration::from_millis({});",
+                param.name
+            )
+            .unwrap();
+            out.push_str("        let result = py.detach(move || {\n");
+            out.push_str(
+                "            let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());\n",
+            );
+            out.push_str("            rx.recv_timeout(timeout).ok()\n");
+            out.push_str("        });\n");
+            out.push_str("        match result {\n");
+            out.push_str(
+                "            Some(event) => Ok(Some(buffered_event_to_py(py, &event))),\n",
+            );
+            out.push_str("            None => Ok(None),\n");
+            out.push_str("        }\n");
+            out.push_str("    }\n");
+        }
+        MethodKind::Reconnect => {
+            writeln!(out, "    fn {}(&self) -> PyResult<()> {{", method.name).unwrap();
+            out.push_str("        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();\n");
+            out.push_str("        self.tdx\n");
+            out.push_str("            .reconnect_streaming(move |event: &fpss::FpssEvent| {\n");
+            out.push_str("                let _ = tx.send(fpss_event_to_buffered(event));\n");
+            out.push_str("            })\n");
+            out.push_str("            .map_err(to_py_err)?;\n");
+            out.push_str("        if let Ok(mut guard) = self.rx.lock() {\n");
+            out.push_str("            *guard = Some(Arc::new(Mutex::new(rx)));\n");
+            out.push_str("        }\n");
+            out.push_str("        Ok(())\n");
+            out.push_str("    }\n");
+        }
+        MethodKind::StopStreaming | MethodKind::Shutdown => {
+            writeln!(out, "    fn {}(&self) {{", method.name).unwrap();
+            out.push_str("        self.tdx.stop_streaming();\n");
+            out.push_str("        if let Ok(mut guard) = self.rx.lock() {\n");
+            out.push_str("            *guard = None;\n");
+            out.push_str("        }\n");
+            out.push_str("    }\n");
+        }
+        other => panic!("unsupported Python method kind: {other:?}"),
     }
-"#
-        }
-        "stop_streaming" => {
-            r#"    /// Stop streaming (historical remains active).
-    fn stop_streaming(&self) {
-        self.tdx.stop_streaming();
-        if let Ok(mut guard) = self.rx.lock() {
-            *guard = None;
-        }
+    out
+}
+
+fn python_utility_function(utility: &UtilitySpec) -> String {
+    let mut out = String::new();
+    push_rust_doc_comment(&mut out, "", &utility.doc);
+    out.push_str("#[pyfunction]\n");
+    if utility.params.len() > 6 {
+        out.push_str(
+            "#[allow(clippy::too_many_arguments)] // Reason: mirrors Black-Scholes parameter set expected by SDK callers\n",
+        );
     }
-"#
+    match utility.kind {
+        UtilityKind::AllGreeks => {
+            writeln!(out, "fn {}(", utility.name).unwrap();
+            out.push_str("    py: Python<'_>,\n");
+            for param in &utility.params {
+                writeln!(
+                    out,
+                    "    {}: {},",
+                    param.name,
+                    python_type(param.param_type)
+                )
+                .unwrap();
+            }
+            out.push_str(") -> Py<PyAny> {\n");
+            writeln!(
+                out,
+                "    let g = tdbe::greeks::all_greeks({});",
+                utility
+                    .params
+                    .iter()
+                    .map(|param| param.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+            .unwrap();
+            out.push_str("    let dict = PyDict::new(py);\n");
+            out.push_str("    // PyO3: set_item is infallible for primitive types\n");
+            for (field, rust_field) in greek_result_fields() {
+                writeln!(
+                    out,
+                    "    dict.set_item({}, g.{rust_field}).unwrap();",
+                    rust_string_literal(field)
+                )
+                .unwrap();
+            }
+            out.push_str("    dict.into_any().unbind()\n");
+            out.push_str("}\n");
         }
-        "shutdown" => {
-            r#"    /// Stop streaming (alias for ``stop_streaming()``).
-    ///
-    /// Historical client remains usable until the ``ThetaDataDx`` object is dropped.
-    fn shutdown(&self) {
-        self.tdx.stop_streaming();
-        if let Ok(mut guard) = self.rx.lock() {
-            *guard = None;
+        UtilityKind::ImpliedVolatility => {
+            writeln!(out, "fn {}(", utility.name).unwrap();
+            for param in &utility.params {
+                writeln!(
+                    out,
+                    "    {}: {},",
+                    param.name,
+                    python_type(param.param_type)
+                )
+                .unwrap();
+            }
+            out.push_str(") -> (f64, f64) {\n");
+            writeln!(
+                out,
+                "    tdbe::greeks::implied_volatility({})",
+                utility
+                    .params
+                    .iter()
+                    .map(|param| param.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+            .unwrap();
+            out.push_str("}\n");
         }
+        other => panic!("unsupported Python utility kind: {other:?}"),
     }
-"#
+    out
+}
+
+fn go_fpss_method(method: &MethodSpec) -> String {
+    let mut out = String::new();
+    let exported_name = go_exported_name(&method.name);
+    writeln!(out, "// {exported_name} {}", method.doc).unwrap();
+    match method.kind {
+        MethodKind::StockContractCall | MethodKind::FullCall => {
+            let param = &method.params[0];
+            let go_name = go_param_name(&param.name);
+            let c_var = go_c_var(&param.name);
+            writeln!(
+                out,
+                "func (f *FpssClient) {exported_name}({go_name} {}) (int, error) {{",
+                go_type(param.param_type)
+            )
+            .unwrap();
+            writeln!(out, "    {c_var} := C.CString({go_name})").unwrap();
+            writeln!(out, "    defer C.free(unsafe.Pointer({c_var}))").unwrap();
+            writeln!(
+                out,
+                "    return f.fpssCall(C.tdx_fpss_{}(f.handle, {c_var}))",
+                method.ffi_call.as_deref().unwrap()
+            )
+            .unwrap();
+            out.push_str("}\n");
         }
-        other => panic!("unknown python streaming method: {other}"),
+        MethodKind::OptionContractCall => {
+            let params = method
+                .params
+                .iter()
+                .map(|param| {
+                    format!(
+                        "{} {}",
+                        go_param_name(&param.name),
+                        go_type(param.param_type)
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            writeln!(
+                out,
+                "func (f *FpssClient) {exported_name}({params}) (int, error) {{"
+            )
+            .unwrap();
+            for param in &method.params {
+                writeln!(
+                    out,
+                    "    {} := C.CString({})",
+                    go_c_var(&param.name),
+                    go_param_name(&param.name)
+                )
+                .unwrap();
+            }
+            for param in &method.params {
+                writeln!(
+                    out,
+                    "    defer C.free(unsafe.Pointer({}))",
+                    go_c_var(&param.name)
+                )
+                .unwrap();
+            }
+            let ffi_args = method
+                .params
+                .iter()
+                .map(|param| go_c_var(&param.name))
+                .collect::<Vec<_>>()
+                .join(", ");
+            writeln!(
+                out,
+                "    return f.fpssCall(C.tdx_fpss_{}(f.handle, {ffi_args}))",
+                method.ffi_call.as_deref().unwrap()
+            )
+            .unwrap();
+            out.push_str("}\n");
+        }
+        MethodKind::IsAuthenticated => {
+            writeln!(out, "func (f *FpssClient) {exported_name}() bool {{").unwrap();
+            out.push_str("    return C.tdx_fpss_is_authenticated(f.handle) != 0\n");
+            out.push_str("}\n");
+        }
+        MethodKind::ContractLookup => {
+            let param = &method.params[0];
+            let name = go_param_name(&param.name);
+            writeln!(
+                out,
+                "func (f *FpssClient) {exported_name}({name} {}) (string, error) {{",
+                go_type(param.param_type)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "    cstr := C.tdx_fpss_contract_lookup(f.handle, C.int({name}))"
+            )
+            .unwrap();
+            out.push_str("    if cstr == nil {\n");
+            out.push_str("        if msg := lastError(); msg != \"\" {\n");
+            out.push_str("            return \"\", fmt.Errorf(\"thetadatadx: %s\", msg)\n");
+            out.push_str("        }\n");
+            out.push_str("        return \"\", nil\n");
+            out.push_str("    }\n");
+            out.push_str("    goStr := C.GoString(cstr)\n");
+            out.push_str("    C.tdx_string_free(cstr)\n");
+            out.push_str("    return goStr, nil\n");
+            out.push_str("}\n");
+        }
+        MethodKind::ContractMap => {
+            writeln!(
+                out,
+                "func (f *FpssClient) {exported_name}() (map[int32]string, error) {{"
+            )
+            .unwrap();
+            out.push_str("    arr := C.tdx_fpss_contract_map(f.handle)\n");
+            out.push_str("    if arr == nil {\n");
+            out.push_str("        return nil, fmt.Errorf(\"thetadatadx: %s\", lastError())\n");
+            out.push_str("    }\n");
+            out.push_str("    defer C.tdx_contract_map_array_free(arr)\n");
+            out.push_str("    result := make(map[int32]string, int(arr.len))\n");
+            out.push_str("    if arr.data == nil || arr.len == 0 {\n");
+            out.push_str("        return result, nil\n");
+            out.push_str("    }\n");
+            out.push_str("    entries := unsafe.Slice(arr.data, int(arr.len))\n");
+            out.push_str("    for _, entry := range entries {\n");
+            out.push_str("        value := \"\"\n");
+            out.push_str("        if entry.contract != nil {\n");
+            out.push_str("            value = C.GoString(entry.contract)\n");
+            out.push_str("        }\n");
+            out.push_str("        result[int32(entry.id)] = value\n");
+            out.push_str("    }\n");
+            out.push_str("    return result, nil\n");
+            out.push_str("}\n");
+        }
+        MethodKind::ActiveSubscriptions => {
+            writeln!(
+                out,
+                "func (f *FpssClient) {exported_name}() ([]Subscription, error) {{"
+            )
+            .unwrap();
+            out.push_str("    arr := C.tdx_fpss_active_subscriptions(f.handle)\n");
+            out.push_str("    if arr == nil {\n");
+            out.push_str("        return nil, fmt.Errorf(\"thetadatadx: %s\", lastError())\n");
+            out.push_str("    }\n");
+            out.push_str("    defer C.tdx_subscription_array_free(arr)\n");
+            out.push_str("    n := int(arr.len)\n");
+            out.push_str("    if n == 0 || arr.data == nil {\n");
+            out.push_str("        return nil, nil\n");
+            out.push_str("    }\n");
+            out.push_str("    subs := unsafe.Slice(arr.data, n)\n");
+            out.push_str("    result := make([]Subscription, n)\n");
+            out.push_str("    for i := 0; i < n; i++ {\n");
+            out.push_str("        if subs[i].kind != nil {\n");
+            out.push_str("            result[i].Kind = C.GoString(subs[i].kind)\n");
+            out.push_str("        }\n");
+            out.push_str("        if subs[i].contract != nil {\n");
+            out.push_str("            result[i].Contract = C.GoString(subs[i].contract)\n");
+            out.push_str("        }\n");
+            out.push_str("    }\n");
+            out.push_str("    return result, nil\n");
+            out.push_str("}\n");
+        }
+        MethodKind::NextEvent => {
+            let param = &method.params[0];
+            let name = go_param_name(&param.name);
+            writeln!(
+                out,
+                "func (f *FpssClient) {exported_name}({name} {}) (*FpssEvent, error) {{",
+                go_type(param.param_type)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "    raw := C.tdx_fpss_next_event(f.handle, C.uint64_t({name}))"
+            )
+            .unwrap();
+            out.push_str("    if raw == nil {\n");
+            out.push_str("        return nil, nil\n");
+            out.push_str("    }\n");
+            out.push_str("    defer C.tdx_fpss_event_free(raw)\n\n");
+            out.push_str("    event := &FpssEvent{\n");
+            out.push_str("        Kind: FpssEventKind(raw.kind),\n");
+            out.push_str("    }\n\n");
+            out.push_str("    switch event.Kind {\n");
+            out.push_str("    case FpssQuoteEvent:\n");
+            out.push_str("        q := raw.quote\n");
+            out.push_str("        event.Quote = &FpssQuote{\n");
+            out.push_str("            ContractID:   int32(q.contract_id),\n");
+            out.push_str("            MsOfDay:      int32(q.ms_of_day),\n");
+            out.push_str("            BidSize:      int32(q.bid_size),\n");
+            out.push_str("            BidExchange:  int32(q.bid_exchange),\n");
+            out.push_str("            Bid:          float64(q.bid),\n");
+            out.push_str("            BidCondition: int32(q.bid_condition),\n");
+            out.push_str("            AskSize:      int32(q.ask_size),\n");
+            out.push_str("            AskExchange:  int32(q.ask_exchange),\n");
+            out.push_str("            Ask:          float64(q.ask),\n");
+            out.push_str("            AskCondition: int32(q.ask_condition),\n");
+            out.push_str("            Date:         int32(q.date),\n");
+            out.push_str("            ReceivedAtNs: uint64(q.received_at_ns),\n");
+            out.push_str("        }\n");
+            out.push_str("    case FpssTradeEvent:\n");
+            out.push_str("        t := raw.trade\n");
+            out.push_str("        event.Trade = &FpssTrade{\n");
+            out.push_str("            ContractID:     int32(t.contract_id),\n");
+            out.push_str("            MsOfDay:        int32(t.ms_of_day),\n");
+            out.push_str("            Sequence:       int32(t.sequence),\n");
+            out.push_str("            ExtCondition1:  int32(t.ext_condition1),\n");
+            out.push_str("            ExtCondition2:  int32(t.ext_condition2),\n");
+            out.push_str("            ExtCondition3:  int32(t.ext_condition3),\n");
+            out.push_str("            ExtCondition4:  int32(t.ext_condition4),\n");
+            out.push_str("            Condition:      int32(t.condition),\n");
+            out.push_str("            Size:           int32(t.size),\n");
+            out.push_str("            Exchange:       int32(t.exchange),\n");
+            out.push_str("            Price:          float64(t.price),\n");
+            out.push_str("            ConditionFlags: int32(t.condition_flags),\n");
+            out.push_str("            PriceFlags:     int32(t.price_flags),\n");
+            out.push_str("            VolumeType:     int32(t.volume_type),\n");
+            out.push_str("            RecordsBack:    int32(t.records_back),\n");
+            out.push_str("            Date:           int32(t.date),\n");
+            out.push_str("            ReceivedAtNs:   uint64(t.received_at_ns),\n");
+            out.push_str("        }\n");
+            out.push_str("    case FpssOpenInterestEvent:\n");
+            out.push_str("        oi := raw.open_interest\n");
+            out.push_str("        event.OpenInterest = &FpssOpenInterestData{\n");
+            out.push_str("            ContractID:   int32(oi.contract_id),\n");
+            out.push_str("            MsOfDay:      int32(oi.ms_of_day),\n");
+            out.push_str("            OpenInterest: int32(oi.open_interest),\n");
+            out.push_str("            Date:         int32(oi.date),\n");
+            out.push_str("            ReceivedAtNs: uint64(oi.received_at_ns),\n");
+            out.push_str("        }\n");
+            out.push_str("    case FpssOhlcvcEvent:\n");
+            out.push_str("        o := raw.ohlcvc\n");
+            out.push_str("        event.Ohlcvc = &FpssOhlcvc{\n");
+            out.push_str("            ContractID:   int32(o.contract_id),\n");
+            out.push_str("            MsOfDay:      int32(o.ms_of_day),\n");
+            out.push_str("            Open:         float64(o.open),\n");
+            out.push_str("            High:         float64(o.high),\n");
+            out.push_str("            Low:          float64(o.low),\n");
+            out.push_str("            Close:        float64(o.close),\n");
+            out.push_str("            Volume:       int64(o.volume),\n");
+            out.push_str("            Count:        int64(o.count),\n");
+            out.push_str("            Date:         int32(o.date),\n");
+            out.push_str("            ReceivedAtNs: uint64(o.received_at_ns),\n");
+            out.push_str("        }\n");
+            out.push_str("    case FpssControlEvent:\n");
+            out.push_str("        ctrl := raw.control\n");
+            out.push_str("        detail := \"\"\n");
+            out.push_str("        if ctrl.detail != nil {\n");
+            out.push_str("            detail = C.GoString(ctrl.detail)\n");
+            out.push_str("        }\n");
+            out.push_str("        event.Control = &FpssControlData{\n");
+            out.push_str("            Kind:   int32(ctrl.kind),\n");
+            out.push_str("            ID:     int32(ctrl.id),\n");
+            out.push_str("            Detail: detail,\n");
+            out.push_str("        }\n");
+            out.push_str("    case FpssRawDataEvent:\n");
+            out.push_str("        rd := raw.raw_data\n");
+            out.push_str("        event.RawCode = uint8(rd.code)\n");
+            out.push_str("        if rd.payload != nil && rd.payload_len > 0 {\n");
+            out.push_str("            event.RawPayload = C.GoBytes(unsafe.Pointer(rd.payload), C.int(rd.payload_len))\n");
+            out.push_str("        }\n");
+            out.push_str("    }\n\n");
+            out.push_str("    return event, nil\n");
+            out.push_str("}\n");
+        }
+        MethodKind::Reconnect => {
+            writeln!(out, "func (f *FpssClient) {exported_name}() error {{").unwrap();
+            out.push_str("    rc := C.tdx_fpss_reconnect(f.handle)\n");
+            out.push_str("    if rc < 0 {\n");
+            out.push_str("        return fmt.Errorf(\"thetadatadx: %s\", lastError())\n");
+            out.push_str("    }\n");
+            out.push_str("    return nil\n");
+            out.push_str("}\n");
+        }
+        MethodKind::Shutdown => {
+            writeln!(out, "func (f *FpssClient) {exported_name}() {{").unwrap();
+            out.push_str("    if f.handle != nil {\n");
+            out.push_str("        C.tdx_fpss_shutdown(f.handle)\n");
+            out.push_str("    }\n");
+            out.push_str("}\n");
+        }
+        other => panic!("unsupported Go method kind: {other:?}"),
+    }
+    out
+}
+
+fn go_greeks_field_name(field: &str) -> &'static str {
+    match field {
+        "value" => "Value",
+        "iv" => "IV",
+        "iv_error" => "IVError",
+        "delta" => "Delta",
+        "gamma" => "Gamma",
+        "theta" => "Theta",
+        "vega" => "Vega",
+        "rho" => "Rho",
+        "vanna" => "Vanna",
+        "charm" => "Charm",
+        "vomma" => "Vomma",
+        "veta" => "Veta",
+        "speed" => "Speed",
+        "zomma" => "Zomma",
+        "color" => "Color",
+        "ultima" => "Ultima",
+        "d1" => "D1",
+        "d2" => "D2",
+        "dual_delta" => "DualDelta",
+        "dual_gamma" => "DualGamma",
+        "epsilon" => "Epsilon",
+        "lambda" => "Lambda",
+        other => panic!("unknown Greeks field: {other}"),
     }
 }
 
-fn python_utility_function(name: &str) -> &'static str {
-    match name {
-        "all_greeks" => {
-            r#"/// Compute all 22 Black-Scholes Greeks + IV in one call.
-///
-/// `right` accepts `"C"`/`"P"` or `"call"`/`"put"` case-insensitively.
-/// Raises `ValueError` on unrecognised input via the tdbe-level panic handler.
-#[pyfunction]
-#[allow(clippy::too_many_arguments)] // Reason: mirrors Black-Scholes parameter set expected by Python callers
-fn all_greeks(
-    py: Python<'_>,
-    spot: f64,
-    strike: f64,
-    rate: f64,
-    div_yield: f64,
-    tte: f64,
-    option_price: f64,
-    right: &str,
-) -> Py<PyAny> {
-    let g = tdbe::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, right);
-    let dict = PyDict::new(py);
-    // PyO3: set_item is infallible for primitive types
-    dict.set_item("value", g.value).unwrap();
-    dict.set_item("iv", g.iv).unwrap();
-    dict.set_item("iv_error", g.iv_error).unwrap();
-    dict.set_item("delta", g.delta).unwrap();
-    dict.set_item("gamma", g.gamma).unwrap();
-    dict.set_item("theta", g.theta).unwrap();
-    dict.set_item("vega", g.vega).unwrap();
-    dict.set_item("rho", g.rho).unwrap();
-    dict.set_item("vanna", g.vanna).unwrap();
-    dict.set_item("charm", g.charm).unwrap();
-    dict.set_item("vomma", g.vomma).unwrap();
-    dict.set_item("veta", g.veta).unwrap();
-    dict.set_item("speed", g.speed).unwrap();
-    dict.set_item("zomma", g.zomma).unwrap();
-    dict.set_item("color", g.color).unwrap();
-    dict.set_item("ultima", g.ultima).unwrap();
-    dict.set_item("d1", g.d1).unwrap();
-    dict.set_item("d2", g.d2).unwrap();
-    dict.set_item("dual_delta", g.dual_delta).unwrap();
-    dict.set_item("dual_gamma", g.dual_gamma).unwrap();
-    dict.set_item("epsilon", g.epsilon).unwrap();
-    dict.set_item("lambda", g.lambda).unwrap();
-    dict.into_any().unbind()
-}
-"#
+fn go_utility_function(utility: &UtilitySpec) -> String {
+    let mut out = String::new();
+    let exported_name = go_exported_name(&utility.name);
+    writeln!(out, "// {exported_name} {}", utility.doc).unwrap();
+    match utility.kind {
+        UtilityKind::AllGreeks => {
+            let params = utility
+                .params
+                .iter()
+                .map(|param| {
+                    format!(
+                        "{} {}",
+                        go_param_name(&param.name),
+                        go_type(param.param_type)
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            writeln!(out, "func {exported_name}({params}) (*Greeks, error) {{").unwrap();
+            out.push_str("    cRight := C.CString(right)\n");
+            out.push_str("    defer C.free(unsafe.Pointer(cRight))\n");
+            out.push_str("    ptr := C.tdx_all_greeks(C.double(spot), C.double(strike), C.double(rate), C.double(divYield), C.double(tte), C.double(optionPrice), cRight)\n");
+            out.push_str("    if ptr == nil {\n");
+            out.push_str("        return nil, fmt.Errorf(\"thetadatadx: %s\", lastError())\n");
+            out.push_str("    }\n");
+            out.push_str("    defer C.tdx_greeks_result_free(ptr)\n");
+            out.push_str("    return &Greeks{\n");
+            for (field, _) in greek_result_fields() {
+                writeln!(
+                    out,
+                    "        {}: float64(ptr.{field}),",
+                    go_greeks_field_name(field)
+                )
+                .unwrap();
+            }
+            out.push_str("    }, nil\n");
+            out.push_str("}\n");
         }
-        "implied_volatility" => {
-            r#"/// Compute implied volatility via bisection.
-///
-/// `right` accepts `"C"`/`"P"` or `"call"`/`"put"` case-insensitively.
-#[pyfunction]
-#[allow(clippy::too_many_arguments)] // Reason: mirrors Black-Scholes parameter set expected by Python callers
-fn implied_volatility(
-    spot: f64,
-    strike: f64,
-    rate: f64,
-    div_yield: f64,
-    tte: f64,
-    option_price: f64,
-    right: &str,
-) -> (f64, f64) {
-    tdbe::greeks::implied_volatility(spot, strike, rate, div_yield, tte, option_price, right)
-}
-"#
+        UtilityKind::ImpliedVolatility => {
+            let params = utility
+                .params
+                .iter()
+                .map(|param| {
+                    format!(
+                        "{} {}",
+                        go_param_name(&param.name),
+                        go_type(param.param_type)
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            writeln!(
+                out,
+                "func {exported_name}({params}) (float64, float64, error) {{"
+            )
+            .unwrap();
+            out.push_str("    cRight := C.CString(right)\n");
+            out.push_str("    defer C.free(unsafe.Pointer(cRight))\n");
+            out.push_str("    var iv, ivErr C.double\n");
+            out.push_str("    rc := C.tdx_implied_volatility(C.double(spot), C.double(strike), C.double(rate), C.double(divYield), C.double(tte), C.double(optionPrice), cRight, &iv, &ivErr)\n");
+            out.push_str("    if rc != 0 {\n");
+            out.push_str("        return 0, 0, fmt.Errorf(\"thetadatadx: %s\", lastError())\n");
+            out.push_str("    }\n");
+            out.push_str("    return float64(iv), float64(ivErr), nil\n");
+            out.push_str("}\n");
         }
-        other => panic!("unknown python utility: {other}"),
+        other => panic!("unsupported Go utility kind: {other:?}"),
     }
+    out
 }
 
-fn go_fpss_method(name: &str) -> &'static str {
-    match name {
-        "subscribe_quotes" => {
-            r#"// SubscribeQuotes subscribes to real-time quote data for a stock symbol.
-func (f *FpssClient) SubscribeQuotes(symbol string) (int, error) {
-    cs := C.CString(symbol)
-    defer C.free(unsafe.Pointer(cs))
-    return f.fpssCall(C.tdx_fpss_subscribe_quotes(f.handle, cs))
-}
-"#
+fn cpp_fpss_decl(method: &MethodSpec) -> String {
+    let mut out = String::new();
+    push_cpp_doc_comment(&mut out, "    ", &method.doc);
+    match method.kind {
+        MethodKind::FpssConnect => {
+            out.push_str("    FpssClient(const Credentials& creds, const Config& config);\n");
         }
-        "subscribe_trades" => {
-            r#"// SubscribeTrades subscribes to real-time trade data for a stock symbol.
-func (f *FpssClient) SubscribeTrades(symbol string) (int, error) {
-    cs := C.CString(symbol)
-    defer C.free(unsafe.Pointer(cs))
-    return f.fpssCall(C.tdx_fpss_subscribe_trades(f.handle, cs))
-}
-"#
+        MethodKind::StockContractCall | MethodKind::FullCall => {
+            writeln!(
+                out,
+                "    int {}({} {});",
+                method.name,
+                cpp_type(method.params[0].param_type),
+                method.params[0].name
+            )
+            .unwrap();
         }
-        "subscribe_open_interest" => {
-            r#"// SubscribeOpenInterest subscribes to open interest data for a stock symbol.
-func (f *FpssClient) SubscribeOpenInterest(symbol string) (int, error) {
-    cs := C.CString(symbol)
-    defer C.free(unsafe.Pointer(cs))
-    return f.fpssCall(C.tdx_fpss_subscribe_open_interest(f.handle, cs))
-}
-"#
+        MethodKind::OptionContractCall => {
+            let params = method
+                .params
+                .iter()
+                .map(|param| format!("{} {}", cpp_type(param.param_type), param.name))
+                .collect::<Vec<_>>()
+                .join(", ");
+            writeln!(out, "    int {}({params});", method.name).unwrap();
         }
-        "subscribe_full_trades" => {
-            r#"// SubscribeFullTrades subscribes to all trades for a security type ("STOCK", "OPTION", "INDEX").
-func (f *FpssClient) SubscribeFullTrades(secType string) (int, error) {
-    cs := C.CString(secType)
-    defer C.free(unsafe.Pointer(cs))
-    return f.fpssCall(C.tdx_fpss_subscribe_full_trades(f.handle, cs))
-}
-"#
+        MethodKind::IsAuthenticated => out.push_str("    bool is_authenticated() const;\n"),
+        MethodKind::ContractLookup => {
+            out.push_str("    std::optional<std::string> contract_lookup(int id) const;\n");
         }
-        "subscribe_full_open_interest" => {
-            r#"// SubscribeFullOpenInterest subscribes to all open interest for a security type ("STOCK", "OPTION", "INDEX").
-func (f *FpssClient) SubscribeFullOpenInterest(secType string) (int, error) {
-    cs := C.CString(secType)
-    defer C.free(unsafe.Pointer(cs))
-    return f.fpssCall(C.tdx_fpss_subscribe_full_open_interest(f.handle, cs))
-}
-"#
+        MethodKind::ContractMap => {
+            out.push_str("    std::map<int32_t, std::string> contract_map() const;\n");
         }
-        "unsubscribe_quotes" => {
-            r#"// UnsubscribeQuotes unsubscribes from quote data for a stock symbol.
-func (f *FpssClient) UnsubscribeQuotes(symbol string) (int, error) {
-    cs := C.CString(symbol)
-    defer C.free(unsafe.Pointer(cs))
-    return f.fpssCall(C.tdx_fpss_unsubscribe_quotes(f.handle, cs))
-}
-"#
+        MethodKind::ActiveSubscriptions => {
+            out.push_str("    std::vector<Subscription> active_subscriptions() const;\n");
         }
-        "unsubscribe_trades" => {
-            r#"// UnsubscribeTrades unsubscribes from trade data for a stock symbol.
-func (f *FpssClient) UnsubscribeTrades(symbol string) (int, error) {
-    cs := C.CString(symbol)
-    defer C.free(unsafe.Pointer(cs))
-    return f.fpssCall(C.tdx_fpss_unsubscribe_trades(f.handle, cs))
-}
-"#
+        MethodKind::NextEvent => {
+            out.push_str("    FpssEventPtr next_event(uint64_t timeout_ms);\n");
         }
-        "unsubscribe_open_interest" => {
-            r#"// UnsubscribeOpenInterest unsubscribes from open interest data for a stock symbol.
-func (f *FpssClient) UnsubscribeOpenInterest(symbol string) (int, error) {
-    cs := C.CString(symbol)
-    defer C.free(unsafe.Pointer(cs))
-    return f.fpssCall(C.tdx_fpss_unsubscribe_open_interest(f.handle, cs))
-}
-"#
-        }
-        "unsubscribe_full_trades" => {
-            r#"// UnsubscribeFullTrades unsubscribes from all trades for a security type ("STOCK", "OPTION", "INDEX").
-func (f *FpssClient) UnsubscribeFullTrades(secType string) (int, error) {
-    cs := C.CString(secType)
-    defer C.free(unsafe.Pointer(cs))
-    return f.fpssCall(C.tdx_fpss_unsubscribe_full_trades(f.handle, cs))
-}
-"#
-        }
-        "unsubscribe_full_open_interest" => {
-            r#"// UnsubscribeFullOpenInterest unsubscribes from all open interest for a security type ("STOCK", "OPTION", "INDEX").
-func (f *FpssClient) UnsubscribeFullOpenInterest(secType string) (int, error) {
-    cs := C.CString(secType)
-    defer C.free(unsafe.Pointer(cs))
-    return f.fpssCall(C.tdx_fpss_unsubscribe_full_open_interest(f.handle, cs))
-}
-"#
-        }
-        "is_authenticated" => {
-            r#"// IsAuthenticated returns true if the FPSS client is currently authenticated.
-func (f *FpssClient) IsAuthenticated() bool {
-    return C.tdx_fpss_is_authenticated(f.handle) != 0
-}
-"#
-        }
-        "contract_lookup" => {
-            r#"// ContractLookup looks up a contract by its server-assigned ID.
-// Returns ("", nil) when the ID is not found, ("", error) on real errors.
-func (f *FpssClient) ContractLookup(id int) (string, error) {
-    cstr := C.tdx_fpss_contract_lookup(f.handle, C.int(id))
-    if cstr == nil {
-        // NULL + empty last-error means "not found"; non-empty means real error.
-        if msg := lastError(); msg != "" {
-            return "", fmt.Errorf("thetadatadx: %s", msg)
-        }
-        return "", nil
+        MethodKind::Reconnect => out.push_str("    void reconnect();\n"),
+        MethodKind::Shutdown => out.push_str("    void shutdown();\n"),
+        other => panic!("unsupported C++ FPSS decl kind: {other:?}"),
     }
-    goStr := C.GoString(cstr)
-    C.tdx_string_free(cstr)
-    return goStr, nil
-}
-"#
-        }
-        "active_subscriptions" => {
-            r#"// ActiveSubscriptions returns the currently active subscriptions as typed structs.
-func (f *FpssClient) ActiveSubscriptions() ([]Subscription, error) {
-    arr := C.tdx_fpss_active_subscriptions(f.handle)
-    if arr == nil {
-        return nil, fmt.Errorf("thetadatadx: %s", lastError())
-    }
-    defer C.tdx_subscription_array_free(arr)
-    n := int(arr.len)
-    if n == 0 || arr.data == nil {
-        return nil, nil
-    }
-    subs := unsafe.Slice(arr.data, n)
-    result := make([]Subscription, n)
-    for i := 0; i < n; i++ {
-        if subs[i].kind != nil {
-            result[i].Kind = C.GoString(subs[i].kind)
-        }
-        if subs[i].contract != nil {
-            result[i].Contract = C.GoString(subs[i].contract)
-        }
-    }
-    return result, nil
-}
-"#
-        }
-        "next_event" => {
-            r#"// NextEvent polls for the next streaming event with the given timeout in milliseconds.
-// Returns nil if the timeout expires with no event.
-func (f *FpssClient) NextEvent(timeoutMs uint64) (*FpssEvent, error) {
-    raw := C.tdx_fpss_next_event(f.handle, C.uint64_t(timeoutMs))
-    if raw == nil {
-        return nil, nil
-    }
-    defer C.tdx_fpss_event_free(raw)
-
-    event := &FpssEvent{
-        Kind: FpssEventKind(raw.kind),
-    }
-
-    switch event.Kind {
-    case FpssQuoteEvent:
-        q := raw.quote
-        event.Quote = &FpssQuote{
-            ContractID:   int32(q.contract_id),
-            MsOfDay:      int32(q.ms_of_day),
-            BidSize:      int32(q.bid_size),
-            BidExchange:  int32(q.bid_exchange),
-            Bid:          float64(q.bid),
-            BidCondition: int32(q.bid_condition),
-            AskSize:      int32(q.ask_size),
-            AskExchange:  int32(q.ask_exchange),
-            Ask:          float64(q.ask),
-            AskCondition: int32(q.ask_condition),
-            Date:         int32(q.date),
-            ReceivedAtNs: uint64(q.received_at_ns),
-        }
-    case FpssTradeEvent:
-        t := raw.trade
-        event.Trade = &FpssTrade{
-            ContractID:     int32(t.contract_id),
-            MsOfDay:        int32(t.ms_of_day),
-            Sequence:       int32(t.sequence),
-            ExtCondition1:  int32(t.ext_condition1),
-            ExtCondition2:  int32(t.ext_condition2),
-            ExtCondition3:  int32(t.ext_condition3),
-            ExtCondition4:  int32(t.ext_condition4),
-            Condition:      int32(t.condition),
-            Size:           int32(t.size),
-            Exchange:       int32(t.exchange),
-            Price:          float64(t.price),
-            ConditionFlags: int32(t.condition_flags),
-            PriceFlags:     int32(t.price_flags),
-            VolumeType:     int32(t.volume_type),
-            RecordsBack:    int32(t.records_back),
-            Date:           int32(t.date),
-            ReceivedAtNs:   uint64(t.received_at_ns),
-        }
-    case FpssOpenInterestEvent:
-        oi := raw.open_interest
-        event.OpenInterest = &FpssOpenInterestData{
-            ContractID:   int32(oi.contract_id),
-            MsOfDay:      int32(oi.ms_of_day),
-            OpenInterest: int32(oi.open_interest),
-            Date:         int32(oi.date),
-            ReceivedAtNs: uint64(oi.received_at_ns),
-        }
-    case FpssOhlcvcEvent:
-        o := raw.ohlcvc
-        event.Ohlcvc = &FpssOhlcvc{
-            ContractID:   int32(o.contract_id),
-            MsOfDay:      int32(o.ms_of_day),
-            Open:         float64(o.open),
-            High:         float64(o.high),
-            Low:          float64(o.low),
-            Close:        float64(o.close),
-            Volume:       int64(o.volume),
-            Count:        int64(o.count),
-            Date:         int32(o.date),
-            ReceivedAtNs: uint64(o.received_at_ns),
-        }
-    case FpssControlEvent:
-        ctrl := raw.control
-        detail := ""
-        if ctrl.detail != nil {
-            detail = C.GoString(ctrl.detail)
-        }
-        event.Control = &FpssControlData{
-            Kind:   int32(ctrl.kind),
-            ID:     int32(ctrl.id),
-            Detail: detail,
-        }
-    case FpssRawDataEvent:
-        rd := raw.raw_data
-        event.RawCode = uint8(rd.code)
-        if rd.payload != nil && rd.payload_len > 0 {
-            event.RawPayload = C.GoBytes(unsafe.Pointer(rd.payload), C.int(rd.payload_len))
-        }
-    }
-
-    return event, nil
-}
-"#
-        }
-        "subscribe_option_quotes" => {
-            r#"// SubscribeOptionQuotes subscribes to quote data for an option contract.
-func (f *FpssClient) SubscribeOptionQuotes(symbol, expiration, strike, right string) (int, error) {
-    cs := C.CString(symbol)
-    ce := C.CString(expiration)
-    ck := C.CString(strike)
-    cr := C.CString(right)
-    defer C.free(unsafe.Pointer(cs))
-    defer C.free(unsafe.Pointer(ce))
-    defer C.free(unsafe.Pointer(ck))
-    defer C.free(unsafe.Pointer(cr))
-    return f.fpssCall(C.tdx_fpss_subscribe_option_quotes(f.handle, cs, ce, ck, cr))
-}
-"#
-        }
-        "subscribe_option_trades" => {
-            r#"// SubscribeOptionTrades subscribes to trade data for an option contract.
-func (f *FpssClient) SubscribeOptionTrades(symbol, expiration, strike, right string) (int, error) {
-    cs := C.CString(symbol)
-    ce := C.CString(expiration)
-    ck := C.CString(strike)
-    cr := C.CString(right)
-    defer C.free(unsafe.Pointer(cs))
-    defer C.free(unsafe.Pointer(ce))
-    defer C.free(unsafe.Pointer(ck))
-    defer C.free(unsafe.Pointer(cr))
-    return f.fpssCall(C.tdx_fpss_subscribe_option_trades(f.handle, cs, ce, ck, cr))
-}
-"#
-        }
-        "subscribe_option_open_interest" => {
-            r#"// SubscribeOptionOpenInterest subscribes to open interest data for an option contract.
-func (f *FpssClient) SubscribeOptionOpenInterest(symbol, expiration, strike, right string) (int, error) {
-    cs := C.CString(symbol)
-    ce := C.CString(expiration)
-    ck := C.CString(strike)
-    cr := C.CString(right)
-    defer C.free(unsafe.Pointer(cs))
-    defer C.free(unsafe.Pointer(ce))
-    defer C.free(unsafe.Pointer(ck))
-    defer C.free(unsafe.Pointer(cr))
-    return f.fpssCall(C.tdx_fpss_subscribe_option_open_interest(f.handle, cs, ce, ck, cr))
-}
-"#
-        }
-        "unsubscribe_option_quotes" => {
-            r#"// UnsubscribeOptionQuotes unsubscribes from quote data for an option contract.
-func (f *FpssClient) UnsubscribeOptionQuotes(symbol, expiration, strike, right string) (int, error) {
-    cs := C.CString(symbol)
-    ce := C.CString(expiration)
-    ck := C.CString(strike)
-    cr := C.CString(right)
-    defer C.free(unsafe.Pointer(cs))
-    defer C.free(unsafe.Pointer(ce))
-    defer C.free(unsafe.Pointer(ck))
-    defer C.free(unsafe.Pointer(cr))
-    return f.fpssCall(C.tdx_fpss_unsubscribe_option_quotes(f.handle, cs, ce, ck, cr))
-}
-"#
-        }
-        "unsubscribe_option_trades" => {
-            r#"// UnsubscribeOptionTrades unsubscribes from trade data for an option contract.
-func (f *FpssClient) UnsubscribeOptionTrades(symbol, expiration, strike, right string) (int, error) {
-    cs := C.CString(symbol)
-    ce := C.CString(expiration)
-    ck := C.CString(strike)
-    cr := C.CString(right)
-    defer C.free(unsafe.Pointer(cs))
-    defer C.free(unsafe.Pointer(ce))
-    defer C.free(unsafe.Pointer(ck))
-    defer C.free(unsafe.Pointer(cr))
-    return f.fpssCall(C.tdx_fpss_unsubscribe_option_trades(f.handle, cs, ce, ck, cr))
-}
-"#
-        }
-        "unsubscribe_option_open_interest" => {
-            r#"// UnsubscribeOptionOpenInterest unsubscribes from open interest data for an option contract.
-func (f *FpssClient) UnsubscribeOptionOpenInterest(symbol, expiration, strike, right string) (int, error) {
-    cs := C.CString(symbol)
-    ce := C.CString(expiration)
-    ck := C.CString(strike)
-    cr := C.CString(right)
-    defer C.free(unsafe.Pointer(cs))
-    defer C.free(unsafe.Pointer(ce))
-    defer C.free(unsafe.Pointer(ck))
-    defer C.free(unsafe.Pointer(cr))
-    return f.fpssCall(C.tdx_fpss_unsubscribe_option_open_interest(f.handle, cs, ce, ck, cr))
-}
-"#
-        }
-        "contract_map" => {
-            r#"// ContractMap returns the current contract ID mapping.
-func (f *FpssClient) ContractMap() (map[int32]string, error) {
-    arr := C.tdx_fpss_contract_map(f.handle)
-    if arr == nil {
-        return nil, fmt.Errorf("thetadatadx: %s", lastError())
-    }
-    defer C.tdx_contract_map_array_free(arr)
-    result := make(map[int32]string, int(arr.len))
-    if arr.data == nil || arr.len == 0 {
-        return result, nil
-    }
-    entries := unsafe.Slice(arr.data, int(arr.len))
-    for _, entry := range entries {
-        value := ""
-        if entry.contract != nil {
-            value = C.GoString(entry.contract)
-        }
-        result[int32(entry.id)] = value
-    }
-    return result, nil
-}
-"#
-        }
-        "reconnect" => {
-            r#"// Reconnect reconnects the FPSS streaming connection, re-subscribing all previous subscriptions.
-func (f *FpssClient) Reconnect() error {
-    rc := C.tdx_fpss_reconnect(f.handle)
-    if rc < 0 {
-        return fmt.Errorf("thetadatadx: %s", lastError())
-    }
-    return nil
-}
-"#
-        }
-        "shutdown" => {
-            r#"// Shutdown gracefully shuts down the FPSS streaming connection.
-func (f *FpssClient) Shutdown() {
-    if f.handle != nil {
-        C.tdx_fpss_shutdown(f.handle)
-    }
-}
-"#
-        }
-        other => panic!("unknown go fpss method: {other}"),
-    }
+    out
 }
 
-fn go_utility_function(name: &str) -> &'static str {
-    match name {
-        "all_greeks" => {
-            r#"// AllGreeks computes all Black-Scholes Greeks + IV locally.
-//
-// right accepts "C"/"P" or "call"/"put" case-insensitively. Returns an error
-// if the underlying FFI call fails; invalid right strings cause the native
-// tdbe layer to panic, which the FFI wrapper surfaces as a null result.
-func AllGreeks(spot, strike, rate, divYield, tte, optionPrice float64, right string) (*Greeks, error) {
-    cRight := C.CString(right)
-    defer C.free(unsafe.Pointer(cRight))
-    ptr := C.tdx_all_greeks(C.double(spot), C.double(strike), C.double(rate), C.double(divYield), C.double(tte), C.double(optionPrice), cRight)
-    if ptr == nil {
-        return nil, fmt.Errorf("thetadatadx: %s", lastError())
-    }
-    defer C.tdx_greeks_result_free(ptr)
-    return &Greeks{
-        Value:     float64(ptr.value),
-        Delta:     float64(ptr.delta),
-        Gamma:     float64(ptr.gamma),
-        Theta:     float64(ptr.theta),
-        Vega:      float64(ptr.vega),
-        Rho:       float64(ptr.rho),
-        IV:        float64(ptr.iv),
-        IVError:   float64(ptr.iv_error),
-        Vanna:     float64(ptr.vanna),
-        Charm:     float64(ptr.charm),
-        Vomma:     float64(ptr.vomma),
-        Veta:      float64(ptr.veta),
-        Speed:     float64(ptr.speed),
-        Zomma:     float64(ptr.zomma),
-        Color:     float64(ptr.color),
-        Ultima:    float64(ptr.ultima),
-        D1:        float64(ptr.d1),
-        D2:        float64(ptr.d2),
-        DualDelta: float64(ptr.dual_delta),
-        DualGamma: float64(ptr.dual_gamma),
-        Epsilon:   float64(ptr.epsilon),
-        Lambda:    float64(ptr.lambda),
-    }, nil
-}
-"#
-        }
-        "implied_volatility" => {
-            r#"// ImpliedVolatility computes implied volatility locally.
-//
-// right accepts "C"/"P" or "call"/"put" case-insensitively.
-func ImpliedVolatility(spot, strike, rate, divYield, tte, optionPrice float64, right string) (float64, float64, error) {
-    cRight := C.CString(right)
-    defer C.free(unsafe.Pointer(cRight))
-    var iv, ivErr C.double
-    rc := C.tdx_implied_volatility(C.double(spot), C.double(strike), C.double(rate), C.double(divYield), C.double(tte), C.double(optionPrice), cRight, &iv, &ivErr)
-    if rc != 0 {
-        return 0, 0, fmt.Errorf("thetadatadx: %s", lastError())
-    }
-    return float64(iv), float64(ivErr), nil
-}
-"#
-        }
-        other => panic!("unknown go utility: {other}"),
-    }
-}
-
-fn cpp_fpss_decl(name: &str) -> &'static str {
-    match name {
-        "connect" => "    /** Connect to FPSS streaming servers. Throws on failure. */\n    FpssClient(const Credentials& creds, const Config& config);\n",
-        "subscribe_quotes" => "    int subscribe_quotes(const std::string& symbol);\n",
-        "subscribe_trades" => "    int subscribe_trades(const std::string& symbol);\n",
-        "subscribe_open_interest" => "    int subscribe_open_interest(const std::string& symbol);\n",
-        "subscribe_full_trades" => "    int subscribe_full_trades(const std::string& sec_type);\n",
-        "subscribe_full_open_interest" => "    int subscribe_full_open_interest(const std::string& sec_type);\n",
-        "unsubscribe_quotes" => "    int unsubscribe_quotes(const std::string& symbol);\n",
-        "unsubscribe_trades" => "    int unsubscribe_trades(const std::string& symbol);\n",
-        "unsubscribe_open_interest" => "    int unsubscribe_open_interest(const std::string& symbol);\n",
-        "unsubscribe_full_trades" => "    int unsubscribe_full_trades(const std::string& sec_type);\n",
-        "unsubscribe_full_open_interest" => "    int unsubscribe_full_open_interest(const std::string& sec_type);\n",
-        "subscribe_option_quotes" => "    int subscribe_option_quotes(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);\n",
-        "subscribe_option_trades" => "    int subscribe_option_trades(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);\n",
-        "subscribe_option_open_interest" => "    int subscribe_option_open_interest(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);\n",
-        "unsubscribe_option_quotes" => "    int unsubscribe_option_quotes(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);\n",
-        "unsubscribe_option_trades" => "    int unsubscribe_option_trades(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);\n",
-        "unsubscribe_option_open_interest" => "    int unsubscribe_option_open_interest(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right);\n",
-        "is_authenticated" => "    bool is_authenticated() const;\n",
-        "contract_lookup" => "    std::optional<std::string> contract_lookup(int id) const;\n",
-        "contract_map" => "    /** Get the full contract map keyed by server-assigned contract ID. */\n    std::map<int32_t, std::string> contract_map() const;\n",
-        "active_subscriptions" => "    std::vector<Subscription> active_subscriptions() const;\n",
-        "next_event" => "    /** Poll for the next event as a typed struct. Returns nullptr on timeout. */\n    FpssEventPtr next_event(uint64_t timeout_ms);\n",
-        "reconnect" => "    /** Reconnect, re-subscribing all previous subscriptions. Throws on failure. */\n    void reconnect();\n",
-        "shutdown" => "    void shutdown();\n",
-        other => panic!("unknown cpp fpss method: {other}"),
-    }
-}
-
-fn cpp_fpss_def(name: &str) -> &'static str {
-    match name {
-        "connect" => {
+fn cpp_fpss_def(method: &MethodSpec) -> String {
+    match method.kind {
+        MethodKind::FpssConnect => {
             r#"FpssClient::FpssClient(const Credentials& creds, const Config& config) {
     auto h = tdx_fpss_connect(creds.get(), config.get());
     if (!h) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
     handle_.reset(h);
 }
 "#
+            .to_string()
         }
-        "subscribe_quotes" => {
-            r#"int FpssClient::subscribe_quotes(const std::string& symbol) { return tdx_fpss_subscribe_quotes(handle_.get(), symbol.c_str()); }
-"#
+        MethodKind::StockContractCall | MethodKind::FullCall => format!(
+            "int FpssClient::{}({} {}) {{ return tdx_fpss_{}(handle_.get(), {}.c_str()); }}\n",
+            method.name,
+            cpp_type(method.params[0].param_type),
+            method.params[0].name,
+            method.ffi_call.as_deref().unwrap(),
+            method.params[0].name
+        ),
+        MethodKind::OptionContractCall => {
+            let params = method
+                .params
+                .iter()
+                .map(|param| format!("{} {}", cpp_type(param.param_type), param.name))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let ffi_args = method
+                .params
+                .iter()
+                .map(|param| format!("{}.c_str()", param.name))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!(
+                "int FpssClient::{}({params}) {{ return tdx_fpss_{}(handle_.get(), {ffi_args}); }}\n",
+                method.name,
+                method.ffi_call.as_deref().unwrap()
+            )
         }
-        "subscribe_trades" => {
-            r#"int FpssClient::subscribe_trades(const std::string& symbol) { return tdx_fpss_subscribe_trades(handle_.get(), symbol.c_str()); }
-"#
+        MethodKind::IsAuthenticated => {
+            "bool FpssClient::is_authenticated() const { return tdx_fpss_is_authenticated(handle_.get()) != 0; }\n"
+                .to_string()
         }
-        "subscribe_open_interest" => {
-            r#"int FpssClient::subscribe_open_interest(const std::string& symbol) { return tdx_fpss_subscribe_open_interest(handle_.get(), symbol.c_str()); }
-"#
-        }
-        "subscribe_full_trades" => {
-            r#"int FpssClient::subscribe_full_trades(const std::string& sec_type) { return tdx_fpss_subscribe_full_trades(handle_.get(), sec_type.c_str()); }
-"#
-        }
-        "subscribe_full_open_interest" => {
-            r#"int FpssClient::subscribe_full_open_interest(const std::string& sec_type) { return tdx_fpss_subscribe_full_open_interest(handle_.get(), sec_type.c_str()); }
-"#
-        }
-        "unsubscribe_quotes" => {
-            r#"int FpssClient::unsubscribe_quotes(const std::string& symbol) { return tdx_fpss_unsubscribe_quotes(handle_.get(), symbol.c_str()); }
-"#
-        }
-        "unsubscribe_trades" => {
-            r#"int FpssClient::unsubscribe_trades(const std::string& symbol) { return tdx_fpss_unsubscribe_trades(handle_.get(), symbol.c_str()); }
-"#
-        }
-        "unsubscribe_open_interest" => {
-            r#"int FpssClient::unsubscribe_open_interest(const std::string& symbol) { return tdx_fpss_unsubscribe_open_interest(handle_.get(), symbol.c_str()); }
-"#
-        }
-        "unsubscribe_full_trades" => {
-            r#"int FpssClient::unsubscribe_full_trades(const std::string& sec_type) { return tdx_fpss_unsubscribe_full_trades(handle_.get(), sec_type.c_str()); }
-"#
-        }
-        "unsubscribe_full_open_interest" => {
-            r#"int FpssClient::unsubscribe_full_open_interest(const std::string& sec_type) { return tdx_fpss_unsubscribe_full_open_interest(handle_.get(), sec_type.c_str()); }
-"#
-        }
-        "subscribe_option_quotes" => {
-            r#"int FpssClient::subscribe_option_quotes(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right) { return tdx_fpss_subscribe_option_quotes(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str()); }
-"#
-        }
-        "subscribe_option_trades" => {
-            r#"int FpssClient::subscribe_option_trades(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right) { return tdx_fpss_subscribe_option_trades(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str()); }
-"#
-        }
-        "subscribe_option_open_interest" => {
-            r#"int FpssClient::subscribe_option_open_interest(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right) { return tdx_fpss_subscribe_option_open_interest(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str()); }
-"#
-        }
-        "unsubscribe_option_quotes" => {
-            r#"int FpssClient::unsubscribe_option_quotes(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right) { return tdx_fpss_unsubscribe_option_quotes(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str()); }
-"#
-        }
-        "unsubscribe_option_trades" => {
-            r#"int FpssClient::unsubscribe_option_trades(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right) { return tdx_fpss_unsubscribe_option_trades(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str()); }
-"#
-        }
-        "unsubscribe_option_open_interest" => {
-            r#"int FpssClient::unsubscribe_option_open_interest(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right) { return tdx_fpss_unsubscribe_option_open_interest(handle_.get(), symbol.c_str(), expiration.c_str(), strike.c_str(), right.c_str()); }
-"#
-        }
-        "is_authenticated" => {
-            r#"bool FpssClient::is_authenticated() const { return tdx_fpss_is_authenticated(handle_.get()) != 0; }
-"#
-        }
-        "contract_lookup" => {
+        MethodKind::ContractLookup => {
             r#"std::optional<std::string> FpssClient::contract_lookup(int id) const {
     detail::FfiString result(tdx_fpss_contract_lookup(handle_.get(), id));
     if (!result.ok()) {
-        // NULL + non-empty last-error means a real error; throw.
-        // NULL + empty last-error means "not found"; return nullopt.
         std::string err = detail::last_ffi_error();
         if (!err.empty()) throw std::runtime_error("thetadatadx: " + err);
         return std::nullopt;
@@ -1494,8 +2071,9 @@ fn cpp_fpss_def(name: &str) -> &'static str {
     return result.str();
 }
 "#
+            .to_string()
         }
-        "contract_map" => {
+        MethodKind::ContractMap => {
             r#"std::map<int32_t, std::string> FpssClient::contract_map() const {
     auto* arr = tdx_fpss_contract_map(handle_.get());
     if (!arr) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
@@ -1509,50 +2087,72 @@ fn cpp_fpss_def(name: &str) -> &'static str {
     return result;
 }
 "#
+            .to_string()
         }
-        "active_subscriptions" => {
+        MethodKind::ActiveSubscriptions => {
             r#"std::vector<Subscription> FpssClient::active_subscriptions() const {
     return detail::subscription_array_to_vector(tdx_fpss_active_subscriptions(handle_.get()));
 }
 "#
+            .to_string()
         }
-        "next_event" => {
+        MethodKind::NextEvent => {
             r#"FpssEventPtr FpssClient::next_event(uint64_t timeout_ms) {
     auto* raw = tdx_fpss_next_event(handle_.get(), timeout_ms);
     return FpssEventPtr(raw);
 }
 "#
+            .to_string()
         }
-        "reconnect" => {
+        MethodKind::Reconnect => {
             r#"void FpssClient::reconnect() {
     int rc = tdx_fpss_reconnect(handle_.get());
     if (rc < 0) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
 }
 "#
+            .to_string()
         }
-        "shutdown" => {
-            r#"void FpssClient::shutdown() { tdx_fpss_shutdown(handle_.get()); }
-"#
+        MethodKind::Shutdown => {
+            "void FpssClient::shutdown() { tdx_fpss_shutdown(handle_.get()); }\n".to_string()
         }
-        other => panic!("unknown cpp fpss method: {other}"),
+        other => panic!("unsupported C++ FPSS def kind: {other:?}"),
     }
 }
 
-fn cpp_utility_decl(name: &str) -> &'static str {
-    match name {
-        "all_greeks" => {
-            "/** Compute all 22 Greeks + IV. `right` accepts \"C\"/\"P\" or \"call\"/\"put\" (case-insensitive). Throws on failure. */\nGreeks all_greeks(double spot, double strike, double rate, double div_yield,\n                  double tte, double option_price, const std::string& right);\n"
+fn cpp_utility_decl(utility: &UtilitySpec) -> String {
+    let mut out = String::new();
+    push_cpp_doc_comment(&mut out, "", &utility.doc);
+    match utility.kind {
+        UtilityKind::AllGreeks => {
+            out.push_str(
+                "Greeks all_greeks(double spot, double strike, double rate, double div_yield,\n",
+            );
+            out.push_str(
+                "                  double tte, double option_price, const std::string& right);\n",
+            );
         }
-        "implied_volatility" => {
-            "/** Compute implied volatility. `right` accepts \"C\"/\"P\" or \"call\"/\"put\" (case-insensitive). Returns (iv, error). Throws on failure. */\nstd::pair<double, double> implied_volatility(double spot, double strike,\n                                             double rate, double div_yield,\n                                             double tte, double option_price,\n                                             const std::string& right);\n"
+        UtilityKind::ImpliedVolatility => {
+            out.push_str(
+                "std::pair<double, double> implied_volatility(double spot, double strike,\n",
+            );
+            out.push_str(
+                "                                              double rate, double div_yield,\n",
+            );
+            out.push_str(
+                "                                              double tte, double option_price,\n",
+            );
+            out.push_str(
+                "                                              const std::string& right);\n",
+            );
         }
-        other => panic!("unknown cpp utility: {other}"),
+        other => panic!("unsupported C++ utility kind: {other:?}"),
     }
+    out
 }
 
-fn cpp_utility_def(name: &str) -> &'static str {
-    match name {
-        "all_greeks" => {
+fn cpp_utility_def(utility: &UtilitySpec) -> String {
+    match utility.kind {
+        UtilityKind::AllGreeks => {
             r#"Greeks all_greeks(double spot, double strike, double rate, double div_yield,
                   double tte, double option_price, const std::string& right) {
     TdxGreeksResult* raw = tdx_all_greeks(
@@ -1596,8 +2196,9 @@ fn cpp_utility_def(name: &str) -> &'static str {
     return result;
 }
 "#
+            .to_string()
         }
-        "implied_volatility" => {
+        UtilityKind::ImpliedVolatility => {
             r#"std::pair<double, double> implied_volatility(double spot, double strike,
                                               double rate, double div_yield,
                                               double tte, double option_price,
@@ -1608,257 +2209,538 @@ fn cpp_utility_def(name: &str) -> &'static str {
     return {iv, err};
 }
 "#
+            .to_string()
         }
-        other => panic!("unknown cpp utility: {other}"),
+        other => panic!("unsupported C++ utility kind: {other:?}"),
     }
 }
 
-fn cpp_lifecycle_def(name: &str) -> &'static str {
-    match name {
-        "credentials_from_file" => {
+fn cpp_lifecycle_def(method: &MethodSpec) -> String {
+    match method.kind {
+        MethodKind::CredentialsFromFile => {
             r#"Credentials Credentials::from_file(const std::string& path) {
     auto h = tdx_credentials_from_file(path.c_str());
     if (!h) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
     return Credentials(h);
 }
 "#
+            .to_string()
         }
-        "credentials_from_email" => {
+        MethodKind::CredentialsFromEmail => {
             r#"Credentials Credentials::from_email(const std::string& email, const std::string& password) {
     auto h = tdx_credentials_new(email.c_str(), password.c_str());
     if (!h) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
     return Credentials(h);
 }
 "#
+            .to_string()
         }
-        "config_production" => {
-            r#"Config Config::production() { return Config(tdx_config_production()); }
-"#
+        MethodKind::ConfigConstructor => {
+            let variant = method.config_variant.as_deref().unwrap();
+            format!("Config Config::{variant}() {{ return Config(tdx_config_{variant}()); }}\n")
         }
-        "config_dev" => {
-            r#"Config Config::dev() { return Config(tdx_config_dev()); }
-"#
-        }
-        "config_stage" => {
-            r#"Config Config::stage() { return Config(tdx_config_stage()); }
-"#
-        }
-        "client_connect" => {
+        MethodKind::ClientConnect => {
             r#"Client Client::connect(const Credentials& creds, const Config& config) {
     auto h = tdx_client_connect(creds.get(), config.get());
     if (!h) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
     return Client(h);
 }
 "#
+            .to_string()
         }
-        other => panic!("unknown cpp lifecycle method: {other}"),
+        other => panic!("unsupported C++ lifecycle kind: {other:?}"),
     }
 }
 
-fn mcp_tool_definition(name: &str) -> &'static str {
-    match name {
-        "ping" => {
-            r#"    tools.push(json!({
-        "name": "ping",
-        "description": "Check MCP server status. Returns uptime and connection info without hitting ThetaData servers.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {},
-            "required": []
+fn mcp_tool_definition(utility: &UtilitySpec) -> String {
+    let mut out = String::new();
+    out.push_str("    tools.push(json!({\n");
+    writeln!(
+        out,
+        "        \"name\": {},",
+        rust_string_literal(&utility.name)
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "        \"description\": {},",
+        rust_string_literal(utility.mcp_description.as_deref().unwrap_or(&utility.doc))
+    )
+    .unwrap();
+    out.push_str("        \"inputSchema\": {\n");
+    out.push_str("            \"type\": \"object\",\n");
+    out.push_str("            \"properties\": {\n");
+    for (index, param) in utility.params.iter().enumerate() {
+        let suffix = if index + 1 == utility.params.len() {
+            ""
+        } else {
+            ","
+        };
+        write!(
+            out,
+            "                {}: {{ \"type\": {}, \"description\": {}",
+            rust_string_literal(mcp_param_name(param)),
+            rust_string_literal(mcp_json_type(param.param_type)),
+            rust_string_literal(mcp_param_description(param))
+        )
+        .unwrap();
+        if !param.enum_values.is_empty() {
+            write!(
+                out,
+                ", \"enum\": {}",
+                rust_string_array_literal(&param.enum_values)
+            )
+            .unwrap();
         }
-    }));
-"#
-        }
-        "all_greeks" => {
-            r#"    tools.push(json!({
-        "name": "all_greeks",
-        "description": "Compute all 22 Black-Scholes Greeks OFFLINE (no ThetaData server needed). Returns value, delta, gamma, theta, vega, rho, IV, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "spot": { "type": "number", "description": "Spot price (underlying)" },
-                "strike": { "type": "number", "description": "Strike price" },
-                "rate": { "type": "number", "description": "Risk-free rate (e.g. 0.05 for 5%)" },
-                "dividend_yield": { "type": "number", "description": "Dividend yield (e.g. 0.02 for 2%)" },
-                "time_to_expiry": { "type": "number", "description": "Time to expiration in years (e.g. 0.25 for 3 months)" },
-                "option_price": { "type": "number", "description": "Market price of the option" },
-                "right": { "type": "string", "description": "Option side: \"C\"/\"P\" or \"call\"/\"put\" (case-insensitive)", "enum": ["C", "P", "c", "p", "call", "put", "CALL", "PUT", "Call", "Put"] }
-            },
-            "required": ["spot", "strike", "rate", "dividend_yield", "time_to_expiry", "option_price", "right"]
-        }
-    }));
-"#
-        }
-        "implied_volatility" => {
-            r#"    tools.push(json!({
-        "name": "implied_volatility",
-        "description": "Compute implied volatility OFFLINE using bisection (no ThetaData server needed). Returns IV and error.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "spot": { "type": "number", "description": "Spot price (underlying)" },
-                "strike": { "type": "number", "description": "Strike price" },
-                "rate": { "type": "number", "description": "Risk-free rate (e.g. 0.05)" },
-                "dividend_yield": { "type": "number", "description": "Dividend yield (e.g. 0.02)" },
-                "time_to_expiry": { "type": "number", "description": "Time to expiration in years" },
-                "option_price": { "type": "number", "description": "Market price of the option" },
-                "right": { "type": "string", "description": "Option side: \"C\"/\"P\" or \"call\"/\"put\" (case-insensitive)", "enum": ["C", "P", "c", "p", "call", "put", "CALL", "PUT", "Call", "Put"] }
-            },
-            "required": ["spot", "strike", "rate", "dividend_yield", "time_to_expiry", "option_price", "right"]
-        }
-    }));
-"#
-        }
-        other => panic!("unknown mcp utility: {other}"),
+        writeln!(out, " }}{suffix}").unwrap();
     }
+    out.push_str("            },\n");
+    out.push_str("            \"required\": [");
+    for (index, param) in utility.params.iter().enumerate() {
+        if index > 0 {
+            out.push_str(", ");
+        }
+        out.push_str(&rust_string_literal(mcp_param_name(param)));
+    }
+    out.push_str("]\n");
+    out.push_str("        }\n");
+    out.push_str("    }));\n");
+    out
 }
 
-fn mcp_execute_arm(name: &str) -> &'static str {
-    match name {
-        "ping" => {
-            r#"        "ping" => {
-            let uptime = start_time.elapsed();
-            Some(Ok(json!({
-                "status": "ok",
-                "server": "thetadatadx-mcp",
-                "version": VERSION,
-                "uptime_secs": uptime.as_secs(),
-                "connected": client.is_some(),
-            })))
+fn mcp_execute_arm(utility: &UtilitySpec) -> String {
+    let mut out = String::new();
+    writeln!(out, "        {} => {{", rust_string_literal(&utility.name)).unwrap();
+    match utility.kind {
+        UtilityKind::Ping => {
+            out.push_str("            let uptime = start_time.elapsed();\n");
+            out.push_str("            Some(Ok(json!({\n");
+            out.push_str("                \"status\": \"ok\",\n");
+            out.push_str("                \"server\": \"thetadatadx-mcp\",\n");
+            out.push_str("                \"version\": VERSION,\n");
+            out.push_str("                \"uptime_secs\": uptime.as_secs(),\n");
+            out.push_str("                \"connected\": client.is_some(),\n");
+            out.push_str("            })))\n");
         }
-"#
+        UtilityKind::AllGreeks => {
+            let spot_key = mcp_param_name(find_utility_param(utility, "spot"));
+            let strike_key = mcp_param_name(find_utility_param(utility, "strike"));
+            let rate_key = mcp_param_name(find_utility_param(utility, "rate"));
+            let div_key = mcp_param_name(find_utility_param(utility, "div_yield"));
+            let tte_key = mcp_param_name(find_utility_param(utility, "tte"));
+            let option_price_key = mcp_param_name(find_utility_param(utility, "option_price"));
+            let right_key = mcp_param_name(find_utility_param(utility, "right"));
+            writeln!(
+                out,
+                "            let spot = param_or_return!(arg_f64(args, {}));",
+                rust_string_literal(spot_key)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "            let strike = param_or_return!(arg_f64(args, {}));",
+                rust_string_literal(strike_key)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "            let rate = param_or_return!(arg_f64(args, {}));",
+                rust_string_literal(rate_key)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "            let div_yield = param_or_return!(arg_f64(args, {}));",
+                rust_string_literal(div_key)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "            let tte = param_or_return!(arg_f64(args, {}));",
+                rust_string_literal(tte_key)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "            let option_price = param_or_return!(arg_f64(args, {}));",
+                rust_string_literal(option_price_key)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "            let right = param_or_return!(arg_str(args, {}));",
+                rust_string_literal(right_key)
+            )
+            .unwrap();
+            out.push_str("            param_or_return!(thetadatadx::parse_right_strict(&right).map_err(|e| e.to_string()));\n");
+            out.push_str("            let g = tdbe::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, &right);\n");
+            out.push_str("            Some(Ok(json!({\n");
+            for (field, rust_field) in greek_result_fields() {
+                writeln!(
+                    out,
+                    "                {}: g.{rust_field},",
+                    rust_string_literal(field)
+                )
+                .unwrap();
+            }
+            out.push_str("            })))\n");
         }
-        "all_greeks" => {
-            r#"        "all_greeks" => {
-            let s = param_or_return!(arg_f64(args, "spot"));
-            let x = param_or_return!(arg_f64(args, "strike"));
-            let r = param_or_return!(arg_f64(args, "rate"));
-            let q = param_or_return!(arg_f64(args, "dividend_yield"));
-            let t = param_or_return!(arg_f64(args, "time_to_expiry"));
-            let price = param_or_return!(arg_f64(args, "option_price"));
-            let right = param_or_return!(arg_str(args, "right"));
-            param_or_return!(thetadatadx::parse_right_strict(&right).map_err(|e| e.to_string()));
-
-            let g = tdbe::greeks::all_greeks(s, x, r, q, t, price, &right);
-            Some(Ok(json!({
-                "value": g.value,
-                "iv": g.iv,
-                "iv_error": g.iv_error,
-                "delta": g.delta,
-                "gamma": g.gamma,
-                "theta": g.theta,
-                "vega": g.vega,
-                "rho": g.rho,
-                "vanna": g.vanna,
-                "charm": g.charm,
-                "vomma": g.vomma,
-                "veta": g.veta,
-                "speed": g.speed,
-                "zomma": g.zomma,
-                "color": g.color,
-                "ultima": g.ultima,
-                "d1": g.d1,
-                "d2": g.d2,
-                "dual_delta": g.dual_delta,
-                "dual_gamma": g.dual_gamma,
-                "epsilon": g.epsilon,
-                "lambda": g.lambda,
-            })))
+        UtilityKind::ImpliedVolatility => {
+            let spot_key = mcp_param_name(find_utility_param(utility, "spot"));
+            let strike_key = mcp_param_name(find_utility_param(utility, "strike"));
+            let rate_key = mcp_param_name(find_utility_param(utility, "rate"));
+            let div_key = mcp_param_name(find_utility_param(utility, "div_yield"));
+            let tte_key = mcp_param_name(find_utility_param(utility, "tte"));
+            let option_price_key = mcp_param_name(find_utility_param(utility, "option_price"));
+            let right_key = mcp_param_name(find_utility_param(utility, "right"));
+            writeln!(
+                out,
+                "            let spot = param_or_return!(arg_f64(args, {}));",
+                rust_string_literal(spot_key)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "            let strike = param_or_return!(arg_f64(args, {}));",
+                rust_string_literal(strike_key)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "            let rate = param_or_return!(arg_f64(args, {}));",
+                rust_string_literal(rate_key)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "            let div_yield = param_or_return!(arg_f64(args, {}));",
+                rust_string_literal(div_key)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "            let tte = param_or_return!(arg_f64(args, {}));",
+                rust_string_literal(tte_key)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "            let option_price = param_or_return!(arg_f64(args, {}));",
+                rust_string_literal(option_price_key)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "            let right = param_or_return!(arg_str(args, {}));",
+                rust_string_literal(right_key)
+            )
+            .unwrap();
+            out.push_str("            param_or_return!(thetadatadx::parse_right_strict(&right).map_err(|e| e.to_string()));\n");
+            out.push_str("            let (iv, err) = tdbe::greeks::implied_volatility(spot, strike, rate, div_yield, tte, option_price, &right);\n");
+            out.push_str("            Some(Ok(json!({\n");
+            out.push_str("                \"implied_volatility\": iv,\n");
+            out.push_str("                \"error\": err,\n");
+            out.push_str("            })))\n");
         }
-"#
-        }
-        "implied_volatility" => {
-            r#"        "implied_volatility" => {
-            let s = param_or_return!(arg_f64(args, "spot"));
-            let x = param_or_return!(arg_f64(args, "strike"));
-            let r = param_or_return!(arg_f64(args, "rate"));
-            let q = param_or_return!(arg_f64(args, "dividend_yield"));
-            let t = param_or_return!(arg_f64(args, "time_to_expiry"));
-            let price = param_or_return!(arg_f64(args, "option_price"));
-            let right = param_or_return!(arg_str(args, "right"));
-            param_or_return!(thetadatadx::parse_right_strict(&right).map_err(|e| e.to_string()));
-
-            let (iv, err) = tdbe::greeks::implied_volatility(s, x, r, q, t, price, &right);
-            Some(Ok(json!({
-                "implied_volatility": iv,
-                "error": err,
-            })))
-        }
-"#
-        }
-        other => panic!("unknown mcp utility: {other}"),
+        UtilityKind::Auth => panic!("auth is CLI-only"),
     }
+    out.push_str("        }\n");
+    out
 }
 
 fn cli_command_builder(utility: &UtilitySpec) -> String {
-    match utility.name.as_str() {
-        "auth" => "    app = app.subcommand(Command::new(\"auth\").about(\"Test authentication and print session info\"));\n".into(),
-        "all_greeks" => format!(
-            "    app = app.subcommand(\n        Command::new({:?})\n            .about(\"Compute Black-Scholes Greeks (offline, no server needed)\")\n            .arg(Arg::new(\"spot\").required(true).help(\"Spot price\"))\n            .arg(Arg::new(\"strike\").required(true).help(\"Strike price\"))\n            .arg(\n                Arg::new(\"rate\")\n                    .required(true)\n                    .help(\"Risk-free rate (e.g. 0.05)\"),\n            )\n            .arg(\n                Arg::new(\"dividend\")\n                    .required(true)\n                    .help(\"Dividend yield (e.g. 0.015)\"),\n            )\n            .arg(\n                Arg::new(\"time\")\n                    .required(true)\n                    .help(\"Time to expiration in years (e.g. 0.082 for ~30 days)\"),\n            )\n            .arg(Arg::new(\"option_price\").required(true).help(\"Option price\"))\n            .arg(\n                Arg::new(\"right\")\n                    .required(true)\n                    .help(\"Option side: \\\"C\\\"/\\\"P\\\" or \\\"call\\\"/\\\"put\\\" (case-insensitive)\"),\n            ),\n    );\n",
-            utility.cli_name.as_deref().unwrap_or("greeks")
-        ),
-        "implied_volatility" => format!(
-            "    app = app.subcommand(\n        Command::new({:?})\n            .about(\"Compute implied volatility only (offline, no server needed)\")\n            .arg(Arg::new(\"spot\").required(true).help(\"Spot price\"))\n            .arg(Arg::new(\"strike\").required(true).help(\"Strike price\"))\n            .arg(Arg::new(\"rate\").required(true).help(\"Risk-free rate\"))\n            .arg(Arg::new(\"dividend\").required(true).help(\"Dividend yield\"))\n            .arg(\n                Arg::new(\"time\")\n                    .required(true)\n                    .help(\"Time to expiration in years\"),\n            )\n            .arg(Arg::new(\"option_price\").required(true).help(\"Option price\"))\n            .arg(\n                Arg::new(\"right\")\n                    .required(true)\n                    .help(\"Option side: \\\"C\\\"/\\\"P\\\" or \\\"call\\\"/\\\"put\\\" (case-insensitive)\"),\n            ),\n    );\n",
-            utility.cli_name.as_deref().unwrap_or("iv")
-        ),
-        other => panic!("unknown cli utility: {other}"),
+    let cli_name = utility.cli_name.as_deref().unwrap_or(&utility.name);
+    let cli_about = utility.cli_about.as_deref().unwrap_or(&utility.doc);
+    let mut out = String::new();
+    if utility.kind == UtilityKind::Auth {
+        writeln!(
+            out,
+            "    app = app.subcommand(Command::new({}).about({}));",
+            rust_string_literal(cli_name),
+            rust_string_literal(cli_about)
+        )
+        .unwrap();
+        return out;
     }
+
+    out.push_str("    app = app.subcommand(\n");
+    writeln!(
+        out,
+        "        Command::new({})",
+        rust_string_literal(cli_name)
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "            .about({})",
+        rust_string_literal(cli_about)
+    )
+    .unwrap();
+    for param in &utility.params {
+        out.push_str("            .arg(\n");
+        writeln!(
+            out,
+            "                Arg::new({})",
+            rust_string_literal(cli_param_name(param))
+        )
+        .unwrap();
+        out.push_str("                    .required(true)\n");
+        writeln!(
+            out,
+            "                    .help({}),",
+            rust_string_literal(&param.doc)
+        )
+        .unwrap();
+        out.push_str("            )\n");
+    }
+    out.push_str("    );\n");
+    out
 }
 
 fn cli_dispatch_arm(utility: &UtilitySpec) -> String {
-    match utility.name.as_str() {
-        "auth" => r#"        Some(("auth", _)) => {
-            let creds = thetadatadx::Credentials::from_file(creds_path)?;
-            let resp = thetadatadx::auth::authenticate(&creds).await?;
-            let mut td = TabularData::new(vec![
-                "session_id",
-                "email",
-                "stock_tier",
-                "options_tier",
-                "indices_tier",
-                "rate_tier",
-                "created",
-            ]);
-            let user = resp.user.as_ref();
-            let redacted_session = if resp.session_id.len() >= 8 {
-                format!("{}...", &resp.session_id[..8])
-            } else {
-                resp.session_id.clone()
-            };
-            td.push(vec![
-                redacted_session,
-                user.and_then(|u| u.email.clone()).unwrap_or_default(),
-                user.and_then(|u| u.stock_subscription)
-                    .map(|t| format!("{t}"))
-                    .unwrap_or_default(),
-                user.and_then(|u| u.options_subscription)
-                    .map(|t| format!("{t}"))
-                    .unwrap_or_default(),
-                user.and_then(|u| u.indices_subscription)
-                    .map(|t| format!("{t}"))
-                    .unwrap_or_default(),
-                user.and_then(|u| u.interest_rate_subscription)
-                    .map(|t| format!("{t}"))
-                    .unwrap_or_default(),
-                resp.session_created.unwrap_or_default(),
-            ]);
-            td.render(fmt);
-            Ok(true)
-        }
-"#
-        .into(),
-        "all_greeks" => {
-            let cli_name = utility.cli_name.as_deref().unwrap_or("greeks");
-            format!(
-                "        Some(({cli_name:?}, sub_m)) => {{\n            let spot: f64 = get_arg(sub_m, \"spot\")\n                .parse()\n                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid spot price: {{e}}\")))?;\n            let strike: f64 = get_arg(sub_m, \"strike\")\n                .parse()\n                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid strike price: {{e}}\")))?;\n            let rate: f64 = get_arg(sub_m, \"rate\")\n                .parse()\n                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid rate: {{e}}\")))?;\n            let dividend: f64 = get_arg(sub_m, \"dividend\")\n                .parse()\n                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid dividend: {{e}}\")))?;\n            let time: f64 = get_arg(sub_m, \"time\")\n                .parse()\n                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid time: {{e}}\")))?;\n            let option_price: f64 = get_arg(sub_m, \"option_price\")\n                .parse()\n                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid option_price: {{e}}\")))?;\n            let right = get_arg(sub_m, \"right\");\n            thetadatadx::parse_right_strict(right)?;\n\n            let g = tdbe::greeks::all_greeks(spot, strike, rate, dividend, time, option_price, right);\n            let mut td = TabularData::new(vec![\"greek\", \"value\"]);\n            let rows = [\n                (\"value\", g.value),\n                (\"iv\", g.iv),\n                (\"iv_error\", g.iv_error),\n                (\"delta\", g.delta),\n                (\"gamma\", g.gamma),\n                (\"theta\", g.theta),\n                (\"vega\", g.vega),\n                (\"rho\", g.rho),\n                (\"d1\", g.d1),\n                (\"d2\", g.d2),\n                (\"vanna\", g.vanna),\n                (\"charm\", g.charm),\n                (\"vomma\", g.vomma),\n                (\"veta\", g.veta),\n                (\"speed\", g.speed),\n                (\"zomma\", g.zomma),\n                (\"color\", g.color),\n                (\"ultima\", g.ultima),\n                (\"dual_delta\", g.dual_delta),\n                (\"dual_gamma\", g.dual_gamma),\n                (\"epsilon\", g.epsilon),\n                (\"lambda\", g.lambda),\n            ];\n            for (name, val) in rows {{\n                td.push(vec![name.to_string(), format!(\"{{val:.8}}\")]);\n            }}\n            td.render(fmt);\n            Ok(true)\n        }}\n"
+    let cli_name = utility.cli_name.as_deref().unwrap_or(&utility.name);
+    let mut out = String::new();
+    match utility.kind {
+        UtilityKind::Auth => {
+            writeln!(
+                out,
+                "        Some(({}, _)) => {{",
+                rust_string_literal(cli_name)
             )
+            .unwrap();
+            out.push_str(
+                "            let creds = thetadatadx::Credentials::from_file(creds_path)?;\n",
+            );
+            out.push_str(
+                "            let resp = thetadatadx::auth::authenticate(&creds).await?;\n",
+            );
+            out.push_str("            let mut td = TabularData::new(vec![\n");
+            out.push_str("                \"session_id\",\n                \"email\",\n                \"stock_tier\",\n                \"options_tier\",\n                \"indices_tier\",\n                \"rate_tier\",\n                \"created\",\n            ]);\n");
+            out.push_str("            let user = resp.user.as_ref();\n");
+            out.push_str("            let redacted_session = if resp.session_id.len() >= 8 {\n");
+            out.push_str("                format!(\"{}...\", &resp.session_id[..8])\n");
+            out.push_str("            } else {\n");
+            out.push_str("                resp.session_id.clone()\n");
+            out.push_str("            };\n");
+            out.push_str("            td.push(vec![\n");
+            out.push_str("                redacted_session,\n");
+            out.push_str(
+                "                user.and_then(|u| u.email.clone()).unwrap_or_default(),\n",
+            );
+            out.push_str("                user.and_then(|u| u.stock_subscription)\n                    .map(|t| format!(\"{t}\"))\n                    .unwrap_or_default(),\n");
+            out.push_str("                user.and_then(|u| u.options_subscription)\n                    .map(|t| format!(\"{t}\"))\n                    .unwrap_or_default(),\n");
+            out.push_str("                user.and_then(|u| u.indices_subscription)\n                    .map(|t| format!(\"{t}\"))\n                    .unwrap_or_default(),\n");
+            out.push_str("                user.and_then(|u| u.interest_rate_subscription)\n                    .map(|t| format!(\"{t}\"))\n                    .unwrap_or_default(),\n");
+            out.push_str("                resp.session_created.unwrap_or_default(),\n");
+            out.push_str("            ]);\n");
+            out.push_str("            td.render(fmt);\n");
+            out.push_str("            Ok(true)\n");
+            out.push_str("        }\n");
         }
-        "implied_volatility" => {
-            let cli_name = utility.cli_name.as_deref().unwrap_or("iv");
-            format!(
-                "        Some(({cli_name:?}, sub_m)) => {{\n            let spot: f64 = get_arg(sub_m, \"spot\")\n                .parse()\n                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid spot price: {{e}}\")))?;\n            let strike: f64 = get_arg(sub_m, \"strike\")\n                .parse()\n                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid strike price: {{e}}\")))?;\n            let rate: f64 = get_arg(sub_m, \"rate\")\n                .parse()\n                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid rate: {{e}}\")))?;\n            let dividend: f64 = get_arg(sub_m, \"dividend\")\n                .parse()\n                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid dividend: {{e}}\")))?;\n            let time: f64 = get_arg(sub_m, \"time\")\n                .parse()\n                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid time: {{e}}\")))?;\n            let option_price: f64 = get_arg(sub_m, \"option_price\")\n                .parse()\n                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid option_price: {{e}}\")))?;\n            let right = get_arg(sub_m, \"right\");\n            thetadatadx::parse_right_strict(right)?;\n\n            let (iv, iv_error) = tdbe::greeks::implied_volatility(\n                spot,\n                strike,\n                rate,\n                dividend,\n                time,\n                option_price,\n                right,\n            );\n            let mut td = TabularData::new(vec![\"iv\", \"iv_error\"]);\n            td.push(vec![format!(\"{{iv:.8}}\"), format!(\"{{iv_error:.8}}\")]);\n            td.render(fmt);\n            Ok(true)\n        }}\n"
+        UtilityKind::AllGreeks => {
+            writeln!(
+                out,
+                "        Some(({}, sub_m)) => {{",
+                rust_string_literal(cli_name)
             )
+            .unwrap();
+            emit_cli_f64_arg(&mut out, utility, "spot", "spot");
+            emit_cli_f64_arg(&mut out, utility, "strike", "strike");
+            emit_cli_f64_arg(&mut out, utility, "rate", "rate");
+            emit_cli_f64_arg(&mut out, utility, "div_yield", "div_yield");
+            emit_cli_f64_arg(&mut out, utility, "tte", "tte");
+            emit_cli_f64_arg(&mut out, utility, "option_price", "option_price");
+            let right_key = cli_param_name(find_utility_param(utility, "right"));
+            writeln!(
+                out,
+                "            let right = get_arg(sub_m, {});",
+                rust_string_literal(right_key)
+            )
+            .unwrap();
+            out.push_str("            thetadatadx::parse_right_strict(right)?;\n");
+            out.push_str("            let g = tdbe::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, right);\n");
+            out.push_str(
+                "            let mut td = TabularData::new(vec![\"greek\", \"value\"]);\n",
+            );
+            out.push_str("            let rows = [\n");
+            for (field, rust_field) in greek_result_fields() {
+                writeln!(
+                    out,
+                    "                ({}, g.{rust_field}),",
+                    rust_string_literal(field)
+                )
+                .unwrap();
+            }
+            out.push_str("            ];\n");
+            out.push_str("            for (name, val) in rows {\n");
+            out.push_str(
+                "                td.push(vec![name.to_string(), format!(\"{val:.8}\")]);\n",
+            );
+            out.push_str("            }\n");
+            out.push_str("            td.render(fmt);\n");
+            out.push_str("            Ok(true)\n");
+            out.push_str("        }\n");
         }
-        other => panic!("unknown cli utility: {other}"),
+        UtilityKind::ImpliedVolatility => {
+            writeln!(
+                out,
+                "        Some(({}, sub_m)) => {{",
+                rust_string_literal(cli_name)
+            )
+            .unwrap();
+            emit_cli_f64_arg(&mut out, utility, "spot", "spot");
+            emit_cli_f64_arg(&mut out, utility, "strike", "strike");
+            emit_cli_f64_arg(&mut out, utility, "rate", "rate");
+            emit_cli_f64_arg(&mut out, utility, "div_yield", "div_yield");
+            emit_cli_f64_arg(&mut out, utility, "tte", "tte");
+            emit_cli_f64_arg(&mut out, utility, "option_price", "option_price");
+            let right_key = cli_param_name(find_utility_param(utility, "right"));
+            writeln!(
+                out,
+                "            let right = get_arg(sub_m, {});",
+                rust_string_literal(right_key)
+            )
+            .unwrap();
+            out.push_str("            thetadatadx::parse_right_strict(right)?;\n");
+            out.push_str("            let (iv, iv_error) = tdbe::greeks::implied_volatility(spot, strike, rate, div_yield, tte, option_price, right);\n");
+            out.push_str(
+                "            let mut td = TabularData::new(vec![\"iv\", \"iv_error\"]);\n",
+            );
+            out.push_str(
+                "            td.push(vec![format!(\"{iv:.8}\"), format!(\"{iv_error:.8}\")]);\n",
+            );
+            out.push_str("            td.render(fmt);\n");
+            out.push_str("            Ok(true)\n");
+            out.push_str("        }\n");
+        }
+        UtilityKind::Ping => panic!("ping is MCP-only"),
     }
+    out
+}
+
+/// Insert `runtime.LockOSThread()` + deferred unlock at the top of every
+/// Go method body in `src` whose body reads the FFI's thread-local error
+/// slot (any substring in `sdk_surface.toml`'s
+/// `go_ffi.tls_reader_markers`). Methods without TLS reads pass through
+/// unchanged.
+fn inject_os_thread_pin(src: &str, tls_reader_markers: &[TlsReaderMarker]) -> String {
+    let mut out = String::new();
+    let lines: Vec<&str> = src.split_inclusive('\n').collect();
+    let mut i = 0;
+    while i < lines.len() {
+        let line = lines[i];
+        if line.starts_with("func ") && line.trim_end().ends_with('{') {
+            let mut j = i + 1;
+            let mut touches_tls = false;
+            while j < lines.len() {
+                let l = lines[j];
+                if l.starts_with('}') {
+                    break;
+                }
+                if tls_reader_markers
+                    .iter()
+                    .any(|marker| l.contains(&marker.substring))
+                {
+                    touches_tls = true;
+                }
+                j += 1;
+            }
+            out.push_str(line);
+            if touches_tls {
+                out.push_str("    runtime.LockOSThread()\n");
+                out.push_str("    defer runtime.UnlockOSThread()\n");
+            }
+            let end = j.min(lines.len().saturating_sub(1));
+            for body_line in lines.iter().skip(i + 1).take(end.saturating_sub(i)) {
+                out.push_str(body_line);
+            }
+            i = j + 1;
+            continue;
+        }
+        out.push_str(line);
+        i += 1;
+    }
+    out
+}
+
+fn count_go_tls_reader_methods(
+    repo_root: &Path,
+    tls_reader_markers: &[TlsReaderMarker],
+    tls_helpers: &[TlsHelper],
+    generated_overrides: &[(&str, &str)],
+) -> Result<usize, Box<dyn std::error::Error>> {
+    let go_dir = repo_root.join("sdks/go");
+    let mut files: Vec<_> = std::fs::read_dir(&go_dir)?
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let path = entry.path();
+            let file_name = path.file_name()?.to_str()?;
+            if path.extension().and_then(|ext| ext.to_str()) == Some("go")
+                && !file_name.ends_with("_test.go")
+            {
+                Some((file_name.to_string(), path))
+            } else {
+                None
+            }
+        })
+        .collect();
+    files.sort_by(|a, b| a.0.cmp(&b.0));
+
+    let generated_overrides: std::collections::HashMap<&str, &str> =
+        generated_overrides.iter().copied().collect();
+
+    let mut count = 0usize;
+    for (file_name, path) in files {
+        let contents = if let Some(generated) = generated_overrides.get(file_name.as_str()) {
+            (*generated).to_string()
+        } else {
+            std::fs::read_to_string(path)?
+        };
+        let lines: Vec<&str> = contents
+            .split('\n')
+            .map(|line| line.trim_end_matches('\r'))
+            .collect();
+        for (idx, line) in lines.iter().enumerate() {
+            if !line.starts_with("func ") || !line.ends_with('{') {
+                continue;
+            }
+            let Some(method_name) = extract_go_method_name(line) else {
+                continue;
+            };
+            if tls_helpers.iter().any(|h| h.method_name == method_name) {
+                continue;
+            }
+            let body_end = find_go_method_body_end(&lines, idx + 1);
+            let body = &lines[idx + 1..body_end];
+            if body.iter().any(|body_line| {
+                tls_reader_markers
+                    .iter()
+                    .any(|marker| body_line.contains(&marker.substring))
+            }) {
+                count += 1;
+            }
+        }
+    }
+    Ok(count)
+}
+
+fn extract_go_method_name(line: &str) -> Option<&str> {
+    let rest = line.strip_prefix("func ")?;
+    let rest = if rest.starts_with('(') {
+        let end = rest.find(") ")?;
+        &rest[end + 2..]
+    } else {
+        rest
+    };
+    let end = rest.find('(')?;
+    Some(rest[..end].trim())
+}
+
+fn find_go_method_body_end(lines: &[&str], from: usize) -> usize {
+    for (idx, line) in lines.iter().enumerate().skip(from) {
+        if line.starts_with('}') {
+            return idx;
+        }
+    }
+    lines.len()
 }

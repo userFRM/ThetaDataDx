@@ -8,52 +8,9 @@ import (
 	"testing"
 )
 
-// tlsReaderMarkers is the authoritative list of substrings that
-// identify an FFI thread-local error read. Any Go source line
-// containing one of these consults the `LAST_ERROR` thread_local in
-// `ffi/src/lib.rs`, so the enclosing function MUST have executed
-// `runtime.LockOSThread()` (with a matching deferred unlock) before
-// reaching that line.
-//
-// Paired with `GO_TLS_READER_MARKERS` in
-// `crates/thetadatadx/build_support/sdk_surface.rs`. The two lists
-// MUST stay byte-identical — enforced by the
-// `go_tls_marker_list_mirrors_rust` integration test at
-// `crates/thetadatadx/tests/go_tls_marker_parity.rs`. A divergent
-// addition on either side fails that test naming the missing
-// entries.
-var tlsReaderMarkers = []string{
-	"lastError(",
-	"lastErrorRaw(",
-	"f.fpssCall(",
-	"C.tdx_last_error(",
-	// Helpers that themselves read the TLS slot — callers must pin
-	// BEFORE invoking them. (The helpers also self-pin defensively,
-	// which makes them safe even if a caller forgets, but the
-	// static audit is stricter.)
-	"stringArrayToGo(",
-}
-
-// expectedPinnedMethods is the exact count of Go functions in
-// `sdks/go/*.go` (excluding `*_test.go`) that read the FFI's
-// thread-local error slot and are therefore required to pin. Updated
-// INTENTIONALLY when a TLS-reading method is genuinely added or
-// removed — a silent drift in either direction fails the test and
-// forces the reviewer to confirm the change is expected.
-//
-// Current breakdown (W3 round-6):
-//   - 61 historical endpoints    (historical.go, 53 via lastErrorRaw +
-//                                 8 list endpoints via stringArrayToGo)
-//   - 20 fpss_methods.go         (subscribe/unsubscribe + lookup)
-//   -  2 utilities               (AllGreeks, ImpliedVolatility)
-//   -  2 hand-written client     (Connect, NewFpssClient)
-//   -  2 hand-written credentials (NewCredentials, CredentialsFromFile)
-//   -  1 hand-written helper     (stringArrayToGo, self-pin defensive)
-//
-// Total: 88. The TLS helpers themselves (`lastError`, `lastErrorRaw`,
-// `fpssCall`) are excluded via `isTLSHelper` — they ARE the read, and
-// the test audits their callers.
-const expectedPinnedMethods = 88
+// The authoritative TLS marker list and pinned-method count are generated
+// into timeout_pin_generated_test.go from sdk_surface.toml plus the current
+// checked-in Go source tree.
 
 // TestEveryFFIErrorReaderPinsOSThread is the DETERMINISTIC arm of the
 // W3 fix verification (see TestTimeoutConcurrent for the behavioral
@@ -68,10 +25,9 @@ const expectedPinnedMethods = 88
 // be picked up and audited. No allowlist to keep in sync.
 //
 // The `expectedPinnedMethods` constant is an EXACT-MATCH counter.
-// Adding a new TLS-reading wrapper must be accompanied by bumping
-// this constant; removing one must decrement it. Either direction of
-// drift fails the test with a clear delta, so a reviewer must make
-// the change intentional.
+// Adding or removing a TLS-reading wrapper requires regenerating
+// timeout_pin_generated_test.go so the derived count stays in sync.
+// Either direction of drift fails the test with a clear delta.
 //
 // Verified as a true negative test (round-6 run): temporarily
 // removing the pin from `thetadx.go::CredentialsFromFile` fails the
@@ -155,7 +111,7 @@ func TestEveryFFIErrorReaderPinsOSThread(t *testing.T) {
 
 	if len(pinned) != expectedPinnedMethods {
 		t.Errorf(
-			"TLS-pinned-method count changed: got %d, want exactly %d. If this change is intentional, update expectedPinnedMethods in timeout_pin_test.go.",
+			"TLS-pinned-method count changed: got %d, want exactly %d. If this change is intentional, regenerate timeout_pin_generated_test.go.",
 			len(pinned),
 			expectedPinnedMethods,
 		)

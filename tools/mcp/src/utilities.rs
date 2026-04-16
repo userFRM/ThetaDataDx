@@ -6,7 +6,8 @@ fn push_generated_utility_tool_definitions(tools: &mut Vec<Value>) {
         "description": "Check MCP server status. Returns uptime and connection info without hitting ThetaData servers.",
         "inputSchema": {
             "type": "object",
-            "properties": {},
+            "properties": {
+            },
             "required": []
         }
     }));
@@ -17,7 +18,7 @@ fn push_generated_utility_tool_definitions(tools: &mut Vec<Value>) {
             "type": "object",
             "properties": {
                 "spot": { "type": "number", "description": "Spot price (underlying)" },
-                "strike": { "type": "number", "description": "Strike price" },
+                "strike": { "type": "number", "description": "Strike price." },
                 "rate": { "type": "number", "description": "Risk-free rate (e.g. 0.05 for 5%)" },
                 "dividend_yield": { "type": "number", "description": "Dividend yield (e.g. 0.02 for 2%)" },
                 "time_to_expiry": { "type": "number", "description": "Time to expiration in years (e.g. 0.25 for 3 months)" },
@@ -34,7 +35,7 @@ fn push_generated_utility_tool_definitions(tools: &mut Vec<Value>) {
             "type": "object",
             "properties": {
                 "spot": { "type": "number", "description": "Spot price (underlying)" },
-                "strike": { "type": "number", "description": "Strike price" },
+                "strike": { "type": "number", "description": "Strike price." },
                 "rate": { "type": "number", "description": "Risk-free rate (e.g. 0.05)" },
                 "dividend_yield": { "type": "number", "description": "Dividend yield (e.g. 0.02)" },
                 "time_to_expiry": { "type": "number", "description": "Time to expiration in years" },
@@ -52,7 +53,6 @@ async fn try_execute_generated_utility(
     args: &Value,
     start_time: std::time::Instant,
 ) -> Option<Result<Value, ToolError>> {
-    let _ = client;
     macro_rules! param_or_return {
         ($expr:expr) => {
             match $expr {
@@ -73,16 +73,15 @@ async fn try_execute_generated_utility(
             })))
         }
         "all_greeks" => {
-            let s = param_or_return!(arg_f64(args, "spot"));
-            let x = param_or_return!(arg_f64(args, "strike"));
-            let r = param_or_return!(arg_f64(args, "rate"));
-            let q = param_or_return!(arg_f64(args, "dividend_yield"));
-            let t = param_or_return!(arg_f64(args, "time_to_expiry"));
-            let price = param_or_return!(arg_f64(args, "option_price"));
+            let spot = param_or_return!(arg_f64(args, "spot"));
+            let strike = param_or_return!(arg_f64(args, "strike"));
+            let rate = param_or_return!(arg_f64(args, "rate"));
+            let div_yield = param_or_return!(arg_f64(args, "dividend_yield"));
+            let tte = param_or_return!(arg_f64(args, "time_to_expiry"));
+            let option_price = param_or_return!(arg_f64(args, "option_price"));
             let right = param_or_return!(arg_str(args, "right"));
             param_or_return!(thetadatadx::parse_right_strict(&right).map_err(|e| e.to_string()));
-
-            let g = tdbe::greeks::all_greeks(s, x, r, q, t, price, &right);
+            let g = tdbe::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, &right);
             Some(Ok(json!({
                 "value": g.value,
                 "iv": g.iv,
@@ -109,16 +108,15 @@ async fn try_execute_generated_utility(
             })))
         }
         "implied_volatility" => {
-            let s = param_or_return!(arg_f64(args, "spot"));
-            let x = param_or_return!(arg_f64(args, "strike"));
-            let r = param_or_return!(arg_f64(args, "rate"));
-            let q = param_or_return!(arg_f64(args, "dividend_yield"));
-            let t = param_or_return!(arg_f64(args, "time_to_expiry"));
-            let price = param_or_return!(arg_f64(args, "option_price"));
+            let spot = param_or_return!(arg_f64(args, "spot"));
+            let strike = param_or_return!(arg_f64(args, "strike"));
+            let rate = param_or_return!(arg_f64(args, "rate"));
+            let div_yield = param_or_return!(arg_f64(args, "dividend_yield"));
+            let tte = param_or_return!(arg_f64(args, "time_to_expiry"));
+            let option_price = param_or_return!(arg_f64(args, "option_price"));
             let right = param_or_return!(arg_str(args, "right"));
             param_or_return!(thetadatadx::parse_right_strict(&right).map_err(|e| e.to_string()));
-
-            let (iv, err) = tdbe::greeks::implied_volatility(s, x, r, q, t, price, &right);
+            let (iv, err) = tdbe::greeks::implied_volatility(spot, strike, rate, div_yield, tte, option_price, &right);
             Some(Ok(json!({
                 "implied_volatility": iv,
                 "error": err,

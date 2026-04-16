@@ -68,7 +68,6 @@ jobs:
       - uses: ./.github/actions/install-protoc
       - run: python3 scripts/check_docs_consistency.py
       - run: python3 scripts/validate_agreement_test.py
-      - run: python3 scripts/check_first_row_schema_alignment.py
       - run: cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces --locked -- --check
       - run: cargo clippy --manifest-path tools/mcp/Cargo.toml --locked -- -D warnings
       - run: cargo test --manifest-path tools/mcp/Cargo.toml --locked

@@ -54,25 +54,6 @@ const TERMINAL_VERSION: &str = env!("CARGO_PKG_VERSION");
 // in lib.rs. All invocations are now generated from `endpoint_surface.toml` at
 // build time.
 
-/// Normalize the `right` parameter for the v3 MDDS server.
-///
-/// Delegates to [`crate::right::parse_right`] — the single source of truth
-/// for accepted `right` forms. Maps `C`/`call` -> `"call"`, `P`/`put` ->
-/// `"put"`, `both`/`*` -> `"both"`, case-insensitive.
-///
-/// # Panics
-///
-/// Panics with a descriptive message on unrecognised input. Endpoint-layer
-/// callers already run `validate_right` before reaching the direct client,
-/// so this path is defence-in-depth; use [`crate::right::parse_right`]
-/// directly for fallible parsing from untrusted input.
-fn normalize_right(right: &str) -> String {
-    crate::right::parse_right(right)
-        .unwrap_or_else(|err| panic!("{err}"))
-        .as_mdds_str()
-        .to_string()
-}
-
 /// Canonicalize the `expiration` parameter for the v3 MDDS server.
 ///
 /// Upstream's `openapiv3.yaml` documents the accepted expiration vocabulary
@@ -82,11 +63,7 @@ fn normalize_right(right: &str) -> String {
 /// expiration Cannot parse date string: 0`. ISO-dashed dates are
 /// canonicalized to the compact `YYYYMMDD` form on the wire.
 pub(crate) fn normalize_expiration(expiration: &str) -> String {
-    match expiration {
-        "0" => "*".to_string(),
-        v if crate::validate::is_iso_date(v) => v.replace('-', ""),
-        other => other.to_string(),
-    }
+    crate::wire_semantics::normalize_expiration(expiration)
 }
 
 /// Map the SDK's `strike` surface vocabulary to the wire representation.
@@ -98,11 +75,7 @@ pub(crate) fn normalize_expiration(expiration: &str) -> String {
 /// proto field unset" — same wire outcome as the upstream documented
 /// omission. All other values forward verbatim.
 pub(crate) fn wire_strike_opt(strike: &str) -> Option<String> {
-    if strike.is_empty() || strike == "*" || strike == "0" {
-        None
-    } else {
-        Some(strike.to_string())
-    }
+    crate::wire_semantics::wire_strike_opt(strike)
 }
 
 /// Map the SDK's `right` surface vocabulary to the wire representation.
@@ -111,15 +84,13 @@ pub(crate) fn wire_strike_opt(strike: &str) -> Option<String> {
 /// filter" state and `*` as its explicit wildcard. Both collapse to
 /// proto-unset here so the server applies the documented default; single
 /// sides (`C` / `P` / `call` / `put`, any case) normalize to `"call"` /
-/// `"put"`. Any other input reaches [`normalize_right`] via
+/// `"put"`. Any other input reaches
+/// [`crate::wire_semantics::normalize_right`] via
 /// [`crate::right::parse_right`], which panics with a descriptive message
 /// on unrecognized values — matching the panic-on-bad-right convention
 /// used by [`crate::fpss::protocol::Contract::option`].
 pub(crate) fn wire_right_opt(right: &str) -> Option<String> {
-    match right.to_ascii_lowercase().as_str() {
-        "*" | "both" => None,
-        _ => Some(normalize_right(right)),
-    }
+    crate::wire_semantics::wire_right_opt(right)
 }
 
 /// Helper: build a `proto::ContractSpec` from the four standard option params.

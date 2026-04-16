@@ -2,7 +2,7 @@
 
 #[pymethods]
 impl ThetaDataDx {
-    /// Start FPSS streaming. Events are buffered; poll with ``next_event()``.
+    /// Start FPSS streaming. Events are buffered; poll with next_event().
     fn start_streaming(&self) -> PyResult<()> {
         let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();
 
@@ -24,13 +24,13 @@ impl ThetaDataDx {
         self.tdx.is_streaming()
     }
 
-    /// Subscribe to quote data for a stock symbol.
+    /// Subscribe to real-time quote data for a stock symbol.
     fn subscribe_quotes(&self, symbol: &str) -> PyResult<()> {
         let contract = fpss::protocol::Contract::stock(symbol);
         self.tdx.subscribe_quotes(&contract).map_err(to_py_err)
     }
 
-    /// Subscribe to trade data for a stock symbol.
+    /// Subscribe to real-time trade data for a stock symbol.
     fn subscribe_trades(&self, symbol: &str) -> PyResult<()> {
         let contract = fpss::protocol::Contract::stock(symbol);
         self.tdx.subscribe_trades(&contract).map_err(to_py_err)
@@ -39,9 +39,7 @@ impl ThetaDataDx {
     /// Subscribe to open interest data for a stock symbol.
     fn subscribe_open_interest(&self, symbol: &str) -> PyResult<()> {
         let contract = fpss::protocol::Contract::stock(symbol);
-        self.tdx
-            .subscribe_open_interest(&contract)
-            .map_err(to_py_err)
+        self.tdx.subscribe_open_interest(&contract).map_err(to_py_err)
     }
 
     /// Subscribe to quote data for an option contract.
@@ -77,35 +75,19 @@ impl ThetaDataDx {
         right: &str,
     ) -> PyResult<()> {
         let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
-        self.tdx
-            .subscribe_open_interest(&contract)
-            .map_err(to_py_err)
+        self.tdx.subscribe_open_interest(&contract).map_err(to_py_err)
     }
 
-    /// Subscribe to all trades for a security type (full trade stream).
+    /// Subscribe to all trades for a security type.
     fn subscribe_full_trades(&self, sec_type: &str) -> PyResult<()> {
         let st = parse_sec_type(sec_type)?;
         self.tdx.subscribe_full_trades(st).map_err(to_py_err)
     }
 
-    /// Subscribe to all open interest for a security type (full OI stream).
+    /// Subscribe to all open interest for a security type.
     fn subscribe_full_open_interest(&self, sec_type: &str) -> PyResult<()> {
         let st = parse_sec_type(sec_type)?;
         self.tdx.subscribe_full_open_interest(st).map_err(to_py_err)
-    }
-
-    /// Unsubscribe from all trades for a security type (full trade stream).
-    fn unsubscribe_full_trades(&self, sec_type: &str) -> PyResult<()> {
-        let st = parse_sec_type(sec_type)?;
-        self.tdx.unsubscribe_full_trades(st).map_err(to_py_err)
-    }
-
-    /// Unsubscribe from all open interest for a security type (full OI stream).
-    fn unsubscribe_full_open_interest(&self, sec_type: &str) -> PyResult<()> {
-        let st = parse_sec_type(sec_type)?;
-        self.tdx
-            .unsubscribe_full_open_interest(st)
-            .map_err(to_py_err)
     }
 
     /// Unsubscribe from quote data for a stock symbol.
@@ -123,9 +105,7 @@ impl ThetaDataDx {
     /// Unsubscribe from open interest data for a stock symbol.
     fn unsubscribe_open_interest(&self, symbol: &str) -> PyResult<()> {
         let contract = fpss::protocol::Contract::stock(symbol);
-        self.tdx
-            .unsubscribe_open_interest(&contract)
-            .map_err(to_py_err)
+        self.tdx.unsubscribe_open_interest(&contract).map_err(to_py_err)
     }
 
     /// Unsubscribe from quote data for an option contract.
@@ -161,12 +141,22 @@ impl ThetaDataDx {
         right: &str,
     ) -> PyResult<()> {
         let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right);
-        self.tdx
-            .unsubscribe_open_interest(&contract)
-            .map_err(to_py_err)
+        self.tdx.unsubscribe_open_interest(&contract).map_err(to_py_err)
     }
 
-    /// Get the current contract map (server-assigned IDs -> contract strings).
+    /// Unsubscribe from all trades for a security type.
+    fn unsubscribe_full_trades(&self, sec_type: &str) -> PyResult<()> {
+        let st = parse_sec_type(sec_type)?;
+        self.tdx.unsubscribe_full_trades(st).map_err(to_py_err)
+    }
+
+    /// Unsubscribe from all open interest for a security type.
+    fn unsubscribe_full_open_interest(&self, sec_type: &str) -> PyResult<()> {
+        let st = parse_sec_type(sec_type)?;
+        self.tdx.unsubscribe_full_open_interest(st).map_err(to_py_err)
+    }
+
+    /// Get the current contract map keyed by server-assigned contract ID.
     fn contract_map(&self) -> PyResult<std::collections::HashMap<i32, String>> {
         self.tdx
             .contract_map()
@@ -176,8 +166,7 @@ impl ThetaDataDx {
 
     /// Look up a single contract by its server-assigned ID.
     fn contract_lookup(&self, id: i32) -> PyResult<Option<String>> {
-        self.tdx
-            .contract_lookup(id)
+        self.tdx.contract_lookup(id)
             .map(|opt| opt.map(|c| format!("{c}")))
             .map_err(to_py_err)
     }
@@ -200,13 +189,6 @@ impl ThetaDataDx {
     }
 
     /// Poll for the next FPSS event.
-    ///
-    /// Args:
-    ///     timeout_ms: Maximum time to wait in milliseconds.
-    ///
-    /// Returns:
-    ///     A dict with ``kind`` key indicating event type, or ``None`` if timeout.
-    ///     Raises ``RuntimeError`` if streaming has not been started.
     fn next_event(&self, py: Python<'_>, timeout_ms: u64) -> PyResult<Option<Py<PyAny>>> {
         let rx_outer = self.rx.lock().unwrap_or_else(|e| e.into_inner());
         let rx_arc = match rx_outer.as_ref() {
@@ -227,7 +209,7 @@ impl ThetaDataDx {
             Some(event) => Ok(Some(buffered_event_to_py(py, &event))),
             None => Ok(None),
         }
-        }
+    }
 
     /// Reconnect streaming and re-subscribe all previous subscriptions.
     fn reconnect(&self) -> PyResult<()> {
@@ -243,7 +225,7 @@ impl ThetaDataDx {
         Ok(())
     }
 
-    /// Stop streaming (historical remains active).
+    /// Stop streaming while keeping the historical client usable.
     fn stop_streaming(&self) {
         self.tdx.stop_streaming();
         if let Ok(mut guard) = self.rx.lock() {
@@ -251,9 +233,7 @@ impl ThetaDataDx {
         }
     }
 
-    /// Stop streaming (alias for ``stop_streaming()``).
-    ///
-    /// Historical client remains usable until the ``ThetaDataDx`` object is dropped.
+    /// Shut down the FPSS streaming connection.
     fn shutdown(&self) {
         self.tdx.stop_streaming();
         if let Ok(mut guard) = self.rx.lock() {

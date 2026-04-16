@@ -24,7 +24,7 @@ int main() {
         }
 
         // Greeks calculator (no server connection needed)
-        auto g = tdx::all_greeks(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, true);
+        auto g = tdx::all_greeks(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, "C");
         std::cout << "\nGreeks:"
                   << " IV=" << std::setprecision(4) << g.iv
                   << " Delta=" << g.delta
@@ -33,7 +33,7 @@ int main() {
                   << std::endl;
 
         // Implied volatility
-        auto [iv, err] = tdx::implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, true);
+        auto [iv, err] = tdx::implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, "C");
         std::cout << "IV=" << std::setprecision(6) << iv
                   << " (error=" << std::scientific << err << ")" << std::endl;
 

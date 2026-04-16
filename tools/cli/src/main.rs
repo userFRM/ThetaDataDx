@@ -140,6 +140,7 @@ fn build_endpoint_args(
 }
 
 include!("utilities.rs");
+include!("raw_headers_generated.rs");
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Output format enum
@@ -525,28 +526,7 @@ fn render_eod(ticks: &[tdbe::types::tick::EodTick], fmt: &OutputFormat) {
     // (eod_ticks_to_columnar): ms_of_day, ms_of_day2, open, high, low, close,
     // volume, count, bid_size, bid_exchange, bid, bid_condition, ask_size,
     // ask_exchange, ask, ask_condition, date, expiration, strike, right.
-    td.set_raw_headers(vec![
-        "ms_of_day",
-        "ms_of_day2",
-        "open",
-        "high",
-        "low",
-        "close",
-        "volume",
-        "count",
-        "bid_size",
-        "bid_exchange",
-        "bid",
-        "bid_condition",
-        "ask_size",
-        "ask_exchange",
-        "ask",
-        "ask_condition",
-        "date",
-        "expiration",
-        "strike",
-        "right",
-    ]);
+    td.set_raw_headers(EOD_TICK_RAW_HEADERS.to_vec());
     for t in ticks {
         td.push_with_raw(
             vec![
@@ -601,19 +581,7 @@ fn render_ohlc(ticks: &[tdbe::types::tick::OhlcTick], fmt: &OutputFormat) {
     ]);
     // Canonical schema -- matches sdks/python/src/tick_columnar.rs:176-201
     // (ohlc_ticks_to_columnar).
-    td.set_raw_headers(vec![
-        "ms_of_day",
-        "open",
-        "high",
-        "low",
-        "close",
-        "volume",
-        "count",
-        "date",
-        "expiration",
-        "strike",
-        "right",
-    ]);
+    td.set_raw_headers(OHLC_TICK_RAW_HEADERS.to_vec());
     for t in ticks {
         td.push_with_raw(
             vec![
@@ -658,26 +626,7 @@ fn render_trades(ticks: &[tdbe::types::tick::TradeTick], fmt: &OutputFormat) {
     // (trade_ticks_to_columnar). Adds ext_condition1-4, condition_flags,
     // price_flags, volume_type, records_back fields the CLI presentation
     // table doesn't surface but the SDKs do.
-    td.set_raw_headers(vec![
-        "ms_of_day",
-        "sequence",
-        "ext_condition1",
-        "ext_condition2",
-        "ext_condition3",
-        "ext_condition4",
-        "condition",
-        "size",
-        "exchange",
-        "price",
-        "condition_flags",
-        "price_flags",
-        "volume_type",
-        "records_back",
-        "date",
-        "expiration",
-        "strike",
-        "right",
-    ]);
+    td.set_raw_headers(TRADE_TICK_RAW_HEADERS.to_vec());
     for t in ticks {
         td.push_with_raw(
             vec![
@@ -730,22 +679,7 @@ fn render_quotes(ticks: &[tdbe::types::tick::QuoteTick], fmt: &OutputFormat) {
     // Canonical schema -- matches sdks/python/src/tick_columnar.rs:244-275
     // (quote_ticks_to_columnar). Includes `midpoint` field that the CLI
     // presentation table doesn't surface.
-    td.set_raw_headers(vec![
-        "ms_of_day",
-        "bid_size",
-        "bid_exchange",
-        "bid",
-        "bid_condition",
-        "ask_size",
-        "ask_exchange",
-        "ask",
-        "ask_condition",
-        "date",
-        "midpoint",
-        "expiration",
-        "strike",
-        "right",
-    ]);
+    td.set_raw_headers(QUOTE_TICK_RAW_HEADERS.to_vec());
     for t in ticks {
         td.push_with_raw(
             vec![
@@ -809,35 +743,7 @@ fn render_trade_quotes(ticks: &[tdbe::types::tick::TradeQuoteTick], fmt: &Output
     // condition_flags, price_flags, volume_type, records_back,
     // bid_exchange, bid_condition, ask_exchange, ask_condition fields
     // the CLI presentation table doesn't surface.
-    td.set_raw_headers(vec![
-        "ms_of_day",
-        "sequence",
-        "ext_condition1",
-        "ext_condition2",
-        "ext_condition3",
-        "ext_condition4",
-        "condition",
-        "size",
-        "exchange",
-        "price",
-        "condition_flags",
-        "price_flags",
-        "volume_type",
-        "records_back",
-        "quote_ms_of_day",
-        "bid_size",
-        "bid_exchange",
-        "bid",
-        "bid_condition",
-        "ask_size",
-        "ask_exchange",
-        "ask",
-        "ask_condition",
-        "date",
-        "expiration",
-        "strike",
-        "right",
-    ]);
+    td.set_raw_headers(TRADE_QUOTE_TICK_RAW_HEADERS.to_vec());
     for t in ticks {
         td.push_with_raw(
             vec![
@@ -892,14 +798,7 @@ fn render_open_interest(ticks: &[tdbe::types::tick::OpenInterestTick], fmt: &Out
     let mut td = TabularData::new(vec!["date", "ms_of_day", "open_interest"]);
     // Canonical schema -- matches sdks/python/src/tick_columnar.rs:203-218
     // (open_interest_ticks_to_columnar).
-    td.set_raw_headers(vec![
-        "ms_of_day",
-        "open_interest",
-        "date",
-        "expiration",
-        "strike",
-        "right",
-    ]);
+    td.set_raw_headers(OPEN_INTEREST_TICK_RAW_HEADERS.to_vec());
     for t in ticks {
         td.push_with_raw(
             vec![
@@ -930,16 +829,7 @@ fn render_market_value(ticks: &[tdbe::types::tick::MarketValueTick], fmt: &Outpu
     ]);
     // Canonical schema -- matches sdks/python/src/tick_columnar.rs:155-174
     // (market_value_ticks_to_columnar).
-    td.set_raw_headers(vec![
-        "ms_of_day",
-        "market_bid",
-        "market_ask",
-        "market_price",
-        "date",
-        "expiration",
-        "strike",
-        "right",
-    ]);
+    td.set_raw_headers(MARKET_VALUE_TICK_RAW_HEADERS.to_vec());
     for t in ticks {
         td.push_with_raw(
             vec![
@@ -994,35 +884,7 @@ fn render_greeks(ticks: &[tdbe::types::tick::GreeksTick], fmt: &OutputFormat) {
     // Canonical schema -- matches sdks/python/src/tick_columnar.rs:66-123
     // (greeks_ticks_to_columnar). Note `implied_volatility` (not the CLI
     // presentation alias `iv`).
-    td.set_raw_headers(vec![
-        "ms_of_day",
-        "implied_volatility",
-        "delta",
-        "gamma",
-        "theta",
-        "vega",
-        "rho",
-        "iv_error",
-        "vanna",
-        "charm",
-        "vomma",
-        "veta",
-        "speed",
-        "zomma",
-        "color",
-        "ultima",
-        "d1",
-        "d2",
-        "dual_delta",
-        "dual_gamma",
-        "epsilon",
-        "lambda",
-        "vera",
-        "date",
-        "expiration",
-        "strike",
-        "right",
-    ]);
+    td.set_raw_headers(GREEKS_TICK_RAW_HEADERS.to_vec());
     for t in ticks {
         td.push_with_raw(
             vec![
@@ -1089,15 +951,7 @@ fn render_iv(ticks: &[tdbe::types::tick::IvTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec!["date", "ms_of_day", "implied_volatility", "iv_error"]);
     // Canonical schema -- matches sdks/python/src/tick_columnar.rs:136-153
     // (iv_ticks_to_columnar).
-    td.set_raw_headers(vec![
-        "ms_of_day",
-        "implied_volatility",
-        "iv_error",
-        "date",
-        "expiration",
-        "strike",
-        "right",
-    ]);
+    td.set_raw_headers(IV_TICK_RAW_HEADERS.to_vec());
     for t in ticks {
         td.push_with_raw(
             vec![
@@ -1124,7 +978,7 @@ fn render_price(ticks: &[tdbe::types::tick::PriceTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec!["date", "ms_of_day", "price"]);
     // Canonical schema -- matches sdks/python/src/tick_columnar.rs:233-242
     // (price_ticks_to_columnar). PriceTick has no contract-id fields.
-    td.set_raw_headers(vec!["ms_of_day", "price", "date"]);
+    td.set_raw_headers(PRICE_TICK_RAW_HEADERS.to_vec());
     for t in ticks {
         td.push_with_raw(
             vec![
@@ -1143,7 +997,7 @@ fn render_calendar(days: &[tdbe::types::tick::CalendarDay], fmt: &OutputFormat) 
     // Canonical schema -- matches sdks/python/src/tick_columnar.rs:6-19
     // (calendar_days_to_columnar). is_open is i32 (matches Python columnar
     // form, not the Go bool projection).
-    td.set_raw_headers(vec!["date", "is_open", "open_time", "close_time", "status"]);
+    td.set_raw_headers(CALENDAR_DAY_RAW_HEADERS.to_vec());
     for d in days {
         td.push_with_raw(
             vec![
@@ -1169,7 +1023,7 @@ fn render_interest_rates(ticks: &[tdbe::types::tick::InterestRateTick], fmt: &Ou
     let mut td = TabularData::new(vec!["date", "ms_of_day", "rate"]);
     // Canonical schema -- matches sdks/python/src/tick_columnar.rs:125-134
     // (interest_rate_ticks_to_columnar).
-    td.set_raw_headers(vec!["ms_of_day", "rate", "date"]);
+    td.set_raw_headers(INTEREST_RATE_TICK_RAW_HEADERS.to_vec());
     for t in ticks {
         td.push_with_raw(
             vec![
@@ -1189,7 +1043,7 @@ fn render_option_contracts(contracts: &[tdbe::types::tick::OptionContract], fmt:
     // (option_contracts_to_columnar). Note: Python emits `right` as a raw
     // i32 here (NOT the "C"/"P"/"" string mapping used for tick types),
     // because OptionContract carries the raw upstream code.
-    td.set_raw_headers(vec!["root", "expiration", "strike", "right"]);
+    td.set_raw_headers(OPTION_CONTRACT_RAW_HEADERS.to_vec());
     for c in contracts {
         td.push_with_raw(
             vec![
