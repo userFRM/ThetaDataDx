@@ -65,8 +65,6 @@ const VALIDATOR_TEMPLATES: &[&str] = &[
     "cpp/ffi_string_case.cpp.tmpl",
     "python/string_list_dispatch.py.tmpl",
     "python/streaming_dispatch.py.tmpl",
-    "python/non_streaming_dispatch.py.tmpl",
-    "python/with_deadline_builder.py.tmpl",
     "ffi/symbols_extract.rs.tmpl",
     "ffi/cstr_extract.rs.tmpl",
     "direct/stream_method_header.rs.tmpl",

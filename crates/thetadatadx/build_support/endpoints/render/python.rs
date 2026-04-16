@@ -94,13 +94,8 @@ fn render_python_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
         );
     }
 
-    out.push_str("        ");
-    if is_string_list {
-        out.push_str("py.detach(|| {\n");
-    } else {
-        out.push_str("let ticks = py.detach(|| {\n");
-    }
-
+    // `run_blocking` wraps the future with its own `py.detach` + signal
+    // polling, so no outer `py.detach` closure is emitted here.
     if is_string_list {
         // List endpoints: parallel `<name>_with_deadline(d, ...)` async fn.
         // The deadline-less variant stays for backwards compat; we only
@@ -127,53 +122,44 @@ fn render_python_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
                 .replace("__LEADING_COMMA_ARGS__", &leading_comma_args)
                 .replace("__POSITIONAL_ARGS__", &positional_args),
         );
-    } else {
-        // Builder-backed endpoints: chain optional setters + with_deadline.
-        let positional_args = method_params
-            .iter()
-            .map(|param| {
-                if param.param_type == "Symbols" {
-                    "&refs".into()
-                } else {
-                    sdk_method_arg_name(param)
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(", ");
-        writeln!(
-            out,
-            "            let mut request = self.tdx.{}({});",
-            endpoint.name, positional_args
-        )
-        .unwrap();
-        for param in &builder_params {
-            writeln!(out, "            if let Some(value) = {} {{", param.name).unwrap();
-            writeln!(
-                out,
-                "                request = request.{}(value);",
-                param.name
-            )
-            .unwrap();
-            out.push_str("            }\n");
-        }
-        out.push_str(include_str!(
-            "templates/python/with_deadline_builder.py.tmpl"
-        ));
-        if is_streaming_kind {
-            out.push_str(include_str!("templates/python/streaming_dispatch.py.tmpl"));
-        } else {
-            out.push_str(include_str!(
-                "templates/python/non_streaming_dispatch.py.tmpl"
-            ));
-        }
-    }
-    if is_string_list {
-        out.push_str("        })\n");
         out.push_str("    }\n");
         return out;
     }
 
-    out.push_str("        })?;\n");
+    // Builder-backed endpoints: chain optional setters + with_deadline.
+    let positional_args = method_params
+        .iter()
+        .map(|param| {
+            if param.param_type == "Symbols" {
+                "&refs".into()
+            } else {
+                sdk_method_arg_name(param)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    writeln!(
+        out,
+        "        let mut request = self.tdx.{}({});",
+        endpoint.name, positional_args
+    )
+    .unwrap();
+    for param in &builder_params {
+        writeln!(out, "        if let Some(value) = {} {{", param.name).unwrap();
+        writeln!(out, "            request = request.{}(value);", param.name).unwrap();
+        out.push_str("        }\n");
+    }
+    out.push_str("        if let Some(ms) = timeout_ms {\n");
+    out.push_str(
+        "            request = request.with_deadline(std::time::Duration::from_millis(ms));\n",
+    );
+    out.push_str("        }\n");
+    if is_streaming_kind {
+        out.push_str(include_str!("templates/python/streaming_dispatch.py.tmpl"));
+        out.push_str("    }\n");
+        return out;
+    }
+    out.push_str("        let ticks = run_blocking(py, async move { request.await })?;\n");
     writeln!(
         out,
         "        Ok({}(py, &ticks))",

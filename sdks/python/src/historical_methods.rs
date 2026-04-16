@@ -9,16 +9,12 @@ impl ThetaDataDx {
         py: Python<'_>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Vec<String>> {
-        py.detach(|| {
-            runtime()
-                .block_on(async {
-                    if let Some(ms) = timeout_ms {
-                        self.tdx.stock_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
-                    } else {
-                        self.tdx.stock_list_symbols().await
-                    }
-                })
-                .map_err(to_py_err)
+        run_blocking(py, async move {
+            if let Some(ms) = timeout_ms {
+                self.tdx.stock_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
+            } else {
+                self.tdx.stock_list_symbols().await
+            }
         })
     }
 
@@ -31,16 +27,12 @@ impl ThetaDataDx {
         symbol: &str,
         timeout_ms: Option<u64>,
     ) -> PyResult<Vec<String>> {
-        py.detach(|| {
-            runtime()
-                .block_on(async {
-                    if let Some(ms) = timeout_ms {
-                        self.tdx.stock_list_dates_with_deadline(std::time::Duration::from_millis(ms), request_type, symbol).await
-                    } else {
-                        self.tdx.stock_list_dates(request_type, symbol).await
-                    }
-                })
-                .map_err(to_py_err)
+        run_blocking(py, async move {
+            if let Some(ms) = timeout_ms {
+                self.tdx.stock_list_dates_with_deadline(std::time::Duration::from_millis(ms), request_type, symbol).await
+            } else {
+                self.tdx.stock_list_dates(request_type, symbol).await
+            }
         })
     }
 
@@ -55,21 +47,17 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.stock_snapshot_ohlc(&refs);
-            if let Some(value) = venue {
-                request = request.venue(value);
-            }
-            if let Some(value) = min_time {
-                request = request.min_time(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.stock_snapshot_ohlc(&refs);
+        if let Some(value) = venue {
+            request = request.venue(value);
+        }
+        if let Some(value) = min_time {
+            request = request.min_time(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(ohlc_ticks_to_columnar(py, &ticks))
     }
 
@@ -84,21 +72,17 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.stock_snapshot_trade(&refs);
-            if let Some(value) = venue {
-                request = request.venue(value);
-            }
-            if let Some(value) = min_time {
-                request = request.min_time(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.stock_snapshot_trade(&refs);
+        if let Some(value) = venue {
+            request = request.venue(value);
+        }
+        if let Some(value) = min_time {
+            request = request.min_time(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(trade_ticks_to_columnar(py, &ticks))
     }
 
@@ -113,21 +97,17 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.stock_snapshot_quote(&refs);
-            if let Some(value) = venue {
-                request = request.venue(value);
-            }
-            if let Some(value) = min_time {
-                request = request.min_time(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.stock_snapshot_quote(&refs);
+        if let Some(value) = venue {
+            request = request.venue(value);
+        }
+        if let Some(value) = min_time {
+            request = request.min_time(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(quote_ticks_to_columnar(py, &ticks))
     }
 
@@ -142,21 +122,17 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.stock_snapshot_market_value(&refs);
-            if let Some(value) = venue {
-                request = request.venue(value);
-            }
-            if let Some(value) = min_time {
-                request = request.min_time(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.stock_snapshot_market_value(&refs);
+        if let Some(value) = venue {
+            request = request.venue(value);
+        }
+        if let Some(value) = min_time {
+            request = request.min_time(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(market_value_ticks_to_columnar(py, &ticks))
     }
 
@@ -170,15 +146,11 @@ impl ThetaDataDx {
         end_date: &str,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.stock_history_eod(symbol, start_date, end_date);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.stock_history_eod(symbol, start_date, end_date);
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(eod_ticks_to_columnar(py, &ticks))
     }
 
@@ -197,30 +169,26 @@ impl ThetaDataDx {
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.stock_history_ohlc(symbol, date, interval);
-            if let Some(value) = start_time {
-                request = request.start_time(value);
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value);
-            }
-            if let Some(value) = venue {
-                request = request.venue(value);
-            }
-            if let Some(value) = start_date {
-                request = request.start_date(value);
-            }
-            if let Some(value) = end_date {
-                request = request.end_date(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.stock_history_ohlc(symbol, date, interval);
+        if let Some(value) = start_time {
+            request = request.start_time(value);
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value);
+        }
+        if let Some(value) = venue {
+            request = request.venue(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value);
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(ohlc_ticks_to_columnar(py, &ticks))
     }
 
@@ -238,30 +206,26 @@ impl ThetaDataDx {
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.stock_history_trade(symbol, date);
-            if let Some(value) = start_time {
-                request = request.start_time(value);
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value);
-            }
-            if let Some(value) = venue {
-                request = request.venue(value);
-            }
-            if let Some(value) = start_date {
-                request = request.start_date(value);
-            }
-            if let Some(value) = end_date {
-                request = request.end_date(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.stock_history_trade(symbol, date);
+        if let Some(value) = start_time {
+            request = request.start_time(value);
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value);
+        }
+        if let Some(value) = venue {
+            request = request.venue(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value);
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(trade_ticks_to_columnar(py, &ticks))
     }
 
@@ -280,30 +244,26 @@ impl ThetaDataDx {
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.stock_history_quote(symbol, date, interval);
-            if let Some(value) = start_time {
-                request = request.start_time(value);
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value);
-            }
-            if let Some(value) = venue {
-                request = request.venue(value);
-            }
-            if let Some(value) = start_date {
-                request = request.start_date(value);
-            }
-            if let Some(value) = end_date {
-                request = request.end_date(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.stock_history_quote(symbol, date, interval);
+        if let Some(value) = start_time {
+            request = request.start_time(value);
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value);
+        }
+        if let Some(value) = venue {
+            request = request.venue(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value);
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(quote_ticks_to_columnar(py, &ticks))
     }
 
@@ -322,33 +282,29 @@ impl ThetaDataDx {
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.stock_history_trade_quote(symbol, date);
-            if let Some(value) = start_time {
-                request = request.start_time(value);
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value);
-            }
-            if let Some(value) = exclusive {
-                request = request.exclusive(value);
-            }
-            if let Some(value) = venue {
-                request = request.venue(value);
-            }
-            if let Some(value) = start_date {
-                request = request.start_date(value);
-            }
-            if let Some(value) = end_date {
-                request = request.end_date(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.stock_history_trade_quote(symbol, date);
+        if let Some(value) = start_time {
+            request = request.start_time(value);
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value);
+        }
+        if let Some(value) = exclusive {
+            request = request.exclusive(value);
+        }
+        if let Some(value) = venue {
+            request = request.venue(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value);
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(trade_quote_ticks_to_columnar(py, &ticks))
     }
 
@@ -364,18 +320,14 @@ impl ThetaDataDx {
         venue: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.stock_at_time_trade(symbol, start_date, end_date, time_of_day);
-            if let Some(value) = venue {
-                request = request.venue(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.stock_at_time_trade(symbol, start_date, end_date, time_of_day);
+        if let Some(value) = venue {
+            request = request.venue(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(trade_ticks_to_columnar(py, &ticks))
     }
 
@@ -391,18 +343,14 @@ impl ThetaDataDx {
         venue: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.stock_at_time_quote(symbol, start_date, end_date, time_of_day);
-            if let Some(value) = venue {
-                request = request.venue(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.stock_at_time_quote(symbol, start_date, end_date, time_of_day);
+        if let Some(value) = venue {
+            request = request.venue(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(quote_ticks_to_columnar(py, &ticks))
     }
 
@@ -413,16 +361,12 @@ impl ThetaDataDx {
         py: Python<'_>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Vec<String>> {
-        py.detach(|| {
-            runtime()
-                .block_on(async {
-                    if let Some(ms) = timeout_ms {
-                        self.tdx.option_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
-                    } else {
-                        self.tdx.option_list_symbols().await
-                    }
-                })
-                .map_err(to_py_err)
+        run_blocking(py, async move {
+            if let Some(ms) = timeout_ms {
+                self.tdx.option_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
+            } else {
+                self.tdx.option_list_symbols().await
+            }
         })
     }
 
@@ -438,16 +382,12 @@ impl ThetaDataDx {
         right: &str,
         timeout_ms: Option<u64>,
     ) -> PyResult<Vec<String>> {
-        py.detach(|| {
-            runtime()
-                .block_on(async {
-                    if let Some(ms) = timeout_ms {
-                        self.tdx.option_list_dates_with_deadline(std::time::Duration::from_millis(ms), request_type, symbol, expiration, strike, right).await
-                    } else {
-                        self.tdx.option_list_dates(request_type, symbol, expiration, strike, right).await
-                    }
-                })
-                .map_err(to_py_err)
+        run_blocking(py, async move {
+            if let Some(ms) = timeout_ms {
+                self.tdx.option_list_dates_with_deadline(std::time::Duration::from_millis(ms), request_type, symbol, expiration, strike, right).await
+            } else {
+                self.tdx.option_list_dates(request_type, symbol, expiration, strike, right).await
+            }
         })
     }
 
@@ -459,16 +399,12 @@ impl ThetaDataDx {
         symbol: &str,
         timeout_ms: Option<u64>,
     ) -> PyResult<Vec<String>> {
-        py.detach(|| {
-            runtime()
-                .block_on(async {
-                    if let Some(ms) = timeout_ms {
-                        self.tdx.option_list_expirations_with_deadline(std::time::Duration::from_millis(ms), symbol).await
-                    } else {
-                        self.tdx.option_list_expirations(symbol).await
-                    }
-                })
-                .map_err(to_py_err)
+        run_blocking(py, async move {
+            if let Some(ms) = timeout_ms {
+                self.tdx.option_list_expirations_with_deadline(std::time::Duration::from_millis(ms), symbol).await
+            } else {
+                self.tdx.option_list_expirations(symbol).await
+            }
         })
     }
 
@@ -481,16 +417,12 @@ impl ThetaDataDx {
         expiration: &str,
         timeout_ms: Option<u64>,
     ) -> PyResult<Vec<String>> {
-        py.detach(|| {
-            runtime()
-                .block_on(async {
-                    if let Some(ms) = timeout_ms {
-                        self.tdx.option_list_strikes_with_deadline(std::time::Duration::from_millis(ms), symbol, expiration).await
-                    } else {
-                        self.tdx.option_list_strikes(symbol, expiration).await
-                    }
-                })
-                .map_err(to_py_err)
+        run_blocking(py, async move {
+            if let Some(ms) = timeout_ms {
+                self.tdx.option_list_strikes_with_deadline(std::time::Duration::from_millis(ms), symbol, expiration).await
+            } else {
+                self.tdx.option_list_strikes(symbol, expiration).await
+            }
         })
     }
 
@@ -505,18 +437,14 @@ impl ThetaDataDx {
         max_dte: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_list_contracts(request_type, symbol, date);
-            if let Some(value) = max_dte {
-                request = request.max_dte(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_list_contracts(request_type, symbol, date);
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(option_contracts_to_columnar(py, &ticks))
     }
 
@@ -534,24 +462,20 @@ impl ThetaDataDx {
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_snapshot_ohlc(symbol, expiration, strike, right);
-            if let Some(value) = max_dte {
-                request = request.max_dte(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(value) = min_time {
-                request = request.min_time(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_snapshot_ohlc(symbol, expiration, strike, right);
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = min_time {
+            request = request.min_time(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(ohlc_ticks_to_columnar(py, &ticks))
     }
 
@@ -568,21 +492,17 @@ impl ThetaDataDx {
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_snapshot_trade(symbol, expiration, strike, right);
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(value) = min_time {
-                request = request.min_time(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_snapshot_trade(symbol, expiration, strike, right);
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = min_time {
+            request = request.min_time(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(trade_ticks_to_columnar(py, &ticks))
     }
 
@@ -600,24 +520,20 @@ impl ThetaDataDx {
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_snapshot_quote(symbol, expiration, strike, right);
-            if let Some(value) = max_dte {
-                request = request.max_dte(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(value) = min_time {
-                request = request.min_time(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_snapshot_quote(symbol, expiration, strike, right);
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = min_time {
+            request = request.min_time(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(quote_ticks_to_columnar(py, &ticks))
     }
 
@@ -635,24 +551,20 @@ impl ThetaDataDx {
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_snapshot_open_interest(symbol, expiration, strike, right);
-            if let Some(value) = max_dte {
-                request = request.max_dte(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(value) = min_time {
-                request = request.min_time(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_snapshot_open_interest(symbol, expiration, strike, right);
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = min_time {
+            request = request.min_time(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(open_interest_ticks_to_columnar(py, &ticks))
     }
 
@@ -670,24 +582,20 @@ impl ThetaDataDx {
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_snapshot_market_value(symbol, expiration, strike, right);
-            if let Some(value) = max_dte {
-                request = request.max_dte(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(value) = min_time {
-                request = request.min_time(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_snapshot_market_value(symbol, expiration, strike, right);
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = min_time {
+            request = request.min_time(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(market_value_ticks_to_columnar(py, &ticks))
     }
 
@@ -711,42 +619,38 @@ impl ThetaDataDx {
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_snapshot_greeks_implied_volatility(symbol, expiration, strike, right);
-            if let Some(value) = annual_dividend {
-                request = request.annual_dividend(value);
-            }
-            if let Some(value) = rate_type {
-                request = request.rate_type(value);
-            }
-            if let Some(value) = rate_value {
-                request = request.rate_value(value);
-            }
-            if let Some(value) = stock_price {
-                request = request.stock_price(value);
-            }
-            if let Some(value) = version {
-                request = request.version(value);
-            }
-            if let Some(value) = max_dte {
-                request = request.max_dte(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(value) = min_time {
-                request = request.min_time(value);
-            }
-            if let Some(value) = use_market_value {
-                request = request.use_market_value(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_snapshot_greeks_implied_volatility(symbol, expiration, strike, right);
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value);
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = stock_price {
+            request = request.stock_price(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value);
+        }
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = min_time {
+            request = request.min_time(value);
+        }
+        if let Some(value) = use_market_value {
+            request = request.use_market_value(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(iv_ticks_to_columnar(py, &ticks))
     }
 
@@ -770,42 +674,38 @@ impl ThetaDataDx {
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_snapshot_greeks_all(symbol, expiration, strike, right);
-            if let Some(value) = annual_dividend {
-                request = request.annual_dividend(value);
-            }
-            if let Some(value) = rate_type {
-                request = request.rate_type(value);
-            }
-            if let Some(value) = rate_value {
-                request = request.rate_value(value);
-            }
-            if let Some(value) = stock_price {
-                request = request.stock_price(value);
-            }
-            if let Some(value) = version {
-                request = request.version(value);
-            }
-            if let Some(value) = max_dte {
-                request = request.max_dte(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(value) = min_time {
-                request = request.min_time(value);
-            }
-            if let Some(value) = use_market_value {
-                request = request.use_market_value(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_snapshot_greeks_all(symbol, expiration, strike, right);
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value);
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = stock_price {
+            request = request.stock_price(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value);
+        }
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = min_time {
+            request = request.min_time(value);
+        }
+        if let Some(value) = use_market_value {
+            request = request.use_market_value(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
@@ -829,42 +729,38 @@ impl ThetaDataDx {
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_snapshot_greeks_first_order(symbol, expiration, strike, right);
-            if let Some(value) = annual_dividend {
-                request = request.annual_dividend(value);
-            }
-            if let Some(value) = rate_type {
-                request = request.rate_type(value);
-            }
-            if let Some(value) = rate_value {
-                request = request.rate_value(value);
-            }
-            if let Some(value) = stock_price {
-                request = request.stock_price(value);
-            }
-            if let Some(value) = version {
-                request = request.version(value);
-            }
-            if let Some(value) = max_dte {
-                request = request.max_dte(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(value) = min_time {
-                request = request.min_time(value);
-            }
-            if let Some(value) = use_market_value {
-                request = request.use_market_value(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_snapshot_greeks_first_order(symbol, expiration, strike, right);
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value);
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = stock_price {
+            request = request.stock_price(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value);
+        }
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = min_time {
+            request = request.min_time(value);
+        }
+        if let Some(value) = use_market_value {
+            request = request.use_market_value(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
@@ -888,42 +784,38 @@ impl ThetaDataDx {
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_snapshot_greeks_second_order(symbol, expiration, strike, right);
-            if let Some(value) = annual_dividend {
-                request = request.annual_dividend(value);
-            }
-            if let Some(value) = rate_type {
-                request = request.rate_type(value);
-            }
-            if let Some(value) = rate_value {
-                request = request.rate_value(value);
-            }
-            if let Some(value) = stock_price {
-                request = request.stock_price(value);
-            }
-            if let Some(value) = version {
-                request = request.version(value);
-            }
-            if let Some(value) = max_dte {
-                request = request.max_dte(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(value) = min_time {
-                request = request.min_time(value);
-            }
-            if let Some(value) = use_market_value {
-                request = request.use_market_value(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_snapshot_greeks_second_order(symbol, expiration, strike, right);
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value);
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = stock_price {
+            request = request.stock_price(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value);
+        }
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = min_time {
+            request = request.min_time(value);
+        }
+        if let Some(value) = use_market_value {
+            request = request.use_market_value(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
@@ -947,42 +839,38 @@ impl ThetaDataDx {
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_snapshot_greeks_third_order(symbol, expiration, strike, right);
-            if let Some(value) = annual_dividend {
-                request = request.annual_dividend(value);
-            }
-            if let Some(value) = rate_type {
-                request = request.rate_type(value);
-            }
-            if let Some(value) = rate_value {
-                request = request.rate_value(value);
-            }
-            if let Some(value) = stock_price {
-                request = request.stock_price(value);
-            }
-            if let Some(value) = version {
-                request = request.version(value);
-            }
-            if let Some(value) = max_dte {
-                request = request.max_dte(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(value) = min_time {
-                request = request.min_time(value);
-            }
-            if let Some(value) = use_market_value {
-                request = request.use_market_value(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_snapshot_greeks_third_order(symbol, expiration, strike, right);
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value);
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = stock_price {
+            request = request.stock_price(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value);
+        }
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = min_time {
+            request = request.min_time(value);
+        }
+        if let Some(value) = use_market_value {
+            request = request.use_market_value(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
@@ -1001,21 +889,17 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_history_eod(symbol, expiration, strike, right, start_date, end_date);
-            if let Some(value) = max_dte {
-                request = request.max_dte(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_history_eod(symbol, expiration, strike, right, start_date, end_date);
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(eod_ticks_to_columnar(py, &ticks))
     }
 
@@ -1037,30 +921,26 @@ impl ThetaDataDx {
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_history_ohlc(symbol, expiration, strike, right, date, interval);
-            if let Some(value) = start_time {
-                request = request.start_time(value);
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(value) = start_date {
-                request = request.start_date(value);
-            }
-            if let Some(value) = end_date {
-                request = request.end_date(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_history_ohlc(symbol, expiration, strike, right, date, interval);
+        if let Some(value) = start_time {
+            request = request.start_time(value);
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value);
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(ohlc_ticks_to_columnar(py, &ticks))
     }
 
@@ -1082,33 +962,29 @@ impl ThetaDataDx {
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_history_trade(symbol, expiration, strike, right, date);
-            if let Some(value) = start_time {
-                request = request.start_time(value);
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value);
-            }
-            if let Some(value) = max_dte {
-                request = request.max_dte(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(value) = start_date {
-                request = request.start_date(value);
-            }
-            if let Some(value) = end_date {
-                request = request.end_date(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_history_trade(symbol, expiration, strike, right, date);
+        if let Some(value) = start_time {
+            request = request.start_time(value);
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value);
+        }
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value);
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(trade_ticks_to_columnar(py, &ticks))
     }
 
@@ -1131,33 +1007,29 @@ impl ThetaDataDx {
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_history_quote(symbol, expiration, strike, right, date, interval);
-            if let Some(value) = start_time {
-                request = request.start_time(value);
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value);
-            }
-            if let Some(value) = max_dte {
-                request = request.max_dte(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(value) = start_date {
-                request = request.start_date(value);
-            }
-            if let Some(value) = end_date {
-                request = request.end_date(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_history_quote(symbol, expiration, strike, right, date, interval);
+        if let Some(value) = start_time {
+            request = request.start_time(value);
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value);
+        }
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value);
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(quote_ticks_to_columnar(py, &ticks))
     }
 
@@ -1180,36 +1052,32 @@ impl ThetaDataDx {
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_history_trade_quote(symbol, expiration, strike, right, date);
-            if let Some(value) = start_time {
-                request = request.start_time(value);
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value);
-            }
-            if let Some(value) = exclusive {
-                request = request.exclusive(value);
-            }
-            if let Some(value) = max_dte {
-                request = request.max_dte(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(value) = start_date {
-                request = request.start_date(value);
-            }
-            if let Some(value) = end_date {
-                request = request.end_date(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_history_trade_quote(symbol, expiration, strike, right, date);
+        if let Some(value) = start_time {
+            request = request.start_time(value);
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value);
+        }
+        if let Some(value) = exclusive {
+            request = request.exclusive(value);
+        }
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value);
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(trade_quote_ticks_to_columnar(py, &ticks))
     }
 
@@ -1229,27 +1097,23 @@ impl ThetaDataDx {
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_history_open_interest(symbol, expiration, strike, right, date);
-            if let Some(value) = max_dte {
-                request = request.max_dte(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(value) = start_date {
-                request = request.start_date(value);
-            }
-            if let Some(value) = end_date {
-                request = request.end_date(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_history_open_interest(symbol, expiration, strike, right, date);
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value);
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(open_interest_ticks_to_columnar(py, &ticks))
     }
 
@@ -1273,36 +1137,32 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_history_greeks_eod(symbol, expiration, strike, right, start_date, end_date);
-            if let Some(value) = annual_dividend {
-                request = request.annual_dividend(value);
-            }
-            if let Some(value) = rate_type {
-                request = request.rate_type(value);
-            }
-            if let Some(value) = rate_value {
-                request = request.rate_value(value);
-            }
-            if let Some(value) = version {
-                request = request.version(value);
-            }
-            if let Some(value) = underlyer_use_nbbo {
-                request = request.underlyer_use_nbbo(value);
-            }
-            if let Some(value) = max_dte {
-                request = request.max_dte(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_history_greeks_eod(symbol, expiration, strike, right, start_date, end_date);
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value);
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value);
+        }
+        if let Some(value) = underlyer_use_nbbo {
+            request = request.underlyer_use_nbbo(value);
+        }
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
@@ -1328,42 +1188,38 @@ impl ThetaDataDx {
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_history_greeks_all(symbol, expiration, strike, right, date, interval);
-            if let Some(value) = start_time {
-                request = request.start_time(value);
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value);
-            }
-            if let Some(value) = annual_dividend {
-                request = request.annual_dividend(value);
-            }
-            if let Some(value) = rate_type {
-                request = request.rate_type(value);
-            }
-            if let Some(value) = rate_value {
-                request = request.rate_value(value);
-            }
-            if let Some(value) = version {
-                request = request.version(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(value) = start_date {
-                request = request.start_date(value);
-            }
-            if let Some(value) = end_date {
-                request = request.end_date(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_history_greeks_all(symbol, expiration, strike, right, date, interval);
+        if let Some(value) = start_time {
+            request = request.start_time(value);
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value);
+        }
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value);
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value);
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
@@ -1389,45 +1245,41 @@ impl ThetaDataDx {
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_history_trade_greeks_all(symbol, expiration, strike, right, date);
-            if let Some(value) = start_time {
-                request = request.start_time(value);
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value);
-            }
-            if let Some(value) = annual_dividend {
-                request = request.annual_dividend(value);
-            }
-            if let Some(value) = rate_type {
-                request = request.rate_type(value);
-            }
-            if let Some(value) = rate_value {
-                request = request.rate_value(value);
-            }
-            if let Some(value) = version {
-                request = request.version(value);
-            }
-            if let Some(value) = max_dte {
-                request = request.max_dte(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(value) = start_date {
-                request = request.start_date(value);
-            }
-            if let Some(value) = end_date {
-                request = request.end_date(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_history_trade_greeks_all(symbol, expiration, strike, right, date);
+        if let Some(value) = start_time {
+            request = request.start_time(value);
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value);
+        }
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value);
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value);
+        }
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value);
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
@@ -1453,42 +1305,38 @@ impl ThetaDataDx {
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_history_greeks_first_order(symbol, expiration, strike, right, date, interval);
-            if let Some(value) = start_time {
-                request = request.start_time(value);
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value);
-            }
-            if let Some(value) = annual_dividend {
-                request = request.annual_dividend(value);
-            }
-            if let Some(value) = rate_type {
-                request = request.rate_type(value);
-            }
-            if let Some(value) = rate_value {
-                request = request.rate_value(value);
-            }
-            if let Some(value) = version {
-                request = request.version(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(value) = start_date {
-                request = request.start_date(value);
-            }
-            if let Some(value) = end_date {
-                request = request.end_date(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_history_greeks_first_order(symbol, expiration, strike, right, date, interval);
+        if let Some(value) = start_time {
+            request = request.start_time(value);
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value);
+        }
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value);
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value);
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
@@ -1514,45 +1362,41 @@ impl ThetaDataDx {
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_history_trade_greeks_first_order(symbol, expiration, strike, right, date);
-            if let Some(value) = start_time {
-                request = request.start_time(value);
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value);
-            }
-            if let Some(value) = annual_dividend {
-                request = request.annual_dividend(value);
-            }
-            if let Some(value) = rate_type {
-                request = request.rate_type(value);
-            }
-            if let Some(value) = rate_value {
-                request = request.rate_value(value);
-            }
-            if let Some(value) = version {
-                request = request.version(value);
-            }
-            if let Some(value) = max_dte {
-                request = request.max_dte(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(value) = start_date {
-                request = request.start_date(value);
-            }
-            if let Some(value) = end_date {
-                request = request.end_date(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_history_trade_greeks_first_order(symbol, expiration, strike, right, date);
+        if let Some(value) = start_time {
+            request = request.start_time(value);
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value);
+        }
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value);
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value);
+        }
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value);
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
@@ -1578,42 +1422,38 @@ impl ThetaDataDx {
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_history_greeks_second_order(symbol, expiration, strike, right, date, interval);
-            if let Some(value) = start_time {
-                request = request.start_time(value);
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value);
-            }
-            if let Some(value) = annual_dividend {
-                request = request.annual_dividend(value);
-            }
-            if let Some(value) = rate_type {
-                request = request.rate_type(value);
-            }
-            if let Some(value) = rate_value {
-                request = request.rate_value(value);
-            }
-            if let Some(value) = version {
-                request = request.version(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(value) = start_date {
-                request = request.start_date(value);
-            }
-            if let Some(value) = end_date {
-                request = request.end_date(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_history_greeks_second_order(symbol, expiration, strike, right, date, interval);
+        if let Some(value) = start_time {
+            request = request.start_time(value);
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value);
+        }
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value);
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value);
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
@@ -1639,45 +1479,41 @@ impl ThetaDataDx {
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_history_trade_greeks_second_order(symbol, expiration, strike, right, date);
-            if let Some(value) = start_time {
-                request = request.start_time(value);
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value);
-            }
-            if let Some(value) = annual_dividend {
-                request = request.annual_dividend(value);
-            }
-            if let Some(value) = rate_type {
-                request = request.rate_type(value);
-            }
-            if let Some(value) = rate_value {
-                request = request.rate_value(value);
-            }
-            if let Some(value) = version {
-                request = request.version(value);
-            }
-            if let Some(value) = max_dte {
-                request = request.max_dte(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(value) = start_date {
-                request = request.start_date(value);
-            }
-            if let Some(value) = end_date {
-                request = request.end_date(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_history_trade_greeks_second_order(symbol, expiration, strike, right, date);
+        if let Some(value) = start_time {
+            request = request.start_time(value);
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value);
+        }
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value);
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value);
+        }
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value);
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
@@ -1703,42 +1539,38 @@ impl ThetaDataDx {
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_history_greeks_third_order(symbol, expiration, strike, right, date, interval);
-            if let Some(value) = start_time {
-                request = request.start_time(value);
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value);
-            }
-            if let Some(value) = annual_dividend {
-                request = request.annual_dividend(value);
-            }
-            if let Some(value) = rate_type {
-                request = request.rate_type(value);
-            }
-            if let Some(value) = rate_value {
-                request = request.rate_value(value);
-            }
-            if let Some(value) = version {
-                request = request.version(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(value) = start_date {
-                request = request.start_date(value);
-            }
-            if let Some(value) = end_date {
-                request = request.end_date(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_history_greeks_third_order(symbol, expiration, strike, right, date, interval);
+        if let Some(value) = start_time {
+            request = request.start_time(value);
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value);
+        }
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value);
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value);
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
@@ -1764,45 +1596,41 @@ impl ThetaDataDx {
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_history_trade_greeks_third_order(symbol, expiration, strike, right, date);
-            if let Some(value) = start_time {
-                request = request.start_time(value);
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value);
-            }
-            if let Some(value) = annual_dividend {
-                request = request.annual_dividend(value);
-            }
-            if let Some(value) = rate_type {
-                request = request.rate_type(value);
-            }
-            if let Some(value) = rate_value {
-                request = request.rate_value(value);
-            }
-            if let Some(value) = version {
-                request = request.version(value);
-            }
-            if let Some(value) = max_dte {
-                request = request.max_dte(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(value) = start_date {
-                request = request.start_date(value);
-            }
-            if let Some(value) = end_date {
-                request = request.end_date(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_history_trade_greeks_third_order(symbol, expiration, strike, right, date);
+        if let Some(value) = start_time {
+            request = request.start_time(value);
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value);
+        }
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value);
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value);
+        }
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value);
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(greeks_ticks_to_columnar(py, &ticks))
     }
 
@@ -1828,42 +1656,38 @@ impl ThetaDataDx {
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_history_greeks_implied_volatility(symbol, expiration, strike, right, date, interval);
-            if let Some(value) = start_time {
-                request = request.start_time(value);
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value);
-            }
-            if let Some(value) = annual_dividend {
-                request = request.annual_dividend(value);
-            }
-            if let Some(value) = rate_type {
-                request = request.rate_type(value);
-            }
-            if let Some(value) = rate_value {
-                request = request.rate_value(value);
-            }
-            if let Some(value) = version {
-                request = request.version(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(value) = start_date {
-                request = request.start_date(value);
-            }
-            if let Some(value) = end_date {
-                request = request.end_date(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_history_greeks_implied_volatility(symbol, expiration, strike, right, date, interval);
+        if let Some(value) = start_time {
+            request = request.start_time(value);
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value);
+        }
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value);
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value);
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(iv_ticks_to_columnar(py, &ticks))
     }
 
@@ -1889,45 +1713,41 @@ impl ThetaDataDx {
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_history_trade_greeks_implied_volatility(symbol, expiration, strike, right, date);
-            if let Some(value) = start_time {
-                request = request.start_time(value);
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value);
-            }
-            if let Some(value) = annual_dividend {
-                request = request.annual_dividend(value);
-            }
-            if let Some(value) = rate_type {
-                request = request.rate_type(value);
-            }
-            if let Some(value) = rate_value {
-                request = request.rate_value(value);
-            }
-            if let Some(value) = version {
-                request = request.version(value);
-            }
-            if let Some(value) = max_dte {
-                request = request.max_dte(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(value) = start_date {
-                request = request.start_date(value);
-            }
-            if let Some(value) = end_date {
-                request = request.end_date(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_history_trade_greeks_implied_volatility(symbol, expiration, strike, right, date);
+        if let Some(value) = start_time {
+            request = request.start_time(value);
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value);
+        }
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value);
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value);
+        }
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value);
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(iv_ticks_to_columnar(py, &ticks))
     }
 
@@ -1947,21 +1767,17 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_at_time_trade(symbol, expiration, strike, right, start_date, end_date, time_of_day);
-            if let Some(value) = max_dte {
-                request = request.max_dte(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_at_time_trade(symbol, expiration, strike, right, start_date, end_date, time_of_day);
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(trade_ticks_to_columnar(py, &ticks))
     }
 
@@ -1981,21 +1797,17 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.option_at_time_quote(symbol, expiration, strike, right, start_date, end_date, time_of_day);
-            if let Some(value) = max_dte {
-                request = request.max_dte(value);
-            }
-            if let Some(value) = strike_range {
-                request = request.strike_range(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.option_at_time_quote(symbol, expiration, strike, right, start_date, end_date, time_of_day);
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(quote_ticks_to_columnar(py, &ticks))
     }
 
@@ -2006,16 +1818,12 @@ impl ThetaDataDx {
         py: Python<'_>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Vec<String>> {
-        py.detach(|| {
-            runtime()
-                .block_on(async {
-                    if let Some(ms) = timeout_ms {
-                        self.tdx.index_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
-                    } else {
-                        self.tdx.index_list_symbols().await
-                    }
-                })
-                .map_err(to_py_err)
+        run_blocking(py, async move {
+            if let Some(ms) = timeout_ms {
+                self.tdx.index_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
+            } else {
+                self.tdx.index_list_symbols().await
+            }
         })
     }
 
@@ -2027,16 +1835,12 @@ impl ThetaDataDx {
         symbol: &str,
         timeout_ms: Option<u64>,
     ) -> PyResult<Vec<String>> {
-        py.detach(|| {
-            runtime()
-                .block_on(async {
-                    if let Some(ms) = timeout_ms {
-                        self.tdx.index_list_dates_with_deadline(std::time::Duration::from_millis(ms), symbol).await
-                    } else {
-                        self.tdx.index_list_dates(symbol).await
-                    }
-                })
-                .map_err(to_py_err)
+        run_blocking(py, async move {
+            if let Some(ms) = timeout_ms {
+                self.tdx.index_list_dates_with_deadline(std::time::Duration::from_millis(ms), symbol).await
+            } else {
+                self.tdx.index_list_dates(symbol).await
+            }
         })
     }
 
@@ -2050,18 +1854,14 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.index_snapshot_ohlc(&refs);
-            if let Some(value) = min_time {
-                request = request.min_time(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.index_snapshot_ohlc(&refs);
+        if let Some(value) = min_time {
+            request = request.min_time(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(ohlc_ticks_to_columnar(py, &ticks))
     }
 
@@ -2075,18 +1875,14 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.index_snapshot_price(&refs);
-            if let Some(value) = min_time {
-                request = request.min_time(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.index_snapshot_price(&refs);
+        if let Some(value) = min_time {
+            request = request.min_time(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(price_ticks_to_columnar(py, &ticks))
     }
 
@@ -2100,18 +1896,14 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.index_snapshot_market_value(&refs);
-            if let Some(value) = min_time {
-                request = request.min_time(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.index_snapshot_market_value(&refs);
+        if let Some(value) = min_time {
+            request = request.min_time(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(market_value_ticks_to_columnar(py, &ticks))
     }
 
@@ -2125,15 +1917,11 @@ impl ThetaDataDx {
         end_date: &str,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.index_history_eod(symbol, start_date, end_date);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.index_history_eod(symbol, start_date, end_date);
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(eod_ticks_to_columnar(py, &ticks))
     }
 
@@ -2150,21 +1938,17 @@ impl ThetaDataDx {
         end_time: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.index_history_ohlc(symbol, start_date, end_date, interval);
-            if let Some(value) = start_time {
-                request = request.start_time(value);
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.index_history_ohlc(symbol, start_date, end_date, interval);
+        if let Some(value) = start_time {
+            request = request.start_time(value);
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(ohlc_ticks_to_columnar(py, &ticks))
     }
 
@@ -2182,27 +1966,23 @@ impl ThetaDataDx {
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.index_history_price(symbol, date, interval);
-            if let Some(value) = start_time {
-                request = request.start_time(value);
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value);
-            }
-            if let Some(value) = start_date {
-                request = request.start_date(value);
-            }
-            if let Some(value) = end_date {
-                request = request.end_date(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.index_history_price(symbol, date, interval);
+        if let Some(value) = start_time {
+            request = request.start_time(value);
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value);
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(price_ticks_to_columnar(py, &ticks))
     }
 
@@ -2217,15 +1997,11 @@ impl ThetaDataDx {
         time_of_day: &str,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.index_at_time_price(symbol, start_date, end_date, time_of_day);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.index_at_time_price(symbol, start_date, end_date, time_of_day);
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(price_ticks_to_columnar(py, &ticks))
     }
 
@@ -2236,15 +2012,11 @@ impl ThetaDataDx {
         py: Python<'_>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.calendar_open_today();
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.calendar_open_today();
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(calendar_days_to_columnar(py, &ticks))
     }
 
@@ -2256,15 +2028,11 @@ impl ThetaDataDx {
         date: &str,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.calendar_on_date(date);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.calendar_on_date(date);
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(calendar_days_to_columnar(py, &ticks))
     }
 
@@ -2276,15 +2044,11 @@ impl ThetaDataDx {
         year: &str,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.calendar_year(year);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.calendar_year(year);
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(calendar_days_to_columnar(py, &ticks))
     }
 
@@ -2298,15 +2062,11 @@ impl ThetaDataDx {
         end_date: &str,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.interest_rate_history_eod(symbol, start_date, end_date);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.interest_rate_history_eod(symbol, start_date, end_date);
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(interest_rate_ticks_to_columnar(py, &ticks))
     }
 
@@ -2324,24 +2084,20 @@ impl ThetaDataDx {
         venue: Option<&str>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PyAny>> {
-        let ticks = py.detach(|| {
-            let mut request = self.tdx.stock_history_ohlc_range(symbol, start_date, end_date, interval);
-            if let Some(value) = start_time {
-                request = request.start_time(value);
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value);
-            }
-            if let Some(value) = venue {
-                request = request.venue(value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            runtime()
-                .block_on(async { request.await })
-                .map_err(to_py_err)
-        })?;
+        let mut request = self.tdx.stock_history_ohlc_range(symbol, start_date, end_date, interval);
+        if let Some(value) = start_time {
+            request = request.start_time(value);
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value);
+        }
+        if let Some(value) = venue {
+            request = request.venue(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
         Ok(ohlc_ticks_to_columnar(py, &ticks))
     }
 

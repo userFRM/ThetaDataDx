@@ -38,6 +38,36 @@ fn to_py_err(e: thetadatadx::Error) -> PyErr {
     }
 }
 
+/// Run an async future to completion while periodically honoring Python's
+/// signal handlers. A blocking `runtime().block_on` inside `py.detach`
+/// otherwise starves `KeyboardInterrupt` because the GIL is released and
+/// signals can never be delivered.
+///
+/// Polls `Python::check_signals()` every 100ms. On Ctrl+C, returns the
+/// `PyErr` raised by Python (typically `KeyboardInterrupt`); the in-flight
+/// future is dropped and its gRPC channel is cancelled.
+fn run_blocking<F, T>(py: Python<'_>, fut: F) -> PyResult<T>
+where
+    F: std::future::Future<Output = Result<T, thetadatadx::Error>> + Send,
+    T: Send,
+{
+    py.detach(|| {
+        runtime().block_on(async move {
+            tokio::pin!(fut);
+            loop {
+                tokio::select! {
+                    out = &mut fut => return out.map_err(to_py_err),
+                    _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {
+                        if let Err(e) = Python::attach(|py| py.check_signals()) {
+                            return Err(e);
+                        }
+                    }
+                }
+            }
+        })
+    })
+}
+
 fn parse_sec_type(sec_type: &str) -> PyResult<tdbe::types::enums::SecType> {
     match sec_type.to_uppercase().as_str() {
         "STOCK" => Ok(tdbe::types::enums::SecType::Stock),
