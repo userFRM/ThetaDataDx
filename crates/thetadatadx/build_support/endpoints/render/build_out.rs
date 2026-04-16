@@ -57,6 +57,9 @@ const VALIDATOR_TEMPLATES: &[&str] = &[
     "go/float_case.go.tmpl",
     "go/bool_case.go.tmpl",
     "go/string_case.go.tmpl",
+    "cpp/with_timeout_ms.cpp.tmpl",
+    "cpp/with_deadline.cpp.tmpl",
+    "cpp/option_contracts_convert.cpp.tmpl",
 ];
 
 fn generate_endpoint_registry(parsed: &ParsedEndpoints) -> Result<(), Box<dyn std::error::Error>> {

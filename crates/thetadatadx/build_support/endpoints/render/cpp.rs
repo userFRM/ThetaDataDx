@@ -50,20 +50,12 @@ pub(super) fn render_cpp_options(params: &[GeneratedParam]) -> String {
         out.push_str("        return *this;\n");
         out.push_str("    }\n");
     }
-    out.push_str("    EndpointRequestOptions& with_timeout_ms(uint64_t value) {\n");
-    out.push_str("        timeout_ms = value;\n");
-    out.push_str("        return *this;\n");
-    out.push_str("    }\n");
+    out.push_str(include_str!("templates/cpp/with_timeout_ms.cpp.tmpl"));
     // A negative duration means "deadline already in the past" and clamps
     // to 1 ms (immediate expiration). Without the clamp, the cast to
     // uint64_t would silently wrap to a multi-century value, the opposite
     // of the caller's intent.
-    out.push_str("    EndpointRequestOptions& with_deadline(std::chrono::milliseconds value) {\n");
-    out.push_str(
-        "        timeout_ms = value.count() < 0 ? 1u : static_cast<uint64_t>(value.count());\n",
-    );
-    out.push_str("        return *this;\n");
-    out.push_str("    }\n");
+    out.push_str(include_str!("templates/cpp/with_deadline.cpp.tmpl"));
     out.push_str("};\n");
     out.push_str("\nnamespace detail {\n\n");
     out.push_str("struct FfiEndpointRequestOptions {\n");
@@ -238,26 +230,9 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint) -> String {
         out.push_str(", &ffi_options.raw);\n");
         // Disambiguate empty-success vs failure-empty (e.g. timeout). See
         // ffi/src/lib.rs::tdx_clear_error and the matching call before the FFI.
-        out.push_str("    {\n");
-        out.push_str("        const std::string err = detail::last_ffi_error_raw();\n");
-        out.push_str("        if (!err.empty()) {\n");
-        out.push_str("            tdx_option_contract_array_free(arr);\n");
-        out.push_str("            throw std::runtime_error(\"thetadatadx: \" + err);\n");
-        out.push_str("        }\n");
-        out.push_str("    }\n");
-        out.push_str("    std::vector<OptionContract> result;\n");
-        out.push_str("    result.reserve(arr.len);\n");
-        out.push_str("    for (size_t i = 0; i < arr.len; ++i) {\n");
-        out.push_str("        OptionContract c;\n");
-        out.push_str("        c.root = arr.data[i].root ? std::string(arr.data[i].root) : \"\";\n");
-        out.push_str("        c.expiration = arr.data[i].expiration;\n");
-        out.push_str("        c.strike = arr.data[i].strike;\n");
-        out.push_str("        c.right = arr.data[i].right;\n");
-        out.push_str("        result.push_back(std::move(c));\n");
-        out.push_str("    }\n");
-        out.push_str("    tdx_option_contract_array_free(arr);\n");
-        out.push_str("    return result;\n");
-        out.push_str("}\n");
+        out.push_str(include_str!(
+            "templates/cpp/option_contracts_convert.cpp.tmpl"
+        ));
         return out;
     }
 
