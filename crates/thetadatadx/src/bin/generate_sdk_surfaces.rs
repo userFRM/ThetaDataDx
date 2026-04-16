@@ -22,6 +22,9 @@ mod ticks;
 #[allow(dead_code)]
 #[path = "../../build_support/upstream_openapi.rs"]
 mod upstream_openapi;
+#[allow(dead_code)]
+#[path = "../../src/wire_semantics.rs"]
+mod wire_semantics;
 
 fn repo_root() -> PathBuf {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));

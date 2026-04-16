@@ -305,6 +305,31 @@ pub(super) fn endpoint_supports_expiration_wildcard(name: &str) -> bool {
         .unwrap_or(true)
 }
 
+/// Names of the baseline mode cells emitted for an endpoint before optional
+/// builder-param expansion.
+///
+/// This is the single mode-taxonomy source used by both `test_modes_for`
+/// (which materializes the cells) and `parser.rs` (which validates the
+/// fixture TOML against the live mode graph).
+pub(super) fn emitted_mode_names(endpoint: &GeneratedEndpoint) -> Vec<&'static str> {
+    if is_streaming_endpoint(endpoint) {
+        return Vec::new();
+    }
+    if is_simple_list_endpoint(endpoint)
+        || matches!(endpoint.category.as_str(), "calendar" | "rate")
+    {
+        return vec!["basic"];
+    }
+    if has_full_contract_spec(endpoint) {
+        let mut modes = vec!["concrete", "concrete_iso", "all_strikes_one_exp"];
+        if endpoint_supports_expiration_wildcard(&endpoint.name) {
+            modes.extend(["all_exps_one_strike", "bulk_chain", "legacy_zero_wildcard"]);
+        }
+        return modes;
+    }
+    vec!["concrete"]
+}
+
 /// Compute the comprehensive mode set for a given endpoint.
 ///
 /// The taxonomy:
@@ -323,143 +348,31 @@ pub(super) fn test_modes_for(
     endpoint: &GeneratedEndpoint,
     fixtures: &TestFixtures,
 ) -> Vec<TestMode> {
-    if is_streaming_endpoint(endpoint) {
+    let emitted_modes = emitted_mode_names(endpoint);
+    if emitted_modes.is_empty() {
         return Vec::new();
     }
     let endpoint_tier = endpoint_min_tier(&endpoint.name);
-
-    // ── List endpoints: one mode, no wildcard expiration (server rejects). ──
-    if is_simple_list_endpoint(endpoint) {
-        return collapse_redundant_wires(
-            endpoint,
-            append_optional_modes(
-                endpoint,
-                fixtures,
-                endpoint_tier,
-                vec![TestMode {
-                    name: "basic".to_string(),
-                    rationale: rationale_for_mode("basic"),
-                    args: concrete_args(endpoint, fixtures),
-                    min_tier: endpoint_tier,
-                    expect: "non_empty",
-                    builder_overrides: Vec::new(),
-                }],
-            ),
-        );
-    }
-
-    // ── Calendar / rate: one mode. ──────────────────────────────────────────
-    if matches!(endpoint.category.as_str(), "calendar" | "rate") {
-        return collapse_redundant_wires(
-            endpoint,
-            append_optional_modes(
-                endpoint,
-                fixtures,
-                endpoint_tier,
-                vec![TestMode {
-                    name: "basic".to_string(),
-                    rationale: rationale_for_mode("basic"),
-                    args: concrete_args(endpoint, fixtures),
-                    min_tier: endpoint_tier,
-                    expect: "non_empty",
-                    builder_overrides: Vec::new(),
-                }],
-            ),
-        );
-    }
-
-    // ── Option ContractSpec: full wildcard cross-product, except where the
-    // v3 server explicitly disallows `expiration=*` on an endpoint (it binds
-    // that endpoint to the `expiration_no_star` parameter in upstream's
-    // openapiv3.yaml, and returns `InvalidArgument -- Cannot specify '*' for
-    // the date` if we pass it). Those endpoints get only the concrete +
-    // ISO-dashed fixtures plus the `all_strikes_one_exp` mode, which uses a
-    // concrete expiration.
-    if has_full_contract_spec(endpoint) {
-        let mut modes = vec![
+    let modes: Vec<TestMode> = emitted_modes
+        .into_iter()
+        .map(|mode_name| {
+            let args = match mode_name {
+                "basic" | "concrete" => concrete_args(endpoint, fixtures),
+                other => args_for_mode(endpoint, fixtures, other),
+            };
             TestMode {
-                name: "concrete".to_string(),
-                rationale: rationale_for_mode("concrete"),
-                args: concrete_args(endpoint, fixtures),
+                name: mode_name.to_string(),
+                rationale: rationale_for_mode(mode_name),
+                args,
                 min_tier: endpoint_tier,
                 expect: "non_empty",
                 builder_overrides: Vec::new(),
-            },
-            TestMode {
-                name: "concrete_iso".to_string(),
-                rationale: rationale_for_mode("concrete_iso"),
-                args: args_for_mode(endpoint, fixtures, "concrete_iso"),
-                min_tier: endpoint_tier,
-                expect: "non_empty",
-                builder_overrides: Vec::new(),
-            },
-            TestMode {
-                name: "all_strikes_one_exp".to_string(),
-                rationale: rationale_for_mode("all_strikes_one_exp"),
-                args: args_for_mode(endpoint, fixtures, "all_strikes_one_exp"),
-                min_tier: endpoint_tier,
-                expect: "non_empty",
-                builder_overrides: Vec::new(),
-            },
-        ];
-        if endpoint_supports_expiration_wildcard(&endpoint.name) {
-            modes.extend([
-                TestMode {
-                    name: "all_exps_one_strike".to_string(),
-                    rationale: rationale_for_mode("all_exps_one_strike"),
-                    args: args_for_mode(endpoint, fixtures, "all_exps_one_strike"),
-                    min_tier: endpoint_tier,
-                    expect: "non_empty",
-                    builder_overrides: Vec::new(),
-                },
-                TestMode {
-                    name: "bulk_chain".to_string(),
-                    rationale: rationale_for_mode("bulk_chain"),
-                    args: args_for_mode(endpoint, fixtures, "bulk_chain"),
-                    min_tier: endpoint_tier,
-                    expect: "non_empty",
-                    builder_overrides: Vec::new(),
-                },
-                TestMode {
-                    name: "legacy_zero_wildcard".to_string(),
-                    rationale: rationale_for_mode("legacy_zero_wildcard"),
-                    args: args_for_mode(endpoint, fixtures, "legacy_zero_wildcard"),
-                    min_tier: endpoint_tier,
-                    expect: "non_empty",
-                    builder_overrides: Vec::new(),
-                },
-            ]);
-        }
-        modes.dedup_by(|a, b| a.args == b.args && a.name == b.name);
-        return collapse_redundant_wires(
-            endpoint,
-            append_optional_modes(endpoint, fixtures, endpoint_tier, modes),
-        );
-    }
-
-    // ── Stock / index / non-ContractSpec endpoints. ─────────────────────────
-    //
-    // We deliberately do NOT emit an `iso_date` mode for stock/index
-    // endpoints with `start_date`/`end_date`. Those parameters are typed as
-    // `Date` in the SDK, and `validate::validate_date` is strict
-    // `YYYYMMDD` only — ISO-dashed acceptance is scoped to `Expiration`
-    // (see PR #284). Adding an `iso_date` cell here would test behavior the
-    // SDK contract intentionally does not support, so it would always fail.
+            }
+        })
+        .collect();
     collapse_redundant_wires(
         endpoint,
-        append_optional_modes(
-            endpoint,
-            fixtures,
-            endpoint_tier,
-            vec![TestMode {
-                name: "concrete".to_string(),
-                rationale: rationale_for_mode("concrete"),
-                args: concrete_args(endpoint, fixtures),
-                min_tier: endpoint_tier,
-                expect: "non_empty",
-                builder_overrides: Vec::new(),
-            }],
-        ),
+        append_optional_modes(endpoint, fixtures, endpoint_tier, modes),
     )
 }
 
@@ -649,76 +562,17 @@ fn append_optional_modes(
     modes
 }
 
-/// Approximate the wire-level canonicalization performed by the runtime
-/// client, so two modes whose proto messages differ only by SDK-level
-/// sentinel translation are detected as duplicates here.
-///
-/// Mirrors three runtime transformations:
-/// * `expiration`: `"0"` → `"*"`; ISO-dashed → compact `YYYYMMDD`.
-///   See `crates/thetadatadx/src/direct.rs:84` (`normalize_expiration`).
-/// * `strike`:     `""` / `"0"` / `"*"` → proto-unset.
-///   See `crates/thetadatadx/src/direct.rs:100` (`wire_strike_opt`).
-/// * `right`:      `"*"` / `"both"` (any case) → proto-unset.
-///   See `crates/thetadatadx/src/direct.rs:118` (`wire_right_opt`).
-///
-/// The canonical token is the string we expect the server to see. `None`
-/// means "proto field unset" — represented here as the sentinel
-/// `"<unset>"` so the grouping key stays a plain `String`. Any divergence
-/// between this pass and the runtime normalization is a bug (the audit
-/// stops being load-bearing); the runtime side has unit tests in
-/// `crates/thetadatadx/src/direct.rs`, the intent here is to stay in sync
-/// with those exact rules.
-fn canonicalize_wire_arg(param_name: &str, value: &str) -> String {
-    const UNSET: &str = "<unset>";
-    match param_name {
-        "expiration" => match value {
-            "0" => "*".to_string(),
-            v if is_build_time_iso_date(v) => v.replace('-', ""),
-            other => other.to_string(),
-        },
-        "strike" => {
-            if value.is_empty() || value == "*" || value == "0" {
-                UNSET.to_string()
-            } else {
-                value.to_string()
-            }
-        }
-        "right" => match value.to_ascii_lowercase().as_str() {
-            "*" | "both" => UNSET.to_string(),
-            "c" | "call" => "call".to_string(),
-            "p" | "put" => "put".to_string(),
-            other => other.to_string(),
-        },
-        _ => value.to_string(),
-    }
-}
-
-/// Build-time mirror of `crates/thetadatadx/src/validate.rs::is_iso_date`.
-/// Kept here to avoid taking a build dependency on the runtime crate.
-fn is_build_time_iso_date(value: &str) -> bool {
-    let mut parts = value.splitn(3, '-');
-    matches!(
-        (parts.next(), parts.next(), parts.next(), parts.next()),
-        (Some(y), Some(m), Some(d), None)
-            if y.len() == 4
-                && m.len() == 2
-                && d.len() == 2
-                && y.bytes().all(|b| b.is_ascii_digit())
-                && m.bytes().all(|b| b.is_ascii_digit())
-                && d.bytes().all(|b| b.is_ascii_digit())
-    )
-}
-
 /// Collapse cells whose post-canonicalization wire shape is identical down
 /// to a single canonical cell.
 ///
 /// The signature combines:
-/// * positional args run through [`canonicalize_wire_arg`] per-param name,
+/// * positional args run through [`super::super::wire_semantics::canonicalize_wire_arg`]
+///   per-param name,
 ///   which mirrors the runtime's `expiration`/`strike`/`right` rewriting;
 /// * builder-override pairs, also canonicalized, sorted, **and** with stock
 ///   endpoints' `"venue" → "nqb"` default synthesized in whenever the
 ///   endpoint's `venue` param is absent from the mode's overrides.
-///   See `render/direct.rs:433` for the runtime default.
+///   See `render/direct.rs` for the runtime default.
 ///
 /// Two modes with equal signatures will marshal byte-identical proto
 /// messages, so collapsing them removes only redundant runtime cost.
@@ -753,15 +607,23 @@ fn collapse_redundant_wires(endpoint: &GeneratedEndpoint, modes: Vec<TestMode>) 
     let canonical_overrides = |overrides: &[(String, String)]| -> Vec<(String, String)> {
         let mut pairs: Vec<(String, String)> = overrides
             .iter()
-            .map(|(k, v)| (k.clone(), canonicalize_wire_arg(k, v)))
+            .map(|(k, v)| {
+                (
+                    k.clone(),
+                    super::super::wire_semantics::canonicalize_wire_arg(k, v),
+                )
+            })
             .collect();
         // Synthesize the stock-endpoint `venue=nqb` default when the mode
         // doesn't override it: the runtime fills this in at request-build
-        // time (`render/direct.rs:433`), so omitting it here would make
+        // time (`render/direct.rs`), so omitting it here would make
         // `concrete` and `with_venue` look like distinct wire shapes
         // despite producing identical proto messages.
         if has_stock_venue_default && !pairs.iter().any(|(k, _)| k == "venue") {
-            pairs.push(("venue".to_string(), "nqb".to_string()));
+            pairs.push((
+                "venue".to_string(),
+                super::super::wire_semantics::DEFAULT_STOCK_VENUE.to_string(),
+            ));
         }
         pairs.sort();
         pairs
@@ -775,7 +637,7 @@ fn collapse_redundant_wires(endpoint: &GeneratedEndpoint, modes: Vec<TestMode>) 
                     .get(i)
                     .map(String::as_str)
                     .unwrap_or_default();
-                canonicalize_wire_arg(name, v)
+                super::super::wire_semantics::canonicalize_wire_arg(name, v)
             })
             .collect()
     };

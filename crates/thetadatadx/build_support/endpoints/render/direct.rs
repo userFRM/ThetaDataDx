@@ -431,7 +431,8 @@ pub(super) fn direct_query_field_expr(
         }
         "start_time" | "end_time" => format!("Some({arg_name}.clone())"),
         "venue" if endpoint.category == "stock" => {
-            "venue.clone().or_else(|| Some(\"nqb\".to_string()))".into()
+            "venue.clone().or_else(|| Some(crate::wire_semantics::DEFAULT_STOCK_VENUE.to_string()))"
+                .into()
         }
         _ if field.proto_type == "string" => {
             if field.is_optional {

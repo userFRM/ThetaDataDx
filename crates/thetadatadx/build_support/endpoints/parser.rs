@@ -426,13 +426,8 @@ pub(super) fn validate_test_fixtures(
     Ok(())
 }
 
-/// For each mode in [`KNOWN_MODE_OVERRIDES`], collect the endpoints that
-/// emit it. Mirrors the branching in `modes.rs::test_modes_for`:
-/// * `concrete_iso`, `all_strikes_one_exp` — any endpoint with the full
-///   ContractSpec quartet (symbol / expiration / strike / right).
-/// * `all_exps_one_strike`, `bulk_chain`, `legacy_zero_wildcard` — same,
-///   further restricted to endpoints upstream marks as accepting
-///   `expiration=*`.
+/// For each mode in [`KNOWN_MODE_OVERRIDES`], collect the endpoints that emit
+/// it according to `modes.rs::emitted_mode_names`.
 ///
 /// Streaming endpoints are already filtered out by the caller. A mode with
 /// zero consumers doesn't need a TOML row and isn't reported as missing.
@@ -443,29 +438,12 @@ fn compute_mode_emitters<'a>(
     for mode in KNOWN_MODE_OVERRIDES {
         let consumers: Vec<&'a str> = endpoints
             .iter()
-            .filter(|ep| endpoint_emits_mode(ep, mode))
+            .filter(|ep| super::modes::emitted_mode_names(ep).contains(mode))
             .map(|ep| ep.name.as_str())
             .collect();
         out.push((*mode, consumers));
     }
     out
-}
-
-/// Whether the named mode appears in `test_modes_for(endpoint, ...)`'s
-/// output. Kept in lockstep with the branching in `modes.rs` — every new
-/// mode or predicate there needs a line here.
-fn endpoint_emits_mode(endpoint: &GeneratedEndpoint, mode: &str) -> bool {
-    if endpoint.kind == "stream" {
-        return false;
-    }
-    let has_contract_spec = super::modes::has_full_contract_spec(endpoint);
-    match mode {
-        "concrete_iso" | "all_strikes_one_exp" => has_contract_spec,
-        "all_exps_one_strike" | "bulk_chain" | "legacy_zero_wildcard" => {
-            has_contract_spec && super::modes::endpoint_supports_expiration_wildcard(&endpoint.name)
-        }
-        _ => false,
-    }
 }
 
 /// Union of method-param names belonging to every endpoint that emits the
@@ -479,7 +457,7 @@ fn mode_override_valid_keys<'a>(
 ) -> HashSet<&'a str> {
     endpoints
         .iter()
-        .filter(|ep| endpoint_emits_mode(ep, mode))
+        .filter(|ep| super::modes::emitted_mode_names(ep).contains(&mode))
         .flat_map(|ep| ep.params.iter())
         .filter(|p| p.binding == "method")
         .map(|p| p.name.as_str())
