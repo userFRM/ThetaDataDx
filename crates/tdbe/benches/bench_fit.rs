@@ -1,7 +1,7 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use std::hint::black_box;
 
-use tdbe::codec::fit::{apply_deltas, FitReader};
+use tdbe::codec::fit::{apply_deltas, decode_fit_buffer_bulk, FitReader};
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Helpers
@@ -127,12 +127,23 @@ fn bench_fit_delta_decompression(c: &mut Criterion) {
     });
 }
 
+fn bench_fit_bulk_1000_rows(c: &mut Criterion) {
+    let buf = build_fit_buffer(1000);
+    c.bench_function("fit_bulk_1000_rows", |b| {
+        b.iter(|| {
+            let rows = decode_fit_buffer_bulk(black_box(&buf), 16);
+            black_box(rows);
+        });
+    });
+}
+
 criterion_group!(
     fit_benches,
     bench_fit_decode_100_rows,
     bench_fit_decode_1000_rows_scalar,
     bench_fit_decode_single_row,
     bench_fit_delta_decompression,
+    bench_fit_bulk_1000_rows,
 );
 
 criterion_main!(fit_benches);
