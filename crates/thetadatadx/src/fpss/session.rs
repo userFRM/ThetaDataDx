@@ -161,15 +161,24 @@ mod tests {
     fn reconnect_delay_too_many_requests() {
         assert_eq!(
             reconnect_delay(RemoveReason::TooManyRequests),
-            Some(130_000)
+            Some(TOO_MANY_REQUESTS_DELAY_MS)
         );
     }
 
     #[test]
     fn reconnect_delay_normal() {
-        assert_eq!(reconnect_delay(RemoveReason::ServerRestarting), Some(2_000));
-        assert_eq!(reconnect_delay(RemoveReason::Unspecified), Some(2_000));
-        assert_eq!(reconnect_delay(RemoveReason::TimedOut), Some(2_000));
+        assert_eq!(
+            reconnect_delay(RemoveReason::ServerRestarting),
+            Some(RECONNECT_DELAY_MS)
+        );
+        assert_eq!(
+            reconnect_delay(RemoveReason::Unspecified),
+            Some(RECONNECT_DELAY_MS)
+        );
+        assert_eq!(
+            reconnect_delay(RemoveReason::TimedOut),
+            Some(RECONNECT_DELAY_MS)
+        );
     }
 
     #[test]

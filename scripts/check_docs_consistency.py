@@ -119,7 +119,7 @@ def check_static_docs() -> None:
     # Version strings in getting-started docs must match the workspace version.
     expect_contains(
         ROOT / "docs-site/docs/getting-started/installation.md",
-        'thetadatadx = "7.0"',
+        'thetadatadx = "7.2"',
     )
     expect_contains(
         ROOT / "docs-site/docs/tools/mcp.md",

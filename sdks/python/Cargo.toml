@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-py"
-version = "7.1.0"
+version = "7.2.0"
 edition = "2021"
 description = "Python bindings for thetadatadx — native ThetaData SDK powered by Rust"
 license = "GPL-3.0-or-later"
@@ -16,7 +16,7 @@ crate-type = ["cdylib"]
 [dependencies]
 # The Rust SDK we're wrapping
 thetadatadx = { path = "../../crates/thetadatadx" }
-tdbe = { version = "0.9.0", path = "../../crates/tdbe" }
+tdbe = { version = "0.10.0", path = "../../crates/tdbe" }
 
 # PyO3 bindings. We target the stable ABI so one wheel per platform supports
 # every Python version from 3.9 upward.
