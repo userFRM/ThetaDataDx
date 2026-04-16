@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [7.2.1] - 2026-04-16
+
+### Fixed
+
+- **Greek and IV decoders regressed by v7.2.0 strict decode** -- every Greek endpoint (`option_snapshot_greeks_*`, `option_history_greeks_*`) returned `Decode failed: column N: expected Number, got Price` on live payloads. The v7.2.0 tightening routed every `f64` tick column through `row_float`, which accepts only `Number` cells, but the v3 MDDS server legitimately sends Greeks and implied-volatility values as `Price`-encoded cells (matching Java's `PojoMessageUtils.dataValue2Object` PRICE → BigDecimal arm). `f64` columns now decode through `row_price_f64` and accept both `Price` and `Number` cells. Regression surfaced on live run 24520486541.
+- **Bulk option-chain validator cells timed out at 60 s** -- `all_strikes_one_exp` and `bulk_chain` cells on `option_history_ohlc`, `option_history_quote`, `option_history_trade_quote`, `option_history_greeks_first_order`, `option_history_greeks_implied_volatility`, and `option_at_time_quote` legitimately stream a full-chain payload that does not fit in the 60-second per-cell budget. The CLI / Python / Go / C++ validators now apply a 180-second deadline to bulk-chain / all-strike modes and keep the 60-second baseline for every other cell.
+
 ## [7.2.0] - 2026-04-16
 
 ### Added
