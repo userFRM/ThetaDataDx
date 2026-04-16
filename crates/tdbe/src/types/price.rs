@@ -56,10 +56,6 @@ impl Price {
     #[inline]
     #[must_use]
     pub fn new(value: i32, price_type: i32) -> Self {
-        debug_assert!(
-            (0..20).contains(&price_type),
-            "price_type must be 0..20, got {price_type}"
-        );
         Self {
             value,
             price_type: price_type.clamp(0, 19),
