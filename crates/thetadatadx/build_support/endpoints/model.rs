@@ -23,6 +23,27 @@ pub(super) struct SurfaceSpec {
     pub(super) templates: HashMap<String, SurfaceTemplate>,
     pub(super) endpoints: Vec<SurfaceEndpoint>,
     pub(super) test_fixtures: SurfaceTestFixtures,
+    /// Global request-level options that appear on every endpoint via
+    /// `TdxEndpointRequestOptions`. Declared here so the FFI struct layout
+    /// stays in lock-step with the TOML (see scripts/check_docs_consistency.py).
+    /// Not consumed by the Rust generator today — only by the docs-consistency
+    /// drift check — but codified in the surface so future generator passes
+    /// can read from here rather than hardcoding timeout_ms.
+    #[serde(default)]
+    pub(super) request_options_global: Vec<SurfaceGlobalRequestOption>,
+}
+
+/// A cross-cutting request-level option (e.g. `timeout_ms`).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct SurfaceGlobalRequestOption {
+    #[allow(dead_code)]
+    pub(super) name: String,
+    #[allow(dead_code)]
+    pub(super) description: String,
+    #[allow(dead_code)]
+    #[serde(rename = "type")]
+    pub(super) ty: String,
 }
 
 /// Representative fixture values feeding the live-validator parameter-mode

@@ -8,6 +8,19 @@
 
 version = 2
 
+# Global request-level options attached to every endpoint via
+# `TdxEndpointRequestOptions` (FFI) / `EndpointOption` (Go) /
+# `with_timeout_ms` (Rust/Python/C++). These are NOT per-endpoint
+# builder params — they apply uniformly across the surface — but the
+# FFI struct layout still needs to mirror this list, so we declare
+# them here as the single source of truth. `scripts/check_docs_consistency.py`
+# enforces the drift check.
+
+[[request_options_global]]
+name = "timeout_ms"
+description = "Per-request deadline in milliseconds. 0 means no deadline."
+type = "u64"
+
 # Reusable parameter groups.
 
 [param_groups.request_type]

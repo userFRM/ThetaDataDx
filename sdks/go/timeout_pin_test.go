@@ -108,7 +108,15 @@ func TestEveryFFIErrorReaderPinsOSThread(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read %s: %v", fname, err)
 		}
-		lines := strings.Split(string(data), "\n")
+		// Strip trailing CR so the HasSuffix check works on Windows
+		// checkouts that use CRLF line endings. Handwritten .go files
+		// without an `eol=lf` rule in .gitattributes land with \r\n on
+		// Windows CI runners, which silently broke the count before.
+		rawLines := strings.Split(string(data), "\n")
+		lines := make([]string, len(rawLines))
+		for idx, l := range rawLines {
+			lines[idx] = strings.TrimRight(l, "\r")
+		}
 		for i, line := range lines {
 			if !strings.HasPrefix(line, "func ") || !strings.HasSuffix(line, "{") {
 				continue
