@@ -112,8 +112,13 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
         );
         out.push_str("            Some(crate::proto::data_value::DataType::Timestamp(ts)) => Ok(crate::decode::timestamp_to_ms_of_day(ts.epoch_ms)),\n");
         out.push_str(
-            "            Some(crate::proto::data_value::DataType::NullValue(_)) | None => Ok(0),\n",
+            "            Some(crate::proto::data_value::DataType::NullValue(_)) => Ok(0),\n",
         );
+        out.push_str("            None => Err(DecodeError::TypeMismatch {\n");
+        out.push_str("                column: idx,\n");
+        out.push_str("                expected: \"Number|Price|Timestamp\",\n");
+        out.push_str("                observed: \"Unset\",\n");
+        out.push_str("            }),\n");
         out.push_str("            other => Err(DecodeError::TypeMismatch {\n");
         out.push_str("                column: idx,\n");
         out.push_str("                expected: \"Number|Price|Timestamp\",\n");
@@ -136,8 +141,13 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
         );
         out.push_str("            Some(crate::proto::data_value::DataType::Timestamp(ts)) => Ok(crate::decode::timestamp_to_date(ts.epoch_ms)),\n");
         out.push_str(
-            "            Some(crate::proto::data_value::DataType::NullValue(_)) | None => Ok(0),\n",
+            "            Some(crate::proto::data_value::DataType::NullValue(_)) => Ok(0),\n",
         );
+        out.push_str("            None => Err(DecodeError::TypeMismatch {\n");
+        out.push_str("                column: idx,\n");
+        out.push_str("                expected: \"Number|Price|Timestamp\",\n");
+        out.push_str("                observed: \"Unset\",\n");
+        out.push_str("            }),\n");
         out.push_str("            other => Err(DecodeError::TypeMismatch {\n");
         out.push_str("                column: idx,\n");
         out.push_str("                expected: \"Number|Price|Timestamp\",\n");
@@ -157,8 +167,13 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
             "            Some(crate::proto::data_value::DataType::Number(n)) => Ok(*n as f64),\n",
         );
         out.push_str(
-            "            Some(crate::proto::data_value::DataType::NullValue(_)) | None => Ok(0.0),\n",
+            "            Some(crate::proto::data_value::DataType::NullValue(_)) => Ok(0.0),\n",
         );
+        out.push_str("            None => Err(DecodeError::TypeMismatch {\n");
+        out.push_str("                column: idx,\n");
+        out.push_str("                expected: \"Price|Number\",\n");
+        out.push_str("                observed: \"Unset\",\n");
+        out.push_str("            }),\n");
         out.push_str("            other => Err(DecodeError::TypeMismatch {\n");
         out.push_str("                column: idx,\n");
         out.push_str("                expected: \"Price|Number\",\n");
@@ -422,7 +437,14 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
         out.push_str("                        match dv.data_type.as_ref() {\n");
         out.push_str("                            Some(crate::proto::data_value::DataType::Number(n)) => *n as i32,\n");
         out.push_str("                            Some(crate::proto::data_value::DataType::Text(s)) => parse_iso_date(s),\n");
-        out.push_str("                            Some(crate::proto::data_value::DataType::NullValue(_)) | None => 0,\n");
+        out.push_str("                            Some(crate::proto::data_value::DataType::NullValue(_)) => 0,\n");
+        out.push_str(
+            "                            None => return Err(DecodeError::TypeMismatch {\n",
+        );
+        out.push_str("                                column: i,\n");
+        out.push_str("                                expected: \"Number|Text\",\n");
+        out.push_str("                                observed: \"Unset\",\n");
+        out.push_str("                            }),\n");
         out.push_str(
             "                            other => return Err(DecodeError::TypeMismatch {\n",
         );
@@ -455,7 +477,14 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
         out.push_str("                                \"PUT\" | \"P\" => 80,\n");
         out.push_str("                                _ => 0,\n");
         out.push_str("                            },\n");
-        out.push_str("                            Some(crate::proto::data_value::DataType::NullValue(_)) | None => 0,\n");
+        out.push_str("                            Some(crate::proto::data_value::DataType::NullValue(_)) => 0,\n");
+        out.push_str(
+            "                            None => return Err(DecodeError::TypeMismatch {\n",
+        );
+        out.push_str("                                column: i,\n");
+        out.push_str("                                expected: \"Number|Text\",\n");
+        out.push_str("                                observed: \"Unset\",\n");
+        out.push_str("                            }),\n");
         out.push_str(
             "                            other => return Err(DecodeError::TypeMismatch {\n",
         );

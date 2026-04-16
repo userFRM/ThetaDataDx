@@ -241,8 +241,10 @@ pub(crate) fn timestamp_to_date(epoch_ms: u64) -> i32 {
 /// # Errors
 ///
 /// Returns [`DecodeError::TypeMismatch`] if the cell is neither a `Number`,
-/// `Timestamp`, nor `NullValue`, and [`DecodeError::MissingCell`] if the row
-/// has no cell at `idx` (out of bounds or protobuf oneof unset).
+/// `Timestamp`, nor `NullValue` — including the case where the `DataValue`
+/// arrived with its `data_type` oneof unset (`observed: "Unset"`), which is a
+/// wire-protocol anomaly we fail loud on. Returns [`DecodeError::MissingCell`]
+/// only when the row has fewer cells than `idx` (index out of bounds).
 // Reason: number values from protobuf fit in i32 for date/integer fields.
 #[allow(clippy::cast_possible_truncation)]
 pub(crate) fn row_date(row: &proto::DataValueList, idx: usize) -> Result<Option<i32>, DecodeError> {
@@ -424,8 +426,10 @@ pub fn extract_price_column(table: &proto::DataTable, header: &str) -> Vec<Optio
 ///   proto `Timestamp`; the parser expects milliseconds-of-day in Eastern Time.
 /// - `NullValue` → `Ok(None)`, matching Java `null` return.
 ///
-/// Any other variant produces [`DecodeError::TypeMismatch`]. A row shorter than
-/// `idx` (or a cell whose oneof is unset) produces [`DecodeError::MissingCell`].
+/// Any other variant produces [`DecodeError::TypeMismatch`], including the
+/// case where the `DataValue` arrived with its `data_type` oneof unset
+/// (`observed: "Unset"`) — a wire anomaly we fail loud on. A row shorter than
+/// `idx` (index out of bounds) produces [`DecodeError::MissingCell`].
 ///
 /// # Errors
 ///
@@ -677,12 +681,20 @@ pub fn parse_option_contracts_v3(
             let root = row_text(row, root_idx)?.unwrap_or_default();
 
             // Expiration: `Number` carries YYYYMMDD directly; `Text` carries
-            // an ISO "2026-04-13" that we parse here. Null / absent → 0.
+            // an ISO "2026-04-13" that we parse here. `NullValue` → 0 (legit
+            // null, coalesce). An unset oneof is a wire anomaly → TypeMismatch.
             let expiration = match exp_idx {
                 Some(i) => match cell_type(row, i)? {
                     Some(proto::data_value::DataType::Number(n)) => *n as i32,
                     Some(proto::data_value::DataType::Text(s)) => parse_iso_date(s),
-                    Some(proto::data_value::DataType::NullValue(_)) | None => 0,
+                    Some(proto::data_value::DataType::NullValue(_)) => 0,
+                    None => {
+                        return Err(DecodeError::TypeMismatch {
+                            column: i,
+                            expected: "Number|Text",
+                            observed: "Unset",
+                        });
+                    }
                     other => {
                         return Err(DecodeError::TypeMismatch {
                             column: i,
@@ -700,7 +712,8 @@ pub fn parse_option_contracts_v3(
             };
 
             // Right: `Number` carries the ASCII code directly; `Text` carries
-            // "PUT"/"CALL"/"P"/"C". Null / absent / unknown text → 0.
+            // "PUT"/"CALL"/"P"/"C". `NullValue` / unknown text → 0. An unset
+            // oneof is a wire anomaly → TypeMismatch.
             let right = match right_idx {
                 Some(i) => match cell_type(row, i)? {
                     Some(proto::data_value::DataType::Number(n)) => *n as i32,
@@ -709,7 +722,14 @@ pub fn parse_option_contracts_v3(
                         "PUT" | "P" => 80,  // ASCII 'P'
                         _ => 0,
                     },
-                    Some(proto::data_value::DataType::NullValue(_)) | None => 0,
+                    Some(proto::data_value::DataType::NullValue(_)) => 0,
+                    None => {
+                        return Err(DecodeError::TypeMismatch {
+                            column: i,
+                            expected: "Number|Text",
+                            observed: "Unset",
+                        });
+                    }
                     other => {
                         return Err(DecodeError::TypeMismatch {
                             column: i,
@@ -837,7 +857,8 @@ pub fn parse_calendar_days_v3(
         .iter()
         .map(|row| {
             // date: Number carries YYYYMMDD, Timestamp converts to ET date,
-            // Text "2025-01-01" parses to YYYYMMDD. Null/absent → 0.
+            // Text "2025-01-01" parses to YYYYMMDD. `NullValue` → 0 (legit
+            // null). Unset oneof is a wire anomaly → TypeMismatch.
             let date = match date_idx {
                 Some(i) => match cell_type(row, i)? {
                     Some(proto::data_value::DataType::Number(n)) => *n as i32,
@@ -845,7 +866,14 @@ pub fn parse_calendar_days_v3(
                         timestamp_to_date(ts.epoch_ms)
                     }
                     Some(proto::data_value::DataType::Text(s)) => parse_iso_date(s),
-                    Some(proto::data_value::DataType::NullValue(_)) | None => 0,
+                    Some(proto::data_value::DataType::NullValue(_)) => 0,
+                    None => {
+                        return Err(DecodeError::TypeMismatch {
+                            column: i,
+                            expected: "Number|Timestamp|Text",
+                            observed: "Unset",
+                        });
+                    }
                     other => {
                         return Err(DecodeError::TypeMismatch {
                             column: i,
@@ -858,7 +886,8 @@ pub fn parse_calendar_days_v3(
             };
 
             // type: Text "open"/"full_close"/"early_close"/"weekend"; Number
-            // kept as a future-proofing path. Null/absent → (0, 0).
+            // kept as a future-proofing path. `NullValue` → (0, 0). Unset
+            // oneof is a wire anomaly → TypeMismatch.
             let (is_open, status) = match type_idx {
                 Some(i) => match cell_type(row, i)? {
                     Some(proto::data_value::DataType::Text(s)) => calendar_type_text(s),
@@ -866,7 +895,14 @@ pub fn parse_calendar_days_v3(
                         let n = *n as i32;
                         (i32::from(n != 0), n)
                     }
-                    Some(proto::data_value::DataType::NullValue(_)) | None => (0, 0),
+                    Some(proto::data_value::DataType::NullValue(_)) => (0, 0),
+                    None => {
+                        return Err(DecodeError::TypeMismatch {
+                            column: i,
+                            expected: "Text|Number",
+                            observed: "Unset",
+                        });
+                    }
                     other => {
                         return Err(DecodeError::TypeMismatch {
                             column: i,
@@ -893,7 +929,8 @@ pub fn parse_calendar_days_v3(
 }
 
 /// Decode a calendar `open`/`close` column. `Text "HH:MM:SS"` → ms-of-day;
-/// `Number` kept as future-proofing. Null / absent column → 0.
+/// `Number` kept as future-proofing. `NullValue` / absent column → 0. An unset
+/// oneof is a wire anomaly → [`DecodeError::TypeMismatch`].
 fn decode_calendar_time(
     row: &proto::DataValueList,
     idx: Option<usize>,
@@ -904,7 +941,12 @@ fn decode_calendar_time(
     match cell_type(row, i)? {
         Some(proto::data_value::DataType::Text(s)) => Ok(parse_time_text(s)),
         Some(proto::data_value::DataType::Number(n)) => Ok(*n as i32),
-        Some(proto::data_value::DataType::NullValue(_)) | None => Ok(0),
+        Some(proto::data_value::DataType::NullValue(_)) => Ok(0),
+        None => Err(DecodeError::TypeMismatch {
+            column: i,
+            expected: "Text|Number",
+            observed: "Unset",
+        }),
         other => Err(DecodeError::TypeMismatch {
             column: i,
             expected: "Text|Number",
@@ -972,8 +1014,8 @@ mod tests {
 
     #[test]
     fn row_number_errors_on_unset_cell() {
-        // An oneof-unset DataValue is a wire-protocol anomaly. Java's
-        // `PojoMessageUtils.convert` hits the default arm for
+        // A DataValue with the oneof unset is a wire-protocol anomaly.
+        // Java's `PojoMessageUtils.convert` hits the default arm for
         // `DATATYPE_NOT_SET` and throws `IllegalArgumentException`; we
         // surface it as `TypeMismatch { observed: "Unset" }`.
         let row = row_of(vec![dv_missing()]);
@@ -1410,6 +1452,152 @@ mod tests {
         assert!(
             matches!(err, DecodeError::TypeMismatch { .. }),
             "expected TypeMismatch, got {err:?}"
+        );
+    }
+
+    // ─────────── Unset-oneof is an error at every strict decode site ───────────
+    //
+    // A `DataValue` with its `data_type` oneof unset is a wire-protocol
+    // anomaly (Java's `PojoMessageUtils.convert` default arm throws
+    // `IllegalArgumentException`). The helpers `row_number` / `row_date` /
+    // etc. already surface it as `TypeMismatch { observed: "Unset" }`. These
+    // tests pin the same behaviour on the call-sites that used to coalesce
+    // `NullValue | None` to zero: `parse_option_contracts_v3`,
+    // `parse_calendar_days_v3`, the generator-emitted EOD helpers, and the
+    // generator-emitted contract-id injected `expiration` / `right` fields.
+
+    #[test]
+    fn parse_option_contracts_v3_errors_on_unset_expiration() {
+        let table = proto::DataTable {
+            headers: vec!["root".into(), "expiration".into()],
+            data_table: vec![row_of(vec![dv_text("AAPL"), dv_missing()])],
+        };
+        assert_eq!(
+            parse_option_contracts_v3(&table).unwrap_err(),
+            DecodeError::TypeMismatch {
+                column: 1,
+                expected: "Number|Text",
+                observed: "Unset",
+            }
+        );
+    }
+
+    #[test]
+    fn parse_option_contracts_v3_errors_on_unset_right() {
+        let table = proto::DataTable {
+            headers: vec!["root".into(), "right".into()],
+            data_table: vec![row_of(vec![dv_text("AAPL"), dv_missing()])],
+        };
+        assert_eq!(
+            parse_option_contracts_v3(&table).unwrap_err(),
+            DecodeError::TypeMismatch {
+                column: 1,
+                expected: "Number|Text",
+                observed: "Unset",
+            }
+        );
+    }
+
+    #[test]
+    fn parse_calendar_days_v3_errors_on_unset_date() {
+        let table = proto::DataTable {
+            headers: vec!["date".into(), "type".into()],
+            data_table: vec![row_of(vec![dv_missing(), dv_text("open")])],
+        };
+        assert_eq!(
+            parse_calendar_days_v3(&table).unwrap_err(),
+            DecodeError::TypeMismatch {
+                column: 0,
+                expected: "Number|Timestamp|Text",
+                observed: "Unset",
+            }
+        );
+    }
+
+    #[test]
+    fn parse_calendar_days_v3_errors_on_unset_open_time() {
+        // `decode_calendar_time` is the helper covering both `open` and
+        // `close`; one test pins the shared path.
+        let table = proto::DataTable {
+            headers: vec!["type".into(), "open".into(), "close".into()],
+            data_table: vec![row_of(vec![
+                dv_text("open"),
+                dv_missing(),
+                dv_text("16:00:00"),
+            ])],
+        };
+        assert_eq!(
+            parse_calendar_days_v3(&table).unwrap_err(),
+            DecodeError::TypeMismatch {
+                column: 1,
+                expected: "Text|Number",
+                observed: "Unset",
+            }
+        );
+    }
+
+    #[test]
+    fn parse_eod_ticks_errors_on_unset_cell() {
+        // `parse_eod_ticks` is generator-emitted with the `eod_num` /
+        // `eod_date` / `eod_price` helpers; one test pins the shared path.
+        let table = proto::DataTable {
+            headers: vec!["timestamp".into(), "open".into()],
+            data_table: vec![row_of(vec![dv_missing(), dv_number(15000)])],
+        };
+        let err = parse_eod_ticks(&table).unwrap_err();
+        assert_eq!(
+            err,
+            DecodeError::TypeMismatch {
+                column: 0,
+                expected: "Number|Price|Timestamp",
+                observed: "Unset",
+            }
+        );
+    }
+
+    #[test]
+    fn parse_trade_ticks_errors_on_unset_injected_expiration() {
+        // `parse_trade_ticks` is generator-emitted with `contract_id = true`;
+        // an `expiration` header in the server payload triggers the injected
+        // `expiration` / `strike` / `right` decode. An unset cell there used
+        // to coalesce to 0; now it must fail loud.
+        let table = proto::DataTable {
+            headers: vec!["ms_of_day".into(), "price".into(), "expiration".into()],
+            data_table: vec![row_of(vec![
+                dv_number(34_200_000),
+                dv_price(15000, 10),
+                dv_missing(),
+            ])],
+        };
+        let err = parse_trade_ticks(&table).unwrap_err();
+        assert_eq!(
+            err,
+            DecodeError::TypeMismatch {
+                column: 2,
+                expected: "Number|Text",
+                observed: "Unset",
+            }
+        );
+    }
+
+    #[test]
+    fn parse_trade_ticks_errors_on_unset_injected_right() {
+        let table = proto::DataTable {
+            headers: vec!["ms_of_day".into(), "price".into(), "right".into()],
+            data_table: vec![row_of(vec![
+                dv_number(34_200_000),
+                dv_price(15000, 10),
+                dv_missing(),
+            ])],
+        };
+        let err = parse_trade_ticks(&table).unwrap_err();
+        assert_eq!(
+            err,
+            DecodeError::TypeMismatch {
+                column: 2,
+                expected: "Number|Text",
+                observed: "Unset",
+            }
         );
     }
 }

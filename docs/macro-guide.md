@@ -46,7 +46,7 @@ parsed_endpoint! {
         date: date.to_string(),
         ivl: interval.to_string(),
     };
-    parse: decode::parse_ohlc_ticks;  // DataTable -> Vec<T> parser
+    parse: decode::parse_ohlc_ticks;  // DataTable -> Result<Vec<T>, DecodeError> parser
     dates: date;                      // optional: validate YYYYMMDD format
     optional {                        // optional params (chainable setters)
         venue: opt_str = None,

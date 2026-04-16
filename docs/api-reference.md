@@ -1762,9 +1762,9 @@ pub fn decompress_response(response: &ResponseData) -> Result<Vec<u8>, Error>
 pub fn extract_number_column(table: &DataTable, header: &str) -> Vec<Option<i64>>
 pub fn extract_text_column(table: &DataTable, header: &str) -> Vec<Option<String>>
 pub fn extract_price_column(table: &DataTable, header: &str) -> Vec<Option<Price>>
-pub fn parse_trade_ticks(table: &DataTable) -> Vec<TradeTick>
-pub fn parse_quote_ticks(table: &DataTable) -> Vec<QuoteTick>
-pub fn parse_ohlc_ticks(table: &DataTable) -> Vec<OhlcTick>
+pub fn parse_trade_ticks(table: &DataTable) -> Result<Vec<TradeTick>, DecodeError>
+pub fn parse_quote_ticks(table: &DataTable) -> Result<Vec<QuoteTick>, DecodeError>
+pub fn parse_ohlc_ticks(table: &DataTable) -> Result<Vec<OhlcTick>, DecodeError>
 ```
 
 ---
