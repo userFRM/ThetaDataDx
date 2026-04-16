@@ -1204,9 +1204,40 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             .unwrap();
             out.push_str("        let result = py.detach(move || {\n");
             out.push_str(
-                "            let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());\n",
+                "            // Poll with `try_recv` + short sleep so the inner lock is only\n",
             );
-            out.push_str("            rx.recv_timeout(timeout).ok()\n");
+            out.push_str(
+                "            // held for nanoseconds per iteration. A blocking `recv_timeout`\n",
+            );
+            out.push_str(
+                "            // would pin the mutex for the full timeout and serialize any\n",
+            );
+            out.push_str(
+                "            // concurrent `next_event` / `reconnect` caller behind it.\n",
+            );
+            out.push_str("            let deadline = std::time::Instant::now() + timeout;\n");
+            out.push_str("            let poll_interval = std::time::Duration::from_millis(1);\n");
+            out.push_str("            loop {\n");
+            out.push_str("                {\n");
+            out.push_str(
+                "                    let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());\n",
+            );
+            out.push_str("                    match rx.try_recv() {\n");
+            out.push_str("                        Ok(event) => return Some(event),\n");
+            out.push_str("                        Err(std::sync::mpsc::TryRecvError::Disconnected) => return None,\n");
+            out.push_str(
+                "                        Err(std::sync::mpsc::TryRecvError::Empty) => {}\n",
+            );
+            out.push_str("                    }\n");
+            out.push_str("                }\n");
+            out.push_str("                let now = std::time::Instant::now();\n");
+            out.push_str("                if now >= deadline {\n");
+            out.push_str("                    return None;\n");
+            out.push_str("                }\n");
+            out.push_str(
+                "                std::thread::sleep(poll_interval.min(deadline - now));\n",
+            );
+            out.push_str("            }\n");
             out.push_str("        });\n");
             out.push_str("        match result {\n");
             out.push_str(
