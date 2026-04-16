@@ -207,7 +207,7 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
     // Required header guards (non-eod only).
     if !def.eod_style {
         for req in &def.required {
-            let var = idx_var_name(req);
+            let var = format!("{req}_idx");
             writeln!(out,
                 "    let Some({var}) = find_header(&h, \"{req}\") else {{\n        return vec![];\n    }};"
             ).unwrap();
@@ -219,7 +219,7 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
 
     // Declare index variables for all columns.
     for col in &def.columns {
-        let var = idx_var_name(&col.name);
+        let var = format!("{}_idx", col.name);
         if def.eod_style {
             writeln!(out, "    let {var} = find(\"{}\");", col.name).unwrap();
         } else if def.required.contains(&col.name) {
@@ -256,7 +256,7 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
     }
 
     for col in &def.columns {
-        let var = idx_var_name(&col.name);
+        let var = format!("{}_idx", col.name);
         let is_required = def.required.contains(&col.name);
 
         match col.r#type.as_str() {
@@ -405,10 +405,6 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
     out.push_str("}\n\n");
 }
 
-/// Convert a column name to a consistent index variable name.
-fn idx_var_name(name: &str) -> String {
-    format!("{name}_idx")
-}
 use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::path::Path;
