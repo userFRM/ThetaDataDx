@@ -23,6 +23,24 @@ const (
 	FpssRawDataEvent      FpssEventKind = 5
 )
 
+// FpssControlKind identifies the sub-type of a control event.
+// Use with FpssControlData.Kind.
+type FpssControlKind = int32
+
+const (
+	FpssCtrlLoginSuccess      FpssControlKind = 0
+	FpssCtrlContractAssigned  FpssControlKind = 1
+	FpssCtrlReqResponse       FpssControlKind = 2
+	FpssCtrlMarketOpen        FpssControlKind = 3
+	FpssCtrlMarketClose       FpssControlKind = 4
+	FpssCtrlServerError       FpssControlKind = 5
+	FpssCtrlDisconnected      FpssControlKind = 6
+	FpssCtrlReconnecting      FpssControlKind = 8
+	FpssCtrlReconnected       FpssControlKind = 9
+	FpssCtrlError             FpssControlKind = 10
+	FpssCtrlUnknownFrame      FpssControlKind = 11 // ID = frame code, Detail = hex payload
+)
+
 // FpssQuote is a real-time quote event from FPSS.
 // Bid and Ask are pre-decoded to float64 at parse time.
 type FpssQuote struct {
