@@ -403,10 +403,11 @@ pub fn json_to_csv(response: &[sonic_rs::Value]) -> Option<String> {
 
     if let Some(obj) = first.as_object() {
         let null_val = sonic_rs::Value::default();
-        let keys: Vec<&str> = obj.iter().map(|(k, _)| k).collect();
+        let mut keys: Vec<&str> = obj.iter().map(|(k, _)| k).collect();
         if keys.is_empty() {
             return None;
         }
+        keys.sort_unstable();
 
         for (i, key) in keys.iter().enumerate() {
             if i > 0 {
@@ -488,7 +489,7 @@ mod tests {
         ])
         .expect("object rows should format as CSV");
 
-        assert_eq!(csv, "symbol,count\nAAPL,1\nMSFT,2\n");
+        assert_eq!(csv, "count,symbol\n1,AAPL\n2,MSFT\n");
     }
 
     #[test]
