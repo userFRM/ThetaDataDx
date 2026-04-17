@@ -70,6 +70,9 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/install-protoc
       - run: python3 scripts/check_docs_consistency.py
@@ -81,6 +84,12 @@ jobs:
       - run: cargo test --manifest-path tools/server/Cargo.toml --locked
       - run: cargo check --manifest-path sdks/python/Cargo.toml --locked
       - run: cargo check --manifest-path sdks/typescript/Cargo.toml --locked
+      - name: TypeScript SDK build + test
+        working-directory: sdks/typescript
+        run: |
+          npm install
+          npm run build
+          npm test
 
   sdk-bindings:
     name: SDK Bindings (${{ matrix.os }})

@@ -66,6 +66,12 @@ auto creds = tdx::Credentials::from_file("creds.txt");
 auto config = tdx::Config::production();
 tdx::FpssClient fpss(creds, config);
 ```
+```typescript [TypeScript]
+import { ThetaDataDx } from 'thetadatadx';
+
+const tdx = await ThetaDataDx.connectFromFile('creds.txt');
+tdx.startStreaming();
+```
 :::
 
 ::: tip
@@ -92,6 +98,11 @@ fpss, _ := thetadatadx.NewFpssClient(creds, config)
 auto config = tdx::Config::dev();
 tdx::FpssClient fpss(creds, config);
 ```
+```typescript [TypeScript]
+// Dev server config is not yet exposed in the TypeScript SDK.
+// connectFromFile() always uses production config.
+const tdx = await ThetaDataDx.connectFromFile('creds.txt');
+```
 :::
 
 ::: info Dev server trade format
@@ -115,6 +126,11 @@ fpss, _ := thetadatadx.NewFpssClient(creds, config)
 ```cpp [C++]
 auto config = tdx::Config::stage();
 tdx::FpssClient fpss(creds, config);
+```
+```typescript [TypeScript]
+// Stage server config is not yet exposed in the TypeScript SDK.
+// connectFromFile() always uses production config.
+const tdx = await ThetaDataDx.connectFromFile('creds.txt');
 ```
 :::
 
@@ -151,6 +167,11 @@ fpss, _ := thetadatadx.NewFpssClient(creds, config)
 auto config = tdx::Config::production();
 config.set_flush_mode(tdx::FlushMode::Immediate);
 tdx::FpssClient fpss(creds, config);
+```
+```typescript [TypeScript]
+// Flush mode cannot currently be changed from the TypeScript SDK.
+// It defaults to Batched (flush on PING frames, ~100ms).
+const tdx = await ThetaDataDx.connectFromFile('creds.txt');
 ```
 :::
 
@@ -196,6 +217,14 @@ fpss, _ := thetadatadx.NewFpssClient(creds, config)
 //   hosts = ["host-a.example.com:20000", "host-b.example.com:20001"]
 auto config = tdx::Config::production();
 tdx::FpssClient fpss(creds, config);
+```
+```typescript [TypeScript]
+// Custom hosts are configured at the Rust level via DirectConfig or
+// TOML config file. TypeScript inherits them from the config at connection time.
+// Set hosts in config.toml:
+//   [fpss]
+//   hosts = ["host-a.example.com:20000", "host-b.example.com:20001"]
+const tdx = await ThetaDataDx.connectFromFile('creds.txt');
 ```
 :::
 
@@ -306,6 +335,22 @@ fpss.subscribe_full_trades("STOCK");
 // All open interest for a security type
 fpss.subscribe_full_open_interest("OPTION");
 ```
+```typescript [TypeScript]
+// Stock quotes
+tdx.subscribeQuotes('AAPL');
+
+// Stock trades
+tdx.subscribeTrades('MSFT');
+
+// Open interest
+tdx.subscribeOpenInterest('AAPL');
+
+// All trades for a security type (firehose)
+tdx.subscribeFullTrades('STOCK');
+
+// All open interest for a security type
+tdx.subscribeFullOpenInterest('OPTION');
+```
 :::
 
 ## Contract ID Mapping
@@ -379,6 +424,16 @@ for (const auto& sub : subs) {
     std::cout << "  " << sub.kind << ": " << sub.contract << std::endl;
 }
 ```
+```typescript [TypeScript]
+// Get the full contract map
+const contracts = tdx.contractMap();
+
+// Look up a single contract by ID
+const contract = tdx.contractLookup(42);
+
+// List all active subscriptions
+const subs = tdx.activeSubscriptions();
+```
 :::
 
 ## Unsubscribe
@@ -412,6 +467,13 @@ fpss.unsubscribe_open_interest("AAPL");
 fpss.unsubscribe_full_trades("STOCK");
 fpss.unsubscribe_full_open_interest("OPTION");
 ```
+```typescript [TypeScript]
+tdx.unsubscribeQuotes('AAPL');
+tdx.unsubscribeTrades('MSFT');
+tdx.unsubscribeOpenInterest('AAPL');
+tdx.unsubscribeFullTrades('STOCK');
+tdx.unsubscribeFullOpenInterest('OPTION');
+```
 :::
 
 ## Stop Streaming
@@ -429,5 +491,8 @@ fpss.Shutdown()
 ```cpp [C++]
 fpss.shutdown();
 // RAII also handles cleanup: the FpssClient destructor calls shutdown() automatically.
+```
+```typescript [TypeScript]
+tdx.stopStreaming();
 ```
 :::
