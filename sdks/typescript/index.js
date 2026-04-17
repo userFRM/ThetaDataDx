@@ -37,7 +37,7 @@ switch (platform) {
           if (localFileExisted) {
             nativeBinding = require('./thetadatadx.android-arm64.node')
           } else {
-            nativeBinding = require('thetadatadx-android-arm64')
+            throw new Error('Unsupported platform: thetadatadx-android-arm64 is not included in this distribution. Supported: linux-x64-gnu, darwin-arm64, win32-x64-msvc.')
           }
         } catch (e) {
           loadError = e
@@ -49,7 +49,7 @@ switch (platform) {
           if (localFileExisted) {
             nativeBinding = require('./thetadatadx.android-arm-eabi.node')
           } else {
-            nativeBinding = require('thetadatadx-android-arm-eabi')
+            throw new Error('Unsupported platform: thetadatadx-android-arm-eabi is not included in this distribution. Supported: linux-x64-gnu, darwin-arm64, win32-x64-msvc.')
           }
         } catch (e) {
           loadError = e
@@ -83,7 +83,7 @@ switch (platform) {
           if (localFileExisted) {
             nativeBinding = require('./thetadatadx.win32-ia32-msvc.node')
           } else {
-            nativeBinding = require('thetadatadx-win32-ia32-msvc')
+            throw new Error('Unsupported platform: thetadatadx-win32-ia32-msvc is not included in this distribution. Supported: linux-x64-gnu, darwin-arm64, win32-x64-msvc.')
           }
         } catch (e) {
           loadError = e
@@ -97,7 +97,7 @@ switch (platform) {
           if (localFileExisted) {
             nativeBinding = require('./thetadatadx.win32-arm64-msvc.node')
           } else {
-            nativeBinding = require('thetadatadx-win32-arm64-msvc')
+            throw new Error('Unsupported platform: thetadatadx-win32-arm64-msvc is not included in this distribution. Supported: linux-x64-gnu, darwin-arm64, win32-x64-msvc.')
           }
         } catch (e) {
           loadError = e
@@ -124,7 +124,7 @@ switch (platform) {
           if (localFileExisted) {
             nativeBinding = require('./thetadatadx.darwin-x64.node')
           } else {
-            nativeBinding = require('thetadatadx-darwin-x64')
+            throw new Error('Unsupported platform: thetadatadx-darwin-x64 is not included in this distribution. Supported: linux-x64-gnu, darwin-arm64, win32-x64-msvc.')
           }
         } catch (e) {
           loadError = e
@@ -157,7 +157,7 @@ switch (platform) {
       if (localFileExisted) {
         nativeBinding = require('./thetadatadx.freebsd-x64.node')
       } else {
-        nativeBinding = require('thetadatadx-freebsd-x64')
+        throw new Error('Unsupported platform: thetadatadx-freebsd-x64 is not included in this distribution. Supported: linux-x64-gnu, darwin-arm64, win32-x64-msvc.')
       }
     } catch (e) {
       loadError = e
@@ -174,7 +174,7 @@ switch (platform) {
             if (localFileExisted) {
               nativeBinding = require('./thetadatadx.linux-x64-musl.node')
             } else {
-              nativeBinding = require('thetadatadx-linux-x64-musl')
+              throw new Error('Unsupported platform: thetadatadx-linux-x64-musl is not included in this distribution. Supported: linux-x64-gnu, darwin-arm64, win32-x64-msvc.')
             }
           } catch (e) {
             loadError = e
@@ -203,7 +203,7 @@ switch (platform) {
             if (localFileExisted) {
               nativeBinding = require('./thetadatadx.linux-arm64-musl.node')
             } else {
-              nativeBinding = require('thetadatadx-linux-arm64-musl')
+              throw new Error('Unsupported platform: thetadatadx-linux-arm64-musl is not included in this distribution. Supported: linux-x64-gnu, darwin-arm64, win32-x64-msvc.')
             }
           } catch (e) {
             loadError = e
@@ -216,7 +216,7 @@ switch (platform) {
             if (localFileExisted) {
               nativeBinding = require('./thetadatadx.linux-arm64-gnu.node')
             } else {
-              nativeBinding = require('thetadatadx-linux-arm64-gnu')
+              throw new Error('Unsupported platform: thetadatadx-linux-arm64-gnu is not included in this distribution. Supported: linux-x64-gnu, darwin-arm64, win32-x64-msvc.')
             }
           } catch (e) {
             loadError = e
@@ -245,7 +245,7 @@ switch (platform) {
             if (localFileExisted) {
               nativeBinding = require('./thetadatadx.linux-arm-gnueabihf.node')
             } else {
-              nativeBinding = require('thetadatadx-linux-arm-gnueabihf')
+              throw new Error('Unsupported platform: thetadatadx-linux-arm-gnueabihf is not included in this distribution. Supported: linux-x64-gnu, darwin-arm64, win32-x64-msvc.')
             }
           } catch (e) {
             loadError = e
