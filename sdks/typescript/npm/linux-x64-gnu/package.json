@@ -1,0 +1,26 @@
+{
+  "name": "thetadatadx-linux-x64-gnu",
+  "version": "7.3.0",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "main": "thetadatadx.linux-x64-gnu.node",
+  "files": [
+    "thetadatadx.linux-x64-gnu.node"
+  ],
+  "description": "Native ThetaData SDK for Node.js — powered by Rust via napi-rs",
+  "license": "GPL-3.0-or-later",
+  "engines": {
+    "node": ">= 18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/userFRM/ThetaDataDx"
+  },
+  "libc": [
+    "glibc"
+  ]
+}
