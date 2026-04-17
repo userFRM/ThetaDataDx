@@ -280,7 +280,7 @@ jobs:
           else
             echo "body_path=" >> "$GITHUB_OUTPUT"
           fi
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
           body_path: ${{ steps.release_notes.outputs.body_path }}
