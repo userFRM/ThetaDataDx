@@ -113,7 +113,7 @@ switch (platform) {
       if (localFileExisted) {
         nativeBinding = require('./thetadatadx.darwin-universal.node')
       } else {
-        nativeBinding = require('thetadatadx-darwin-universal')
+        throw new Error('Unsupported platform: thetadatadx-darwin-universal is not included. Supported: linux-x64-gnu, darwin-arm64, win32-x64-msvc.')
       }
       break
     } catch {}
@@ -232,7 +232,7 @@ switch (platform) {
             if (localFileExisted) {
               nativeBinding = require('./thetadatadx.linux-arm-musleabihf.node')
             } else {
-              nativeBinding = require('thetadatadx-linux-arm-musleabihf')
+              throw new Error('Unsupported platform: thetadatadx-linux-arm-musleabihf is not included. Supported: linux-x64-gnu, darwin-arm64, win32-x64-msvc.')
             }
           } catch (e) {
             loadError = e
@@ -261,7 +261,7 @@ switch (platform) {
             if (localFileExisted) {
               nativeBinding = require('./thetadatadx.linux-riscv64-musl.node')
             } else {
-              nativeBinding = require('thetadatadx-linux-riscv64-musl')
+              throw new Error('Unsupported platform: thetadatadx-linux-riscv64-musl is not included. Supported: linux-x64-gnu, darwin-arm64, win32-x64-msvc.')
             }
           } catch (e) {
             loadError = e
@@ -274,7 +274,7 @@ switch (platform) {
             if (localFileExisted) {
               nativeBinding = require('./thetadatadx.linux-riscv64-gnu.node')
             } else {
-              nativeBinding = require('thetadatadx-linux-riscv64-gnu')
+              throw new Error('Unsupported platform: thetadatadx-linux-riscv64-gnu is not included. Supported: linux-x64-gnu, darwin-arm64, win32-x64-msvc.')
             }
           } catch (e) {
             loadError = e
@@ -289,7 +289,7 @@ switch (platform) {
           if (localFileExisted) {
             nativeBinding = require('./thetadatadx.linux-s390x-gnu.node')
           } else {
-            nativeBinding = require('thetadatadx-linux-s390x-gnu')
+            throw new Error('Unsupported platform: thetadatadx-linux-s390x-gnu is not included. Supported: linux-x64-gnu, darwin-arm64, win32-x64-msvc.')
           }
         } catch (e) {
           loadError = e
