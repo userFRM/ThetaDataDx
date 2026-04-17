@@ -23,7 +23,7 @@
   "scripts": {
     "build": "napi build --platform --release",
     "build:debug": "napi build --platform",
-    "prepublishOnly": "napi prepublish --skip-gh-release",
+    "prepublishOnly": "napi prepublish",
     "test": "node --test __tests__/basic.test.mjs",
     "version": "napi version"
   },
