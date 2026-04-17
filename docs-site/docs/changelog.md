@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [7.3.1] - 2026-04-16
+
+### Added
+
+- **npm pre-built native binaries for Linux x64, macOS arm64, Windows x64** (#335) -- `npm install thetadatadx` now works without a Rust toolchain. Platform-specific packages (`thetadatadx-linux-x64-gnu`, `thetadatadx-darwin-arm64`, `thetadatadx-win32-x64-msvc`) are selected automatically via `optionalDependencies`. Unsupported platforms get a clear error message at import time. CI publishes all platform packages via GitHub Actions with OIDC provenance.
+
 ## [7.3.0] - 2026-04-16
 
 ### Added

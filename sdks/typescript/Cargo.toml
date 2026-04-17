@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-napi"
-version = "7.3.0"
+version = "7.3.1"
 edition = "2021"
 description = "TypeScript/Node.js bindings for thetadatadx — native ThetaData SDK powered by Rust"
 license = "GPL-3.0-or-later"
