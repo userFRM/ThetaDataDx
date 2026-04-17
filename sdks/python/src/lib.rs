@@ -435,6 +435,29 @@ fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                 detail: Some(message.clone()),
                 id: None,
             },
+            fpss::FpssControl::Reconnecting { reason, attempt, delay_ms } => BufferedEvent::Simple {
+                kind: "reconnecting".to_string(),
+                detail: Some(format!("reason={reason:?} attempt={attempt} delay_ms={delay_ms}")),
+                id: None,
+            },
+            fpss::FpssControl::Reconnected => BufferedEvent::Simple {
+                kind: "reconnected".to_string(),
+                detail: None,
+                id: None,
+            },
+            fpss::FpssControl::MarketClose => BufferedEvent::Simple {
+                kind: "market_close".to_string(),
+                detail: None,
+                id: None,
+            },
+            fpss::FpssControl::UnknownFrame { code, payload } => BufferedEvent::Simple {
+                kind: "unknown_frame".to_string(),
+                detail: Some(format!(
+                    "code={code} payload_hex={}",
+                    payload.iter().map(|b| format!("{b:02x}")).collect::<String>()
+                )),
+                id: None,
+            },
             _ => BufferedEvent::Simple {
                 kind: "unknown_control".to_string(),
                 detail: None,

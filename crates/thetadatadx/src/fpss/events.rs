@@ -137,6 +137,9 @@ pub enum FpssControl {
     Reconnected,
     /// Protocol-level parse error.
     Error { message: String },
+    /// Server sent a frame with an unrecognized code. Raw bytes preserved
+    /// for diagnostics / upstream bug reports.
+    UnknownFrame { code: u8, payload: Vec<u8> },
 }
 
 /// All FPSS events -- either data or control.

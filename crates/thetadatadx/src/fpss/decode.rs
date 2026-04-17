@@ -440,10 +440,18 @@ pub(super) fn decode_frame(
             )
         }
 
-        // Ignore frame types we don't handle (e.g., server sending PING)
+        // Emit unrecognized frame codes as UnknownFrame events with raw
+        // payload bytes preserved. This lets users capture broken frames
+        // for upstream bug reports instead of silently dropping them.
         other => {
-            tracing::trace!(code = ?other, "ignoring unhandled frame type");
-            (None, None)
+            tracing::warn!(code = ?other, payload_len = payload.len(), "unrecognized FPSS frame code");
+            (
+                Some(FpssEvent::Control(FpssControl::UnknownFrame {
+                    code: other as u8,
+                    payload: payload.to_vec(),
+                })),
+                None,
+            )
         }
     }
 }
