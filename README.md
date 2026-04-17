@@ -107,10 +107,7 @@ for (const tick of eod) {
 
 ## Streaming
 
-> [!WARNING]
-> Both MDDS (historical) and FPSS (real-time streaming) are **production-ready**. The SDK auto-reconnects and re-subscribes all active contracts on involuntary disconnect — verified via 42M-event soak test with zero data loss after recovery.
-
-One connection, one auth. Historical available immediately, streaming connects lazily.
+One connection, one auth. Historical available immediately, streaming connects lazily. Auto-reconnects and re-subscribes all active contracts on involuntary disconnect.
 
 ```rust
 use thetadatadx::fpss::{FpssData, FpssEvent};
