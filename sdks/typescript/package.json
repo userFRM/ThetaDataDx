@@ -11,15 +11,29 @@
   "types": "index.d.ts",
   "napi": {
     "name": "thetadatadx",
-    "triples": {}
+    "triples": {
+      "defaults": false,
+      "additional": [
+        "x86_64-unknown-linux-gnu",
+        "aarch64-apple-darwin",
+        "x86_64-pc-windows-msvc"
+      ]
+    }
   },
   "scripts": {
-    "build": "napi build --release",
-    "build:debug": "napi build",
-    "test": "node --test __tests__/basic.test.mjs"
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform",
+    "prepublishOnly": "napi prepublish --skip-gh-release",
+    "test": "node --test __tests__/basic.test.mjs",
+    "version": "napi version"
   },
   "devDependencies": {
     "@napi-rs/cli": "^2.18.0"
+  },
+  "optionalDependencies": {
+    "thetadatadx-linux-x64-gnu": "7.3.0",
+    "thetadatadx-darwin-arm64": "7.3.0",
+    "thetadatadx-win32-x64-msvc": "7.3.0"
   },
   "engines": {
     "node": ">= 18"

@@ -21,24 +21,45 @@ env:
 
 jobs:
   build:
-    name: Build + Test
-    runs-on: ubuntu-latest
+    name: Build (${{ matrix.target }})
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-          registry-url: "https://registry.npmjs.org"
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
       - uses: ./.github/actions/install-protoc
       - working-directory: sdks/typescript
         run: npm install
-      - working-directory: sdks/typescript
-        run: npm run build
-      - working-directory: sdks/typescript
+      - name: Build native addon
+        working-directory: sdks/typescript
+        run: npx napi build --platform --release --target ${{ matrix.target }} --strip
+      - name: Test
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        working-directory: sdks/typescript
         run: npm test
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bindings-${{ matrix.target }}
+          path: sdks/typescript/thetadatadx.*.node
+          if-no-files-found: error
 
   publish:
     name: Publish to npm
@@ -50,16 +71,30 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
-      - uses: Swatinem/rust-cache@v2
-      - uses: ./.github/actions/install-protoc
       - working-directory: sdks/typescript
         run: npm install
-      - working-directory: sdks/typescript
-        run: npm run build
-      - working-directory: sdks/typescript
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: sdks/typescript/artifacts
+      - name: Move binaries into platform packages
+        working-directory: sdks/typescript
+        run: npx napi artifacts --dir artifacts
+      - name: List platform packages
+        working-directory: sdks/typescript
+        run: ls -lR npm/
+      - name: Publish platform packages
+        working-directory: sdks/typescript
+        run: |
+          for dir in npm/*/; do
+            if ls "$dir"/*.node 1>/dev/null 2>&1; then
+              npm publish "$dir" --provenance --access public
+            fi
+          done
+      - name: Publish root package
+        working-directory: sdks/typescript
         run: npm publish --provenance --access public
