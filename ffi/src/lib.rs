@@ -585,6 +585,16 @@ fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
                 ),
                 FpssControl::Reconnected => (9, 0, None),
                 FpssControl::Error { message } => (10, 0, Some(message.clone())),
+                FpssControl::UnknownFrame { code, payload } => (
+                    11,
+                    *code as i32,
+                    Some(
+                        payload
+                            .iter()
+                            .map(|b| format!("{b:02x}"))
+                            .collect::<String>(),
+                    ),
+                ),
                 _ => (99, 0, None), // unknown control
             };
             let cstring = detail_str.and_then(|s| CString::new(s).ok());

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [7.3.0] - 2026-04-16
+
+### Added
+
+- **TypeScript/Node.js SDK via napi-rs** (#332) -- native addon exposing all 61 historical endpoints, 20+ streaming methods, and 13 tick types to Node.js 18+. Every method, type, and streaming dispatch is SSOT-generated from the same TOML surface that drives Python, Go, and C++. TypeScript type definitions included. CI builds and smoke-tests on every PR. npm publish workflow coming in a follow-up.
+
+### Fixed
+
+- **FPSS auto-reconnect now re-subscribes all active contracts** (#333) -- the `io_loop` reconnect path authenticated successfully but never re-sent subscription frames, so data stopped flowing after an involuntary disconnect. `active_subs` and `active_full_subs` are now shared via `Arc<Mutex<...>>` between the client and the I/O thread; after reconnect login, every active subscription is re-sent before draining the command channel.
+- **Unrecognized FPSS frame codes now emitted as `UnknownFrame` with raw bytes** -- previously logged at trace level and silently dropped, so users had no visibility into unexpected server frames. Now surfaced as `FpssControl::UnknownFrame { code, payload }` with hex-encoded wire bytes in the Python and TypeScript SDKs.
+- **Python and TypeScript SDKs explicitly map `Reconnecting`, `Reconnected`, and `MarketClose` control events** -- these previously fell through to the catch-all `"unknown_control"` label, which was confusing in soak-test logs.
+- **FFI + Go SDK now expose `UnknownFrame` with raw payload bytes** -- the C FFI bridge maps `UnknownFrame` to kind 11 with the hex-encoded payload in the detail field (was kind 99 with no detail). Go SDK adds the `FpssCtrlUnknownFrame` constant and a complete control-kind enum for all 11 event types. All four SDKs (Python, TypeScript, Go, C++) now surface unrecognized server frames consistently.
+
+### Changed
+
+- **`active_subs` / `active_full_subs` promoted to `Arc<Mutex<...>>`** (#333) -- subscription tables are now shared between the `FpssClient` and the `io_loop` thread so the reconnect path can read them without a command-channel round-trip. Snapshots are cloned before writing frames to avoid holding the lock during I/O.
+
 ## [7.2.1] - 2026-04-16
 
 ### Fixed
