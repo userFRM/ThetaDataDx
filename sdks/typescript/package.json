@@ -28,7 +28,7 @@
     "version": "napi version"
   },
   "devDependencies": {
-    "@napi-rs/cli": "^2.18.0"
+    "@napi-rs/cli": "^3.6.2"
   },
   "optionalDependencies": {
     "thetadatadx-linux-x64-gnu": "7.3.1",
