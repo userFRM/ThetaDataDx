@@ -26,7 +26,7 @@ jobs:
       - run: python3 scripts/check_docs_consistency.py
       - run: cd docs-site && npm ci
       - run: cd docs-site && npx vitepress build docs
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: docs-site/docs/.vitepress/dist
       - id: deployment
