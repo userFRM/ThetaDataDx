@@ -151,10 +151,10 @@ pub struct FpssClient {
     /// Monotonically increasing request ID counter.
     next_req_id: AtomicI32,
     /// Active per-contract subscriptions for reconnection.
-    pub(in crate::fpss) active_subs: Mutex<Vec<(SubscriptionKind, Contract)>>,
+    pub(in crate::fpss) active_subs: Arc<Mutex<Vec<(SubscriptionKind, Contract)>>>,
     /// Active full-type (firehose) subscriptions for reconnection.
     pub(in crate::fpss) active_full_subs:
-        Mutex<Vec<(SubscriptionKind, tdbe::types::enums::SecType)>>,
+        Arc<Mutex<Vec<(SubscriptionKind, tdbe::types::enums::SecType)>>>,
     /// Server-assigned contract ID mapping.
     contract_map: Arc<Mutex<HashMap<i32, Contract>>>,
     /// The server address we connected to.
@@ -295,6 +295,11 @@ impl FpssClient {
         let shutdown = Arc::new(AtomicBool::new(false));
         let authenticated = Arc::new(AtomicBool::new(true));
         let contract_map = Arc::new(Mutex::new(HashMap::new()));
+        let active_subs: Arc<Mutex<Vec<(protocol::SubscriptionKind, protocol::Contract)>>> =
+            Arc::new(Mutex::new(Vec::new()));
+        let active_full_subs: Arc<
+            Mutex<Vec<(protocol::SubscriptionKind, tdbe::types::enums::SecType)>>,
+        > = Arc::new(Mutex::new(Vec::new()));
 
         // Command channel: FpssClient -> I/O thread
         let (cmd_tx, cmd_rx) = std_mpsc::channel::<IoCommand>();
@@ -309,6 +314,8 @@ impl FpssClient {
         let io_server_addr = server_addr.clone();
         let io_creds = creds.clone();
         let io_hosts = hosts.to_vec();
+        let io_active_subs = Arc::clone(&active_subs);
+        let io_active_full_subs = Arc::clone(&active_full_subs);
 
         let io_handle = thread::Builder::new()
             .name("fpss-io".to_owned())
@@ -328,6 +335,8 @@ impl FpssClient {
                     policy,
                     io_creds,
                     io_hosts,
+                    io_active_subs,
+                    io_active_full_subs,
                 );
             })
             .map_err(|e| Error::Fpss {
@@ -356,8 +365,8 @@ impl FpssClient {
             shutdown,
             authenticated,
             next_req_id: AtomicI32::new(1),
-            active_subs: Mutex::new(Vec::new()),
-            active_full_subs: Mutex::new(Vec::new()),
+            active_subs,
+            active_full_subs,
             contract_map,
             server_addr,
         })

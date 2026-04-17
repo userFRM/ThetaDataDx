@@ -124,6 +124,15 @@ pub(super) fn io_loop<F>(
     policy: ReconnectPolicy,
     creds: Credentials,
     hosts: Vec<(String, u16)>,
+    active_subs: Arc<Mutex<Vec<(super::protocol::SubscriptionKind, Contract)>>>,
+    active_full_subs: Arc<
+        Mutex<
+            Vec<(
+                super::protocol::SubscriptionKind,
+                tdbe::types::enums::SecType,
+            )>,
+        >,
+    >,
 ) where
     F: FnMut(&FpssEvent) + Send + 'static,
 {
@@ -437,8 +446,43 @@ pub(super) fn io_loop<F>(
         // Replace the reader with the new stream.
         reader = BufReader::new(new_stream);
 
+        // Re-subscribe all active subscriptions on the new connection.
+        // Source: FPSSClient.java METADATA handler iterates activeQuotes +
+        // activeTrades and re-sends each. Without this, the server accepts
+        // the login but receives no subscribe commands → data stops flowing.
+        {
+            let subs = active_subs
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            for (kind, contract) in subs.iter() {
+                let payload = protocol::build_subscribe_payload(-1, contract);
+                let code = kind.subscribe_code();
+                let writer = reader.get_mut();
+                if let Err(e) = write_raw_frame(writer, code, &payload) {
+                    tracing::warn!(error = %e, contract = %contract, "failed to re-subscribe on reconnect");
+                } else {
+                    tracing::debug!(kind = ?kind, contract = %contract, "re-subscribed on auto-reconnect");
+                }
+            }
+        }
+        {
+            let full_subs = active_full_subs
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            for (kind, sec_type) in full_subs.iter() {
+                let payload = protocol::build_full_type_subscribe_payload(-1, *sec_type);
+                let code = kind.subscribe_code();
+                let writer = reader.get_mut();
+                if let Err(e) = write_raw_frame(writer, code, &payload) {
+                    tracing::warn!(error = %e, sec_type = ?sec_type, "failed to re-subscribe full-type on reconnect");
+                } else {
+                    tracing::debug!(kind = ?kind, sec_type = ?sec_type, "re-subscribed full-type on auto-reconnect");
+                }
+            }
+        }
+
         // Drain any commands that queued up during reconnection (subscribe, ping, etc.)
-        // and send them over the new connection to re-establish subscriptions.
+        // and send them over the new connection.
         loop {
             match cmd_rx.try_recv() {
                 Ok(IoCommand::WriteFrame { code, payload }) => {
