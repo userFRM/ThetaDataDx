@@ -7,7 +7,7 @@
 //! login handshake in-place according to [`ReconnectPolicy`].
 
 use std::collections::HashMap;
-use std::io::BufReader;
+use std::io::{BufReader, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc as std_mpsc;
 use std::sync::{Arc, Mutex};
@@ -36,6 +36,16 @@ use super::protocol::{
 };
 use super::reconnect_delay;
 use super::ring::{self, AdaptiveWaitStrategy, RingEvent};
+
+type ActiveSubs = Arc<Mutex<Vec<(super::protocol::SubscriptionKind, Contract)>>>;
+type ActiveFullSubs = Arc<
+    Mutex<
+        Vec<(
+            super::protocol::SubscriptionKind,
+            tdbe::types::enums::SecType,
+        )>,
+    >,
+>;
 
 // ---------------------------------------------------------------------------
 // Login result (internal)
@@ -124,15 +134,8 @@ pub(super) fn io_loop<F>(
     policy: ReconnectPolicy,
     creds: Credentials,
     hosts: Vec<(String, u16)>,
-    active_subs: Arc<Mutex<Vec<(super::protocol::SubscriptionKind, Contract)>>>,
-    active_full_subs: Arc<
-        Mutex<
-            Vec<(
-                super::protocol::SubscriptionKind,
-                tdbe::types::enums::SecType,
-            )>,
-        >,
-    >,
+    active_subs: ActiveSubs,
+    active_full_subs: ActiveFullSubs,
 ) where
     F: FnMut(&FpssEvent) + Send + 'static,
 {
@@ -450,34 +453,40 @@ pub(super) fn io_loop<F>(
         // Source: FPSSClient.java METADATA handler iterates activeQuotes +
         // activeTrades and re-sends each. Without this, the server accepts
         // the login but receives no subscribe commands → data stops flowing.
-        {
-            let subs = active_subs
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            for (kind, contract) in subs.iter() {
-                let payload = protocol::build_subscribe_payload(-1, contract);
-                let code = kind.subscribe_code();
-                let writer = reader.get_mut();
-                if let Err(e) = write_raw_frame(writer, code, &payload) {
-                    tracing::warn!(error = %e, contract = %contract, "failed to re-subscribe on reconnect");
-                } else {
-                    tracing::debug!(kind = ?kind, contract = %contract, "re-subscribed on auto-reconnect");
-                }
+        //
+        // Snapshot + drop lock before writing: holding the mutex during
+        // network I/O would stall concurrent subscribe/unsubscribe calls.
+        let subs_snapshot = active_subs
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        let full_subs_snapshot = active_full_subs
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+
+        let writer = reader.get_mut();
+        for (kind, contract) in &subs_snapshot {
+            let payload = protocol::build_subscribe_payload(-1, contract);
+            let code = kind.subscribe_code();
+            if let Err(e) = write_raw_frame_no_flush(writer, code, &payload) {
+                tracing::warn!(error = %e, contract = %contract, "failed to re-subscribe on reconnect");
+            } else {
+                tracing::debug!(kind = ?kind, contract = %contract, "re-subscribed on auto-reconnect");
             }
         }
-        {
-            let full_subs = active_full_subs
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            for (kind, sec_type) in full_subs.iter() {
-                let payload = protocol::build_full_type_subscribe_payload(-1, *sec_type);
-                let code = kind.subscribe_code();
-                let writer = reader.get_mut();
-                if let Err(e) = write_raw_frame(writer, code, &payload) {
-                    tracing::warn!(error = %e, sec_type = ?sec_type, "failed to re-subscribe full-type on reconnect");
-                } else {
-                    tracing::debug!(kind = ?kind, sec_type = ?sec_type, "re-subscribed full-type on auto-reconnect");
-                }
+        for (kind, sec_type) in &full_subs_snapshot {
+            let payload = protocol::build_full_type_subscribe_payload(-1, *sec_type);
+            let code = kind.subscribe_code();
+            if let Err(e) = write_raw_frame_no_flush(writer, code, &payload) {
+                tracing::warn!(error = %e, sec_type = ?sec_type, "failed to re-subscribe full-type on reconnect");
+            } else {
+                tracing::debug!(kind = ?kind, sec_type = ?sec_type, "re-subscribed full-type on auto-reconnect");
+            }
+        }
+        if !subs_snapshot.is_empty() || !full_subs_snapshot.is_empty() {
+            if let Err(e) = writer.flush() {
+                tracing::warn!(error = %e, "failed to flush re-subscribe batch on reconnect");
             }
         }
 
