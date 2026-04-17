@@ -37,3 +37,4 @@ sdks/cpp/examples/validate.cpp       text eol=lf linguist-generated=true
 # LF on every checkout so Windows builds emit the same bytes as Linux
 # and `generate_sdk_surfaces --check` doesn't false-positive.
 crates/thetadatadx/build_support/endpoints/render/templates/**/*.tmpl text eol=lf
+*.ipynb linguist-documentation
