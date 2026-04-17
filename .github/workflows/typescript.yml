@@ -55,7 +55,7 @@ jobs:
         if: matrix.target == 'x86_64-unknown-linux-gnu'
         working-directory: sdks/typescript
         run: npm test
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: bindings-${{ matrix.target }}
           path: sdks/typescript/thetadatadx.*.node
