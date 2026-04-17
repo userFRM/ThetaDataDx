@@ -99,7 +99,7 @@ jobs:
               if npm view "${pkg_name}@${pkg_version}" version 2>/dev/null; then
                 echo "⏭ ${pkg_name}@${pkg_version} already published"
               else
-                npm publish "$dir" --provenance --access public
+                npm publish "$dir" --access public
               fi
             fi
           done
