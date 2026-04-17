@@ -13,8 +13,8 @@ path = "src/main.rs"
 [dependencies]
 thetadatadx = { path = "../../crates/thetadatadx" }
 tdbe = { version = "0.10.0", path = "../../crates/tdbe" }
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-util", "io-std"] }
-serde = { version = "1", features = ["derive"] }
-sonic-rs = "0.3"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tokio = { version = "1.52.1", features = ["rt-multi-thread", "macros", "io-util", "io-std"] }
+serde = { version = "1.0.228", features = ["derive"] }
+sonic-rs = "0.5.8"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }

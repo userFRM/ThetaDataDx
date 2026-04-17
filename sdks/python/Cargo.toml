@@ -23,4 +23,4 @@ tdbe = { version = "0.10.0", path = "../../crates/tdbe" }
 pyo3 = { version = "=0.28.2", features = ["abi3-py39", "multiple-pymethods"] }
 
 # Async bridge: run tokio futures from sync Python
-tokio = { version = "1.50.0", features = ["rt-multi-thread"] }
+tokio = { version = "1.52.1", features = ["rt-multi-thread"] }
