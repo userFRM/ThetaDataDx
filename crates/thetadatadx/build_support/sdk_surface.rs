@@ -2461,6 +2461,16 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
                 method.name
             )
             .unwrap();
+            out.push_str(
+                "        // Unbounded: the FPSS network thread must never block on send.\n",
+            );
+            out.push_str(
+                "        // If the JS consumer falls behind, events queue in RAM and drain\n",
+            );
+            out.push_str(
+                "        // when polling resumes. A bounded channel would cause disconnects\n",
+            );
+            out.push_str("        // under backpressure. Same pattern as the Python SDK.\n");
             out.push_str("        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();\n\n");
             out.push_str("        self.tdx\n");
             out.push_str("            .start_streaming(move |event: &fpss::FpssEvent| {\n");
@@ -2468,9 +2478,10 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             out.push_str("                let _ = tx.send(buffered);\n");
             out.push_str("            })\n");
             out.push_str("            .map_err(to_napi_err)?;\n\n");
-            out.push_str("        if let Ok(mut guard) = self.rx.lock() {\n");
-            out.push_str("            *guard = Some(Arc::new(Mutex::new(rx)));\n");
-            out.push_str("        }\n");
+            out.push_str(
+                "        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());\n",
+            );
+            out.push_str("        *guard = Some(Arc::new(Mutex::new(rx)));\n");
             out.push_str("        Ok(())\n");
             out.push_str("    }\n");
         }
@@ -2626,22 +2637,17 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
                 param.name
             )
             .unwrap();
-            out.push_str("        let deadline = std::time::Instant::now() + timeout;\n");
-            out.push_str("        let poll_interval = std::time::Duration::from_millis(1);\n");
-            out.push_str("        loop {\n");
-            out.push_str("            {\n");
+            out.push_str("        let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());\n");
+            out.push_str("        match rx.recv_timeout(timeout) {\n");
             out.push_str(
-                "                let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());\n",
+                "            Ok(event) => Ok(Some(serde_json::to_value(&event).unwrap())),\n",
             );
-            out.push_str("                match rx.try_recv() {\n");
-            out.push_str("                    Ok(event) => return Ok(Some(serde_json::to_value(&event).unwrap())),\n");
-            out.push_str("                    Err(std::sync::mpsc::TryRecvError::Disconnected) => return Ok(None),\n");
-            out.push_str("                    Err(std::sync::mpsc::TryRecvError::Empty) => {}\n");
-            out.push_str("                }\n");
-            out.push_str("            }\n");
-            out.push_str("            let now = std::time::Instant::now();\n");
-            out.push_str("            if now >= deadline { return Ok(None); }\n");
-            out.push_str("            std::thread::sleep(poll_interval.min(deadline - now));\n");
+            out.push_str(
+                "            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Ok(None),\n",
+            );
+            out.push_str(
+                "            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Ok(None),\n",
+            );
             out.push_str("        }\n");
             out.push_str("    }\n");
         }
@@ -2659,9 +2665,10 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             out.push_str("                let _ = tx.send(fpss_event_to_buffered(event));\n");
             out.push_str("            })\n");
             out.push_str("            .map_err(to_napi_err)?;\n");
-            out.push_str("        if let Ok(mut guard) = self.rx.lock() {\n");
-            out.push_str("            *guard = Some(Arc::new(Mutex::new(rx)));\n");
-            out.push_str("        }\n");
+            out.push_str(
+                "        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());\n",
+            );
+            out.push_str("        *guard = Some(Arc::new(Mutex::new(rx)));\n");
             out.push_str("        Ok(())\n");
             out.push_str("    }\n");
         }
@@ -2670,9 +2677,10 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             writeln!(out, "    #[napi(js_name = \"{js_name}\")]").unwrap();
             writeln!(out, "    pub fn {}(&self) {{", method.name).unwrap();
             out.push_str("        self.tdx.stop_streaming();\n");
-            out.push_str("        if let Ok(mut guard) = self.rx.lock() {\n");
-            out.push_str("            *guard = None;\n");
-            out.push_str("        }\n");
+            out.push_str(
+                "        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());\n",
+            );
+            out.push_str("        *guard = None;\n");
             out.push_str("    }\n");
         }
         other => panic!("unsupported TypeScript method kind: {other:?}"),

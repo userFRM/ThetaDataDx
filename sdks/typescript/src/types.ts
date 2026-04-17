@@ -2,7 +2,7 @@
 // TypeScript interfaces for columnar tick data returned by the native addon.
 // Each property is an array — one entry per tick row.
 
-/** Calendar day -- 5 fields. Market open/close schedule. */
+/** Calendar day. Market open/close schedule. */
 export interface CalendarDayColumnar {
   date: number[];
   is_open: number[];
@@ -11,7 +11,7 @@ export interface CalendarDayColumnar {
   status: number[];
 }
 
-/** End-of-day tick -- 17 fields. Full EOD snapshot with OHLC + quote. */
+/** End-of-day tick. Full EOD snapshot with OHLC + quote. */
 export interface EodTickColumnar {
   ms_of_day: number[];
   ms_of_day2: number[];
@@ -35,7 +35,7 @@ export interface EodTickColumnar {
   right: string[];
 }
 
-/** Greeks tick -- 24 fields. Full set of option greeks. */
+/** Greeks tick. Full set of option greeks. */
 export interface GreeksTickColumnar {
   ms_of_day: number[];
   implied_volatility: number[];
@@ -66,14 +66,14 @@ export interface GreeksTickColumnar {
   right: string[];
 }
 
-/** Interest rate tick -- 3 fields. End-of-day interest rate. */
+/** Interest rate tick. End-of-day interest rate. */
 export interface InterestRateTickColumnar {
   ms_of_day: number[];
   rate: number[];
   date: number[];
 }
 
-/** Implied volatility tick -- 4 fields. */
+/** Implied volatility tick. */
 export interface IvTickColumnar {
   ms_of_day: number[];
   implied_volatility: number[];
@@ -96,7 +96,7 @@ export interface MarketValueTickColumnar {
   right: string[];
 }
 
-/** OHLC tick -- 8 fields. Aggregated bar data. */
+/** OHLC tick. Aggregated bar data. */
 export interface OhlcTickColumnar {
   ms_of_day: number[];
   open: number[];
@@ -111,7 +111,7 @@ export interface OhlcTickColumnar {
   right: string[];
 }
 
-/** Open interest tick -- 3 fields. */
+/** Open interest tick. */
 export interface OpenInterestTickColumnar {
   ms_of_day: number[];
   open_interest: number[];
@@ -121,7 +121,7 @@ export interface OpenInterestTickColumnar {
   right: string[];
 }
 
-/** Option contract -- 4 fields. Contract specification. */
+/** Option contract. Contract specification. */
 export interface OptionContractColumnar {
   root: string[];
   expiration: number[];
@@ -129,14 +129,14 @@ export interface OptionContractColumnar {
   right: number[];
 }
 
-/** Price tick -- 3 fields. Generic price data point. */
+/** Price tick. Generic price data point. */
 export interface PriceTickColumnar {
   ms_of_day: number[];
   price: number[];
   date: number[];
 }
 
-/** Quote tick -- 10 fields + midpoint. NBBO quote data. */
+/** Quote tick. NBBO quote data. */
 export interface QuoteTickColumnar {
   ms_of_day: number[];
   bid_size: number[];
@@ -154,7 +154,7 @@ export interface QuoteTickColumnar {
   right: string[];
 }
 
-/** Combined trade + quote tick -- 24 fields. */
+/** Combined trade + quote tick. */
 export interface TradeQuoteTickColumnar {
   ms_of_day: number[];
   sequence: number[];
@@ -185,7 +185,7 @@ export interface TradeQuoteTickColumnar {
   right: string[];
 }
 
-/** Trade tick -- 15 fields. Core unit of trade data. */
+/** Trade tick. Core unit of trade data. */
 export interface TradeTickColumnar {
   ms_of_day: number[];
   sequence: number[];

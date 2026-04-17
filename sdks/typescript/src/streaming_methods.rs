@@ -5,6 +5,10 @@ impl ThetaDataDx {
     /// Start FPSS streaming. Events are buffered; poll with next_event().
     #[napi(js_name = "startStreaming")]
     pub fn start_streaming(&self) -> napi::Result<()> {
+        // Unbounded: the FPSS network thread must never block on send.
+        // If the JS consumer falls behind, events queue in RAM and drain
+        // when polling resumes. A bounded channel would cause disconnects
+        // under backpressure. Same pattern as the Python SDK.
         let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();
 
         self.tdx
@@ -14,9 +18,8 @@ impl ThetaDataDx {
             })
             .map_err(to_napi_err)?;
 
-        if let Ok(mut guard) = self.rx.lock() {
-            *guard = Some(Arc::new(Mutex::new(rx)));
-        }
+        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());
+        *guard = Some(Arc::new(Mutex::new(rx)));
         Ok(())
     }
 
@@ -220,20 +223,11 @@ impl ThetaDataDx {
         };
         drop(rx_outer);
         let timeout = std::time::Duration::from_millis(timeout_ms as u64);
-        let deadline = std::time::Instant::now() + timeout;
-        let poll_interval = std::time::Duration::from_millis(1);
-        loop {
-            {
-                let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());
-                match rx.try_recv() {
-                    Ok(event) => return Ok(Some(serde_json::to_value(&event).unwrap())),
-                    Err(std::sync::mpsc::TryRecvError::Disconnected) => return Ok(None),
-                    Err(std::sync::mpsc::TryRecvError::Empty) => {}
-                }
-            }
-            let now = std::time::Instant::now();
-            if now >= deadline { return Ok(None); }
-            std::thread::sleep(poll_interval.min(deadline - now));
+        let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());
+        match rx.recv_timeout(timeout) {
+            Ok(event) => Ok(Some(serde_json::to_value(&event).unwrap())),
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Ok(None),
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Ok(None),
         }
     }
 
@@ -246,9 +240,8 @@ impl ThetaDataDx {
                 let _ = tx.send(fpss_event_to_buffered(event));
             })
             .map_err(to_napi_err)?;
-        if let Ok(mut guard) = self.rx.lock() {
-            *guard = Some(Arc::new(Mutex::new(rx)));
-        }
+        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());
+        *guard = Some(Arc::new(Mutex::new(rx)));
         Ok(())
     }
 
@@ -256,18 +249,16 @@ impl ThetaDataDx {
     #[napi(js_name = "stopStreaming")]
     pub fn stop_streaming(&self) {
         self.tdx.stop_streaming();
-        if let Ok(mut guard) = self.rx.lock() {
-            *guard = None;
-        }
+        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());
+        *guard = None;
     }
 
     /// Shut down the FPSS streaming connection.
     #[napi(js_name = "shutdown")]
     pub fn shutdown(&self) {
         self.tdx.stop_streaming();
-        if let Ok(mut guard) = self.rx.lock() {
-            *guard = None;
-        }
+        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());
+        *guard = None;
     }
 
 }

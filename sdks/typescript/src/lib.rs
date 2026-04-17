@@ -304,7 +304,7 @@ impl ThetaDataDx {
     /// Connect to ThetaData. Historical (MDDS/gRPC) only; call startStreaming()
     /// to begin FPSS real-time data.
     #[napi(factory)]
-    pub async fn connect(email: String, password: String) -> napi::Result<ThetaDataDx> {
+    pub fn connect(email: String, password: String) -> napi::Result<ThetaDataDx> {
         let creds = auth::Credentials::new(email, password);
         let config = config::DirectConfig::production();
         let tdx = runtime()
@@ -318,7 +318,7 @@ impl ThetaDataDx {
 
     /// Connect with a credentials file (line 1 = email, line 2 = password).
     #[napi(factory)]
-    pub async fn connect_from_file(path: String) -> napi::Result<ThetaDataDx> {
+    pub fn connect_from_file(path: String) -> napi::Result<ThetaDataDx> {
         let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
         let config = config::DirectConfig::production();
         let tdx = runtime()

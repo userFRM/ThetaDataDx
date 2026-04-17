@@ -927,7 +927,28 @@ fn render_ts_tick_type_interface(type_name: &str, def: &TickTypeDef) -> String {
     let mut out = String::new();
     let is_quote_tick = type_name == "QuoteTick";
 
-    writeln!(out, "/** {} */", def.doc.lines().next().unwrap_or("")).unwrap();
+    // Strip " -- N fields[...]." from the doc — the TS interface includes
+    // contract-id columns not counted in the TOML doc string.
+    let first_line = def.doc.lines().next().unwrap_or("");
+    let doc = if let Some(pos) = first_line.find(" -- ") {
+        let after_dash = &first_line[pos + 4..];
+        if after_dash.starts_with(|c: char| c.is_ascii_digit()) {
+            let rest = after_dash
+                .find(". ")
+                .map(|i| &after_dash[i + 2..])
+                .unwrap_or("");
+            if rest.is_empty() {
+                format!("{}.", &first_line[..pos])
+            } else {
+                format!("{}. {rest}", &first_line[..pos])
+            }
+        } else {
+            first_line.to_string()
+        }
+    } else {
+        first_line.to_string()
+    };
+    writeln!(out, "/** {doc} */").unwrap();
     writeln!(out, "export interface {type_name}Columnar {{").unwrap();
     for column in &def.columns {
         let ts_type = match column.r#type.as_str() {
