@@ -23,6 +23,12 @@ data = tdx.option_history_open_interest("SPY", "20260417", "550", "C", "20260315
 for t in data:
     print(f"date={t['date']} open_interest={t['open_interest']}")
 ```
+```typescript [TypeScript]
+const data = tdx.optionHistoryOpenInterest('SPY', '20260417', '550', 'C', '20260315');
+for (const t of data) {
+    console.log(`date=${t.date} open_interest=${t.open_interest}`);
+}
+```
 ```go [Go]
 data, _ := client.OptionHistoryOpenInterest("SPY", "20260417", "550", "C", "20260315")
 for _, t := range data {

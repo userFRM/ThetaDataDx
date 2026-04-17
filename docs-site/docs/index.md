@@ -4,7 +4,7 @@ layout: home
 hero:
   name: "ThetaDataDx"
   text: "Direct-Wire Market Data SDK"
-  tagline: "No terminal. No overhead. Pure speed. Connect directly to ThetaData from Rust, Python, Go, and C++."
+  tagline: "No terminal. No overhead. Pure speed. Connect directly to ThetaData from Rust, Python, TypeScript, Go, and C++."
   actions:
     - theme: brand
       text: Get Started
@@ -17,11 +17,11 @@ features:
   - icon:
       src: /icons/globe.svg
     title: "Multi-Language SDKs"
-    details: "Native clients for Rust, Python, Go, and C++. Each SDK returns fully typed structures in its language's native idiom."
+    details: "Native clients for Rust, Python, TypeScript/Node.js, Go, and C++. Each SDK returns fully typed structures in its language's native idiom."
   - icon:
       src: /icons/bolt.svg
     title: "Real-Time Streaming"
-    details: "FPSS streaming via LMAX Disruptor ring buffer (Rust) or polling (Python/Go/C++). Automatic heartbeat, reconnection logic built in."
+    details: "FPSS streaming via LMAX Disruptor ring buffer (Rust) or polling (Python/TypeScript/Go/C++). Automatic heartbeat, reconnection logic built in."
   - icon:
       src: /icons/chart.svg
     title: "Options & Greeks"
@@ -48,6 +48,10 @@ pip install thetadatadx
 
 # With pandas DataFrame support
 pip install thetadatadx[pandas]
+```
+
+```bash [TypeScript]
+npm install thetadatadx
 ```
 
 ```bash [Go]
@@ -93,6 +97,17 @@ tdx = ThetaDataDx(creds, Config.production())
 quotes = tdx.stock_history_quote("AAPL", "20250115", "60000")
 for q in quotes:
     print(f"{q['date']}: bid={q['bid']:.2f} ask={q['ask']:.2f}")
+```
+
+```typescript [TypeScript]
+import { ThetaDataDx } from 'thetadatadx';
+
+const tdx = await ThetaDataDx.connectFromFile('creds.txt');
+
+const quotes = tdx.stockHistoryQuote('AAPL', '20250115', '60000');
+for (const q of quotes) {
+    console.log(`${q.date}: bid=${q.bid} ask=${q.ask}`);
+}
 ```
 
 ```go [Go]

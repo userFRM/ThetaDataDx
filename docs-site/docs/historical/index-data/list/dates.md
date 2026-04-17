@@ -23,6 +23,10 @@ data = tdx.index_list_dates("SPX")
 for item in data:
     print(item)
 ```
+```typescript [TypeScript]
+const data = tdx.indexListDates('SPX');
+console.log(data);
+```
 ```go [Go]
 data, _ := client.IndexListDates("SPX")
 for _, item := range data {

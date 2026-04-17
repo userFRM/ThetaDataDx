@@ -7,6 +7,7 @@ Multi-language SDKs for ThetaDataDx. All powered by the Rust core via FFI - thes
 | SDK | Install | Historical | Streaming | Greeks | README |
 |---|---|---|---|---|---|
 | **Python** | `pip install thetadatadx` | 61 endpoints | `ThetaDataDx` | `all_greeks()`, `to_polars()` / `to_dataframe()` | [sdks/python/](python/) |
+| **TypeScript/Node.js** | `npm install thetadatadx` | 61 endpoints | `ThetaDataDx` | `allGreeks()` | [sdks/typescript/](typescript/) |
 | **Go** | `go get github.com/userFRM/thetadatadx/sdks/go` | 61 endpoints | `FpssClient` | via FFI | [sdks/go/](go/) |
 | **C++** | CMake `find_library` | 61 endpoints | `FpssClient` | via FFI | [sdks/cpp/](cpp/) |
 | **C FFI** | `cargo build --release -p thetadatadx-ffi` | 61 endpoints | `TdxUnified` / `TdxFpssHandle` | `tdx_all_greeks` | [ffi/](../ffi/) |
@@ -18,14 +19,14 @@ Multi-language SDKs for ThetaDataDx. All powered by the Rust core via FFI - thes
                     |   Your Application |
                     +--------+----------+
                              |
-              +--------------+--------------+
-              |              |              |
-         +----v----+   +----v----+   +----v----+
-         |  Python |   |   Go   |   |  C++   |
-         |  (PyO3) |   |  (CGo) |   | (C API)|
-         +---------+   +--------+   +--------+
-              |              |              |
-              +--------------+--------------+
+         +----------+-------+-------+----------+
+         |          |               |           |
+    +----v----+  +--v------+  +----v----+  +---v-----+
+    |  Python |  |  Node.js|  |   Go   |  |  C++   |
+    |  (PyO3) |  | (napi-rs)|  |  (CGo) |  | (C API)|
+    +---------+  +---------+  +--------+  +--------+
+         |          |               |           |
+         +----------+-------+-------+----------+
                              |
                     +--------v--------+
                     |   C FFI Layer   |
@@ -54,11 +55,12 @@ Multi-language SDKs for ThetaDataDx. All powered by the Rust core via FFI - thes
                     +-----------------+
 ```
 
-The Python SDK uses [PyO3](https://pyo3.rs/) with [Maturin](https://www.maturin.rs/) for direct Rust-to-Python bindings, bypassing the C FFI layer. The Go and C++ SDKs go through the C FFI crate (`thetadatadx-ffi`), which exposes `extern "C"` functions compiled as both a shared library (`cdylib`) and a static archive (`staticlib`).
+The Python SDK uses [PyO3](https://pyo3.rs/) with [Maturin](https://www.maturin.rs/) for direct Rust-to-Python bindings, bypassing the C FFI layer. The TypeScript/Node.js SDK uses [napi-rs](https://napi.rs/) for direct Rust-to-Node.js bindings via a native addon. The Go and C++ SDKs go through the C FFI crate (`thetadatadx-ffi`), which exposes `extern "C"` functions compiled as both a shared library (`cdylib`) and a static archive (`staticlib`).
 
 ## Validation Matrix
 
 - Python: wheel builds and import smoke are validated on Linux, macOS, and Windows. The package now targets the CPython stable ABI (`abi3`) with a minimum version of Python 3.9, so one wheel per platform covers Python 3.9+.
+- TypeScript/Node.js: validated on Linux, macOS, and Windows with Node.js 18+. The napi-rs native addon is built per-platform.
 - Go: validated on Linux and macOS with the default `target/release` FFI build. Windows is validated with the GNU Rust target (`x86_64-pc-windows-gnu`), because CGo links through MinGW rather than the MSVC import library used by the C++ SDK.
 - C++: validated with CMake builds on Linux, macOS, and Windows against the generated FFI library.
 
@@ -96,6 +98,30 @@ g = all_greeks(spot=150.0, strike=155.0, rate=0.05,
 ```
 
 Requires Python 3.9+. Binary wheels target the CPython stable ABI, so one wheel works across supported Python 3.9+ interpreters on the same platform. See [sdks/python/README.md](python/README.md) for full documentation.
+
+## TypeScript / Node.js SDK
+
+**Binding technology:** napi-rs native addon (direct Rust-to-Node.js)
+
+```bash
+# From npm (once published)
+npm install thetadatadx
+
+# From source (requires Rust toolchain)
+cd sdks/typescript
+npm install
+npm run build
+```
+
+```typescript
+import { ThetaDataDx } from 'thetadatadx';
+
+const tdx = await ThetaDataDx.connectFromFile('creds.txt');
+
+const eod = tdx.stockHistoryEod('AAPL', '20240101', '20240315');
+```
+
+Requires Node.js 18+. See [sdks/typescript/README.md](typescript/README.md) for full documentation.
 
 ## Go SDK
 
@@ -182,10 +208,13 @@ cargo build --release -p thetadatadx-ffi
 # 2. Build the Python SDK (editable install)
 cd sdks/python && maturin develop --release && cd ../..
 
-# 3. Build the C++ SDK
+# 3. Build the TypeScript/Node.js SDK
+cd sdks/typescript && npm install && npm run build && cd ../..
+
+# 4. Build the C++ SDK
 cmake -S sdks/cpp -B build/cpp
 cmake --build build/cpp --config Release --target thetadatadx_cpp
 
-# 4. Go SDK - no separate build step; CGo links at compile time
+# 5. Go SDK - no separate build step; CGo links at compile time
 cd sdks/go/examples && go build . && cd ../../..
 ```

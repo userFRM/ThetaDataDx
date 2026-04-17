@@ -25,6 +25,12 @@ for t in data:
     print(f"date={t['date']} ms_of_day={t['ms_of_day']} bid={t['bid']:.2f} "
           f"bid_size={t['bid_size']} ask={t['ask']:.2f} ask_size={t['ask_size']} midpoint={t['midpoint']:.2f}")
 ```
+```typescript [TypeScript]
+const data = tdx.stockSnapshotQuote(['SPY', 'MSFT', 'GOOGL']);
+for (const t of data) {
+    console.log(`date=${t.date} ms_of_day=${t.ms_of_day} bid=${t.bid} bid_size=${t.bid_size} ask=${t.ask} ask_size=${t.ask_size}`);
+}
+```
 ```go [Go]
 data, _ := client.StockSnapshotQuote([]string{"SPY", "MSFT", "GOOGL"})
 for _, t := range data {

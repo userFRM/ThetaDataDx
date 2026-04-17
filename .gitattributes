@@ -28,6 +28,10 @@ sdks/python/src/tick_columnar.rs     text eol=lf linguist-generated=true
 sdks/python/src/utility_functions.rs text eol=lf linguist-generated=true
 tools/cli/src/utilities.rs           text eol=lf linguist-generated=true
 tools/mcp/src/utilities.rs           text eol=lf linguist-generated=true
+sdks/typescript/src/historical_methods.rs text eol=lf linguist-generated=true
+sdks/typescript/src/streaming_methods.rs text eol=lf linguist-generated=true
+sdks/typescript/src/tick_columnar.rs text eol=lf linguist-generated=true
+sdks/typescript/src/types.ts         text eol=lf linguist-generated=true
 
 # Generated validator surfaces that were missed from the original list.
 scripts/validate_cli.py              text eol=lf linguist-generated=true

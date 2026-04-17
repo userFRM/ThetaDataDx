@@ -1,0 +1,26 @@
+[package]
+name = "thetadatadx-napi"
+version = "7.2.1"
+edition = "2021"
+description = "TypeScript/Node.js bindings for thetadatadx — native ThetaData SDK powered by Rust"
+license = "GPL-3.0-or-later"
+homepage = "https://github.com/userFRM/ThetaDataDx"
+repository = "https://github.com/userFRM/ThetaDataDx"
+readme = "README.md"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+thetadatadx = { path = "../../crates/thetadatadx" }
+tdbe = { version = "0.10.0", path = "../../crates/tdbe" }
+
+napi = { version = "2", features = ["async", "tokio_rt", "serde-json"] }
+napi-derive = "2"
+
+tokio = { version = "1.50.0", features = ["rt-multi-thread"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[build-dependencies]
+napi-build = "2"

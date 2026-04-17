@@ -17,6 +17,7 @@ mod go_validate;
 mod python;
 mod python_validate;
 mod sdk_files;
+mod typescript;
 
 pub use build_out::generate_all;
 pub use sdk_files::{check_sdk_generated_files, write_sdk_generated_files};

@@ -31,6 +31,11 @@ from thetadatadx import Credentials
 
 creds = Credentials.from_file("creds.txt")
 ```
+```typescript [TypeScript]
+import { ThetaDataDx } from 'thetadatadx';
+
+const tdx = await ThetaDataDx.connectFromFile('creds.txt');
+```
 ```go [Go]
 creds, err := thetadatadx.CredentialsFromFile("creds.txt")
 if err != nil {
@@ -59,6 +64,14 @@ import os
 from thetadatadx import Credentials
 
 creds = Credentials(os.environ["THETA_EMAIL"], os.environ["THETA_PASS"])
+```
+```typescript [TypeScript]
+import { ThetaDataDx } from 'thetadatadx';
+
+const tdx = await ThetaDataDx.connect(
+    process.env.THETA_EMAIL!,
+    process.env.THETA_PASS!
+);
 ```
 ```go [Go]
 creds, err := thetadatadx.CredentialsFromEnv("THETA_EMAIL", "THETA_PASS")
@@ -95,6 +108,11 @@ from thetadatadx import Credentials, Config, ThetaDataDx
 
 creds = Credentials.from_file("creds.txt")
 client = ThetaDataDx(creds, Config.production())
+```
+```typescript [TypeScript]
+import { ThetaDataDx } from 'thetadatadx';
+
+const client = await ThetaDataDx.connectFromFile('creds.txt');
 ```
 ```go [Go]
 creds, _ := thetadatadx.CredentialsFromFile("creds.txt")

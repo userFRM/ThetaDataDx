@@ -23,6 +23,10 @@ data = tdx.option_list_symbols()
 for item in data:
     print(item)
 ```
+```typescript [TypeScript]
+const data = tdx.optionListSymbols();
+console.log(data);
+```
 ```go [Go]
 data, _ := client.OptionListSymbols()
 for _, item := range data {

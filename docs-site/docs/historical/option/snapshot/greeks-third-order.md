@@ -25,6 +25,12 @@ for t in data:
     print(f"date={t['date']} ms_of_day={t['ms_of_day']} speed={t['speed']:.4f} zomma={t['zomma']:.4f} "
           f"color={t['color']:.4f} ultima={t['ultima']:.4f} expiration={t['expiration']} strike={t['strike']:.2f}")
 ```
+```typescript [TypeScript]
+const data = tdx.optionSnapshotGreeksThirdOrder('SPY', '20260417', '550', 'C');
+for (const t of data) {
+    console.log(`date=${t.date} ms_of_day=${t.ms_of_day} speed=${t.speed} zomma=${t.zomma} color=${t.color} ultima=${t.ultima}`);
+}
+```
 ```go [Go]
 data, _ := client.OptionSnapshotGreeksThirdOrder("SPY", "20260417", "550", "C")
 for _, t := range data {

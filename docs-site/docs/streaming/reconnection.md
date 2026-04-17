@@ -8,7 +8,7 @@ description: Handle FPSS disconnects, implement reconnection logic with reconnec
 ## Reconnection APIs
 
 Rust exposes `reconnect_streaming(handler)` on the unified `ThetaDataDx` client.
-Python, Go, and C++ expose `reconnect()` on their public streaming clients.
+Python, TypeScript/Node.js, Go, and C++ expose `reconnect()` on their public streaming clients.
 
 ## Reconnection with `reconnect_streaming()` (Rust)
 

@@ -7,6 +7,7 @@ No-JVM ThetaData Terminal - native Rust SDK for direct market data access.
 [![license](https://img.shields.io/github/license/userFRM/ThetaDataDx?color=blue)](./LICENSE)
 [![Crates.io](https://img.shields.io/crates/v/thetadatadx.svg)](https://crates.io/crates/thetadatadx)
 [![PyPI](https://img.shields.io/pypi/v/thetadatadx)](https://pypi.org/project/thetadatadx)
+[![npm](https://img.shields.io/npm/v/thetadatadx)](https://www.npmjs.com/package/thetadatadx)
 [![Discord](https://img.shields.io/badge/join_Discord-community-5865F2.svg?logo=discord&logoColor=white)](https://discord.thetadata.us/)
 
 ## Overview
@@ -23,9 +24,10 @@ No-JVM ThetaData Terminal - native Rust SDK for direct market data access.
 | [`crates/tdbe/`](crates/tdbe/) | ThetaData Binary Encoding - types, FIT/FIE codecs, Greeks, Price |
 | [`crates/thetadatadx/`](crates/thetadatadx/) | Core Rust SDK - gRPC historical, FPSS streaming (depends on `tdbe`) |
 | [`sdks/python/`](sdks/python/) | Python SDK (PyO3/maturin) - `pip install thetadatadx` |
+| [`sdks/typescript/`](sdks/typescript/) | TypeScript/Node.js SDK (napi-rs) |
 | [`sdks/go/`](sdks/go/) | Go SDK (CGo FFI) |
 | [`sdks/cpp/`](sdks/cpp/) | C++ SDK (RAII wrappers over C FFI) |
-| [`ffi/`](ffi/) | C FFI layer - shared library consumed by Go and C++ |
+| [`ffi/`](ffi/) | C FFI layer - shared library consumed by Go, C++, and Node.js |
 | [`tools/cli/`](tools/cli/) | `tdx` CLI - all 61 registry endpoints from the command line |
 | [`tools/mcp/`](tools/mcp/) | MCP server - gives LLMs access to 64 tools over JSON-RPC |
 | [`tools/server/`](tools/server/) | REST+WS server - drop-in replacement for the Java terminal |
@@ -86,6 +88,23 @@ for tick in eod:
           f"L={tick['low']:.2f} C={tick['close']:.2f} V={tick['volume']}")
 ```
 
+### TypeScript / Node.js
+
+```sh
+npm install thetadatadx
+```
+
+```typescript
+import { ThetaDataDx } from 'thetadatadx';
+
+const tdx = await ThetaDataDx.connectFromFile('creds.txt');
+
+const eod = tdx.stockHistoryEod('AAPL', '20240101', '20240301');
+for (const tick of eod) {
+    console.log(`${tick.date}: O=${tick.open} H=${tick.high} L=${tick.low} C=${tick.close} V=${tick.volume}`);
+}
+```
+
 ## Streaming
 
 > [!WARNING]
@@ -134,7 +153,7 @@ All prices (`bid`, `ask`, `price`, `open`, `high`, `low`, `close`) are `f64` -- 
 | Streaming | 7 | Quotes, trades, OI, full-trades (per-contract or firehose) |
 | Greeks | 14 | All 22 Greeks + IV solver, individually or batched |
 
-All endpoints return fully typed data in every language. Rust, Go, and C++ return native structs; Python returns dictionaries with the same field names. Zero raw JSON or protobuf in the public API. See the [API Reference](docs/api-reference.md) for the complete method list.
+All endpoints return fully typed data in every language. Rust, Go, and C++ return native structs; Python returns dictionaries; TypeScript/Node.js returns columnar objects with the same field names. Zero raw JSON or protobuf in the public API. See the [API Reference](docs/api-reference.md) for the complete method list.
 
 ## Documentation
 
@@ -173,7 +192,7 @@ ThetaDataDx was developed through independent analysis of the ThetaData Terminal
 
 ### EU Interoperability
 
-For users and contributors in the European Union: Article 6 of the EU Software Directive (2009/24/EC) permits reverse engineering for the purpose of achieving interoperability with independently created software, provided that specific conditions are met. ThetaDataDx was developed with this legal framework in mind, enabling interoperability with ThetaData's market data infrastructure on platforms where the official Java-based Terminal cannot run (headless Linux, containers, embedded systems, native Rust/Go/C++ applications).
+For users and contributors in the European Union: Article 6 of the EU Software Directive (2009/24/EC) permits reverse engineering for the purpose of achieving interoperability with independently created software, provided that specific conditions are met. ThetaDataDx was developed with this legal framework in mind, enabling interoperability with ThetaData's market data infrastructure on platforms where the official Java-based Terminal cannot run (headless Linux, containers, embedded systems, native Rust/Go/C++/Node.js applications).
 
 ## License
 

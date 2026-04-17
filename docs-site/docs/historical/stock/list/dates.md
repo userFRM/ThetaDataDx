@@ -23,6 +23,10 @@ data = tdx.stock_list_dates("TRADE", "SPY")
 for item in data:
     print(item)
 ```
+```typescript [TypeScript]
+const data = tdx.stockListDates('TRADE', 'SPY');
+console.log(data);
+```
 ```go [Go]
 data, _ := client.StockListDates("TRADE", "SPY")
 for _, item := range data {

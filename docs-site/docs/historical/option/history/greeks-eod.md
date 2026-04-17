@@ -36,6 +36,20 @@ for t in data:
     print(f"date={t['date']} implied_volatility={t['implied_volatility']:.4f} delta={t['delta']:.4f} "
           f"gamma={t['gamma']:.4f} theta={t['theta']:.4f} vega={t['vega']:.4f} rho={t['rho']:.4f}")
 ```
+```typescript [TypeScript]
+const data = tdx.optionHistoryGreeksEod(
+    'SPY',
+    '20260417',
+    '0',
+    'C',
+    '20260101',
+    '20260301',
+    strike_range=5,
+);
+for (const t of data) {
+    console.log(`date=${t.date} implied_volatility=${t.implied_volatility} delta=${t.delta} gamma=${t.gamma} theta=${t.theta} vega=${t.vega}`);
+}
+```
 ```go [Go]
 data, _ := client.OptionHistoryGreeksEODWithOptions(
     "SPY",

@@ -78,6 +78,7 @@ enum MethodTarget {
     GoFpss,
     CppFpss,
     CppLifecycle,
+    TypescriptNapi,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -216,6 +217,11 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
         .iter()
         .filter(|method| method.targets.contains(&MethodTarget::CppLifecycle))
         .collect();
+    let ts_napi_methods: Vec<&MethodSpec> = spec
+        .methods
+        .iter()
+        .filter(|method| method.targets.contains(&MethodTarget::TypescriptNapi))
+        .collect();
     let python_utilities: Vec<&UtilitySpec> = spec
         .utilities
         .iter()
@@ -255,6 +261,10 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
         GeneratedSourceFile {
             relative_path: "sdks/python/src/utility_functions.rs",
             contents: render_python_utility_functions(&python_utilities),
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/typescript/src/streaming_methods.rs",
+            contents: render_ts_streaming_methods(&ts_napi_methods),
         },
         GeneratedSourceFile {
             relative_path: "sdks/go/fpss_methods.go",
@@ -374,18 +384,19 @@ fn validate_method_spec(method: &MethodSpec) -> Result<(), Box<dyn std::error::E
     const GO: MethodTarget = MethodTarget::GoFpss;
     const CPP: MethodTarget = MethodTarget::CppFpss;
     const LIFE: MethodTarget = MethodTarget::CppLifecycle;
+    const TS: MethodTarget = MethodTarget::TypescriptNapi;
     let shape: (Option<&str>, &[MethodTarget], bool, &[(&str, ParamType)]) = match method.kind {
-        MethodKind::StartStreaming => (Some("start_streaming"), &[PY], true, &[]),
-        MethodKind::IsStreaming => (Some("is_streaming"), &[PY], true, &[]),
+        MethodKind::StartStreaming => (Some("start_streaming"), &[PY, TS], true, &[]),
+        MethodKind::IsStreaming => (Some("is_streaming"), &[PY, TS], true, &[]),
         MethodKind::StockContractCall => (
             None,
-            &[PY, GO, CPP],
+            &[PY, TS, GO, CPP],
             false,
             &[("symbol", ParamType::String)],
         ),
         MethodKind::OptionContractCall => (
             None,
-            &[PY, GO, CPP],
+            &[PY, TS, GO, CPP],
             false,
             &[
                 ("symbol", ParamType::String),
@@ -396,29 +407,29 @@ fn validate_method_spec(method: &MethodSpec) -> Result<(), Box<dyn std::error::E
         ),
         MethodKind::FullCall => (
             None,
-            &[PY, GO, CPP],
+            &[PY, TS, GO, CPP],
             false,
             &[("sec_type", ParamType::String)],
         ),
-        MethodKind::ContractMap => (Some("contract_map"), &[PY, GO, CPP], false, &[]),
+        MethodKind::ContractMap => (Some("contract_map"), &[PY, TS, GO, CPP], false, &[]),
         MethodKind::ContractLookup => (
             Some("contract_lookup"),
-            &[PY, GO, CPP],
+            &[PY, TS, GO, CPP],
             false,
             &[("id", ParamType::I32)],
         ),
         MethodKind::ActiveSubscriptions => {
-            (Some("active_subscriptions"), &[PY, GO, CPP], false, &[])
+            (Some("active_subscriptions"), &[PY, TS, GO, CPP], false, &[])
         }
         MethodKind::NextEvent => (
             Some("next_event"),
-            &[PY, GO, CPP],
+            &[PY, TS, GO, CPP],
             false,
             &[("timeout_ms", ParamType::U64)],
         ),
-        MethodKind::Reconnect => (Some("reconnect"), &[PY, GO, CPP], false, &[]),
-        MethodKind::StopStreaming => (Some("stop_streaming"), &[PY], true, &[]),
-        MethodKind::Shutdown => (Some("shutdown"), &[PY, GO, CPP], false, &[]),
+        MethodKind::Reconnect => (Some("reconnect"), &[PY, TS, GO, CPP], false, &[]),
+        MethodKind::StopStreaming => (Some("stop_streaming"), &[PY, TS], true, &[]),
+        MethodKind::Shutdown => (Some("shutdown"), &[PY, TS, GO, CPP], false, &[]),
         MethodKind::IsAuthenticated => (Some("is_authenticated"), &[GO, CPP], false, &[]),
         MethodKind::FpssConnect => (
             Some("connect"),
@@ -2421,4 +2432,272 @@ fn inject_os_thread_pin(src: &str, tls_reader_markers: &[TlsReaderMarker]) -> St
         i += 1;
     }
     out
+}
+
+// ── TypeScript (napi-rs) streaming methods ──────────────────────────────
+
+fn render_ts_streaming_methods(methods: &[&MethodSpec]) -> String {
+    let mut out = String::new();
+    out.push_str(generated_header());
+    out.push_str("#[napi]\n");
+    out.push_str("impl ThetaDataDx {\n");
+    for method in methods {
+        out.push_str(&ts_streaming_method(method));
+        out.push('\n');
+    }
+    out.push_str("}\n");
+    out
+}
+
+fn ts_streaming_method(method: &MethodSpec) -> String {
+    let mut out = String::new();
+    push_rust_doc_comment(&mut out, "    ", &method.doc);
+    match method.kind {
+        MethodKind::StartStreaming => {
+            writeln!(out, "    #[napi(js_name = \"startStreaming\")]").unwrap();
+            writeln!(
+                out,
+                "    pub fn {}(&self) -> napi::Result<()> {{",
+                method.name
+            )
+            .unwrap();
+            out.push_str(
+                "        // Unbounded: the FPSS network thread must never block on send.\n",
+            );
+            out.push_str(
+                "        // If the JS consumer falls behind, events queue in RAM and drain\n",
+            );
+            out.push_str(
+                "        // when polling resumes. A bounded channel would cause disconnects\n",
+            );
+            out.push_str("        // under backpressure. Same pattern as the Python SDK.\n");
+            out.push_str("        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();\n\n");
+            out.push_str("        self.tdx\n");
+            out.push_str("            .start_streaming(move |event: &fpss::FpssEvent| {\n");
+            out.push_str("                let buffered = fpss_event_to_buffered(event);\n");
+            out.push_str("                let _ = tx.send(buffered);\n");
+            out.push_str("            })\n");
+            out.push_str("            .map_err(to_napi_err)?;\n\n");
+            out.push_str(
+                "        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());\n",
+            );
+            out.push_str("        *guard = Some(Arc::new(Mutex::new(rx)));\n");
+            out.push_str("        Ok(())\n");
+            out.push_str("    }\n");
+        }
+        MethodKind::IsStreaming => {
+            writeln!(out, "    #[napi(js_name = \"isStreaming\")]").unwrap();
+            writeln!(out, "    pub fn {}(&self) -> bool {{", method.name).unwrap();
+            out.push_str("        self.tdx.is_streaming()\n");
+            out.push_str("    }\n");
+        }
+        MethodKind::StockContractCall => {
+            let param = &method.params[0];
+            let js_name = to_ts_camel_case(&method.name);
+            writeln!(out, "    #[napi(js_name = \"{js_name}\")]").unwrap();
+            writeln!(
+                out,
+                "    pub fn {}(&self, {}: String) -> napi::Result<()> {{",
+                method.name, param.name,
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "        let contract = fpss::protocol::Contract::stock(&{});",
+                param.name
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "        self.tdx.{}(&contract).map_err(to_napi_err)",
+                method.runtime_call.as_deref().unwrap()
+            )
+            .unwrap();
+            out.push_str("    }\n");
+        }
+        MethodKind::OptionContractCall => {
+            let js_name = to_ts_camel_case(&method.name);
+            writeln!(out, "    #[napi(js_name = \"{js_name}\")]").unwrap();
+            writeln!(out, "    pub fn {}(", method.name).unwrap();
+            out.push_str("        &self,\n");
+            for param in &method.params {
+                writeln!(out, "        {}: String,", param.name).unwrap();
+            }
+            out.push_str("    ) -> napi::Result<()> {\n");
+            writeln!(
+                out,
+                "        let contract = fpss::protocol::Contract::option(&{}, &{}, &{}, &{}).map_err(to_napi_err)?;",
+                method.params[0].name,
+                method.params[1].name,
+                method.params[2].name,
+                method.params[3].name
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "        self.tdx.{}(&contract).map_err(to_napi_err)",
+                method.runtime_call.as_deref().unwrap()
+            )
+            .unwrap();
+            out.push_str("    }\n");
+        }
+        MethodKind::FullCall => {
+            let param = &method.params[0];
+            let js_name = to_ts_camel_case(&method.name);
+            writeln!(out, "    #[napi(js_name = \"{js_name}\")]").unwrap();
+            writeln!(
+                out,
+                "    pub fn {}(&self, {}: String) -> napi::Result<()> {{",
+                method.name, param.name,
+            )
+            .unwrap();
+            writeln!(out, "        let st = parse_sec_type(&{})?;", param.name).unwrap();
+            writeln!(
+                out,
+                "        self.tdx.{}(st).map_err(to_napi_err)",
+                method.runtime_call.as_deref().unwrap()
+            )
+            .unwrap();
+            out.push_str("    }\n");
+        }
+        MethodKind::ContractMap => {
+            writeln!(out, "    #[napi(js_name = \"contractMap\")]").unwrap();
+            writeln!(
+                out,
+                "    pub fn {}(&self) -> napi::Result<std::collections::HashMap<String, String>> {{",
+                method.name
+            )
+            .unwrap();
+            out.push_str("        self.tdx\n");
+            out.push_str("            .contract_map()\n");
+            out.push_str("            .map(|m| m.into_iter().map(|(id, c)| (id.to_string(), format!(\"{c}\"))).collect())\n");
+            out.push_str("            .map_err(to_napi_err)\n");
+            out.push_str("    }\n");
+        }
+        MethodKind::ContractLookup => {
+            let param = &method.params[0];
+            writeln!(out, "    #[napi(js_name = \"contractLookup\")]").unwrap();
+            writeln!(
+                out,
+                "    pub fn {}(&self, {}: i32) -> napi::Result<Option<String>> {{",
+                method.name, param.name,
+            )
+            .unwrap();
+            writeln!(out, "        self.tdx.contract_lookup({})", param.name).unwrap();
+            out.push_str("            .map(|opt| opt.map(|c| format!(\"{c}\")))\n");
+            out.push_str("            .map_err(to_napi_err)\n");
+            out.push_str("    }\n");
+        }
+        MethodKind::ActiveSubscriptions => {
+            writeln!(out, "    #[napi(js_name = \"activeSubscriptions\")]").unwrap();
+            writeln!(
+                out,
+                "    pub fn {}(&self) -> napi::Result<serde_json::Value> {{",
+                method.name
+            )
+            .unwrap();
+            out.push_str("        self.tdx\n");
+            out.push_str("            .active_subscriptions()\n");
+            out.push_str("            .map(|subs| {\n");
+            out.push_str("                serde_json::json!(subs.into_iter()\n");
+            out.push_str("                    .map(|(kind, contract)| {\n");
+            out.push_str("                        serde_json::json!({ \"kind\": format!(\"{kind:?}\"), \"contract\": format!(\"{contract}\") })\n");
+            out.push_str("                    })\n");
+            out.push_str("                    .collect::<Vec<_>>())\n");
+            out.push_str("            })\n");
+            out.push_str("            .map_err(to_napi_err)\n");
+            out.push_str("    }\n");
+        }
+        MethodKind::NextEvent => {
+            let param = &method.params[0];
+            writeln!(out, "    #[napi(js_name = \"nextEvent\")]").unwrap();
+            writeln!(
+                out,
+                "    pub fn {}(&self, {}: f64) -> napi::Result<Option<serde_json::Value>> {{",
+                method.name, param.name,
+            )
+            .unwrap();
+            out.push_str(
+                "        let rx_outer = self.rx.lock().unwrap_or_else(|e| e.into_inner());\n",
+            );
+            out.push_str("        let rx_arc = match rx_outer.as_ref() {\n");
+            out.push_str("            Some(arc) => Arc::clone(arc),\n");
+            out.push_str("            None => {\n");
+            out.push_str("                return Err(napi::Error::from_reason(\n");
+            out.push_str(
+                "                    \"streaming not started -- call startStreaming() first\",\n",
+            );
+            out.push_str("                ))\n");
+            out.push_str("            }\n");
+            out.push_str("        };\n");
+            out.push_str("        drop(rx_outer);\n");
+            writeln!(
+                out,
+                "        let timeout = std::time::Duration::from_millis({} as u64);",
+                param.name
+            )
+            .unwrap();
+            out.push_str("        let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());\n");
+            out.push_str("        match rx.recv_timeout(timeout) {\n");
+            out.push_str(
+                "            Ok(event) => Ok(Some(serde_json::to_value(&event).unwrap())),\n",
+            );
+            out.push_str(
+                "            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Ok(None),\n",
+            );
+            out.push_str(
+                "            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Ok(None),\n",
+            );
+            out.push_str("        }\n");
+            out.push_str("    }\n");
+        }
+        MethodKind::Reconnect => {
+            writeln!(out, "    #[napi(js_name = \"reconnect\")]").unwrap();
+            writeln!(
+                out,
+                "    pub fn {}(&self) -> napi::Result<()> {{",
+                method.name
+            )
+            .unwrap();
+            out.push_str("        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();\n");
+            out.push_str("        self.tdx\n");
+            out.push_str("            .reconnect_streaming(move |event: &fpss::FpssEvent| {\n");
+            out.push_str("                let _ = tx.send(fpss_event_to_buffered(event));\n");
+            out.push_str("            })\n");
+            out.push_str("            .map_err(to_napi_err)?;\n");
+            out.push_str(
+                "        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());\n",
+            );
+            out.push_str("        *guard = Some(Arc::new(Mutex::new(rx)));\n");
+            out.push_str("        Ok(())\n");
+            out.push_str("    }\n");
+        }
+        MethodKind::StopStreaming | MethodKind::Shutdown => {
+            let js_name = to_ts_camel_case(&method.name);
+            writeln!(out, "    #[napi(js_name = \"{js_name}\")]").unwrap();
+            writeln!(out, "    pub fn {}(&self) {{", method.name).unwrap();
+            out.push_str("        self.tdx.stop_streaming();\n");
+            out.push_str(
+                "        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());\n",
+            );
+            out.push_str("        *guard = None;\n");
+            out.push_str("    }\n");
+        }
+        other => panic!("unsupported TypeScript method kind: {other:?}"),
+    }
+    out
+}
+
+fn to_ts_camel_case(name: &str) -> String {
+    let mut parts = name.split('_');
+    let first = parts.next().unwrap_or_default();
+    let mut result = first.to_string();
+    for part in parts {
+        if !part.is_empty() {
+            let mut chars = part.chars();
+            result.push(chars.next().unwrap().to_uppercase().next().unwrap());
+            result.extend(chars);
+        }
+    }
+    result
 }

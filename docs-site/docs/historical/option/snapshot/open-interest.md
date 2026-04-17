@@ -25,6 +25,12 @@ for t in data:
     print(f"date={t['date']} open_interest={t['open_interest']} "
           f"expiration={t['expiration']} strike={t['strike']:.2f}")
 ```
+```typescript [TypeScript]
+const data = tdx.optionSnapshotOpenInterest('SPY', '20260417', '550', 'C');
+for (const t of data) {
+    console.log(`date=${t.date} open_interest=${t.open_interest} expiration=${t.expiration} strike=${t.strike}`);
+}
+```
 ```go [Go]
 data, _ := client.OptionSnapshotOpenInterest("SPY", "20260417", "550", "C")
 for _, t := range data {

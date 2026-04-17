@@ -1,6 +1,6 @@
 ---
 title: Getting Started
-description: Overview of ThetaDataDx - a direct-wire SDK for ThetaData market data across Rust, Python, Go, and C++.
+description: Overview of ThetaDataDx - a direct-wire SDK for ThetaData market data across Rust, Python, TypeScript/Node.js, Go, and C++.
 ---
 
 # Getting Started
@@ -12,7 +12,7 @@ ThetaDataDx is a multi-language SDK that connects directly to ThetaData's MDDS a
 - **61 historical endpoints** covering stocks, options, indices, interest rates, and market calendars
 - **Real-time streaming** via FPSS with quote, trade, open interest, and OHLC events
 - **Offline Greeks** computed locally with no server round-trip
-- **Four SDKs**: Rust (native), Python (PyO3 bindings), Go (CGo FFI), C++ (C FFI with RAII wrappers)
+- **Five SDKs**: Rust (native), Python (PyO3 bindings), TypeScript/Node.js (napi-rs), Go (CGo FFI), C++ (C FFI with RAII wrappers)
 
 ## Prerequisites
 
@@ -21,6 +21,7 @@ ThetaDataDx is a multi-language SDK that connects directly to ThetaData's MDDS a
 | ThetaData account | Email and password from [thetadata.us](https://thetadata.us) |
 | Rust toolchain | Required for Go and C++ SDKs (builds the FFI library) |
 | Python 3.9+ | For the Python SDK; pre-built wheels provided |
+| Node.js 18+ | For the TypeScript/Node.js SDK |
 | Go 1.21+ | For the Go SDK; also needs a C compiler for CGo |
 | C++17 compiler + CMake 3.16+ | For the C++ SDK |
 

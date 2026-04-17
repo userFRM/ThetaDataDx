@@ -2,7 +2,7 @@
 
 Core Rust crate - direct wire-protocol access to ThetaData's MDDS (gRPC) and FPSS (TCP) servers.
 
-This is the engine that powers all ThetaDataDx SDKs (Python, Go, C++, CLI, MCP, REST server).
+This is the engine that powers all ThetaDataDx SDKs (Python, TypeScript/Node.js, Go, C++, CLI, MCP, REST server).
 
 ## Entry Point
 

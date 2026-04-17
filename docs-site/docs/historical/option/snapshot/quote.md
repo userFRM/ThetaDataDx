@@ -25,6 +25,12 @@ for t in data:
     print(f"date={t['date']} ms_of_day={t['ms_of_day']} bid={t['bid']:.2f} ask={t['ask']:.2f} "
           f"bid_size={t['bid_size']} ask_size={t['ask_size']} expiration={t['expiration']} strike={t['strike']:.2f}")
 ```
+```typescript [TypeScript]
+const data = tdx.optionSnapshotQuote('SPY', '20260417', '550', 'C');
+for (const t of data) {
+    console.log(`date=${t.date} ms_of_day=${t.ms_of_day} bid=${t.bid} ask=${t.ask} bid_size=${t.bid_size} ask_size=${t.ask_size}`);
+}
+```
 ```go [Go]
 data, _ := client.OptionSnapshotQuote("SPY", "20260417", "550", "C")
 for _, t := range data {

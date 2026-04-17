@@ -28,6 +28,12 @@ for t in data:
     print(f"date={t['date']} ms_of_day={t['ms_of_day']} open={t['open']:.2f} high={t['high']:.2f} "
           f"low={t['low']:.2f} close={t['close']:.2f} volume={t['volume']} count={t['count']}")
 ```
+```typescript [TypeScript]
+const data = tdx.stockHistoryOhlc('SPY', '20260315', '60000');
+for (const t of data) {
+    console.log(`date=${t.date} open=${t.open} high=${t.high} low=${t.low} close=${t.close} volume=${t.volume}`);
+}
+```
 ```go [Go]
 data, _ := client.StockHistoryOHLC("SPY", "20260315", "60000")
 for _, t := range data {
@@ -59,6 +65,12 @@ data = tdx.stock_history_ohlc_range("SPY", "20260101", "20260301", "300000")
 for t in data:
     print(f"date={t['date']} ms_of_day={t['ms_of_day']} open={t['open']:.2f} high={t['high']:.2f} "
           f"low={t['low']:.2f} close={t['close']:.2f} volume={t['volume']} count={t['count']}")
+```
+```typescript [TypeScript]
+const data = tdx.stockHistoryOhlcRange('SPY', '20260101', '20260301', '300000');
+for (const t of data) {
+    console.log(`date=${t.date} open=${t.open} high=${t.high} low=${t.low} close=${t.close} volume=${t.volume}`);
+}
 ```
 ```go [Go]
 data, _ := client.StockHistoryOHLCRange("SPY", "20260101", "20260301", "300000")

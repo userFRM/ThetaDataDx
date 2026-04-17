@@ -112,7 +112,7 @@ Last validated: 2026-04-04 against live MDDS production.
 - [x] Test FPSS stock streaming (quotes + trades verified on dev)
 - [x] Test FPSS option streaming (subscriptions accepted, no data on dev replay)
 - [x] Large data streaming (887K SPY trades via `_stream()`)
-- [ ] Cross-SDK parity validation (Python, Go, C++ return identical data)
+- [ ] Cross-SDK parity validation (Python, TypeScript/Node.js, Go, C++ return identical data)
 - [ ] Auto-reconnect on FPSS disconnect
 - [ ] Index price streaming
 - [ ] Split/dividend endpoints (v3: "Coming Soon")

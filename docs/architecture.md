@@ -4,7 +4,7 @@
 
 ```mermaid
 graph LR
-    App["Your Rust / Python<br/>Application"]
+    App["Your Rust / Python / TypeScript<br/>Application"]
 
     subgraph ThetaData Infrastructure
         Nexus["Nexus API<br/>nexus-api.thetadata.us<br/>POST /identity/terminal/auth_user"]
@@ -348,6 +348,7 @@ This matches the Java terminal's behavior: OHLCVC bars are never emitted purely 
 FPSS streaming uses separate `FpssClient` wrappers in Go/C++ (not the historical `Client`):
 - **Rust**: `tdx.start_streaming(callback)` launches a disruptor-backed event receiver
 - **Python**: `tdx.start_streaming()`, `tdx.subscribe_quotes()`, `tdx.subscribe_option_*()`, `tdx.contract_map()`, `tdx.reconnect()`, `tdx.next_event()`, `tdx.stop_streaming()`
+- **TypeScript/Node.js**: `tdx.startStreaming()`, `tdx.subscribeQuotes()`, `tdx.nextEvent()`, `tdx.stopStreaming()`
 - **Go**: `FpssClient` wrapping 26 FFI FPSS functions, including option-level subscribe/unsubscribe, `ContractMap()`, and `Reconnect()`
 - **C++**: `FpssClient` RAII class wrapping 26 FFI FPSS functions, including option-level subscribe/unsubscribe, `contract_map()`, and `reconnect()`
 - **C FFI**: 26 `extern "C"` functions (`tdx_fpss_connect`, `tdx_fpss_subscribe_*`, `tdx_fpss_unsubscribe_*`, `tdx_fpss_contract_map`, `tdx_fpss_reconnect`, `tdx_fpss_next_event`, `tdx_fpss_shutdown`, `tdx_fpss_free`, etc.)

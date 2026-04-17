@@ -25,6 +25,12 @@ for t in data:
     print(f"date={t['date']} ms_of_day={t['ms_of_day']} gamma={t['gamma']:.4f} "
           f"vanna={t['vanna']:.4f} charm={t['charm']:.4f} vomma={t['vomma']:.4f} veta={t['veta']:.4f}")
 ```
+```typescript [TypeScript]
+const data = tdx.optionHistoryGreeksSecondOrder('SPY', '20260417', '550', 'C', '20260315', '60000');
+for (const t of data) {
+    console.log(`date=${t.date} ms_of_day=${t.ms_of_day} gamma=${t.gamma} vanna=${t.vanna} charm=${t.charm} vomma=${t.vomma}`);
+}
+```
 ```go [Go]
 data, _ := client.OptionHistoryGreeksSecondOrder("SPY", "20260417", "550", "C", "20260315", "60000")
 for _, t := range data {

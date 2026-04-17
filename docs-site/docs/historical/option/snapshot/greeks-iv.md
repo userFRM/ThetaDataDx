@@ -25,6 +25,12 @@ for t in data:
     print(f"date={t['date']} ms_of_day={t['ms_of_day']} implied_volatility={t['implied_volatility']:.4f} "
           f"iv_error={t['iv_error']:.4f} expiration={t['expiration']} strike={t['strike']:.2f}")
 ```
+```typescript [TypeScript]
+const data = tdx.optionSnapshotGreeksImpliedVolatility('SPY', '20260417', '550', 'C');
+for (const t of data) {
+    console.log(`date=${t.date} ms_of_day=${t.ms_of_day} implied_volatility=${t.implied_volatility} iv_error=${t.iv_error}`);
+}
+```
 ```go [Go]
 data, _ := client.OptionSnapshotGreeksIV("SPY", "20260417", "550", "C")
 for _, t := range data {
