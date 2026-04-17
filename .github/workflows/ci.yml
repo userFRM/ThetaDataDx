@@ -80,6 +80,7 @@ jobs:
       - run: cargo clippy --manifest-path tools/server/Cargo.toml --locked -- -D warnings
       - run: cargo test --manifest-path tools/server/Cargo.toml --locked
       - run: cargo check --manifest-path sdks/python/Cargo.toml --locked
+      - run: cargo check --manifest-path sdks/typescript/Cargo.toml --locked
 
   sdk-bindings:
     name: SDK Bindings (${{ matrix.os }})

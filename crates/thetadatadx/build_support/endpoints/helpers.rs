@@ -554,6 +554,25 @@ pub(super) fn python_columnar_converter(return_type: &str) -> &'static str {
     }
 }
 
+pub(super) fn ts_columnar_converter(return_type: &str) -> &'static str {
+    match return_type {
+        "EodTicks" => "eod_ticks_to_columnar",
+        "OhlcTicks" => "ohlc_ticks_to_columnar",
+        "TradeTicks" => "trade_ticks_to_columnar",
+        "QuoteTicks" => "quote_ticks_to_columnar",
+        "TradeQuoteTicks" => "trade_quote_ticks_to_columnar",
+        "OpenInterestTicks" => "open_interest_ticks_to_columnar",
+        "MarketValueTicks" => "market_value_ticks_to_columnar",
+        "GreeksTicks" => "greeks_ticks_to_columnar",
+        "IvTicks" => "iv_ticks_to_columnar",
+        "PriceTicks" => "price_ticks_to_columnar",
+        "CalendarDays" => "calendar_days_to_columnar",
+        "InterestRateTicks" => "interest_rate_ticks_to_columnar",
+        "OptionContracts" => "option_contracts_to_columnar",
+        other => panic!("unsupported TypeScript columnar converter: {other}"),
+    }
+}
+
 // ───────────────────────── Builder / FFI option tables ─────────────────────
 
 pub(super) fn builder_value_type_name(param: &GeneratedParam) -> &'static str {

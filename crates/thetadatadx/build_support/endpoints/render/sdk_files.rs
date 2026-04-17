@@ -10,7 +10,9 @@ use std::path::Path;
 
 use super::super::helpers::collect_builder_params;
 use super::super::parser::{load_endpoint_specs, validate_test_fixtures};
-use super::{cli_validate, cpp, cpp_validate, ffi, go, go_validate, python, python_validate};
+use super::{
+    cli_validate, cpp, cpp_validate, ffi, go, go_validate, python, python_validate, typescript,
+};
 
 struct GeneratedSourceFile {
     relative_path: &'static str,
@@ -105,6 +107,10 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
         GeneratedSourceFile {
             relative_path: "sdks/python/src/historical_methods.rs",
             contents: python::render_python_historical_methods(&parsed.endpoints),
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/typescript/src/historical_methods.rs",
+            contents: typescript::render_typescript_historical_methods(&parsed.endpoints),
         },
         GeneratedSourceFile {
             relative_path: "scripts/validate_cli.py",

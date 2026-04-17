@@ -18,13 +18,13 @@ version = 2
 name = "start_streaming"
 kind = "start_streaming"
 doc = "Start FPSS streaming. Events are buffered; poll with next_event()."
-targets = ["python_unified"]
+targets = ["python_unified", "typescript_napi"]
 
 [[methods]]
 name = "is_streaming"
 kind = "is_streaming"
 doc = "Whether the streaming connection is active."
-targets = ["python_unified"]
+targets = ["python_unified", "typescript_napi"]
 
 [[methods]]
 name = "subscribe_quotes"
@@ -32,7 +32,7 @@ kind = "stock_contract_call"
 doc = "Subscribe to real-time quote data for a stock symbol."
 runtime_call = "subscribe_quotes"
 ffi_call = "subscribe_quotes"
-targets = ["python_unified", "go_fpss", "cpp_fpss"]
+targets = ["python_unified", "typescript_napi", "go_fpss", "cpp_fpss"]
 params = [{ name = "symbol", type = "string", doc = "Stock symbol." }]
 
 [[methods]]
@@ -41,7 +41,7 @@ kind = "stock_contract_call"
 doc = "Subscribe to real-time trade data for a stock symbol."
 runtime_call = "subscribe_trades"
 ffi_call = "subscribe_trades"
-targets = ["python_unified", "go_fpss", "cpp_fpss"]
+targets = ["python_unified", "typescript_napi", "go_fpss", "cpp_fpss"]
 params = [{ name = "symbol", type = "string", doc = "Stock symbol." }]
 
 [[methods]]
@@ -50,7 +50,7 @@ kind = "stock_contract_call"
 doc = "Subscribe to open interest data for a stock symbol."
 runtime_call = "subscribe_open_interest"
 ffi_call = "subscribe_open_interest"
-targets = ["python_unified", "go_fpss", "cpp_fpss"]
+targets = ["python_unified", "typescript_napi", "go_fpss", "cpp_fpss"]
 params = [{ name = "symbol", type = "string", doc = "Stock symbol." }]
 
 [[methods]]
@@ -59,7 +59,7 @@ kind = "option_contract_call"
 doc = "Subscribe to quote data for an option contract."
 runtime_call = "subscribe_quotes"
 ffi_call = "subscribe_option_quotes"
-targets = ["python_unified", "go_fpss", "cpp_fpss"]
+targets = ["python_unified", "typescript_napi", "go_fpss", "cpp_fpss"]
 params = [
   { name = "symbol", type = "string", doc = "Underlying symbol." },
   { name = "expiration", type = "string", doc = "Option expiration." },
@@ -73,7 +73,7 @@ kind = "option_contract_call"
 doc = "Subscribe to trade data for an option contract."
 runtime_call = "subscribe_trades"
 ffi_call = "subscribe_option_trades"
-targets = ["python_unified", "go_fpss", "cpp_fpss"]
+targets = ["python_unified", "typescript_napi", "go_fpss", "cpp_fpss"]
 params = [
   { name = "symbol", type = "string", doc = "Underlying symbol." },
   { name = "expiration", type = "string", doc = "Option expiration." },
@@ -87,7 +87,7 @@ kind = "option_contract_call"
 doc = "Subscribe to open interest data for an option contract."
 runtime_call = "subscribe_open_interest"
 ffi_call = "subscribe_option_open_interest"
-targets = ["python_unified", "go_fpss", "cpp_fpss"]
+targets = ["python_unified", "typescript_napi", "go_fpss", "cpp_fpss"]
 params = [
   { name = "symbol", type = "string", doc = "Underlying symbol." },
   { name = "expiration", type = "string", doc = "Option expiration." },
@@ -101,7 +101,7 @@ kind = "full_call"
 doc = "Subscribe to all trades for a security type."
 runtime_call = "subscribe_full_trades"
 ffi_call = "subscribe_full_trades"
-targets = ["python_unified", "go_fpss", "cpp_fpss"]
+targets = ["python_unified", "typescript_napi", "go_fpss", "cpp_fpss"]
 params = [{ name = "sec_type", type = "string", doc = "Security type: STOCK, OPTION, or INDEX." }]
 
 [[methods]]
@@ -110,7 +110,7 @@ kind = "full_call"
 doc = "Subscribe to all open interest for a security type."
 runtime_call = "subscribe_full_open_interest"
 ffi_call = "subscribe_full_open_interest"
-targets = ["python_unified", "go_fpss", "cpp_fpss"]
+targets = ["python_unified", "typescript_napi", "go_fpss", "cpp_fpss"]
 params = [{ name = "sec_type", type = "string", doc = "Security type: STOCK, OPTION, or INDEX." }]
 
 [[methods]]
@@ -119,7 +119,7 @@ kind = "stock_contract_call"
 doc = "Unsubscribe from quote data for a stock symbol."
 runtime_call = "unsubscribe_quotes"
 ffi_call = "unsubscribe_quotes"
-targets = ["python_unified", "go_fpss", "cpp_fpss"]
+targets = ["python_unified", "typescript_napi", "go_fpss", "cpp_fpss"]
 params = [{ name = "symbol", type = "string", doc = "Stock symbol." }]
 
 [[methods]]
@@ -128,7 +128,7 @@ kind = "stock_contract_call"
 doc = "Unsubscribe from trade data for a stock symbol."
 runtime_call = "unsubscribe_trades"
 ffi_call = "unsubscribe_trades"
-targets = ["python_unified", "go_fpss", "cpp_fpss"]
+targets = ["python_unified", "typescript_napi", "go_fpss", "cpp_fpss"]
 params = [{ name = "symbol", type = "string", doc = "Stock symbol." }]
 
 [[methods]]
@@ -137,7 +137,7 @@ kind = "stock_contract_call"
 doc = "Unsubscribe from open interest data for a stock symbol."
 runtime_call = "unsubscribe_open_interest"
 ffi_call = "unsubscribe_open_interest"
-targets = ["python_unified", "go_fpss", "cpp_fpss"]
+targets = ["python_unified", "typescript_napi", "go_fpss", "cpp_fpss"]
 params = [{ name = "symbol", type = "string", doc = "Stock symbol." }]
 
 [[methods]]
@@ -146,7 +146,7 @@ kind = "option_contract_call"
 doc = "Unsubscribe from quote data for an option contract."
 runtime_call = "unsubscribe_quotes"
 ffi_call = "unsubscribe_option_quotes"
-targets = ["python_unified", "go_fpss", "cpp_fpss"]
+targets = ["python_unified", "typescript_napi", "go_fpss", "cpp_fpss"]
 params = [
   { name = "symbol", type = "string", doc = "Underlying symbol." },
   { name = "expiration", type = "string", doc = "Option expiration." },
@@ -160,7 +160,7 @@ kind = "option_contract_call"
 doc = "Unsubscribe from trade data for an option contract."
 runtime_call = "unsubscribe_trades"
 ffi_call = "unsubscribe_option_trades"
-targets = ["python_unified", "go_fpss", "cpp_fpss"]
+targets = ["python_unified", "typescript_napi", "go_fpss", "cpp_fpss"]
 params = [
   { name = "symbol", type = "string", doc = "Underlying symbol." },
   { name = "expiration", type = "string", doc = "Option expiration." },
@@ -174,7 +174,7 @@ kind = "option_contract_call"
 doc = "Unsubscribe from open interest data for an option contract."
 runtime_call = "unsubscribe_open_interest"
 ffi_call = "unsubscribe_option_open_interest"
-targets = ["python_unified", "go_fpss", "cpp_fpss"]
+targets = ["python_unified", "typescript_napi", "go_fpss", "cpp_fpss"]
 params = [
   { name = "symbol", type = "string", doc = "Underlying symbol." },
   { name = "expiration", type = "string", doc = "Option expiration." },
@@ -188,7 +188,7 @@ kind = "full_call"
 doc = "Unsubscribe from all trades for a security type."
 runtime_call = "unsubscribe_full_trades"
 ffi_call = "unsubscribe_full_trades"
-targets = ["python_unified", "go_fpss", "cpp_fpss"]
+targets = ["python_unified", "typescript_napi", "go_fpss", "cpp_fpss"]
 params = [{ name = "sec_type", type = "string", doc = "Security type: STOCK, OPTION, or INDEX." }]
 
 [[methods]]
@@ -197,52 +197,52 @@ kind = "full_call"
 doc = "Unsubscribe from all open interest for a security type."
 runtime_call = "unsubscribe_full_open_interest"
 ffi_call = "unsubscribe_full_open_interest"
-targets = ["python_unified", "go_fpss", "cpp_fpss"]
+targets = ["python_unified", "typescript_napi", "go_fpss", "cpp_fpss"]
 params = [{ name = "sec_type", type = "string", doc = "Security type: STOCK, OPTION, or INDEX." }]
 
 [[methods]]
 name = "contract_map"
 kind = "contract_map"
 doc = "Get the current contract map keyed by server-assigned contract ID."
-targets = ["python_unified", "go_fpss", "cpp_fpss"]
+targets = ["python_unified", "typescript_napi", "go_fpss", "cpp_fpss"]
 
 [[methods]]
 name = "contract_lookup"
 kind = "contract_lookup"
 doc = "Look up a single contract by its server-assigned ID."
-targets = ["python_unified", "go_fpss", "cpp_fpss"]
+targets = ["python_unified", "typescript_napi", "go_fpss", "cpp_fpss"]
 params = [{ name = "id", type = "i32", doc = "Server-assigned contract ID." }]
 
 [[methods]]
 name = "active_subscriptions"
 kind = "active_subscriptions"
 doc = "Get a snapshot of currently active subscriptions."
-targets = ["python_unified", "go_fpss", "cpp_fpss"]
+targets = ["python_unified", "typescript_napi", "go_fpss", "cpp_fpss"]
 
 [[methods]]
 name = "next_event"
 kind = "next_event"
 doc = "Poll for the next FPSS event."
-targets = ["python_unified", "go_fpss", "cpp_fpss"]
+targets = ["python_unified", "typescript_napi", "go_fpss", "cpp_fpss"]
 params = [{ name = "timeout_ms", type = "u64", doc = "Maximum time to wait in milliseconds." }]
 
 [[methods]]
 name = "reconnect"
 kind = "reconnect"
 doc = "Reconnect streaming and re-subscribe all previous subscriptions."
-targets = ["python_unified", "go_fpss", "cpp_fpss"]
+targets = ["python_unified", "typescript_napi", "go_fpss", "cpp_fpss"]
 
 [[methods]]
 name = "stop_streaming"
 kind = "stop_streaming"
 doc = "Stop streaming while keeping the historical client usable."
-targets = ["python_unified"]
+targets = ["python_unified", "typescript_napi"]
 
 [[methods]]
 name = "shutdown"
 kind = "shutdown"
 doc = "Shut down the FPSS streaming connection."
-targets = ["python_unified", "go_fpss", "cpp_fpss"]
+targets = ["python_unified", "typescript_napi", "go_fpss", "cpp_fpss"]
 
 [[methods]]
 name = "is_authenticated"
