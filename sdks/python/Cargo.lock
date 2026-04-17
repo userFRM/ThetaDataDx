@@ -1606,7 +1606,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "7.2.1"
+version = "7.3.0"
 dependencies = [
  "disruptor",
  "metrics",
@@ -1635,7 +1635,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-py"
-version = "7.2.1"
+version = "7.3.0"
 dependencies = [
  "pyo3",
  "tdbe",

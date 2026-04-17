@@ -11,7 +11,7 @@ description: Install ThetaDataDx for Rust, Python, TypeScript/Node.js, Go, or C+
 ```toml [Rust]
 # Add to your Cargo.toml
 [dependencies]
-thetadatadx = "7.2"
+thetadatadx = "7.3"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 ```bash [Python]
