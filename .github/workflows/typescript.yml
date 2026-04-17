@@ -78,7 +78,7 @@ jobs:
       - working-directory: sdks/typescript
         run: npm install
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: sdks/typescript/artifacts
       - name: Move binaries into platform packages
