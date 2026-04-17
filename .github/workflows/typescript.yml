@@ -89,12 +89,28 @@ jobs:
         run: ls -lR npm/
       - name: Publish platform packages
         working-directory: sdks/typescript
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           for dir in npm/*/; do
             if ls "$dir"/*.node 1>/dev/null 2>&1; then
-              npm publish "$dir" --provenance --access public
+              pkg_name=$(node -p "require('./${dir}package.json').name")
+              pkg_version=$(node -p "require('./${dir}package.json').version")
+              if npm view "${pkg_name}@${pkg_version}" version 2>/dev/null; then
+                echo "⏭ ${pkg_name}@${pkg_version} already published"
+              else
+                npm publish "$dir" --provenance --access public
+              fi
             fi
           done
       - name: Publish root package
         working-directory: sdks/typescript
-        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          pkg_version=$(node -p "require('./package.json').version")
+          if npm view "thetadatadx@${pkg_version}" version 2>/dev/null; then
+            echo "⏭ thetadatadx@${pkg_version} already published"
+          else
+            npm publish --provenance --access public
+          fi
