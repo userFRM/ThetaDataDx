@@ -23,6 +23,10 @@ data = tdx.option_list_expirations("SPY")
 for item in data:
     print(item)
 ```
+```typescript [TypeScript]
+const data = tdx.optionListExpirations('SPY');
+console.log(data);
+```
 ```go [Go]
 data, _ := client.OptionListExpirations("SPY")
 for _, item := range data {

@@ -23,6 +23,12 @@ data = tdx.index_snapshot_price(["SPX", "NDX"])
 for t in data:
     print(f"date={t['date']} ms_of_day={t['ms_of_day']} price={t['price']:.2f}")
 ```
+```typescript [TypeScript]
+const data = tdx.indexSnapshotPrice(['SPX', 'NDX']);
+for (const t of data) {
+    console.log(`date=${t.date} ms_of_day=${t.ms_of_day} price=${t.price}`);
+}
+```
 ```go [Go]
 data, _ := client.IndexSnapshotPrice([]string{"SPX"})
 for _, t := range data {

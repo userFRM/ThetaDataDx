@@ -1,6 +1,6 @@
 ---
 title: Installation
-description: Install ThetaDataDx for Rust, Python, Go, or C++.
+description: Install ThetaDataDx for Rust, Python, TypeScript/Node.js, Go, or C++.
 ---
 
 # Installation
@@ -23,6 +23,15 @@ pip install thetadatadx[polars]    # polars DataFrames
 pip install thetadatadx[all]       # both
 
 # Requires Python 3.9+. Pre-built wheels are provided - no Rust toolchain required.
+```
+```bash [TypeScript]
+npm install thetadatadx
+
+# From source (requires Rust toolchain + Node.js 18+):
+git clone https://github.com/userFRM/ThetaDataDx.git
+cd ThetaDataDx/sdks/typescript
+npm install
+npm run build
 ```
 ```bash [Go]
 # Prerequisites: Go 1.21+, Rust toolchain, C compiler (for CGo)
@@ -127,6 +136,12 @@ from thetadatadx import Credentials, Config, ThetaDataDx
 creds = Credentials.from_file("creds.txt")
 client = ThetaDataDx(creds, Config.production())
 print("Connected successfully")
+```
+```typescript [TypeScript]
+import { ThetaDataDx } from 'thetadatadx';
+
+const tdx = await ThetaDataDx.connectFromFile('creds.txt');
+console.log('Connected successfully');
 ```
 ```go [Go]
 creds, err := thetadatadx.CredentialsFromFile("creds.txt")

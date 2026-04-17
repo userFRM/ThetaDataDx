@@ -23,6 +23,10 @@ data = tdx.stock_list_symbols()
 for item in data:
     print(item)
 ```
+```typescript [TypeScript]
+const data = tdx.stockListSymbols();
+console.log(data);
+```
 ```go [Go]
 data, _ := client.StockListSymbols()
 for _, item := range data {

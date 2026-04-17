@@ -25,6 +25,12 @@ for t in data:
     print(f"date={t['date']} ms_of_day={t['ms_of_day']} price={t['price']:.2f} "
           f"size={t['size']} exchange={t['exchange']} condition={t['condition']} sequence={t['sequence']}")
 ```
+```typescript [TypeScript]
+const data = tdx.stockHistoryTrade('SPY', '20260315');
+for (const t of data) {
+    console.log(`date=${t.date} ms_of_day=${t.ms_of_day} price=${t.price} size=${t.size} exchange=${t.exchange} condition=${t.condition}`);
+}
+```
 ```go [Go]
 data, _ := client.StockHistoryTrade("SPY", "20260315")
 for _, t := range data {

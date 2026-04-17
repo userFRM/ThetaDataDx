@@ -24,6 +24,10 @@ data = tdx.option_list_contracts("TRADE", "SPY", "20260402")
 for t in data:
     print(f"symbol={t['root']} expiration={t['expiration']} strike={t['strike']:.2f} right={t['right']}")
 ```
+```typescript [TypeScript]
+const data = tdx.optionListContracts('TRADE', 'SPY', '20260402');
+console.log(data);
+```
 ```go [Go]
 data, _ := client.OptionListContracts("TRADE", "SPY", "20260402")
 for _, t := range data {

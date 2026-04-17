@@ -28,6 +28,11 @@ result = tdx.calendar_open_today()
 result = tdx.calendar_on_date("20240315")
 result = tdx.calendar_year("2024")
 ```
+```typescript [TypeScript]
+const result1 = tdx.calendarOpenToday();
+const result2 = tdx.calendarOnDate('20240315');
+const result3 = tdx.calendarYear('2024');
+```
 ```go [Go]
 result, _ := client.CalendarOpenToday()
 result, _ = client.CalendarOnDate("20240315")

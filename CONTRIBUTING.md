@@ -9,6 +9,7 @@ you need to get started.
 - **protoc** (Protocol Buffers compiler) - only needed if modifying `.proto` files
 - **Python 3.9+** - for the Python SDK
 - **maturin** - for building the PyO3 Python bindings (`pip install "maturin>=1.9.4,<2.0"`)
+- **Node.js 18+** - for the TypeScript/Node.js SDK
 - **Go 1.21+** - for the Go SDK
 
 Note: `protoc` is required even if you're not modifying `.proto` files, because `build.rs` compiles protos during `cargo build`.
@@ -54,6 +55,7 @@ cargo test --manifest-path tools/cli/Cargo.toml
 
 # 6. Language SDK smoke checks (if modified)
 cargo check --manifest-path sdks/python/Cargo.toml
+(cd sdks/typescript && npm run build)
 (cd sdks/go && LD_LIBRARY_PATH=../../target/release go test ./...)
 c++ -std=c++17 -fsyntax-only -I sdks/cpp/include sdks/cpp/src/thetadx.cpp
 cmake -S sdks/cpp -B build/cpp
@@ -103,6 +105,7 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
 | `core` | `crates/thetadatadx/` |
 | `ffi` | `ffi/` |
 | `python` | `sdks/python/` |
+| `typescript` | `sdks/typescript/` |
 | `go` | `sdks/go/` |
 | `cpp` | `sdks/cpp/` |
 | `cli` | `tools/cli/` |

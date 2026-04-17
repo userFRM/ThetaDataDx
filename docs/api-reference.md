@@ -697,6 +697,10 @@ All 61 endpoints are exposed through the `thetadatadx-ffi` C ABI crate. Each met
 
 All 61 endpoints are available in the Python SDK via PyO3 bindings (e.g., `tdx.stock_history_eod(...)`). Streaming is available via `tdx.start_streaming()` / `tdx.next_event()`. DataFrame conversion is available via `to_dataframe()` and `_df` method variants (requires `pip install thetadatadx[pandas]`).
 
+### TypeScript/Node.js SDK Coverage
+
+All 61 endpoints are available in the TypeScript/Node.js SDK via napi-rs bindings as camelCase methods (e.g., `tdx.stockHistoryEod(...)`). Streaming is available via `tdx.startStreaming()` / `tdx.nextEvent()`. Returns columnar objects with typed fields.
+
 ### Python SDK: Streaming
 
 ```python
@@ -760,6 +764,27 @@ typedef struct { TdxFpssEventKind kind; TdxFpssQuote quote; TdxFpssTrade trade;
 ```
 
 Check `event->kind` then read the corresponding field. Only the field matching `kind` is valid. All prices are `f64` (double) -- decoded during parsing. No `price_type` in the public API.
+
+### TypeScript/Node.js SDK: Streaming
+
+```typescript
+import { ThetaDataDx } from 'thetadatadx';
+
+const tdx = await ThetaDataDx.connectFromFile('creds.txt');
+
+tdx.startStreaming();
+tdx.subscribeQuotes('AAPL');
+while (true) {
+    const event = tdx.nextEvent(5000);
+    if (!event) continue;
+    if (event.kind === 'quote') {
+        console.log(`Quote: bid=${event.bid} ask=${event.ask}`);
+    } else if (event.kind === 'trade') {
+        console.log(`Trade: price=${event.price} size=${event.size}`);
+    }
+}
+tdx.stopStreaming();
+```
 
 ### Go SDK: Streaming
 

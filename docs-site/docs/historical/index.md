@@ -22,6 +22,11 @@ from thetadatadx import Credentials, Config, ThetaDataDx
 creds = Credentials.from_file("creds.txt")
 tdx = ThetaDataDx(creds, Config.production())
 ```
+```typescript [TypeScript]
+import { ThetaDataDx } from 'thetadatadx';
+
+const tdx = await ThetaDataDx.connectFromFile('creds.txt');
+```
 ```go [Go]
 creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
 defer creds.Close()
@@ -99,6 +104,11 @@ if eod.is_empty() {
 ```python [Python]
 if not eod:
     print("No data for this date range")
+```
+```typescript [TypeScript]
+if (eod.length === 0) {
+    console.log('No data for this date range');
+}
 ```
 ```go [Go]
 if len(eod) == 0 {

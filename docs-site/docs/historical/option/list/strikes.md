@@ -23,6 +23,10 @@ data = tdx.option_list_strikes("SPY", "20260417")
 for item in data:
     print(item)
 ```
+```typescript [TypeScript]
+const data = tdx.optionListStrikes('SPY', '20260417');
+console.log(data);
+```
 ```go [Go]
 data, _ := client.OptionListStrikes("SPY", "20260417")
 for _, item := range data {

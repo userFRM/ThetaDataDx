@@ -25,6 +25,12 @@ for t in data:
     print(f"date={t['date']} ms_of_day={t['ms_of_day']} price={t['price']:.2f} "
           f"size={t['size']} exchange={t['exchange']} condition={t['condition']}")
 ```
+```typescript [TypeScript]
+const data = tdx.stockSnapshotTrade(['SPY']);
+for (const t of data) {
+    console.log(`date=${t.date} ms_of_day=${t.ms_of_day} price=${t.price} size=${t.size} exchange=${t.exchange} condition=${t.condition}`);
+}
+```
 ```go [Go]
 data, _ := client.StockSnapshotTrade([]string{"SPY"})
 for _, t := range data {

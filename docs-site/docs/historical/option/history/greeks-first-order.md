@@ -25,6 +25,12 @@ for t in data:
     print(f"date={t['date']} ms_of_day={t['ms_of_day']} implied_volatility={t['implied_volatility']:.4f} delta={t['delta']:.4f} "
           f"theta={t['theta']:.4f} vega={t['vega']:.4f} rho={t['rho']:.4f} epsilon={t['epsilon']:.4f} lambda={t['lambda']:.4f}")
 ```
+```typescript [TypeScript]
+const data = tdx.optionHistoryGreeksFirstOrder('SPY', '20260417', '550', 'C', '20260315', '60000');
+for (const t of data) {
+    console.log(`date=${t.date} ms_of_day=${t.ms_of_day} implied_volatility=${t.implied_volatility} delta=${t.delta} theta=${t.theta} vega=${t.vega}`);
+}
+```
 ```go [Go]
 data, _ := client.OptionHistoryGreeksFirstOrder("SPY", "20260417", "550", "C", "20260315", "60000")
 for _, t := range data {

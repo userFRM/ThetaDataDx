@@ -23,6 +23,10 @@ data = tdx.index_list_symbols()
 for item in data:
     print(item)
 ```
+```typescript [TypeScript]
+const data = tdx.indexListSymbols();
+console.log(data);
+```
 ```go [Go]
 data, _ := client.IndexListSymbols()
 for _, item := range data {

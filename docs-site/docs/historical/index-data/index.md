@@ -27,6 +27,10 @@ let eod = tdx.index_history_eod("SPX", "20240101", "20240301").await?;
 symbols = tdx.index_list_symbols()
 eod = tdx.index_history_eod("SPX", "20240101", "20240301")
 ```
+```typescript [TypeScript]
+const symbols = tdx.indexListSymbols();
+const eod = tdx.indexHistoryEod('SPX', '20240101', '20240301');
+```
 ```go [Go]
 symbols, _ := client.IndexListSymbols()
 eod, _ := client.IndexHistoryEOD("SPX", "20240101", "20240301")

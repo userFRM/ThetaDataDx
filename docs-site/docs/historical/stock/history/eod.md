@@ -25,6 +25,12 @@ for t in data:
     print(f"date={t['date']} open={t['open']:.2f} high={t['high']:.2f} low={t['low']:.2f} "
           f"close={t['close']:.2f} volume={t['volume']} bid={t['bid']:.2f} ask={t['ask']:.2f}")
 ```
+```typescript [TypeScript]
+const data = tdx.stockHistoryEod('SPY', '20260101', '20260301');
+for (const t of data) {
+    console.log(`date=${t.date} open=${t.open} high=${t.high} low=${t.low} close=${t.close} volume=${t.volume}`);
+}
+```
 ```go [Go]
 data, _ := client.StockHistoryEOD("SPY", "20260101", "20260301")
 for _, t := range data {

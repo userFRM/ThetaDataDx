@@ -250,7 +250,7 @@ def check_static_docs() -> None:
     )
     expect_contains(
         ROOT / "docs-site/docs/streaming/reconnection.md",
-        "Python, Go, and C++ expose `reconnect()` on their public streaming clients.",
+        "Python, TypeScript/Node.js, Go, and C++ expose `reconnect()` on their public streaming clients.",
     )
 
 

@@ -25,6 +25,12 @@ for t in data:
     print(f"date={t['date']} is_open={t['is_open']} "
           f"open_time={t['open_time']} close_time={t['close_time']}")
 ```
+```typescript [TypeScript]
+const data = tdx.calendarOnDate('20260315');
+for (const t of data) {
+    console.log(`date=${t.date} is_open=${t.is_open} open_time=${t.open_time} close_time=${t.close_time}`);
+}
+```
 ```go [Go]
 data, _ := client.CalendarOnDate("20260315")
 for _, t := range data {

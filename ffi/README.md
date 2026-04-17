@@ -2,7 +2,7 @@
 
 C FFI layer for `thetadatadx` - exposes the Rust SDK as `extern "C"` functions.
 
-Compiled as both `cdylib` (shared library) and `staticlib` (archive). Consumed by the Go (CGo) and C++ (RAII) SDKs.
+Compiled as both `cdylib` (shared library) and `staticlib` (archive). Consumed by the Go (CGo), C++ (RAII), and TypeScript/Node.js (napi-rs) SDKs.
 
 ## Building
 

@@ -69,7 +69,7 @@ tdx::FpssClient fpss(creds, config);
 :::
 
 ::: tip
-The Rust SDK uses a callback model where you provide a closure to `start_streaming`. Python, Go, and C++ use a polling model where you call `next_event()` / `NextEvent()` in a loop.
+The Rust SDK uses a callback model where you provide a closure to `start_streaming`. Python, TypeScript/Node.js, Go, and C++ use a polling model where you call `next_event()` / `nextEvent()` / `NextEvent()` in a loop.
 :::
 
 ## Connect (Dev Server)

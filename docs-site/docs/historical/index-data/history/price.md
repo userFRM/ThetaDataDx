@@ -23,6 +23,12 @@ data = tdx.index_history_price("SPX", "20260315", "60000")
 for t in data:
     print(f"date={t['date']} ms_of_day={t['ms_of_day']} price={t['price']:.2f}")
 ```
+```typescript [TypeScript]
+const data = tdx.indexHistoryPrice('SPX', '20260315', '60000');
+for (const t of data) {
+    console.log(`date=${t.date} ms_of_day=${t.ms_of_day} price=${t.price}`);
+}
+```
 ```go [Go]
 data, _ := client.IndexHistoryPrice("SPX", "20260315", "60000")
 for _, t := range data {

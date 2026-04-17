@@ -16,7 +16,7 @@ graph LR
     C -->|"Disruptor<br/>ring buffer"| D["Your Application<br/>(callback / poll)"]
 ```
 
-Events are decoded from the FIT wire format and delta-decompressed on an I/O thread, then dispatched through an LMAX Disruptor ring buffer to your callback (Rust) or polling queue (Python/Go/C++). Every data event carries a `received_at_ns` nanosecond timestamp captured at frame decode time.
+Events are decoded from the FIT wire format and delta-decompressed on an I/O thread, then dispatched through an LMAX Disruptor ring buffer to your callback (Rust) or polling queue (Python/TypeScript/Go/C++). Every data event carries a `received_at_ns` nanosecond timestamp captured at frame decode time.
 
 ## Client Model
 
@@ -26,13 +26,14 @@ Streaming is delivered through a **different client surface in each SDK**, by de
 |-----|------------------|-------|
 | **Rust** | `ThetaDataDx` (the main client) | `start_streaming(callback)`, `subscribe_*`, `stop_streaming` are methods on the unified client. The streaming connection is established lazily. |
 | **Python** | `ThetaDataDx` (the main client) | Same unified client. Call `start_streaming()`, then poll `next_event()`. |
+| **TypeScript/Node.js** | `ThetaDataDx` (the main client) | Same unified client. Call `startStreaming()`, then poll `nextEvent()`. |
 | **Go** | **`FpssClient`** (separate type) | The Go `Client` is historical-only. Construct a standalone `thetadatadx.NewFpssClient(creds, config)` for streaming. |
 | **C++** | **`tdx::FpssClient`** (separate type) | The C++ `tdx::Client` is historical-only. Construct a standalone `tdx::FpssClient(creds, config)` for streaming. |
 
 This is not a drift or API mismatch -- it is the intentional per-language surface. Rust and Python can afford a unified client because both compile or bind against the same Rust core. Go and C++ use a thin FFI and split the surface to keep each handle's lifetime and memory ownership unambiguous.
 
 ::: tip
-If you are porting code between SDKs: anywhere a Rust or Python example calls `tdx.subscribe_quotes(...)` on the main client, the Go and C++ equivalents call `fpss.SubscribeQuotes(...)` / `fpss.subscribe_quotes(...)` on a separate `FpssClient` handle.
+If you are porting code between SDKs: anywhere a Rust, Python, or TypeScript example calls `tdx.subscribe_quotes(...)` / `tdx.subscribeQuotes(...)` on the main client, the Go and C++ equivalents call `fpss.SubscribeQuotes(...)` / `fpss.subscribe_quotes(...)` on a separate `FpssClient` handle.
 :::
 
 ## SDK Streaming Models
@@ -41,6 +42,7 @@ If you are porting code between SDKs: anywhere a Rust or Python example calls `t
 |-----|-------|------------|---------|
 | **Rust** | Synchronous callback | `&FpssEvent` enum | Disruptor ring buffer dispatch. No Tokio on the hot path. |
 | **Python** | Polling | `dict` | `next_event()` returns events as Python dicts with all fields. |
+| **TypeScript/Node.js** | Polling | `object` | `nextEvent()` returns events as JS objects with all fields. |
 | **Go** | Polling | `*FpssEvent` struct | `NextEvent()` returns typed Go structs. Price fields pre-decoded to `float64`. |
 | **C++** | Polling | `FpssEventPtr` | `next_event()` returns `unique_ptr<TdxFpssEvent>` (RAII). `#[repr(C)]` layout. |
 

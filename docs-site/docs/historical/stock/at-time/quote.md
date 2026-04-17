@@ -27,6 +27,12 @@ for t in data:
     print(f"date={t['date']} ms_of_day={t['ms_of_day']} "
           f"bid={t['bid']:.2f} ask={t['ask']:.2f} midpoint={t['midpoint']:.2f}")
 ```
+```typescript [TypeScript]
+const data = tdx.stockAtTimeQuote('SPY', '20260101', '20260301', '09:30:00.000');
+for (const t of data) {
+    console.log(`date=${t.date} ms_of_day=${t.ms_of_day} bid=${t.bid} ask=${t.ask} midpoint=${t.midpoint}`);
+}
+```
 ```go [Go]
 data, _ := client.StockAtTimeQuote("SPY", "20260101", "20260301", "09:30:00.000")
 for _, t := range data {

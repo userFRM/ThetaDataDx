@@ -75,6 +75,26 @@ g = all_greeks(
 )
 print(f"IV={g['iv']:.4f} Delta={g['delta']:.4f} Gamma={g['gamma']:.6f}")
 ```
+```typescript [TypeScript]
+import { ThetaDataDx, allGreeks } from 'thetadatadx';
+
+// Authenticate and connect
+const client = await ThetaDataDx.connectFromFile('creds.txt');
+
+// Fetch end-of-day stock data
+const eod = client.stockHistoryEod('AAPL', '20240101', '20240301');
+for (const tick of eod) {
+    console.log(`${tick.date}: O=${tick.open} H=${tick.high} L=${tick.low} C=${tick.close} V=${tick.volume}`);
+}
+
+// List option expirations
+const exps = client.optionListExpirations('SPY');
+console.log('SPY expirations:', exps.slice(0, 5));
+
+// Compute Greeks (offline, no server call)
+const g = allGreeks(450.0, 455.0, 0.05, 0.015, 30 / 365, 8.50, 'C');
+console.log(`IV=${g.iv.toFixed(4)} Delta=${g.delta.toFixed(4)} Gamma=${g.gamma.toFixed(6)}`);
+```
 ```go [Go]
 package main
 

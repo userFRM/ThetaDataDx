@@ -162,7 +162,7 @@ For the absolute lowest latency:
 
 2. **Keep the callback fast** -- the Disruptor callback runs on the consumer thread. Push to your own queue for heavy processing.
 
-3. **Use the Rust SDK directly** -- Python, Go, and C++ add an mpsc channel hop between the Disruptor and `next_event()`.
+3. **Use the Rust SDK directly** -- Python, TypeScript/Node.js, Go, and C++ add an mpsc channel hop between the Disruptor and `next_event()`.
 
 ## Network Physics: Minimum Achievable Latency
 
@@ -189,7 +189,7 @@ For latency-sensitive applications:
 
 1. **Colocate near NJ** -- AWS us-east-1 (N. Virginia) or any NJ/NYC-area datacenter gets sub-5ms
 2. **`FpssFlushMode::Immediate`** reduces software batching latency by up to 100ms, but cannot beat physics
-3. **Use the Rust SDK directly** -- eliminates the FFI channel hop present in Python/Go/C++ (adds <1ms)
+3. **Use the Rust SDK directly** -- eliminates the FFI channel hop present in Python/TypeScript/Go/C++ (adds <1ms)
 
 ## Latency Histogram Example
 

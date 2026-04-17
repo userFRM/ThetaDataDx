@@ -23,6 +23,12 @@ data = tdx.interest_rate_history_eod("SOFR", "20260101", "20260301")
 for t in data:
     print(f"date={t['date']} rate={t['rate']:.4f}")
 ```
+```typescript [TypeScript]
+const data = tdx.interestRateHistoryEod('SOFR', '20260101', '20260301');
+for (const t of data) {
+    console.log(`date=${t.date} rate=${t.rate}`);
+}
+```
 ```go [Go]
 data, _ := client.InterestRateHistoryEOD("SOFR", "20260101", "20260301")
 for _, t := range data {
