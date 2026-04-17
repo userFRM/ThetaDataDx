@@ -83,7 +83,7 @@ jobs:
           path: sdks/typescript/artifacts
       - name: Move binaries into platform packages
         working-directory: sdks/typescript
-        run: npx napi artifacts --dir artifacts
+        run: npx napi artifacts --output-dir artifacts
       - name: List platform packages
         working-directory: sdks/typescript
         run: ls -lR npm/
