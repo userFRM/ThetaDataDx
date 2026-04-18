@@ -26,6 +26,7 @@ sdks/python/src/streaming_methods.rs text eol=lf linguist-generated=true
 scripts/validate_python.py           text eol=lf linguist-generated=true
 sdks/python/src/tick_columnar.rs     text eol=lf linguist-generated=true
 sdks/python/src/fpss_event_classes.rs text eol=lf linguist-generated=true
+sdks/python/src/tick_classes.rs      text eol=lf linguist-generated=true
 sdks/python/src/utility_functions.rs text eol=lf linguist-generated=true
 tools/cli/src/utilities.rs           text eol=lf linguist-generated=true
 tools/mcp/src/utilities.rs           text eol=lf linguist-generated=true
