@@ -13,27 +13,27 @@ export declare class ThetaDataDx {
   /** List available dates for a stock by request type (EOD, TRADE, QUOTE, etc.). */
   stockListDates(requestType: string, symbol: string, timeoutMs?: number | undefined | null): Array<string>
   /** Get the latest OHLC snapshot for one or more stocks. */
-  stockSnapshotOHLC(symbols: Array<string>, venue?: string | undefined | null, minTime?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  stockSnapshotOHLC(symbols: Array<string>, venue?: string | undefined | null, minTime?: string | undefined | null, timeoutMs?: number | undefined | null): Array<OhlcTick>
   /** Get the latest trade snapshot for one or more stocks. */
-  stockSnapshotTrade(symbols: Array<string>, venue?: string | undefined | null, minTime?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  stockSnapshotTrade(symbols: Array<string>, venue?: string | undefined | null, minTime?: string | undefined | null, timeoutMs?: number | undefined | null): Array<TradeTick>
   /** Get the latest NBBO quote snapshot for one or more stocks. */
-  stockSnapshotQuote(symbols: Array<string>, venue?: string | undefined | null, minTime?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  stockSnapshotQuote(symbols: Array<string>, venue?: string | undefined | null, minTime?: string | undefined | null, timeoutMs?: number | undefined | null): Array<QuoteTick>
   /** Get the latest market value snapshot for one or more stocks. */
-  stockSnapshotMarketValue(symbols: Array<string>, venue?: string | undefined | null, minTime?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  stockSnapshotMarketValue(symbols: Array<string>, venue?: string | undefined | null, minTime?: string | undefined | null, timeoutMs?: number | undefined | null): Array<MarketValueTick>
   /** Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day. */
-  stockHistoryEOD(symbol: string, startDate: string, endDate: string, timeoutMs?: number | undefined | null): any
+  stockHistoryEOD(symbol: string, startDate: string, endDate: string, timeoutMs?: number | undefined | null): Array<EodTick>
   /** Fetch intraday OHLC bars for a stock on a single date. */
-  stockHistoryOHLC(symbol: string, date: string, interval: string, startTime?: string | undefined | null, endTime?: string | undefined | null, venue?: string | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  stockHistoryOHLC(symbol: string, date: string, interval: string, startTime?: string | undefined | null, endTime?: string | undefined | null, venue?: string | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): Array<OhlcTick>
   /** Fetch all trades for a stock on a given date. */
-  stockHistoryTrade(symbol: string, date: string, startTime?: string | undefined | null, endTime?: string | undefined | null, venue?: string | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  stockHistoryTrade(symbol: string, date: string, startTime?: string | undefined | null, endTime?: string | undefined | null, venue?: string | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): Array<TradeTick>
   /** Fetch NBBO quotes for a stock on a given date at a given interval. */
-  stockHistoryQuote(symbol: string, date: string, interval: string, startTime?: string | undefined | null, endTime?: string | undefined | null, venue?: string | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  stockHistoryQuote(symbol: string, date: string, interval: string, startTime?: string | undefined | null, endTime?: string | undefined | null, venue?: string | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): Array<QuoteTick>
   /** Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable. */
-  stockHistoryTradeQuote(symbol: string, date: string, startTime?: string | undefined | null, endTime?: string | undefined | null, exclusive?: boolean | undefined | null, venue?: string | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  stockHistoryTradeQuote(symbol: string, date: string, startTime?: string | undefined | null, endTime?: string | undefined | null, exclusive?: boolean | undefined | null, venue?: string | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): Array<TradeQuoteTick>
   /** Fetch the trade at a specific time of day across a date range. */
-  stockAtTimeTrade(symbol: string, startDate: string, endDate: string, timeOfDay: string, venue?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  stockAtTimeTrade(symbol: string, startDate: string, endDate: string, timeOfDay: string, venue?: string | undefined | null, timeoutMs?: number | undefined | null): Array<TradeTick>
   /** Fetch the quote at a specific time of day across a date range. */
-  stockAtTimeQuote(symbol: string, startDate: string, endDate: string, timeOfDay: string, venue?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  stockAtTimeQuote(symbol: string, startDate: string, endDate: string, timeOfDay: string, venue?: string | undefined | null, timeoutMs?: number | undefined | null): Array<QuoteTick>
   /** List all available option underlying symbols. */
   optionListSymbols(timeoutMs?: number | undefined | null): Array<string>
   /** List available dates for an option contract by request type. */
@@ -43,93 +43,93 @@ export declare class ThetaDataDx {
   /** List available strike prices for an option at a given expiration. */
   optionListStrikes(symbol: string, expiration: string, timeoutMs?: number | undefined | null): Array<string>
   /** List all option contracts for a symbol on a given date. */
-  optionListContracts(requestType: string, symbol: string, date: string, maxDte?: number | undefined | null, timeoutMs?: number | undefined | null): any
+  optionListContracts(requestType: string, symbol: string, date: string, maxDte?: number | undefined | null, timeoutMs?: number | undefined | null): Array<OptionContract>
   /** Get the latest OHLC snapshot for an option contract. */
-  optionSnapshotOHLC(symbol: string, expiration: string, strike: string, right: string, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  optionSnapshotOHLC(symbol: string, expiration: string, strike: string, right: string, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | undefined | null, timeoutMs?: number | undefined | null): Array<OhlcTick>
   /** Get the latest trade snapshot for an option contract. */
-  optionSnapshotTrade(symbol: string, expiration: string, strike: string, right: string, strikeRange?: number | undefined | null, minTime?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  optionSnapshotTrade(symbol: string, expiration: string, strike: string, right: string, strikeRange?: number | undefined | null, minTime?: string | undefined | null, timeoutMs?: number | undefined | null): Array<TradeTick>
   /** Get the latest NBBO quote snapshot for an option contract. */
-  optionSnapshotQuote(symbol: string, expiration: string, strike: string, right: string, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  optionSnapshotQuote(symbol: string, expiration: string, strike: string, right: string, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | undefined | null, timeoutMs?: number | undefined | null): Array<QuoteTick>
   /** Get the latest open interest snapshot for an option contract. */
-  optionSnapshotOpenInterest(symbol: string, expiration: string, strike: string, right: string, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  optionSnapshotOpenInterest(symbol: string, expiration: string, strike: string, right: string, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | undefined | null, timeoutMs?: number | undefined | null): Array<OpenInterestTick>
   /** Get the latest market value snapshot for an option contract. */
-  optionSnapshotMarketValue(symbol: string, expiration: string, strike: string, right: string, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  optionSnapshotMarketValue(symbol: string, expiration: string, strike: string, right: string, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | undefined | null, timeoutMs?: number | undefined | null): Array<MarketValueTick>
   /** Get implied volatility snapshot for an option contract (from ThetaData server). */
-  optionSnapshotGreeksImpliedVolatility(symbol: string, expiration: string, strike: string, right: string, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, stockPrice?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | undefined | null, useMarketValue?: boolean | undefined | null, timeoutMs?: number | undefined | null): any
+  optionSnapshotGreeksImpliedVolatility(symbol: string, expiration: string, strike: string, right: string, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, stockPrice?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | undefined | null, useMarketValue?: boolean | undefined | null, timeoutMs?: number | undefined | null): Array<IvTick>
   /** Get all Greeks snapshot for an option contract (from ThetaData server). */
-  optionSnapshotGreeksAll(symbol: string, expiration: string, strike: string, right: string, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, stockPrice?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | undefined | null, useMarketValue?: boolean | undefined | null, timeoutMs?: number | undefined | null): any
+  optionSnapshotGreeksAll(symbol: string, expiration: string, strike: string, right: string, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, stockPrice?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | undefined | null, useMarketValue?: boolean | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
   /** Get first-order Greeks snapshot (delta, theta, rho) for an option contract. */
-  optionSnapshotGreeksFirstOrder(symbol: string, expiration: string, strike: string, right: string, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, stockPrice?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | undefined | null, useMarketValue?: boolean | undefined | null, timeoutMs?: number | undefined | null): any
+  optionSnapshotGreeksFirstOrder(symbol: string, expiration: string, strike: string, right: string, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, stockPrice?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | undefined | null, useMarketValue?: boolean | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
   /** Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract. */
-  optionSnapshotGreeksSecondOrder(symbol: string, expiration: string, strike: string, right: string, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, stockPrice?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | undefined | null, useMarketValue?: boolean | undefined | null, timeoutMs?: number | undefined | null): any
+  optionSnapshotGreeksSecondOrder(symbol: string, expiration: string, strike: string, right: string, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, stockPrice?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | undefined | null, useMarketValue?: boolean | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
   /** Get third-order Greeks snapshot (speed, color, ultima) for an option contract. */
-  optionSnapshotGreeksThirdOrder(symbol: string, expiration: string, strike: string, right: string, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, stockPrice?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | undefined | null, useMarketValue?: boolean | undefined | null, timeoutMs?: number | undefined | null): any
+  optionSnapshotGreeksThirdOrder(symbol: string, expiration: string, strike: string, right: string, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, stockPrice?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | undefined | null, useMarketValue?: boolean | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
   /** Fetch end-of-day option data for a contract over a date range. */
-  optionHistoryEOD(symbol: string, expiration: string, strike: string, right: string, startDate: string, endDate: string, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, timeoutMs?: number | undefined | null): any
+  optionHistoryEOD(symbol: string, expiration: string, strike: string, right: string, startDate: string, endDate: string, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, timeoutMs?: number | undefined | null): Array<EodTick>
   /** Fetch intraday OHLC bars for an option contract. */
-  optionHistoryOHLC(symbol: string, expiration: string, strike: string, right: string, date: string, interval: string, startTime?: string | undefined | null, endTime?: string | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  optionHistoryOHLC(symbol: string, expiration: string, strike: string, right: string, date: string, interval: string, startTime?: string | undefined | null, endTime?: string | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): Array<OhlcTick>
   /** Fetch all trades for an option contract on a given date. */
-  optionHistoryTrade(symbol: string, expiration: string, strike: string, right: string, date: string, startTime?: string | undefined | null, endTime?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  optionHistoryTrade(symbol: string, expiration: string, strike: string, right: string, date: string, startTime?: string | undefined | null, endTime?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): Array<TradeTick>
   /** Fetch NBBO quotes for an option contract on a given date. */
-  optionHistoryQuote(symbol: string, expiration: string, strike: string, right: string, date: string, interval: string, startTime?: string | undefined | null, endTime?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  optionHistoryQuote(symbol: string, expiration: string, strike: string, right: string, date: string, interval: string, startTime?: string | undefined | null, endTime?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): Array<QuoteTick>
   /** Fetch combined trade + quote ticks for an option contract. */
-  optionHistoryTradeQuote(symbol: string, expiration: string, strike: string, right: string, date: string, startTime?: string | undefined | null, endTime?: string | undefined | null, exclusive?: boolean | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  optionHistoryTradeQuote(symbol: string, expiration: string, strike: string, right: string, date: string, startTime?: string | undefined | null, endTime?: string | undefined | null, exclusive?: boolean | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): Array<TradeQuoteTick>
   /** Fetch open interest history for an option contract. */
-  optionHistoryOpenInterest(symbol: string, expiration: string, strike: string, right: string, date: string, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  optionHistoryOpenInterest(symbol: string, expiration: string, strike: string, right: string, date: string, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): Array<OpenInterestTick>
   /** Fetch end-of-day Greeks history for an option contract. */
-  optionHistoryGreeksEOD(symbol: string, expiration: string, strike: string, right: string, startDate: string, endDate: string, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, underlyerUseNbbo?: boolean | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, timeoutMs?: number | undefined | null): any
+  optionHistoryGreeksEOD(symbol: string, expiration: string, strike: string, right: string, startDate: string, endDate: string, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, underlyerUseNbbo?: boolean | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
   /** Fetch all Greeks history for an option contract (intraday, sampled by interval). */
-  optionHistoryGreeksAll(symbol: string, expiration: string, strike: string, right: string, date: string, interval: string, startTime?: string | undefined | null, endTime?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  optionHistoryGreeksAll(symbol: string, expiration: string, strike: string, right: string, date: string, interval: string, startTime?: string | undefined | null, endTime?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
   /** Fetch all Greeks on each trade for an option contract. */
-  optionHistoryTradeGreeksAll(symbol: string, expiration: string, strike: string, right: string, date: string, startTime?: string | undefined | null, endTime?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  optionHistoryTradeGreeksAll(symbol: string, expiration: string, strike: string, right: string, date: string, startTime?: string | undefined | null, endTime?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
   /** Fetch first-order Greeks history (intraday, sampled by interval). */
-  optionHistoryGreeksFirstOrder(symbol: string, expiration: string, strike: string, right: string, date: string, interval: string, startTime?: string | undefined | null, endTime?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  optionHistoryGreeksFirstOrder(symbol: string, expiration: string, strike: string, right: string, date: string, interval: string, startTime?: string | undefined | null, endTime?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
   /** Fetch first-order Greeks on each trade for an option contract. */
-  optionHistoryTradeGreeksFirstOrder(symbol: string, expiration: string, strike: string, right: string, date: string, startTime?: string | undefined | null, endTime?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  optionHistoryTradeGreeksFirstOrder(symbol: string, expiration: string, strike: string, right: string, date: string, startTime?: string | undefined | null, endTime?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
   /** Fetch second-order Greeks history (intraday, sampled by interval). */
-  optionHistoryGreeksSecondOrder(symbol: string, expiration: string, strike: string, right: string, date: string, interval: string, startTime?: string | undefined | null, endTime?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  optionHistoryGreeksSecondOrder(symbol: string, expiration: string, strike: string, right: string, date: string, interval: string, startTime?: string | undefined | null, endTime?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
   /** Fetch second-order Greeks on each trade for an option contract. */
-  optionHistoryTradeGreeksSecondOrder(symbol: string, expiration: string, strike: string, right: string, date: string, startTime?: string | undefined | null, endTime?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  optionHistoryTradeGreeksSecondOrder(symbol: string, expiration: string, strike: string, right: string, date: string, startTime?: string | undefined | null, endTime?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
   /** Fetch third-order Greeks history (intraday, sampled by interval). */
-  optionHistoryGreeksThirdOrder(symbol: string, expiration: string, strike: string, right: string, date: string, interval: string, startTime?: string | undefined | null, endTime?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  optionHistoryGreeksThirdOrder(symbol: string, expiration: string, strike: string, right: string, date: string, interval: string, startTime?: string | undefined | null, endTime?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
   /** Fetch third-order Greeks on each trade for an option contract. */
-  optionHistoryTradeGreeksThirdOrder(symbol: string, expiration: string, strike: string, right: string, date: string, startTime?: string | undefined | null, endTime?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  optionHistoryTradeGreeksThirdOrder(symbol: string, expiration: string, strike: string, right: string, date: string, startTime?: string | undefined | null, endTime?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
   /** Fetch implied volatility history (intraday, sampled by interval). */
-  optionHistoryGreeksImpliedVolatility(symbol: string, expiration: string, strike: string, right: string, date: string, interval: string, startTime?: string | undefined | null, endTime?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  optionHistoryGreeksImpliedVolatility(symbol: string, expiration: string, strike: string, right: string, date: string, interval: string, startTime?: string | undefined | null, endTime?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): Array<IvTick>
   /** Fetch implied volatility on each trade for an option contract. */
-  optionHistoryTradeGreeksImpliedVolatility(symbol: string, expiration: string, strike: string, right: string, date: string, startTime?: string | undefined | null, endTime?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  optionHistoryTradeGreeksImpliedVolatility(symbol: string, expiration: string, strike: string, right: string, date: string, startTime?: string | undefined | null, endTime?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): Array<IvTick>
   /** Fetch the trade at a specific time of day across a date range for an option. */
-  optionAtTimeTrade(symbol: string, expiration: string, strike: string, right: string, startDate: string, endDate: string, timeOfDay: string, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, timeoutMs?: number | undefined | null): any
+  optionAtTimeTrade(symbol: string, expiration: string, strike: string, right: string, startDate: string, endDate: string, timeOfDay: string, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, timeoutMs?: number | undefined | null): Array<TradeTick>
   /** Fetch the quote at a specific time of day across a date range for an option. */
-  optionAtTimeQuote(symbol: string, expiration: string, strike: string, right: string, startDate: string, endDate: string, timeOfDay: string, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, timeoutMs?: number | undefined | null): any
+  optionAtTimeQuote(symbol: string, expiration: string, strike: string, right: string, startDate: string, endDate: string, timeOfDay: string, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, timeoutMs?: number | undefined | null): Array<QuoteTick>
   /** List all available index symbols. */
   indexListSymbols(timeoutMs?: number | undefined | null): Array<string>
   /** List available dates for an index symbol. */
   indexListDates(symbol: string, timeoutMs?: number | undefined | null): Array<string>
   /** Get the latest OHLC snapshot for one or more indices. */
-  indexSnapshotOHLC(symbols: Array<string>, minTime?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  indexSnapshotOHLC(symbols: Array<string>, minTime?: string | undefined | null, timeoutMs?: number | undefined | null): Array<OhlcTick>
   /** Get the latest price snapshot for one or more indices. */
-  indexSnapshotPrice(symbols: Array<string>, minTime?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  indexSnapshotPrice(symbols: Array<string>, minTime?: string | undefined | null, timeoutMs?: number | undefined | null): Array<PriceTick>
   /** Get the latest market value snapshot for one or more indices. */
-  indexSnapshotMarketValue(symbols: Array<string>, minTime?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  indexSnapshotMarketValue(symbols: Array<string>, minTime?: string | undefined | null, timeoutMs?: number | undefined | null): Array<MarketValueTick>
   /** Fetch end-of-day index data for a date range. */
-  indexHistoryEOD(symbol: string, startDate: string, endDate: string, timeoutMs?: number | undefined | null): any
+  indexHistoryEOD(symbol: string, startDate: string, endDate: string, timeoutMs?: number | undefined | null): Array<EodTick>
   /** Fetch intraday OHLC bars for an index. */
-  indexHistoryOHLC(symbol: string, startDate: string, endDate: string, interval: string, startTime?: string | undefined | null, endTime?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  indexHistoryOHLC(symbol: string, startDate: string, endDate: string, interval: string, startTime?: string | undefined | null, endTime?: string | undefined | null, timeoutMs?: number | undefined | null): Array<OhlcTick>
   /** Fetch intraday price history for an index. */
-  indexHistoryPrice(symbol: string, date: string, interval: string, startTime?: string | undefined | null, endTime?: string | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  indexHistoryPrice(symbol: string, date: string, interval: string, startTime?: string | undefined | null, endTime?: string | undefined | null, startDate?: string | undefined | null, endDate?: string | undefined | null, timeoutMs?: number | undefined | null): Array<PriceTick>
   /** Fetch the index price at a specific time of day across a date range. */
-  indexAtTimePrice(symbol: string, startDate: string, endDate: string, timeOfDay: string, timeoutMs?: number | undefined | null): any
+  indexAtTimePrice(symbol: string, startDate: string, endDate: string, timeOfDay: string, timeoutMs?: number | undefined | null): Array<PriceTick>
   /** Check whether the market is open today. */
-  calendarOpenToday(timeoutMs?: number | undefined | null): any
+  calendarOpenToday(timeoutMs?: number | undefined | null): Array<CalendarDay>
   /** Get calendar information for a specific date. */
-  calendarOnDate(date: string, timeoutMs?: number | undefined | null): any
+  calendarOnDate(date: string, timeoutMs?: number | undefined | null): Array<CalendarDay>
   /** Get calendar information for an entire year. */
-  calendarYear(year: string, timeoutMs?: number | undefined | null): any
+  calendarYear(year: string, timeoutMs?: number | undefined | null): Array<CalendarDay>
   /** Fetch end-of-day interest rate history. */
-  interestRateHistoryEOD(symbol: string, startDate: string, endDate: string, timeoutMs?: number | undefined | null): any
+  interestRateHistoryEOD(symbol: string, startDate: string, endDate: string, timeoutMs?: number | undefined | null): Array<InterestRateTick>
   /** Fetch intraday OHLC bars across a date range. */
-  stockHistoryOHLCRange(symbol: string, startDate: string, endDate: string, interval: string, startTime?: string | undefined | null, endTime?: string | undefined | null, venue?: string | undefined | null, timeoutMs?: number | undefined | null): any
+  stockHistoryOHLCRange(symbol: string, startDate: string, endDate: string, interval: string, startTime?: string | undefined | null, endTime?: string | undefined | null, venue?: string | undefined | null, timeoutMs?: number | undefined | null): Array<OhlcTick>
   /** Start FPSS streaming. Events are buffered; poll with next_event(). */
   startStreaming(): void
   /** Whether the streaming connection is active. */
@@ -173,11 +173,314 @@ export declare class ThetaDataDx {
   /** Get a snapshot of currently active subscriptions. */
   activeSubscriptions(): any
   /** Poll for the next FPSS event. */
-  nextEvent(timeoutMs: number): any | null
+  nextEvent(timeoutMs: number): ({ kind: 'quote'; quote: Quote } | { kind: 'trade'; trade: Trade } | { kind: 'open_interest'; openInterest: OpenInterest } | { kind: 'ohlcvc'; ohlcvc: Ohlcvc } | { kind: 'control'; control: FpssControlPayload } | { kind: 'raw_data'; rawData: FpssRawDataPayload }) | null
   /** Reconnect streaming and re-subscribe all previous subscriptions. */
   reconnect(): void
   /** Stop streaming while keeping the historical client usable. */
   stopStreaming(): void
   /** Shut down the FPSS streaming connection. */
   shutdown(): void
+}
+
+/** Calendar day. Market open/close schedule. */
+export interface CalendarDay {
+  date: number
+  isOpen: number
+  openTime: number
+  closeTime: number
+  status: number
+}
+
+/** End-of-day tick. Full EOD snapshot with OHLC + quote. */
+export interface EodTick {
+  msOfDay: number
+  msOfDay2: number
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+  count: number
+  bidSize: number
+  bidExchange: number
+  bid: number
+  bidCondition: number
+  askSize: number
+  askExchange: number
+  ask: number
+  askCondition: number
+  date: number
+  expiration: number
+  strike: number
+  right: string
+}
+
+/** FPSS control / diagnostic payload (login, disconnect, market open, ...). */
+export interface FpssControlPayload {
+  /** Concrete control event kind (e.g. "login_success", "disconnected"). */
+  eventType: string
+  /** Free-form diagnostic detail; empty when the event carries no payload. */
+  detail?: string
+  /** Optional event id (req_id for ReqResponse, contract id for ContractAssigned). */
+  id?: number
+}
+
+/**
+ * A single FPSS event surfaced to JS/TS.
+ *
+ * `kind` is the discriminator — switch on it and read the matching
+ * payload field. The shape is stable and every payload is typed, so
+ * consumers never fall back to untyped `any`.
+ */
+export interface FpssEvent {
+  /**
+   * Discriminator: one of "quote", "trade", "open_interest", "ohlcvc",
+   * "control", or "raw_data". Narrowed to a literal union in TS so
+   * `switch (event.kind)` correctly narrows the optional payload fields.
+   */
+  kind: 'quote' | 'trade' | 'open_interest' | 'ohlcvc' | 'control' | 'raw_data'
+  ohlcvc?: Ohlcvc
+  openInterest?: OpenInterest
+  quote?: Quote
+  trade?: Trade
+  control?: FpssControlPayload
+  rawData?: FpssRawDataPayload
+}
+
+/** FPSS raw-bytes payload for frames the decoder did not recognise. */
+export interface FpssRawDataPayload {
+  code: number
+  payload: Array<number>
+}
+
+/** Greeks tick. Full set of option greeks. */
+export interface GreeksTick {
+  msOfDay: number
+  impliedVolatility: number
+  delta: number
+  gamma: number
+  theta: number
+  vega: number
+  rho: number
+  ivError: number
+  vanna: number
+  charm: number
+  vomma: number
+  veta: number
+  speed: number
+  zomma: number
+  color: number
+  ultima: number
+  d1: number
+  d2: number
+  dualDelta: number
+  dualGamma: number
+  epsilon: number
+  lambda: number
+  vera: number
+  date: number
+  expiration: number
+  strike: number
+  right: string
+}
+
+/** Interest rate tick. End-of-day interest rate. */
+export interface InterestRateTick {
+  msOfDay: number
+  rate: number
+  date: number
+}
+
+/** Implied volatility tick. */
+export interface IvTick {
+  msOfDay: number
+  impliedVolatility: number
+  ivError: number
+  date: number
+  expiration: number
+  strike: number
+  right: string
+}
+
+/** Market value tick -- quoted bid/ask/price for a symbol. */
+export interface MarketValueTick {
+  msOfDay: number
+  marketBid: number
+  marketAsk: number
+  marketPrice: number
+  date: number
+  expiration: number
+  strike: number
+  right: string
+}
+
+/** OHLC tick. Aggregated bar data. */
+export interface OhlcTick {
+  msOfDay: number
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+  count: number
+  date: number
+  expiration: number
+  strike: number
+  right: string
+}
+
+/** FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`. */
+export interface Ohlcvc {
+  contractId: number
+  msOfDay: number
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: bigint
+  count: bigint
+  date: number
+  receivedAtNs: bigint
+}
+
+/** FPSS OpenInterest tick. Mirrors `FpssData::OpenInterest`. */
+export interface OpenInterest {
+  contractId: number
+  msOfDay: number
+  openInterest: number
+  date: number
+  receivedAtNs: bigint
+}
+
+/** Open interest tick. */
+export interface OpenInterestTick {
+  msOfDay: number
+  openInterest: number
+  date: number
+  expiration: number
+  strike: number
+  right: string
+}
+
+/** Option contract. Contract specification. */
+export interface OptionContract {
+  root: string
+  expiration: number
+  strike: number
+  right: number
+}
+
+/** Price tick. Generic price data point. */
+export interface PriceTick {
+  msOfDay: number
+  price: number
+  date: number
+}
+
+/** FPSS Quote tick. Mirrors `FpssData::Quote` (symbol-less — `contract_id` is the stable key). */
+export interface Quote {
+  contractId: number
+  msOfDay: number
+  bidSize: number
+  bidExchange: number
+  bid: number
+  bidCondition: number
+  askSize: number
+  askExchange: number
+  ask: number
+  askCondition: number
+  date: number
+  receivedAtNs: bigint
+}
+
+/** Quote tick. NBBO quote data. */
+export interface QuoteTick {
+  msOfDay: number
+  bidSize: number
+  bidExchange: number
+  bid: number
+  bidCondition: number
+  askSize: number
+  askExchange: number
+  ask: number
+  askCondition: number
+  date: number
+  midpoint: number
+  expiration: number
+  strike: number
+  right: string
+}
+
+/** FPSS Trade tick. Mirrors `FpssData::Trade`. */
+export interface Trade {
+  contractId: number
+  msOfDay: number
+  sequence: number
+  extCondition1: number
+  extCondition2: number
+  extCondition3: number
+  extCondition4: number
+  condition: number
+  size: number
+  exchange: number
+  price: number
+  conditionFlags: number
+  priceFlags: number
+  volumeType: number
+  recordsBack: number
+  date: number
+  receivedAtNs: bigint
+}
+
+/** Combined trade + quote tick. */
+export interface TradeQuoteTick {
+  msOfDay: number
+  sequence: number
+  extCondition1: number
+  extCondition2: number
+  extCondition3: number
+  extCondition4: number
+  condition: number
+  size: number
+  exchange: number
+  price: number
+  conditionFlags: number
+  priceFlags: number
+  volumeType: number
+  recordsBack: number
+  quoteMsOfDay: number
+  bidSize: number
+  bidExchange: number
+  bid: number
+  bidCondition: number
+  askSize: number
+  askExchange: number
+  ask: number
+  askCondition: number
+  date: number
+  expiration: number
+  strike: number
+  right: string
+}
+
+/** Trade tick. Core unit of trade data. */
+export interface TradeTick {
+  msOfDay: number
+  sequence: number
+  extCondition1: number
+  extCondition2: number
+  extCondition3: number
+  extCondition4: number
+  condition: number
+  size: number
+  exchange: number
+  price: number
+  conditionFlags: number
+  priceFlags: number
+  volumeType: number
+  recordsBack: number
+  date: number
+  expiration: number
+  strike: number
+  right: string
 }

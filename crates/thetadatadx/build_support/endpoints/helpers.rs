@@ -577,6 +577,50 @@ pub(super) fn python_pyclass_list_converter(return_type: &str) -> &'static str {
     }
 }
 
+/// Map a collection return type (e.g. `TradeTicks`) to the generated
+/// `#[napi(object)]` struct name emitted in `tick_classes.rs`. The TS SDK
+/// binds each Rust tick struct (from `tdbe::types::tick`) to this flat
+/// napi-object variant so `Vec<T>` surfaces as `T[]` in `index.d.ts`.
+pub(super) fn ts_class_name(return_type: &str) -> &'static str {
+    match return_type {
+        "EodTicks" => "EodTick",
+        "OhlcTicks" => "OhlcTick",
+        "TradeTicks" => "TradeTick",
+        "QuoteTicks" => "QuoteTick",
+        "TradeQuoteTicks" => "TradeQuoteTick",
+        "OpenInterestTicks" => "OpenInterestTick",
+        "MarketValueTicks" => "MarketValueTick",
+        "GreeksTicks" => "GreeksTick",
+        "IvTicks" => "IvTick",
+        "PriceTicks" => "PriceTick",
+        "CalendarDays" => "CalendarDay",
+        "InterestRateTicks" => "InterestRateTick",
+        "OptionContracts" => "OptionContract",
+        other => panic!("unsupported TypeScript class name: {other}"),
+    }
+}
+
+/// Map a collection return type to the generated
+/// `{tick}_to_class_vec` factory name. Complements `ts_class_name`.
+pub(super) fn ts_class_vec_converter(return_type: &str) -> &'static str {
+    match return_type {
+        "EodTicks" => "eod_ticks_to_class_vec",
+        "OhlcTicks" => "ohlc_ticks_to_class_vec",
+        "TradeTicks" => "trade_ticks_to_class_vec",
+        "QuoteTicks" => "quote_ticks_to_class_vec",
+        "TradeQuoteTicks" => "trade_quote_ticks_to_class_vec",
+        "OpenInterestTicks" => "open_interest_ticks_to_class_vec",
+        "MarketValueTicks" => "market_value_ticks_to_class_vec",
+        "GreeksTicks" => "greeks_ticks_to_class_vec",
+        "IvTicks" => "iv_ticks_to_class_vec",
+        "PriceTicks" => "price_ticks_to_class_vec",
+        "CalendarDays" => "calendar_days_to_class_vec",
+        "InterestRateTicks" => "interest_rate_ticks_to_class_vec",
+        "OptionContracts" => "option_contracts_to_class_vec",
+        other => panic!("unsupported TypeScript class-vec converter: {other}"),
+    }
+}
+
 pub(super) fn ts_columnar_converter(return_type: &str) -> &'static str {
     match return_type {
         "EodTicks" => "eod_ticks_to_columnar",

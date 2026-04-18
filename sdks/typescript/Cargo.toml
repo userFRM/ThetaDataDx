@@ -15,7 +15,7 @@ crate-type = ["cdylib"]
 thetadatadx = { path = "../../crates/thetadatadx" }
 tdbe = { version = "0.10.0", path = "../../crates/tdbe" }
 
-napi = { version = "3.8.5", features = ["async", "tokio_rt", "serde-json"] }
+napi = { version = "3.8.5", features = ["async", "tokio_rt", "serde-json", "napi6"] }
 napi-derive = "3.5.4"
 
 tokio = { version = "1.52.1", features = ["rt-multi-thread"] }

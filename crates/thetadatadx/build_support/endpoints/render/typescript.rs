@@ -11,7 +11,7 @@ use std::fmt::Write as _;
 
 use super::super::helpers::{
     builder_params, is_streaming_endpoint, method_params, sdk_method_arg_name, to_camel_case,
-    ts_columnar_converter,
+    ts_class_name, ts_class_vec_converter,
 };
 use super::super::model::GeneratedEndpoint;
 
@@ -68,7 +68,12 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
     if is_string_list {
         out.push_str("    ) -> napi::Result<Vec<String>> {\n");
     } else {
-        out.push_str("    ) -> napi::Result<serde_json::Value> {\n");
+        writeln!(
+            out,
+            "    ) -> napi::Result<Vec<{}>> {{",
+            ts_class_name(&endpoint.return_type)
+        )
+        .unwrap();
     }
 
     let has_symbols = method_params
@@ -166,7 +171,7 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
         writeln!(
             out,
             "        Ok({}(&collected))",
-            ts_columnar_converter(&endpoint.return_type)
+            ts_class_vec_converter(&endpoint.return_type)
         )
         .unwrap();
         out.push_str("    }\n");
@@ -179,7 +184,7 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
     writeln!(
         out,
         "        Ok({}(&ticks))",
-        ts_columnar_converter(&endpoint.return_type)
+        ts_class_vec_converter(&endpoint.return_type)
     )
     .unwrap();
     out.push_str("    }\n");
