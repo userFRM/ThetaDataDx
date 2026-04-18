@@ -84,7 +84,11 @@ iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30/365, 8.50, "C")
 
 ### `ThetaDataDx(creds, config)`
 
-All 61 endpoints are available. Methods return lists of dicts.
+All 61 endpoints are available. Methods return lists of typed tick
+pyclass objects (e.g. `list[EodTick]`, `list[TradeTick]`,
+`list[QuoteTick]`, ...). Field access is by attribute —
+`tick.close`, `tick.price` — with IDE completion and typo-loud
+`AttributeError` on misuse.
 
 #### Stock Methods (14)
 
@@ -257,12 +261,20 @@ You can also subscribe to per-contract streams if you only need specific symbols
 | `reconnect()` | Reconnect streaming and restore subscriptions |
 | `shutdown()` | Graceful shutdown |
 
-### `to_dataframe(data)`
-Convert a list of tick dicts to a pandas DataFrame. Requires `pip install thetadatadx[pandas]`.
+### `to_dataframe(ticks)`
+Convert a `list[TickClass]` returned by any historical endpoint to a
+pandas DataFrame. Requires `pip install thetadatadx[pandas]`.
+
+### `to_polars(ticks)`
+Same pivot to a polars DataFrame. Requires `pip install thetadatadx[polars]`.
 
 ### `_df` method variants
-All 61 `ThetaDataDx` data methods have `_df` variants that return DataFrames directly:
-`stock_history_eod_df()`, `stock_history_ohlc_df()`, `option_list_expirations_df()`, `index_history_eod_df()`, etc.
+Shortcut wrappers for the most common historical endpoints — they call
+the typed endpoint under the hood and return a DataFrame directly:
+`stock_history_eod_df()`, `stock_history_ohlc_df()`,
+`stock_history_trade_df()`, `stock_history_quote_df()`. For any other
+endpoint, call it directly and pipe the result through
+`to_dataframe(ticks)`.
 
 ### `all_greeks(spot, strike, rate, div_yield, tte, option_price, right)`
 `right` accepts `"C"`/`"P"` or `"call"`/`"put"` case-insensitively. Returns dict with 22 Greeks: delta, gamma, theta, vega, rho, iv, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda.
@@ -325,10 +337,12 @@ eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
 df = to_dataframe(eod)
 print(df.head())
 
-# Option 2: use _df convenience methods
+# Option 2: use _df convenience wrappers (available for the four most
+# common historical endpoints; call to_dataframe() on anything else)
 df = tdx.stock_history_eod_df("AAPL", "20240101", "20240301")
 df = tdx.stock_history_ohlc_df("AAPL", "20240315", "1m")
-df = tdx.option_list_expirations_df("SPY")
+df = tdx.stock_history_trade_df("AAPL", "20240315")
+df = tdx.stock_history_quote_df("AAPL", "20240315", "1m")
 ```
 
 Install with: `pip install thetadatadx[pandas]`
