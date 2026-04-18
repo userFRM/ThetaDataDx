@@ -23,7 +23,7 @@ impl Ohlcvc {
     fn __repr__(&self) -> String { format!("Ohlcvc(...)") }
 
     #[getter]
-    fn kind(&self) -> &'static str { "Ohlcvc" }
+    fn kind(&self) -> &'static str { "ohlcvc" }
 }
 
 /// FPSS OpenInterest tick. Mirrors `FpssData::OpenInterest`.
@@ -41,7 +41,7 @@ impl OpenInterest {
     fn __repr__(&self) -> String { format!("OpenInterest(...)") }
 
     #[getter]
-    fn kind(&self) -> &'static str { "OpenInterest" }
+    fn kind(&self) -> &'static str { "open_interest" }
 }
 
 /// FPSS Quote tick. Mirrors `FpssData::Quote` (symbol-less — `contract_id` is the stable key).
@@ -66,7 +66,7 @@ impl Quote {
     fn __repr__(&self) -> String { format!("Quote(...)") }
 
     #[getter]
-    fn kind(&self) -> &'static str { "Quote" }
+    fn kind(&self) -> &'static str { "quote" }
 }
 
 /// FPSS Trade tick. Mirrors `FpssData::Trade`.
@@ -96,7 +96,7 @@ impl Trade {
     fn __repr__(&self) -> String { format!("Trade(...)") }
 
     #[getter]
-    fn kind(&self) -> &'static str { "Trade" }
+    fn kind(&self) -> &'static str { "trade" }
 }
 
 pub(crate) fn buffered_event_to_typed(

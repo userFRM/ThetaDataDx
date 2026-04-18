@@ -51,6 +51,24 @@ fn sorted_event_names(schema: &Schema) -> Vec<&str> {
     names
 }
 
+/// Convert a PascalCase event name to snake_case ("OpenInterest" → "open_interest")
+/// so the `kind` discriminator exposed to Python matches the wire tag the
+/// existing dict-based `next_event` emits.
+fn snake_case(name: &str) -> String {
+    let mut out = String::with_capacity(name.len() + 2);
+    for (i, ch) in name.chars().enumerate() {
+        if ch.is_ascii_uppercase() {
+            if i > 0 {
+                out.push('_');
+            }
+            out.push(ch.to_ascii_lowercase());
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
 fn rust_field_type(column_type: &str, event_name: &str, column_name: &str) -> &'static str {
     match column_type {
         "i32" => "i32",
@@ -164,10 +182,15 @@ fn render_python_event_class_struct(event_name: &str, def: &EventDef) -> String 
         "    fn __repr__(&self) -> String {{ format!(\"{event_name}(...)\") }}\n"
     )
     .unwrap();
+    // Use the same lowercase/snake_case wire tag the existing dict-based
+    // `next_event` emits ("quote", "trade", "open_interest", "ohlcvc") so
+    // `next_event_typed` is a true drop-in — consumer `event.kind` checks
+    // don't need to branch on which API they called.
+    let kind_tag = snake_case(event_name);
     writeln!(out, "    #[getter]").unwrap();
     writeln!(
         out,
-        "    fn kind(&self) -> &'static str {{ \"{event_name}\" }}"
+        "    fn kind(&self) -> &'static str {{ \"{kind_tag}\" }}"
     )
     .unwrap();
     out.push_str("}\n");
