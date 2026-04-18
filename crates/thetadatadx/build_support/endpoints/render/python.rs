@@ -11,8 +11,8 @@
 use std::fmt::Write as _;
 
 use super::super::helpers::{
-    builder_params, is_streaming_endpoint, method_params, python_columnar_converter,
-    python_method_arg_decl, python_optional_type, sdk_method_arg_name,
+    builder_params, is_streaming_endpoint, method_params, python_method_arg_decl,
+    python_optional_type, python_pyclass_list_converter, sdk_method_arg_name,
 };
 use super::super::model::GeneratedEndpoint;
 
@@ -162,8 +162,8 @@ fn render_python_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("        let ticks = run_blocking(py, async move { request.await })?;\n");
     writeln!(
         out,
-        "        Ok({}(py, &ticks))",
-        python_columnar_converter(&endpoint.return_type)
+        "        {}(py, &ticks)",
+        python_pyclass_list_converter(&endpoint.return_type)
     )
     .unwrap();
     out.push_str("    }\n");

@@ -198,9 +198,16 @@ impl Config {
     }
 }
 
-// ── Tick columnar converters (generated from tick_schema.toml) ──
+// ── Tick converters + typed pyclasses (generated from tick_schema.toml) ──
+//
+// `tick_columnar.rs` is used internally by DataFrame wrappers (pandas
+// ingest path). `tick_classes.rs` is the primary return path for all
+// historical endpoints — matches the typed-struct approach used by Rust
+// core, TypeScript, Go, and C++ FFI.
 
 include!("tick_columnar.rs");
+
+include!("tick_classes.rs");
 
 include!("utility_functions.rs");
 
@@ -682,8 +689,8 @@ impl ThetaDataDx {
         start_date: &str,
         end_date: &str,
     ) -> PyResult<Py<PyAny>> {
-        let columnar = self.stock_history_eod(py, symbol, start_date, end_date, None)?;
-        columnar_to_dataframe(py, columnar)
+        let ticks = self.stock_history_eod(py, symbol, start_date, end_date, None)?;
+        pyclass_list_to_dataframe(py, ticks)
     }
 
     /// Fetch stock OHLC history and return a pandas DataFrame.
@@ -694,10 +701,10 @@ impl ThetaDataDx {
         date: &str,
         interval: &str,
     ) -> PyResult<Py<PyAny>> {
-        let columnar = self.stock_history_ohlc(
+        let ticks = self.stock_history_ohlc(
             py, symbol, date, interval, None, None, None, None, None, None,
         )?;
-        columnar_to_dataframe(py, columnar)
+        pyclass_list_to_dataframe(py, ticks)
     }
 
     /// Fetch stock trade history and return a pandas DataFrame.
@@ -707,9 +714,9 @@ impl ThetaDataDx {
         symbol: &str,
         date: &str,
     ) -> PyResult<Py<PyAny>> {
-        let columnar =
+        let ticks =
             self.stock_history_trade(py, symbol, date, None, None, None, None, None, None)?;
-        columnar_to_dataframe(py, columnar)
+        pyclass_list_to_dataframe(py, ticks)
     }
 
     /// Fetch stock quote history and return a pandas DataFrame.
@@ -720,10 +727,10 @@ impl ThetaDataDx {
         date: &str,
         interval: &str,
     ) -> PyResult<Py<PyAny>> {
-        let columnar = self.stock_history_quote(
+        let ticks = self.stock_history_quote(
             py, symbol, date, interval, None, None, None, None, None, None,
         )?;
-        columnar_to_dataframe(py, columnar)
+        pyclass_list_to_dataframe(py, ticks)
     }
 
     fn __repr__(&self) -> String {
@@ -814,16 +821,53 @@ include!("historical_methods.rs");
 
 // ── pandas DataFrame helpers ──
 
-/// Internal helper: convert a columnar dict (dict-of-lists) into a pandas DataFrame.
+/// Convert a list of typed tick pyclasses into a columnar dict of lists.
 ///
-/// `pd.DataFrame(dict_of_lists)` is the fastest DataFrame constructor --
-/// it accepts a dict where each key maps to a list of values directly.
-fn columnar_to_dataframe(py: Python<'_>, columnar: Py<PyAny>) -> PyResult<Py<PyAny>> {
+/// Historical endpoints return `list[TickClass]` (typed pyclass objects,
+/// matching Rust/TS/Go/C++). For DataFrame construction we need the same
+/// dict-of-lists shape pandas consumes natively; this helper does the
+/// one pivot, skipping private attributes and anything non-field (bound
+/// methods, `kind`, `__repr__`).
+fn pyclass_list_to_columnar<'py>(
+    py: Python<'py>,
+    ticks: &Bound<'py, pyo3::types::PyList>,
+) -> PyResult<Bound<'py, PyDict>> {
+    let out = PyDict::new(py);
+    let n = ticks.len();
+    if n == 0 {
+        return Ok(out);
+    }
+    let first = ticks.get_item(0)?;
+    let attrs_list = first.call_method0("__dir__")?;
+    let attrs: Vec<String> = attrs_list.extract()?;
+    for name in attrs.iter().filter(|a| !a.starts_with('_')) {
+        // Skip callables and the synthetic `kind` accessor if any.
+        let probe = first.getattr(name.as_str())?;
+        if probe.is_callable() {
+            continue;
+        }
+        let col = pyo3::types::PyList::empty(py);
+        for i in 0..n {
+            let item = ticks.get_item(i)?;
+            col.append(item.getattr(name.as_str())?)?;
+        }
+        out.set_item(name.as_str(), col)?;
+    }
+    Ok(out)
+}
+
+/// Internal helper: convert a list of tick pyclasses into a pandas DataFrame.
+fn pyclass_list_to_dataframe(py: Python<'_>, ticks: Py<PyAny>) -> PyResult<Py<PyAny>> {
     let pandas = py.import("pandas").map_err(|_| {
         PyRuntimeError::new_err(
             "pandas is required for DataFrame conversion. Install with: pip install pandas",
         )
     })?;
+    let bound = ticks.bind(py);
+    let list = bound.downcast::<pyo3::types::PyList>().map_err(|_| {
+        PyRuntimeError::new_err("to_dataframe() expects a list of typed tick objects")
+    })?;
+    let columnar = pyclass_list_to_columnar(py, list)?;
     let df = pandas.call_method1("DataFrame", (columnar,))?;
     Ok(df.unbind())
 }
@@ -882,12 +926,12 @@ fn _bench_synthetic_typed(py: Python<'_>, n: usize) -> PyResult<u64> {
     Ok(u64::try_from(start.elapsed().as_nanos()).unwrap_or(u64::MAX))
 }
 
-/// Convert a columnar dict (dict-of-lists) to a pandas DataFrame.
+/// Convert a list of typed tick pyclasses to a pandas DataFrame.
 ///
 /// Requires pandas to be installed (``pip install pandas``).
 ///
-/// Historical endpoints return columnar dicts (one list per field).
-/// This is the fastest input format for ``pd.DataFrame()``.
+/// Historical endpoints return ``list[TickClass]`` (typed pyclass objects).
+/// This helper pivots to the dict-of-lists shape pandas consumes natively.
 ///
 /// Example::
 ///
@@ -895,10 +939,10 @@ fn _bench_synthetic_typed(py: Python<'_>, n: usize) -> PyResult<u64> {
 ///     df = thetadatadx.to_dataframe(ticks)
 #[pyfunction]
 fn to_dataframe(py: Python<'_>, ticks: Py<PyAny>) -> PyResult<Py<PyAny>> {
-    columnar_to_dataframe(py, ticks)
+    pyclass_list_to_dataframe(py, ticks)
 }
 
-/// Convert a columnar dict (dict-of-lists) to a polars DataFrame.
+/// Convert a list of typed tick pyclasses to a polars DataFrame.
 ///
 /// Requires polars: ``pip install thetadatadx[polars]``
 ///
@@ -913,7 +957,12 @@ fn to_polars(py: Python<'_>, ticks: Py<PyAny>) -> PyResult<Py<PyAny>> {
             "polars is not installed. Install it with: pip install thetadatadx[polars]",
         )
     })?;
-    let df = polars.call_method1("DataFrame", (ticks,))?;
+    let bound = ticks.bind(py);
+    let list = bound.downcast::<pyo3::types::PyList>().map_err(|_| {
+        PyRuntimeError::new_err("to_polars() expects a list of typed tick objects")
+    })?;
+    let columnar = pyclass_list_to_columnar(py, list)?;
+    let df = polars.call_method1("DataFrame", (columnar,))?;
     Ok(df.unbind())
 }
 
@@ -931,6 +980,7 @@ fn thetadatadx_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Config>()?;
     m.add_class::<ThetaDataDx>()?;
     register_fpss_event_classes(m)?;
+    register_tick_classes(m)?;
     m.add_function(wrap_pyfunction!(_bench_synthetic_dict, m)?)?;
     m.add_function(wrap_pyfunction!(_bench_synthetic_typed, m)?)?;
     register_generated_utility_functions(m)?;

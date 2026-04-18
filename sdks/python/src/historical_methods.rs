@@ -58,7 +58,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(ohlc_ticks_to_columnar(py, &ticks))
+        ohlc_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Get the latest trade snapshot for one or more stocks.
@@ -83,7 +83,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(trade_ticks_to_columnar(py, &ticks))
+        trade_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Get the latest NBBO quote snapshot for one or more stocks.
@@ -108,7 +108,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(quote_ticks_to_columnar(py, &ticks))
+        quote_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Get the latest market value snapshot for one or more stocks.
@@ -133,7 +133,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(market_value_ticks_to_columnar(py, &ticks))
+        market_value_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day.
@@ -151,7 +151,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(eod_ticks_to_columnar(py, &ticks))
+        eod_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch intraday OHLC bars for a stock on a single date.
@@ -189,7 +189,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(ohlc_ticks_to_columnar(py, &ticks))
+        ohlc_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch all trades for a stock on a given date.
@@ -226,7 +226,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(trade_ticks_to_columnar(py, &ticks))
+        trade_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch NBBO quotes for a stock on a given date at a given interval.
@@ -264,7 +264,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(quote_ticks_to_columnar(py, &ticks))
+        quote_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
@@ -305,7 +305,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(trade_quote_ticks_to_columnar(py, &ticks))
+        trade_quote_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch the trade at a specific time of day across a date range.
@@ -328,7 +328,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(trade_ticks_to_columnar(py, &ticks))
+        trade_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch the quote at a specific time of day across a date range.
@@ -351,7 +351,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(quote_ticks_to_columnar(py, &ticks))
+        quote_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// List all available option underlying symbols.
@@ -445,7 +445,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(option_contracts_to_columnar(py, &ticks))
+        option_contracts_to_pyclass_list(py, &ticks)
     }
 
     /// Get the latest OHLC snapshot for an option contract.
@@ -476,7 +476,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(ohlc_ticks_to_columnar(py, &ticks))
+        ohlc_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Get the latest trade snapshot for an option contract.
@@ -503,7 +503,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(trade_ticks_to_columnar(py, &ticks))
+        trade_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Get the latest NBBO quote snapshot for an option contract.
@@ -534,7 +534,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(quote_ticks_to_columnar(py, &ticks))
+        quote_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Get the latest open interest snapshot for an option contract.
@@ -565,7 +565,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(open_interest_ticks_to_columnar(py, &ticks))
+        open_interest_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Get the latest market value snapshot for an option contract.
@@ -596,7 +596,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(market_value_ticks_to_columnar(py, &ticks))
+        market_value_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Get implied volatility snapshot for an option contract (from ThetaData server).
@@ -651,7 +651,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(iv_ticks_to_columnar(py, &ticks))
+        iv_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Get all Greeks snapshot for an option contract (from ThetaData server).
@@ -706,7 +706,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(greeks_ticks_to_columnar(py, &ticks))
+        greeks_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
@@ -761,7 +761,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(greeks_ticks_to_columnar(py, &ticks))
+        greeks_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
@@ -816,7 +816,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(greeks_ticks_to_columnar(py, &ticks))
+        greeks_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
@@ -871,7 +871,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(greeks_ticks_to_columnar(py, &ticks))
+        greeks_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch end-of-day option data for a contract over a date range.
@@ -900,7 +900,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(eod_ticks_to_columnar(py, &ticks))
+        eod_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch intraday OHLC bars for an option contract.
@@ -941,7 +941,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(ohlc_ticks_to_columnar(py, &ticks))
+        ohlc_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch all trades for an option contract on a given date.
@@ -985,7 +985,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(trade_ticks_to_columnar(py, &ticks))
+        trade_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch NBBO quotes for an option contract on a given date.
@@ -1030,7 +1030,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(quote_ticks_to_columnar(py, &ticks))
+        quote_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch combined trade + quote ticks for an option contract.
@@ -1078,7 +1078,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(trade_quote_ticks_to_columnar(py, &ticks))
+        trade_quote_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch open interest history for an option contract.
@@ -1114,7 +1114,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(open_interest_ticks_to_columnar(py, &ticks))
+        open_interest_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch end-of-day Greeks history for an option contract.
@@ -1163,7 +1163,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(greeks_ticks_to_columnar(py, &ticks))
+        greeks_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
@@ -1220,7 +1220,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(greeks_ticks_to_columnar(py, &ticks))
+        greeks_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch all Greeks on each trade for an option contract.
@@ -1280,7 +1280,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(greeks_ticks_to_columnar(py, &ticks))
+        greeks_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch first-order Greeks history (intraday, sampled by interval).
@@ -1337,7 +1337,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(greeks_ticks_to_columnar(py, &ticks))
+        greeks_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch first-order Greeks on each trade for an option contract.
@@ -1397,7 +1397,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(greeks_ticks_to_columnar(py, &ticks))
+        greeks_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch second-order Greeks history (intraday, sampled by interval).
@@ -1454,7 +1454,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(greeks_ticks_to_columnar(py, &ticks))
+        greeks_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch second-order Greeks on each trade for an option contract.
@@ -1514,7 +1514,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(greeks_ticks_to_columnar(py, &ticks))
+        greeks_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch third-order Greeks history (intraday, sampled by interval).
@@ -1571,7 +1571,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(greeks_ticks_to_columnar(py, &ticks))
+        greeks_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch third-order Greeks on each trade for an option contract.
@@ -1631,7 +1631,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(greeks_ticks_to_columnar(py, &ticks))
+        greeks_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch implied volatility history (intraday, sampled by interval).
@@ -1688,7 +1688,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(iv_ticks_to_columnar(py, &ticks))
+        iv_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch implied volatility on each trade for an option contract.
@@ -1748,7 +1748,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(iv_ticks_to_columnar(py, &ticks))
+        iv_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch the trade at a specific time of day across a date range for an option.
@@ -1778,7 +1778,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(trade_ticks_to_columnar(py, &ticks))
+        trade_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch the quote at a specific time of day across a date range for an option.
@@ -1808,7 +1808,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(quote_ticks_to_columnar(py, &ticks))
+        quote_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// List all available index symbols.
@@ -1862,7 +1862,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(ohlc_ticks_to_columnar(py, &ticks))
+        ohlc_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Get the latest price snapshot for one or more indices.
@@ -1883,7 +1883,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(price_ticks_to_columnar(py, &ticks))
+        price_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Get the latest market value snapshot for one or more indices.
@@ -1904,7 +1904,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(market_value_ticks_to_columnar(py, &ticks))
+        market_value_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch end-of-day index data for a date range.
@@ -1922,7 +1922,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(eod_ticks_to_columnar(py, &ticks))
+        eod_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch intraday OHLC bars for an index.
@@ -1949,7 +1949,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(ohlc_ticks_to_columnar(py, &ticks))
+        ohlc_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch intraday price history for an index.
@@ -1983,7 +1983,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(price_ticks_to_columnar(py, &ticks))
+        price_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch the index price at a specific time of day across a date range.
@@ -2002,7 +2002,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(price_ticks_to_columnar(py, &ticks))
+        price_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Check whether the market is open today.
@@ -2017,7 +2017,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(calendar_days_to_columnar(py, &ticks))
+        calendar_days_to_pyclass_list(py, &ticks)
     }
 
     /// Get calendar information for a specific date.
@@ -2033,7 +2033,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(calendar_days_to_columnar(py, &ticks))
+        calendar_days_to_pyclass_list(py, &ticks)
     }
 
     /// Get calendar information for an entire year.
@@ -2049,7 +2049,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(calendar_days_to_columnar(py, &ticks))
+        calendar_days_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch end-of-day interest rate history.
@@ -2067,7 +2067,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(interest_rate_ticks_to_columnar(py, &ticks))
+        interest_rate_ticks_to_pyclass_list(py, &ticks)
     }
 
     /// Fetch intraday OHLC bars across a date range.
@@ -2098,7 +2098,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        Ok(ohlc_ticks_to_columnar(py, &ticks))
+        ohlc_ticks_to_pyclass_list(py, &ticks)
     }
 
 }
