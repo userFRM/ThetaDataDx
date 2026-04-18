@@ -64,7 +64,19 @@ impl Frame {
 
 const MAX_CONSECUTIVE_UNKNOWN_CODES: usize = 5;
 
-/// Read the 2-byte FPSS header, handling partial reads and clean EOF.
+/// Read the 2-byte FPSS header.
+///
+/// Timeout semantics (Java-aligned, `FPSSClient.onEvent` → reconnect):
+/// - If `reader.read` returns EOF before any byte is read, return `Ok(None)` —
+///   graceful server close.
+/// - If `WouldBlock` / `TimedOut` fires BEFORE any byte is read, propagate as
+///   `std::io::Error` so `io_loop::is_read_timeout` can drive ping/command
+///   housekeeping and resume.
+/// - If either fires AFTER at least 1 byte has been read, we are mid-frame
+///   and the cursor is desynced. Return a FATAL `FpssErrorKind::ProtocolError`
+///   so `io_loop` treats it as involuntary disconnect and reconnects —
+///   matches Java's `PacketStream.readCopy` → `SocketTimeoutException` →
+///   `handleInvoluntaryDisconnect` path.
 fn read_header<R: Read>(reader: &mut R) -> Result<Option<[u8; 2]>, crate::error::Error> {
     let mut header = [0u8; 2];
     let mut n = 0usize;
@@ -90,9 +102,64 @@ fn read_header<R: Read>(reader: &mut R) -> Result<Option<[u8; 2]>, crate::error:
                     message: format!("truncated FPSS header: got {n} byte(s), expected 2"),
                 })
             }
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(e)
+                if n > 0
+                    && matches!(
+                        e.kind(),
+                        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                    ) =>
+            {
+                // Mid-header timeout: stream cursor is desynced by `n` bytes.
+                // Treat as fatal so io_loop reconnects instead of re-reading
+                // payload bytes as a header.
+                return Err(crate::error::Error::Fpss {
+                    kind: crate::error::FpssErrorKind::ProtocolError,
+                    message: format!("mid-header read timeout after {n} of 2 byte(s): {e}"),
+                });
+            }
             Err(e) => return Err(e.into()),
         }
     }
+}
+
+/// Read exactly `buf.len()` bytes of payload, treating mid-frame stalls as
+/// fatal. Once the header has committed us to N payload bytes, a timeout
+/// before all N arrive means the reader cursor is desynced — abandon the
+/// connection and reconnect rather than retry.
+///
+/// Only `Interrupted` is retried (POSIX signal wakeups are benign); any
+/// `WouldBlock` / `TimedOut` mid-payload is escalated.
+fn read_exact_payload<R: Read>(reader: &mut R, buf: &mut [u8]) -> Result<(), crate::error::Error> {
+    let mut n = 0usize;
+    while n < buf.len() {
+        match reader.read(&mut buf[n..]) {
+            Ok(0) => {
+                return Err(crate::error::Error::Fpss {
+                    kind: crate::error::FpssErrorKind::ProtocolError,
+                    message: format!("EOF mid-payload: got {n} of {} bytes", buf.len()),
+                })
+            }
+            Ok(k) => n += k,
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(e)
+                if matches!(
+                    e.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ) =>
+            {
+                return Err(crate::error::Error::Fpss {
+                    kind: crate::error::FpssErrorKind::ProtocolError,
+                    message: format!(
+                        "mid-payload read timeout after {n} of {} byte(s): {e}",
+                        buf.len()
+                    ),
+                });
+            }
+            Err(e) => return Err(e.into()),
+        }
+    }
+    Ok(())
 }
 
 /// Returns true if the payload contains non-printable control bytes,
@@ -138,10 +205,12 @@ pub fn read_frame_into<R: Read>(
         let payload_len = header[0] as usize;
         let code_byte = header[1];
 
-        // Always consume the payload to keep the stream aligned.
+        // Always consume the payload to keep the stream aligned. A mid-payload
+        // timeout is fatal: the cursor is desynced and io_loop must reconnect
+        // (matches Java's PacketStream → IOException → reconnect path).
         buf.resize(payload_len, 0);
         if payload_len > 0 {
-            reader.read_exact(buf)?;
+            read_exact_payload(reader, buf)?;
         }
 
         if let Some(code) = StreamMsgType::from_code(code_byte) {
