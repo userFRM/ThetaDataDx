@@ -95,6 +95,10 @@ harness = false
 name = "bench_auth"
 harness = false
 
+[[bench]]
+name = "bench_fpss_event"
+harness = false
+
 [[bin]]
 name = "generate_sdk_surfaces"
 path = "src/bin/generate_sdk_surfaces.rs"
