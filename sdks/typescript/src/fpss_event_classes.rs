@@ -2,8 +2,9 @@
 // Typed #[napi(object)] structs for every `FpssData` variant + a flat
 // `FpssEvent` wrapper and the `buffered_event_to_typed` dispatcher.
 // Consumers discriminate on `event.kind` and pull the matching optional
-// payload field. Control / raw / simple events expose their diagnostic
-// strings via `control`, `raw_data`, and `simple` payloads.
+// payload field. Simple / control / raw events expose their diagnostic
+// strings via `simple` and `raw_data` payloads. The `simple` kind tag
+// matches the dict-path serde rename on `BufferedEvent::Simple`.
 
 use napi::bindgen_prelude::BigInt;
 
@@ -75,11 +76,13 @@ pub struct Trade {
     pub received_at_ns: BigInt,
 }
 
-/// FPSS control / diagnostic payload (login, disconnect, market open, ...).
+/// FPSS simple / diagnostic payload (login, disconnect, market open,
+/// unknown-data fallback, ...). Mirrors `BufferedEvent::Simple`.
 #[napi(object)]
 #[derive(Clone)]
-pub struct FpssControlPayload {
-    /// Concrete control event kind (e.g. "login_success", "disconnected").
+pub struct FpssSimplePayload {
+    /// Concrete event kind (e.g. "login_success", "disconnected",
+    /// "unknown_data", "unknown_control").
     pub event_type: String,
     /// Free-form diagnostic detail; empty when the event carries no payload.
     pub detail: Option<String>,
@@ -106,13 +109,13 @@ pub struct FpssEvent {
     /// Discriminator matching one of the typed payload fields below.
     /// Narrowed to a literal union in TS so `switch (event.kind)`
     /// correctly narrows the optional payload fields.
-    #[napi(ts_type = "'ohlcvc' | 'open_interest' | 'quote' | 'trade' | 'control' | 'raw_data'")]
+    #[napi(ts_type = "'ohlcvc' | 'open_interest' | 'quote' | 'trade' | 'simple' | 'raw_data'")]
     pub kind: String,
     pub ohlcvc: Option<Ohlcvc>,
     pub open_interest: Option<OpenInterest>,
     pub quote: Option<Quote>,
     pub trade: Option<Trade>,
-    pub control: Option<FpssControlPayload>,
+    pub simple: Option<FpssSimplePayload>,
     pub raw_data: Option<FpssRawDataPayload>,
 }
 
@@ -123,7 +126,7 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
         open_interest: None,
         quote: None,
         trade: None,
-        control: None,
+        simple: None,
         raw_data: None,
     };
     match event {
@@ -251,8 +254,8 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             });
         }
         BufferedEvent::Simple { event_type, detail, id } => {
-            out.kind = "control".to_string();
-            out.control = Some(FpssControlPayload {
+            out.kind = "simple".to_string();
+            out.simple = Some(FpssSimplePayload {
                 event_type,
                 detail,
                 id,

@@ -135,7 +135,7 @@ pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
         let current = std::fs::read_to_string(&abs).unwrap_or_default();
         if current.replace("\r\n", "\n") != file.contents {
             return Err(format!(
-                "generated file out of date: {} (run: cargo run -p thetadatadx --bin generate_sdk_surfaces)",
+                "generated file out of date: {} (run: cargo run -p thetadatadx --bin generate_sdk_surfaces --features config-file)",
                 file.relative_path
             )
             .into());
@@ -277,8 +277,9 @@ fn render_ts_fpss_event_classes(schema: &Schema) -> String {
     out.push_str("// Typed #[napi(object)] structs for every `FpssData` variant + a flat\n");
     out.push_str("// `FpssEvent` wrapper and the `buffered_event_to_typed` dispatcher.\n");
     out.push_str("// Consumers discriminate on `event.kind` and pull the matching optional\n");
-    out.push_str("// payload field. Control / raw / simple events expose their diagnostic\n");
-    out.push_str("// strings via `control`, `raw_data`, and `simple` payloads.\n\n");
+    out.push_str("// payload field. Simple / control / raw events expose their diagnostic\n");
+    out.push_str("// strings via `simple` and `raw_data` payloads. The `simple` kind tag\n");
+    out.push_str("// matches the dict-path serde rename on `BufferedEvent::Simple`.\n\n");
     out.push_str("use napi::bindgen_prelude::BigInt;\n\n");
 
     let names = sorted_event_names(schema);
@@ -290,14 +291,14 @@ fn render_ts_fpss_event_classes(schema: &Schema) -> String {
         out.push('\n');
     }
 
-    // Simple / diagnostic payloads (control, raw_data, simple).
-    out.push_str("/// FPSS control / diagnostic payload (login, disconnect, market open, ...).\n");
+    // Simple / diagnostic payload + raw payload.
+    out.push_str("/// FPSS simple / diagnostic payload (login, disconnect, market open,\n");
+    out.push_str("/// unknown-data fallback, ...). Mirrors `BufferedEvent::Simple`.\n");
     out.push_str("#[napi(object)]\n");
     out.push_str("#[derive(Clone)]\n");
-    out.push_str("pub struct FpssControlPayload {\n");
-    out.push_str(
-        "    /// Concrete control event kind (e.g. \"login_success\", \"disconnected\").\n",
-    );
+    out.push_str("pub struct FpssSimplePayload {\n");
+    out.push_str("    /// Concrete event kind (e.g. \"login_success\", \"disconnected\",\n");
+    out.push_str("    /// \"unknown_data\", \"unknown_control\").\n");
     out.push_str("    pub event_type: String,\n");
     out.push_str("    /// Free-form diagnostic detail; empty when the event carries no payload.\n");
     out.push_str("    pub detail: Option<String>,\n");
@@ -332,7 +333,7 @@ fn render_ts_fpss_event_classes(schema: &Schema) -> String {
         .iter()
         .map(|n| format!("'{}'", snake_case(n)))
         .collect();
-    kind_tags.push("'control'".to_string());
+    kind_tags.push("'simple'".to_string());
     kind_tags.push("'raw_data'".to_string());
     let kind_union = kind_tags.join(" | ");
     out.push_str("    /// Discriminator matching one of the typed payload fields below.\n");
@@ -349,7 +350,7 @@ fn render_ts_fpss_event_classes(schema: &Schema) -> String {
         )
         .unwrap();
     }
-    out.push_str("    pub control: Option<FpssControlPayload>,\n");
+    out.push_str("    pub simple: Option<FpssSimplePayload>,\n");
     out.push_str("    pub raw_data: Option<FpssRawDataPayload>,\n");
     out.push_str("}\n\n");
 
@@ -361,7 +362,7 @@ fn render_ts_fpss_event_classes(schema: &Schema) -> String {
         let field = snake_case(event_name);
         writeln!(out, "        {field}: None,").unwrap();
     }
-    out.push_str("        control: None,\n");
+    out.push_str("        simple: None,\n");
     out.push_str("        raw_data: None,\n");
     out.push_str("    };\n");
     out.push_str("    match event {\n");
@@ -403,8 +404,8 @@ fn render_ts_fpss_event_classes(schema: &Schema) -> String {
     out.push_str("            });\n");
     out.push_str("        }\n");
     out.push_str("        BufferedEvent::Simple { event_type, detail, id } => {\n");
-    out.push_str("            out.kind = \"control\".to_string();\n");
-    out.push_str("            out.control = Some(FpssControlPayload {\n");
+    out.push_str("            out.kind = \"simple\".to_string();\n");
+    out.push_str("            out.simple = Some(FpssSimplePayload {\n");
     out.push_str("                event_type,\n");
     out.push_str("                detail,\n");
     out.push_str("                id,\n");
@@ -456,7 +457,7 @@ pub fn ts_next_event_union_type() -> String {
             "{{ kind: '{kind_tag}'; {field_camel}: {event_name} }}"
         ));
     }
-    parts.push("{ kind: 'control'; control: FpssControlPayload }".to_string());
+    parts.push("{ kind: 'simple'; simple: FpssSimplePayload }".to_string());
     parts.push("{ kind: 'raw_data'; rawData: FpssRawDataPayload }".to_string());
     format!("({}) | null", parts.join(" | "))
 }

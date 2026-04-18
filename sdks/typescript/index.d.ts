@@ -173,7 +173,7 @@ export declare class ThetaDataDx {
   /** Get a snapshot of currently active subscriptions. */
   activeSubscriptions(): any
   /** Poll for the next FPSS event. */
-  nextEvent(timeoutMs: number): ({ kind: 'quote'; quote: Quote } | { kind: 'trade'; trade: Trade } | { kind: 'open_interest'; openInterest: OpenInterest } | { kind: 'ohlcvc'; ohlcvc: Ohlcvc } | { kind: 'control'; control: FpssControlPayload } | { kind: 'raw_data'; rawData: FpssRawDataPayload }) | null
+  nextEvent(timeoutMs: number): ({ kind: 'ohlcvc'; ohlcvc: Ohlcvc } | { kind: 'open_interest'; openInterest: OpenInterest } | { kind: 'quote'; quote: Quote } | { kind: 'trade'; trade: Trade } | { kind: 'simple'; simple: FpssSimplePayload } | { kind: 'raw_data'; rawData: FpssRawDataPayload }) | null
   /** Reconnect streaming and re-subscribe all previous subscriptions. */
   reconnect(): void
   /** Stop streaming while keeping the historical client usable. */
@@ -215,16 +215,6 @@ export interface EodTick {
   right: string
 }
 
-/** FPSS control / diagnostic payload (login, disconnect, market open, ...). */
-export interface FpssControlPayload {
-  /** Concrete control event kind (e.g. "login_success", "disconnected"). */
-  eventType: string
-  /** Free-form diagnostic detail; empty when the event carries no payload. */
-  detail?: string
-  /** Optional event id (req_id for ReqResponse, contract id for ContractAssigned). */
-  id?: number
-}
-
 /**
  * A single FPSS event surfaced to JS/TS.
  *
@@ -234,16 +224,16 @@ export interface FpssControlPayload {
  */
 export interface FpssEvent {
   /**
-   * Discriminator: one of "quote", "trade", "open_interest", "ohlcvc",
-   * "control", or "raw_data". Narrowed to a literal union in TS so
-   * `switch (event.kind)` correctly narrows the optional payload fields.
+   * Discriminator matching one of the typed payload fields below.
+   * Narrowed to a literal union in TS so `switch (event.kind)`
+   * correctly narrows the optional payload fields.
    */
-  kind: 'quote' | 'trade' | 'open_interest' | 'ohlcvc' | 'control' | 'raw_data'
+  kind: 'ohlcvc' | 'open_interest' | 'quote' | 'trade' | 'simple' | 'raw_data'
   ohlcvc?: Ohlcvc
   openInterest?: OpenInterest
   quote?: Quote
   trade?: Trade
-  control?: FpssControlPayload
+  simple?: FpssSimplePayload
   rawData?: FpssRawDataPayload
 }
 
@@ -251,6 +241,22 @@ export interface FpssEvent {
 export interface FpssRawDataPayload {
   code: number
   payload: Array<number>
+}
+
+/**
+ * FPSS simple / diagnostic payload (login, disconnect, market open,
+ * unknown-data fallback, ...). Mirrors `BufferedEvent::Simple`.
+ */
+export interface FpssSimplePayload {
+  /**
+   * Concrete event kind (e.g. "login_success", "disconnected",
+   * "unknown_data", "unknown_control").
+   */
+  eventType: string
+  /** Free-form diagnostic detail; empty when the event carries no payload. */
+  detail?: string
+  /** Optional event id (req_id for ReqResponse, contract id for ContractAssigned). */
+  id?: number
 }
 
 /** Greeks tick. Full set of option greeks. */
