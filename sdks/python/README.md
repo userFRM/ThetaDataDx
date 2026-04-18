@@ -41,8 +41,8 @@ tdx = ThetaDataDx(creds, Config.production())
 # Fetch end-of-day data
 eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
 for tick in eod:
-    print(f"{tick['date']}: O={tick['open']:.2f} H={tick['high']:.2f} "
-          f"L={tick['low']:.2f} C={tick['close']:.2f} V={tick['volume']}")
+    print(f"{tick.date}: O={tick.open:.2f} H={tick.high:.2f} "
+          f"L={tick.low:.2f} C={tick.close:.2f} V={tick.volume}")
 
 # Intraday 1-minute OHLC bars (shorthand or milliseconds)
 bars = tdx.stock_history_ohlc("AAPL", "20240315", "1m")
@@ -84,7 +84,7 @@ iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30/365, 8.50, "C")
 
 ### `ThetaDataDx(creds, config)`
 
-All 61 endpoints are available. The ~45 tick-returning endpoints
+All 61 endpoints are available. The 53 tick-returning endpoints
 return lists of typed tick pyclass objects (e.g. `list[EodTick]`,
 `list[TradeTick]`, `list[QuoteTick]`, ...). Field access is by
 attribute — `tick.close`, `tick.price` — with IDE completion and
