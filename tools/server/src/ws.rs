@@ -271,11 +271,31 @@ async fn handle_client_message(state: &AppState, text: &str, socket: &mut WebSoc
 //  FPSS -> WebSocket bridge
 // ---------------------------------------------------------------------------
 
-/// Convert an `FpssEvent` to the Java terminal's WebSocket JSON format.
-fn fpss_event_to_ws_json(
+/// Peek the contract for an event's `contract_id`, if any, while briefly
+/// holding the shared contract-map lock. Returns a cloned `Contract` so the
+/// lock can be released before the (O(fields)) JSON serialization runs.
+fn lookup_event_contract(
     event: &FpssEvent,
-    contract_map: &HashMap<i32, Contract>,
-) -> Option<String> {
+    contract_map: &Mutex<HashMap<i32, Contract>>,
+) -> Option<Contract> {
+    let cid = match event {
+        FpssEvent::Data(FpssData::Quote { contract_id, .. })
+        | FpssEvent::Data(FpssData::Trade { contract_id, .. })
+        | FpssEvent::Data(FpssData::OpenInterest { contract_id, .. })
+        | FpssEvent::Data(FpssData::Ohlcvc { contract_id, .. }) => *contract_id,
+        _ => return None,
+    };
+    let map = contract_map.lock().unwrap_or_else(|e| e.into_inner());
+    map.get(&cid).cloned()
+}
+
+/// Convert an `FpssEvent` to the Java terminal's WebSocket JSON format.
+///
+/// `peeked_contract` should be the contract already looked up from the shared
+/// map (see [`lookup_event_contract`]). Passing it in lets the caller release
+/// the map lock before serialization, so the FPSS callback thread and the
+/// broadcast task never contend on the lock during JSON encoding.
+fn fpss_event_to_ws_json(event: &FpssEvent, peeked_contract: Option<&Contract>) -> Option<String> {
     match event {
         FpssEvent::Data(data) => {
             let (event_type, contract_id, body) = match data {
@@ -382,8 +402,7 @@ fn fpss_event_to_ws_json(
                 _ => return None,
             };
 
-            let contract_json = contract_map
-                .get(&contract_id)
+            let contract_json = peeked_contract
                 .map(contract_to_json)
                 .unwrap_or_else(|| sonic_rs::json!({"id": contract_id}));
 
@@ -485,14 +504,21 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
     // Unbounded mpsc keeps the Disruptor callback non-blocking even if the
     // broadcast task is briefly slow. Memory is bounded by channel drain
     // rate; clients get bounded per-client backpressure inside broadcast_ws.
+    //
+    // Per-tick clone is intentionally cheap: `FpssData::{Quote,Trade,Ohlcvc,
+    // OpenInterest}` carry only primitives plus `Arc<str>` for symbol, so
+    // `event.clone()` is a field copy + refcount bump — not a heap allocation
+    // on the hot path.
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<FpssEvent>();
 
     tokio::spawn(async move {
         while let Some(event) = rx.recv().await {
-            let json = {
-                let map = map_for_task.lock().unwrap_or_else(|e| e.into_inner());
-                fpss_event_to_ws_json(&event, &map)
-            };
+            // Fetch the event's contract (if any) under the map lock, then
+            // drop the lock BEFORE running the O(fields) JSON serialization.
+            // This stops the broadcast task and the FPSS callback from
+            // contending on the same Mutex during encoding.
+            let peeked = lookup_event_contract(&event, &map_for_task);
+            let json = fpss_event_to_ws_json(&event, peeked.as_ref());
             if let Some(ws_json) = json {
                 let msg: Arc<str> = Arc::from(ws_json);
                 state_for_task.broadcast_ws(msg);
