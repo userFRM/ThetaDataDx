@@ -84,11 +84,13 @@ iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30/365, 8.50, "C")
 
 ### `ThetaDataDx(creds, config)`
 
-All 61 endpoints are available. Methods return lists of typed tick
-pyclass objects (e.g. `list[EodTick]`, `list[TradeTick]`,
-`list[QuoteTick]`, ...). Field access is by attribute —
-`tick.close`, `tick.price` — with IDE completion and typo-loud
-`AttributeError` on misuse.
+All 61 endpoints are available. The ~45 tick-returning endpoints
+return lists of typed tick pyclass objects (e.g. `list[EodTick]`,
+`list[TradeTick]`, `list[QuoteTick]`, ...). Field access is by
+attribute — `tick.close`, `tick.price` — with IDE completion and
+typo-loud `AttributeError` on misuse. The remaining list endpoints
+(`*_list_symbols`, `*_list_dates`, `option_list_expirations`,
+`option_list_strikes`) return `list[str]` / `list[int]` unchanged.
 
 #### Stock Methods (14)
 
