@@ -1,0 +1,76 @@
+# FPSS streaming event schema -- single source of truth for every FPSS
+# Data-event payload shape exposed to downstream SDKs.
+#
+# Read by build_support/fpss_events.rs and emitted as typed structs in
+# every language binding (Python pyclass today; TypeScript / Go / C++ next).
+#
+# Only the Data variants of FpssData live here. Control events
+# (login_success, contract_assigned, disconnected, ...) stay handled via
+# the hand-written BufferedEvent::Simple shape in each SDK because their
+# payloads are ad-hoc diagnostic strings, not numeric ticks.
+
+version = 1
+
+[events.Quote]
+doc = "FPSS Quote tick. Mirrors `FpssData::Quote` (symbol-less — `contract_id` is the stable key)."
+columns = [
+    { name = "contract_id",   type = "i32" },
+    { name = "ms_of_day",     type = "i32" },
+    { name = "bid_size",      type = "i32" },
+    { name = "bid_exchange",  type = "i32" },
+    { name = "bid",           type = "f64" },
+    { name = "bid_condition", type = "i32" },
+    { name = "ask_size",      type = "i32" },
+    { name = "ask_exchange",  type = "i32" },
+    { name = "ask",           type = "f64" },
+    { name = "ask_condition", type = "i32" },
+    { name = "date",          type = "i32" },
+    { name = "received_at_ns", type = "u64" },
+]
+
+[events.Trade]
+doc = "FPSS Trade tick. Mirrors `FpssData::Trade`."
+columns = [
+    { name = "contract_id",     type = "i32" },
+    { name = "ms_of_day",       type = "i32" },
+    { name = "sequence",        type = "i32" },
+    { name = "ext_condition1",  type = "i32" },
+    { name = "ext_condition2",  type = "i32" },
+    { name = "ext_condition3",  type = "i32" },
+    { name = "ext_condition4",  type = "i32" },
+    { name = "condition",       type = "i32" },
+    { name = "size",            type = "i32" },
+    { name = "exchange",        type = "i32" },
+    { name = "price",           type = "f64" },
+    { name = "condition_flags", type = "i32" },
+    { name = "price_flags",     type = "i32" },
+    { name = "volume_type",     type = "i32" },
+    { name = "records_back",    type = "i32" },
+    { name = "date",            type = "i32" },
+    { name = "received_at_ns",  type = "u64" },
+]
+
+[events.OpenInterest]
+doc = "FPSS OpenInterest tick. Mirrors `FpssData::OpenInterest`."
+columns = [
+    { name = "contract_id",   type = "i32" },
+    { name = "ms_of_day",     type = "i32" },
+    { name = "open_interest", type = "i32" },
+    { name = "date",          type = "i32" },
+    { name = "received_at_ns", type = "u64" },
+]
+
+[events.Ohlcvc]
+doc = "FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`."
+columns = [
+    { name = "contract_id",    type = "i32" },
+    { name = "ms_of_day",      type = "i32" },
+    { name = "open",           type = "f64" },
+    { name = "high",           type = "f64" },
+    { name = "low",            type = "f64" },
+    { name = "close",          type = "f64" },
+    { name = "volume",         type = "i64" },
+    { name = "count",          type = "i64" },
+    { name = "date",           type = "i32" },
+    { name = "received_at_ns", type = "u64" },
+]

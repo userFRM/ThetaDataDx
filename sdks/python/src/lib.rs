@@ -796,226 +796,17 @@ impl ThetaDataDx {
             None => Ok(None),
         }
     }
-
 }
 
-// ── Typed-PyClass event path ──
+// ── Typed-pyclass FPSS event path ─────────────────────────────────────────
 //
-// For users who want single-event ergonomics without the 14-allocations-per-
-// event cost of building a PyDict. Each tick variant is a Rust-defined
-// `#[pyclass]` with one allocation per event and C-offset field accessors.
-// Matches the Databento-style approach we benchmarked against internally.
+// All FPSS `#[pyclass]` definitions and the `BufferedEvent` → typed
+// dispatch live in a generated file whose SSOT is
+// `crates/thetadatadx/fpss_event_schema.toml`. The generator is
+// `crates/thetadatadx/build_support/fpss_events.rs`; regenerate via
+// `cargo run --bin generate_sdk_surfaces --features config-file -- --write`.
 
-macro_rules! scalar_tick_pyclass {
-    ($name:ident, $short:literal, { $($field:ident : $ty:ty),* $(,)? }) => {
-        #[pyclass(module = "thetadatadx", frozen)]
-        #[allow(clippy::upper_case_acronyms)]
-        struct $name {
-            $(#[pyo3(get)] $field: $ty,)*
-        }
-
-        #[pymethods]
-        impl $name {
-            fn __repr__(&self) -> String {
-                concat!($short, "(cid={} ms={} date={})")
-                    .replace("{}", "_PLACEHOLDER_")
-                    .replacen("_PLACEHOLDER_", &self.contract_id.to_string(), 1)
-                    .replacen("_PLACEHOLDER_", &self.ms_of_day.to_string(), 1)
-                    .replacen("_PLACEHOLDER_", &self.date.to_string(), 1)
-            }
-
-            #[getter]
-            fn kind(&self) -> &'static str {
-                $short
-            }
-        }
-    };
-}
-
-scalar_tick_pyclass!(Quote, "Quote", {
-    contract_id: i32,
-    ms_of_day: i32,
-    bid_size: i32,
-    bid_exchange: i32,
-    bid: f64,
-    bid_condition: i32,
-    ask_size: i32,
-    ask_exchange: i32,
-    ask: f64,
-    ask_condition: i32,
-    date: i32,
-    received_at_ns: u64,
-});
-
-scalar_tick_pyclass!(Trade, "Trade", {
-    contract_id: i32,
-    ms_of_day: i32,
-    sequence: i32,
-    ext_condition1: i32,
-    ext_condition2: i32,
-    ext_condition3: i32,
-    ext_condition4: i32,
-    condition: i32,
-    size: i32,
-    exchange: i32,
-    price: f64,
-    condition_flags: i32,
-    price_flags: i32,
-    volume_type: i32,
-    records_back: i32,
-    date: i32,
-    received_at_ns: u64,
-});
-
-scalar_tick_pyclass!(OpenInterest, "OpenInterest", {
-    contract_id: i32,
-    ms_of_day: i32,
-    open_interest: i32,
-    date: i32,
-    received_at_ns: u64,
-});
-
-scalar_tick_pyclass!(Ohlcvc, "Ohlcvc", {
-    contract_id: i32,
-    ms_of_day: i32,
-    open: f64,
-    high: f64,
-    low: f64,
-    close: f64,
-    volume: i64,
-    count: i64,
-    date: i32,
-    received_at_ns: u64,
-});
-
-/// Convert a `BufferedEvent` to the typed pyclass variant. One allocation
-/// per event (the pyclass object itself) instead of the 14+ allocations a
-/// `PyDict` equivalent would make.
-fn buffered_event_to_typed(py: Python<'_>, event: &BufferedEvent) -> PyResult<Py<PyAny>> {
-    match event {
-        BufferedEvent::Quote {
-            contract_id,
-            ms_of_day,
-            bid_size,
-            bid_exchange,
-            bid,
-            bid_condition,
-            ask_size,
-            ask_exchange,
-            ask,
-            ask_condition,
-            date,
-            received_at_ns,
-        } => Py::new(
-            py,
-            Quote {
-                contract_id: *contract_id,
-                ms_of_day: *ms_of_day,
-                bid_size: *bid_size,
-                bid_exchange: *bid_exchange,
-                bid: *bid,
-                bid_condition: *bid_condition,
-                ask_size: *ask_size,
-                ask_exchange: *ask_exchange,
-                ask: *ask,
-                ask_condition: *ask_condition,
-                date: *date,
-                received_at_ns: *received_at_ns,
-            },
-        )
-        .map(|p| p.into_any()),
-        BufferedEvent::Trade {
-            contract_id,
-            ms_of_day,
-            sequence,
-            ext_condition1,
-            ext_condition2,
-            ext_condition3,
-            ext_condition4,
-            condition,
-            size,
-            exchange,
-            price,
-            condition_flags,
-            price_flags,
-            volume_type,
-            records_back,
-            date,
-            received_at_ns,
-        } => Py::new(
-            py,
-            Trade {
-                contract_id: *contract_id,
-                ms_of_day: *ms_of_day,
-                sequence: *sequence,
-                ext_condition1: *ext_condition1,
-                ext_condition2: *ext_condition2,
-                ext_condition3: *ext_condition3,
-                ext_condition4: *ext_condition4,
-                condition: *condition,
-                size: *size,
-                exchange: *exchange,
-                price: *price,
-                condition_flags: *condition_flags,
-                price_flags: *price_flags,
-                volume_type: *volume_type,
-                records_back: *records_back,
-                date: *date,
-                received_at_ns: *received_at_ns,
-            },
-        )
-        .map(|p| p.into_any()),
-        BufferedEvent::OpenInterest {
-            contract_id,
-            ms_of_day,
-            open_interest,
-            date,
-            received_at_ns,
-        } => Py::new(
-            py,
-            OpenInterest {
-                contract_id: *contract_id,
-                ms_of_day: *ms_of_day,
-                open_interest: *open_interest,
-                date: *date,
-                received_at_ns: *received_at_ns,
-            },
-        )
-        .map(|p| p.into_any()),
-        BufferedEvent::Ohlcvc {
-            contract_id,
-            ms_of_day,
-            open,
-            high,
-            low,
-            close,
-            volume,
-            count,
-            date,
-            received_at_ns,
-        } => Py::new(
-            py,
-            Ohlcvc {
-                contract_id: *contract_id,
-                ms_of_day: *ms_of_day,
-                open: *open,
-                high: *high,
-                low: *low,
-                close: *close,
-                volume: *volume,
-                count: *count,
-                date: *date,
-                received_at_ns: *received_at_ns,
-            },
-        )
-        .map(|p| p.into_any()),
-        _ => {
-            // Non-tick events (Simple / RawData) fall back to the dict path.
-            Ok(buffered_event_to_py(py, event))
-        }
-    }
-}
-
+include!("fpss_event_classes.rs");
 
 include!("streaming_methods.rs");
 
@@ -1139,10 +930,7 @@ fn thetadatadx_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Credentials>()?;
     m.add_class::<Config>()?;
     m.add_class::<ThetaDataDx>()?;
-    m.add_class::<Quote>()?;
-    m.add_class::<Trade>()?;
-    m.add_class::<OpenInterest>()?;
-    m.add_class::<Ohlcvc>()?;
+    register_fpss_event_classes(m)?;
     m.add_function(wrap_pyfunction!(_bench_synthetic_dict, m)?)?;
     m.add_function(wrap_pyfunction!(_bench_synthetic_typed, m)?)?;
     register_generated_utility_functions(m)?;
