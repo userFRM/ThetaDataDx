@@ -6,6 +6,7 @@
 //!   the upstream wire contract in `proto/external.proto`
 
 mod endpoints;
+mod fpss_events;
 mod ticks;
 mod upstream_openapi;
 #[path = "../src/wire_semantics.rs"]

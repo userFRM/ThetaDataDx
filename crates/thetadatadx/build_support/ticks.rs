@@ -527,9 +527,9 @@ use std::path::Path;
 
 use serde::Deserialize;
 
-struct GeneratedSourceFile {
-    relative_path: &'static str,
-    contents: String,
+pub struct GeneratedSourceFile {
+    pub relative_path: &'static str,
+    pub contents: String,
 }
 
 pub fn write_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {

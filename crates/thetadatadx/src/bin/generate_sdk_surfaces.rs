@@ -14,6 +14,8 @@ use std::path::PathBuf;
 // called from both entry points.
 #[path = "../../build_support/endpoints/mod.rs"]
 mod endpoints;
+#[path = "../../build_support/fpss_events.rs"]
+mod fpss_events;
 #[path = "../../build_support/sdk_surface.rs"]
 mod sdk_surface;
 #[path = "../../build_support/ticks.rs"]
@@ -44,10 +46,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         endpoints::check_sdk_generated_files(&repo_root())?;
         sdk_surface::check_sdk_generated_files(&repo_root())?;
         ticks::check_sdk_generated_files(&repo_root())?;
+        fpss_events::check_sdk_generated_files(&repo_root())?;
     } else {
         endpoints::write_sdk_generated_files(&repo_root())?;
         sdk_surface::write_sdk_generated_files(&repo_root())?;
         ticks::write_sdk_generated_files(&repo_root())?;
+        fpss_events::write_sdk_generated_files(&repo_root())?;
     }
     Ok(())
 }

@@ -12,7 +12,7 @@ license = "GPL-3.0-or-later"
 keywords = ["thetadata", "market-data", "tick-data", "zero-copy", "low-latency"]
 categories = ["finance", "api-bindings", "network-programming", "encoding"]
 readme = "../../README.md"
-include = ["src/**/*", "proto/**/*", "build.rs", "build_support/**/*", "Cargo.toml", "tick_schema.toml", "endpoint_surface.toml", "sdk_surface.toml"]
+include = ["src/**/*", "proto/**/*", "build.rs", "build_support/**/*", "Cargo.toml", "tick_schema.toml", "endpoint_surface.toml", "sdk_surface.toml", "fpss_event_schema.toml"]
 
 [package.metadata.docs.rs]
 all-features = true
@@ -93,6 +93,10 @@ harness = false
 
 [[bench]]
 name = "bench_auth"
+harness = false
+
+[[bench]]
+name = "bench_fpss_event"
 harness = false
 
 [[bin]]
