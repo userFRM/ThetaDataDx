@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — BREAKING (Python SDK)
+
+- **Historical endpoints now return `list[TickClass]` instead of a columnar `dict[str, list]`** (#364 / #365). The 53 tick-returning historical methods (list endpoints returning scalar `Vec<String>` — symbols, dates, expirations, strikes — are unchanged) in the Python SDK (`stock_history_eod`, `option_history_trade`, `calendar_*`, ...) now return a Python list of typed pyclass objects — `EodTick`, `TradeTick`, `QuoteTick`, `OhlcTick`, `TradeQuoteTick`, `OpenInterestTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`. Brings the Python SDK into line with Rust core, TypeScript, Go, and C++ FFI. Migration:
+
+  ```python
+  # before
+  ticks = tdx.stock_history_eod("AAPL", "20240101", "20240301")
+  close = ticks["close"][i]            # string key, silent typo failures
+
+  # after
+  ticks = tdx.stock_history_eod("AAPL", "20240101", "20240301")
+  close = ticks[i].close               # attribute access, typed
+  ```
+
+  `to_dataframe(ticks)`, `to_polars(ticks)`, and the `*_df` convenience
+  wrappers (`stock_history_eod_df`, etc.) transparently pivot the new
+  shape into a pandas/polars frame — consumer code using those
+  helpers is unaffected.
+
 ## [7.3.1] - 2026-04-16
 
 ### Added
