@@ -179,7 +179,7 @@ pub(crate) struct OptionContract {
     #[pyo3(get)] pub root: String,
     #[pyo3(get)] pub expiration: i32,
     #[pyo3(get)] pub strike: f64,
-    #[pyo3(get)] pub right: i32,
+    #[pyo3(get)] pub right: String,
 }
 #[pymethods]
 impl OptionContract {
@@ -462,7 +462,7 @@ pub(crate) fn option_contracts_to_pyclass_list(py: Python<'_>, ticks: &[tick::Op
             root: t.root.clone(),
             expiration: t.expiration,
             strike: t.strike,
-            right: t.right,
+            right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
         };
         list.append(Py::new(py, obj)?)?;
     }

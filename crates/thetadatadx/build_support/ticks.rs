@@ -908,7 +908,17 @@ fn render_python_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String
     out.push_str("#[derive(Clone)]\n");
     writeln!(out, "pub(crate) struct {class} {{").unwrap();
     for column in &def.columns {
-        let rust_type = pyclass_field_type(column.r#type.as_str(), type_name);
+        // Special case: `OptionContract.right` is stored on the wire as
+        // `i32` (ASCII 67/80), but every other tick surfaces `right` as
+        // a Python `"C" | "P" | ""` string (via the contract_id injection
+        // below). Emit it as String here too so the two paths match and
+        // consumer code doesn't get an integer on one endpoint and a
+        // string on the others.
+        let rust_type = if type_name == "OptionContract" && column.field == "right" {
+            "String"
+        } else {
+            pyclass_field_type(column.r#type.as_str(), type_name)
+        };
         writeln!(out, "    #[pyo3(get)] pub {}: {},", column.field, rust_type).unwrap();
     }
     if is_quote_tick {
@@ -958,6 +968,18 @@ fn render_python_tick_class_list_fn(type_name: &str, def: &TickTypeDef) -> Strin
     out.push_str("    for t in ticks {\n");
     writeln!(out, "        let obj = {class} {{").unwrap();
     for column in &def.columns {
+        // Special case: `OptionContract.right` emits as a
+        // `"C" | "P" | ""` string (see struct emitter above). Other
+        // ticks get the String `right` from the contract_id injection
+        // below; this keeps the standalone OptionContract endpoint in
+        // sync so consumers never see a raw `67` / `80` / `0` on one
+        // endpoint and a character on every other.
+        if type_name == "OptionContract" && column.field == "right" {
+            out.push_str(
+                "            right: (if t.is_call() { \"C\" } else if t.is_put() { \"P\" } else { \"\" }).to_string(),\n",
+            );
+            continue;
+        }
         let rust_type = pyclass_field_type(column.r#type.as_str(), type_name);
         if rust_type == "String" {
             writeln!(
