@@ -40,8 +40,25 @@ fn parse_sec_type(sec_type: &str) -> napi::Result<tdbe::types::enums::SecType> {
 }
 
 // ── Columnar converters (generated from tick_schema.toml) ──
+//
+// Kept alongside the class converters so DataFrame-style users (pandas-like)
+// can keep pulling JSON-shaped arrays. The class-vec path is the default
+// surface exposed to TypeScript; the columnar path is only invoked by code
+// that opts in, so napi-rs strips the unused helpers at link time.
 
 include!("tick_columnar.rs");
+
+// ── Typed tick classes (generated from tick_schema.toml) ──
+//
+// Emits `#[napi(object)]` structs for every tick type plus
+// `{tick}_to_class_vec` factories. These back every historical endpoint
+// return so `index.d.ts` surfaces concrete `Tick[]` types instead of `any`.
+
+include!("tick_classes.rs");
+
+// ── Typed FPSS event classes (generated from fpss_event_schema.toml) ──
+
+include!("fpss_event_classes.rs");
 
 // ── Buffered FPSS events ──
 
@@ -276,11 +293,6 @@ fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
             },
             fpss::FpssControl::Reconnected => BufferedEvent::Simple {
                 event_type: "reconnected".to_string(),
-                detail: None,
-                id: None,
-            },
-            fpss::FpssControl::MarketClose => BufferedEvent::Simple {
-                event_type: "market_close".to_string(),
                 detail: None,
                 id: None,
             },

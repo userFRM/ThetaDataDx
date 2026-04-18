@@ -42,7 +42,7 @@ impl ThetaDataDx {
         venue: Option<String>,
         min_time: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<OhlcTick>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.stock_snapshot_ohlc(&refs);
         if let Some(value) = venue {
@@ -55,7 +55,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(ohlc_ticks_to_columnar(&ticks))
+        Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
     /// Get the latest trade snapshot for one or more stocks.
@@ -66,7 +66,7 @@ impl ThetaDataDx {
         venue: Option<String>,
         min_time: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<TradeTick>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.stock_snapshot_trade(&refs);
         if let Some(value) = venue {
@@ -79,7 +79,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(trade_ticks_to_columnar(&ticks))
+        Ok(trade_ticks_to_class_vec(&ticks))
     }
 
     /// Get the latest NBBO quote snapshot for one or more stocks.
@@ -90,7 +90,7 @@ impl ThetaDataDx {
         venue: Option<String>,
         min_time: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<QuoteTick>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.stock_snapshot_quote(&refs);
         if let Some(value) = venue {
@@ -103,7 +103,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(quote_ticks_to_columnar(&ticks))
+        Ok(quote_ticks_to_class_vec(&ticks))
     }
 
     /// Get the latest market value snapshot for one or more stocks.
@@ -114,7 +114,7 @@ impl ThetaDataDx {
         venue: Option<String>,
         min_time: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<MarketValueTick>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.stock_snapshot_market_value(&refs);
         if let Some(value) = venue {
@@ -127,7 +127,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(market_value_ticks_to_columnar(&ticks))
+        Ok(market_value_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day.
@@ -138,13 +138,13 @@ impl ThetaDataDx {
         start_date: String,
         end_date: String,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<EodTick>> {
         let mut request = self.tdx.stock_history_eod(&symbol, &start_date, &end_date);
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(eod_ticks_to_columnar(&ticks))
+        Ok(eod_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch intraday OHLC bars for a stock on a single date.
@@ -160,7 +160,7 @@ impl ThetaDataDx {
         start_date: Option<String>,
         end_date: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<OhlcTick>> {
         let mut request = self.tdx.stock_history_ohlc(&symbol, &date, &interval);
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -181,7 +181,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(ohlc_ticks_to_columnar(&ticks))
+        Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch all trades for a stock on a given date.
@@ -196,7 +196,7 @@ impl ThetaDataDx {
         start_date: Option<String>,
         end_date: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<TradeTick>> {
         let mut request = self.tdx.stock_history_trade(&symbol, &date);
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -217,7 +217,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(trade_ticks_to_columnar(&ticks))
+        Ok(trade_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch NBBO quotes for a stock on a given date at a given interval.
@@ -233,7 +233,7 @@ impl ThetaDataDx {
         start_date: Option<String>,
         end_date: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<QuoteTick>> {
         let mut request = self.tdx.stock_history_quote(&symbol, &date, &interval);
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -254,7 +254,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(quote_ticks_to_columnar(&ticks))
+        Ok(quote_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
@@ -270,7 +270,7 @@ impl ThetaDataDx {
         start_date: Option<String>,
         end_date: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<TradeQuoteTick>> {
         let mut request = self.tdx.stock_history_trade_quote(&symbol, &date);
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -294,7 +294,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(trade_quote_ticks_to_columnar(&ticks))
+        Ok(trade_quote_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch the trade at a specific time of day across a date range.
@@ -307,7 +307,7 @@ impl ThetaDataDx {
         time_of_day: String,
         venue: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<TradeTick>> {
         let mut request = self.tdx.stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
         if let Some(value) = venue {
             request = request.venue(value.as_str());
@@ -316,7 +316,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(trade_ticks_to_columnar(&ticks))
+        Ok(trade_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch the quote at a specific time of day across a date range.
@@ -329,7 +329,7 @@ impl ThetaDataDx {
         time_of_day: String,
         venue: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<QuoteTick>> {
         let mut request = self.tdx.stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
         if let Some(value) = venue {
             request = request.venue(value.as_str());
@@ -338,7 +338,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(quote_ticks_to_columnar(&ticks))
+        Ok(quote_ticks_to_class_vec(&ticks))
     }
 
     /// List all available option underlying symbols.
@@ -418,7 +418,7 @@ impl ThetaDataDx {
         date: String,
         max_dte: Option<i32>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<OptionContract>> {
         let mut request = self.tdx.option_list_contracts(&request_type, &symbol, &date);
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -427,7 +427,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(option_contracts_to_columnar(&ticks))
+        Ok(option_contracts_to_class_vec(&ticks))
     }
 
     /// Get the latest OHLC snapshot for an option contract.
@@ -442,7 +442,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         min_time: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<OhlcTick>> {
         let mut request = self.tdx.option_snapshot_ohlc(&symbol, &expiration, &strike, &right);
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -457,7 +457,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(ohlc_ticks_to_columnar(&ticks))
+        Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
     /// Get the latest trade snapshot for an option contract.
@@ -471,7 +471,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         min_time: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<TradeTick>> {
         let mut request = self.tdx.option_snapshot_trade(&symbol, &expiration, &strike, &right);
         if let Some(value) = strike_range {
             request = request.strike_range(value);
@@ -483,7 +483,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(trade_ticks_to_columnar(&ticks))
+        Ok(trade_ticks_to_class_vec(&ticks))
     }
 
     /// Get the latest NBBO quote snapshot for an option contract.
@@ -498,7 +498,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         min_time: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<QuoteTick>> {
         let mut request = self.tdx.option_snapshot_quote(&symbol, &expiration, &strike, &right);
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -513,7 +513,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(quote_ticks_to_columnar(&ticks))
+        Ok(quote_ticks_to_class_vec(&ticks))
     }
 
     /// Get the latest open interest snapshot for an option contract.
@@ -528,7 +528,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         min_time: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<OpenInterestTick>> {
         let mut request = self.tdx.option_snapshot_open_interest(&symbol, &expiration, &strike, &right);
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -543,7 +543,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(open_interest_ticks_to_columnar(&ticks))
+        Ok(open_interest_ticks_to_class_vec(&ticks))
     }
 
     /// Get the latest market value snapshot for an option contract.
@@ -558,7 +558,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         min_time: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<MarketValueTick>> {
         let mut request = self.tdx.option_snapshot_market_value(&symbol, &expiration, &strike, &right);
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -573,7 +573,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(market_value_ticks_to_columnar(&ticks))
+        Ok(market_value_ticks_to_class_vec(&ticks))
     }
 
     /// Get implied volatility snapshot for an option contract (from ThetaData server).
@@ -594,7 +594,7 @@ impl ThetaDataDx {
         min_time: Option<String>,
         use_market_value: Option<bool>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<IvTick>> {
         let mut request = self.tdx.option_snapshot_greeks_implied_volatility(&symbol, &expiration, &strike, &right);
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
@@ -627,7 +627,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(iv_ticks_to_columnar(&ticks))
+        Ok(iv_ticks_to_class_vec(&ticks))
     }
 
     /// Get all Greeks snapshot for an option contract (from ThetaData server).
@@ -648,7 +648,7 @@ impl ThetaDataDx {
         min_time: Option<String>,
         use_market_value: Option<bool>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<GreeksTick>> {
         let mut request = self.tdx.option_snapshot_greeks_all(&symbol, &expiration, &strike, &right);
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
@@ -681,7 +681,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_columnar(&ticks))
+        Ok(greeks_ticks_to_class_vec(&ticks))
     }
 
     /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
@@ -702,7 +702,7 @@ impl ThetaDataDx {
         min_time: Option<String>,
         use_market_value: Option<bool>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<GreeksTick>> {
         let mut request = self.tdx.option_snapshot_greeks_first_order(&symbol, &expiration, &strike, &right);
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
@@ -735,7 +735,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_columnar(&ticks))
+        Ok(greeks_ticks_to_class_vec(&ticks))
     }
 
     /// Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
@@ -756,7 +756,7 @@ impl ThetaDataDx {
         min_time: Option<String>,
         use_market_value: Option<bool>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<GreeksTick>> {
         let mut request = self.tdx.option_snapshot_greeks_second_order(&symbol, &expiration, &strike, &right);
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
@@ -789,7 +789,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_columnar(&ticks))
+        Ok(greeks_ticks_to_class_vec(&ticks))
     }
 
     /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
@@ -810,7 +810,7 @@ impl ThetaDataDx {
         min_time: Option<String>,
         use_market_value: Option<bool>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<GreeksTick>> {
         let mut request = self.tdx.option_snapshot_greeks_third_order(&symbol, &expiration, &strike, &right);
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
@@ -843,7 +843,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_columnar(&ticks))
+        Ok(greeks_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch end-of-day option data for a contract over a date range.
@@ -859,7 +859,7 @@ impl ThetaDataDx {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<EodTick>> {
         let mut request = self.tdx.option_history_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -871,7 +871,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(eod_ticks_to_columnar(&ticks))
+        Ok(eod_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch intraday OHLC bars for an option contract.
@@ -890,7 +890,7 @@ impl ThetaDataDx {
         start_date: Option<String>,
         end_date: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<OhlcTick>> {
         let mut request = self.tdx.option_history_ohlc(&symbol, &expiration, &strike, &right, &date, &interval);
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -911,7 +911,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(ohlc_ticks_to_columnar(&ticks))
+        Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch all trades for an option contract on a given date.
@@ -930,7 +930,7 @@ impl ThetaDataDx {
         start_date: Option<String>,
         end_date: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<TradeTick>> {
         let mut request = self.tdx.option_history_trade(&symbol, &expiration, &strike, &right, &date);
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -954,7 +954,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(trade_ticks_to_columnar(&ticks))
+        Ok(trade_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch NBBO quotes for an option contract on a given date.
@@ -974,7 +974,7 @@ impl ThetaDataDx {
         start_date: Option<String>,
         end_date: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<QuoteTick>> {
         let mut request = self.tdx.option_history_quote(&symbol, &expiration, &strike, &right, &date, &interval);
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -998,7 +998,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(quote_ticks_to_columnar(&ticks))
+        Ok(quote_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch combined trade + quote ticks for an option contract.
@@ -1018,7 +1018,7 @@ impl ThetaDataDx {
         start_date: Option<String>,
         end_date: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<TradeQuoteTick>> {
         let mut request = self.tdx.option_history_trade_quote(&symbol, &expiration, &strike, &right, &date);
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -1045,7 +1045,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(trade_quote_ticks_to_columnar(&ticks))
+        Ok(trade_quote_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch open interest history for an option contract.
@@ -1062,7 +1062,7 @@ impl ThetaDataDx {
         start_date: Option<String>,
         end_date: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<OpenInterestTick>> {
         let mut request = self.tdx.option_history_open_interest(&symbol, &expiration, &strike, &right, &date);
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -1080,7 +1080,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(open_interest_ticks_to_columnar(&ticks))
+        Ok(open_interest_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch end-of-day Greeks history for an option contract.
@@ -1101,7 +1101,7 @@ impl ThetaDataDx {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<GreeksTick>> {
         let mut request = self.tdx.option_history_greeks_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
@@ -1128,7 +1128,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_columnar(&ticks))
+        Ok(greeks_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
@@ -1151,7 +1151,7 @@ impl ThetaDataDx {
         start_date: Option<String>,
         end_date: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<GreeksTick>> {
         let mut request = self.tdx.option_history_greeks_all(&symbol, &expiration, &strike, &right, &date, &interval);
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -1184,7 +1184,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_columnar(&ticks))
+        Ok(greeks_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch all Greeks on each trade for an option contract.
@@ -1207,7 +1207,7 @@ impl ThetaDataDx {
         start_date: Option<String>,
         end_date: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<GreeksTick>> {
         let mut request = self.tdx.option_history_trade_greeks_all(&symbol, &expiration, &strike, &right, &date);
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -1243,7 +1243,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_columnar(&ticks))
+        Ok(greeks_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch first-order Greeks history (intraday, sampled by interval).
@@ -1266,7 +1266,7 @@ impl ThetaDataDx {
         start_date: Option<String>,
         end_date: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<GreeksTick>> {
         let mut request = self.tdx.option_history_greeks_first_order(&symbol, &expiration, &strike, &right, &date, &interval);
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -1299,7 +1299,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_columnar(&ticks))
+        Ok(greeks_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch first-order Greeks on each trade for an option contract.
@@ -1322,7 +1322,7 @@ impl ThetaDataDx {
         start_date: Option<String>,
         end_date: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<GreeksTick>> {
         let mut request = self.tdx.option_history_trade_greeks_first_order(&symbol, &expiration, &strike, &right, &date);
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -1358,7 +1358,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_columnar(&ticks))
+        Ok(greeks_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch second-order Greeks history (intraday, sampled by interval).
@@ -1381,7 +1381,7 @@ impl ThetaDataDx {
         start_date: Option<String>,
         end_date: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<GreeksTick>> {
         let mut request = self.tdx.option_history_greeks_second_order(&symbol, &expiration, &strike, &right, &date, &interval);
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -1414,7 +1414,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_columnar(&ticks))
+        Ok(greeks_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch second-order Greeks on each trade for an option contract.
@@ -1437,7 +1437,7 @@ impl ThetaDataDx {
         start_date: Option<String>,
         end_date: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<GreeksTick>> {
         let mut request = self.tdx.option_history_trade_greeks_second_order(&symbol, &expiration, &strike, &right, &date);
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -1473,7 +1473,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_columnar(&ticks))
+        Ok(greeks_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch third-order Greeks history (intraday, sampled by interval).
@@ -1496,7 +1496,7 @@ impl ThetaDataDx {
         start_date: Option<String>,
         end_date: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<GreeksTick>> {
         let mut request = self.tdx.option_history_greeks_third_order(&symbol, &expiration, &strike, &right, &date, &interval);
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -1529,7 +1529,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_columnar(&ticks))
+        Ok(greeks_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch third-order Greeks on each trade for an option contract.
@@ -1552,7 +1552,7 @@ impl ThetaDataDx {
         start_date: Option<String>,
         end_date: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<GreeksTick>> {
         let mut request = self.tdx.option_history_trade_greeks_third_order(&symbol, &expiration, &strike, &right, &date);
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -1588,7 +1588,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_columnar(&ticks))
+        Ok(greeks_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch implied volatility history (intraday, sampled by interval).
@@ -1611,7 +1611,7 @@ impl ThetaDataDx {
         start_date: Option<String>,
         end_date: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<IvTick>> {
         let mut request = self.tdx.option_history_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date, &interval);
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -1644,7 +1644,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(iv_ticks_to_columnar(&ticks))
+        Ok(iv_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch implied volatility on each trade for an option contract.
@@ -1667,7 +1667,7 @@ impl ThetaDataDx {
         start_date: Option<String>,
         end_date: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<IvTick>> {
         let mut request = self.tdx.option_history_trade_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date);
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -1703,7 +1703,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(iv_ticks_to_columnar(&ticks))
+        Ok(iv_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch the trade at a specific time of day across a date range for an option.
@@ -1720,7 +1720,7 @@ impl ThetaDataDx {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<TradeTick>> {
         let mut request = self.tdx.option_at_time_trade(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -1732,7 +1732,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(trade_ticks_to_columnar(&ticks))
+        Ok(trade_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch the quote at a specific time of day across a date range for an option.
@@ -1749,7 +1749,7 @@ impl ThetaDataDx {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<QuoteTick>> {
         let mut request = self.tdx.option_at_time_quote(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -1761,7 +1761,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(quote_ticks_to_columnar(&ticks))
+        Ok(quote_ticks_to_class_vec(&ticks))
     }
 
     /// List all available index symbols.
@@ -1802,7 +1802,7 @@ impl ThetaDataDx {
         symbols: Vec<String>,
         min_time: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<OhlcTick>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.index_snapshot_ohlc(&refs);
         if let Some(value) = min_time {
@@ -1812,7 +1812,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(ohlc_ticks_to_columnar(&ticks))
+        Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
     /// Get the latest price snapshot for one or more indices.
@@ -1822,7 +1822,7 @@ impl ThetaDataDx {
         symbols: Vec<String>,
         min_time: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<PriceTick>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.index_snapshot_price(&refs);
         if let Some(value) = min_time {
@@ -1832,7 +1832,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(price_ticks_to_columnar(&ticks))
+        Ok(price_ticks_to_class_vec(&ticks))
     }
 
     /// Get the latest market value snapshot for one or more indices.
@@ -1842,7 +1842,7 @@ impl ThetaDataDx {
         symbols: Vec<String>,
         min_time: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<MarketValueTick>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.index_snapshot_market_value(&refs);
         if let Some(value) = min_time {
@@ -1852,7 +1852,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(market_value_ticks_to_columnar(&ticks))
+        Ok(market_value_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch end-of-day index data for a date range.
@@ -1863,13 +1863,13 @@ impl ThetaDataDx {
         start_date: String,
         end_date: String,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<EodTick>> {
         let mut request = self.tdx.index_history_eod(&symbol, &start_date, &end_date);
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(eod_ticks_to_columnar(&ticks))
+        Ok(eod_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch intraday OHLC bars for an index.
@@ -1883,7 +1883,7 @@ impl ThetaDataDx {
         start_time: Option<String>,
         end_time: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<OhlcTick>> {
         let mut request = self.tdx.index_history_ohlc(&symbol, &start_date, &end_date, &interval);
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -1895,7 +1895,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(ohlc_ticks_to_columnar(&ticks))
+        Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch intraday price history for an index.
@@ -1910,7 +1910,7 @@ impl ThetaDataDx {
         start_date: Option<String>,
         end_date: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<PriceTick>> {
         let mut request = self.tdx.index_history_price(&symbol, &date, &interval);
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -1928,7 +1928,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(price_ticks_to_columnar(&ticks))
+        Ok(price_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch the index price at a specific time of day across a date range.
@@ -1940,13 +1940,13 @@ impl ThetaDataDx {
         end_date: String,
         time_of_day: String,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<PriceTick>> {
         let mut request = self.tdx.index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(price_ticks_to_columnar(&ticks))
+        Ok(price_ticks_to_class_vec(&ticks))
     }
 
     /// Check whether the market is open today.
@@ -1954,13 +1954,13 @@ impl ThetaDataDx {
     pub fn calendar_open_today(
         &self,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<CalendarDay>> {
         let mut request = self.tdx.calendar_open_today();
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(calendar_days_to_columnar(&ticks))
+        Ok(calendar_days_to_class_vec(&ticks))
     }
 
     /// Get calendar information for a specific date.
@@ -1969,13 +1969,13 @@ impl ThetaDataDx {
         &self,
         date: String,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<CalendarDay>> {
         let mut request = self.tdx.calendar_on_date(&date);
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(calendar_days_to_columnar(&ticks))
+        Ok(calendar_days_to_class_vec(&ticks))
     }
 
     /// Get calendar information for an entire year.
@@ -1984,13 +1984,13 @@ impl ThetaDataDx {
         &self,
         year: String,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<CalendarDay>> {
         let mut request = self.tdx.calendar_year(&year);
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(calendar_days_to_columnar(&ticks))
+        Ok(calendar_days_to_class_vec(&ticks))
     }
 
     /// Fetch end-of-day interest rate history.
@@ -2001,13 +2001,13 @@ impl ThetaDataDx {
         start_date: String,
         end_date: String,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<InterestRateTick>> {
         let mut request = self.tdx.interest_rate_history_eod(&symbol, &start_date, &end_date);
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(interest_rate_ticks_to_columnar(&ticks))
+        Ok(interest_rate_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch intraday OHLC bars across a date range.
@@ -2022,7 +2022,7 @@ impl ThetaDataDx {
         end_time: Option<String>,
         venue: Option<String>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<serde_json::Value> {
+    ) -> napi::Result<Vec<OhlcTick>> {
         let mut request = self.tdx.stock_history_ohlc_range(&symbol, &start_date, &end_date, &interval);
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -2037,7 +2037,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(ohlc_ticks_to_columnar(&ticks))
+        Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
 }

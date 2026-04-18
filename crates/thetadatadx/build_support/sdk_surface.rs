@@ -2610,10 +2610,22 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
         }
         MethodKind::NextEvent => {
             let param = &method.params[0];
-            writeln!(out, "    #[napi(js_name = \"nextEvent\")]").unwrap();
+            // Override the TS return type with a proper discriminated union so
+            // `switch (ev.kind) case 'quote': ...` narrows `ev.quote` to
+            // `Quote` (not `Quote | undefined`). The flat `FpssEvent` interface
+            // that napi-rs emits from the Rust struct does not narrow in TS.
+            // The union literal is generator-derived from
+            // `fpss_event_schema.toml` via `fpss_events::ts_next_event_union_type`
+            // so adding a new data variant tomorrow updates both sides.
+            let union_ts = super::fpss_events::ts_next_event_union_type();
             writeln!(
                 out,
-                "    pub fn {}(&self, {}: f64) -> napi::Result<Option<serde_json::Value>> {{",
+                "    #[napi(js_name = \"nextEvent\", ts_return_type = \"{union_ts}\")]"
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "    pub fn {}(&self, {}: f64) -> napi::Result<Option<FpssEvent>> {{",
                 method.name, param.name,
             )
             .unwrap();
@@ -2639,9 +2651,7 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             .unwrap();
             out.push_str("        let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());\n");
             out.push_str("        match rx.recv_timeout(timeout) {\n");
-            out.push_str(
-                "            Ok(event) => Ok(Some(serde_json::to_value(&event).unwrap())),\n",
-            );
+            out.push_str("            Ok(event) => Ok(Some(buffered_event_to_typed(event))),\n");
             out.push_str(
                 "            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Ok(None),\n",
             );

@@ -210,8 +210,8 @@ impl ThetaDataDx {
     }
 
     /// Poll for the next FPSS event.
-    #[napi(js_name = "nextEvent")]
-    pub fn next_event(&self, timeout_ms: f64) -> napi::Result<Option<serde_json::Value>> {
+    #[napi(js_name = "nextEvent", ts_return_type = "({ kind: 'ohlcvc'; ohlcvc: Ohlcvc } | { kind: 'open_interest'; openInterest: OpenInterest } | { kind: 'quote'; quote: Quote } | { kind: 'trade'; trade: Trade } | { kind: 'simple'; simple: FpssSimplePayload } | { kind: 'raw_data'; rawData: FpssRawDataPayload }) | null")]
+    pub fn next_event(&self, timeout_ms: f64) -> napi::Result<Option<FpssEvent>> {
         let rx_outer = self.rx.lock().unwrap_or_else(|e| e.into_inner());
         let rx_arc = match rx_outer.as_ref() {
             Some(arc) => Arc::clone(arc),
@@ -225,7 +225,7 @@ impl ThetaDataDx {
         let timeout = std::time::Duration::from_millis(timeout_ms as u64);
         let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());
         match rx.recv_timeout(timeout) {
-            Ok(event) => Ok(Some(serde_json::to_value(&event).unwrap())),
+            Ok(event) => Ok(Some(buffered_event_to_typed(event))),
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Ok(None),
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Ok(None),
         }
