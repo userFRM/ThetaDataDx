@@ -39,7 +39,6 @@
   },
   "files": [
     "index.js",
-    "index.d.ts",
-    "src/types.ts"
+    "index.d.ts"
   ]
 }
