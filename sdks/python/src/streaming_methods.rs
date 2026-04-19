@@ -201,6 +201,11 @@ impl ThetaDataDx {
         };
         drop(rx_outer);
         let timeout = std::time::Duration::from_millis(timeout_ms);
+        enum PollOutcome {
+            Event(BufferedEvent),
+            Timeout,
+            Disconnected,
+        }
         let result = py.detach(move || {
             // Poll with `try_recv` + short sleep so the inner lock is only
             // held for nanoseconds per iteration. A blocking `recv_timeout`
@@ -212,21 +217,24 @@ impl ThetaDataDx {
                 {
                     let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());
                     match rx.try_recv() {
-                        Ok(event) => return Some(event),
-                        Err(std::sync::mpsc::TryRecvError::Disconnected) => return None,
+                        Ok(event) => return PollOutcome::Event(event),
+                        Err(std::sync::mpsc::TryRecvError::Disconnected) => return PollOutcome::Disconnected,
                         Err(std::sync::mpsc::TryRecvError::Empty) => {}
                     }
                 }
                 let now = std::time::Instant::now();
                 if now >= deadline {
-                    return None;
+                    return PollOutcome::Timeout;
                 }
                 std::thread::sleep(poll_interval.min(deadline - now));
             }
         });
         match result {
-            Some(event) => Ok(Some(buffered_event_to_py(py, &event))),
-            None => Ok(None),
+            PollOutcome::Event(event) => Ok(Some(buffered_event_to_py(py, &event))),
+            PollOutcome::Timeout => Ok(None),
+            PollOutcome::Disconnected => Err(PyRuntimeError::new_err(
+                "streaming channel disconnected -- call reconnect() or start_streaming() again",
+            )),
         }
     }
 

@@ -486,6 +486,111 @@ mod tests {
         );
     }
 
+    /// Reader that returns a prefix of a buffer, then fails with a specified
+    /// IO error. Simulates a socket that stalls after delivering `n_before_err`
+    /// bytes — the class of failure the framing escalation path exists to
+    /// handle.
+    struct PrefixThenErr {
+        prefix: Vec<u8>,
+        pos: usize,
+        err_kind: std::io::ErrorKind,
+    }
+
+    impl std::io::Read for PrefixThenErr {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            if self.pos < self.prefix.len() {
+                let remaining = &self.prefix[self.pos..];
+                let n = remaining.len().min(buf.len());
+                buf[..n].copy_from_slice(&remaining[..n]);
+                self.pos += n;
+                Ok(n)
+            } else {
+                Err(std::io::Error::new(self.err_kind, "simulated stall"))
+            }
+        }
+    }
+
+    /// Pre-header `WouldBlock` (zero bytes delivered) must propagate as
+    /// `Error::Io` so `io_loop::is_read_timeout` can drain queued commands
+    /// and re-enter the poll. This is the benign-timeout housekeeping path.
+    #[test]
+    fn pre_header_would_block_propagates_as_io() {
+        let mut reader = PrefixThenErr {
+            prefix: Vec::new(),
+            pos: 0,
+            err_kind: std::io::ErrorKind::WouldBlock,
+        };
+        let err = read_frame(&mut reader).unwrap_err();
+        match err {
+            crate::error::Error::Io(e) => assert_eq!(e.kind(), std::io::ErrorKind::WouldBlock),
+            other => panic!("expected Error::Io(WouldBlock), got {other:?}"),
+        }
+    }
+
+    /// Mid-header `WouldBlock` (one byte delivered, second byte stalls)
+    /// must escalate to fatal `ProtocolError` — the cursor is desynced by
+    /// one byte and retrying would read a payload byte as a frame header.
+    #[test]
+    fn mid_header_timeout_escalates_to_fatal() {
+        let mut reader = PrefixThenErr {
+            prefix: vec![0x05],
+            pos: 0,
+            err_kind: std::io::ErrorKind::WouldBlock,
+        };
+        let err = read_frame(&mut reader).unwrap_err();
+        match err {
+            crate::error::Error::Fpss { kind, message } => {
+                assert_eq!(kind, crate::error::FpssErrorKind::ProtocolError);
+                assert!(
+                    message.contains("mid-header"),
+                    "expected mid-header message, got: {message}"
+                );
+            }
+            other => panic!("expected fatal ProtocolError, got {other:?}"),
+        }
+    }
+
+    /// Mid-payload `TimedOut` (header + partial payload delivered, remaining
+    /// payload stalls) must escalate to fatal `ProtocolError`. Retrying would
+    /// leave `N - k` payload bytes in the stream that the next `read_frame`
+    /// would parse as a bogus header.
+    #[test]
+    fn mid_payload_timeout_escalates_to_fatal() {
+        // header: len=4, code=PING; then 2 of 4 payload bytes before the stall.
+        let mut reader = PrefixThenErr {
+            prefix: vec![0x04, StreamMsgType::Ping as u8, 0x01, 0x02],
+            pos: 0,
+            err_kind: std::io::ErrorKind::TimedOut,
+        };
+        let err = read_frame(&mut reader).unwrap_err();
+        match err {
+            crate::error::Error::Fpss { kind, message } => {
+                assert_eq!(kind, crate::error::FpssErrorKind::ProtocolError);
+                assert!(
+                    message.contains("mid-payload"),
+                    "expected mid-payload message, got: {message}"
+                );
+            }
+            other => panic!("expected fatal ProtocolError, got {other:?}"),
+        }
+    }
+
+    /// Truncated header (EOF after one byte) must be fatal — same desync
+    /// semantics as a mid-header timeout, different IO class.
+    #[test]
+    fn mid_header_eof_escalates_to_fatal() {
+        let data = vec![0x05]; // one byte, then cursor hits end
+        let mut cursor = Cursor::new(data);
+        let err = read_frame(&mut cursor).unwrap_err();
+        match err {
+            crate::error::Error::Fpss { kind, message } => {
+                assert_eq!(kind, crate::error::FpssErrorKind::ProtocolError);
+                assert!(message.contains("truncated FPSS header"));
+            }
+            other => panic!("expected fatal ProtocolError, got {other:?}"),
+        }
+    }
+
     #[test]
     fn disconnected_frame() {
         // DISCONNECTED (code 12) carries a 2-byte BE reason code

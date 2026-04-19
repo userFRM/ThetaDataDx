@@ -1213,6 +1213,14 @@ fn python_streaming_method(method: &MethodSpec) -> String {
                 param.name
             )
             .unwrap();
+            // Three outcomes: event, benign timeout, fatal disconnect.
+            // Collapsing disconnect to None spins consumer while-loops at
+            // 100% CPU on a dead socket.
+            out.push_str("        enum PollOutcome {\n");
+            out.push_str("            Event(BufferedEvent),\n");
+            out.push_str("            Timeout,\n");
+            out.push_str("            Disconnected,\n");
+            out.push_str("        }\n");
             out.push_str("        let result = py.detach(move || {\n");
             out.push_str(
                 "            // Poll with `try_recv` + short sleep so the inner lock is only\n",
@@ -1234,8 +1242,10 @@ fn python_streaming_method(method: &MethodSpec) -> String {
                 "                    let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());\n",
             );
             out.push_str("                    match rx.try_recv() {\n");
-            out.push_str("                        Ok(event) => return Some(event),\n");
-            out.push_str("                        Err(std::sync::mpsc::TryRecvError::Disconnected) => return None,\n");
+            out.push_str(
+                "                        Ok(event) => return PollOutcome::Event(event),\n",
+            );
+            out.push_str("                        Err(std::sync::mpsc::TryRecvError::Disconnected) => return PollOutcome::Disconnected,\n");
             out.push_str(
                 "                        Err(std::sync::mpsc::TryRecvError::Empty) => {}\n",
             );
@@ -1243,7 +1253,7 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             out.push_str("                }\n");
             out.push_str("                let now = std::time::Instant::now();\n");
             out.push_str("                if now >= deadline {\n");
-            out.push_str("                    return None;\n");
+            out.push_str("                    return PollOutcome::Timeout;\n");
             out.push_str("                }\n");
             out.push_str(
                 "                std::thread::sleep(poll_interval.min(deadline - now));\n",
@@ -1252,9 +1262,12 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             out.push_str("        });\n");
             out.push_str("        match result {\n");
             out.push_str(
-                "            Some(event) => Ok(Some(buffered_event_to_py(py, &event))),\n",
+                "            PollOutcome::Event(event) => Ok(Some(buffered_event_to_py(py, &event))),\n",
             );
-            out.push_str("            None => Ok(None),\n");
+            out.push_str("            PollOutcome::Timeout => Ok(None),\n");
+            out.push_str("            PollOutcome::Disconnected => Err(PyRuntimeError::new_err(\n");
+            out.push_str("                \"streaming channel disconnected -- call reconnect() or start_streaming() again\",\n");
+            out.push_str("            )),\n");
             out.push_str("        }\n");
             out.push_str("    }\n");
         }
@@ -2650,14 +2663,23 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             )
             .unwrap();
             out.push_str("        let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());\n");
+            // Disconnected = streaming loop dropped the sender half.
+            // Surfacing as `null` is indistinguishable from a benign
+            // timeout and spins consumer while-loops at 100% CPU on a
+            // dead socket. Surface as a napi error so `reconnect()` /
+            // `startStreaming()` is an explicit user choice.
             out.push_str("        match rx.recv_timeout(timeout) {\n");
             out.push_str("            Ok(event) => Ok(Some(buffered_event_to_typed(event))),\n");
             out.push_str(
                 "            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Ok(None),\n",
             );
             out.push_str(
-                "            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Ok(None),\n",
+                "            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Err(napi::Error::from_reason(\n",
             );
+            out.push_str(
+                "                \"streaming channel disconnected -- call reconnect() or startStreaming() again\",\n",
+            );
+            out.push_str("            )),\n");
             out.push_str("        }\n");
             out.push_str("    }\n");
         }

@@ -106,14 +106,13 @@ type FpssOhlcvc struct {
 
 // FpssControlData is a control/lifecycle event from FPSS.
 //
-// Kind encodes the sub-type:
+// Kind encodes the sub-type; see the FpssCtrl* constants below for the
+// canonical numeric mapping (0..=6, 8..=11). Value 7 is currently
+// unassigned — use the named constants, not literals.
 //
-//	0=login_success, 1=contract_assigned, 2=req_response,
-//	3=market_open, 4=market_close, 5=server_error,
-//	6=disconnected, 7=error, 8=unknown
-//
-// ID carries the contract_id or req_id where applicable (0 otherwise).
-// Detail is a human-readable string (may be empty).
+// ID carries the contract_id, req_id, or reconnect attempt number where
+// applicable (0 otherwise). Detail is a human-readable string (may be
+// empty).
 type FpssControlData struct {
 	Kind   int32
 	ID     int32

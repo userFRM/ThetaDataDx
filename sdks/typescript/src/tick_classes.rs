@@ -144,7 +144,7 @@ pub struct OptionContract {
     pub root: String,
     pub expiration: i32,
     pub strike: f64,
-    pub right: i32,
+    pub right: String,
 }
 
 /// Price tick. Generic price data point.
@@ -408,7 +408,7 @@ fn option_contracts_to_class_vec(ticks: &[tick::OptionContract]) -> Vec<OptionCo
                 root: t.root.clone(),
                 expiration: t.expiration,
                 strike: t.strike,
-                right: t.right,
+                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
             }
         })
         .collect()
