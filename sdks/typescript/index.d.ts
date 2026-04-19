@@ -373,7 +373,7 @@ export interface OptionContract {
   root: string
   expiration: number
   strike: number
-  right: number
+  right: string
 }
 
 /** Price tick. Generic price data point. */

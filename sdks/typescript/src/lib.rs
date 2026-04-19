@@ -39,15 +39,6 @@ fn parse_sec_type(sec_type: &str) -> napi::Result<tdbe::types::enums::SecType> {
     }
 }
 
-// ── Columnar converters (generated from tick_schema.toml) ──
-//
-// Kept alongside the class converters so DataFrame-style users (pandas-like)
-// can keep pulling JSON-shaped arrays. The class-vec path is the default
-// surface exposed to TypeScript; the columnar path is only invoked by code
-// that opts in, so napi-rs strips the unused helpers at link time.
-
-include!("tick_columnar.rs");
-
 // ── Typed tick classes (generated from tick_schema.toml) ──
 //
 // Emits `#[napi(object)]` structs for every tick type plus

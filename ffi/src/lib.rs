@@ -253,9 +253,12 @@ pub struct TdxFpssOhlcvc {
 /// `kind` encodes the control sub-type:
 ///   `0=login_success`, `1=contract_assigned`, `2=req_response`,
 ///   `3=market_open`, `4=market_close`, `5=server_error`,
-///   6=disconnected, 7=error
+///   `6=disconnected`, `8=reconnecting`, `9=reconnected`,
+///   `10=error`, `11=unknown_frame`.
+///   Value `7` is currently unassigned.
 ///
-/// `id` carries the `contract_id` or `req_id` where applicable (0 otherwise).
+/// `id` carries the `contract_id`, `req_id`, reconnect attempt number,
+/// or unknown-frame code where applicable (0 otherwise).
 /// `detail` is a NUL-terminated C string (may be null).
 #[repr(C)]
 pub struct TdxFpssControl {

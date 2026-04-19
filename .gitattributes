@@ -32,7 +32,6 @@ tools/cli/src/utilities.rs           text eol=lf linguist-generated=true
 tools/mcp/src/utilities.rs           text eol=lf linguist-generated=true
 sdks/typescript/src/historical_methods.rs text eol=lf linguist-generated=true
 sdks/typescript/src/streaming_methods.rs text eol=lf linguist-generated=true
-sdks/typescript/src/tick_columnar.rs text eol=lf linguist-generated=true
 sdks/typescript/src/tick_classes.rs  text eol=lf linguist-generated=true
 sdks/typescript/src/fpss_event_classes.rs text eol=lf linguist-generated=true
 sdks/typescript/src/types.ts         text eol=lf linguist-generated=true

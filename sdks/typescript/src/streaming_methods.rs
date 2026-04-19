@@ -227,7 +227,9 @@ impl ThetaDataDx {
         match rx.recv_timeout(timeout) {
             Ok(event) => Ok(Some(buffered_event_to_typed(event))),
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Ok(None),
-            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Ok(None),
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Err(napi::Error::from_reason(
+                "streaming channel disconnected -- call reconnect() or startStreaming() again",
+            )),
         }
     }
 
