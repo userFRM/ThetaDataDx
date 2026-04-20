@@ -233,7 +233,7 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                 detail: Some(format!(
                     "reason={reason:?} attempt={attempt} delay_ms={delay_ms}"
                 )),
-                id: Some(*attempt as i32),
+                id: Some(i32::try_from(*attempt).unwrap_or(i32::MAX)),
             },
             fpss::FpssControl::Reconnected => BufferedEvent::Simple {
                 event_type: "reconnected".to_string(),

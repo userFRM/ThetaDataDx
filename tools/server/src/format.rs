@@ -401,13 +401,31 @@ pub fn json_to_csv(response: &[sonic_rs::Value]) -> Option<String> {
     let first = response.first()?;
     let mut out = String::with_capacity(response.len() * 128);
 
-    if let Some(obj) = first.as_object() {
-        let null_val = sonic_rs::Value::default();
-        let mut keys: Vec<&str> = obj.iter().map(|(k, _)| k).collect();
-        if keys.is_empty() {
+    if first.as_object().is_some() {
+        // Union the key set across EVERY row — not just the first row. Object
+        // rows can be sparse (index ticks have no `expiration/strike/right`
+        // while option ticks do), and seeding the header from row 0 alone
+        // silently dropped every column row 0 did not carry. `BTreeSet`
+        // gives stable lexicographic header order for free, replacing the
+        // previous explicit `sort_unstable` on the row-0 key list.
+        let mut keys_set: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        for row in response {
+            let row_obj = row.as_object()?;
+            for (k, _) in row_obj.iter() {
+                // Pre-check membership so we only allocate a fresh
+                // `String` for keys we are actually going to insert.
+                // `BTreeSet<String>::insert` takes the key by value and
+                // would otherwise heap-allocate for every duplicate.
+                if !keys_set.contains(k) {
+                    keys_set.insert(k.to_string());
+                }
+            }
+        }
+        if keys_set.is_empty() {
             return None;
         }
-        keys.sort_unstable();
+        let keys: Vec<String> = keys_set.into_iter().collect();
+        let null_val = sonic_rs::Value::default();
 
         for (i, key) in keys.iter().enumerate() {
             if i > 0 {
@@ -500,6 +518,38 @@ mod tests {
         ]);
 
         assert!(csv.is_none(), "mixed row shapes should not format as CSV");
+    }
+
+    /// Regression: the header key set must be the UNION of keys across
+    /// every row, not just row 0. If row 0 is sparse (e.g. an index tick
+    /// with no `expiration/strike/right`) and row 1 has extra columns,
+    /// seeding from row 0 alone silently drops the missing columns from
+    /// every subsequent row.
+    #[test]
+    fn json_to_csv_unions_keys_across_sparse_rows() {
+        let csv = json_to_csv(&[
+            // Row 0: index tick, no option-identifying fields.
+            sonic_rs::json!({ "ms_of_day": 0, "price": 100.0 }),
+            // Row 1: option tick, adds `expiration`, `strike`, `right`.
+            sonic_rs::json!({
+                "ms_of_day": 1,
+                "price": 101.0,
+                "expiration": 20240315,
+                "strike": 150.0,
+                "right": "C",
+            }),
+        ])
+        .expect("sparse-object rows should format as CSV");
+
+        let lines: Vec<&str> = csv.lines().collect();
+        assert_eq!(
+            lines[0], "expiration,ms_of_day,price,right,strike",
+            "header should contain every key that appears in any row"
+        );
+        // Row 0 is missing `expiration`, `right`, `strike` — must render
+        // as empty columns, not drop the whole column from the schema.
+        assert_eq!(lines[1], ",0,100.0,,");
+        assert_eq!(lines[2], "20240315,1,101.0,C,150.0");
     }
 
     #[test]

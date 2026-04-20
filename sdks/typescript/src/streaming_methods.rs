@@ -10,11 +10,21 @@ impl ThetaDataDx {
         // when polling resumes. A bounded channel would cause disconnects
         // under backpressure. Same pattern as the Python SDK.
         let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();
+        let dropped_events = std::sync::atomic::AtomicU64::new(0);
 
         self.tdx
             .start_streaming(move |event: &fpss::FpssEvent| {
                 let buffered = fpss_event_to_buffered(event);
-                let _ = tx.send(buffered);
+                if tx.send(buffered).is_err() {
+                    let count = dropped_events
+                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                        + 1;
+                    tracing::trace!(
+                        target: "thetadatadx::sdk::streaming",
+                        dropped_total = count,
+                        "fpss event dropped: receiver disconnected",
+                    );
+                }
             })
             .map_err(to_napi_err)?;
 
@@ -243,9 +253,20 @@ impl ThetaDataDx {
     #[napi(js_name = "reconnect")]
     pub fn reconnect(&self) -> napi::Result<()> {
         let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();
+        let dropped_events = std::sync::atomic::AtomicU64::new(0);
         self.tdx
             .reconnect_streaming(move |event: &fpss::FpssEvent| {
-                let _ = tx.send(fpss_event_to_buffered(event));
+                let buffered = fpss_event_to_buffered(event);
+                if tx.send(buffered).is_err() {
+                    let count = dropped_events
+                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                        + 1;
+                    tracing::trace!(
+                        target: "thetadatadx::sdk::streaming",
+                        dropped_total = count,
+                        "fpss event dropped: receiver disconnected (post-reconnect)",
+                    );
+                }
             })
             .map_err(to_napi_err)?;
         let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());

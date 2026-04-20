@@ -117,13 +117,37 @@ impl AppState {
     /// If a per-client channel is full, that single slow client's event is
     /// dropped and a warning is logged -- the same backpressure semantics as
     /// the old `broadcast::channel`'s `Lagged` behavior.
+    ///
+    /// If a per-client channel is `Closed` (the receiver side was dropped
+    /// because the WS handler exited), the dead sender is pruned inline --
+    /// we re-acquire the lock in write mode and `retain` on `!is_closed()`
+    /// before returning. This keeps the client list tight on a bursty
+    /// disconnect storm instead of waiting for the next
+    /// `cleanup_ws_clients()` at connection-close time, and prevents the
+    /// `try_send` hot path from revisiting the same dead sender on every
+    /// subsequent broadcast.
     pub async fn broadcast_ws(&self, event: Arc<str>) {
-        let clients = self.inner.ws_clients.read().await;
-        for tx in clients.iter() {
-            if let Err(mpsc::error::TrySendError::Full(_)) = tx.try_send(Arc::clone(&event)) {
-                tracing::warn!("WebSocket client lagged, dropped event");
+        let mut saw_closed = false;
+        {
+            let clients = self.inner.ws_clients.read().await;
+            for tx in clients.iter() {
+                match tx.try_send(Arc::clone(&event)) {
+                    Ok(()) => {}
+                    Err(mpsc::error::TrySendError::Full(_)) => {
+                        tracing::warn!("WebSocket client lagged, dropped event");
+                    }
+                    Err(mpsc::error::TrySendError::Closed(_)) => {
+                        saw_closed = true;
+                    }
+                }
             }
-            // TrySendError::Closed is fine -- cleanup_ws_clients will prune it.
+        }
+        if saw_closed {
+            self.inner
+                .ws_clients
+                .write()
+                .await
+                .retain(|tx| !tx.is_closed());
         }
     }
 

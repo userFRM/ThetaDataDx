@@ -76,7 +76,19 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                         "status": status
                     }
                 });
-                let text = sonic_rs::to_string(&msg).unwrap_or_default();
+                // Never send an empty WS frame when serialization fails --
+                // downstream clients have no way to distinguish an empty
+                // string from a valid heartbeat and will silently drop it.
+                // A serialization failure on the server-built heartbeat is
+                // either a bug in sonic_rs or a panic elsewhere; treat it
+                // as fatal for this connection and log so operators notice.
+                let text = match sonic_rs::to_string(&msg) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        tracing::error!(error = %e, "ws heartbeat serialize failed; closing socket");
+                        break;
+                    }
+                };
                 if socket.send(Message::Text(text.into())).await.is_err() {
                     break;
                 }
@@ -124,6 +136,22 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
     tracing::debug!("WebSocket connection closed");
 }
 
+/// Serialize a response envelope and send it to the client.
+///
+/// Never sends an empty WS frame on serialization failure -- logs the
+/// error instead. The socket is left open so the client can retry the
+/// command. Callers that must close on serialize failure should inspect
+/// the return value (`false` = not sent) and propagate.
+async fn send_response(socket: &mut WebSocket, resp: &sonic_rs::Value, ctx: &str) -> bool {
+    match sonic_rs::to_string(resp) {
+        Ok(s) => socket.send(Message::Text(s.into())).await.is_ok(),
+        Err(e) => {
+            tracing::error!(error = %e, context = %ctx, "ws response serialize failed; dropping");
+            false
+        }
+    }
+}
+
 /// Parse and handle a client subscription command.
 async fn handle_client_message(state: &AppState, text: &str, socket: &mut WebSocket) {
     let obj: sonic_rs::Value = match sonic_rs::from_str(text) {
@@ -137,11 +165,7 @@ async fn handle_client_message(state: &AppState, text: &str, socket: &mut WebSoc
                     "req_id": 0
                 }
             });
-            let _ = socket
-                .send(Message::Text(
-                    sonic_rs::to_string(&resp).unwrap_or_default().into(),
-                ))
-                .await;
+            send_response(socket, &resp, "invalid_json_reply").await;
             return;
         }
     };
@@ -158,11 +182,7 @@ async fn handle_client_message(state: &AppState, text: &str, socket: &mut WebSoc
         let resp = sonic_rs::json!({
             "header": { "type": "REQ_RESPONSE", "response": "OK", "req_id": req_id }
         });
-        let _ = socket
-            .send(Message::Text(
-                sonic_rs::to_string(&resp).unwrap_or_default().into(),
-            ))
-            .await;
+        send_response(socket, &resp, "stop_reply").await;
         return;
     }
 
@@ -249,21 +269,13 @@ async fn handle_client_message(state: &AppState, text: &str, socket: &mut WebSoc
                 })
             }
         };
-        let _ = socket
-            .send(Message::Text(
-                sonic_rs::to_string(&resp).unwrap_or_default().into(),
-            ))
-            .await;
+        send_response(socket, &resp, "subscription_reply").await;
     } else {
         tracing::warn!("FPSS streaming not started, subscription command ignored");
         let resp = sonic_rs::json!({
             "header": { "type": "REQ_RESPONSE", "response": "OK", "req_id": req_id }
         });
-        let _ = socket
-            .send(Message::Text(
-                sonic_rs::to_string(&resp).unwrap_or_default().into(),
-            ))
-            .await;
+        send_response(socket, &resp, "streaming_off_reply").await;
     }
 }
 

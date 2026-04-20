@@ -106,37 +106,20 @@ pub struct FpssRawDataPayload {
     pub payload: Vec<u8>,
 }
 
-/// Discriminator tag for [`FpssEvent`].
-///
-/// Each variant corresponds to a `#[napi(object)]` payload field on
-/// `FpssEvent`. Emitted as a `string_enum` so the JS-side wire value
-/// is the snake_case literal (`'ohlcvc'`, `'open_interest'`, ...) and
-/// the Rust-side value is a stack-stored discriminant — no per-event
-/// `String` allocation on the hot path.
-#[napi(string_enum = "snake_case")]
-#[derive(Clone, Copy)]
-pub enum FpssEventKind {
-    Ohlcvc,
-    OpenInterest,
-    Quote,
-    RawData,
-    Simple,
-    Trade,
-}
-
 /// A single FPSS event surfaced to JS/TS.
 ///
 /// `kind` is the discriminator — switch on it and read the matching
 /// payload field. The shape is stable and every payload is typed, so
 /// consumers never fall back to untyped `any`.
 #[must_use]
-#[napi(object)]
+#[napi(object, object_from_js = false)]
 #[derive(Clone)]
 pub struct FpssEvent {
     /// Discriminator matching one of the typed payload fields below.
     /// Narrowed to a literal union in TS so `switch (event.kind)`
     /// correctly narrows the optional payload fields.
-    pub kind: FpssEventKind,
+    #[napi(ts_type = "'ohlcvc' | 'open_interest' | 'quote' | 'raw_data' | 'simple' | 'trade'")]
+    pub kind: &'static str,
     pub ohlcvc: Option<Ohlcvc>,
     pub open_interest: Option<OpenInterest>,
     pub quote: Option<Quote>,
@@ -147,7 +130,7 @@ pub struct FpssEvent {
 
 pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
     let mut out = FpssEvent {
-        kind: FpssEventKind::Simple,
+        kind: "simple",
         ohlcvc: None,
         open_interest: None,
         quote: None,
@@ -168,7 +151,7 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             date,
             received_at_ns,
         } => {
-            out.kind = FpssEventKind::Ohlcvc;
+            out.kind = "ohlcvc";
             out.ohlcvc = Some(Ohlcvc {
                 contract_id,
                 ms_of_day,
@@ -189,7 +172,7 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             date,
             received_at_ns,
         } => {
-            out.kind = FpssEventKind::OpenInterest;
+            out.kind = "open_interest";
             out.open_interest = Some(OpenInterest {
                 contract_id,
                 ms_of_day,
@@ -212,7 +195,7 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             date,
             received_at_ns,
         } => {
-            out.kind = FpssEventKind::Quote;
+            out.kind = "quote";
             out.quote = Some(Quote {
                 contract_id,
                 ms_of_day,
@@ -247,7 +230,7 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             date,
             received_at_ns,
         } => {
-            out.kind = FpssEventKind::Trade;
+            out.kind = "trade";
             out.trade = Some(Trade {
                 contract_id,
                 ms_of_day,
@@ -269,14 +252,14 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             });
         }
         BufferedEvent::RawData { code, payload } => {
-            out.kind = FpssEventKind::RawData;
+            out.kind = "raw_data";
             out.raw_data = Some(FpssRawDataPayload {
                 code: code as u32,
                 payload,
             });
         }
         BufferedEvent::Simple { event_type, detail, id } => {
-            out.kind = FpssEventKind::Simple;
+            out.kind = "simple";
             out.simple = Some(FpssSimplePayload {
                 event_type,
                 detail,

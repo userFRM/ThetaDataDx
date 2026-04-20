@@ -20,22 +20,32 @@ Pre-built binaries are downloaded automatically for your platform. Supported:
 ```js
 const { ThetaDataDx } = require('thetadatadx');
 
-// Connect (requires ThetaData credentials)
-const tdx = ThetaDataDx.connectFromFile('creds.txt');
-// Or: const tdx = ThetaDataDx.connect('user@example.com', 'password');
+async function main() {
+  // Connect (requires ThetaData credentials)
+  const tdx = ThetaDataDx.connectFromFile('creds.txt');
+  // Or: const tdx = ThetaDataDx.connect('user@example.com', 'password');
 
-// Historical: returns columnar object { close: number[], volume: number[], ... }
-const ohlc = tdx.stockHistoryOHLC('AAPL', '20240315', '60000');
-console.log(ohlc.close);
+  // Historical endpoints return an array of typed tick objects
+  // (`OhlcTick[]`, `QuoteTick[]`, ...). Index into the array to
+  // read a per-row field.
+  const ohlc = tdx.stockHistoryOHLC('AAPL', '20240315', '60000');
+  console.log(ohlc.length, ohlc[0].close);
 
-// With timeout
-const snap = tdx.stockSnapshotQuote(['AAPL', 'MSFT'], null, null, 5000);
+  // With timeout
+  const snap = tdx.stockSnapshotQuote(['AAPL', 'MSFT'], null, null, 5000);
 
-// Streaming
-tdx.startStreaming();
-tdx.subscribeQuotes('AAPL');
-const event = tdx.nextEvent(1000); // poll with 1s timeout
-tdx.stopStreaming();
+  // Streaming — `nextEvent` is async; `await` it or you'll get a
+  // `Promise` object back and `event.kind` will be `undefined`.
+  tdx.startStreaming();
+  tdx.subscribeQuotes('AAPL');
+  const event = await tdx.nextEvent(1000); // poll with 1s timeout
+  if (event && event.kind === 'quote') {
+    console.log(event.quote.bid, event.quote.ask);
+  }
+  tdx.stopStreaming();
+}
+
+main().catch(console.error);
 ```
 
 ## TypeScript types
@@ -48,14 +58,34 @@ the Rust side, so the full typed surface lives in `index.d.ts`
 import type { OhlcTick, GreeksTick, Quote, Trade, FpssEvent } from 'thetadatadx';
 ```
 
-Historical endpoints return `Tick[]`; `nextEvent()` returns a discriminated
-`FpssEvent` union narrowed on `event.kind`. The discriminator tag set
-(`"ohlcvc" | "open_interest" | "quote" | "trade" | "simple" | "raw_data"`)
-and the `FpssSimplePayload.eventType` values (`"login_success"`,
-`"contract_assigned"`, `"disconnected"`, `"market_open"`, `"market_close"`,
-...) match the Python SDK's `next_event` pyclasses byte-for-byte — both
-surfaces are generated from `fpss_event_schema.toml`, so consumer code
-ports between the two languages without a discriminator rewrite.
+Historical endpoints return `Tick[]`; `nextEvent()` is async and resolves
+to a discriminated `FpssEvent | null` union, narrowed on `event.kind`:
+
+```ts
+const event = await tdx.nextEvent(1000);
+if (!event) return; // timeout
+switch (event.kind) {
+  case 'quote':    /* event.quote is Quote */    break;
+  case 'trade':    /* event.trade is Trade */    break;
+  case 'ohlcvc':   /* event.ohlcvc is Ohlcvc */  break;
+  case 'open_interest': /* event.openInterest is OpenInterest */ break;
+  case 'simple':   /* event.simple is FpssSimplePayload */ break;
+  case 'raw_data': /* event.rawData is FpssRawDataPayload */ break;
+}
+```
+
+The `kind` field is typed as the string-literal union
+`'ohlcvc' | 'open_interest' | 'quote' | 'trade' | 'simple' | 'raw_data'`
+— plain strings, not a TS `enum`, so it works in every toolchain
+(including `isolatedModules` setups like Vite, esbuild, ts-jest, and
+Next.js).
+
+`FpssSimplePayload.eventType` carries the concrete control-event name
+(`"login_success"`, `"contract_assigned"`, `"disconnected"`,
+`"market_open"`, `"market_close"`, ...). The wire tag set matches the
+Python SDK's `next_event` pyclasses byte-for-byte — both surfaces are
+generated from `fpss_event_schema.toml`, so consumer code ports between
+the two languages without a discriminator rewrite.
 
 ## Building from source
 

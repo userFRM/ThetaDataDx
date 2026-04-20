@@ -240,10 +240,18 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
             contents: render_ffi_fpss_event_converter(&schema),
         },
         // C header mirror of the FFI event structs. `#include`'d from
-        // `sdks/go/ffi_bridge.h` for Go cgo consumption.
+        // `sdks/go/ffi_bridge.h` for Go cgo consumption AND from
+        // `sdks/cpp/include/thetadx.h` for the C++ SDK. Same plain-C
+        // typedefs serve both surfaces — keeping the schema as SSOT means
+        // C++ can never drift from Rust in field order again (the old
+        // hand-written C++ block diverged for months before #???).
         GeneratedSourceFile {
             relative_path: "sdks/go/fpss_event_structs.h.inc",
-            contents: render_go_fpss_event_header(&schema),
+            contents: render_c_fpss_event_header(&schema),
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/cpp/include/fpss_event_structs.h.inc",
+            contents: render_c_fpss_event_header(&schema),
         },
         // Go-idiomatic struct definitions + kind enum + control constants
         // + `FpssEvent` wrapper. Standalone file in the `thetadatadx`
@@ -449,7 +457,12 @@ fn render_control_match_arms() -> String {
         "                    \"reason={reason:?} attempt={attempt} delay_ms={delay_ms}\"\n",
     );
     out.push_str("                )),\n");
-    out.push_str("                id: Some(*attempt as i32),\n");
+    // `attempt: u32` truncates silently with `as i32` above `i32::MAX`.
+    // Saturate instead so the diagnostic id stays non-negative even in
+    // the (implausible but allowed) case of a very long-lived reconnect
+    // loop — the typed `FpssSimplePayload.id` field is `i32` on the SDK
+    // surface and we cannot widen it without a breaking type change.
+    out.push_str("                id: Some(i32::try_from(*attempt).unwrap_or(i32::MAX)),\n");
     out.push_str("            },\n");
     out.push_str("            fpss::FpssControl::Reconnected => BufferedEvent::Simple {\n");
     out.push_str("                event_type: \"reconnected\".to_string(),\n");
@@ -668,24 +681,22 @@ fn render_ts_fpss_event_classes(schema: &Schema) -> String {
     out.push_str("    pub payload: Vec<u8>,\n");
     out.push_str("}\n\n");
 
-    // String-enum discriminator. Emits `export type FpssEventKind =
-    // 'ohlcvc' | 'open_interest' | ...` on the TS side and a stack-valued
-    // Rust enum on the Rust side, replacing the per-event
-    // `"ohlcvc".to_string()` heap allocation in the dispatcher.
-    out.push_str("/// Discriminator tag for [`FpssEvent`].\n");
-    out.push_str("///\n");
-    out.push_str("/// Each variant corresponds to a `#[napi(object)]` payload field on\n");
-    out.push_str("/// `FpssEvent`. Emitted as a `string_enum` so the JS-side wire value\n");
-    out.push_str("/// is the snake_case literal (`'ohlcvc'`, `'open_interest'`, ...) and\n");
-    out.push_str("/// the Rust-side value is a stack-stored discriminant — no per-event\n");
-    out.push_str("/// `String` allocation on the hot path.\n");
-    out.push_str("#[napi(string_enum = \"snake_case\")]\n");
-    out.push_str("#[derive(Clone, Copy)]\n");
-    out.push_str("pub enum FpssEventKind {\n");
-    for event_name in &names {
-        writeln!(out, "    {event_name},").unwrap();
-    }
-    out.push_str("}\n\n");
+    // Build the TS literal union for the `kind` field. Emitted as a
+    // `ts_type` override on `pub kind: &'static str` — see below. Using a
+    // `ts_type` string avoids the napi-rs `string_enum` code path, which
+    // lowered to `export declare const enum FpssEventKind { ... }` in
+    // `index.d.ts`. `const enum`s are rejected by every TS toolchain with
+    // `isolatedModules` turned on (Vite, esbuild, ts-jest, Next.js,
+    // SWC-based loaders...), so downstream consumers could not even
+    // import the discriminator. The `ts_return_type` override on
+    // `nextEvent()` already narrows `event.kind` to a string-literal
+    // union, so the enum was redundant anyway — we pin the same
+    // narrowing directly on the struct field.
+    let kind_ts_union = names
+        .iter()
+        .map(|n| format!("'{}'", snake_case(n)))
+        .collect::<Vec<_>>()
+        .join(" | ");
 
     // Flat wrapper struct with `kind` tag + optional payloads.
     out.push_str("/// A single FPSS event surfaced to JS/TS.\n");
@@ -693,19 +704,29 @@ fn render_ts_fpss_event_classes(schema: &Schema) -> String {
     out.push_str("/// `kind` is the discriminator — switch on it and read the matching\n");
     out.push_str("/// payload field. The shape is stable and every payload is typed, so\n");
     out.push_str("/// consumers never fall back to untyped `any`.\n");
+    //
+    // `object_from_js = false` opts out of the auto-derived
+    // `FromNapiValue` impl for `FpssEvent`. Consumers never construct an
+    // `FpssEvent` from JS (the event only flows Rust -> JS via
+    // `nextEvent()`), so losing the `JS -> Rust` direction is not a
+    // regression and it lets `kind` be a `&'static str` bound to a
+    // string literal — zero heap alloc per event.
     out.push_str("#[must_use]\n");
-    out.push_str("#[napi(object)]\n");
+    out.push_str("#[napi(object, object_from_js = false)]\n");
     out.push_str("#[derive(Clone)]\n");
     out.push_str("pub struct FpssEvent {\n");
-    // `kind` is typed as `FpssEventKind` — napi-rs surfaces the
-    // `string_enum` as a literal union in TS (`'ohlcvc' | 'open_interest'
-    // | ...`), so `switch (event.kind)` narrows optional payload fields
-    // exactly as before. Rust-side it is a stack value: no `String`
-    // allocation per event.
+    // `kind` is the discriminator. Stored as `&'static str` so every
+    // assignment in `buffered_event_to_typed` is a literal (`\"ohlcvc\"`,
+    // `\"open_interest\"`, ...) — no `String::from` allocation on the
+    // hot path. The `ts_type` override narrows it to the same literal
+    // union the `nextEvent()` `ts_return_type` already uses, so
+    // `switch (event.kind)` still narrows the optional payload fields in
+    // TypeScript.
     out.push_str("    /// Discriminator matching one of the typed payload fields below.\n");
     out.push_str("    /// Narrowed to a literal union in TS so `switch (event.kind)`\n");
     out.push_str("    /// correctly narrows the optional payload fields.\n");
-    out.push_str("    pub kind: FpssEventKind,\n");
+    writeln!(out, "    #[napi(ts_type = \"{kind_ts_union}\")]").unwrap();
+    out.push_str("    pub kind: &'static str,\n");
     // One optional typed payload per data variant.
     for event_name in &data_names {
         let field = snake_case(event_name);
@@ -721,10 +742,12 @@ fn render_ts_fpss_event_classes(schema: &Schema) -> String {
 
     // Dispatcher. Every arm must assign `out.kind` exactly once, so we
     // initialise it to a harmless variant (Simple) that every arm then
-    // overwrites. Zero heap allocs on the hot per-event path.
+    // overwrites. Zero heap allocs on the hot per-event path — each
+    // `kind` assignment is a bare string literal bound to the
+    // `&'static str` slot on `FpssEvent`.
     out.push_str("pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {\n");
     out.push_str("    let mut out = FpssEvent {\n");
-    out.push_str("        kind: FpssEventKind::Simple,\n");
+    out.push_str("        kind: \"simple\",\n");
     for event_name in &data_names {
         let field = snake_case(event_name);
         writeln!(out, "        {field}: None,").unwrap();
@@ -736,12 +759,13 @@ fn render_ts_fpss_event_classes(schema: &Schema) -> String {
     for event_name in &data_names {
         let def = &schema.events[*event_name];
         let field = snake_case(event_name);
+        let kind_tag = snake_case(event_name);
         writeln!(out, "        BufferedEvent::{event_name} {{").unwrap();
         for column in &def.columns {
             writeln!(out, "            {},", column.name).unwrap();
         }
         out.push_str("        } => {\n");
-        writeln!(out, "            out.kind = FpssEventKind::{event_name};").unwrap();
+        writeln!(out, "            out.kind = \"{kind_tag}\";").unwrap();
         writeln!(out, "            out.{field} = Some({event_name} {{").unwrap();
         for column in &def.columns {
             // u64/i64 wire columns cross to JS as `bigint` to preserve
@@ -763,14 +787,14 @@ fn render_ts_fpss_event_classes(schema: &Schema) -> String {
         out.push_str("            });\n        }\n");
     }
     out.push_str("        BufferedEvent::RawData { code, payload } => {\n");
-    out.push_str("            out.kind = FpssEventKind::RawData;\n");
+    out.push_str("            out.kind = \"raw_data\";\n");
     out.push_str("            out.raw_data = Some(FpssRawDataPayload {\n");
     out.push_str("                code: code as u32,\n");
     out.push_str("                payload,\n");
     out.push_str("            });\n");
     out.push_str("        }\n");
     out.push_str("        BufferedEvent::Simple { event_type, detail, id } => {\n");
-    out.push_str("            out.kind = FpssEventKind::Simple;\n");
+    out.push_str("            out.kind = \"simple\";\n");
     out.push_str("            out.simple = Some(FpssSimplePayload {\n");
     out.push_str("                event_type,\n");
     out.push_str("                detail,\n");
@@ -1271,19 +1295,25 @@ fn render_ffi_fpss_event_converter(schema: &Schema) -> String {
     out
 }
 
-// ── C header emitter (sdks/go/fpss_event_structs.h.inc) ─────────────────
+// ── C header emitter (sdks/go/fpss_event_structs.h.inc + C++ twin) ──────
 
 /// Emit the C mirror of the Rust FFI event structs. `#include`'d from
-/// `sdks/go/ffi_bridge.h` for Go's cgo consumption. Keeps field order and
+/// `sdks/go/ffi_bridge.h` for Go's cgo consumption AND from
+/// `sdks/cpp/include/thetadx.h` for the C++ SDK. Keeps field order and
 /// padding identical to the Rust `#[repr(C)]` layout by using the same
-/// schema column ordering on both sides.
-fn render_go_fpss_event_header(schema: &Schema) -> String {
+/// schema column ordering on both sides — the old hand-written C++ block
+/// in `thetadx.h` drifted from Rust (wrong field order in `TdxFpssEvent`
+/// silently corrupted every FPSS event the C++ SDK read), so the
+/// generator now owns both copies.
+fn render_c_fpss_event_header(schema: &Schema) -> String {
     let mut out = String::new();
     out.push_str(
         "/* @generated DO NOT EDIT — regenerated by build.rs from fpss_event_schema.toml */\n",
     );
     out.push_str("/* C mirror of the Rust FFI FPSS event structs. #include'd from\n");
-    out.push_str(" * sdks/go/ffi_bridge.h for Go cgo consumption; do not hand-edit. */\n\n");
+    out.push_str(" * sdks/go/ffi_bridge.h (Go cgo) and sdks/cpp/include/thetadx.h\n");
+    out.push_str(" * (C++ SDK). Plain C typedefs — both surfaces see byte-identical\n");
+    out.push_str(" * layout. Do not hand-edit. */\n\n");
 
     out.push_str("typedef enum {\n");
     out.push_str("    TDX_FPSS_QUOTE = 0,\n");
