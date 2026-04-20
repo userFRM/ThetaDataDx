@@ -2,6 +2,8 @@
 // Typed #[napi(object)] tick structs + Vec factories. Replaces the old
 // serde_json columnar returns with concrete TypeScript types in index.d.ts.
 
+use napi::bindgen_prelude::BigInt;
+
 /// Calendar day. Market open/close schedule.
 #[napi(object)]
 #[derive(Clone)]
@@ -23,8 +25,8 @@ pub struct EodTick {
     pub high: f64,
     pub low: f64,
     pub close: f64,
-    pub volume: i32,
-    pub count: i32,
+    pub volume: BigInt,
+    pub count: BigInt,
     pub bid_size: i32,
     pub bid_exchange: i32,
     pub bid: f64,
@@ -117,8 +119,8 @@ pub struct OhlcTick {
     pub high: f64,
     pub low: f64,
     pub close: f64,
-    pub volume: i32,
-    pub count: i32,
+    pub volume: BigInt,
+    pub count: BigInt,
     pub date: i32,
     pub expiration: i32,
     pub strike: f64,
@@ -259,8 +261,8 @@ fn eod_ticks_to_class_vec(ticks: &[tick::EodTick]) -> Vec<EodTick> {
                 high: t.high,
                 low: t.low,
                 close: t.close,
-                volume: t.volume,
-                count: t.count,
+                volume: BigInt::from(t.volume),
+                count: BigInt::from(t.count),
                 bid_size: t.bid_size,
                 bid_exchange: t.bid_exchange,
                 bid: t.bid,
@@ -373,8 +375,8 @@ fn ohlc_ticks_to_class_vec(ticks: &[tick::OhlcTick]) -> Vec<OhlcTick> {
                 high: t.high,
                 low: t.low,
                 close: t.close,
-                volume: t.volume,
-                count: t.count,
+                volume: BigInt::from(t.volume),
+                count: BigInt::from(t.count),
                 date: t.date,
                 expiration: t.expiration,
                 strike: t.strike,

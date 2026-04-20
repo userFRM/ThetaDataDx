@@ -22,8 +22,8 @@ type EodTick struct {
 	High           float64  `json:"high"`
 	Low            float64  `json:"low"`
 	Close          float64  `json:"close"`
-	Volume         int      `json:"volume"`
-	Count          int      `json:"count"`
+	Volume         int64    `json:"volume"`
+	Count          int64    `json:"count"`
 	BidSize        int      `json:"bid_size"`
 	BidExchange    int      `json:"bid_exchange"`
 	Bid            float64  `json:"bid"`
@@ -106,8 +106,8 @@ type OhlcTick struct {
 	High           float64  `json:"high"`
 	Low            float64  `json:"low"`
 	Close          float64  `json:"close"`
-	Volume         int      `json:"volume"`
-	Count          int      `json:"count"`
+	Volume         int64    `json:"volume"`
+	Count          int64    `json:"count"`
 	Date           int      `json:"date"`
 	Expiration     int32    `json:"expiration,omitempty"`
 	Strike         float64  `json:"strike,omitempty"`

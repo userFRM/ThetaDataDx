@@ -5,8 +5,10 @@
 // payload field. Simple / control / raw events expose their diagnostic
 // strings via `simple` and `raw_data` payloads. The `simple` kind tag
 // matches the dict-path serde rename on `BufferedEvent::Simple`.
-
-use napi::bindgen_prelude::BigInt;
+//
+// `BigInt` is pulled in via `tick_classes.rs`'s `use` line — both
+// files `include!` into the same TS-SDK module scope (see
+// `sdks/typescript/src/lib.rs`), so importing it here would collide.
 
 /// FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`.
 #[napi(object)]
@@ -109,7 +111,7 @@ pub struct FpssEvent {
     /// Discriminator matching one of the typed payload fields below.
     /// Narrowed to a literal union in TS so `switch (event.kind)`
     /// correctly narrows the optional payload fields.
-    #[napi(ts_type = "'ohlcvc' | 'open_interest' | 'quote' | 'trade' | 'simple' | 'raw_data'")]
+    #[napi(ts_type = "'ohlcvc' | 'open_interest' | 'quote' | 'raw_data' | 'simple' | 'trade'")]
     pub kind: String,
     pub ohlcvc: Option<Ohlcvc>,
     pub open_interest: Option<OpenInterest>,
@@ -141,7 +143,6 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             count,
             date,
             received_at_ns,
-            ..
         } => {
             out.kind = "ohlcvc".to_string();
             out.ohlcvc = Some(Ohlcvc {
@@ -163,7 +164,6 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             open_interest,
             date,
             received_at_ns,
-            ..
         } => {
             out.kind = "open_interest".to_string();
             out.open_interest = Some(OpenInterest {
@@ -187,7 +187,6 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             ask_condition,
             date,
             received_at_ns,
-            ..
         } => {
             out.kind = "quote".to_string();
             out.quote = Some(Quote {
@@ -223,7 +222,6 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             records_back,
             date,
             received_at_ns,
-            ..
         } => {
             out.kind = "trade".to_string();
             out.trade = Some(Trade {

@@ -25,8 +25,8 @@ fn eod_ticks_to_columnar(py: Python<'_>, ticks: &[tick::EodTick]) -> Py<PyAny> {
     let col_high: Vec<f64> = ticks.iter().map(|t| t.high).collect();
     let col_low: Vec<f64> = ticks.iter().map(|t| t.low).collect();
     let col_close: Vec<f64> = ticks.iter().map(|t| t.close).collect();
-    let col_volume: Vec<i32> = ticks.iter().map(|t| t.volume).collect();
-    let col_count: Vec<i32> = ticks.iter().map(|t| t.count).collect();
+    let col_volume: Vec<i64> = ticks.iter().map(|t| t.volume).collect();
+    let col_count: Vec<i64> = ticks.iter().map(|t| t.count).collect();
     let col_bid_size: Vec<i32> = ticks.iter().map(|t| t.bid_size).collect();
     let col_bid_exchange: Vec<i32> = ticks.iter().map(|t| t.bid_exchange).collect();
     let col_bid: Vec<f64> = ticks.iter().map(|t| t.bid).collect();
@@ -179,8 +179,8 @@ fn ohlc_ticks_to_columnar(py: Python<'_>, ticks: &[tick::OhlcTick]) -> Py<PyAny>
     let col_high: Vec<f64> = ticks.iter().map(|t| t.high).collect();
     let col_low: Vec<f64> = ticks.iter().map(|t| t.low).collect();
     let col_close: Vec<f64> = ticks.iter().map(|t| t.close).collect();
-    let col_volume: Vec<i32> = ticks.iter().map(|t| t.volume).collect();
-    let col_count: Vec<i32> = ticks.iter().map(|t| t.count).collect();
+    let col_volume: Vec<i64> = ticks.iter().map(|t| t.volume).collect();
+    let col_count: Vec<i64> = ticks.iter().map(|t| t.count).collect();
     let col_date: Vec<i32> = ticks.iter().map(|t| t.date).collect();
     let col_expiration: Vec<i32> = ticks.iter().map(|t| t.expiration).collect();
     let col_strike: Vec<f64> = ticks.iter().map(|t| t.strike).collect();

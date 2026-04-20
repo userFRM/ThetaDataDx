@@ -199,8 +199,8 @@ export interface EodTick {
   high: number
   low: number
   close: number
-  volume: number
-  count: number
+  volume: bigint
+  count: bigint
   bidSize: number
   bidExchange: number
   bid: number
@@ -228,7 +228,7 @@ export interface FpssEvent {
    * Narrowed to a literal union in TS so `switch (event.kind)`
    * correctly narrows the optional payload fields.
    */
-  kind: 'ohlcvc' | 'open_interest' | 'quote' | 'trade' | 'simple' | 'raw_data'
+  kind: 'ohlcvc' | 'open_interest' | 'quote' | 'raw_data' | 'simple' | 'trade'
   ohlcvc?: Ohlcvc
   openInterest?: OpenInterest
   quote?: Quote
@@ -327,8 +327,8 @@ export interface OhlcTick {
   high: number
   low: number
   close: number
-  volume: number
-  count: number
+  volume: bigint
+  count: bigint
   date: number
   expiration: number
   strike: number

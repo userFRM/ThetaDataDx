@@ -127,6 +127,35 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
         out.push_str("        }\n");
         out.push_str("    }\n\n");
 
+        out.push_str("    // EOD numeric field widened to i64 (for volume/count) — same cell types as eod_num, i64 target.\n");
+        out.push_str("    fn eod_num64(row: &crate::proto::DataValueList, idx: usize) -> Result<i64, DecodeError> {\n");
+        out.push_str("        let Some(dv) = row.values.get(idx) else {\n");
+        out.push_str("            return Err(DecodeError::MissingCell { column: idx });\n");
+        out.push_str("        };\n");
+        out.push_str("        match dv.data_type.as_ref() {\n");
+        out.push_str(
+            "            Some(crate::proto::data_value::DataType::Number(n)) => Ok(*n),\n",
+        );
+        out.push_str(
+            "            Some(crate::proto::data_value::DataType::Price(p)) => Ok(i64::from(p.value)),\n",
+        );
+        out.push_str("            Some(crate::proto::data_value::DataType::Timestamp(ts)) => Ok(i64::from(crate::decode::timestamp_to_ms_of_day(ts.epoch_ms))),\n");
+        out.push_str(
+            "            Some(crate::proto::data_value::DataType::NullValue(_)) => Ok(0),\n",
+        );
+        out.push_str("            None => Err(DecodeError::TypeMismatch {\n");
+        out.push_str("                column: idx,\n");
+        out.push_str("                expected: \"Number|Price|Timestamp\",\n");
+        out.push_str("                observed: \"Unset\",\n");
+        out.push_str("            }),\n");
+        out.push_str("            other => Err(DecodeError::TypeMismatch {\n");
+        out.push_str("                column: idx,\n");
+        out.push_str("                expected: \"Number|Price|Timestamp\",\n");
+        out.push_str("                observed: crate::decode::observed_name(other),\n");
+        out.push_str("            }),\n");
+        out.push_str("        }\n");
+        out.push_str("    }\n\n");
+
         out.push_str("    // EOD date fields may arrive as Price, Number, or Timestamp cells.\n");
         out.push_str("    fn eod_date(row: &crate::proto::DataValueList, idx: usize) -> Result<i32, DecodeError> {\n");
         out.push_str("        let Some(dv) = row.values.get(idx) else {\n");
@@ -406,6 +435,14 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
                 writeln!(
                     out,
                     "                {}: match {var} {{ Some(i) => eod_num(row, i)?, None => 0 }},",
+                    col.field
+                )
+                .unwrap();
+            }
+            "eod_num64" => {
+                writeln!(
+                    out,
+                    "                {}: match {var} {{ Some(i) => eod_num64(row, i)?, None => 0 }},",
                     col.field
                 )
                 .unwrap();
@@ -701,7 +738,7 @@ fn render_python_tick_columnar_fn(type_name: &str, def: &TickTypeDef) -> String 
     for column in &def.columns {
         let col_type = match column.r#type.as_str() {
             "i32" | "eod_num" | "eod_date" => "i32",
-            "i64" => "i64",
+            "i64" | "eod_num64" => "i64",
             "f64" | "price" | "eod_price" => "f64",
             "String" => "String",
             other => panic!("unsupported column type '{other}' in columnar for {type_name}"),
@@ -743,7 +780,7 @@ fn render_python_tick_columnar_fn(type_name: &str, def: &TickTypeDef) -> String 
     for column in &def.columns {
         let rust_type = match column.r#type.as_str() {
             "i32" | "eod_num" | "eod_date" => "i32",
-            "i64" => "i64",
+            "i64" | "eod_num64" => "i64",
             "f64" | "price" | "eod_price" => "f64",
             "String" => "String",
             other => panic!("unsupported column type '{other}' in columnar for {type_name}"),
@@ -942,7 +979,7 @@ fn render_python_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String
 fn pyclass_field_type(column_type: &str, type_name: &str) -> &'static str {
     match column_type {
         "i32" | "eod_num" | "eod_date" => "i32",
-        "i64" => "i64",
+        "i64" | "eod_num64" => "i64",
         "f64" | "price" | "eod_price" => "f64",
         "String" => "String",
         other => panic!("unsupported column type '{other}' in pyclass for {type_name}"),
@@ -1032,6 +1069,16 @@ fn render_ts_tick_classes(schema: &Schema) -> String {
     out.push_str(
         "// serde_json columnar returns with concrete TypeScript types in index.d.ts.\n\n",
     );
+    // napi-rs requires the `BigInt` wrapper for any i64 field that crosses
+    // to JS — pull it in whenever a tick column uses one.
+    let needs_bigint = schema
+        .types
+        .values()
+        .flat_map(|def| def.columns.iter())
+        .any(|col| ts_column_needs_bigint(col.r#type.as_str()));
+    if needs_bigint {
+        out.push_str("use napi::bindgen_prelude::BigInt;\n\n");
+    }
     for type_name in sorted_type_names(schema) {
         let def = &schema.types[type_name];
         out.push_str(&render_ts_tick_class_struct(type_name, def));
@@ -1120,9 +1167,14 @@ fn render_ts_tick_class_factory(type_name: &str, def: &TickTypeDef) -> String {
             );
             continue;
         }
-        // String fields must be cloned; primitives are Copy.
+        // String fields must be cloned; primitives are Copy. i64/eod_num64
+        // cross to JS as `bigint` via `BigInt::from(...)` (see
+        // `ts_class_rust_type`).
         let expr = match column.r#type.as_str() {
             "String" => format!("t.{field}.clone()", field = column.field),
+            col_type if ts_column_needs_bigint(col_type) => {
+                format!("BigInt::from(t.{field})", field = column.field)
+            }
             _ => format!("t.{field}", field = column.field),
         };
         writeln!(out, "                {}: {expr},", column.field).unwrap();
@@ -1169,11 +1221,22 @@ pub(crate) fn ts_tick_class_factory_name(type_name: &str) -> &'static str {
 fn ts_class_rust_type(column_type: &str, type_name: &str, field: &str) -> &'static str {
     match column_type {
         "i32" | "eod_num" | "eod_date" => "i32",
-        "i64" => "i64",
+        // napi-rs 3.x: `i64` must surface as JS `bigint` to preserve full
+        // precision past `Number.MAX_SAFE_INTEGER` (2^53 - 1). High-volume
+        // symbols can easily exceed 2.1B cumulative volume, so `number`
+        // (f64) would silently lose low-order bits. Use the `BigInt`
+        // wrapper the FPSS event classes already rely on.
+        "i64" | "eod_num64" => "BigInt",
         "f64" | "price" | "eod_price" => "f64",
         "String" => "String",
         other => panic!("unsupported TS class column type '{other}' in {type_name}.{field}"),
     }
+}
+
+/// Returns `true` when a tick column surfaces as `BigInt` in the TS typed
+/// struct (i.e. crosses to JS as `bigint` via `BigInt::from(...)`).
+fn ts_column_needs_bigint(column_type: &str) -> bool {
+    matches!(column_type, "i64" | "eod_num64")
 }
 
 // TypeScript columnar-interface file (`src/types.ts`) was removed with
@@ -1353,9 +1416,11 @@ fn go_source_expr(type_name: &str, field: &str, kind: &str) -> String {
         ("OptionContract", _, "i32") => format!("int(t.{ffi_field})"),
         (_, _, "i32") if field == "expiration" => format!("t.{ffi_field}"),
         (_, _, "i32") | (_, _, "eod_num") | (_, _, "eod_date") => format!("int(t.{ffi_field})"),
-        (_, _, "i64") | (_, _, "f64") | (_, _, "price") | (_, _, "eod_price") => {
-            format!("t.{ffi_field}")
-        }
+        (_, _, "i64")
+        | (_, _, "eod_num64")
+        | (_, _, "f64")
+        | (_, _, "price")
+        | (_, _, "eod_price") => format!("t.{ffi_field}"),
         (_, _, "String") => format!("t.{ffi_field}"),
         _ => panic!("unsupported Go source expression for {type_name}.{field}:{kind}"),
     }
@@ -1424,7 +1489,7 @@ fn go_public_field_type(type_name: &str, field: &str, kind: &str) -> &'static st
     }
     match kind {
         "i32" | "eod_num" | "eod_date" => "int",
-        "i64" => "int64",
+        "i64" | "eod_num64" => "int64",
         "f64" | "price" | "eod_price" => "float64",
         "String" => "string",
         _ => panic!("unsupported Go public type for {type_name}.{field}:{kind}"),
