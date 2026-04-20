@@ -7,16 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- **Security audit follow-ups** (#377) -- FPSS TLS now uses SPKI (Subject Public Key Info) pinning via constant-time SHA-256 comparison against the captured ThetaData keypair, rejecting MITM attempts even with valid CA-signed certs. `POST /v3/system/shutdown` now requires an `X-Shutdown-Token` header and is separately rate-limited to ~3 attempts per hour per IP. Server-wide per-IP rate limit of 20 rps / burst 40 via `tower_governor`, 256 max concurrent connections, 64 KB request-body limit. Credentials zeroized on drop. CSV export now defuses formula-injection payloads (`= + - @`). Dropped-events counter exposed through every SDK (`tdx.dropped_events()` / `tdx.droppedEvents()` / `client.DroppedEvents()` / `client.dropped_events()`) and Prometheus metrics (`tdx_fpss_dropped_events`, `tdx_unified_dropped_events`). Replaced the unmaintained `paste` macro dep with `pastey`.
-- **Java-parity mid-frame retry on FPSS decoder errors** (#370) -- FPSS I/O loop now retries the current frame on transient decode failure before dropping the connection, matching the Java terminal's tolerance for partial-frame glitches.
-
-### Changed
-
-- **Full SSOT sweep + `i64` widening + audit-v2 follow-ups** (#375) -- `OhlcTick`/`EodTick` `volume` and `count` fields widened from `i32` to `i64` (fixes silent saturation on high-volume instruments). Tick schema, FFI, every SDK (Python, Go, TypeScript, C++), and documentation aligned with a single source of truth. Audit findings addressed without shortcuts.
-- **Post-SSOT review fixes** (#376) -- C++ field order drift fixed, CSV headers unified, Rust const enum removed in favour of a dedupe-friendly `next_event_typed`, `Credentials` / `Config` surfaces made consistent across SDKs, tick `__repr__` made useful, Go field renames cleaned up.
-
 ### Changed — BREAKING (Python SDK)
 
 - **Historical endpoints now return `list[TickClass]` instead of a columnar `dict[str, list]`** (#364 / #365). The 53 tick-returning historical methods (list endpoints returning scalar `Vec<String>` — symbols, dates, expirations, strikes — are unchanged) in the Python SDK (`stock_history_eod`, `option_history_trade`, `calendar_*`, ...) now return a Python list of typed pyclass objects — `EodTick`, `TradeTick`, `QuoteTick`, `OhlcTick`, `TradeQuoteTick`, `OpenInterestTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`. Brings the Python SDK into line with Rust core, TypeScript, Go, and C++ FFI. Migration:
@@ -927,7 +917,10 @@ See `TODO.md` (as of the 1.2.0 release) for the production readiness checklist a
 - FIT decoder uses i64 accumulator with i32 saturation (no silent overflow)
 - Price type range enforced with `assert!` in release builds
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v7.2.0...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v7.3.1...HEAD
+[7.3.1]: https://github.com/userFRM/ThetaDataDx/compare/v7.3.0...v7.3.1
+[7.3.0]: https://github.com/userFRM/ThetaDataDx/compare/v7.2.1...v7.3.0
+[7.2.1]: https://github.com/userFRM/ThetaDataDx/compare/v7.2.0...v7.2.1
 [7.2.0]: https://github.com/userFRM/ThetaDataDx/compare/v7.1.0...v7.2.0
 [7.1.0]: https://github.com/userFRM/ThetaDataDx/compare/v7.0.0...v7.1.0
 [7.0.0]: https://github.com/userFRM/ThetaDataDx/compare/v6.0.1...v7.0.0
