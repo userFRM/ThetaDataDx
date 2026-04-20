@@ -4,7 +4,8 @@
 // source of truth is `crates/thetadatadx/fpss_event_schema.toml`.
 
 /// FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`.
-#[pyclass(module = "thetadatadx", frozen)]
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Ohlcvc {
     #[pyo3(get)] pub contract_id: i32,
@@ -20,14 +21,15 @@ pub(crate) struct Ohlcvc {
 }
 #[pymethods]
 impl Ohlcvc {
-    fn __repr__(&self) -> String { format!("Ohlcvc(...)") }
+    fn __repr__(&self) -> String { "Ohlcvc(...)".to_string() }
 
     #[getter]
     fn kind(&self) -> &'static str { "ohlcvc" }
 }
 
 /// FPSS OpenInterest tick. Mirrors `FpssData::OpenInterest`.
-#[pyclass(module = "thetadatadx", frozen)]
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct OpenInterest {
     #[pyo3(get)] pub contract_id: i32,
@@ -38,14 +40,15 @@ pub(crate) struct OpenInterest {
 }
 #[pymethods]
 impl OpenInterest {
-    fn __repr__(&self) -> String { format!("OpenInterest(...)") }
+    fn __repr__(&self) -> String { "OpenInterest(...)".to_string() }
 
     #[getter]
     fn kind(&self) -> &'static str { "open_interest" }
 }
 
 /// FPSS Quote tick. Mirrors `FpssData::Quote` (symbol-less — `contract_id` is the stable key).
-#[pyclass(module = "thetadatadx", frozen)]
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Quote {
     #[pyo3(get)] pub contract_id: i32,
@@ -63,14 +66,48 @@ pub(crate) struct Quote {
 }
 #[pymethods]
 impl Quote {
-    fn __repr__(&self) -> String { format!("Quote(...)") }
+    fn __repr__(&self) -> String { "Quote(...)".to_string() }
 
     #[getter]
     fn kind(&self) -> &'static str { "quote" }
 }
 
+/// FPSS raw-bytes event for frames the decoder did not recognize. `code` is the wire message code; `payload` is the full frame body.
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct RawData {
+    #[pyo3(get)] pub code: u8,
+    #[pyo3(get)] pub payload: Vec<u8>,
+}
+#[pymethods]
+impl RawData {
+    fn __repr__(&self) -> String { "RawData(...)".to_string() }
+
+    #[getter]
+    fn kind(&self) -> &'static str { "raw_data" }
+}
+
+/// FPSS control / diagnostic event. Flattened from every `FpssControl` variant (login_success, contract_assigned, req_response, market_open/close, server_error, disconnected, reconnecting, reconnected, error, unknown_frame) and from the unknown-data / unknown-control fallbacks. `event_type` carries the concrete variant name; `detail` is a free-form diagnostic string (None when the variant carries no payload); `id` is the contract_id / req_id / reconnect attempt number where applicable.
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct Simple {
+    #[pyo3(get)] pub event_type: String,
+    #[pyo3(get)] pub detail: Option<String>,
+    #[pyo3(get)] pub id: Option<i32>,
+}
+#[pymethods]
+impl Simple {
+    fn __repr__(&self) -> String { "Simple(...)".to_string() }
+
+    #[getter]
+    fn kind(&self) -> &'static str { "simple" }
+}
+
 /// FPSS Trade tick. Mirrors `FpssData::Trade`.
-#[pyclass(module = "thetadatadx", frozen)]
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Trade {
     #[pyo3(get)] pub contract_id: i32,
@@ -93,7 +130,7 @@ pub(crate) struct Trade {
 }
 #[pymethods]
 impl Trade {
-    fn __repr__(&self) -> String { format!("Trade(...)") }
+    fn __repr__(&self) -> String { "Trade(...)".to_string() }
 
     #[getter]
     fn kind(&self) -> &'static str { "trade" }
@@ -115,7 +152,6 @@ pub(crate) fn buffered_event_to_typed(
             count,
             date,
             received_at_ns,
-            ..
         } => Py::new(
             py,
             Ohlcvc {
@@ -138,7 +174,6 @@ pub(crate) fn buffered_event_to_typed(
             open_interest,
             date,
             received_at_ns,
-            ..
         } => Py::new(
             py,
             OpenInterest {
@@ -163,7 +198,6 @@ pub(crate) fn buffered_event_to_typed(
             ask_condition,
             date,
             received_at_ns,
-            ..
         } => Py::new(
             py,
             Quote {
@@ -179,6 +213,30 @@ pub(crate) fn buffered_event_to_typed(
                 ask_condition: *ask_condition,
                 date: *date,
                 received_at_ns: *received_at_ns,
+            },
+        )
+        .map(|p| p.into_any()),
+        BufferedEvent::RawData {
+            code,
+            payload,
+        } => Py::new(
+            py,
+            RawData {
+                code: *code,
+                payload: payload.clone(),
+            },
+        )
+        .map(|p| p.into_any()),
+        BufferedEvent::Simple {
+            event_type,
+            detail,
+            id,
+        } => Py::new(
+            py,
+            Simple {
+                event_type: event_type.clone(),
+                detail: detail.clone(),
+                id: *id,
             },
         )
         .map(|p| p.into_any()),
@@ -200,7 +258,6 @@ pub(crate) fn buffered_event_to_typed(
             records_back,
             date,
             received_at_ns,
-            ..
         } => Py::new(
             py,
             Trade {
@@ -224,7 +281,6 @@ pub(crate) fn buffered_event_to_typed(
             },
         )
         .map(|p| p.into_any()),
-        _ => Ok(buffered_event_to_py(py, event)),
     }
 }
 
@@ -232,6 +288,8 @@ pub(crate) fn register_fpss_event_classes(m: &Bound<'_, PyModule>) -> PyResult<(
     m.add_class::<Ohlcvc>()?;
     m.add_class::<OpenInterest>()?;
     m.add_class::<Quote>()?;
+    m.add_class::<RawData>()?;
+    m.add_class::<Simple>()?;
     m.add_class::<Trade>()?;
     Ok(())
 }

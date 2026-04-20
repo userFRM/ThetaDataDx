@@ -331,7 +331,7 @@ If a frame cannot be decoded (too short, corrupt, or unknown code), it is delive
 | `code` | `u8` | The raw frame type code |
 | `payload` | `Vec<u8>` / `[]byte` / `uint8_t*` | The undecoded frame payload |
 
-In Go, these are `event.RawCode` and `event.RawPayload`. In C++, `event->raw_data.code` and `event->raw_data.payload` with `event->raw_data.payload_len`.
+In Go, these are `event.RawData.Code` and `event.RawData.Payload` (non-nil when `Kind == FpssRawDataEvent`). In C++, `event->raw_data.code` and `event->raw_data.payload` with `event->raw_data.payload_len`.
 
 ## SDK-Specific Event Representations
 
@@ -360,9 +360,10 @@ Check `kind` first, then access the corresponding field. Only the field matching
 - `event.Kind` -- `FpssEventKind` (int constant)
 - `event.Quote` -- `*FpssQuote` (non-nil when Kind is `FpssQuoteEvent`)
 - `event.Trade` -- `*FpssTrade` (non-nil when Kind is `FpssTradeEvent`)
-- `event.OpenInterest` -- `*FpssOpenInterestData` (non-nil when Kind is `FpssOpenInterestEvent`)
+- `event.OpenInterest` -- `*FpssOpenInterest` (non-nil when Kind is `FpssOpenInterestEvent`)
 - `event.Ohlcvc` -- `*FpssOhlcvc` (non-nil when Kind is `FpssOhlcvcEvent`)
-- `event.Control` -- `*FpssControlData` (non-nil when Kind is `FpssControlEvent`)
+- `event.Control` -- `*FpssControl` (non-nil when Kind is `FpssControlEvent`)
+- `event.RawData` -- `*FpssRawData` (non-nil when Kind is `FpssRawDataEvent`)
 
 Price fields (`Bid`, `Ask`, `Price`, `Open`, `High`, `Low`, `Close`) are `float64`, decoded at parse time.
 

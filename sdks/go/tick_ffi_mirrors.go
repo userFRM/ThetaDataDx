@@ -23,9 +23,10 @@ import (
 
 // cEodTick mirrors tdbe::EodTick #[repr(C, align(64))]
 // Layout: ms_of_day(4), ms_of_day2(4), open(8), high(8), low(8), close(8),
-// volume(4), count(4), bid_size(4), bid_exchange(4), bid(8), bid_condition(4),
+// volume(8), count(8), bid_size(4), bid_exchange(4), bid(8), bid_condition(4),
 // ask_size(4), ask_exchange(4), pad(4), ask(8), ask_condition(4), date(4),
-// exp(4), pad(4), strike(8), right(4), pad(4) -> 128 total
+// exp(4), pad(4), strike(8), right(4), pad(4) -> 128 total.
+// volume/count widened to int64 for issue #372.
 type cEodTick struct {
 	MsOfDay      int32
 	MsOfDay2     int32
@@ -33,8 +34,8 @@ type cEodTick struct {
 	High         float64
 	Low          float64
 	Close        float64
-	Volume       int32
-	Count        int32
+	Volume       int64
+	Count        int64
 	BidSize      int32
 	BidExchange  int32
 	Bid          float64
@@ -49,13 +50,13 @@ type cEodTick struct {
 	_pad2        int32
 	Strike       float64
 	Right        int32
-	_pad3        [128 - 116]byte
+	_pad3        [128 - 124]byte
 }
 
 // cOhlcTick mirrors tdbe::OhlcTick #[repr(C, align(64))]
 // Layout: ms_of_day(4), pad(4), open(8), high(8), low(8), close(8),
-// volume(4), count(4), date(4), exp(4), strike(8), right(4), pad(4) = 72
-// rounded to 128
+// volume(8), count(8), date(4), exp(4), strike(8), right(4), pad(52) = 76
+// rounded to 128. volume/count widened to int64 for issue #372.
 type cOhlcTick struct {
 	MsOfDay    int32
 	_pad1      int32
@@ -63,13 +64,13 @@ type cOhlcTick struct {
 	High       float64
 	Low        float64
 	Close      float64
-	Volume     int32
-	Count      int32
+	Volume     int64
+	Count      int64
 	Date       int32
 	Expiration int32
 	Strike     float64
 	Right      int32
-	_pad2      [128 - 68]byte
+	_pad2      [128 - 76]byte
 }
 
 // cTradeTick mirrors tdbe::TradeTick #[repr(C, align(64))]

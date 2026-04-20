@@ -1,17 +1,30 @@
-# FPSS streaming event schema -- single source of truth for every FPSS
-# Data-event payload shape exposed to downstream SDKs.
+# FPSS streaming event schema — single source of truth for every event
+# shape exposed to downstream SDKs.
 #
-# Read by build_support/fpss_events.rs and emitted as typed structs in
-# every language binding (Python pyclass today; TypeScript / Go / C++ next).
+# Read by `build_support/fpss_events.rs`. Drives:
+#   - per-language typed structs for every variant (Python pyclass,
+#     TS napi `#[napi(object)]`, Go struct, C++ struct, FFI struct).
+#   - the `BufferedEvent` enum in Python + TS (generator-emitted, not
+#     hand-rolled — drift is compile-fatal).
+#   - the `fpss_event_to_buffered(event: &FpssEvent) -> BufferedEvent`
+#     converter in Python + TS.
+#   - the `buffered_event_to_typed` dispatcher that returns a typed
+#     pyclass / napi struct for every variant — no PyDict / `any`
+#     fallback anywhere.
 #
-# Only the Data variants of FpssData live here. Control events
-# (login_success, contract_assigned, disconnected, ...) stay handled via
-# the hand-written BufferedEvent::Simple shape in each SDK because their
-# payloads are ad-hoc diagnostic strings, not numeric ticks.
+# Variant classification:
+#   - `kind = "data"`     — typed market-data payload (Quote / Trade / ...)
+#   - `kind = "simple"`   — diagnostic control events (login, disconnect,
+#                           market_open, unknown-data fallback) flattened
+#                           into one struct with `event_type`, `detail`, `id`.
+#   - `kind = "raw_data"` — raw frame bytes for unrecognized wire codes.
 
-version = 1
+version = 2
+
+# ── Data variants — market-data ticks ─────────────────────────────────
 
 [events.Quote]
+kind = "data"
 doc = "FPSS Quote tick. Mirrors `FpssData::Quote` (symbol-less — `contract_id` is the stable key)."
 columns = [
     { name = "contract_id",   type = "i32" },
@@ -29,6 +42,7 @@ columns = [
 ]
 
 [events.Trade]
+kind = "data"
 doc = "FPSS Trade tick. Mirrors `FpssData::Trade`."
 columns = [
     { name = "contract_id",     type = "i32" },
@@ -51,6 +65,7 @@ columns = [
 ]
 
 [events.OpenInterest]
+kind = "data"
 doc = "FPSS OpenInterest tick. Mirrors `FpssData::OpenInterest`."
 columns = [
     { name = "contract_id",   type = "i32" },
@@ -61,6 +76,7 @@ columns = [
 ]
 
 [events.Ohlcvc]
+kind = "data"
 doc = "FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`."
 columns = [
     { name = "contract_id",    type = "i32" },
@@ -73,4 +89,23 @@ columns = [
     { name = "count",          type = "i64" },
     { name = "date",           type = "i32" },
     { name = "received_at_ns", type = "u64" },
+]
+
+# ── Non-data variants — control / raw fallbacks ───────────────────────
+
+[events.Simple]
+kind = "simple"
+doc = "FPSS control / diagnostic event. Flattened from every `FpssControl` variant (login_success, contract_assigned, req_response, market_open/close, server_error, disconnected, reconnecting, reconnected, error, unknown_frame) and from the unknown-data / unknown-control fallbacks. `event_type` carries the concrete variant name; `detail` is a free-form diagnostic string (None when the variant carries no payload); `id` is the contract_id / req_id / reconnect attempt number where applicable."
+columns = [
+    { name = "event_type", type = "String" },
+    { name = "detail",     type = "Option<String>" },
+    { name = "id",         type = "Option<i32>" },
+]
+
+[events.RawData]
+kind = "raw_data"
+doc = "FPSS raw-bytes event for frames the decoder did not recognize. `code` is the wire message code; `payload` is the full frame body."
+columns = [
+    { name = "code",    type = "u8" },
+    { name = "payload", type = "Vec<u8>" },
 ]

@@ -377,10 +377,10 @@ All prices in streaming events are `float64` -- decoded during parsing. No `Pric
 |------|--------|-----------|
 | `FpssQuote` | ContractID, MsOfDay, BidSize, BidExchange, Bid (float64), BidCondition, AskSize, AskExchange, Ask (float64), AskCondition, Date, ReceivedAtNs | `Kind == FpssQuoteEvent` |
 | `FpssTrade` | ContractID, MsOfDay, Sequence, ExtCondition1-4, Condition, Size, Exchange, Price (float64), ConditionFlags, PriceFlags, VolumeType, RecordsBack, Date, ReceivedAtNs | `Kind == FpssTradeEvent` |
-| `FpssOpenInterestData` | ContractID, MsOfDay, OpenInterest, Date, ReceivedAtNs | `Kind == FpssOpenInterestEvent` |
+| `FpssOpenInterest` | ContractID, MsOfDay, OpenInterest, Date, ReceivedAtNs | `Kind == FpssOpenInterestEvent` |
 | `FpssOhlcvc` | ContractID, MsOfDay, Open/High/Low/Close (float64), Volume (int64), Count (int64), Date, ReceivedAtNs | `Kind == FpssOhlcvcEvent` |
-| `FpssControlData` | Kind (`FpssCtrl*` constants: 0..=6, 8..=12; 7 reserved), ID, Detail (string) | `Kind == FpssControlEvent` |
-| Raw data | RawCode (uint8), RawPayload ([]byte) | `Kind == FpssRawDataEvent` |
+| `FpssControl` | Kind (`FpssCtrl*` constants: 0..=6, 8..=12; 7 reserved), ID, Detail (string) | `Kind == FpssControlEvent` |
+| `FpssRawData` | Code (uint8), Payload ([]byte) | `Kind == FpssRawDataEvent` |
 
 ## Architecture
 

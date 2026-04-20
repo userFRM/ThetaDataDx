@@ -58,9 +58,7 @@ where
                 tokio::select! {
                     out = &mut fut => return out.map_err(to_py_err),
                     _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {
-                        if let Err(e) = Python::attach(|py| py.check_signals()) {
-                            return Err(e);
-                        }
+                        Python::attach(|py| py.check_signals())?;
                     }
                 }
             }
@@ -213,410 +211,13 @@ include!("utility_functions.rs");
 
 // ── FPSS streaming client ──
 
-/// A buffered FPSS event ready for Python consumption.
-///
-/// Buffered FPSS event that can travel through an `mpsc` channel from the
-/// Disruptor callback thread to the Python polling thread.
-///
-/// Tick data events carry decoded, named fields as key-value pairs.
-/// Price fields are pre-converted to `f64` using `Price::to_f64()`.
-#[derive(Clone, Debug)]
-enum BufferedEvent {
-    /// Quote tick with decoded fields.
-    Quote {
-        contract_id: i32,
-        ms_of_day: i32,
-        bid_size: i32,
-        bid_exchange: i32,
-        bid: f64,
-        bid_condition: i32,
-        ask_size: i32,
-        ask_exchange: i32,
-        ask: f64,
-        ask_condition: i32,
-        date: i32,
-        received_at_ns: u64,
-    },
-    /// Trade tick with decoded fields.
-    Trade {
-        contract_id: i32,
-        ms_of_day: i32,
-        sequence: i32,
-        ext_condition1: i32,
-        ext_condition2: i32,
-        ext_condition3: i32,
-        ext_condition4: i32,
-        condition: i32,
-        size: i32,
-        exchange: i32,
-        price: f64,
-        condition_flags: i32,
-        price_flags: i32,
-        volume_type: i32,
-        records_back: i32,
-        date: i32,
-        received_at_ns: u64,
-    },
-    /// Open interest tick.
-    OpenInterest {
-        contract_id: i32,
-        ms_of_day: i32,
-        open_interest: i32,
-        date: i32,
-        received_at_ns: u64,
-    },
-    /// OHLCVC bar with decoded fields.
-    Ohlcvc {
-        contract_id: i32,
-        ms_of_day: i32,
-        open: f64,
-        high: f64,
-        low: f64,
-        close: f64,
-        volume: i64,
-        count: i64,
-        date: i32,
-        received_at_ns: u64,
-    },
-    /// Raw undecoded data (fallback).
-    RawData { code: u8, payload: Vec<u8> },
-    /// Non-tick events (login, contract, response, errors, etc.).
-    Simple {
-        kind: String,
-        detail: Option<String>,
-        id: Option<i32>,
-    },
-}
-
-fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
-    match event {
-        fpss::FpssEvent::Data(data) => match data {
-            fpss::FpssData::Quote {
-                contract_id,
-                ms_of_day,
-                bid_size,
-                bid_exchange,
-                bid,
-                bid_condition,
-                ask_size,
-                ask_exchange,
-                ask,
-                ask_condition,
-                date,
-                received_at_ns,
-                ..
-            } => BufferedEvent::Quote {
-                contract_id: *contract_id,
-                ms_of_day: *ms_of_day,
-                bid_size: *bid_size,
-                bid_exchange: *bid_exchange,
-                bid: *bid,
-                bid_condition: *bid_condition,
-                ask_size: *ask_size,
-                ask_exchange: *ask_exchange,
-                ask: *ask,
-                ask_condition: *ask_condition,
-                date: *date,
-                received_at_ns: *received_at_ns,
-            },
-            fpss::FpssData::Trade {
-                contract_id,
-                ms_of_day,
-                sequence,
-                ext_condition1,
-                ext_condition2,
-                ext_condition3,
-                ext_condition4,
-                condition,
-                size,
-                exchange,
-                price,
-                condition_flags,
-                price_flags,
-                volume_type,
-                records_back,
-                date,
-                received_at_ns,
-                ..
-            } => BufferedEvent::Trade {
-                contract_id: *contract_id,
-                ms_of_day: *ms_of_day,
-                sequence: *sequence,
-                ext_condition1: *ext_condition1,
-                ext_condition2: *ext_condition2,
-                ext_condition3: *ext_condition3,
-                ext_condition4: *ext_condition4,
-                condition: *condition,
-                size: *size,
-                exchange: *exchange,
-                price: *price,
-                condition_flags: *condition_flags,
-                price_flags: *price_flags,
-                volume_type: *volume_type,
-                records_back: *records_back,
-                date: *date,
-                received_at_ns: *received_at_ns,
-            },
-            fpss::FpssData::OpenInterest {
-                contract_id,
-                ms_of_day,
-                open_interest,
-                date,
-                received_at_ns,
-                ..
-            } => BufferedEvent::OpenInterest {
-                contract_id: *contract_id,
-                ms_of_day: *ms_of_day,
-                open_interest: *open_interest,
-                date: *date,
-                received_at_ns: *received_at_ns,
-            },
-            fpss::FpssData::Ohlcvc {
-                contract_id,
-                ms_of_day,
-                open,
-                high,
-                low,
-                close,
-                volume,
-                count,
-                date,
-                received_at_ns,
-                ..
-            } => BufferedEvent::Ohlcvc {
-                contract_id: *contract_id,
-                ms_of_day: *ms_of_day,
-                open: *open,
-                high: *high,
-                low: *low,
-                close: *close,
-                volume: *volume,
-                count: *count,
-                date: *date,
-                received_at_ns: *received_at_ns,
-            },
-            _ => BufferedEvent::Simple {
-                kind: "unknown_data".to_string(),
-                detail: None,
-                id: None,
-            },
-        },
-        fpss::FpssEvent::Control(ctrl) => match ctrl {
-            fpss::FpssControl::LoginSuccess { permissions } => BufferedEvent::Simple {
-                kind: "login_success".to_string(),
-                detail: Some(permissions.clone()),
-                id: None,
-            },
-            fpss::FpssControl::ContractAssigned { id, contract } => BufferedEvent::Simple {
-                kind: "contract_assigned".to_string(),
-                detail: Some(format!("{contract}")),
-                id: Some(*id),
-            },
-            fpss::FpssControl::ReqResponse { req_id, result } => BufferedEvent::Simple {
-                kind: "req_response".to_string(),
-                detail: Some(format!("{result:?}")),
-                id: Some(*req_id),
-            },
-            fpss::FpssControl::MarketOpen => BufferedEvent::Simple {
-                kind: "market_open".to_string(),
-                detail: None,
-                id: None,
-            },
-            fpss::FpssControl::MarketClose => BufferedEvent::Simple {
-                kind: "market_close".to_string(),
-                detail: None,
-                id: None,
-            },
-            fpss::FpssControl::ServerError { message } => BufferedEvent::Simple {
-                kind: "server_error".to_string(),
-                detail: Some(message.clone()),
-                id: None,
-            },
-            fpss::FpssControl::Disconnected { reason } => BufferedEvent::Simple {
-                kind: "disconnected".to_string(),
-                detail: Some(format!("{reason:?}")),
-                id: None,
-            },
-            fpss::FpssControl::Error { message } => BufferedEvent::Simple {
-                kind: "error".to_string(),
-                detail: Some(message.clone()),
-                id: None,
-            },
-            fpss::FpssControl::Reconnecting {
-                reason,
-                attempt,
-                delay_ms,
-            } => BufferedEvent::Simple {
-                kind: "reconnecting".to_string(),
-                detail: Some(format!(
-                    "reason={reason:?} attempt={attempt} delay_ms={delay_ms}"
-                )),
-                id: None,
-            },
-            fpss::FpssControl::Reconnected => BufferedEvent::Simple {
-                kind: "reconnected".to_string(),
-                detail: None,
-                id: None,
-            },
-            fpss::FpssControl::UnknownFrame { code, payload } => BufferedEvent::Simple {
-                kind: "unknown_frame".to_string(),
-                detail: Some(format!(
-                    "code={code} payload_hex={}",
-                    payload
-                        .iter()
-                        .map(|b| format!("{b:02x}"))
-                        .collect::<String>()
-                )),
-                id: None,
-            },
-            _ => BufferedEvent::Simple {
-                kind: "unknown_control".to_string(),
-                detail: None,
-                id: None,
-            },
-        },
-        fpss::FpssEvent::RawData { code, payload } => BufferedEvent::RawData {
-            code: *code,
-            payload: payload.clone(),
-        },
-        _ => BufferedEvent::Simple {
-            kind: "unknown".to_string(),
-            detail: None,
-            id: None,
-        },
-    }
-}
-
-// PyO3: set_item is infallible for primitive types (str, int, float, bool, bytes).
-fn buffered_event_to_py(py: Python<'_>, event: &BufferedEvent) -> Py<PyAny> {
-    let dict = PyDict::new(py);
-    match event {
-        BufferedEvent::Quote {
-            contract_id,
-            ms_of_day,
-            bid_size,
-            bid_exchange,
-            bid,
-            bid_condition,
-            ask_size,
-            ask_exchange,
-            ask,
-            ask_condition,
-            date,
-            received_at_ns,
-        } => {
-            dict.set_item("kind", "quote").unwrap();
-            dict.set_item("contract_id", contract_id).unwrap();
-            dict.set_item("ms_of_day", ms_of_day).unwrap();
-            dict.set_item("bid_size", bid_size).unwrap();
-            dict.set_item("bid_exchange", bid_exchange).unwrap();
-            dict.set_item("bid", bid).unwrap();
-            dict.set_item("bid_condition", bid_condition).unwrap();
-            dict.set_item("ask_size", ask_size).unwrap();
-            dict.set_item("ask_exchange", ask_exchange).unwrap();
-            dict.set_item("ask", ask).unwrap();
-            dict.set_item("ask_condition", ask_condition).unwrap();
-            dict.set_item("date", date).unwrap();
-            dict.set_item("received_at_ns", received_at_ns).unwrap();
-        }
-        BufferedEvent::Trade {
-            contract_id,
-            ms_of_day,
-            sequence,
-            ext_condition1,
-            ext_condition2,
-            ext_condition3,
-            ext_condition4,
-            condition,
-            size,
-            exchange,
-            price,
-            condition_flags,
-            price_flags,
-            volume_type,
-            records_back,
-            date,
-            received_at_ns,
-        } => {
-            dict.set_item("kind", "trade").unwrap();
-            dict.set_item("contract_id", contract_id).unwrap();
-            dict.set_item("ms_of_day", ms_of_day).unwrap();
-            dict.set_item("sequence", sequence).unwrap();
-            dict.set_item("ext_condition1", ext_condition1).unwrap();
-            dict.set_item("ext_condition2", ext_condition2).unwrap();
-            dict.set_item("ext_condition3", ext_condition3).unwrap();
-            dict.set_item("ext_condition4", ext_condition4).unwrap();
-            dict.set_item("condition", condition).unwrap();
-            dict.set_item("size", size).unwrap();
-            dict.set_item("exchange", exchange).unwrap();
-            dict.set_item("price", price).unwrap();
-            dict.set_item("condition_flags", condition_flags).unwrap();
-            dict.set_item("price_flags", price_flags).unwrap();
-            dict.set_item("volume_type", volume_type).unwrap();
-            dict.set_item("records_back", records_back).unwrap();
-            dict.set_item("date", date).unwrap();
-            dict.set_item("received_at_ns", received_at_ns).unwrap();
-        }
-        BufferedEvent::OpenInterest {
-            contract_id,
-            ms_of_day,
-            open_interest,
-            date,
-            received_at_ns,
-        } => {
-            dict.set_item("kind", "open_interest").unwrap();
-            dict.set_item("contract_id", contract_id).unwrap();
-            dict.set_item("ms_of_day", ms_of_day).unwrap();
-            dict.set_item("open_interest", open_interest).unwrap();
-            dict.set_item("date", date).unwrap();
-            dict.set_item("received_at_ns", received_at_ns).unwrap();
-        }
-        BufferedEvent::Ohlcvc {
-            contract_id,
-            ms_of_day,
-            open,
-            high,
-            low,
-            close,
-            volume,
-            count,
-            date,
-            received_at_ns,
-        } => {
-            dict.set_item("kind", "ohlcvc").unwrap();
-            dict.set_item("contract_id", contract_id).unwrap();
-            dict.set_item("ms_of_day", ms_of_day).unwrap();
-            dict.set_item("open", open).unwrap();
-            dict.set_item("high", high).unwrap();
-            dict.set_item("low", low).unwrap();
-            dict.set_item("close", close).unwrap();
-            dict.set_item("volume", volume).unwrap();
-            dict.set_item("count", count).unwrap();
-            dict.set_item("date", date).unwrap();
-            dict.set_item("received_at_ns", received_at_ns).unwrap();
-        }
-        BufferedEvent::RawData { code, payload } => {
-            dict.set_item("kind", "raw_data").unwrap();
-            dict.set_item("code", code).unwrap();
-            dict.set_item("payload", pyo3::types::PyBytes::new(py, payload))
-                .unwrap();
-        }
-        BufferedEvent::Simple { kind, detail, id } => {
-            dict.set_item("kind", kind.as_str()).unwrap();
-            if let Some(ref d) = detail {
-                dict.set_item("detail", d.as_str()).unwrap();
-            } else {
-                dict.set_item("detail", py.None()).unwrap();
-            }
-            if let Some(i) = id {
-                dict.set_item("id", i).unwrap();
-            } else {
-                dict.set_item("id", py.None()).unwrap();
-            }
-        }
-    }
-    dict.into_any().unbind()
-}
+// ── BufferedEvent + converter (generated from fpss_event_schema.toml) ──
+//
+// The intermediate flat event type that crosses the mpsc channel from the
+// FPSS Disruptor callback to the Python polling thread. Generator output
+// is identical to the TypeScript SDK copy; `fpss_event_schema.toml` is the
+// single source of truth.
+include!("buffered_event.rs");
 
 // ── Unified ThetaDataDx client ──
 
@@ -687,7 +288,9 @@ impl ThetaDataDx {
         // Go straight through the Rust SDK → `*_to_columnar` helper so we
         // avoid the pyclass allocation + __dir__ pivot round-trip.
         let ticks = run_blocking(py, async move {
-            self.tdx.stock_history_eod(symbol, start_date, end_date).await
+            self.tdx
+                .stock_history_eod(symbol, start_date, end_date)
+                .await
         })?;
         let columnar = eod_ticks_to_columnar(py, &ticks);
         columnar_to_dataframe(py, columnar)
@@ -755,23 +358,36 @@ impl ThetaDataDx {
     // market-data SDKs. Respects SSOT: generated methods still live in
     // `streaming_methods.rs`.
 
-    /// Pull the next FPSS event as a typed Python object (`Quote`, `Trade`,
-    /// `OpenInterest`, `Ohlcvc`) instead of a `PyDict`.
+    /// Pull the next FPSS event as a typed Python object.
     ///
-    /// Drop-in replacement for `next_event` with the same loop shape. One
-    /// allocation per event (the pyclass instance), field access via
-    /// attribute (direct C-offset lookup), and no 14-way `set_item` dance
-    /// per event. Measured ~24x faster across the FFI boundary than the
-    /// dict path.
+    /// Every variant returns a concrete `#[pyclass]` — `Quote`, `Trade`,
+    /// `OpenInterest`, `Ohlcvc` for market data; `Simple` for control /
+    /// diagnostic events (login, contract_assigned, disconnected, ...);
+    /// `RawData` for unrecognized wire frames. No `PyDict` path anywhere.
+    /// One allocation per event (the pyclass instance), field access via
+    /// attribute (direct C-offset lookup).
     ///
-    /// Non-tick events (login, contract_assigned, disconnected, ...) fall
-    /// back to the dict shape so lifecycle handling doesn't need a second
-    /// API.
-    fn next_event_typed(
-        &self,
-        py: Python<'_>,
-        timeout_ms: u64,
-    ) -> PyResult<Option<Py<PyAny>>> {
+    /// # Parity contract with the TypeScript SDK
+    ///
+    /// The `event.kind` discriminator is the stable cross-language tag:
+    /// `"ohlcvc"`, `"open_interest"`, `"quote"`, `"trade"`, `"simple"`,
+    /// `"raw_data"`. Concrete control-event names (`"login_success"`,
+    /// `"contract_assigned"`, `"disconnected"`, `"market_open"`,
+    /// `"market_close"`, `"server_error"`, `"reconnecting"`,
+    /// `"reconnected"`, `"error"`, `"unknown_frame"`, `"unknown_data"`,
+    /// `"unknown_control"`) live on `Simple.event_type`, mirroring
+    /// `FpssSimplePayload.eventType` on the TS side. Payload field names
+    /// match byte-for-byte (modulo snake_case ↔ camelCase). Both surfaces
+    /// are generated from `fpss_event_schema.toml` — adding a field
+    /// regenerates both SDKs in lockstep, so the discriminator and
+    /// payload shape cannot drift.
+    ///
+    /// Idiomatic nesting differs by design: TS exposes a
+    /// discriminated-union struct (`event.simple.eventType`), Python
+    /// dispatches on pyclass (`event.event_type` where
+    /// `isinstance(event, Simple)`). Consumer code ports across
+    /// languages with a `.kind` switch and identical field names.
+    fn next_event_typed(&self, py: Python<'_>, timeout_ms: u64) -> PyResult<Option<Py<PyAny>>> {
         let rx_outer = self.rx.lock().unwrap_or_else(|e| e.into_inner());
         let rx_arc = match rx_outer.as_ref() {
             Some(arc) => Arc::clone(arc),
@@ -821,32 +437,53 @@ include!("historical_methods.rs");
 /// Historical endpoints return `list[TickClass]` (typed pyclass objects,
 /// matching Rust/TS/Go/C++). For DataFrame construction we need the same
 /// dict-of-lists shape pandas consumes natively; this helper does the
-/// one pivot, skipping private attributes and anything non-field (bound
-/// methods, `kind`, `__repr__`).
+/// one pivot.
+///
+/// Column names and order come from `tick_classes::columns_for_qualname`
+/// (generated from `crates/thetadatadx/tick_schema.toml`), not from
+/// Python-side reflection. This guarantees:
+///
+/// 1. **Deterministic column order** across PyO3 versions — `__dir__`
+///    ordering is interpreter-dependent.
+/// 2. **Empty-list schema preservation** — if the caller knows the expected
+///    tick type at compile time, it can pass `empty_qualname_hint` so
+///    pandas/polars still see the correct column set (and can infer dtypes
+///    on insert) when the result set is empty. When no hint is provided
+///    and the list is empty, this returns an empty dict — matching the
+///    legacy behaviour for generic callers that don't know the type.
 fn pyclass_list_to_columnar<'py>(
     py: Python<'py>,
     ticks: &Bound<'py, pyo3::types::PyList>,
+    empty_qualname_hint: Option<&str>,
 ) -> PyResult<Bound<'py, PyDict>> {
     let out = PyDict::new(py);
-    let n = ticks.len();
-    if n == 0 {
-        return Ok(out);
-    }
-    let first = ticks.get_item(0)?;
-    let attrs_list = first.call_method0("__dir__")?;
-    let attrs: Vec<String> = attrs_list.extract()?;
-    for name in attrs.iter().filter(|a| !a.starts_with('_')) {
-        // Skip callables and the synthetic `kind` accessor if any.
-        let probe = first.getattr(name.as_str())?;
-        if probe.is_callable() {
-            continue;
+    let columns: &[&str] = if ticks.len() == 0 {
+        match empty_qualname_hint.and_then(columns_for_qualname) {
+            Some(cols) => cols,
+            // No hint and empty list -> empty dict. Matches legacy behaviour
+            // for callers that don't know the tick type statically.
+            None => return Ok(out),
         }
+    } else {
+        let first = ticks.get_item(0)?;
+        let qualname: String = first.get_type().qualname()?.extract()?;
+        match columns_for_qualname(&qualname) {
+            Some(cols) => cols,
+            None => {
+                return Err(PyRuntimeError::new_err(format!(
+                    "pyclass_list_to_columnar: unknown tick type `{qualname}` — \
+                     expected a value from `thetadatadx`'s typed tick classes"
+                )));
+            }
+        }
+    };
+    for name in columns {
         let col = pyo3::types::PyList::empty(py);
-        for i in 0..n {
+        for i in 0..ticks.len() {
             let item = ticks.get_item(i)?;
-            col.append(item.getattr(name.as_str())?)?;
+            col.append(item.getattr(*name)?)?;
         }
-        out.set_item(name.as_str(), col)?;
+        out.set_item(*name, col)?;
     }
     Ok(out)
 }
@@ -873,66 +510,18 @@ fn pyclass_list_to_dataframe(py: Python<'_>, ticks: Py<PyAny>) -> PyResult<Py<Py
         )
     })?;
     let bound = ticks.bind(py);
-    let list = bound.downcast::<pyo3::types::PyList>().map_err(|_| {
+    let list = bound.cast::<pyo3::types::PyList>().map_err(|_| {
         PyValueError::new_err("to_dataframe() expects a list of typed tick objects")
     })?;
-    let columnar = pyclass_list_to_columnar(py, list)?;
+    // `to_dataframe` / `to_polars` are generic entry points — they receive a
+    // list of tick pyclasses without knowing the tick type at compile time.
+    // Pass `None` for `empty_qualname_hint` so empty input lists yield an
+    // empty dict (legacy behaviour). Callers that know the type statically
+    // (e.g. per-endpoint helpers) can pass the qualname to preserve the
+    // schema on empty results.
+    let columnar = pyclass_list_to_columnar(py, list, None)?;
     let df = pandas.call_method1("DataFrame", (columnar,))?;
     Ok(df.unbind())
-}
-
-// ── Synthetic FFI-boundary microbenches ──
-//
-// Isolate the "one trade event -> Python object" cost from all I/O,
-// server pacing, and mpsc overhead. Each bench constructs N copies of a
-// single representative trade so the only variable is the PyDict vs
-// typed-pyclass path through PyO3.
-
-fn synthetic_trade_buffered(i: i32) -> BufferedEvent {
-    BufferedEvent::Trade {
-        contract_id: i,
-        ms_of_day: 34_200_000,
-        sequence: i,
-        ext_condition1: 0,
-        ext_condition2: 0,
-        ext_condition3: 0,
-        ext_condition4: 0,
-        condition: 50,
-        size: 100,
-        exchange: 1,
-        price: 450.26,
-        condition_flags: 0,
-        price_flags: 0,
-        volume_type: 0,
-        records_back: 0,
-        date: 20_260_418,
-        received_at_ns: 1_700_000_000_000_000_000,
-    }
-}
-
-/// Build N PyDict trade events. Returns the wall-clock ns elapsed.
-///
-/// Hidden (leading-underscore) Python-level function. Only used by the
-/// internal bench script to compare FFI-boundary costs between paths.
-#[pyfunction]
-fn _bench_synthetic_dict(py: Python<'_>, n: usize) -> PyResult<u64> {
-    let ev = synthetic_trade_buffered(0);
-    let start = std::time::Instant::now();
-    for _ in 0..n {
-        let _dict = buffered_event_to_py(py, &ev);
-    }
-    Ok(u64::try_from(start.elapsed().as_nanos()).unwrap_or(u64::MAX))
-}
-
-/// Build N typed-pyclass trade events. Returns the wall-clock ns elapsed.
-#[pyfunction]
-fn _bench_synthetic_typed(py: Python<'_>, n: usize) -> PyResult<u64> {
-    let ev = synthetic_trade_buffered(0);
-    let start = std::time::Instant::now();
-    for _ in 0..n {
-        let _obj = buffered_event_to_typed(py, &ev)?;
-    }
-    Ok(u64::try_from(start.elapsed().as_nanos()).unwrap_or(u64::MAX))
 }
 
 /// Convert a list of typed tick pyclasses to a pandas DataFrame.
@@ -967,10 +556,12 @@ fn to_polars(py: Python<'_>, ticks: Py<PyAny>) -> PyResult<Py<PyAny>> {
         )
     })?;
     let bound = ticks.bind(py);
-    let list = bound.downcast::<pyo3::types::PyList>().map_err(|_| {
-        PyValueError::new_err("to_polars() expects a list of typed tick objects")
-    })?;
-    let columnar = pyclass_list_to_columnar(py, list)?;
+    let list = bound
+        .cast::<pyo3::types::PyList>()
+        .map_err(|_| PyValueError::new_err("to_polars() expects a list of typed tick objects"))?;
+    // See `pyclass_list_to_dataframe` for the `None` rationale — generic
+    // entry point, tick type is not known at compile time.
+    let columnar = pyclass_list_to_columnar(py, list, None)?;
     let df = polars.call_method1("DataFrame", (columnar,))?;
     Ok(df.unbind())
 }
@@ -990,8 +581,6 @@ fn thetadatadx_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ThetaDataDx>()?;
     register_fpss_event_classes(m)?;
     register_tick_classes(m)?;
-    m.add_function(wrap_pyfunction!(_bench_synthetic_dict, m)?)?;
-    m.add_function(wrap_pyfunction!(_bench_synthetic_typed, m)?)?;
     register_generated_utility_functions(m)?;
     m.add_function(wrap_pyfunction!(to_dataframe, m)?)?;
     m.add_function(wrap_pyfunction!(to_polars, m)?)?;

@@ -10,6 +10,7 @@
 #   String  -> row_text(row, i)                           default: ""
 #   price   -> decode to f64 via Price::new(raw, pt).to_f64()
 #   eod_num -> EOD numeric/time field: Price/Number direct, Timestamp -> ms_of_day
+#   eod_num64 -> EOD numeric widened to i64 (for volume/count); Price/Number direct, Timestamp -> ms_of_day
 #   eod_date -> EOD date field: Price/Number direct, Timestamp -> YYYYMMDD
 #   eod_price -> EOD price fields: decode to f64 at parse time
 #
@@ -86,8 +87,8 @@ columns = [
     { name = "high",       field = "high",        type = "price" },
     { name = "low",        field = "low",         type = "price" },
     { name = "close",      field = "close",       type = "price" },
-    { name = "volume",     field = "volume",      type = "i32" },
-    { name = "count",      field = "count",       type = "i32" },
+    { name = "volume",     field = "volume",      type = "i64" },
+    { name = "count",      field = "count",       type = "i64" },
     { name = "date",       field = "date",        type = "i32" },
 ]
 
@@ -106,8 +107,8 @@ columns = [
     { name = "high",          field = "high",          type = "eod_price" },
     { name = "low",           field = "low",           type = "eod_price" },
     { name = "close",         field = "close",         type = "eod_price" },
-    { name = "volume",        field = "volume",        type = "eod_num" },
-    { name = "count",         field = "count",         type = "eod_num" },
+    { name = "volume",        field = "volume",        type = "eod_num64" },
+    { name = "count",         field = "count",         type = "eod_num64" },
     { name = "bid_size",      field = "bid_size",      type = "eod_num" },
     { name = "bid_exchange",  field = "bid_exchange",  type = "eod_num" },
     { name = "bid",           field = "bid",           type = "eod_price" },

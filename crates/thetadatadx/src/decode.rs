@@ -567,15 +567,14 @@ pub(crate) fn row_text(
 /// because v3 MDDS may send large integer fields encoded as `Price`;
 /// `NullValue` → `Ok(None)`.
 ///
-/// Gated on `cfg(test)` because the current `tick_schema.toml` has no i64
-/// columns. When a schema later adds one, the generator emits
-/// `row_number_i64` references and this gate must be removed.
+/// Used by the generated parsers for schema columns typed `i64` — added
+/// with the EodTick `volume`/`count` widening (where on high-volume
+/// symbols the values exceed `i32::MAX`).
 ///
 /// # Errors
 ///
 /// Errors on any other cell type or missing cell.
 // Reason: protocol-defined integer widths from Java FPSS specification.
-#[cfg(test)]
 #[allow(clippy::cast_possible_truncation)]
 pub(crate) fn row_number_i64(
     row: &proto::DataValueList,
