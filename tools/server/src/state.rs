@@ -108,16 +108,17 @@ impl AppState {
     /// Each client receives an `Arc::clone` of the same backing string --
     /// the JSON payload is serialized exactly once regardless of client count.
     ///
-    /// Called from the FPSS Disruptor consumer thread (a plain `std::thread`,
-    /// not a tokio task), so `blocking_read()` is safe and cannot panic.
-    /// This ensures events are never silently dropped for all clients just
-    /// because one client is connecting/disconnecting.
+    /// Async because the broadcast task now runs inside `tokio::spawn`
+    /// (see `ws.rs`). Earlier revisions ran this from the FPSS Disruptor
+    /// `std::thread` and used `blocking_read`, which panics inside a
+    /// tokio runtime. Using `read().await` yields the executor while
+    /// waiting on the `RwLock`, matching the async context.
     ///
     /// If a per-client channel is full, that single slow client's event is
     /// dropped and a warning is logged -- the same backpressure semantics as
     /// the old `broadcast::channel`'s `Lagged` behavior.
-    pub fn broadcast_ws(&self, event: Arc<str>) {
-        let clients = self.inner.ws_clients.blocking_read();
+    pub async fn broadcast_ws(&self, event: Arc<str>) {
+        let clients = self.inner.ws_clients.read().await;
         for tx in clients.iter() {
             if let Err(mpsc::error::TrySendError::Full(_)) = tx.try_send(Arc::clone(&event)) {
                 tracing::warn!("WebSocket client lagged, dropped event");

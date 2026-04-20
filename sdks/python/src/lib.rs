@@ -783,39 +783,17 @@ impl ThetaDataDx {
         };
         drop(rx_outer);
         let timeout = std::time::Duration::from_millis(timeout_ms);
-        // Three outcomes: event, benign timeout, or fatal disconnect.
-        // Collapsing disconnect to None spins consumer while-loops at
-        // 100% CPU on a dead socket.
-        enum PollOutcome {
-            Event(BufferedEvent),
-            Timeout,
-            Disconnected,
-        }
+        // True blocking recv inside `py.detach` (GIL released). No
+        // polling — the OS wakes us the moment a frame lands on the
+        // mpsc channel. Zero CPU while idle, zero delivery jitter.
         let result = py.detach(move || {
-            let deadline = std::time::Instant::now() + timeout;
-            let poll_interval = std::time::Duration::from_millis(1);
-            loop {
-                {
-                    let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());
-                    match rx.try_recv() {
-                        Ok(event) => return PollOutcome::Event(event),
-                        Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                            return PollOutcome::Disconnected
-                        }
-                        Err(std::sync::mpsc::TryRecvError::Empty) => {}
-                    }
-                }
-                let now = std::time::Instant::now();
-                if now >= deadline {
-                    return PollOutcome::Timeout;
-                }
-                std::thread::sleep(poll_interval.min(deadline - now));
-            }
+            let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());
+            rx.recv_timeout(timeout)
         });
         match result {
-            PollOutcome::Event(event) => Ok(Some(buffered_event_to_typed(py, &event)?)),
-            PollOutcome::Timeout => Ok(None),
-            PollOutcome::Disconnected => Err(PyRuntimeError::new_err(
+            Ok(event) => Ok(Some(buffered_event_to_typed(py, &event)?)),
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Ok(None),
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Err(PyRuntimeError::new_err(
                 "streaming channel disconnected -- call reconnect() or start_streaming() again",
             )),
         }

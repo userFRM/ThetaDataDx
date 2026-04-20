@@ -254,8 +254,11 @@ pub struct TdxFpssOhlcvc {
 ///   `0=login_success`, `1=contract_assigned`, `2=req_response`,
 ///   `3=market_open`, `4=market_close`, `5=server_error`,
 ///   `6=disconnected`, `8=reconnecting`, `9=reconnected`,
-///   `10=error`, `11=unknown_frame`.
-///   Value `7` is currently unassigned.
+///   `10=error`, `11=unknown_frame`, `12=unknown_event` (non-Data /
+///   non-Control / non-RawData fallback; carries no payload).
+///   Value `7` is reserved for future use. `99` is an internal sentinel
+///   for "unknown control-variant" — kept for backward compat; new
+///   consumers should treat `12` as the canonical unknown marker.
 ///
 /// `id` carries the `contract_id`, `req_id`, reconnect attempt number,
 /// or unknown-frame code where applicable (0 otherwise).
@@ -622,12 +625,15 @@ fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
         }
 
         _ => {
-            // Empty / unknown — surface as a control event with kind=8 (unknown)
+            // Empty / unknown event — surface as a control with kind=12.
+            // Earlier revision used kind=8 which collides with the
+            // `Reconnecting` mapping introduced in #368. See doc comment
+            // on `TdxFpssControl` for the full mapping.
             FfiBufferedEvent {
                 event: TdxFpssEvent {
                     kind: TdxFpssEventKind::Control,
                     control: TdxFpssControl {
-                        kind: 8,
+                        kind: 12,
                         id: 0,
                         detail: ptr::null(),
                     },

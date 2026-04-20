@@ -379,7 +379,7 @@ All prices in streaming events are `float64` -- decoded during parsing. No `Pric
 | `FpssTrade` | ContractID, MsOfDay, Sequence, ExtCondition1-4, Condition, Size, Exchange, Price (float64), ConditionFlags, PriceFlags, VolumeType, RecordsBack, Date, ReceivedAtNs | `Kind == FpssTradeEvent` |
 | `FpssOpenInterestData` | ContractID, MsOfDay, OpenInterest, Date, ReceivedAtNs | `Kind == FpssOpenInterestEvent` |
 | `FpssOhlcvc` | ContractID, MsOfDay, Open/High/Low/Close (float64), Volume (int64), Count (int64), Date, ReceivedAtNs | `Kind == FpssOhlcvcEvent` |
-| `FpssControlData` | Kind (`FpssCtrl*` constants: 0..=6, 8..=11; 7 unassigned), ID, Detail (string) | `Kind == FpssControlEvent` |
+| `FpssControlData` | Kind (`FpssCtrl*` constants: 0..=6, 8..=12; 7 reserved), ID, Detail (string) | `Kind == FpssControlEvent` |
 | Raw data | RawCode (uint8), RawPayload ([]byte) | `Kind == FpssRawDataEvent` |
 
 ## Architecture

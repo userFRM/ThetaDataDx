@@ -173,7 +173,7 @@ export declare class ThetaDataDx {
   /** Get a snapshot of currently active subscriptions. */
   activeSubscriptions(): any
   /** Poll for the next FPSS event. */
-  nextEvent(timeoutMs: number): ({ kind: 'ohlcvc'; ohlcvc: Ohlcvc } | { kind: 'open_interest'; openInterest: OpenInterest } | { kind: 'quote'; quote: Quote } | { kind: 'trade'; trade: Trade } | { kind: 'simple'; simple: FpssSimplePayload } | { kind: 'raw_data'; rawData: FpssRawDataPayload }) | null
+  nextEvent(timeoutMs: number): Promise<({ kind: 'ohlcvc'; ohlcvc: Ohlcvc } | { kind: 'open_interest'; openInterest: OpenInterest } | { kind: 'quote'; quote: Quote } | { kind: 'trade'; trade: Trade } | { kind: 'simple'; simple: FpssSimplePayload } | { kind: 'raw_data'; rawData: FpssRawDataPayload }) | null>
   /** Reconnect streaming and re-subscribe all previous subscriptions. */
   reconnect(): void
   /** Stop streaming while keeping the historical client usable. */

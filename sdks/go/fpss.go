@@ -39,6 +39,8 @@ const (
 	FpssCtrlReconnected       FpssControlKind = 9
 	FpssCtrlError             FpssControlKind = 10
 	FpssCtrlUnknownFrame      FpssControlKind = 11 // ID = frame code, Detail = hex payload
+	FpssCtrlUnknownEvent      FpssControlKind = 12 // non-Data / non-Control / non-RawData fallback
+	// Value 7 is reserved for future use.
 )
 
 // FpssQuote is a real-time quote event from FPSS.

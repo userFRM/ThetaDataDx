@@ -1047,9 +1047,13 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             out.push_str("                let _ = tx.send(buffered);\n");
             out.push_str("            })\n");
             out.push_str("            .map_err(to_py_err)?;\n\n");
-            out.push_str("        if let Ok(mut guard) = self.rx.lock() {\n");
-            out.push_str("            *guard = Some(Arc::new(Mutex::new(rx)));\n");
-            out.push_str("        }\n");
+            // Recover poisoned lock rather than silently dropping the
+            // swap. A stale receiver behind a closed channel is worse
+            // than a partial state from a prior panic.
+            out.push_str(
+                "        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());\n",
+            );
+            out.push_str("        *guard = Some(Arc::new(Mutex::new(rx)));\n");
             out.push_str("        Ok(())\n");
             out.push_str("    }\n");
         }
@@ -1213,61 +1217,29 @@ fn python_streaming_method(method: &MethodSpec) -> String {
                 param.name
             )
             .unwrap();
-            // Three outcomes: event, benign timeout, fatal disconnect.
-            // Collapsing disconnect to None spins consumer while-loops at
-            // 100% CPU on a dead socket.
-            out.push_str("        enum PollOutcome {\n");
-            out.push_str("            Event(BufferedEvent),\n");
-            out.push_str("            Timeout,\n");
-            out.push_str("            Disconnected,\n");
-            out.push_str("        }\n");
+            // True blocking recv inside `py.detach` (GIL released). No
+            // polling — the OS wakes us the moment a frame lands on the
+            // mpsc channel. Zero CPU while idle, zero delivery jitter.
+            // Disconnect distinguished from timeout so consumer loops
+            // don't spin 100% CPU on a dead socket.
             out.push_str("        let result = py.detach(move || {\n");
             out.push_str(
-                "            // Poll with `try_recv` + short sleep so the inner lock is only\n",
+                "            let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());\n",
             );
-            out.push_str(
-                "            // held for nanoseconds per iteration. A blocking `recv_timeout`\n",
-            );
-            out.push_str(
-                "            // would pin the mutex for the full timeout and serialize any\n",
-            );
-            out.push_str(
-                "            // concurrent `next_event` / `reconnect` caller behind it.\n",
-            );
-            out.push_str("            let deadline = std::time::Instant::now() + timeout;\n");
-            out.push_str("            let poll_interval = std::time::Duration::from_millis(1);\n");
-            out.push_str("            loop {\n");
-            out.push_str("                {\n");
-            out.push_str(
-                "                    let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());\n",
-            );
-            out.push_str("                    match rx.try_recv() {\n");
-            out.push_str(
-                "                        Ok(event) => return PollOutcome::Event(event),\n",
-            );
-            out.push_str("                        Err(std::sync::mpsc::TryRecvError::Disconnected) => return PollOutcome::Disconnected,\n");
-            out.push_str(
-                "                        Err(std::sync::mpsc::TryRecvError::Empty) => {}\n",
-            );
-            out.push_str("                    }\n");
-            out.push_str("                }\n");
-            out.push_str("                let now = std::time::Instant::now();\n");
-            out.push_str("                if now >= deadline {\n");
-            out.push_str("                    return PollOutcome::Timeout;\n");
-            out.push_str("                }\n");
-            out.push_str(
-                "                std::thread::sleep(poll_interval.min(deadline - now));\n",
-            );
-            out.push_str("            }\n");
+            out.push_str("            rx.recv_timeout(timeout)\n");
             out.push_str("        });\n");
             out.push_str("        match result {\n");
+            out.push_str("            Ok(event) => Ok(Some(buffered_event_to_py(py, &event))),\n");
             out.push_str(
-                "            PollOutcome::Event(event) => Ok(Some(buffered_event_to_py(py, &event))),\n",
+                "            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Ok(None),\n",
             );
-            out.push_str("            PollOutcome::Timeout => Ok(None),\n");
-            out.push_str("            PollOutcome::Disconnected => Err(PyRuntimeError::new_err(\n");
-            out.push_str("                \"streaming channel disconnected -- call reconnect() or start_streaming() again\",\n");
-            out.push_str("            )),\n");
+            out.push_str(
+                "            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Err(\n",
+            );
+            out.push_str("                PyRuntimeError::new_err(\n");
+            out.push_str("                    \"streaming channel disconnected -- call reconnect() or start_streaming() again\",\n");
+            out.push_str("                ),\n");
+            out.push_str("            ),\n");
             out.push_str("        }\n");
             out.push_str("    }\n");
         }
@@ -1279,18 +1251,20 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             out.push_str("                let _ = tx.send(fpss_event_to_buffered(event));\n");
             out.push_str("            })\n");
             out.push_str("            .map_err(to_py_err)?;\n");
-            out.push_str("        if let Ok(mut guard) = self.rx.lock() {\n");
-            out.push_str("            *guard = Some(Arc::new(Mutex::new(rx)));\n");
-            out.push_str("        }\n");
+            out.push_str(
+                "        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());\n",
+            );
+            out.push_str("        *guard = Some(Arc::new(Mutex::new(rx)));\n");
             out.push_str("        Ok(())\n");
             out.push_str("    }\n");
         }
         MethodKind::StopStreaming | MethodKind::Shutdown => {
             writeln!(out, "    fn {}(&self) {{", method.name).unwrap();
             out.push_str("        self.tdx.stop_streaming();\n");
-            out.push_str("        if let Ok(mut guard) = self.rx.lock() {\n");
-            out.push_str("            *guard = None;\n");
-            out.push_str("        }\n");
+            out.push_str(
+                "        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());\n",
+            );
+            out.push_str("        *guard = None;\n");
             out.push_str("    }\n");
         }
         other => panic!("unsupported Python method kind: {other:?}"),
@@ -2631,44 +2605,74 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             // `fpss_event_schema.toml` via `fpss_events::ts_next_event_union_type`
             // so adding a new data variant tomorrow updates both sides.
             let union_ts = super::fpss_events::ts_next_event_union_type();
+            // Wrap in `Promise<>` because the fn is `async`. napi-rs
+            // would default-emit `Promise<FpssEvent | null>`, losing
+            // the discriminated-union narrowing we want for
+            // `switch (ev.kind)`; override preserves it.
             writeln!(
                 out,
-                "    #[napi(js_name = \"nextEvent\", ts_return_type = \"{union_ts}\")]"
+                "    #[napi(js_name = \"nextEvent\", ts_return_type = \"Promise<{union_ts}>\")]"
             )
             .unwrap();
+            // ASYNC napi fn so `recv_timeout` runs on a tokio blocking
+            // worker instead of the V8 main thread. An earlier sync
+            // implementation called `rx.recv_timeout(timeout)` directly,
+            // which froze the Node event loop for up to `timeout_ms`
+            // milliseconds per call — any setTimeout / I/O callback on
+            // the JS side stalled with it. Surfacing as `async` lets
+            // Node keep servicing other work while the Rust side blocks.
+            // JS callers now `await tdx.nextEvent(...)` instead of
+            // calling it synchronously (breaking change in v7.4.0;
+            // documented in CHANGELOG).
             writeln!(
                 out,
-                "    pub fn {}(&self, {}: f64) -> napi::Result<Option<FpssEvent>> {{",
+                "    pub async fn {}(&self, {}: f64) -> napi::Result<Option<FpssEvent>> {{",
                 method.name, param.name,
             )
             .unwrap();
+            // Resolve the receiver handle in a scoped block so the outer
+            // `MutexGuard` drops BEFORE we `.await` the spawned blocking
+            // task — otherwise the guard would be held across `.await`
+            // and the compiler (correctly) refuses to make the future
+            // `Send`.
+            out.push_str("        let rx_arc = {\n");
             out.push_str(
-                "        let rx_outer = self.rx.lock().unwrap_or_else(|e| e.into_inner());\n",
+                "            let rx_outer = self.rx.lock().unwrap_or_else(|e| e.into_inner());\n",
             );
-            out.push_str("        let rx_arc = match rx_outer.as_ref() {\n");
-            out.push_str("            Some(arc) => Arc::clone(arc),\n");
-            out.push_str("            None => {\n");
-            out.push_str("                return Err(napi::Error::from_reason(\n");
+            out.push_str("            match rx_outer.as_ref() {\n");
+            out.push_str("                Some(arc) => Arc::clone(arc),\n");
+            out.push_str("                None => {\n");
+            out.push_str("                    return Err(napi::Error::from_reason(\n");
             out.push_str(
-                "                    \"streaming not started -- call startStreaming() first\",\n",
+                "                        \"streaming not started -- call startStreaming() first\",\n",
             );
-            out.push_str("                ))\n");
+            out.push_str("                    ))\n");
+            out.push_str("                }\n");
             out.push_str("            }\n");
             out.push_str("        };\n");
-            out.push_str("        drop(rx_outer);\n");
             writeln!(
                 out,
                 "        let timeout = std::time::Duration::from_millis({} as u64);",
                 param.name
             )
             .unwrap();
-            out.push_str("        let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());\n");
+            // `spawn_blocking` offloads the OS-level blocking wait to a
+            // dedicated tokio worker so the V8 main thread is free to
+            // service other JS work while we wait for the next frame.
+            out.push_str("        let result = tokio::task::spawn_blocking(move || {\n");
+            out.push_str(
+                "            let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());\n",
+            );
+            out.push_str("            rx.recv_timeout(timeout)\n");
+            out.push_str("        })\n");
+            out.push_str("        .await\n");
+            out.push_str(
+                "        .map_err(|e| napi::Error::from_reason(format!(\"blocking task join error: {e}\")))?;\n",
+            );
             // Disconnected = streaming loop dropped the sender half.
-            // Surfacing as `null` is indistinguishable from a benign
-            // timeout and spins consumer while-loops at 100% CPU on a
-            // dead socket. Surface as a napi error so `reconnect()` /
-            // `startStreaming()` is an explicit user choice.
-            out.push_str("        match rx.recv_timeout(timeout) {\n");
+            // Surface as an error, not `null`, so dead-socket consumers
+            // can reconnect explicitly.
+            out.push_str("        match result {\n");
             out.push_str("            Ok(event) => Ok(Some(buffered_event_to_typed(event))),\n");
             out.push_str(
                 "            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Ok(None),\n",
