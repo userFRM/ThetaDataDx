@@ -521,7 +521,7 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
             let json = fpss_event_to_ws_json(&event, peeked.as_ref());
             if let Some(ws_json) = json {
                 let msg: Arc<str> = Arc::from(ws_json);
-                state_for_task.broadcast_ws(msg);
+                state_for_task.broadcast_ws(msg).await;
             }
         }
     });
@@ -531,9 +531,12 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
         // the broadcast task sees the mapping before it serializes the next
         // event that references it.
         if let FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) = event {
-            if let Ok(mut map) = map_for_cb.lock() {
-                map.insert(*id, contract.clone());
-            }
+            // Recover from poisoning rather than silently dropping all
+            // future ContractAssigned events. If a previous lock-holder
+            // panicked, the map state may be partial but that is strictly
+            // less bad than losing every subsequent symbol assignment.
+            let mut map = map_for_cb.lock().unwrap_or_else(|e| e.into_inner());
+            map.insert(*id, contract.clone());
         }
 
         // Update connection status.
