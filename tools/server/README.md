@@ -66,10 +66,10 @@ Endpoint query parameters follow the registry names (`symbol`, `expiration`, `st
 ### System Routes (4)
 
 ```
-GET /v3/system/status          # {"status":"CONNECTED","version":"5.3.1"}
-GET /v3/system/mdds/status
-GET /v3/system/fpss/status     # {"status":"CONNECTED","version":"5.3.1"}
-GET /v3/system/shutdown
+GET  /v3/system/status          # {"status":"CONNECTED","version":"5.3.1"}
+GET  /v3/system/mdds/status
+GET  /v3/system/fpss/status     # {"status":"CONNECTED","version":"5.3.1"}
+POST /v3/system/shutdown        # requires X-Shutdown-Token header
 ```
 
 ### Response format

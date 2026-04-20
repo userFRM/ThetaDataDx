@@ -96,7 +96,9 @@ The WebSocket endpoint supports a single concurrent client connection. If a seco
 
 | Route | Description |
 |-------|-------------|
-| `/v3/system/status` | Combined server status |
-| `/v3/system/mdds/status` | MDDS connection status |
-| `/v3/system/fpss/status` | FPSS connection status |
-| `/v3/system/shutdown` | Graceful shutdown |
+| Method | Route | Description |
+|--------|-------|-------------|
+| `GET`  | `/v3/system/status` | Combined server status |
+| `GET`  | `/v3/system/mdds/status` | MDDS connection status |
+| `GET`  | `/v3/system/fpss/status` | FPSS connection status |
+| `POST` | `/v3/system/shutdown` | Graceful shutdown — requires `X-Shutdown-Token` header |

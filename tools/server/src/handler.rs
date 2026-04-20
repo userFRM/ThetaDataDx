@@ -191,7 +191,11 @@ pub async fn system_fpss_status(State(state): State<AppState>) -> Response {
     json_response(&body)
 }
 
-/// GET /v3/system/shutdown -- requires `X-Shutdown-Token` header.
+/// POST /v3/system/shutdown -- requires `X-Shutdown-Token` header.
+/// Changed from GET in #377 review: shutdown mutates server state, so it
+/// belongs on an idempotent non-cacheable verb. GET would be cached /
+/// prefetched / CSRF-triggered; POST requires an explicit, intentional
+/// client action.
 pub async fn system_shutdown(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let token = headers
         .get("X-Shutdown-Token")

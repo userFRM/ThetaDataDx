@@ -203,6 +203,27 @@ pub fn validate_generic(value: &str, field: &'static str) -> Result<(), Validati
     Ok(())
 }
 
+/// Length-cap an unknown query parameter — same 64-byte ceiling as
+/// `validate_generic`, but keeps the caller-supplied parameter name in the
+/// error message so operators can identify which field triggered the
+/// rejection. The struct's `field` label stays `"parameter"` (a 'static
+/// alias for unknown names); the real name appears in `message` so the
+/// HTTP 400 body reads e.g. `"'foobar' exceeds maximum length of 64 bytes
+/// (got 9001)"`.
+pub fn validate_generic_named(value: &str, param_name: &str) -> Result<(), ValidationError> {
+    if value.len() > MAX_GENERIC_LEN {
+        return Err(ValidationError {
+            field: "parameter",
+            message: format!(
+                "'{param_name}' exceeds maximum length of {MAX_GENERIC_LEN} bytes \
+                 (got {observed})",
+                observed = value.len()
+            ),
+        });
+    }
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 //  Unified entry point for REST query-param validation
 // ---------------------------------------------------------------------------
@@ -226,7 +247,7 @@ pub fn validate_query_param(name: &str, value: &str) -> Result<(), ValidationErr
         "right" => validate_right(value, static_name(name)),
         "ivl" | "interval" => validate_interval(value, static_name(name)),
         "venue" | "exchange" => validate_venue(value, static_name(name)),
-        _ => validate_generic(value, static_name(name)),
+        _ => validate_generic_named(value, name),
     }
 }
 

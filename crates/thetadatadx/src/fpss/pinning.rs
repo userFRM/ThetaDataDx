@@ -158,11 +158,19 @@ impl ServerCertVerifier for PinnedVerifier {
         // `ct_eq` returns a `subtle::Choice`; `.into()` converts to bool
         // without short-circuiting, preventing a timing side channel on
         // the prefix of the digest.
+        //
+        // SPKI mismatch is distinct from `NotValidForName` (which we
+        // reserve for hostname-allowlist rejections above) — route it
+        // through `rustls::Error::General(...)` so the error chain
+        // surfaces "SPKI pin mismatch" verbatim instead of the
+        // generic "certificate is not valid for the given name".
         let matches: bool = spki_digest.as_slice().ct_eq(&FPSS_SPKI_SHA256).into();
         if !matches {
-            return Err(RustlsError::InvalidCertificate(
-                CertificateError::NotValidForName,
-            ));
+            return Err(RustlsError::General(format!(
+                "FPSS SPKI pin mismatch: presented leaf SubjectPublicKeyInfo \
+                 did not match the expected ThetaData pin for host {hostname:?}",
+                hostname = hostname.as_ref()
+            )));
         }
 
         Ok(ServerCertVerified::assertion())

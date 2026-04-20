@@ -29,7 +29,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use axum::extract::DefaultBodyLimit;
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::Router;
 use tower::limit::ConcurrencyLimitLayer;
 use tower_governor::governor::GovernorConfigBuilder;
@@ -60,13 +60,16 @@ const GENERAL_BURST_SIZE: u32 = 40;
 
 /// Shutdown endpoint quota: ~3 attempts per IP per hour.
 ///
-/// `per_second(3600)` replenishes one quota token every 3600 seconds = one
-/// per hour. Combined with `burst_size(3)`, a single IP can issue at most
-/// three attempts before the bucket empties and must wait an hour for
-/// each subsequent slot. UUID-v4 entropy already makes brute-force
-/// infeasible, but this pins an upper bound on guess rate regardless of
-/// token length.
-const SHUTDOWN_REPLENISH_SECS: u64 = 3600;
+/// `tower_governor::GovernorConfigBuilder::per_second(n)` treats `n` as
+/// "requests allowed per second" — passing 3600 would allow 3600 rps,
+/// which is the opposite of what we want. The crate's `period(Duration)`
+/// setter instead sets the INTERVAL between token replenishments: one
+/// token per `SHUTDOWN_REPLENISH_PERIOD`. Combined with `burst_size(3)`,
+/// a single IP can issue at most three attempts before the bucket empties
+/// and must wait one full hour for each subsequent slot. UUID-v4 entropy
+/// already makes brute-force infeasible, but this pins an upper bound on
+/// guess rate regardless of token length.
+const SHUTDOWN_REPLENISH_PERIOD: Duration = Duration::from_secs(3600);
 const SHUTDOWN_BURST_SIZE: u32 = 3;
 
 // ---------------------------------------------------------------------------
@@ -106,7 +109,7 @@ pub fn build(state: AppState) -> Router {
     let shutdown_governor = Arc::new(
         GovernorConfigBuilder::default()
             .key_extractor(SmartIpKeyExtractor)
-            .per_second(SHUTDOWN_REPLENISH_SECS)
+            .period(SHUTDOWN_REPLENISH_PERIOD)
             .burst_size(SHUTDOWN_BURST_SIZE)
             .finish()
             .expect("shutdown governor config invariants hold at build time"),
@@ -120,7 +123,7 @@ pub fn build(state: AppState) -> Router {
         .route("/v3/system/fpss/status", get(handler::system_fpss_status))
         .route(
             "/v3/system/shutdown",
-            get(handler::system_shutdown).route_layer(GovernorLayer::new(shutdown_governor)),
+            post(handler::system_shutdown).route_layer(GovernorLayer::new(shutdown_governor)),
         );
 
     // Global per-IP governor (outermost rate limit). All routes inherit
@@ -147,8 +150,12 @@ pub fn build(state: AppState) -> Router {
         }
     });
 
-    app.layer(GovernorLayer::new(global_governor))
-        .layer(ConcurrencyLimitLayer::new(GLOBAL_CONCURRENCY_LIMIT))
+    // `.layer(X).layer(Y)` in axum/tower makes Y wrap X (outer wraps inner),
+    // so the LAST `.layer(...)` call is the outermost request wrapper. We
+    // want the governor to reject rate-exceeded requests BEFORE they
+    // consume a concurrency permit or body-limit slot, so it lives last.
+    app.layer(ConcurrencyLimitLayer::new(GLOBAL_CONCURRENCY_LIMIT))
         .layer(DefaultBodyLimit::max(BODY_LIMIT_BYTES))
+        .layer(GovernorLayer::new(global_governor))
         .with_state(state)
 }

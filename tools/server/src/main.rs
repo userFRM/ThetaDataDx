@@ -121,7 +121,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     eprintln!();
     eprintln!("Shutdown token: {shutdown_token}");
     eprintln!(
-        "  curl http://{}:{}/v3/system/shutdown -H 'X-Shutdown-Token: {}'",
+        "  curl -X POST http://{}:{}/v3/system/shutdown -H 'X-Shutdown-Token: {}'",
         args.bind, args.http_port, shutdown_token
     );
 

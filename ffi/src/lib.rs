@@ -2620,8 +2620,8 @@ pub unsafe extern "C" fn tdx_unified_stop_streaming(handle: *const TdxUnified) {
 /// Cumulative count of FPSS events dropped on this unified handle because
 /// the FFI receiver was gone before the callback could deliver the event.
 ///
-/// Survives `tdx_unified_reconnect_streaming()` (the counter Arc is cloned
-/// into every callback). Returns 0 if the handle is null.
+/// Survives `tdx_unified_reconnect()` (the counter `Arc` is cloned into
+/// every callback). Returns 0 if the handle is null.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_unified_dropped_events(handle: *const TdxUnified) -> u64 {
     if handle.is_null() {
