@@ -706,19 +706,16 @@ fn render_python_tick_arrow(schema: &Schema) -> String {
         "use arrow::array::{ArrayRef, Float64Array, Int32Array, Int64Array, StringArray};\n",
     );
     out.push_str("use arrow::datatypes::{DataType, Field, Schema};\n");
-    out.push_str("use arrow::error::ArrowError;\n");
     out.push_str("use arrow::pyarrow::IntoPyArrow;\n");
     out.push_str("use arrow::record_batch::RecordBatch;\n\n");
 
-    // Per-type fast path (Rust slice -> RecordBatch).
-    for type_name in sorted_type_names(schema) {
-        if !PYTHON_TICK_ARROW_DIRECT_TYPES.contains(&type_name) {
-            continue;
-        }
-        let def = &schema.types[type_name];
-        out.push_str(&render_python_tick_arrow_batch_fn(type_name, def));
-        out.push('\n');
-    }
+    // Per-type fast-path `*_ticks_to_arrow_batch(&[tick::T])` helpers
+    // are intentionally NOT emitted — they were called only from the
+    // `stock_history_*_df` convenience wrappers in `lib.rs`, which were
+    // removed for SSOT purity. The sole public DataFrame path goes
+    // through `pyclass_list_to_arrow_table` (trait-driven, one surface
+    // covering every tick type) + the public `to_dataframe` / `to_polars`
+    // / `to_arrow` adapters.
 
     // Schema map + pyclass dispatcher (one surface covering every tick type).
     out.push_str(&render_python_arrow_schema_map(schema));
