@@ -54,10 +54,17 @@ include!("fpss_event_classes.rs");
 // ── Buffered FPSS events ──
 
 /// A buffered FPSS event for Node.js consumption.
-#[derive(Clone, Debug, serde::Serialize)]
-#[serde(tag = "kind")]
+///
+/// Intermediate form between the Rust FPSS callback and the typed
+/// `FpssEvent` struct emitted through napi. Not serialized — the
+/// `buffered_event_to_typed` dispatcher converts it into the napi
+/// struct directly. Earlier revisions had `#[derive(serde::Serialize)]`
+/// + `#[serde(tag = "kind")]` + `#[serde(rename = "...")]` here, but
+/// nothing ever went through serde; the attrs were dead weight and
+/// invited drift between the serde `kind` tag and the napi typed
+/// `kind` discriminator.
+#[derive(Clone, Debug)]
 enum BufferedEvent {
-    #[serde(rename = "quote")]
     Quote {
         contract_id: i32,
         ms_of_day: i32,
@@ -72,7 +79,6 @@ enum BufferedEvent {
         date: i32,
         received_at_ns: u64,
     },
-    #[serde(rename = "trade")]
     Trade {
         contract_id: i32,
         ms_of_day: i32,
@@ -92,7 +98,6 @@ enum BufferedEvent {
         date: i32,
         received_at_ns: u64,
     },
-    #[serde(rename = "open_interest")]
     OpenInterest {
         contract_id: i32,
         ms_of_day: i32,
@@ -100,7 +105,6 @@ enum BufferedEvent {
         date: i32,
         received_at_ns: u64,
     },
-    #[serde(rename = "ohlcvc")]
     Ohlcvc {
         contract_id: i32,
         ms_of_day: i32,
@@ -113,9 +117,7 @@ enum BufferedEvent {
         date: i32,
         received_at_ns: u64,
     },
-    #[serde(rename = "raw_data")]
     RawData { code: u8, payload: Vec<u8> },
-    #[serde(rename = "simple")]
     Simple {
         event_type: String,
         detail: Option<String>,
