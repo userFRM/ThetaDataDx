@@ -394,8 +394,11 @@ pub fn option_contracts_to_json(contracts: &[OptionContract]) -> Vec<sonic_rs::V
 ///
 /// Returns `None` if the response is empty or contains unsupported row shapes.
 ///
-/// Object rows are emitted with one column per key using the first row's key
-/// order. Scalar rows are emitted as a single-column CSV with the `value`
+/// Object rows are emitted with one column per key. Headers are the union
+/// of keys across every row in lexicographic (sorted) order, so sparse
+/// rows (e.g. index ticks without `expiration` / `strike` / `right`
+/// mixed with option ticks that have them) never silently drop columns.
+/// Scalar rows are emitted as a single-column CSV with the `value`
 /// header so list endpoints can round-trip through `format=csv`.
 pub fn json_to_csv(response: &[sonic_rs::Value]) -> Option<String> {
     let first = response.first()?;
