@@ -304,16 +304,13 @@ dict-of-lists path). Requires `pip install thetadatadx[pandas]`.
 Convert to a polars DataFrame via `polars.from_arrow` -- zero-copy
 at the Arrow boundary. Requires `pip install thetadatadx[polars]`.
 
-### `_df` method variants
-Shortcut wrappers for the most common historical endpoints — they
-call the typed endpoint under the hood and return a pandas
-DataFrame directly (via the Rust-tick-slice fast path, strictly
-faster than `to_dataframe(ticks)` because no Python-list walk is
-needed). Available for:
-`stock_history_eod_df()`, `stock_history_ohlc_df()`,
-`stock_history_trade_df()`, `stock_history_quote_df()`. For any
-other endpoint, call it directly and pipe the result through
-`to_dataframe(ticks)` / `to_polars(ticks)` / `to_arrow(ticks)`.
+### Unified DataFrame path
+No per-endpoint `_df` / `_arrow` / `_polars` convenience wrappers.
+Every historical endpoint returns `list[TickClass]`; chain
+`to_dataframe(ticks)` / `to_polars(ticks)` / `to_arrow(ticks)` for
+the Arrow-backed conversion. One code path, one schema, one place
+to audit. See the "DataFrame Conversion (Arrow-Backed)" section
+below for the recipe.
 
 ### `all_greeks(spot, strike, rate, div_yield, tte, option_price, right)`
 `right` accepts `"C"`/`"P"` or `"call"`/`"put"` case-insensitively. Returns dict with 22 Greeks: delta, gamma, theta, vega, rho, iv, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda.
@@ -377,6 +374,10 @@ from thetadatadx import (
 
 creds = Credentials.from_file("creds.txt")
 tdx = ThetaDataDx(creds, Config.production())
+
+# One typed path: historical endpoints return `list[TickClass]`,
+# then chain the Arrow-backed adapter for pandas / polars / raw Arrow.
+
 eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
 
 # Pandas -- zero-copy numeric columns on pandas 2.x
@@ -388,11 +389,12 @@ pdf = to_polars(eod)
 # Raw Arrow -- plug straight into DuckDB / Arrow-Flight / cuDF
 table = to_arrow(eod)
 
-# Shortcut wrappers for the hot-path historical endpoints
-df = tdx.stock_history_eod_df("AAPL", "20240101", "20240301")
-df = tdx.stock_history_ohlc_df("AAPL", "20240315", "1m")
-df = tdx.stock_history_trade_df("AAPL", "20240315")
-df = tdx.stock_history_quote_df("AAPL", "20240315", "1m")
+# Same recipe for any of the 44 tick-returning historical endpoints:
+ohlc = tdx.stock_history_ohlc("AAPL", "20240315", "1m")
+df   = to_dataframe(ohlc)
+
+trd  = tdx.option_history_trade("SPY", "20240620", "550", "C", "20240315")
+df   = to_dataframe(trd)
 ```
 
 See the Arrow project docs for the [C Data

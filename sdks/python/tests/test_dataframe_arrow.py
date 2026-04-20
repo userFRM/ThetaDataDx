@@ -3,12 +3,12 @@ Arrow columnar DataFrame adapter -- correctness + schema-preservation tests.
 
 These tests exercise the `to_arrow` / `to_dataframe` / `to_polars` public
 entry points end-to-end, plus the fast-path `*_to_arrow_batch` Rust
-helpers indirectly via the `_df` convenience wrappers on `ThetaDataDx`.
+helpers indirectly via the `to_dataframe(ticks)` / `to_arrow(ticks)` / `to_polars(ticks)` adapters.
 
 What this suite covers:
 
 1. Schema preservation on empty input (non-empty qualname hint via the
-   `_df` fast path; empty list + no hint for the public `to_arrow`).
+   non-empty tick list through `to_dataframe`; empty list + no hint for the public `to_arrow`).
 2. Round-trip correctness for EodTick / OhlcTick / TradeTick / QuoteTick
    -- values constructed in Python, checked after passing through
    `to_arrow` / `to_dataframe` / `to_polars`.

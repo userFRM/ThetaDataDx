@@ -311,87 +311,12 @@ impl ThetaDataDx {
         })
     }
 
-    // ── DataFrame helper ──
-    //
-    // Intentional exception: hand-written convenience methods wrapping generated
-    // endpoints + the Arrow columnar pipeline. Only the most common endpoints
-    // get `_df` variants; users can call `to_dataframe()` on any endpoint result
-    // themselves. Not generated because emitting `_df` for all 44 tick-returning
-    // endpoints would be API noise with no SSOT benefit.
-    //
-    // The `_df` path is strictly faster than the public `to_dataframe(ticks)`
-    // path because it goes Rust-tick-slice -> Arrow -> pandas directly; the
-    // public entry point has to walk a Python list of pyclass instances to
-    // extract the column values first.
-
-    /// Fetch stock EOD history and return a pandas DataFrame.
-    fn stock_history_eod_df(
-        &self,
-        py: Python<'_>,
-        symbol: &str,
-        start_date: &str,
-        end_date: &str,
-    ) -> PyResult<Py<PyAny>> {
-        let ticks = run_blocking(py, async move {
-            self.tdx
-                .stock_history_eod(symbol, start_date, end_date)
-                .await
-        })?;
-        let batch = eod_ticks_to_arrow_batch(&ticks)
-            .map_err(|e| PyRuntimeError::new_err(format!("arrow build: {e}")))?;
-        let table = record_batch_to_pyarrow_table(py, batch)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Fetch stock OHLC history and return a pandas DataFrame.
-    fn stock_history_ohlc_df(
-        &self,
-        py: Python<'_>,
-        symbol: &str,
-        date: &str,
-        interval: &str,
-    ) -> PyResult<Py<PyAny>> {
-        let ticks = run_blocking(py, async move {
-            self.tdx.stock_history_ohlc(symbol, date, interval).await
-        })?;
-        let batch = ohlc_ticks_to_arrow_batch(&ticks)
-            .map_err(|e| PyRuntimeError::new_err(format!("arrow build: {e}")))?;
-        let table = record_batch_to_pyarrow_table(py, batch)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Fetch stock trade history and return a pandas DataFrame.
-    fn stock_history_trade_df(
-        &self,
-        py: Python<'_>,
-        symbol: &str,
-        date: &str,
-    ) -> PyResult<Py<PyAny>> {
-        let ticks = run_blocking(py, async move {
-            self.tdx.stock_history_trade(symbol, date).await
-        })?;
-        let batch = trade_ticks_to_arrow_batch(&ticks)
-            .map_err(|e| PyRuntimeError::new_err(format!("arrow build: {e}")))?;
-        let table = record_batch_to_pyarrow_table(py, batch)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Fetch stock quote history and return a pandas DataFrame.
-    fn stock_history_quote_df(
-        &self,
-        py: Python<'_>,
-        symbol: &str,
-        date: &str,
-        interval: &str,
-    ) -> PyResult<Py<PyAny>> {
-        let ticks = run_blocking(py, async move {
-            self.tdx.stock_history_quote(symbol, date, interval).await
-        })?;
-        let batch = quote_ticks_to_arrow_batch(&ticks)
-            .map_err(|e| PyRuntimeError::new_err(format!("arrow build: {e}")))?;
-        let table = record_batch_to_pyarrow_table(py, batch)?;
-        pyarrow_table_to_pandas(py, table)
-    }
+    // No per-endpoint `_df` / `_arrow` / `_polars` convenience wrappers.
+    // Every historical endpoint returns `list[TickClass]`; chain
+    // `thetadatadx.to_dataframe(ticks)` / `.to_polars(ticks)` /
+    // `.to_arrow(ticks)` for the Arrow-backed conversion. One code
+    // path, one SSOT, one place to audit. See `sdks/python/README.md`
+    // "Historical endpoints → DataFrames" for the usage recipe.
 
     fn __repr__(&self) -> String {
         let streaming = if self.tdx.is_streaming() {

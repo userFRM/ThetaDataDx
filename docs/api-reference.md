@@ -695,7 +695,7 @@ All 61 endpoints are exposed through the `thetadatadx-ffi` C ABI crate. Each met
 
 ### Python SDK Coverage
 
-All 61 endpoints are available in the Python SDK via PyO3 bindings (e.g., `tdx.stock_history_eod(...)`). Streaming is available via `tdx.start_streaming()` / `tdx.next_event()`. DataFrame conversion runs through an Apache Arrow columnar pipeline (zero-copy to pyarrow via the Arrow C Data Interface); `to_dataframe()` → pandas, `to_polars()` → polars, `to_arrow()` → `pyarrow.Table`. `_df` convenience wrappers exist for the hot-path historical endpoints. Requires `pip install thetadatadx[pandas]` / `[polars]` / `[arrow]`.
+All 61 endpoints are available in the Python SDK via PyO3 bindings (e.g., `tdx.stock_history_eod(...)`). Streaming is available via `tdx.start_streaming()` / `tdx.next_event()`. DataFrame conversion runs through an Apache Arrow columnar pipeline (zero-copy to pyarrow via the Arrow C Data Interface); `to_dataframe(ticks)` → pandas, `to_polars(ticks)` → polars, `to_arrow(ticks)` → `pyarrow.Table`. No per-endpoint `_df` wrappers — one unified typed path. Requires `pip install thetadatadx[pandas]` / `[polars]` / `[arrow]`.
 
 ### TypeScript/Node.js SDK Coverage
 
@@ -744,7 +744,7 @@ table  = to_arrow(eod)        # pyarrow.Table for DuckDB / Arrow-Flight / cuDF
 # Shortcut wrappers for the hot-path historical endpoints go
 # straight through the Rust-tick-slice fast path (no pyclass-list
 # walk):
-df = tdx.stock_history_eod_df("AAPL", "20240101", "20240301")
+df = to_dataframe(tdx.stock_history_eod("AAPL", "20240101", "20240301"))
 ```
 
 Install:

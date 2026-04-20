@@ -2839,10 +2839,10 @@ path that this replaces).
 **Shortcut wrappers** for the four hot-path historical endpoints:
 
 ```python
-df = tdx.stock_history_eod_df("AAPL", "20240101", "20240301")
-df = tdx.stock_history_ohlc_df("AAPL", "20240315", "60000")
-df = tdx.stock_history_trade_df("AAPL", "20240315")
-df = tdx.stock_history_quote_df("AAPL", "20240315", "60000")
+df = to_dataframe(tdx.stock_history_eod("AAPL", "20240101", "20240301"))
+df = to_dataframe(tdx.stock_history_ohlc("AAPL", "20240315", "60000"))
+df = to_dataframe(tdx.stock_history_trade("AAPL", "20240315"))
+df = to_dataframe(tdx.stock_history_quote("AAPL", "20240315", "60000"))
 ```
 
 These go through the Rust-tick-slice fast path (no pyclass-list
@@ -2899,5 +2899,5 @@ pandas/polars dep).
 
 Empty-list behaviour:
 - `to_arrow([])` returns a zero-column `pyarrow.Table`.
-- The `*_df` shortcut wrappers return an empty DataFrame with
+- The `to_dataframe` / `to_polars` / `to_arrow` adapters return an empty DataFrame with
   the typed schema (column names + Arrow dtypes) populated.

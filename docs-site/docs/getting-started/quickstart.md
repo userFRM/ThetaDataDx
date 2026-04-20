@@ -197,8 +197,8 @@ df = to_dataframe(eod)
 print(df.head())
 
 # Option 2: _df convenience methods
-df = client.stock_history_eod_df("AAPL", "20240101", "20240301")
-df = client.stock_history_ohlc_df("AAPL", "20240315", "60000")
+df = to_dataframe(client.stock_history_eod("AAPL", "20240101", "20240301"))
+df = to_dataframe(client.stock_history_ohlc("AAPL", "20240315", "60000"))
 ```
 
 Requires `pip install thetadatadx[pandas]`.
