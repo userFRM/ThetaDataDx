@@ -92,6 +92,29 @@ The WebSocket server at `/v1/events` replicates the Java terminal's streaming pr
 The WebSocket endpoint supports a single concurrent client connection. If a second client connects, the first connection will be dropped. For multi-client setups, run multiple server instances on different ports.
 :::
 
+## Security Hardening
+
+The REST and WebSocket routers share the same defence-in-depth stack
+(see `tools/server/src/router.rs::build()` and
+`tools/server/src/ws.rs::router()`):
+
+- **`POST /v3/system/shutdown` requires an `X-Shutdown-Token` header.** The token is generated as a fresh random UUID at server startup and printed once to stderr; the only way to learn it is to capture the startup log. There is no environment variable and no CLI flag for setting the token externally. Requests missing or mismatching the header get `401 Unauthorized`. Comparison uses `subtle::ConstantTimeEq` so the response latency doesn't leak prefix bytes. A route-scoped per-IP limiter caps attempts at roughly 3 per hour per IP.
+- **Global per-IP rate limit** via `tower_governor::GovernorLayer` keyed on `PeerIpKeyExtractor` (the socket peer IP, NOT `X-Forwarded-For`): 20 requests per second with a burst of 40. Excess traffic is rejected with `429 Too Many Requests`.
+- **256 max concurrent in-flight requests** enforced by `tower::limit::ConcurrencyLimitLayer::new(256)`.
+- **64 KiB request-body limit** on every route via `axum::extract::DefaultBodyLimit::max(64 * 1024)`.
+- **32 query-parameter cap** enforced by the custom `BoundedQuery<N>` extractor, which counts `&`-delimited pairs on the raw query string BEFORE `serde_urlencoded` allocates the HashMap. Attack shape: `?a=1&b=2&...` with thousands of unique keys — rejected during parse, HashMap never grows past the cap.
+- **4 KiB WebSocket `Message::Text` cap** (`tools/server/src/ws.rs::WS_MAX_TEXT_BYTES`). Legitimate subscribe envelopes are under 200 bytes; larger frames are rejected before `sonic_rs::from_str` touches the buffer, closing the multi-megabyte JSON-bomb vector.
+- **Dropped-events counter** exposed through every SDK surface when the FPSS bridge's bounded per-client channel fills up:
+
+  | SDK | Accessor |
+  |-----|----------|
+  | Python | `tdx.dropped_events() -> int` |
+  | TypeScript | `tdx.droppedEvents(): bigint` |
+  | Go | `tdx.DroppedEvents() uint64` |
+  | C / C++ (FFI) | `tdx_fpss_dropped_events(handle)`, `tdx_unified_dropped_events(handle)` |
+
+  The counter increments instead of silently dropping, so slow consumers are observable without having to instrument the transport layer.
+
 ## System Routes
 
 | Route | Description |

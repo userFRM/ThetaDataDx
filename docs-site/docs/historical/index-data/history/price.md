@@ -21,7 +21,7 @@ for t in &data {
 ```python [Python]
 data = tdx.index_history_price("SPX", "20260315", "60000")
 for t in data:
-    print(f"date={t['date']} ms_of_day={t['ms_of_day']} price={t['price']:.2f}")
+    print(f"date={t.date} ms_of_day={t.ms_of_day} price={t.price:.2f}")
 ```
 ```typescript [TypeScript]
 const data = tdx.indexHistoryPrice('SPX', '20260315', '60000');

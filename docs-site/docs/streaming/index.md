@@ -41,7 +41,7 @@ If you are porting code between SDKs: anywhere a Rust, Python, or TypeScript exa
 | SDK | Model | Event Type | Details |
 |-----|-------|------------|---------|
 | **Rust** | Synchronous callback | `&FpssEvent` enum | Disruptor ring buffer dispatch. No Tokio on the hot path. |
-| **Python** | Polling | `dict` | `next_event()` returns events as Python dicts with all fields. |
+| **Python** | Polling | typed pyclass | `next_event()` returns typed `Quote` / `Trade` / `Ohlcvc` / `OpenInterest` / `Simple` / `RawData` objects. |
 | **TypeScript/Node.js** | Polling | `object` | `nextEvent()` returns events as JS objects with all fields. |
 | **Go** | Polling | `*FpssEvent` struct | `NextEvent()` returns typed Go structs. Price fields pre-decoded to `float64`. |
 | **C++** | Polling | `FpssEventPtr` | `next_event()` returns `unique_ptr<TdxFpssEvent>` (RAII). `#[repr(C)]` layout. |
@@ -126,13 +126,13 @@ while True:
     event = tdx.next_event(timeout_ms=5000)
     if event is None:
         continue
-    if event["kind"] == "quote":
-        print(f"Quote: contract={event['contract_id']} "
-              f"bid={event['bid']:.2f} ask={event['ask']:.2f}")
-    elif event["kind"] == "trade":
-        print(f"Trade: contract={event['contract_id']} "
-              f"price={event['price']:.2f} size={event['size']}")
-    elif event["kind"] == "disconnected":
+    if event.kind == "quote":
+        print(f"Quote: contract={event.contract_id} "
+              f"bid={event.bid:.2f} ask={event.ask:.2f}")
+    elif event.kind == "trade":
+        print(f"Trade: contract={event.contract_id} "
+              f"price={event.price:.2f} size={event.size}")
+    elif event.kind == "simple" and event.event_type == "disconnected":
         break
 
 tdx.stop_streaming()

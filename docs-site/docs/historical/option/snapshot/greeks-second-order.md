@@ -22,8 +22,8 @@ for t in &data {
 ```python [Python]
 data = tdx.option_snapshot_greeks_second_order("SPY", "20260417", "550", "C")
 for t in data:
-    print(f"date={t['date']} ms_of_day={t['ms_of_day']} gamma={t['gamma']:.4f} vanna={t['vanna']:.4f} "
-          f"charm={t['charm']:.4f} vomma={t['vomma']:.4f} veta={t['veta']:.4f} expiration={t['expiration']} strike={t['strike']:.2f}")
+    print(f"date={t.date} ms_of_day={t.ms_of_day} gamma={t.gamma:.4f} vanna={t.vanna:.4f} "
+          f"charm={t.charm:.4f} vomma={t.vomma:.4f} veta={t.veta:.4f} expiration={t.expiration} strike={t.strike:.2f}")
 ```
 ```typescript [TypeScript]
 const data = tdx.optionSnapshotGreeksSecondOrder('SPY', '20260417', '550', 'C');

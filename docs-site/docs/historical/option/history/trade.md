@@ -22,8 +22,8 @@ for t in &data {
 ```python [Python]
 data = tdx.option_history_trade("SPY", "20260417", "550", "C", "20260315")
 for t in data:
-    print(f"date={t['date']} ms_of_day={t['ms_of_day']} price={t['price']:.2f} "
-          f"size={t['size']} condition={t['condition']} exchange={t['exchange']}")
+    print(f"date={t.date} ms_of_day={t.ms_of_day} price={t.price:.2f} "
+          f"size={t.size} condition={t.condition} exchange={t.exchange}")
 ```
 ```typescript [TypeScript]
 const data = tdx.optionHistoryTrade('SPY', '20260417', '550', 'C', '20260315');

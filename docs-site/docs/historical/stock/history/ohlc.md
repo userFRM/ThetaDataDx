@@ -25,8 +25,8 @@ for t in &data {
 ```python [Python]
 data = tdx.stock_history_ohlc("SPY", "20260315", "60000")
 for t in data:
-    print(f"date={t['date']} ms_of_day={t['ms_of_day']} open={t['open']:.2f} high={t['high']:.2f} "
-          f"low={t['low']:.2f} close={t['close']:.2f} volume={t['volume']} count={t['count']}")
+    print(f"date={t.date} ms_of_day={t.ms_of_day} open={t.open:.2f} high={t.high:.2f} "
+          f"low={t.low:.2f} close={t.close:.2f} volume={t.volume} count={t.count}")
 ```
 ```typescript [TypeScript]
 const data = tdx.stockHistoryOhlc('SPY', '20260315', '60000');
@@ -63,8 +63,8 @@ for t in &data {
 ```python [Python]
 data = tdx.stock_history_ohlc_range("SPY", "20260101", "20260301", "300000")
 for t in data:
-    print(f"date={t['date']} ms_of_day={t['ms_of_day']} open={t['open']:.2f} high={t['high']:.2f} "
-          f"low={t['low']:.2f} close={t['close']:.2f} volume={t['volume']} count={t['count']}")
+    print(f"date={t.date} ms_of_day={t.ms_of_day} open={t.open:.2f} high={t.high:.2f} "
+          f"low={t.low:.2f} close={t.close:.2f} volume={t.volume} count={t.count}")
 ```
 ```typescript [TypeScript]
 const data = tdx.stockHistoryOhlcRange('SPY', '20260101', '20260301', '300000');
@@ -146,15 +146,15 @@ for (const auto& t : data) {
 <div class="param-desc">Bar start time (milliseconds from midnight ET)</div>
 </div>
 <div class="param">
-<div class="param-header"><code>open</code> / <code>high</code> / <code>low</code> / <code>close</code><span class="param-type">i32</span></div>
-<div class="param-desc">OHLC prices (<code>f64</code>, decoded at parse time).</div>
+<div class="param-header"><code>open</code> / <code>high</code> / <code>low</code> / <code>close</code><span class="param-type">f64</span></div>
+<div class="param-desc">OHLC prices (decoded at parse time).</div>
 </div>
 <div class="param">
-<div class="param-header"><code>volume</code><span class="param-type">i32</span></div>
+<div class="param-header"><code>volume</code><span class="param-type">i64</span></div>
 <div class="param-desc">Total volume in the bar</div>
 </div>
 <div class="param">
-<div class="param-header"><code>count</code><span class="param-type">i32</span></div>
+<div class="param-header"><code>count</code><span class="param-type">i64</span></div>
 <div class="param-desc">Number of trades in the bar</div>
 </div>
 <div class="param">

@@ -627,12 +627,12 @@ symbol = "${sym()}"
 # EOD bars (date range)
 eod = tdx.stock_history_eod(symbol, "${startDate()}", "${endDate()}")
 for tick in eod:
-    print(f"{tick['date']}: open={tick['open']} high={tick['high']} low={tick['low']} close={tick['close']} vol={tick['volume']}")
+    print(f"{tick.date}: open={tick.open} high={tick.high} low={tick.low} close={tick.close} vol={tick.volume}")
 
 # Intraday OHLC (interval: ${interval()})
 ohlc = tdx.stock_history_ohlc(symbol, "${endDate()}", "${interval()}")
 for tick in ohlc:
-    print(f"{tick['date']} ms={tick['ms_of_day']}: open={tick['open']} close={tick['close']} vol={tick['volume']}")`
+    print(f"{tick.date} ms={tick.ms_of_day}: open={tick.open} close={tick.close} vol={tick.volume}")`
 
     case 'option_chain_snapshot': return `${h}
 
@@ -805,12 +805,12 @@ right  = "${right()}"  # "C" for call, "P" for put
 ticks = tdx.option_history_greeks_all(symbol, exp, strike, right, "${singleDate()}", "${interval()}")
 for tick in ticks:
     print(
-        f"{tick['date']} ms={tick['ms_of_day']:>8}: "
-        f"iv={tick['implied_volatility']:.4f}  "
-        f"delta={tick['delta']:+.4f}  "
-        f"gamma={tick['gamma']:.6f}  "
-        f"theta={tick['theta']:+.4f}  "
-        f"vega={tick['vega']:.4f}"
+        f"{tick.date} ms={tick.ms_of_day:>8}: "
+        f"iv={tick.implied_volatility:.4f}  "
+        f"delta={tick.delta:+.4f}  "
+        f"gamma={tick.gamma:.6f}  "
+        f"theta={tick.theta:+.4f}  "
+        f"vega={tick.vega:.4f}"
     )
 
 print(f"\\nTotal ticks: {len(ticks)}")`
@@ -843,8 +843,8 @@ for trading_date in exps:
     trades = tdx.stock_history_trade(symbol, trading_date)
     for t in trades:
         # Round price to nearest $0.25 bucket
-        bucket = round(t["price"] * 4) / 4
-        price_buckets[bucket] += t["size"]
+        bucket = round(t.price * 4) / 4
+        price_buckets[bucket] += t.size
 
 # Sort and display
 sorted_profile = sorted(price_buckets.items())
@@ -898,12 +898,12 @@ while True:
     event = tdx.next_event(timeout_ms=5000)
     if event is None:
         continue
-    if event["kind"] == "contract_assigned":
-        contracts[event["id"]] = event["detail"]
-    elif event["kind"] == "quote":
-        name   = contracts.get(event.get("contract_id"), "?")
-        bid    = event["bid"]
-        ask    = event["ask"]
+    if event.kind == "simple" and event.event_type == "contract_assigned":
+        contracts[event.id] = event.detail
+    elif event.kind == "quote":
+        name   = contracts.get(event.contract_id, "?")
+        bid    = event.bid
+        ask    = event.ask
         spread = ask - bid
         mid    = (bid + ask) / 2
         print(f"\\r{name:<8}  {bid:>8.2f}  {ask:>8.2f}  {spread:>8.4f}  {mid:>8.2f}", end="", flush=True)`
@@ -926,18 +926,18 @@ while True:
     event = tdx.next_event(timeout_ms=5000)
     if event is None:
         continue
-    if event["kind"] == "contract_assigned":
-        contracts[event["id"]] = event["detail"]
-    elif event["kind"] == "trade":
-        name  = contracts.get(event.get("contract_id"), "?")
-        price = event["price"]
-        size  = event["size"]
-        ms    = event.get("ms_of_day", 0)
+    if event.kind == "simple" and event.event_type == "contract_assigned":
+        contracts[event.id] = event.detail
+    elif event.kind == "trade":
+        name  = contracts.get(event.contract_id, "?")
+        price = event.price
+        size  = event.size
+        ms    = getattr(event, "ms_of_day", 0)
         h, remainder = divmod(ms, 3600000)
         m, s_ms      = divmod(remainder, 60000)
         s            = s_ms // 1000
         time_str     = f"{h:02d}:{m:02d}:{s:02d}"
-        cond         = event.get("condition", "")
+        cond         = getattr(event, "condition", "")
         print(f"{time_str:>12}  {name:<8}  {price:>8.2f}  {size:>8,}  {cond}")`
 
     case 'option_flow_scanner': return `${h}
@@ -954,12 +954,12 @@ while True:
     event = tdx.next_event(timeout_ms=5000)
     if event is None:
         continue
-    if event["kind"] == "contract_assigned":
-        contracts[event["id"]] = event["detail"]
-    elif event["kind"] == "trade":
-        contract = contracts.get(event.get("contract_id"), "?")
-        size     = event["size"]
-        price    = event["price"]
+    if event.kind == "simple" and event.event_type == "contract_assigned":
+        contracts[event.id] = event.detail
+    elif event.kind == "trade":
+        contract = contracts.get(event.contract_id, "?")
+        size     = event.size
+        price    = event.price
 
         if size >= ${minSize()}:
             premium = price * size * 100
@@ -988,12 +988,12 @@ while True:
     event = tdx.next_event(timeout_ms=5000)
     if event is None:
         continue
-    if event["kind"] == "contract_assigned":
-        contracts[event["id"]] = event["detail"]
-    elif event["kind"] == "quote":
-        name = contracts.get(event.get("contract_id"), "?")
-        bid  = event["bid"]
-        ask  = event["ask"]
+    if event.kind == "simple" and event.event_type == "contract_assigned":
+        contracts[event.id] = event.detail
+    elif event.kind == "quote":
+        name = contracts.get(event.contract_id, "?")
+        bid  = event.bid
+        ask  = event.ask
         chain_state[name] = {"bid": bid, "ask": ask}
         # Reprint sorted by contract name
         print("\\033[H\\033[J", end="")  # clear screen
@@ -1022,15 +1022,15 @@ function genRust(): string {
     println!("EOD bars: {} records", eod.len());
     for tick in &eod {
         println!("{}: open={} high={} low={} close={} vol={}",
-            tick.date, tick.open_price(), tick.high_price(),
-            tick.low_price(), tick.close_price(), tick.volume);
+            tick.date, tick.open, tick.high,
+            tick.low, tick.close, tick.volume);
     }
 
     // Intraday OHLC (interval: ${interval()})
     let ohlc = tdx.stock_history_ohlc(symbol, "${endDate()}", "${interval()}").await?;
     for tick in &ohlc {
         println!("{} ms={}: open={} close={} vol={}",
-            tick.date, tick.ms_of_day, tick.open_price(), tick.close_price(), tick.volume);
+            tick.date, tick.ms_of_day, tick.open, tick.close, tick.volume);
     }`)
 
     case 'option_chain_snapshot': return rustMain(`    let symbol = "${sym()}";
@@ -1205,8 +1205,8 @@ function genRust(): string {
     for day in &eod {
         if let Ok(trades) = tdx.stock_history_trade(symbol, &day.date.to_string()).await {
             for t in &trades {
-                // Bucket to nearest $0.25 — use get_price() to convert raw int to f64
-                let price_f = t.get_price().to_f64();
+                // Bucket to nearest $0.25 — price is raw f64
+                let price_f = t.price;
                 let bucket = (price_f / 0.25).round() as u64;
                 *price_buckets.entry(bucket).or_insert(0) += t.size as u64;
             }
@@ -1266,10 +1266,10 @@ async fn main() -> Result<(), thetadatadx::Error> {
             FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
                 contracts_clone.lock().unwrap().insert(*id, format!("{contract}"));
             }
-            FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, price_type, .. }) => {
+            FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, .. }) => {
                 let name = contracts_clone.lock().unwrap().get(contract_id).cloned().unwrap_or_default();
-                let bid_f = tdbe::Price::new(*bid, *price_type).to_f64();
-                let ask_f = tdbe::Price::new(*ask, *price_type).to_f64();
+                let bid_f = *bid;
+                let ask_f = *ask;
                 let spread = ask_f - bid_f;
                 let mid = (bid_f + ask_f) / 2.0;
                 println!("{:<8}  {:>8.2}  {:>8.2}  {:>8.4}  {:>8.2}", name, bid_f, ask_f, spread, mid);
@@ -1311,9 +1311,9 @@ async fn main() -> Result<(), thetadatadx::Error> {
             FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
                 contracts_clone.lock().unwrap().insert(*id, format!("{contract}"));
             }
-            FpssEvent::Data(FpssData::Trade { contract_id, price, size, ms_of_day, price_type, .. }) => {
+            FpssEvent::Data(FpssData::Trade { contract_id, price, size, ms_of_day, .. }) => {
                 let name = contracts_clone.lock().unwrap().get(contract_id).cloned().unwrap_or_default();
-                let price_f = tdbe::Price::new(*price, *price_type).to_f64();
+                let price_f = *price;
                 let h = ms_of_day / 3_600_000;
                 let m = (ms_of_day % 3_600_000) / 60_000;
                 let s = (ms_of_day % 60_000) / 1_000;
@@ -1357,10 +1357,10 @@ async fn main() -> Result<(), thetadatadx::Error> {
             FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
                 contracts_clone.lock().unwrap().insert(*id, format!("{contract}"));
             }
-            FpssEvent::Data(FpssData::Trade { contract_id, price, size, price_type, .. }) => {
+            FpssEvent::Data(FpssData::Trade { contract_id, price, size, .. }) => {
                 if *size >= min_size {
                     let name = contracts_clone.lock().unwrap().get(contract_id).cloned().unwrap_or_default();
-                    let price_f = tdbe::Price::new(*price, *price_type).to_f64();
+                    let price_f = *price;
                     let premium = price_f * *size as f64 * 100.0;
                     println!("{:<35}  {:>6}  {:>8.2}  \${:>11,.0}",
                         name, size, price_f, premium);
@@ -1399,10 +1399,10 @@ async fn main() -> Result<(), thetadatadx::Error> {
             FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
                 contracts_clone.lock().unwrap().insert(*id, format!("{contract}"));
             }
-            FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, price_type, .. }) => {
+            FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, .. }) => {
                 let name = contracts_clone.lock().unwrap().get(contract_id).cloned().unwrap_or_default();
-                let bid_f = tdbe::Price::new(*bid, *price_type).to_f64();
-                let ask_f = tdbe::Price::new(*ask, *price_type).to_f64();
+                let bid_f = *bid;
+                let ask_f = *ask;
                 let spread = ask_f - bid_f;
                 let mid = (bid_f + ask_f) / 2.0;
                 println!("{:<30}  {:>8.2}  {:>8.2}  {:>8.4}  {:>8.2}",

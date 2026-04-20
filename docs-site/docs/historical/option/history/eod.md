@@ -22,8 +22,8 @@ for t in &data {
 ```python [Python]
 data = tdx.option_history_eod("SPY", "20260417", "550", "C", "20260101", "20260301")
 for t in data:
-    print(f"date={t['date']} open={t['open']:.2f} high={t['high']:.2f} low={t['low']:.2f} "
-          f"close={t['close']:.2f} volume={t['volume']} bid={t['bid']:.2f} ask={t['ask']:.2f}")
+    print(f"date={t.date} open={t.open:.2f} high={t.high:.2f} low={t.low:.2f} "
+          f"close={t.close:.2f} volume={t.volume} bid={t.bid:.2f} ask={t.ask:.2f}")
 ```
 ```typescript [TypeScript]
 const data = tdx.optionHistoryEod('SPY', '20260417', '550', 'C', '20260101', '20260301');

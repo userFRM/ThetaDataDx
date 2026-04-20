@@ -22,8 +22,8 @@ for t in &data {
 ```python [Python]
 data = tdx.index_history_eod("SPX", "20260101", "20260301")
 for t in data:
-    print(f"date={t['date']} open={t['open']:.2f} high={t['high']:.2f} "
-          f"low={t['low']:.2f} close={t['close']:.2f} volume={t['volume']}")
+    print(f"date={t.date} open={t.open:.2f} high={t.high:.2f} "
+          f"low={t.low:.2f} close={t.close:.2f} volume={t.volume}")
 ```
 ```typescript [TypeScript]
 const data = tdx.indexHistoryEod('SPX', '20260101', '20260301');

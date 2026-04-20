@@ -35,6 +35,11 @@ tower-http = { version = "0.6.8", features = ["cors"] }
 tower_governor = "0.8.0"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+# `serde_urlencoded` parses the raw query string inside the custom
+# `BoundedQuery` extractor. It's already in-tree as an axum transitive
+# dep; the direct dependency here keeps the extractor self-contained
+# and immune to future axum internals shifting.
+serde_urlencoded = "0.7.1"
 clap = { version = "4.6.1", features = ["derive"] }
 uuid = { version = "1.23.1", features = ["v4"] }
 
@@ -42,3 +47,9 @@ uuid = { version = "1.23.1", features = ["v4"] }
 # `String ==` early-exits on the first differing byte and is a timing
 # oracle for remote token-guessing attacks.
 subtle = "2.6.1"
+
+# `Zeroizing<String>` scrubs the CLI password from the process's memory
+# image as soon as it drops. Without this, `/proc/<pid>/mem` (or a core
+# dump) would retain the plaintext for the lifetime of the process even
+# after `Credentials` internally moved it into its own `Zeroizing`.
+zeroize = "1.8.2"

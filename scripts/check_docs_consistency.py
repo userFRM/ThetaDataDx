@@ -25,6 +25,14 @@ ENDPOINTS = SURFACE["endpoints"]
 TEMPLATES = SURFACE["templates"]
 ENDPOINT_NAMES = {ep["name"] for ep in ENDPOINTS}
 REST_PATHS = {ep["rest_path"].removeprefix("/v3") for ep in ENDPOINTS}
+
+# Paths exposed only by the thetadatadx-server binary (not by the upstream
+# ThetaData terminal). Allowlist these so the drift check focuses on
+# upstream-tracking endpoints. `/v3/system/shutdown` is a privileged
+# graceful-shutdown route gated by a per-startup UUID token — see
+# `tools/server/src/handler.rs::system_shutdown` and the hardening section
+# in `docs-site/docs/tools/server.md`.
+SERVER_SPECIFIC_PATHS = {"/v3/system/shutdown"}
 BUILDER_PARAMS = {
     param["name"]
     for group in SURFACE["param_groups"].values()
@@ -268,9 +276,14 @@ def check_openapi() -> None:
         match.group(1)
         for match in re.finditer(r"^  (/[A-Za-z0-9_/-]+):\s*$", text, re.MULTILINE)
     }
-    if actual_paths != REST_PATHS:
-        missing = sorted(REST_PATHS - actual_paths)
-        extra = sorted(actual_paths - REST_PATHS)
+    # Server-specific paths are expected in our OpenAPI (they document
+    # functionality the thetadatadx-server binary exposes) but are NOT in
+    # the upstream endpoint registry. Filter them out before comparing to
+    # `REST_PATHS` so the drift check only fires on real upstream drift.
+    effective_actual_paths = actual_paths - SERVER_SPECIFIC_PATHS
+    if effective_actual_paths != REST_PATHS:
+        missing = sorted(REST_PATHS - effective_actual_paths)
+        extra = sorted(effective_actual_paths - REST_PATHS)
         fail(
             "docs-site/public/thetadatadx.yaml path set drifted. "
             f"missing={missing or '[]'} extra={extra or '[]'}"

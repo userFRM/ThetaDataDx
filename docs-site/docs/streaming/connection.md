@@ -17,6 +17,10 @@ ThetaDataDx supports three FPSS server environments:
 
 All three share the same MDDS (historical) production servers -- only FPSS hosts differ.
 
+## TLS & SPKI Pinning
+
+FPSS TLS uses SPKI (Subject Public Key Info) pinning via a constant-time SHA-256 comparison against the captured ThetaData keypair. The pin survives cert renewal as long as ThetaData keeps the keypair; key rotation requires a coordinated client update. MITM attacks presenting a different certificate (even a valid CA-signed one) are rejected with `RustlsError::General("FPSS SPKI pin mismatch ...")`.
+
 ## Connect (Production)
 
 ::: code-group
@@ -245,6 +249,7 @@ ThetaDataDx uses two different concurrency models for its two data paths:
 |------|---------|-----|
 | `connect()` + all historical methods | **async** (tokio) | gRPC/tonic requires tokio for HTTP/2 multiplexing |
 | `start_streaming()` + callbacks | **sync** (OS threads) | Dedicated I/O thread + LMAX Disruptor ring buffer for lowest latency |
+| TypeScript `nextEvent()` | **Promise** (napi-rs) | Returns `Promise<FpssEvent \| null>` so Node's event loop stays unblocked during the 50ms read timeout |
 
 **What this means for your code:**
 
@@ -391,11 +396,15 @@ while True:
     if event is None:
         continue
 
-    if event["kind"] == "contract_assigned":
-        contracts[event["id"]] = event["contract"]
-    elif event["kind"] == "quote":
-        name = contracts.get(event["contract_id"], "?")
-        print(f"[QUOTE] {name}: bid={event['bid']} ask={event['ask']}")
+    # Control events flatten into `Simple` pyclass — `event.kind`
+    # is "simple" and `event.event_type` carries the concrete variant.
+    # `event.detail` holds the formatted contract string for
+    # contract_assigned; `event.id` is the contract_id.
+    if event.kind == "simple" and event.event_type == "contract_assigned":
+        contracts[event.id] = event.detail
+    elif event.kind == "quote":
+        name = contracts.get(event.contract_id, "?")
+        print(f"[QUOTE] {name}: bid={event.bid} ask={event.ask}")
 ```
 ```go [Go]
 // Look up a contract by its server-assigned ID

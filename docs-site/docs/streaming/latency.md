@@ -100,15 +100,15 @@ while True:
     event = tdx.next_event(timeout_ms=5000)
     if event is None:
         continue
-    if event["kind"] == "quote":
-        received_ns = event["received_at_ns"]
+    if event.kind == "quote":
+        received_ns = event.received_at_ns
         # received_at_ns is the Rust-side receive time.
         # The delta to time.time_ns() measures Rust-to-Python bridging
         # overhead (typically <1ms). True wire latency is best computed
         # on the Rust side using tdbe::latency::latency_ns().
         now_ns = time.time_ns()
         approx_latency_ms = (now_ns - received_ns) / 1_000_000
-        print(f"SPY {event['bid']:.2f}/{event['ask']:.2f}  "
+        print(f"SPY {event.bid:.2f}/{event.ask:.2f}  "
               f"received_at_ns={received_ns}  "
               f"since_receive={approx_latency_ms:.1f}ms")
 ```
@@ -238,11 +238,11 @@ while time.time() < deadline:
     event = tdx.next_event(timeout_ms=5000)
     if event is None:
         continue
-    if event["kind"] == "quote":
+    if event.kind == "quote":
         # Approximate: time.time_ns() - received_at_ns measures
         # Rust-to-Python overhead, not true wire latency.
         now_ns = time.time_ns()
-        lat_ns = max(0, now_ns - event["received_at_ns"])
+        lat_ns = max(0, now_ns - event.received_at_ns)
         lat_ms = lat_ns // 1_000_000
         bucket = min(lat_ms // 10, 19)
         buckets[bucket] += 1
@@ -370,4 +370,4 @@ Every `FpssData` variant includes this field:
 
 In Go: `event.Quote.ReceivedAtNs`, `event.Trade.ReceivedAtNs`, etc.
 In C++: `event->quote.received_at_ns`, `event->trade.received_at_ns`, etc.
-In Python: `event["received_at_ns"]` (integer).
+In Python: `event.received_at_ns` (integer).

@@ -966,7 +966,7 @@ let (contract, consumed) = Contract::from_bytes(&bytes)?;  // deserialize
 
 ## Tick Types
 
-All 14 tick types are `Clone + Debug` structs generated from `tick_schema.toml`. Most are also `Copy` (except `OptionContract`, which contains a `String` field). Fields are typically `i32`, `f64` for prices/Greeks/IV, and `String` for identifiers. All price fields are `f64` -- decoded during parsing. No `price_type` in the public API.
+All 13 tick types are `Clone + Debug` structs generated from `tick_schema.toml`. Most are also `Copy` (except `OptionContract`, which contains a `String` field). Fields are typically `i32`, `f64` for prices/Greeks/IV, and `String` for identifiers. All price fields are `f64` -- decoded during parsing. No `price_type` in the public API.
 
 ### Contract Identification Fields
 
@@ -1010,7 +1010,7 @@ for t in &ticks {
 
 ### TradeTick
 
-20 fields representing a single trade (16 base + 4 contract identification).
+Single trade record (base fields plus contract identification).
 
 ```rust
 pub struct TradeTick {
@@ -1052,7 +1052,7 @@ Methods:
 
 ### QuoteTick
 
-15 fields representing an NBBO quote (11 base + 4 contract identification).
+NBBO quote record (base fields plus contract identification).
 
 ```rust
 pub struct QuoteTick {
@@ -1083,8 +1083,8 @@ pub struct OhlcTick {
     pub high: f64,
     pub low: f64,
     pub close: f64,
-    pub volume: i32,
-    pub count: i32,
+    pub volume: i64,
+    pub count: i64,
     pub date: i32,
     pub expiration: i32,
     pub strike: f64,
@@ -1096,7 +1096,7 @@ Methods: `is_call()`, `is_put()`, `has_contract_id()`, plus contract ID helpers.
 
 ### EodTick
 
-22 fields - full end-of-day snapshot with OHLC + quote data (18 base + 4 contract identification).
+End-of-day snapshot with OHLC and quote data.
 
 ```rust
 pub struct EodTick {
@@ -1106,8 +1106,8 @@ pub struct EodTick {
     pub high: f64,
     pub low: f64,
     pub close: f64,
-    pub volume: i32,
-    pub count: i32,
+    pub volume: i64,
+    pub count: i64,
     pub bid_size: i32,
     pub bid_exchange: i32,
     pub bid: f64,
@@ -1140,7 +1140,7 @@ pub struct OpenInterestTick {
 
 ### TradeQuoteTick
 
-30-field combined trade + quote tick (26 base + 4 contract identification).
+Combined trade and quote tick.
 
 ```rust
 pub struct TradeQuoteTick {
@@ -1244,7 +1244,7 @@ pub struct IvTick {
 
 ### PriceTick
 
-4 fields - generic price data point.
+Generic price data point.
 
 ```rust
 pub struct PriceTick {
@@ -1258,7 +1258,7 @@ Fields are f64 directly -- no helper methods needed.
 
 ### CalendarDay
 
-5 fields - market open/close schedule.
+Market open/close schedule.
 
 ```rust
 pub struct CalendarDay {
@@ -1272,7 +1272,7 @@ pub struct CalendarDay {
 
 ### InterestRateTick
 
-3 fields - end-of-day interest rate.
+End-of-day interest rate.
 
 ```rust
 pub struct InterestRateTick {
@@ -1284,7 +1284,7 @@ pub struct InterestRateTick {
 
 ### OptionContract
 
-5 fields - option contract specification. Not `Copy` due to `String` root field.
+Option contract specification. Not `Copy` due to `String` root field.
 
 ```rust
 pub struct OptionContract {

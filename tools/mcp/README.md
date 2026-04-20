@@ -5,7 +5,7 @@ MCP (Model Context Protocol) server for [ThetaDataDx](https://github.com/userFRM
 ## Architecture
 
 ```
-LLM (Claude / Codex / Gemini / Cursor)
+LLM (Claude / Cursor / any MCP-compatible client)
     |  JSON-RPC 2.0 over stdio
     v
 thetadatadx-mcp (long-running process)

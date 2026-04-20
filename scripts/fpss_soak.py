@@ -14,10 +14,10 @@ def _require_data_event(client, *, timeout_secs: float) -> tuple[int | None, str
         event = client.next_event(timeout_ms=500)
         if event is None:
             continue
-        kind = event.get("kind", "unknown")
+        kind = event.kind
         last_kind = str(kind)
         if kind in {"quote", "trade", "open_interest", "ohlcvc"}:
-            return event.get("contract_id"), str(kind)
+            return getattr(event, "contract_id", None), str(kind)
     raise RuntimeError(f"timed out waiting for data event (last kind={last_kind})")
 
 
@@ -95,7 +95,7 @@ def main() -> int:
             event = client.next_event(timeout_ms=500)
             if event is None:
                 continue
-            if event.get("kind") in {"quote", "trade", "open_interest", "ohlcvc"}:
+            if event.kind in {"quote", "trade", "open_interest", "ohlcvc"}:
                 data_events += 1
 
         if reconnect_count < args.reconnects:

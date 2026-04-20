@@ -22,8 +22,8 @@ for t in &data {
 ```python [Python]
 data = tdx.option_snapshot_greeks_implied_volatility("SPY", "20260417", "550", "C")
 for t in data:
-    print(f"date={t['date']} ms_of_day={t['ms_of_day']} implied_volatility={t['implied_volatility']:.4f} "
-          f"iv_error={t['iv_error']:.4f} expiration={t['expiration']} strike={t['strike']:.2f}")
+    print(f"date={t.date} ms_of_day={t.ms_of_day} implied_volatility={t.implied_volatility:.4f} "
+          f"iv_error={t.iv_error:.4f} expiration={t.expiration} strike={t.strike:.2f}")
 ```
 ```typescript [TypeScript]
 const data = tdx.optionSnapshotGreeksImpliedVolatility('SPY', '20260417', '550', 'C');

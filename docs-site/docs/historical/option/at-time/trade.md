@@ -22,7 +22,7 @@ for t in &data {
 ```python [Python]
 data = tdx.option_at_time_trade("SPY", "20260417", "550", "C", "20260101", "20260301", "09:30:00.000")
 for t in data:
-    print(f"date={t['date']} ms_of_day={t['ms_of_day']} price={t['price']:.2f} size={t['size']}")
+    print(f"date={t.date} ms_of_day={t.ms_of_day} price={t.price:.2f} size={t.size}")
 ```
 ```typescript [TypeScript]
 const data = tdx.optionAtTimeTrade('SPY', '20260417', '550', 'C', '20260101', '20260301', '09:30:00.000');

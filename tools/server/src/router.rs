@@ -24,6 +24,18 @@
 //!
 //! Layer order matters: `GovernorLayer` (outer) sees the request first and
 //! rejects with 429 before `ConcurrencyLimitLayer` acquires a runtime slot.
+//!
+//! # Trust model
+//!
+//! The server is NOT deployed behind a trusted reverse proxy. It binds to
+//! `127.0.0.1` by default and accepts connections directly from local
+//! clients. The rate-limit key extractor uses the peer connect-info IP
+//! only: `X-Forwarded-For`, `X-Real-IP`, and `Forwarded` headers are
+//! **explicitly ignored**. Trusting any of them would let a malicious
+//! local process rotate a synthetic IP on every request to obtain a fresh
+//! token bucket, defeating both the general 20 rps cap and the shutdown-
+//! token guessing limit. Revisit only if a deployment introduces a
+//! validated proxy in front of this server.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -33,7 +45,7 @@ use axum::routing::{get, post};
 use axum::Router;
 use tower::limit::ConcurrencyLimitLayer;
 use tower_governor::governor::GovernorConfigBuilder;
-use tower_governor::key_extractor::SmartIpKeyExtractor;
+use tower_governor::key_extractor::PeerIpKeyExtractor;
 use tower_governor::GovernorLayer;
 
 use thetadatadx::registry::{EndpointMeta, ENDPOINTS};
@@ -87,12 +99,11 @@ pub fn build(state: AppState) -> Router {
     for ep in ENDPOINTS {
         let ep_arc: &'static EndpointMeta = ep;
         let ep_shared = Arc::new(ep_arc);
-        let handler_fn =
-            move |s: axum::extract::State<AppState>,
-                  q: axum::extract::Query<std::collections::HashMap<String, String>>| {
-                let ep = Arc::clone(&ep_shared);
-                async move { handler::generic(s, q, &ep).await }
-            };
+        let handler_fn = move |s: axum::extract::State<AppState>,
+                               q: handler::BoundedQuery<{ handler::MAX_QUERY_PARAMS }>| {
+            let ep = Arc::clone(&ep_shared);
+            async move { handler::generic(s, q, &ep).await }
+        };
         app = app.route(ep.rest_path, get(handler_fn));
         registered += 1;
         tracing::debug!(endpoint = ep.name, path = ep.rest_path, "registered route");
@@ -108,7 +119,7 @@ pub fn build(state: AppState) -> Router {
     // and not to the sibling system-status routes.
     let shutdown_governor = Arc::new(
         GovernorConfigBuilder::default()
-            .key_extractor(SmartIpKeyExtractor)
+            .key_extractor(PeerIpKeyExtractor)
             .period(SHUTDOWN_REPLENISH_PERIOD)
             .burst_size(SHUTDOWN_BURST_SIZE)
             .finish()
@@ -131,7 +142,7 @@ pub fn build(state: AppState) -> Router {
     // above.
     let global_governor = Arc::new(
         GovernorConfigBuilder::default()
-            .key_extractor(SmartIpKeyExtractor)
+            .key_extractor(PeerIpKeyExtractor)
             .per_second(GENERAL_PER_SECOND)
             .burst_size(GENERAL_BURST_SIZE)
             .finish()

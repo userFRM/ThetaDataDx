@@ -5,27 +5,50 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      patch-minor:
+        update-types: ["patch", "minor"]
 
   - package-ecosystem: "npm"
     directory: "/sdks/typescript"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      patch-minor:
+        update-types: ["patch", "minor"]
 
   - package-ecosystem: "npm"
     directory: "/docs-site"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      patch-minor:
+        update-types: ["patch", "minor"]
 
   - package-ecosystem: "pip"
     directory: "/sdks/python"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      patch-minor:
+        update-types: ["patch", "minor"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      patch-minor:
+        update-types: ["patch", "minor"]
+
+  - package-ecosystem: "gomod"
+    directory: "/sdks/go"
+    schedule:
+      interval: "weekly"
+    groups:
+      go-patch-minor:
+        update-types: ["patch", "minor"]

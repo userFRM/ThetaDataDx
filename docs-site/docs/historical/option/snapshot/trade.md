@@ -22,8 +22,8 @@ for t in &data {
 ```python [Python]
 data = tdx.option_snapshot_trade("SPY", "20260417", "550", "C")
 for t in data:
-    print(f"date={t['date']} ms_of_day={t['ms_of_day']} price={t['price']:.2f} "
-          f"size={t['size']} expiration={t['expiration']} strike={t['strike']:.2f}")
+    print(f"date={t.date} ms_of_day={t.ms_of_day} price={t.price:.2f} "
+          f"size={t.size} expiration={t.expiration} strike={t.strike:.2f}")
 ```
 ```typescript [TypeScript]
 const data = tdx.optionSnapshotTrade('SPY', '20260417', '550', 'C');

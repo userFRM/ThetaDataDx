@@ -46,7 +46,7 @@ No-JVM ThetaData Terminal - native Rust SDK for direct market data access.
 
 ```toml
 [dependencies]
-thetadatadx = "7.2"
+thetadatadx = "7.3"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
@@ -84,8 +84,8 @@ tdx = ThetaDataDx(creds, Config.production())
 
 eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
 for tick in eod:
-    print(f"{tick['date']}: O={tick['open']:.2f} H={tick['high']:.2f} "
-          f"L={tick['low']:.2f} C={tick['close']:.2f} V={tick['volume']}")
+    print(f"{tick.date}: O={tick.open:.2f} H={tick.high:.2f} "
+          f"L={tick.low:.2f} C={tick.close:.2f} V={tick.volume}")
 ```
 
 ### TypeScript / Node.js
@@ -150,7 +150,7 @@ All prices (`bid`, `ask`, `price`, `open`, `high`, `low`, `close`) are `f64` -- 
 | Streaming | 7 | Quotes, trades, OI, full-trades (per-contract or firehose) |
 | Greeks | 14 | All 22 Greeks + IV solver, individually or batched |
 
-All endpoints return fully typed data in every language. Rust, Go, and C++ return native structs; Python returns dictionaries; TypeScript/Node.js returns columnar objects with the same field names. Zero raw JSON or protobuf in the public API. See the [API Reference](docs/api-reference.md) for the complete method list.
+All endpoints return fully typed data in every language. Rust, Go, and C++ return native structs; Python returns typed pyclass lists (one per tick type); TypeScript/Node.js returns row-based `Tick[]` arrays with the same field names. Zero raw JSON or protobuf in the public API. See the [API Reference](docs/api-reference.md) for the complete method list.
 
 ## Documentation
 

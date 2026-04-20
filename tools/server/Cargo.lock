@@ -2372,6 +2372,7 @@ dependencies = [
  "clap",
  "rustls",
  "serde",
+ "serde_urlencoded",
  "sonic-rs",
  "subtle",
  "tdbe",
@@ -2383,6 +2384,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "zeroize",
 ]
 
 [[package]]

@@ -22,8 +22,8 @@ for t in &data {
 ```python [Python]
 data = tdx.index_history_ohlc("SPX", "20260101", "20260301", "60000")
 for t in data:
-    print(f"date={t['date']} ms_of_day={t['ms_of_day']} open={t['open']:.2f} "
-          f"high={t['high']:.2f} low={t['low']:.2f} close={t['close']:.2f}")
+    print(f"date={t.date} ms_of_day={t.ms_of_day} open={t.open:.2f} "
+          f"high={t.high:.2f} low={t.low:.2f} close={t.close:.2f}")
 ```
 ```typescript [TypeScript]
 const data = tdx.indexHistoryOhlc('SPX', '20260101', '20260301', '60000');

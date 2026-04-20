@@ -22,8 +22,8 @@ for t in &data {
 ```python [Python]
 data = tdx.option_snapshot_ohlc("SPY", "20260417", "550", "C")
 for t in data:
-    print(f"date={t['date']} ms_of_day={t['ms_of_day']} open={t['open']:.2f} high={t['high']:.2f} "
-          f"low={t['low']:.2f} close={t['close']:.2f} volume={t['volume']} expiration={t['expiration']} strike={t['strike']:.2f}")
+    print(f"date={t.date} ms_of_day={t.ms_of_day} open={t.open:.2f} high={t.high:.2f} "
+          f"low={t.low:.2f} close={t.close:.2f} volume={t.volume} expiration={t.expiration} strike={t.strike:.2f}")
 ```
 ```typescript [TypeScript]
 const data = tdx.optionSnapshotOhlc('SPY', '20260417', '550', 'C');

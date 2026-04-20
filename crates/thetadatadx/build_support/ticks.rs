@@ -597,11 +597,16 @@ pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
 
 fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std::error::Error>> {
     let schema = load_schema()?;
+    // `tick_columnar.rs` is intentionally NOT emitted. The previous
+    // specialized `*_ticks_to_columnar` helpers returned `Py<PyDict>`
+    // (dict-of-lists) to feed `pandas.DataFrame`. The user-mandate is
+    // typed pyclass everywhere, so the `*_df` convenience wrappers were
+    // removed in favor of the unified
+    // `thetadatadx.to_dataframe(client.stock_history_eod(...))` path
+    // backed by `pyclass_list_to_columnar` — a single thin
+    // pandas-adapter lives in `sdks/python/src/lib.rs` and is
+    // documented there.
     Ok(vec![
-        GeneratedSourceFile {
-            relative_path: "sdks/python/src/tick_columnar.rs",
-            contents: render_python_tick_columnar(&schema),
-        },
         GeneratedSourceFile {
             relative_path: "sdks/python/src/tick_classes.rs",
             contents: render_python_tick_classes(&schema),

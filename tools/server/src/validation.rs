@@ -103,6 +103,38 @@ impl std::fmt::Display for ValidationError {
 impl std::error::Error for ValidationError {}
 
 // ---------------------------------------------------------------------------
+//  Shared helpers
+// ---------------------------------------------------------------------------
+
+/// Reject any string containing ASCII / Unicode control characters.
+///
+/// Addresses two concrete attack shapes:
+///
+/// 1. **Null-byte / control-char smuggling** into downstream consumers
+///    (e.g. `Contract::stock("AAPL\0")`, OPRA symbol tables, JSON error
+///    echoes) — control characters have no legitimate place in any
+///    ThetaData query parameter.
+/// 2. **ANSI-escape injection** into server logs when the error message
+///    echoes the user-supplied value. Escape sequences in a terminal-
+///    rendered log can move the cursor, clear the screen, or spoof
+///    following lines.
+///
+/// The check runs AFTER the length cap (cheaper to reject a 1 MB payload
+/// on length than to scan it for control chars) and BEFORE the value
+/// flows into any downstream allocator or JSON builder. Legitimate
+/// ThetaData inputs are pure ASCII alphanumerics plus `.,-_*`; none of
+/// those are classified as control characters by `char::is_control`.
+pub fn ensure_no_control_chars(value: &str, field: &'static str) -> Result<(), ValidationError> {
+    if value.chars().any(|c| c.is_control()) {
+        return Err(ValidationError::invalid_content(
+            field,
+            "contains control characters",
+        ));
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 //  Field-specific validators
 // ---------------------------------------------------------------------------
 
@@ -121,6 +153,7 @@ pub fn validate_symbol(value: &str, field: &'static str) -> Result<(), Validatio
             MAX_SYMBOL_LEN,
         ));
     }
+    ensure_no_control_chars(value, field)?;
     Ok(())
 }
 
@@ -133,6 +166,7 @@ pub fn validate_symbols_list(value: &str, field: &'static str) -> Result<(), Val
             MAX_SYMBOLS_LEN,
         ));
     }
+    ensure_no_control_chars(value, field)?;
     Ok(())
 }
 
@@ -143,6 +177,7 @@ pub fn validate_date(value: &str, field: &'static str) -> Result<(), ValidationE
     if value.len() > MAX_DATE_LEN {
         return Err(ValidationError::too_long(field, value.len(), MAX_DATE_LEN));
     }
+    ensure_no_control_chars(value, field)?;
     Ok(())
 }
 
@@ -155,6 +190,7 @@ pub fn validate_strike(value: &str, field: &'static str) -> Result<(), Validatio
             MAX_STRIKE_LEN,
         ));
     }
+    ensure_no_control_chars(value, field)?;
     Ok(())
 }
 
@@ -166,6 +202,7 @@ pub fn validate_right(value: &str, field: &'static str) -> Result<(), Validation
     if value.len() > MAX_RIGHT_LEN {
         return Err(ValidationError::too_long(field, value.len(), MAX_RIGHT_LEN));
     }
+    ensure_no_control_chars(value, field)?;
     Ok(())
 }
 
@@ -178,6 +215,7 @@ pub fn validate_interval(value: &str, field: &'static str) -> Result<(), Validat
             MAX_INTERVAL_LEN,
         ));
     }
+    ensure_no_control_chars(value, field)?;
     Ok(())
 }
 
@@ -186,6 +224,7 @@ pub fn validate_venue(value: &str, field: &'static str) -> Result<(), Validation
     if value.len() > MAX_VENUE_LEN {
         return Err(ValidationError::too_long(field, value.len(), MAX_VENUE_LEN));
     }
+    ensure_no_control_chars(value, field)?;
     Ok(())
 }
 
@@ -198,18 +237,45 @@ pub fn validate_venue(value: &str, field: &'static str) -> Result<(), Validation
 /// label stays `"parameter"` (a 'static alias for unknown names); the
 /// real name appears in `message` so the HTTP 400 body reads e.g.
 /// `"'foobar' exceeds maximum length of 64 bytes (got 9001)"`.
+///
+/// The `param_name` is sanitized before being echoed back: only ASCII
+/// alphanumerics, `_`, and `-` survive. Anything else (control chars,
+/// ANSI escapes, non-ASCII) is stripped so the error body cannot carry
+/// attacker-controlled bytes into operator terminals or aggregated logs.
+/// A legitimate query-parameter name is already a C-identifier-shaped
+/// string; filtering is a no-op for valid inputs.
 pub fn validate_generic_named(value: &str, param_name: &str) -> Result<(), ValidationError> {
     if value.len() > MAX_GENERIC_LEN {
+        let safe_name: String = sanitize_param_name(param_name);
         return Err(ValidationError {
             field: "parameter",
             message: format!(
-                "'{param_name}' exceeds maximum length of {MAX_GENERIC_LEN} bytes \
+                "'{safe_name}' exceeds maximum length of {MAX_GENERIC_LEN} bytes \
                  (got {observed})",
                 observed = value.len()
             ),
         });
     }
+    // Control-char rejection on generic params. We cannot anchor the error
+    // on the untrusted `param_name`, so echo the sanitized form.
+    if value.chars().any(|c| c.is_control()) {
+        let safe_name: String = sanitize_param_name(param_name);
+        return Err(ValidationError {
+            field: "parameter",
+            message: format!("'{safe_name}' contains control characters"),
+        });
+    }
     Ok(())
+}
+
+/// Filter a caller-supplied query-parameter name down to a safe set before
+/// echoing it in an error message. Used by `validate_generic_named` to
+/// neutralize ANSI / control sequences in attacker-controlled keys.
+fn sanitize_param_name(param_name: &str) -> String {
+    param_name
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -352,5 +418,115 @@ mod tests {
             EndpointError::InvalidParams(m) => assert_eq!(m, "bad root"),
             other => panic!("unexpected error variant: {other:?}"),
         }
+    }
+
+    // -----------------------------------------------------------------------
+    //  H1 — control-character rejection on every typed validator
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn symbol_rejects_null_byte() {
+        // `AAPL\0` is 5 bytes and passes the length cap; only the control-
+        // char check can catch the null-byte smuggling path into Contract.
+        let err =
+            validate_symbol("AAPL\0", "root").expect_err("symbol containing NUL must be rejected");
+        assert!(err.message.contains("control"));
+    }
+
+    #[test]
+    fn symbol_rejects_ansi_escape() {
+        let err = validate_symbol("A\x1b[31m", "root").expect_err("ANSI escape must be rejected");
+        assert!(err.message.contains("control"));
+    }
+
+    #[test]
+    fn symbols_list_rejects_control_char() {
+        assert!(validate_symbols_list("AAPL,MSFT\n,TSLA", "roots").is_err());
+    }
+
+    #[test]
+    fn date_rejects_control_char() {
+        assert!(validate_date("2026\r\n01", "date").is_err());
+    }
+
+    #[test]
+    fn strike_rejects_control_char() {
+        assert!(validate_strike("123\x01", "strike").is_err());
+    }
+
+    #[test]
+    fn right_rejects_control_char() {
+        assert!(validate_right("C\x7f", "right").is_err());
+    }
+
+    #[test]
+    fn interval_rejects_control_char() {
+        assert!(validate_interval("1m\x0b", "ivl").is_err());
+    }
+
+    #[test]
+    fn venue_rejects_control_char() {
+        assert!(validate_venue("OPRA\t", "venue").is_err());
+    }
+
+    #[test]
+    fn generic_rejects_control_char() {
+        let err = validate_generic_named("ok\x00payload", "foo").expect_err("NUL must be rejected");
+        assert!(err.message.contains("control"));
+    }
+
+    // -----------------------------------------------------------------------
+    //  M1 — echoed parameter name is sanitized
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn generic_sanitizes_param_name_on_length_error() {
+        let big = "x".repeat(MAX_GENERIC_LEN + 1);
+        // `\x1b` (ESC), `\n`, `[`, `]`, `;` are all non-allowed characters
+        // for param names: the filter strips anything that isn't ASCII
+        // alphanumeric / `_` / `-`. The legitimate 'name' bytes that remain
+        // are kept so operators can still identify the field.
+        let attacker_key = "bad\x1b\nname;DROP";
+        let err = validate_generic_named(&big, attacker_key).unwrap_err();
+        // Control chars, ANSI escape byte, newline, semicolons must not
+        // survive the echo.
+        assert!(
+            !err.message.contains('\x1b'),
+            "ANSI escape leaked: {}",
+            err.message
+        );
+        assert!(
+            !err.message.contains('\n'),
+            "newline leaked: {}",
+            err.message
+        );
+        assert!(
+            !err.message.contains(';'),
+            "semicolon leaked: {}",
+            err.message
+        );
+        // Legitimate prefix / suffix survive: 'badnameDROP' (contiguous
+        // after stripping the disallowed bytes in between).
+        assert!(
+            err.message.contains("badnameDROP"),
+            "sanitized name missing: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn generic_sanitizes_param_name_on_control_char_error() {
+        let attacker_key = "\x1b[2J\x1b[H../etc";
+        let err = validate_generic_named("ok\x00bad", attacker_key).unwrap_err();
+        assert!(!err.message.contains('\x1b'));
+        assert!(!err.message.contains('/'));
+        assert!(!err.message.contains('.'));
+    }
+
+    #[test]
+    fn sanitize_param_name_preserves_legitimate_names() {
+        assert_eq!(sanitize_param_name("my_param"), "my_param");
+        assert_eq!(sanitize_param_name("my-param-2"), "my-param-2");
+        assert_eq!(sanitize_param_name("MIXED_case123"), "MIXED_case123");
     }
 }

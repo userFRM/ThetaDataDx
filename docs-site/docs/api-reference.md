@@ -2392,7 +2392,7 @@ tdx.unsubscribe_open_interest(&Contract::stock("AAPL"))?;
 # Not exposed in Python - use stop_streaming()
 ```
 ```typescript [TypeScript]
-# Not exposed in Python - use stop_streaming()
+// Not exposed in TypeScript - use tdx.stopStreaming()
 ```
 ```go [Go]
 fpss.UnsubscribeQuotes("AAPL")
@@ -2423,8 +2423,10 @@ if event:
     print(event)
 ```
 ```typescript [TypeScript]
-event = tdx.next_event(timeout_ms=5000)  # returns dict or None
-if event:
+const event = await tdx.nextEvent(5000);  // Promise<FpssEvent | null>
+if (event) {
+    console.log(event);
+}
 ```
 ```go [Go]
 event, err := fpss.NextEvent(5000)  // returns *FpssEvent or nil
@@ -2605,8 +2607,8 @@ An aggregated OHLC bar.
 |-------|------|-------------|
 | `ms_of_day` | i32 | Bar start time (ms from midnight ET) |
 | `open` / `high` / `low` / `close` | f64 | OHLC prices (decoded) |
-| `volume` | i32 | Total volume in bar |
-| `count` | i32 | Number of trades in bar |
+| `volume` | i64 | Total volume in bar |
+| `count` | i64 | Number of trades in bar |
 | `date` | i32 | Date as YYYYMMDD integer |
 | `expiration` / `strike` / `right` | i32/f64/i32 (Go: `right` is string) | Contract ID (wildcard queries) |
 
@@ -2620,8 +2622,8 @@ Full end-of-day snapshot with OHLC + closing quote data.
 |-------|------|-------------|
 | `ms_of_day` / `ms_of_day2` | i32 | Timestamps |
 | `open` / `high` / `low` / `close` | f64 | OHLC prices (decoded) |
-| `volume` | i32 | Total daily volume |
-| `count` | i32 | Total trade count |
+| `volume` | i64 | Total daily volume |
+| `count` | i64 | Total trade count |
 | `bid_size` / `ask_size` | i32 | Closing quote sizes |
 | `bid_exchange` / `ask_exchange` | i32 | Closing quote exchanges |
 | `bid` / `ask` | f64 | Closing bid/ask (decoded) |

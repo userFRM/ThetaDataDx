@@ -22,8 +22,8 @@ for t in &data {
 ```python [Python]
 data = tdx.index_snapshot_ohlc(["SPX", "VIX"])
 for t in data:
-    print(f"date={t['date']} ms_of_day={t['ms_of_day']} open={t['open']:.2f} "
-          f"high={t['high']:.2f} low={t['low']:.2f} close={t['close']:.2f} volume={t['volume']}")
+    print(f"date={t.date} ms_of_day={t.ms_of_day} open={t.open:.2f} "
+          f"high={t.high:.2f} low={t.low:.2f} close={t.close:.2f} volume={t.volume}")
 ```
 ```typescript [TypeScript]
 const data = tdx.indexSnapshotOhlc(['SPX', 'VIX']);

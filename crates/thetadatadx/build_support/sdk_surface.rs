@@ -881,6 +881,18 @@ fn render_python_streaming_methods(methods: &[&MethodSpec]) -> String {
 fn render_python_utility_functions(utilities: &[&UtilitySpec]) -> String {
     let mut out = String::new();
     out.push_str(generated_header());
+
+    // Emit the AllGreeks pyclass wrapper BEFORE any `#[pyfunction]` that
+    // returns it. Mirrors the typed-pyclass policy applied to every other
+    // Python return path — no PyDict leaks into the public Python surface.
+    let has_all_greeks = utilities
+        .iter()
+        .any(|u| matches!(u.kind, UtilityKind::AllGreeks));
+    if has_all_greeks {
+        out.push_str(&render_all_greeks_pyclass());
+        out.push('\n');
+    }
+
     for utility in utilities {
         out.push_str(&python_utility_function(utility));
         out.push('\n');
@@ -888,6 +900,9 @@ fn render_python_utility_functions(utilities: &[&UtilitySpec]) -> String {
     out.push_str(
         "fn register_generated_utility_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {\n",
     );
+    if has_all_greeks {
+        out.push_str("    m.add_class::<AllGreeks>()?;\n");
+    }
     for utility in utilities {
         writeln!(
             out,
@@ -897,6 +912,39 @@ fn render_python_utility_functions(utilities: &[&UtilitySpec]) -> String {
         .unwrap();
     }
     out.push_str("    Ok(())\n");
+    out.push_str("}\n");
+    out
+}
+
+/// Emit a typed `AllGreeks` pyclass so `all_greeks(...)` returns a
+/// frozen, attribute-accessible value instead of a `PyDict`. Fields
+/// mirror `tdbe::greeks::GreeksResult` 1:1 via `greek_result_fields()`.
+fn render_all_greeks_pyclass() -> String {
+    let mut out = String::new();
+    out.push_str(
+        "/// All 22 Black-Scholes Greeks + IV in a single frozen typed\n\
+         /// pyclass. Mirrors `tdbe::greeks::GreeksResult`; replaces the\n\
+         /// earlier `PyDict`-returning path for cross-SDK parity.\n",
+    );
+    out.push_str("#[must_use]\n");
+    out.push_str("#[pyclass(module = \"thetadatadx\", frozen, skip_from_py_object)]\n");
+    out.push_str("#[derive(Clone, Debug)]\n");
+    out.push_str("pub(crate) struct AllGreeks {\n");
+    for (field, _rust_field) in greek_result_fields() {
+        writeln!(out, "    #[pyo3(get)]").unwrap();
+        writeln!(out, "    pub {field}: f64,").unwrap();
+    }
+    out.push_str("}\n\n");
+    out.push_str("#[pymethods]\n");
+    out.push_str("impl AllGreeks {\n");
+    out.push_str("    fn __repr__(&self) -> String {\n");
+    out.push_str(
+        "        format!(\n\
+             \"AllGreeks(value={}, iv={}, delta={}, gamma={}, theta={}, vega={})\",\n\
+             self.value, self.iv, self.delta, self.gamma, self.theta, self.vega\n\
+         )\n",
+    );
+    out.push_str("    }\n");
     out.push_str("}\n");
     out
 }
@@ -1325,7 +1373,6 @@ fn python_utility_function(utility: &UtilitySpec) -> String {
     match utility.kind {
         UtilityKind::AllGreeks => {
             writeln!(out, "fn {}(", utility.name).unwrap();
-            out.push_str("    py: Python<'_>,\n");
             for param in &utility.params {
                 writeln!(
                     out,
@@ -1335,7 +1382,7 @@ fn python_utility_function(utility: &UtilitySpec) -> String {
                 )
                 .unwrap();
             }
-            out.push_str(") -> Py<PyAny> {\n");
+            out.push_str(") -> AllGreeks {\n");
             writeln!(
                 out,
                 "    let g = tdbe::greeks::all_greeks({});",
@@ -1347,17 +1394,11 @@ fn python_utility_function(utility: &UtilitySpec) -> String {
                     .join(", ")
             )
             .unwrap();
-            out.push_str("    let dict = PyDict::new(py);\n");
-            out.push_str("    // PyO3: set_item is infallible for primitive types\n");
+            out.push_str("    AllGreeks {\n");
             for (field, rust_field) in greek_result_fields() {
-                writeln!(
-                    out,
-                    "    dict.set_item({}, g.{rust_field}).unwrap();",
-                    rust_string_literal(field)
-                )
-                .unwrap();
+                writeln!(out, "        {field}: g.{rust_field},").unwrap();
             }
-            out.push_str("    dict.into_any().unbind()\n");
+            out.push_str("    }\n");
             out.push_str("}\n");
         }
         UtilityKind::ImpliedVolatility => {

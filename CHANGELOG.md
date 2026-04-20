@@ -554,7 +554,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 ### Added
 
 - **Fully typed returns for all 61 endpoints** - 9 new tick types (`TradeQuoteTick`, `OpenInterestTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`). All 31 endpoints that returned raw `proto::DataTable` now return typed `Vec<T>`. The `raw_endpoint!` macro has been removed entirely. Zero raw protobuf in the public API.
-- **TOML-driven codegen** - `tick_schema.toml` is the single source of truth for all 14 tick type definitions and DataTable column schemas. `build.rs` generates Rust structs and parsers at compile time. Adding a new column = one line in the TOML.
+- **TOML-driven codegen** - `tick_schema.toml` is the single source of truth for all tick type definitions and DataTable column schemas. `build.rs` generates Rust structs and parsers at compile time. Adding a new column = one line in the TOML.
 - **Proto maintenance guide** (`proto/MAINTENANCE.md`) - step-by-step instructions for ThetaData engineers to add columns, RPCs, or replace proto files.
 - 10 new parse functions in `decode.rs` (including `parse_eod_ticks` moved from inline in `direct.rs`)
 - All downstream consumers updated: FFI (9 new JSON converters), CLI (9 new renderers), Server (9 new sonic_rs serializers), MCP (9 new serializers), Python SDK (9 new dict converters)
@@ -618,7 +618,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
   Dynamically generated from endpoint registry. `cargo install thetadatadx-cli`
 - **MCP Server** (`tools/mcp/`) — Model Context Protocol server giving LLMs instant
   access to 64 tools (61 endpoints + ping + greeks + IV) over JSON-RPC stdio.
-  Works with Claude Code, Cursor, Codex.
+  Works with Claude Code, Cursor, and other MCP-compatible clients.
 - **REST+WS Server** (`tools/server/`) — drop-in replacement for the Java terminal.
   v3 API on port 25503, WebSocket on 25520 with real FPSS bridge. sonic-rs JSON.
 - **VitePress documentation site** (`docs-site/`) — 33 pages covering API reference,
@@ -652,9 +652,9 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 - **SIMD FIT removed** — was 2.2x slower than scalar (regression). Pure scalar now.
 - **Server trade_greeks routes** — 5 option history trade_greeks endpoints were silently
   dropped due to subcategory mismatch in path generation
-- **All Gemini findings** — hot-path allocations, wrapping_add, BufWriter, find_header
+- **Audit findings (hot-path)** — hot-path allocations, wrapping_add, BufWriter, find_header
   fallback, DATE marker handling, MCP sanitization, Price dedup
-- **All Codex findings** — server security (CORS, shutdown auth), CLI expect(), MCP
+- **Audit findings (server/CLI)** — server security (CORS, shutdown auth), CLI expect(), MCP
   JSON-RPC validation, stale docs
 - **Auth response parsing** — subscription fields are integers not strings
 
@@ -917,7 +917,10 @@ See `TODO.md` (as of the 1.2.0 release) for the production readiness checklist a
 - FIT decoder uses i64 accumulator with i32 saturation (no silent overflow)
 - Price type range enforced with `assert!` in release builds
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v7.2.0...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v7.3.1...HEAD
+[7.3.1]: https://github.com/userFRM/ThetaDataDx/compare/v7.3.0...v7.3.1
+[7.3.0]: https://github.com/userFRM/ThetaDataDx/compare/v7.2.1...v7.3.0
+[7.2.1]: https://github.com/userFRM/ThetaDataDx/compare/v7.2.0...v7.2.1
 [7.2.0]: https://github.com/userFRM/ThetaDataDx/compare/v7.1.0...v7.2.0
 [7.1.0]: https://github.com/userFRM/ThetaDataDx/compare/v7.0.0...v7.1.0
 [7.0.0]: https://github.com/userFRM/ThetaDataDx/compare/v6.0.1...v7.0.0

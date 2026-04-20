@@ -21,7 +21,7 @@ for t in &data {
 ```python [Python]
 data = tdx.index_snapshot_price(["SPX", "NDX"])
 for t in data:
-    print(f"date={t['date']} ms_of_day={t['ms_of_day']} price={t['price']:.2f}")
+    print(f"date={t.date} ms_of_day={t.ms_of_day} price={t.price:.2f}")
 ```
 ```typescript [TypeScript]
 const data = tdx.indexSnapshotPrice(['SPX', 'NDX']);

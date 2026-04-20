@@ -45,7 +45,12 @@ struct Inner {
     /// WebSocket single-connection enforcement.
     ws_connected: AtomicBool,
     /// Server-assigned contract ID -> Contract mapping (updated by FPSS callback).
-    contract_map: Arc<Mutex<HashMap<i32, Contract>>>,
+    ///
+    /// Values are held as `Arc<Contract>` so the FPSS callback thread's
+    /// per-event snapshot (see `ws::start_fpss_bridge`) is a refcount bump
+    /// rather than cloning a `String` field. At 100k events/sec the Arc path
+    /// saves an allocation per event on the broadcast hot path.
+    contract_map: Arc<Mutex<HashMap<i32, Arc<Contract>>>>,
     /// Random token required by the shutdown endpoint.
     shutdown_token: String,
 }
@@ -162,7 +167,12 @@ impl AppState {
     }
 
     /// Shared contract map for FPSS -> WS bridge JSON serialization.
-    pub fn contract_map(&self) -> Arc<Mutex<HashMap<i32, Contract>>> {
+    ///
+    /// Returns an `Arc<Mutex<HashMap<i32, Arc<Contract>>>>` so the FPSS
+    /// callback thread can clone individual contracts by `Arc::clone`
+    /// (refcount bump, no heap allocation) instead of `Contract::clone`
+    /// (which would allocate the `root: String` per event).
+    pub fn contract_map(&self) -> Arc<Mutex<HashMap<i32, Arc<Contract>>>> {
         Arc::clone(&self.inner.contract_map)
     }
 
