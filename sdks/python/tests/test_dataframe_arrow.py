@@ -2,8 +2,8 @@
 Arrow columnar DataFrame adapter -- correctness + schema-preservation tests.
 
 These tests exercise the `to_arrow` / `to_dataframe` / `to_polars` public
-entry points end-to-end, plus the fast-path `*_to_arrow_batch` Rust
-helpers indirectly via the `to_dataframe(ticks)` / `to_arrow(ticks)` / `to_polars(ticks)` adapters.
+entry points end-to-end, plus the fast-path `read_arrow_batch_from_*_pyclass_list`
+Rust helpers indirectly via the `to_dataframe(ticks)` / `to_arrow(ticks)` / `to_polars(ticks)` adapters.
 
 What this suite covers:
 
@@ -27,7 +27,6 @@ correctness.
 
 from __future__ import annotations
 
-import importlib
 import sys
 
 import pytest
@@ -70,6 +69,23 @@ def test_to_polars_empty_list_returns_empty_dataframe():
     assert isinstance(df, polars.DataFrame)
     assert df.height == 0
     assert df.width == 0
+
+
+def test_to_arrow_empty_list_with_hint_preserves_schema():
+    """Empty list + hint -> zero-row pyarrow.Table with the typed schema.
+
+    Exercises the `hint=` kwarg so consumers relying on typed-column
+    schemas for empty historical results (e.g. feeding a zero-row
+    result into a schema-strict store) get the full EodTick layout
+    back instead of the zero-column fallback.
+    """
+    table = thetadatadx.to_arrow([], hint="EodTick")
+    assert isinstance(table, pyarrow.Table)
+    assert table.num_rows == 0
+    # EodTick has 20 columns per `tick_schema.toml`; the hint path must
+    # surface all of them (not the zero-column fallback).
+    assert table.num_columns > 0
+    assert set(EOD_SCHEMA.keys()).issubset({f.name for f in table.schema})
 
 
 # ──────────────────────────────────────────────────────────────────────

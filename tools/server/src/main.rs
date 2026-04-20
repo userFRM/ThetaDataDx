@@ -244,9 +244,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let shutdown_state = state.clone();
     // `into_make_service_with_connect_info::<SocketAddr>()` is required for
-    // the per-IP rate limiter (`tower_governor::SmartIpKeyExtractor`) to
-    // read the peer address on each request. Without it, the SmartIp key
+    // the per-IP rate limiter (`tower_governor::PeerIpKeyExtractor`) to
+    // read the peer address on each request. Without it, the PeerIp key
     // extractor falls back to rejecting every request as "no client IP".
+    // PR #378 switched the extractor from SmartIp to PeerIp so downstream
+    // clients can't bypass the rate limit by forging `X-Forwarded-For`.
     let http_server = axum::serve(
         tokio::net::TcpListener::bind(http_addr).await?,
         http_app.into_make_service_with_connect_info::<SocketAddr>(),

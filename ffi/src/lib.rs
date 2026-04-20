@@ -78,18 +78,57 @@ fn set_error(msg: &str) {
     });
 }
 
+/// Wrap an `extern "C"` fn body. Catches panics that would otherwise
+/// abort the host process (C / Go / Python) and converts them into a
+/// well-defined error return plus a thread-local `last_error` entry.
+///
+/// The wrapped block must return `T`. On panic, `default` is returned and
+/// an error string describing the panic payload (if extractable) is set
+/// via `set_error(...)`.
+///
+/// Rust 1.81+ aborts when a panic crosses an `extern "C"` boundary;
+/// pre-1.81 the behavior is undefined. Both modes crash the host process,
+/// which is unacceptable for a library binding (a typo in a macro arg or
+/// an unexpected invariant violation inside `tokio::runtime::block_on`
+/// would take down the user's entire program). Wrapping the body in
+/// `catch_unwind` keeps the crash contained in the thread and surfaces
+/// the reason through the normal FFI error channel.
+macro_rules! ffi_boundary {
+    ($default:expr, $body:block) => {{
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| $body)) {
+            Ok(v) => v,
+            Err(payload) => {
+                let msg = payload
+                    .downcast_ref::<&'static str>()
+                    .copied()
+                    .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
+                    .unwrap_or("<non-string panic>");
+                tracing::error!(
+                    target: "thetadatadx::ffi::panic",
+                    msg,
+                    "FFI boundary caught panic",
+                );
+                set_error(&format!("panic at FFI boundary: {msg}"));
+                $default
+            }
+        }
+    }};
+}
+
 /// Retrieve the last error message (or null if no error).
 ///
 /// The returned pointer is valid until the next FFI call on the same thread.
 /// Do NOT free this pointer.
 #[no_mangle]
 pub extern "C" fn tdx_last_error() -> *const c_char {
-    LAST_ERROR.with(|e| {
-        let borrow = e.borrow();
-        match borrow.as_ref() {
-            Some(s) => s.as_ptr(),
-            None => ptr::null(),
-        }
+    ffi_boundary!(ptr::null(), {
+        LAST_ERROR.with(|e| {
+            let borrow = e.borrow();
+            match borrow.as_ref() {
+                Some(s) => s.as_ptr(),
+                None => ptr::null(),
+            }
+        })
     })
 }
 
@@ -103,9 +142,11 @@ pub extern "C" fn tdx_last_error() -> *const c_char {
 /// caller can't tell the two apart from the array alone.
 #[no_mangle]
 pub extern "C" fn tdx_clear_error() {
-    LAST_ERROR.with(|e| {
-        *e.borrow_mut() = None;
-    });
+    ffi_boundary!((), {
+        LAST_ERROR.with(|e| {
+            *e.borrow_mut() = None;
+        });
+    })
 }
 
 // ── Opaque handle types ──
@@ -311,30 +352,32 @@ pub unsafe extern "C" fn tdx_credentials_new(
     email: *const c_char,
     password: *const c_char,
 ) -> *mut TdxCredentials {
-    let email = match unsafe { cstr_to_str(email) } {
-        Ok(Some(s)) => s,
-        Ok(None) => {
-            set_error("email is null");
-            return ptr::null_mut();
-        }
-        Err(e) => {
-            set_error(&format!("email is not valid UTF-8: {e}"));
-            return ptr::null_mut();
-        }
-    };
-    let password = match unsafe { cstr_to_str(password) } {
-        Ok(Some(s)) => s,
-        Ok(None) => {
-            set_error("password is null");
-            return ptr::null_mut();
-        }
-        Err(e) => {
-            set_error(&format!("password is not valid UTF-8: {e}"));
-            return ptr::null_mut();
-        }
-    };
-    let creds = thetadatadx::Credentials::new(email, password);
-    Box::into_raw(Box::new(TdxCredentials { inner: creds }))
+    ffi_boundary!(ptr::null_mut(), {
+        let email = match unsafe { cstr_to_str(email) } {
+            Ok(Some(s)) => s,
+            Ok(None) => {
+                set_error("email is null");
+                return ptr::null_mut();
+            }
+            Err(e) => {
+                set_error(&format!("email is not valid UTF-8: {e}"));
+                return ptr::null_mut();
+            }
+        };
+        let password = match unsafe { cstr_to_str(password) } {
+            Ok(Some(s)) => s,
+            Ok(None) => {
+                set_error("password is null");
+                return ptr::null_mut();
+            }
+            Err(e) => {
+                set_error(&format!("password is not valid UTF-8: {e}"));
+                return ptr::null_mut();
+            }
+        };
+        let creds = thetadatadx::Credentials::new(email, password);
+        Box::into_raw(Box::new(TdxCredentials { inner: creds }))
+    })
 }
 
 /// Load credentials from a file (line 1 = email, line 2 = password).
@@ -342,32 +385,36 @@ pub unsafe extern "C" fn tdx_credentials_new(
 /// Returns null on error (check `tdx_last_error()`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_credentials_from_file(path: *const c_char) -> *mut TdxCredentials {
-    let path = match unsafe { cstr_to_str(path) } {
-        Ok(Some(s)) => s,
-        Ok(None) => {
-            set_error("path is null");
-            return ptr::null_mut();
+    ffi_boundary!(ptr::null_mut(), {
+        let path = match unsafe { cstr_to_str(path) } {
+            Ok(Some(s)) => s,
+            Ok(None) => {
+                set_error("path is null");
+                return ptr::null_mut();
+            }
+            Err(e) => {
+                set_error(&format!("path is not valid UTF-8: {e}"));
+                return ptr::null_mut();
+            }
+        };
+        match thetadatadx::Credentials::from_file(path) {
+            Ok(creds) => Box::into_raw(Box::new(TdxCredentials { inner: creds })),
+            Err(e) => {
+                set_error(&e.to_string());
+                ptr::null_mut()
+            }
         }
-        Err(e) => {
-            set_error(&format!("path is not valid UTF-8: {e}"));
-            return ptr::null_mut();
-        }
-    };
-    match thetadatadx::Credentials::from_file(path) {
-        Ok(creds) => Box::into_raw(Box::new(TdxCredentials { inner: creds })),
-        Err(e) => {
-            set_error(&e.to_string());
-            ptr::null_mut()
-        }
-    }
+    })
 }
 
 /// Free a credentials handle.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_credentials_free(creds: *mut TdxCredentials) {
-    if !creds.is_null() {
-        drop(unsafe { Box::from_raw(creds) });
-    }
+    ffi_boundary!((), {
+        if !creds.is_null() {
+            drop(unsafe { Box::from_raw(creds) });
+        }
+    })
 }
 
 // ── Config ──
@@ -375,33 +422,41 @@ pub unsafe extern "C" fn tdx_credentials_free(creds: *mut TdxCredentials) {
 /// Create a production config (`ThetaData` NJ datacenter).
 #[no_mangle]
 pub extern "C" fn tdx_config_production() -> *mut TdxConfig {
-    Box::into_raw(Box::new(TdxConfig {
-        inner: thetadatadx::DirectConfig::production(),
-    }))
+    ffi_boundary!(ptr::null_mut(), {
+        Box::into_raw(Box::new(TdxConfig {
+            inner: thetadatadx::DirectConfig::production(),
+        }))
+    })
 }
 
 /// Create a dev config (FPSS dev servers, port 20200, infinite replay).
 #[no_mangle]
 pub extern "C" fn tdx_config_dev() -> *mut TdxConfig {
-    Box::into_raw(Box::new(TdxConfig {
-        inner: thetadatadx::DirectConfig::dev(),
-    }))
+    ffi_boundary!(ptr::null_mut(), {
+        Box::into_raw(Box::new(TdxConfig {
+            inner: thetadatadx::DirectConfig::dev(),
+        }))
+    })
 }
 
 /// Create a stage config (FPSS stage servers, port 20100, unstable).
 #[no_mangle]
 pub extern "C" fn tdx_config_stage() -> *mut TdxConfig {
-    Box::into_raw(Box::new(TdxConfig {
-        inner: thetadatadx::DirectConfig::stage(),
-    }))
+    ffi_boundary!(ptr::null_mut(), {
+        Box::into_raw(Box::new(TdxConfig {
+            inner: thetadatadx::DirectConfig::stage(),
+        }))
+    })
 }
 
 /// Free a config handle.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_free(config: *mut TdxConfig) {
-    if !config.is_null() {
-        drop(unsafe { Box::from_raw(config) });
-    }
+    ffi_boundary!((), {
+        if !config.is_null() {
+            drop(unsafe { Box::from_raw(config) });
+        }
+    })
 }
 
 /// Set FPSS flush mode on a config handle.
@@ -410,14 +465,16 @@ pub unsafe extern "C" fn tdx_config_free(config: *mut TdxConfig) {
 /// - `mode = 1`: Immediate -- flush after every frame write (lowest latency)
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_set_flush_mode(config: *mut TdxConfig, mode: i32) {
-    if config.is_null() {
-        return;
-    }
-    let config = unsafe { &mut *config };
-    config.inner.fpss_flush_mode = match mode {
-        1 => thetadatadx::FpssFlushMode::Immediate,
-        _ => thetadatadx::FpssFlushMode::Batched,
-    };
+    ffi_boundary!((), {
+        if config.is_null() {
+            return;
+        }
+        let config = unsafe { &mut *config };
+        config.inner.fpss_flush_mode = match mode {
+            1 => thetadatadx::FpssFlushMode::Immediate,
+            _ => thetadatadx::FpssFlushMode::Batched,
+        };
+    })
 }
 
 /// Set FPSS reconnect policy on a config handle.
@@ -426,14 +483,16 @@ pub unsafe extern "C" fn tdx_config_set_flush_mode(config: *mut TdxConfig, mode:
 /// - `policy = 1`: Manual -- no auto-reconnect, user calls reconnect explicitly
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_set_reconnect_policy(config: *mut TdxConfig, policy: i32) {
-    if config.is_null() {
-        return;
-    }
-    let config = unsafe { &mut *config };
-    config.inner.reconnect_policy = match policy {
-        1 => thetadatadx::ReconnectPolicy::Manual,
-        _ => thetadatadx::ReconnectPolicy::Auto,
-    };
+    ffi_boundary!((), {
+        if config.is_null() {
+            return;
+        }
+        let config = unsafe { &mut *config };
+        config.inner.reconnect_policy = match policy {
+            1 => thetadatadx::ReconnectPolicy::Manual,
+            _ => thetadatadx::ReconnectPolicy::Auto,
+        };
+    })
 }
 
 /// Set FPSS OHLCVC derivation on a config handle.
@@ -442,11 +501,13 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_policy(config: *mut TdxConfig,
 /// - `enabled = 0`: only emit server-sent OHLCVC frames (lower overhead)
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_set_derive_ohlcvc(config: *mut TdxConfig, enabled: i32) {
-    if config.is_null() {
-        return;
-    }
-    let config = unsafe { &mut *config };
-    config.inner.derive_ohlcvc = enabled != 0;
+    ffi_boundary!((), {
+        if config.is_null() {
+            return;
+        }
+        let config = unsafe { &mut *config };
+        config.inner.derive_ohlcvc = enabled != 0;
+    })
 }
 
 // ── Client ──
@@ -459,34 +520,38 @@ pub unsafe extern "C" fn tdx_client_connect(
     creds: *const TdxCredentials,
     config: *const TdxConfig,
 ) -> *mut TdxClient {
-    if creds.is_null() {
-        set_error("credentials handle is null");
-        return ptr::null_mut();
-    }
-    if config.is_null() {
-        set_error("config handle is null");
-        return ptr::null_mut();
-    }
-    let creds = unsafe { &*creds };
-    let config = unsafe { &*config };
-    match runtime().block_on(thetadatadx::direct::DirectClient::connect(
-        &creds.inner,
-        config.inner.clone(),
-    )) {
-        Ok(client) => Box::into_raw(Box::new(TdxClient { inner: client })),
-        Err(e) => {
-            set_error(&e.to_string());
-            ptr::null_mut()
+    ffi_boundary!(ptr::null_mut(), {
+        if creds.is_null() {
+            set_error("credentials handle is null");
+            return ptr::null_mut();
         }
-    }
+        if config.is_null() {
+            set_error("config handle is null");
+            return ptr::null_mut();
+        }
+        let creds = unsafe { &*creds };
+        let config = unsafe { &*config };
+        match runtime().block_on(thetadatadx::direct::DirectClient::connect(
+            &creds.inner,
+            config.inner.clone(),
+        )) {
+            Ok(client) => Box::into_raw(Box::new(TdxClient { inner: client })),
+            Err(e) => {
+                set_error(&e.to_string());
+                ptr::null_mut()
+            }
+        }
+    })
 }
 
 /// Free a client handle.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_client_free(client: *mut TdxClient) {
-    if !client.is_null() {
-        drop(unsafe { Box::from_raw(client) });
-    }
+    ffi_boundary!((), {
+        if !client.is_null() {
+            drop(unsafe { Box::from_raw(client) });
+        }
+    })
 }
 
 // ── String free ──
@@ -496,9 +561,11 @@ pub unsafe extern "C" fn tdx_client_free(client: *mut TdxClient) {
 /// MUST be called for every non-null `*mut c_char` returned by this library.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_string_free(s: *mut c_char) {
-    if !s.is_null() {
-        drop(unsafe { CString::from_raw(s) });
-    }
+    ffi_boundary!((), {
+        if !s.is_null() {
+            drop(unsafe { CString::from_raw(s) });
+        }
+    })
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -573,7 +640,9 @@ macro_rules! tick_array_free {
         /// Free a tick array returned by an FFI endpoint.
         #[no_mangle]
         pub unsafe extern "C" fn $fn_name(arr: $array_type) {
-            unsafe { arr.free() };
+            ffi_boundary!((), {
+                unsafe { arr.free() };
+            })
         }
     };
 }
@@ -643,22 +712,24 @@ impl TdxOptionContractArray {
 /// Free an option contract array, including all heap-allocated root strings.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_contract_array_free(arr: TdxOptionContractArray) {
-    if !arr.data.is_null() && arr.len > 0 {
-        // First free each root C string
-        let slice = unsafe { std::slice::from_raw_parts(arr.data, arr.len) };
-        for contract in slice {
-            if !contract.root.is_null() {
-                drop(unsafe { CString::from_raw(contract.root.cast_mut()) });
+    ffi_boundary!((), {
+        if !arr.data.is_null() && arr.len > 0 {
+            // First free each root C string
+            let slice = unsafe { std::slice::from_raw_parts(arr.data, arr.len) };
+            for contract in slice {
+                if !contract.root.is_null() {
+                    drop(unsafe { CString::from_raw(contract.root.cast_mut()) });
+                }
             }
+            // Then free the array itself
+            let _ = unsafe {
+                Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+                    arr.data.cast_mut(),
+                    arr.len,
+                ))
+            };
         }
-        // Then free the array itself
-        let _ = unsafe {
-            Box::from_raw(std::ptr::slice_from_raw_parts_mut(
-                arr.data.cast_mut(),
-                arr.len,
-            ))
-        };
-    }
+    })
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -695,20 +766,22 @@ impl TdxStringArray {
 /// Free a string array, including all individual C strings.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_string_array_free(arr: TdxStringArray) {
-    if !arr.data.is_null() && arr.len > 0 {
-        let slice = unsafe { std::slice::from_raw_parts(arr.data, arr.len) };
-        for &s in slice {
-            if !s.is_null() {
-                drop(unsafe { CString::from_raw(s.cast_mut()) });
+    ffi_boundary!((), {
+        if !arr.data.is_null() && arr.len > 0 {
+            let slice = unsafe { std::slice::from_raw_parts(arr.data, arr.len) };
+            for &s in slice {
+                if !s.is_null() {
+                    drop(unsafe { CString::from_raw(s.cast_mut()) });
+                }
             }
+            let _ = unsafe {
+                Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+                    arr.data.cast_mut(),
+                    arr.len,
+                ))
+            };
         }
-        let _ = unsafe {
-            Box::from_raw(std::ptr::slice_from_raw_parts_mut(
-                arr.data.cast_mut(),
-                arr.len,
-            ))
-        };
-    }
+    })
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -724,25 +797,30 @@ macro_rules! ffi_list_endpoint_no_params {
         $(#[$meta])*
         #[no_mangle]
         pub unsafe extern "C" fn $ffi_name(client: *const TdxClient) -> TdxStringArray {
-            let empty = TdxStringArray { data: ptr::null(), len: 0 };
-            if client.is_null() {
-                set_error("client handle is null");
-                return empty;
-            }
-            let client = unsafe { &*client };
-            match runtime().block_on(async { client.inner.$method().await }) {
-                Ok(items) => match TdxStringArray::from_vec(items) {
-                    Ok(arr) => arr,
-                    Err(e) => {
-                        set_error(&format!("interior NUL in server string: {e}"));
-                        empty
+            ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
+                let empty = TdxStringArray { data: ptr::null(), len: 0 };
+                ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
+                    if client.is_null() {
+                        set_error("client handle is null");
+                        return empty;
                     }
-                },
-                Err(e) => {
-                    set_error(&e.to_string());
-                    empty
-                }
-            }
+                    let client = unsafe { &*client };
+                    match runtime().block_on(async { client.inner.$method().await }) {
+                        Ok(items) => match TdxStringArray::from_vec(items) {
+                            Ok(arr) => arr,
+                            Err(e) => {
+                                set_error(&format!("interior NUL in server string: {e}"));
+                                empty
+                            }
+                        },
+                        Err(e) => {
+                            set_error(&e.to_string());
+                            empty
+                        }
+                    }
+                })
+
+            })
         }
     };
 }
@@ -759,41 +837,43 @@ macro_rules! ffi_list_endpoint {
             client: *const TdxClient,
             $($param: *const c_char),+
         ) -> TdxStringArray {
-            let empty = TdxStringArray { data: ptr::null(), len: 0 };
-            if client.is_null() {
-                set_error("client handle is null");
-                return empty;
-            }
-            let client = unsafe { &*client };
-            $(
-                let $param = match unsafe { cstr_to_str($param) } {
-                    Ok(Some(s)) => s,
-                    Ok(None) => {
-                        set_error(concat!(stringify!($param), " is null"));
-                        return empty;
-                    }
+            ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
+                let empty = TdxStringArray { data: ptr::null(), len: 0 };
+                if client.is_null() {
+                    set_error("client handle is null");
+                    return empty;
+                }
+                let client = unsafe { &*client };
+                $(
+                    let $param = match unsafe { cstr_to_str($param) } {
+                        Ok(Some(s)) => s,
+                        Ok(None) => {
+                            set_error(concat!(stringify!($param), " is null"));
+                            return empty;
+                        }
+                        Err(e) => {
+                            set_error(&format!(
+                                "{} is not valid UTF-8: {e}",
+                                stringify!($param)
+                            ));
+                            return empty;
+                        }
+                    };
+                )+
+                match runtime().block_on(async { client.inner.$method($($param),+).await }) {
+                    Ok(items) => match TdxStringArray::from_vec(items) {
+                        Ok(arr) => arr,
+                        Err(e) => {
+                            set_error(&format!("interior NUL in server string: {e}"));
+                            empty
+                        }
+                    },
                     Err(e) => {
-                        set_error(&format!(
-                            "{} is not valid UTF-8: {e}",
-                            stringify!($param)
-                        ));
-                        return empty;
-                    }
-                };
-            )+
-            match runtime().block_on(async { client.inner.$method($($param),+).await }) {
-                Ok(items) => match TdxStringArray::from_vec(items) {
-                    Ok(arr) => arr,
-                    Err(e) => {
-                        set_error(&format!("interior NUL in server string: {e}"));
+                        set_error(&e.to_string());
                         empty
                     }
-                },
-                Err(e) => {
-                    set_error(&e.to_string());
-                    empty
                 }
-            }
+            })
         }
     };
 }
@@ -848,30 +928,32 @@ macro_rules! ffi_typed_snapshot_endpoint {
             symbols: *const *const c_char,
             symbols_len: usize,
         ) -> $array_type {
-            let empty = $array_type { data: ptr::null(), len: 0 };
-            if client.is_null() {
-                set_error("client handle is null");
-                return empty;
-            }
-            let client = unsafe { &*client };
-            let syms = match unsafe { parse_symbol_array(symbols, symbols_len) } {
-                Some(s) => s,
-                None => return empty,
-            };
-            let refs: Vec<&str> = syms.iter().map(|s| s.as_str()).collect();
-            match runtime().block_on(async { client.inner.$method(&refs).await }) {
-                Ok(ticks) => match $array_type::from_vec(ticks) {
-                    Ok(arr) => arr,
+            ffi_boundary!($array_type { data: ptr::null(), len: 0 }, {
+                let empty = $array_type { data: ptr::null(), len: 0 };
+                if client.is_null() {
+                    set_error("client handle is null");
+                    return empty;
+                }
+                let client = unsafe { &*client };
+                let syms = match unsafe { parse_symbol_array(symbols, symbols_len) } {
+                    Some(s) => s,
+                    None => return empty,
+                };
+                let refs: Vec<&str> = syms.iter().map(|s| s.as_str()).collect();
+                match runtime().block_on(async { client.inner.$method(&refs).await }) {
+                    Ok(ticks) => match $array_type::from_vec(ticks) {
+                        Ok(arr) => arr,
+                        Err(e) => {
+                            set_error(&format!("interior NUL in server string: {e}"));
+                            empty
+                        }
+                    },
                     Err(e) => {
-                        set_error(&format!("interior NUL in server string: {e}"));
+                        set_error(&e.to_string());
                         empty
                     }
-                },
-                Err(e) => {
-                    set_error(&e.to_string());
-                    empty
                 }
-            }
+            })
         }
     };
     // Original variant (no opts)
@@ -886,30 +968,32 @@ macro_rules! ffi_typed_snapshot_endpoint {
             symbols: *const *const c_char,
             symbols_len: usize,
         ) -> $array_type {
-            let empty = $array_type { data: ptr::null(), len: 0 };
-            if client.is_null() {
-                set_error("client handle is null");
-                return empty;
-            }
-            let client = unsafe { &*client };
-            let syms = match unsafe { parse_symbol_array(symbols, symbols_len) } {
-                Some(s) => s,
-                None => return empty,
-            };
-            let refs: Vec<&str> = syms.iter().map(|s| s.as_str()).collect();
-            match runtime().block_on(async { client.inner.$method(&refs).await }) {
-                Ok(ticks) => match $array_type::from_vec(ticks) {
-                    Ok(arr) => arr,
+            ffi_boundary!($array_type { data: ptr::null(), len: 0 }, {
+                let empty = $array_type { data: ptr::null(), len: 0 };
+                if client.is_null() {
+                    set_error("client handle is null");
+                    return empty;
+                }
+                let client = unsafe { &*client };
+                let syms = match unsafe { parse_symbol_array(symbols, symbols_len) } {
+                    Some(s) => s,
+                    None => return empty,
+                };
+                let refs: Vec<&str> = syms.iter().map(|s| s.as_str()).collect();
+                match runtime().block_on(async { client.inner.$method(&refs).await }) {
+                    Ok(ticks) => match $array_type::from_vec(ticks) {
+                        Ok(arr) => arr,
+                        Err(e) => {
+                            set_error(&format!("interior NUL in server string: {e}"));
+                            empty
+                        }
+                    },
                     Err(e) => {
-                        set_error(&format!("interior NUL in server string: {e}"));
+                        set_error(&e.to_string());
                         empty
                     }
-                },
-                Err(e) => {
-                    set_error(&e.to_string());
-                    empty
                 }
-            }
+            })
         }
     };
 }
@@ -927,41 +1011,43 @@ macro_rules! ffi_typed_endpoint {
             client: *const TdxClient,
             $($param: *const c_char),+
         ) -> $array_type {
-            let empty = $array_type { data: ptr::null(), len: 0 };
-            if client.is_null() {
-                set_error("client handle is null");
-                return empty;
-            }
-            let client = unsafe { &*client };
-            $(
-                let $param = match unsafe { cstr_to_str($param) } {
-                    Ok(Some(s)) => s,
-                    Ok(None) => {
-                        set_error(concat!(stringify!($param), " is null"));
-                        return empty;
-                    }
+            ffi_boundary!($array_type { data: ptr::null(), len: 0 }, {
+                let empty = $array_type { data: ptr::null(), len: 0 };
+                if client.is_null() {
+                    set_error("client handle is null");
+                    return empty;
+                }
+                let client = unsafe { &*client };
+                $(
+                    let $param = match unsafe { cstr_to_str($param) } {
+                        Ok(Some(s)) => s,
+                        Ok(None) => {
+                            set_error(concat!(stringify!($param), " is null"));
+                            return empty;
+                        }
+                        Err(e) => {
+                            set_error(&format!(
+                                "{} is not valid UTF-8: {e}",
+                                stringify!($param)
+                            ));
+                            return empty;
+                        }
+                    };
+                )+
+                match runtime().block_on(async { client.inner.$method($($param),+).await }) {
+                    Ok(ticks) => match $array_type::from_vec(ticks) {
+                        Ok(arr) => arr,
+                        Err(e) => {
+                            set_error(&format!("interior NUL in server string: {e}"));
+                            empty
+                        }
+                    },
                     Err(e) => {
-                        set_error(&format!(
-                            "{} is not valid UTF-8: {e}",
-                            stringify!($param)
-                        ));
-                        return empty;
-                    }
-                };
-            )+
-            match runtime().block_on(async { client.inner.$method($($param),+).await }) {
-                Ok(ticks) => match $array_type::from_vec(ticks) {
-                    Ok(arr) => arr,
-                    Err(e) => {
-                        set_error(&format!("interior NUL in server string: {e}"));
+                        set_error(&e.to_string());
                         empty
                     }
-                },
-                Err(e) => {
-                    set_error(&e.to_string());
-                    empty
                 }
-            }
+            })
         }
     };
 }
@@ -975,25 +1061,27 @@ macro_rules! ffi_typed_endpoint_no_params {
         $(#[$meta])*
         #[no_mangle]
         pub unsafe extern "C" fn $ffi_name(client: *const TdxClient) -> $array_type {
-            let empty = $array_type { data: ptr::null(), len: 0 };
-            if client.is_null() {
-                set_error("client handle is null");
-                return empty;
-            }
-            let client = unsafe { &*client };
-            match runtime().block_on(async { client.inner.$method().await }) {
-                Ok(ticks) => match $array_type::from_vec(ticks) {
-                    Ok(arr) => arr,
+            ffi_boundary!($array_type { data: ptr::null(), len: 0 }, {
+                let empty = $array_type { data: ptr::null(), len: 0 };
+                if client.is_null() {
+                    set_error("client handle is null");
+                    return empty;
+                }
+                let client = unsafe { &*client };
+                match runtime().block_on(async { client.inner.$method().await }) {
+                    Ok(ticks) => match $array_type::from_vec(ticks) {
+                        Ok(arr) => arr,
+                        Err(e) => {
+                            set_error(&format!("interior NUL in server string: {e}"));
+                            empty
+                        }
+                    },
                     Err(e) => {
-                        set_error(&format!("interior NUL in server string: {e}"));
+                        set_error(&e.to_string());
                         empty
                     }
-                },
-                Err(e) => {
-                    set_error(&e.to_string());
-                    empty
                 }
-            }
+            })
         }
     };
 }
@@ -1479,45 +1567,50 @@ pub unsafe extern "C" fn tdx_all_greeks(
     option_price: f64,
     right: *const c_char,
 ) -> *mut TdxGreeksResult {
-    let right_str = require_cstr!(right, std::ptr::null_mut());
-    if let Err(e) = thetadatadx::parse_right_strict(right_str) {
-        set_error(&e.to_string());
-        return std::ptr::null_mut();
-    }
-    let g = tdbe::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, right_str);
-    let result = TdxGreeksResult {
-        value: g.value,
-        delta: g.delta,
-        gamma: g.gamma,
-        theta: g.theta,
-        vega: g.vega,
-        rho: g.rho,
-        epsilon: g.epsilon,
-        lambda: g.lambda,
-        vanna: g.vanna,
-        charm: g.charm,
-        vomma: g.vomma,
-        veta: g.veta,
-        speed: g.speed,
-        zomma: g.zomma,
-        color: g.color,
-        ultima: g.ultima,
-        iv: g.iv,
-        iv_error: g.iv_error,
-        d1: g.d1,
-        d2: g.d2,
-        dual_delta: g.dual_delta,
-        dual_gamma: g.dual_gamma,
-    };
-    Box::into_raw(Box::new(result))
+    ffi_boundary!(std::ptr::null_mut(), {
+        let right_str = require_cstr!(right, std::ptr::null_mut());
+        if let Err(e) = thetadatadx::parse_right_strict(right_str) {
+            set_error(&e.to_string());
+            return std::ptr::null_mut();
+        }
+        let g =
+            tdbe::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, right_str);
+        let result = TdxGreeksResult {
+            value: g.value,
+            delta: g.delta,
+            gamma: g.gamma,
+            theta: g.theta,
+            vega: g.vega,
+            rho: g.rho,
+            epsilon: g.epsilon,
+            lambda: g.lambda,
+            vanna: g.vanna,
+            charm: g.charm,
+            vomma: g.vomma,
+            veta: g.veta,
+            speed: g.speed,
+            zomma: g.zomma,
+            color: g.color,
+            ultima: g.ultima,
+            iv: g.iv,
+            iv_error: g.iv_error,
+            d1: g.d1,
+            d2: g.d2,
+            dual_delta: g.dual_delta,
+            dual_gamma: g.dual_gamma,
+        };
+        Box::into_raw(Box::new(result))
+    })
 }
 
 /// Free a `TdxGreeksResult` returned by `tdx_all_greeks`.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_greeks_result_free(ptr: *mut TdxGreeksResult) {
-    if !ptr.is_null() {
-        drop(unsafe { Box::from_raw(ptr) });
-    }
+    ffi_boundary!((), {
+        if !ptr.is_null() {
+            drop(unsafe { Box::from_raw(ptr) });
+        }
+    })
 }
 
 /// Compute implied volatility via bisection.
@@ -1543,29 +1636,31 @@ pub unsafe extern "C" fn tdx_implied_volatility(
     out_iv: *mut f64,
     out_error: *mut f64,
 ) -> i32 {
-    if out_iv.is_null() || out_error.is_null() {
-        set_error("output pointers must not be null");
-        return -1;
-    }
-    let right_str = require_cstr!(right, -1);
-    if let Err(e) = thetadatadx::parse_right_strict(right_str) {
-        set_error(&e.to_string());
-        return -1;
-    }
-    let (iv, err) = tdbe::greeks::implied_volatility(
-        spot,
-        strike,
-        rate,
-        div_yield,
-        tte,
-        option_price,
-        right_str,
-    );
-    unsafe {
-        *out_iv = iv;
-        *out_error = err;
-    }
-    0
+    ffi_boundary!(-1, {
+        if out_iv.is_null() || out_error.is_null() {
+            set_error("output pointers must not be null");
+            return -1;
+        }
+        let right_str = require_cstr!(right, -1);
+        if let Err(e) = thetadatadx::parse_right_strict(right_str) {
+            set_error(&e.to_string());
+            return -1;
+        }
+        let (iv, err) = tdbe::greeks::implied_volatility(
+            spot,
+            strike,
+            rate,
+            div_yield,
+            tte,
+            option_price,
+            right_str,
+        );
+        unsafe {
+            *out_iv = iv;
+            *out_error = err;
+        }
+        0
+    })
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1648,28 +1743,30 @@ where
 /// or `tdx_fpss_active_subscriptions`.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_subscription_array_free(arr: *mut TdxSubscriptionArray) {
-    if arr.is_null() {
-        return;
-    }
-    let arr = unsafe { Box::from_raw(arr) };
-    if !arr.data.is_null() && arr.len > 0 {
-        let slice = unsafe { std::slice::from_raw_parts(arr.data.cast_mut(), arr.len) };
-        for sub in slice {
-            if !sub.kind.is_null() {
-                drop(unsafe { CString::from_raw(sub.kind.cast_mut()) });
-            }
-            if !sub.contract.is_null() {
-                drop(unsafe { CString::from_raw(sub.contract.cast_mut()) });
-            }
+    ffi_boundary!((), {
+        if arr.is_null() {
+            return;
         }
-        // Reconstruct and drop the boxed slice
-        drop(unsafe {
-            Box::from_raw(std::ptr::slice_from_raw_parts_mut(
-                arr.data.cast_mut(),
-                arr.len,
-            ))
-        });
-    }
+        let arr = unsafe { Box::from_raw(arr) };
+        if !arr.data.is_null() && arr.len > 0 {
+            let slice = unsafe { std::slice::from_raw_parts(arr.data.cast_mut(), arr.len) };
+            for sub in slice {
+                if !sub.kind.is_null() {
+                    drop(unsafe { CString::from_raw(sub.kind.cast_mut()) });
+                }
+                if !sub.contract.is_null() {
+                    drop(unsafe { CString::from_raw(sub.contract.cast_mut()) });
+                }
+            }
+            // Reconstruct and drop the boxed slice
+            drop(unsafe {
+                Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+                    arr.data.cast_mut(),
+                    arr.len,
+                ))
+            });
+        }
+    })
 }
 
 /// A single FPSS contract-map entry.
@@ -1728,24 +1825,26 @@ where
 /// or `tdx_fpss_contract_map`.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_contract_map_array_free(arr: *mut TdxContractMapArray) {
-    if arr.is_null() {
-        return;
-    }
-    let arr = unsafe { Box::from_raw(arr) };
-    if !arr.data.is_null() && arr.len > 0 {
-        let slice = unsafe { std::slice::from_raw_parts(arr.data.cast_mut(), arr.len) };
-        for entry in slice {
-            if !entry.contract.is_null() {
-                drop(unsafe { CString::from_raw(entry.contract.cast_mut()) });
-            }
+    ffi_boundary!((), {
+        if arr.is_null() {
+            return;
         }
-        drop(unsafe {
-            Box::from_raw(std::ptr::slice_from_raw_parts_mut(
-                arr.data.cast_mut(),
-                arr.len,
-            ))
-        });
-    }
+        let arr = unsafe { Box::from_raw(arr) };
+        if !arr.data.is_null() && arr.len > 0 {
+            let slice = unsafe { std::slice::from_raw_parts(arr.data.cast_mut(), arr.len) };
+            for entry in slice {
+                if !entry.contract.is_null() {
+                    drop(unsafe { CString::from_raw(entry.contract.cast_mut()) });
+                }
+            }
+            drop(unsafe {
+                Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+                    arr.data.cast_mut(),
+                    arr.len,
+                ))
+            });
+        }
+    })
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1763,31 +1862,33 @@ pub unsafe extern "C" fn tdx_unified_connect(
     creds: *const TdxCredentials,
     config: *const TdxConfig,
 ) -> *mut TdxUnified {
-    if creds.is_null() {
-        set_error("credentials handle is null");
-        return ptr::null_mut();
-    }
-    if config.is_null() {
-        set_error("config handle is null");
-        return ptr::null_mut();
-    }
-    let creds = unsafe { &*creds };
-    let config = unsafe { &*config };
-
-    match runtime().block_on(thetadatadx::ThetaDataDx::connect(
-        &creds.inner,
-        config.inner.clone(),
-    )) {
-        Ok(tdx) => Box::into_raw(Box::new(TdxUnified {
-            inner: tdx,
-            rx: Mutex::new(None),
-            dropped_events: Arc::new(AtomicU64::new(0)),
-        })),
-        Err(e) => {
-            set_error(&e.to_string());
-            ptr::null_mut()
+    ffi_boundary!(ptr::null_mut(), {
+        if creds.is_null() {
+            set_error("credentials handle is null");
+            return ptr::null_mut();
         }
-    }
+        if config.is_null() {
+            set_error("config handle is null");
+            return ptr::null_mut();
+        }
+        let creds = unsafe { &*creds };
+        let config = unsafe { &*config };
+
+        match runtime().block_on(thetadatadx::ThetaDataDx::connect(
+            &creds.inner,
+            config.inner.clone(),
+        )) {
+            Ok(tdx) => Box::into_raw(Box::new(TdxUnified {
+                inner: tdx,
+                rx: Mutex::new(None),
+                dropped_events: Arc::new(AtomicU64::new(0)),
+            })),
+            Err(e) => {
+                set_error(&e.to_string());
+                ptr::null_mut()
+            }
+        }
+    })
 }
 
 /// Start FPSS streaming on the unified client.
@@ -1798,43 +1899,45 @@ pub unsafe extern "C" fn tdx_unified_connect(
 /// Returns 0 on success, -1 on error (check `tdx_last_error()`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_unified_start_streaming(handle: *const TdxUnified) -> i32 {
-    if handle.is_null() {
-        set_error("unified handle is null");
-        return -1;
-    }
-    let handle = unsafe { &*handle };
-
-    let (tx, rx) = std::sync::mpsc::channel::<FfiBufferedEvent>();
-    // Clone the handle-level counter so the send-failure path in the
-    // callback increments the same `AtomicU64` the
-    // `tdx_unified_dropped_events` getter reads. Parity with the Python
-    // / TS SDKs: silent drops need to be countable from C / Go / C++.
-    let dropped_events = Arc::clone(&handle.dropped_events);
-
-    match handle
-        .inner
-        .start_streaming(move |event: &thetadatadx::fpss::FpssEvent| {
-            let buffered = fpss_event_to_ffi(event);
-            if tx.send(buffered).is_err() {
-                let count = dropped_events.fetch_add(1, Ordering::Relaxed) + 1;
-                tracing::debug!(
-                    target: "thetadatadx::ffi::streaming",
-                    dropped_total = count,
-                    "fpss event dropped -- receiver dead",
-                );
-            }
-        }) {
-        Ok(()) => {
-            if let Ok(mut guard) = handle.rx.lock() {
-                *guard = Some(Arc::new(Mutex::new(rx)));
-            }
-            0
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("unified handle is null");
+            return -1;
         }
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
+        let handle = unsafe { &*handle };
+
+        let (tx, rx) = std::sync::mpsc::channel::<FfiBufferedEvent>();
+        // Clone the handle-level counter so the send-failure path in the
+        // callback increments the same `AtomicU64` the
+        // `tdx_unified_dropped_events` getter reads. Parity with the Python
+        // / TS SDKs: silent drops need to be countable from C / Go / C++.
+        let dropped_events = Arc::clone(&handle.dropped_events);
+
+        match handle
+            .inner
+            .start_streaming(move |event: &thetadatadx::fpss::FpssEvent| {
+                let buffered = fpss_event_to_ffi(event);
+                if tx.send(buffered).is_err() {
+                    let count = dropped_events.fetch_add(1, Ordering::Relaxed) + 1;
+                    tracing::debug!(
+                        target: "thetadatadx::ffi::streaming",
+                        dropped_total = count,
+                        "fpss event dropped -- receiver dead",
+                    );
+                }
+            }) {
+            Ok(()) => {
+                if let Ok(mut guard) = handle.rx.lock() {
+                    *guard = Some(Arc::new(Mutex::new(rx)));
+                }
+                0
+            }
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
         }
-    }
+    })
 }
 
 /// Subscribe to quote data for a stock symbol via the unified client.
@@ -1845,20 +1948,22 @@ pub unsafe extern "C" fn tdx_unified_subscribe_quotes(
     handle: *const TdxUnified,
     symbol: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("unified handle is null");
-        return -1;
-    }
-    let symbol = require_cstr!(symbol, -1);
-    let handle = unsafe { &*handle };
-    let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
-    match handle.inner.subscribe_quotes(&contract) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("unified handle is null");
+            return -1;
         }
-    }
+        let symbol = require_cstr!(symbol, -1);
+        let handle = unsafe { &*handle };
+        let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
+        match handle.inner.subscribe_quotes(&contract) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
+        }
+    })
 }
 
 /// Subscribe to trade data for a stock symbol via the unified client.
@@ -1869,20 +1974,22 @@ pub unsafe extern "C" fn tdx_unified_subscribe_trades(
     handle: *const TdxUnified,
     symbol: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("unified handle is null");
-        return -1;
-    }
-    let symbol = require_cstr!(symbol, -1);
-    let handle = unsafe { &*handle };
-    let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
-    match handle.inner.subscribe_trades(&contract) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("unified handle is null");
+            return -1;
         }
-    }
+        let symbol = require_cstr!(symbol, -1);
+        let handle = unsafe { &*handle };
+        let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
+        match handle.inner.subscribe_trades(&contract) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
+        }
+    })
 }
 
 /// Unsubscribe from quote data for a stock symbol via the unified client.
@@ -1893,20 +2000,22 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe_quotes(
     handle: *const TdxUnified,
     symbol: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("unified handle is null");
-        return -1;
-    }
-    let symbol = require_cstr!(symbol, -1);
-    let handle = unsafe { &*handle };
-    let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
-    match handle.inner.unsubscribe_quotes(&contract) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("unified handle is null");
+            return -1;
         }
-    }
+        let symbol = require_cstr!(symbol, -1);
+        let handle = unsafe { &*handle };
+        let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
+        match handle.inner.unsubscribe_quotes(&contract) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
+        }
+    })
 }
 
 /// Unsubscribe from trade data for a stock symbol via the unified client.
@@ -1917,20 +2026,22 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe_trades(
     handle: *const TdxUnified,
     symbol: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("unified handle is null");
-        return -1;
-    }
-    let symbol = require_cstr!(symbol, -1);
-    let handle = unsafe { &*handle };
-    let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
-    match handle.inner.unsubscribe_trades(&contract) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("unified handle is null");
+            return -1;
         }
-    }
+        let symbol = require_cstr!(symbol, -1);
+        let handle = unsafe { &*handle };
+        let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
+        match handle.inner.unsubscribe_trades(&contract) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
+        }
+    })
 }
 
 /// Subscribe to open interest data for a stock symbol on the unified client.
@@ -1939,20 +2050,22 @@ pub unsafe extern "C" fn tdx_unified_subscribe_open_interest(
     handle: *const TdxUnified,
     symbol: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("unified handle is null");
-        return -1;
-    }
-    let symbol = require_cstr!(symbol, -1);
-    let handle = unsafe { &*handle };
-    let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
-    match handle.inner.subscribe_open_interest(&contract) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("unified handle is null");
+            return -1;
         }
-    }
+        let symbol = require_cstr!(symbol, -1);
+        let handle = unsafe { &*handle };
+        let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
+        match handle.inner.subscribe_open_interest(&contract) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
+        }
+    })
 }
 
 /// Subscribe to all trades for a security type on the unified client.
@@ -1962,28 +2075,30 @@ pub unsafe extern "C" fn tdx_unified_subscribe_full_trades(
     handle: *const TdxUnified,
     sec_type: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("unified handle is null");
-        return -1;
-    }
-    let sec_type_str = require_cstr!(sec_type, -1);
-    let st = match sec_type_str.to_uppercase().as_str() {
-        "STOCK" => tdbe::types::enums::SecType::Stock,
-        "OPTION" => tdbe::types::enums::SecType::Option,
-        "INDEX" => tdbe::types::enums::SecType::Index,
-        _ => {
-            set_error("invalid sec_type: expected STOCK, OPTION, or INDEX");
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("unified handle is null");
             return -1;
         }
-    };
-    let handle = unsafe { &*handle };
-    match handle.inner.subscribe_full_trades(st) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
+        let sec_type_str = require_cstr!(sec_type, -1);
+        let st = match sec_type_str.to_uppercase().as_str() {
+            "STOCK" => tdbe::types::enums::SecType::Stock,
+            "OPTION" => tdbe::types::enums::SecType::Option,
+            "INDEX" => tdbe::types::enums::SecType::Index,
+            _ => {
+                set_error("invalid sec_type: expected STOCK, OPTION, or INDEX");
+                return -1;
+            }
+        };
+        let handle = unsafe { &*handle };
+        match handle.inner.subscribe_full_trades(st) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
         }
-    }
+    })
 }
 
 /// Subscribe to all open interest for a security type on the unified client.
@@ -1993,28 +2108,30 @@ pub unsafe extern "C" fn tdx_unified_subscribe_full_open_interest(
     handle: *const TdxUnified,
     sec_type: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("unified handle is null");
-        return -1;
-    }
-    let sec_type_str = require_cstr!(sec_type, -1);
-    let st = match sec_type_str.to_uppercase().as_str() {
-        "STOCK" => tdbe::types::enums::SecType::Stock,
-        "OPTION" => tdbe::types::enums::SecType::Option,
-        "INDEX" => tdbe::types::enums::SecType::Index,
-        _ => {
-            set_error("invalid sec_type: expected STOCK, OPTION, or INDEX");
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("unified handle is null");
             return -1;
         }
-    };
-    let handle = unsafe { &*handle };
-    match handle.inner.subscribe_full_open_interest(st) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
+        let sec_type_str = require_cstr!(sec_type, -1);
+        let st = match sec_type_str.to_uppercase().as_str() {
+            "STOCK" => tdbe::types::enums::SecType::Stock,
+            "OPTION" => tdbe::types::enums::SecType::Option,
+            "INDEX" => tdbe::types::enums::SecType::Index,
+            _ => {
+                set_error("invalid sec_type: expected STOCK, OPTION, or INDEX");
+                return -1;
+            }
+        };
+        let handle = unsafe { &*handle };
+        match handle.inner.subscribe_full_open_interest(st) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
         }
-    }
+    })
 }
 
 /// Unsubscribe from all trades for a security type on the unified client.
@@ -2024,28 +2141,30 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe_full_trades(
     handle: *const TdxUnified,
     sec_type: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("unified handle is null");
-        return -1;
-    }
-    let sec_type_str = require_cstr!(sec_type, -1);
-    let st = match sec_type_str.to_uppercase().as_str() {
-        "STOCK" => tdbe::types::enums::SecType::Stock,
-        "OPTION" => tdbe::types::enums::SecType::Option,
-        "INDEX" => tdbe::types::enums::SecType::Index,
-        _ => {
-            set_error("invalid sec_type: expected STOCK, OPTION, or INDEX");
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("unified handle is null");
             return -1;
         }
-    };
-    let handle = unsafe { &*handle };
-    match handle.inner.unsubscribe_full_trades(st) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
+        let sec_type_str = require_cstr!(sec_type, -1);
+        let st = match sec_type_str.to_uppercase().as_str() {
+            "STOCK" => tdbe::types::enums::SecType::Stock,
+            "OPTION" => tdbe::types::enums::SecType::Option,
+            "INDEX" => tdbe::types::enums::SecType::Index,
+            _ => {
+                set_error("invalid sec_type: expected STOCK, OPTION, or INDEX");
+                return -1;
+            }
+        };
+        let handle = unsafe { &*handle };
+        match handle.inner.unsubscribe_full_trades(st) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
         }
-    }
+    })
 }
 
 /// Unsubscribe from all open interest for a security type on the unified client.
@@ -2055,28 +2174,30 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe_full_open_interest(
     handle: *const TdxUnified,
     sec_type: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("unified handle is null");
-        return -1;
-    }
-    let sec_type_str = require_cstr!(sec_type, -1);
-    let st = match sec_type_str.to_uppercase().as_str() {
-        "STOCK" => tdbe::types::enums::SecType::Stock,
-        "OPTION" => tdbe::types::enums::SecType::Option,
-        "INDEX" => tdbe::types::enums::SecType::Index,
-        _ => {
-            set_error("invalid sec_type: expected STOCK, OPTION, or INDEX");
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("unified handle is null");
             return -1;
         }
-    };
-    let handle = unsafe { &*handle };
-    match handle.inner.unsubscribe_full_open_interest(st) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
+        let sec_type_str = require_cstr!(sec_type, -1);
+        let st = match sec_type_str.to_uppercase().as_str() {
+            "STOCK" => tdbe::types::enums::SecType::Stock,
+            "OPTION" => tdbe::types::enums::SecType::Option,
+            "INDEX" => tdbe::types::enums::SecType::Index,
+            _ => {
+                set_error("invalid sec_type: expected STOCK, OPTION, or INDEX");
+                return -1;
+            }
+        };
+        let handle = unsafe { &*handle };
+        match handle.inner.unsubscribe_full_open_interest(st) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
         }
-    }
+    })
 }
 
 /// Unsubscribe from open interest data on the unified client.
@@ -2085,20 +2206,22 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe_open_interest(
     handle: *const TdxUnified,
     symbol: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("unified handle is null");
-        return -1;
-    }
-    let symbol = require_cstr!(symbol, -1);
-    let handle = unsafe { &*handle };
-    let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
-    match handle.inner.unsubscribe_open_interest(&contract) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("unified handle is null");
+            return -1;
         }
-    }
+        let symbol = require_cstr!(symbol, -1);
+        let handle = unsafe { &*handle };
+        let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
+        match handle.inner.unsubscribe_open_interest(&contract) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
+        }
+    })
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -2116,31 +2239,33 @@ pub unsafe extern "C" fn tdx_unified_subscribe_option_quotes(
     strike: *const c_char,
     right: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("unified handle is null");
-        return -1;
-    }
-    let (sym, exp, stk, rt) =
-        if let Some(args) = unsafe { parse_option_args(symbol, expiration, strike, right) } {
-            args
-        } else {
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("unified handle is null");
             return -1;
+        }
+        let (sym, exp, stk, rt) =
+            if let Some(args) = unsafe { parse_option_args(symbol, expiration, strike, right) } {
+                args
+            } else {
+                return -1;
+            };
+        let handle = unsafe { &*handle };
+        let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
+            Ok(c) => c,
+            Err(e) => {
+                set_error(&e.to_string());
+                return -1;
+            }
         };
-    let handle = unsafe { &*handle };
-    let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
-        Ok(c) => c,
-        Err(e) => {
-            set_error(&e.to_string());
-            return -1;
+        match handle.inner.subscribe_quotes(&contract) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
         }
-    };
-    match handle.inner.subscribe_quotes(&contract) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
-        }
-    }
+    })
 }
 
 /// Subscribe to trade data for an option contract via the unified client.
@@ -2154,31 +2279,33 @@ pub unsafe extern "C" fn tdx_unified_subscribe_option_trades(
     strike: *const c_char,
     right: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("unified handle is null");
-        return -1;
-    }
-    let (sym, exp, stk, rt) =
-        if let Some(args) = unsafe { parse_option_args(symbol, expiration, strike, right) } {
-            args
-        } else {
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("unified handle is null");
             return -1;
+        }
+        let (sym, exp, stk, rt) =
+            if let Some(args) = unsafe { parse_option_args(symbol, expiration, strike, right) } {
+                args
+            } else {
+                return -1;
+            };
+        let handle = unsafe { &*handle };
+        let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
+            Ok(c) => c,
+            Err(e) => {
+                set_error(&e.to_string());
+                return -1;
+            }
         };
-    let handle = unsafe { &*handle };
-    let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
-        Ok(c) => c,
-        Err(e) => {
-            set_error(&e.to_string());
-            return -1;
+        match handle.inner.subscribe_trades(&contract) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
         }
-    };
-    match handle.inner.subscribe_trades(&contract) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
-        }
-    }
+    })
 }
 
 /// Subscribe to open interest data for an option contract via the unified client.
@@ -2192,31 +2319,33 @@ pub unsafe extern "C" fn tdx_unified_subscribe_option_open_interest(
     strike: *const c_char,
     right: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("unified handle is null");
-        return -1;
-    }
-    let (sym, exp, stk, rt) =
-        if let Some(args) = unsafe { parse_option_args(symbol, expiration, strike, right) } {
-            args
-        } else {
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("unified handle is null");
             return -1;
+        }
+        let (sym, exp, stk, rt) =
+            if let Some(args) = unsafe { parse_option_args(symbol, expiration, strike, right) } {
+                args
+            } else {
+                return -1;
+            };
+        let handle = unsafe { &*handle };
+        let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
+            Ok(c) => c,
+            Err(e) => {
+                set_error(&e.to_string());
+                return -1;
+            }
         };
-    let handle = unsafe { &*handle };
-    let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
-        Ok(c) => c,
-        Err(e) => {
-            set_error(&e.to_string());
-            return -1;
+        match handle.inner.subscribe_open_interest(&contract) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
         }
-    };
-    match handle.inner.subscribe_open_interest(&contract) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
-        }
-    }
+    })
 }
 
 /// Unsubscribe from quote data for an option contract via the unified client.
@@ -2230,31 +2359,33 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe_option_quotes(
     strike: *const c_char,
     right: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("unified handle is null");
-        return -1;
-    }
-    let (sym, exp, stk, rt) =
-        if let Some(args) = unsafe { parse_option_args(symbol, expiration, strike, right) } {
-            args
-        } else {
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("unified handle is null");
             return -1;
+        }
+        let (sym, exp, stk, rt) =
+            if let Some(args) = unsafe { parse_option_args(symbol, expiration, strike, right) } {
+                args
+            } else {
+                return -1;
+            };
+        let handle = unsafe { &*handle };
+        let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
+            Ok(c) => c,
+            Err(e) => {
+                set_error(&e.to_string());
+                return -1;
+            }
         };
-    let handle = unsafe { &*handle };
-    let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
-        Ok(c) => c,
-        Err(e) => {
-            set_error(&e.to_string());
-            return -1;
+        match handle.inner.unsubscribe_quotes(&contract) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
         }
-    };
-    match handle.inner.unsubscribe_quotes(&contract) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
-        }
-    }
+    })
 }
 
 /// Unsubscribe from trade data for an option contract via the unified client.
@@ -2268,31 +2399,33 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe_option_trades(
     strike: *const c_char,
     right: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("unified handle is null");
-        return -1;
-    }
-    let (sym, exp, stk, rt) =
-        if let Some(args) = unsafe { parse_option_args(symbol, expiration, strike, right) } {
-            args
-        } else {
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("unified handle is null");
             return -1;
+        }
+        let (sym, exp, stk, rt) =
+            if let Some(args) = unsafe { parse_option_args(symbol, expiration, strike, right) } {
+                args
+            } else {
+                return -1;
+            };
+        let handle = unsafe { &*handle };
+        let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
+            Ok(c) => c,
+            Err(e) => {
+                set_error(&e.to_string());
+                return -1;
+            }
         };
-    let handle = unsafe { &*handle };
-    let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
-        Ok(c) => c,
-        Err(e) => {
-            set_error(&e.to_string());
-            return -1;
+        match handle.inner.unsubscribe_trades(&contract) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
         }
-    };
-    match handle.inner.unsubscribe_trades(&contract) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
-        }
-    }
+    })
 }
 
 /// Unsubscribe from open interest data for an option contract via the unified client.
@@ -2306,31 +2439,33 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe_option_open_interest(
     strike: *const c_char,
     right: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("unified handle is null");
-        return -1;
-    }
-    let (sym, exp, stk, rt) =
-        if let Some(args) = unsafe { parse_option_args(symbol, expiration, strike, right) } {
-            args
-        } else {
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("unified handle is null");
             return -1;
+        }
+        let (sym, exp, stk, rt) =
+            if let Some(args) = unsafe { parse_option_args(symbol, expiration, strike, right) } {
+                args
+            } else {
+                return -1;
+            };
+        let handle = unsafe { &*handle };
+        let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
+            Ok(c) => c,
+            Err(e) => {
+                set_error(&e.to_string());
+                return -1;
+            }
         };
-    let handle = unsafe { &*handle };
-    let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
-        Ok(c) => c,
-        Err(e) => {
-            set_error(&e.to_string());
-            return -1;
+        match handle.inner.unsubscribe_open_interest(&contract) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
         }
-    };
-    match handle.inner.unsubscribe_open_interest(&contract) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
-        }
-    }
+    })
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -2345,21 +2480,23 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe_option_open_interest(
 pub unsafe extern "C" fn tdx_unified_contract_map(
     handle: *const TdxUnified,
 ) -> *mut TdxContractMapArray {
-    if handle.is_null() {
-        set_error("unified handle is null");
-        return ptr::null_mut();
-    }
-    let handle = unsafe { &*handle };
-    match handle.inner.contract_map() {
-        Ok(map) => build_contract_map_array(
-            map.into_iter()
-                .map(|(id, contract)| (id, format!("{contract}"))),
-        ),
-        Err(e) => {
-            set_error(&e.to_string());
-            ptr::null_mut()
+    ffi_boundary!(std::ptr::null_mut(), {
+        if handle.is_null() {
+            set_error("unified handle is null");
+            return ptr::null_mut();
         }
-    }
+        let handle = unsafe { &*handle };
+        match handle.inner.contract_map() {
+            Ok(map) => build_contract_map_array(
+                map.into_iter()
+                    .map(|(id, contract)| (id, format!("{contract}"))),
+            ),
+            Err(e) => {
+                set_error(&e.to_string());
+                ptr::null_mut()
+            }
+        }
+    })
 }
 
 /// Reconnect the unified client's streaming connection.
@@ -2378,130 +2515,134 @@ pub unsafe extern "C" fn tdx_unified_contract_map(
 /// gap detection and replay logic.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_unified_reconnect(handle: *const TdxUnified) -> i32 {
-    if handle.is_null() {
-        set_error("unified handle is null");
-        return -1;
-    }
-    let handle = unsafe { &*handle };
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("unified handle is null");
+            return -1;
+        }
+        let handle = unsafe { &*handle };
 
-    // Save active subscriptions. If streaming isn't running (or the
-    // subscription locks are poisoned upstream) we must abort the
-    // reconnect -- silently falling back to an empty list drops every
-    // subscription on the floor.
-    let saved_subs = match handle.inner.active_subscriptions() {
-        Ok(subs) => subs,
-        Err(e) => {
+        // Save active subscriptions. If streaming isn't running (or the
+        // subscription locks are poisoned upstream) we must abort the
+        // reconnect -- silently falling back to an empty list drops every
+        // subscription on the floor.
+        let saved_subs = match handle.inner.active_subscriptions() {
+            Ok(subs) => subs,
+            Err(e) => {
+                set_error(&e.to_string());
+                return -1;
+            }
+        };
+        let saved_full_subs = match handle.inner.active_full_subscriptions() {
+            Ok(subs) => subs,
+            Err(e) => {
+                set_error(&e.to_string());
+                return -1;
+            }
+        };
+
+        // Stop streaming
+        handle.inner.stop_streaming();
+
+        // Clear the old rx
+        if let Ok(mut guard) = handle.rx.lock() {
+            *guard = None;
+        }
+
+        // Start a new streaming connection with an internal buffered channel
+        let (tx, rx) = std::sync::mpsc::channel::<FfiBufferedEvent>();
+        // Reuse the handle-level counter so `tdx_unified_dropped_events`
+        // reflects drops across both the initial `start_streaming` and
+        // every subsequent reconnect. Closure-local counters would reset
+        // here and make the getter useless for long-lived clients.
+        let dropped_events = Arc::clone(&handle.dropped_events);
+
+        if let Err(e) = handle
+            .inner
+            .start_streaming(move |event: &thetadatadx::fpss::FpssEvent| {
+                let buffered = fpss_event_to_ffi(event);
+                if tx.send(buffered).is_err() {
+                    let count = dropped_events.fetch_add(1, Ordering::Relaxed) + 1;
+                    tracing::debug!(
+                        target: "thetadatadx::ffi::streaming",
+                        dropped_total = count,
+                        "fpss event dropped -- receiver dead (post-reconnect)",
+                    );
+                }
+            })
+        {
             set_error(&e.to_string());
             return -1;
         }
-    };
-    let saved_full_subs = match handle.inner.active_full_subscriptions() {
-        Ok(subs) => subs,
-        Err(e) => {
-            set_error(&e.to_string());
-            return -1;
+
+        // Store the new rx
+        if let Ok(mut guard) = handle.rx.lock() {
+            *guard = Some(Arc::new(Mutex::new(rx)));
         }
-    };
 
-    // Stop streaming
-    handle.inner.stop_streaming();
-
-    // Clear the old rx
-    if let Ok(mut guard) = handle.rx.lock() {
-        *guard = None;
-    }
-
-    // Start a new streaming connection with an internal buffered channel
-    let (tx, rx) = std::sync::mpsc::channel::<FfiBufferedEvent>();
-    // Reuse the handle-level counter so `tdx_unified_dropped_events`
-    // reflects drops across both the initial `start_streaming` and
-    // every subsequent reconnect. Closure-local counters would reset
-    // here and make the getter useless for long-lived clients.
-    let dropped_events = Arc::clone(&handle.dropped_events);
-
-    if let Err(e) = handle
-        .inner
-        .start_streaming(move |event: &thetadatadx::fpss::FpssEvent| {
-            let buffered = fpss_event_to_ffi(event);
-            if tx.send(buffered).is_err() {
-                let count = dropped_events.fetch_add(1, Ordering::Relaxed) + 1;
-                tracing::debug!(
-                    target: "thetadatadx::ffi::streaming",
-                    dropped_total = count,
-                    "fpss event dropped -- receiver dead (post-reconnect)",
+        // Re-subscribe all previous subscriptions (best-effort; failures are non-fatal,
+        // but MUST be surfaced through tracing so ops can see silent re-subscription
+        // failures across a reconnect boundary — a dropped subscription here would
+        // otherwise manifest as "the stream is up but no ticks for AAPL" with no log
+        // trail to diagnose it).
+        for (kind, contract) in &saved_subs {
+            let result = match kind {
+                thetadatadx::fpss::protocol::SubscriptionKind::Quote => {
+                    handle.inner.subscribe_quotes(contract)
+                }
+                thetadatadx::fpss::protocol::SubscriptionKind::Trade => {
+                    handle.inner.subscribe_trades(contract)
+                }
+                thetadatadx::fpss::protocol::SubscriptionKind::OpenInterest => {
+                    handle.inner.subscribe_open_interest(contract)
+                }
+            };
+            if let Err(e) = result {
+                tracing::warn!(
+                    target: "thetadatadx::ffi::reconnect",
+                    error = %e,
+                    kind = ?kind,
+                    root = %contract.root,
+                    "resubscribe failed after reconnect"
                 );
             }
-        })
-    {
-        set_error(&e.to_string());
-        return -1;
-    }
-
-    // Store the new rx
-    if let Ok(mut guard) = handle.rx.lock() {
-        *guard = Some(Arc::new(Mutex::new(rx)));
-    }
-
-    // Re-subscribe all previous subscriptions (best-effort; failures are non-fatal,
-    // but MUST be surfaced through tracing so ops can see silent re-subscription
-    // failures across a reconnect boundary — a dropped subscription here would
-    // otherwise manifest as "the stream is up but no ticks for AAPL" with no log
-    // trail to diagnose it).
-    for (kind, contract) in &saved_subs {
-        let result = match kind {
-            thetadatadx::fpss::protocol::SubscriptionKind::Quote => {
-                handle.inner.subscribe_quotes(contract)
-            }
-            thetadatadx::fpss::protocol::SubscriptionKind::Trade => {
-                handle.inner.subscribe_trades(contract)
-            }
-            thetadatadx::fpss::protocol::SubscriptionKind::OpenInterest => {
-                handle.inner.subscribe_open_interest(contract)
-            }
-        };
-        if let Err(e) = result {
-            tracing::warn!(
-                target: "thetadatadx::ffi::reconnect",
-                error = %e,
-                kind = ?kind,
-                root = %contract.root,
-                "resubscribe failed after reconnect"
-            );
         }
-    }
 
-    for (kind, sec_type) in &saved_full_subs {
-        let result = match kind {
-            thetadatadx::fpss::protocol::SubscriptionKind::Trade => {
-                handle.inner.subscribe_full_trades(*sec_type)
+        for (kind, sec_type) in &saved_full_subs {
+            let result = match kind {
+                thetadatadx::fpss::protocol::SubscriptionKind::Trade => {
+                    handle.inner.subscribe_full_trades(*sec_type)
+                }
+                thetadatadx::fpss::protocol::SubscriptionKind::OpenInterest => {
+                    handle.inner.subscribe_full_open_interest(*sec_type)
+                }
+                thetadatadx::fpss::protocol::SubscriptionKind::Quote => continue,
+            };
+            if let Err(e) = result {
+                tracing::warn!(
+                    target: "thetadatadx::ffi::reconnect",
+                    error = %e,
+                    kind = ?kind,
+                    sec_type = ?sec_type,
+                    "full-stream resubscribe failed after reconnect"
+                );
             }
-            thetadatadx::fpss::protocol::SubscriptionKind::OpenInterest => {
-                handle.inner.subscribe_full_open_interest(*sec_type)
-            }
-            thetadatadx::fpss::protocol::SubscriptionKind::Quote => continue,
-        };
-        if let Err(e) = result {
-            tracing::warn!(
-                target: "thetadatadx::ffi::reconnect",
-                error = %e,
-                kind = ?kind,
-                sec_type = ?sec_type,
-                "full-stream resubscribe failed after reconnect"
-            );
         }
-    }
 
-    0
+        0
+    })
 }
 
 /// Check if streaming is active on the unified client.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_unified_is_streaming(handle: *const TdxUnified) -> i32 {
-    if handle.is_null() {
-        return 0;
-    }
-    let handle = unsafe { &*handle };
-    i32::from(handle.inner.is_streaming())
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            return 0;
+        }
+        let handle = unsafe { &*handle };
+        i32::from(handle.inner.is_streaming())
+    })
 }
 
 /// Look up a contract by ID. Returns a Display-formatted C string or null.
@@ -2510,27 +2651,29 @@ pub unsafe extern "C" fn tdx_unified_contract_lookup(
     handle: *const TdxUnified,
     id: i32,
 ) -> *mut c_char {
-    if handle.is_null() {
-        set_error("unified handle is null");
-        return ptr::null_mut();
-    }
-    let handle = unsafe { &*handle };
-    match handle.inner.contract_lookup(id) {
-        Ok(Some(c)) => match CString::new(format!("{c}")) {
-            Ok(s) => s.into_raw(),
-            Err(_) => ptr::null_mut(),
-        },
-        Ok(None) => {
-            // Clear last error so callers can distinguish "not found" (empty error)
-            // from a real error (non-empty error) when they receive NULL.
-            set_error("");
-            ptr::null_mut()
+    ffi_boundary!(std::ptr::null_mut(), {
+        if handle.is_null() {
+            set_error("unified handle is null");
+            return ptr::null_mut();
         }
-        Err(e) => {
-            set_error(&e.to_string());
-            ptr::null_mut()
+        let handle = unsafe { &*handle };
+        match handle.inner.contract_lookup(id) {
+            Ok(Some(c)) => match CString::new(format!("{c}")) {
+                Ok(s) => s.into_raw(),
+                Err(_) => ptr::null_mut(),
+            },
+            Ok(None) => {
+                // Clear last error so callers can distinguish "not found" (empty error)
+                // from a real error (non-empty error) when they receive NULL.
+                set_error("");
+                ptr::null_mut()
+            }
+            Err(e) => {
+                set_error(&e.to_string());
+                ptr::null_mut()
+            }
         }
-    }
+    })
 }
 
 /// Get active subscriptions as a typed array. Returns null on error.
@@ -2540,20 +2683,22 @@ pub unsafe extern "C" fn tdx_unified_contract_lookup(
 pub unsafe extern "C" fn tdx_unified_active_subscriptions(
     handle: *const TdxUnified,
 ) -> *mut TdxSubscriptionArray {
-    if handle.is_null() {
-        set_error("unified handle is null");
-        return ptr::null_mut();
-    }
-    let handle = unsafe { &*handle };
-    match handle.inner.active_subscriptions() {
-        Ok(subs) => {
-            build_subscription_array(subs.iter().map(|(k, c)| (format!("{k:?}"), format!("{c}"))))
+    ffi_boundary!(std::ptr::null_mut(), {
+        if handle.is_null() {
+            set_error("unified handle is null");
+            return ptr::null_mut();
         }
-        Err(e) => {
-            set_error(&e.to_string());
-            ptr::null_mut()
+        let handle = unsafe { &*handle };
+        match handle.inner.active_subscriptions() {
+            Ok(subs) => build_subscription_array(
+                subs.iter().map(|(k, c)| (format!("{k:?}"), format!("{c}"))),
+            ),
+            Err(e) => {
+                set_error(&e.to_string());
+                ptr::null_mut()
+            }
         }
-    }
+    })
 }
 
 /// Poll for the next streaming event from the unified client.
@@ -2567,36 +2712,38 @@ pub unsafe extern "C" fn tdx_unified_next_event(
     handle: *const TdxUnified,
     timeout_ms: u64,
 ) -> *mut TdxFpssEvent {
-    if handle.is_null() {
-        set_error("unified handle is null");
-        return ptr::null_mut();
-    }
-    let handle = unsafe { &*handle };
-    let rx_guard = handle
-        .rx
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let rx_arc = if let Some(arc) = rx_guard.as_ref() {
-        Arc::clone(arc)
-    } else {
-        set_error("streaming not started -- call tdx_unified_start_streaming() first");
-        return ptr::null_mut();
-    };
-    drop(rx_guard);
-    let rx = rx_arc
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let timeout = std::time::Duration::from_millis(timeout_ms);
-    match rx.recv_timeout(timeout) {
-        Ok(buffered) => {
-            // Box the entire FfiBufferedEvent so _detail_string/_raw_payload
-            // stay alive. Cast to *mut TdxFpssEvent (first field) for FFI.
-            let ptr = Box::into_raw(Box::new(buffered));
-            ptr.cast::<TdxFpssEvent>()
+    ffi_boundary!(std::ptr::null_mut(), {
+        if handle.is_null() {
+            set_error("unified handle is null");
+            return ptr::null_mut();
         }
-        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => ptr::null_mut(),
-        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => ptr::null_mut(),
-    }
+        let handle = unsafe { &*handle };
+        let rx_guard = handle
+            .rx
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let rx_arc = if let Some(arc) = rx_guard.as_ref() {
+            Arc::clone(arc)
+        } else {
+            set_error("streaming not started -- call tdx_unified_start_streaming() first");
+            return ptr::null_mut();
+        };
+        drop(rx_guard);
+        let rx = rx_arc
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let timeout = std::time::Duration::from_millis(timeout_ms);
+        match rx.recv_timeout(timeout) {
+            Ok(buffered) => {
+                // Box the entire FfiBufferedEvent so _detail_string/_raw_payload
+                // stay alive. Cast to *mut TdxFpssEvent (first field) for FFI.
+                let ptr = Box::into_raw(Box::new(buffered));
+                ptr.cast::<TdxFpssEvent>()
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => ptr::null_mut(),
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => ptr::null_mut(),
+        }
+    })
 }
 
 /// Borrow the historical client from a unified handle.
@@ -2615,28 +2762,32 @@ pub unsafe extern "C" fn tdx_unified_next_event(
 /// `DirectClient`, and `ThetaDataDx` Derefs to `&DirectClient`.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_unified_historical(handle: *const TdxUnified) -> *const TdxClient {
-    if handle.is_null() {
-        set_error("unified handle is null");
-        return ptr::null();
-    }
-    let handle = unsafe { &*handle };
-    // TdxClient is #[repr(transparent)] over DirectClient, so this cast is safe.
-    let direct_ref: &thetadatadx::direct::DirectClient = &handle.inner;
-    std::ptr::from_ref::<thetadatadx::direct::DirectClient>(direct_ref).cast::<TdxClient>()
+    ffi_boundary!(std::ptr::null(), {
+        if handle.is_null() {
+            set_error("unified handle is null");
+            return ptr::null();
+        }
+        let handle = unsafe { &*handle };
+        // TdxClient is #[repr(transparent)] over DirectClient, so this cast is safe.
+        let direct_ref: &thetadatadx::direct::DirectClient = &handle.inner;
+        std::ptr::from_ref::<thetadatadx::direct::DirectClient>(direct_ref).cast::<TdxClient>()
+    })
 }
 
 /// Stop streaming on the unified client. Historical remains available.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_unified_stop_streaming(handle: *const TdxUnified) {
-    if handle.is_null() {
-        return;
-    }
-    let handle = unsafe { &*handle };
-    handle.inner.stop_streaming();
-    // Clear the rx so next_event knows streaming is stopped.
-    if let Ok(mut guard) = handle.rx.lock() {
-        *guard = None;
-    }
+    ffi_boundary!((), {
+        if handle.is_null() {
+            return;
+        }
+        let handle = unsafe { &*handle };
+        handle.inner.stop_streaming();
+        // Clear the rx so next_event knows streaming is stopped.
+        if let Ok(mut guard) = handle.rx.lock() {
+            *guard = None;
+        }
+    })
 }
 
 /// Cumulative count of FPSS events dropped on this unified handle because
@@ -2646,20 +2797,24 @@ pub unsafe extern "C" fn tdx_unified_stop_streaming(handle: *const TdxUnified) {
 /// every callback). Returns 0 if the handle is null.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_unified_dropped_events(handle: *const TdxUnified) -> u64 {
-    if handle.is_null() {
-        return 0;
-    }
-    unsafe { (*handle).dropped_events.load(Ordering::Relaxed) }
+    ffi_boundary!(0, {
+        if handle.is_null() {
+            return 0;
+        }
+        unsafe { (*handle).dropped_events.load(Ordering::Relaxed) }
+    })
 }
 
 /// Free a unified client handle.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_unified_free(handle: *mut TdxUnified) {
-    if !handle.is_null() {
-        let handle = unsafe { Box::from_raw(handle) };
-        handle.inner.stop_streaming();
-        drop(handle);
-    }
+    ffi_boundary!((), {
+        if !handle.is_null() {
+            let handle = unsafe { Box::from_raw(handle) };
+            handle.inner.stop_streaming();
+            drop(handle);
+        }
+    })
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -2676,65 +2831,67 @@ pub unsafe extern "C" fn tdx_fpss_connect(
     creds: *const TdxCredentials,
     config: *const TdxConfig,
 ) -> *mut TdxFpssHandle {
-    if creds.is_null() {
-        set_error("credentials handle is null");
-        return ptr::null_mut();
-    }
-    if config.is_null() {
-        set_error("config handle is null");
-        return ptr::null_mut();
-    }
-    let creds = unsafe { &*creds };
-    let config = unsafe { &*config };
-
-    let (tx, rx) = std::sync::mpsc::channel::<FfiBufferedEvent>();
-    // Pre-allocate the counter Arc so the callback closure (registered
-    // with the client before the handle exists) and the returned handle
-    // point at the same `AtomicU64`. `tdx_fpss_reconnect` will also
-    // clone this Arc into the new callback, preserving the count across
-    // reconnects.
-    let dropped_events = Arc::new(AtomicU64::new(0));
-    let dropped_events_cb = Arc::clone(&dropped_events);
-
-    let client = match thetadatadx::fpss::FpssClient::connect(
-        &creds.inner,
-        &config.inner.fpss_hosts,
-        config.inner.fpss_ring_size,
-        config.inner.fpss_flush_mode,
-        config.inner.reconnect_policy.clone(),
-        config.inner.derive_ohlcvc,
-        move |event: &thetadatadx::fpss::FpssEvent| {
-            let buffered = fpss_event_to_ffi(event);
-            if tx.send(buffered).is_err() {
-                let count = dropped_events_cb.fetch_add(1, Ordering::Relaxed) + 1;
-                tracing::debug!(
-                    target: "thetadatadx::ffi::streaming",
-                    dropped_total = count,
-                    "fpss event dropped -- receiver dead",
-                );
-            }
-        },
-    ) {
-        Ok(c) => c,
-        Err(e) => {
-            set_error(&e.to_string());
+    ffi_boundary!(std::ptr::null_mut(), {
+        if creds.is_null() {
+            set_error("credentials handle is null");
             return ptr::null_mut();
         }
-    };
+        if config.is_null() {
+            set_error("config handle is null");
+            return ptr::null_mut();
+        }
+        let creds = unsafe { &*creds };
+        let config = unsafe { &*config };
 
-    Box::into_raw(Box::new(TdxFpssHandle {
-        inner: Arc::new(Mutex::new(Some(client))),
-        rx: Arc::new(Mutex::new(rx)),
-        connect_params: FpssConnectParams {
-            creds: creds.inner.clone(),
-            hosts: config.inner.fpss_hosts.clone(),
-            ring_size: config.inner.fpss_ring_size,
-            flush_mode: config.inner.fpss_flush_mode,
-            reconnect_policy: config.inner.reconnect_policy.clone(),
-            derive_ohlcvc: config.inner.derive_ohlcvc,
-        },
-        dropped_events,
-    }))
+        let (tx, rx) = std::sync::mpsc::channel::<FfiBufferedEvent>();
+        // Pre-allocate the counter Arc so the callback closure (registered
+        // with the client before the handle exists) and the returned handle
+        // point at the same `AtomicU64`. `tdx_fpss_reconnect` will also
+        // clone this Arc into the new callback, preserving the count across
+        // reconnects.
+        let dropped_events = Arc::new(AtomicU64::new(0));
+        let dropped_events_cb = Arc::clone(&dropped_events);
+
+        let client = match thetadatadx::fpss::FpssClient::connect(
+            &creds.inner,
+            &config.inner.fpss_hosts,
+            config.inner.fpss_ring_size,
+            config.inner.fpss_flush_mode,
+            config.inner.reconnect_policy.clone(),
+            config.inner.derive_ohlcvc,
+            move |event: &thetadatadx::fpss::FpssEvent| {
+                let buffered = fpss_event_to_ffi(event);
+                if tx.send(buffered).is_err() {
+                    let count = dropped_events_cb.fetch_add(1, Ordering::Relaxed) + 1;
+                    tracing::debug!(
+                        target: "thetadatadx::ffi::streaming",
+                        dropped_total = count,
+                        "fpss event dropped -- receiver dead",
+                    );
+                }
+            },
+        ) {
+            Ok(c) => c,
+            Err(e) => {
+                set_error(&e.to_string());
+                return ptr::null_mut();
+            }
+        };
+
+        Box::into_raw(Box::new(TdxFpssHandle {
+            inner: Arc::new(Mutex::new(Some(client))),
+            rx: Arc::new(Mutex::new(rx)),
+            connect_params: FpssConnectParams {
+                creds: creds.inner.clone(),
+                hosts: config.inner.fpss_hosts.clone(),
+                ring_size: config.inner.fpss_ring_size,
+                flush_mode: config.inner.fpss_flush_mode,
+                reconnect_policy: config.inner.reconnect_policy.clone(),
+                derive_ohlcvc: config.inner.derive_ohlcvc,
+            },
+            dropped_events,
+        }))
+    })
 }
 
 /// Subscribe to quote data for a stock symbol.
@@ -2745,30 +2902,32 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_quotes(
     handle: *const TdxFpssHandle,
     symbol: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("FPSS handle is null");
-        return -1;
-    }
-    let symbol = require_cstr!(symbol, -1);
-    let handle = unsafe { &*handle };
-    let guard = handle
-        .inner
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let client = if let Some(c) = guard.as_ref() {
-        c
-    } else {
-        set_error("FPSS client is shut down");
-        return -1;
-    };
-    let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
-    match client.subscribe_quotes(&contract) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("FPSS handle is null");
+            return -1;
         }
-    }
+        let symbol = require_cstr!(symbol, -1);
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let client = if let Some(c) = guard.as_ref() {
+            c
+        } else {
+            set_error("FPSS client is shut down");
+            return -1;
+        };
+        let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
+        match client.subscribe_quotes(&contract) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
+        }
+    })
 }
 
 /// Subscribe to trade data for a stock symbol.
@@ -2779,30 +2938,32 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_trades(
     handle: *const TdxFpssHandle,
     symbol: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("FPSS handle is null");
-        return -1;
-    }
-    let symbol = require_cstr!(symbol, -1);
-    let handle = unsafe { &*handle };
-    let guard = handle
-        .inner
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let client = if let Some(c) = guard.as_ref() {
-        c
-    } else {
-        set_error("FPSS client is shut down");
-        return -1;
-    };
-    let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
-    match client.subscribe_trades(&contract) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("FPSS handle is null");
+            return -1;
         }
-    }
+        let symbol = require_cstr!(symbol, -1);
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let client = if let Some(c) = guard.as_ref() {
+            c
+        } else {
+            set_error("FPSS client is shut down");
+            return -1;
+        };
+        let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
+        match client.subscribe_trades(&contract) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
+        }
+    })
 }
 
 /// Unsubscribe from quote data for a stock symbol.
@@ -2813,30 +2974,32 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_quotes(
     handle: *const TdxFpssHandle,
     symbol: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("FPSS handle is null");
-        return -1;
-    }
-    let symbol = require_cstr!(symbol, -1);
-    let handle = unsafe { &*handle };
-    let guard = handle
-        .inner
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let client = if let Some(c) = guard.as_ref() {
-        c
-    } else {
-        set_error("FPSS client is shut down");
-        return -1;
-    };
-    let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
-    match client.unsubscribe_quotes(&contract) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("FPSS handle is null");
+            return -1;
         }
-    }
+        let symbol = require_cstr!(symbol, -1);
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let client = if let Some(c) = guard.as_ref() {
+            c
+        } else {
+            set_error("FPSS client is shut down");
+            return -1;
+        };
+        let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
+        match client.unsubscribe_quotes(&contract) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
+        }
+    })
 }
 
 /// Unsubscribe from trade data for a stock symbol.
@@ -2847,30 +3010,32 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_trades(
     handle: *const TdxFpssHandle,
     symbol: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("FPSS handle is null");
-        return -1;
-    }
-    let symbol = require_cstr!(symbol, -1);
-    let handle = unsafe { &*handle };
-    let guard = handle
-        .inner
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let client = if let Some(c) = guard.as_ref() {
-        c
-    } else {
-        set_error("FPSS client is shut down");
-        return -1;
-    };
-    let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
-    match client.unsubscribe_trades(&contract) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("FPSS handle is null");
+            return -1;
         }
-    }
+        let symbol = require_cstr!(symbol, -1);
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let client = if let Some(c) = guard.as_ref() {
+            c
+        } else {
+            set_error("FPSS client is shut down");
+            return -1;
+        };
+        let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
+        match client.unsubscribe_trades(&contract) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
+        }
+    })
 }
 
 /// Subscribe to open interest data for a stock symbol.
@@ -2881,30 +3046,32 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_open_interest(
     handle: *const TdxFpssHandle,
     symbol: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("FPSS handle is null");
-        return -1;
-    }
-    let symbol = require_cstr!(symbol, -1);
-    let handle = unsafe { &*handle };
-    let guard = handle
-        .inner
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let client = if let Some(c) = guard.as_ref() {
-        c
-    } else {
-        set_error("FPSS client is shut down");
-        return -1;
-    };
-    let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
-    match client.subscribe_open_interest(&contract) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("FPSS handle is null");
+            return -1;
         }
-    }
+        let symbol = require_cstr!(symbol, -1);
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let client = if let Some(c) = guard.as_ref() {
+            c
+        } else {
+            set_error("FPSS client is shut down");
+            return -1;
+        };
+        let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
+        match client.subscribe_open_interest(&contract) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
+        }
+    })
 }
 
 /// Unsubscribe from open interest data for a stock symbol.
@@ -2915,30 +3082,32 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_open_interest(
     handle: *const TdxFpssHandle,
     symbol: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("FPSS handle is null");
-        return -1;
-    }
-    let symbol = require_cstr!(symbol, -1);
-    let handle = unsafe { &*handle };
-    let guard = handle
-        .inner
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let client = if let Some(c) = guard.as_ref() {
-        c
-    } else {
-        set_error("FPSS client is shut down");
-        return -1;
-    };
-    let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
-    match client.unsubscribe_open_interest(&contract) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("FPSS handle is null");
+            return -1;
         }
-    }
+        let symbol = require_cstr!(symbol, -1);
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let client = if let Some(c) = guard.as_ref() {
+            c
+        } else {
+            set_error("FPSS client is shut down");
+            return -1;
+        };
+        let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
+        match client.unsubscribe_open_interest(&contract) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
+        }
+    })
 }
 
 /// Subscribe to all trades for a security type (full trade stream).
@@ -2951,40 +3120,42 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_full_trades(
     handle: *const TdxFpssHandle,
     sec_type: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("FPSS handle is null");
-        return -1;
-    }
-    let sec_type_str = require_cstr!(sec_type, -1);
-    let st = match sec_type_str.to_uppercase().as_str() {
-        "STOCK" => tdbe::types::enums::SecType::Stock,
-        "OPTION" => tdbe::types::enums::SecType::Option,
-        "INDEX" => tdbe::types::enums::SecType::Index,
-        other => {
-            set_error(&format!(
-                "unknown sec_type: {other:?} (expected STOCK, OPTION, or INDEX)"
-            ));
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("FPSS handle is null");
             return -1;
         }
-    };
-    let handle = unsafe { &*handle };
-    let guard = handle
-        .inner
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let client = if let Some(c) = guard.as_ref() {
-        c
-    } else {
-        set_error("FPSS client is shut down");
-        return -1;
-    };
-    match client.subscribe_full_trades(st) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
+        let sec_type_str = require_cstr!(sec_type, -1);
+        let st = match sec_type_str.to_uppercase().as_str() {
+            "STOCK" => tdbe::types::enums::SecType::Stock,
+            "OPTION" => tdbe::types::enums::SecType::Option,
+            "INDEX" => tdbe::types::enums::SecType::Index,
+            other => {
+                set_error(&format!(
+                    "unknown sec_type: {other:?} (expected STOCK, OPTION, or INDEX)"
+                ));
+                return -1;
+            }
+        };
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let client = if let Some(c) = guard.as_ref() {
+            c
+        } else {
+            set_error("FPSS client is shut down");
+            return -1;
+        };
+        match client.subscribe_full_trades(st) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
         }
-    }
+    })
 }
 
 /// Subscribe to all open interest for a security type (full OI stream).
@@ -2997,40 +3168,42 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_full_open_interest(
     handle: *const TdxFpssHandle,
     sec_type: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("FPSS handle is null");
-        return -1;
-    }
-    let sec_type_str = require_cstr!(sec_type, -1);
-    let st = match sec_type_str.to_uppercase().as_str() {
-        "STOCK" => tdbe::types::enums::SecType::Stock,
-        "OPTION" => tdbe::types::enums::SecType::Option,
-        "INDEX" => tdbe::types::enums::SecType::Index,
-        other => {
-            set_error(&format!(
-                "unknown sec_type: {other:?} (expected STOCK, OPTION, or INDEX)"
-            ));
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("FPSS handle is null");
             return -1;
         }
-    };
-    let handle = unsafe { &*handle };
-    let guard = handle
-        .inner
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let client = if let Some(c) = guard.as_ref() {
-        c
-    } else {
-        set_error("FPSS client is shut down");
-        return -1;
-    };
-    match client.subscribe_full_open_interest(st) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
+        let sec_type_str = require_cstr!(sec_type, -1);
+        let st = match sec_type_str.to_uppercase().as_str() {
+            "STOCK" => tdbe::types::enums::SecType::Stock,
+            "OPTION" => tdbe::types::enums::SecType::Option,
+            "INDEX" => tdbe::types::enums::SecType::Index,
+            other => {
+                set_error(&format!(
+                    "unknown sec_type: {other:?} (expected STOCK, OPTION, or INDEX)"
+                ));
+                return -1;
+            }
+        };
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let client = if let Some(c) = guard.as_ref() {
+            c
+        } else {
+            set_error("FPSS client is shut down");
+            return -1;
+        };
+        match client.subscribe_full_open_interest(st) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
         }
-    }
+    })
 }
 
 /// Unsubscribe from all trades for a security type (full trade stream).
@@ -3043,40 +3216,42 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_full_trades(
     handle: *const TdxFpssHandle,
     sec_type: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("FPSS handle is null");
-        return -1;
-    }
-    let sec_type_str = require_cstr!(sec_type, -1);
-    let st = match sec_type_str.to_uppercase().as_str() {
-        "STOCK" => tdbe::types::enums::SecType::Stock,
-        "OPTION" => tdbe::types::enums::SecType::Option,
-        "INDEX" => tdbe::types::enums::SecType::Index,
-        other => {
-            set_error(&format!(
-                "unknown sec_type: {other:?} (expected STOCK, OPTION, or INDEX)"
-            ));
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("FPSS handle is null");
             return -1;
         }
-    };
-    let handle = unsafe { &*handle };
-    let guard = handle
-        .inner
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let client = if let Some(c) = guard.as_ref() {
-        c
-    } else {
-        set_error("FPSS client is shut down");
-        return -1;
-    };
-    match client.unsubscribe_full_trades(st) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
+        let sec_type_str = require_cstr!(sec_type, -1);
+        let st = match sec_type_str.to_uppercase().as_str() {
+            "STOCK" => tdbe::types::enums::SecType::Stock,
+            "OPTION" => tdbe::types::enums::SecType::Option,
+            "INDEX" => tdbe::types::enums::SecType::Index,
+            other => {
+                set_error(&format!(
+                    "unknown sec_type: {other:?} (expected STOCK, OPTION, or INDEX)"
+                ));
+                return -1;
+            }
+        };
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let client = if let Some(c) = guard.as_ref() {
+            c
+        } else {
+            set_error("FPSS client is shut down");
+            return -1;
+        };
+        match client.unsubscribe_full_trades(st) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
         }
-    }
+    })
 }
 
 /// Unsubscribe from all open interest for a security type (full OI stream).
@@ -3089,40 +3264,42 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_full_open_interest(
     handle: *const TdxFpssHandle,
     sec_type: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("FPSS handle is null");
-        return -1;
-    }
-    let sec_type_str = require_cstr!(sec_type, -1);
-    let st = match sec_type_str.to_uppercase().as_str() {
-        "STOCK" => tdbe::types::enums::SecType::Stock,
-        "OPTION" => tdbe::types::enums::SecType::Option,
-        "INDEX" => tdbe::types::enums::SecType::Index,
-        other => {
-            set_error(&format!(
-                "unknown sec_type: {other:?} (expected STOCK, OPTION, or INDEX)"
-            ));
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("FPSS handle is null");
             return -1;
         }
-    };
-    let handle = unsafe { &*handle };
-    let guard = handle
-        .inner
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let client = if let Some(c) = guard.as_ref() {
-        c
-    } else {
-        set_error("FPSS client is shut down");
-        return -1;
-    };
-    match client.unsubscribe_full_open_interest(st) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
+        let sec_type_str = require_cstr!(sec_type, -1);
+        let st = match sec_type_str.to_uppercase().as_str() {
+            "STOCK" => tdbe::types::enums::SecType::Stock,
+            "OPTION" => tdbe::types::enums::SecType::Option,
+            "INDEX" => tdbe::types::enums::SecType::Index,
+            other => {
+                set_error(&format!(
+                    "unknown sec_type: {other:?} (expected STOCK, OPTION, or INDEX)"
+                ));
+                return -1;
+            }
+        };
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let client = if let Some(c) = guard.as_ref() {
+            c
+        } else {
+            set_error("FPSS client is shut down");
+            return -1;
+        };
+        match client.unsubscribe_full_open_interest(st) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
         }
-    }
+    })
 }
 
 /// Check if the FPSS client is currently authenticated.
@@ -3130,18 +3307,20 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_full_open_interest(
 /// Returns 1 if authenticated, 0 if not (or if handle is null).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_fpss_is_authenticated(handle: *const TdxFpssHandle) -> i32 {
-    if handle.is_null() {
-        return 0;
-    }
-    let handle = unsafe { &*handle };
-    let guard = handle
-        .inner
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    match guard.as_ref() {
-        Some(c) => i32::from(c.is_authenticated()),
-        None => 0,
-    }
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            return 0;
+        }
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        match guard.as_ref() {
+            Some(c) => i32::from(c.is_authenticated()),
+            None => 0,
+        }
+    })
 }
 
 /// Look up a single contract by its server-assigned ID.
@@ -3153,36 +3332,38 @@ pub unsafe extern "C" fn tdx_fpss_contract_lookup(
     handle: *const TdxFpssHandle,
     id: i32,
 ) -> *mut c_char {
-    if handle.is_null() {
-        set_error("FPSS handle is null");
-        return ptr::null_mut();
-    }
-    let handle = unsafe { &*handle };
-    let guard = handle
-        .inner
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let client = if let Some(c) = guard.as_ref() {
-        c
-    } else {
-        set_error("FPSS client is shut down");
-        return ptr::null_mut();
-    };
-    match client.contract_lookup(id) {
-        Some(contract) => {
-            let s = format!("{contract}");
-            match CString::new(s) {
-                Ok(cs) => cs.into_raw(),
-                Err(_) => ptr::null_mut(),
+    ffi_boundary!(std::ptr::null_mut(), {
+        if handle.is_null() {
+            set_error("FPSS handle is null");
+            return ptr::null_mut();
+        }
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let client = if let Some(c) = guard.as_ref() {
+            c
+        } else {
+            set_error("FPSS client is shut down");
+            return ptr::null_mut();
+        };
+        match client.contract_lookup(id) {
+            Some(contract) => {
+                let s = format!("{contract}");
+                match CString::new(s) {
+                    Ok(cs) => cs.into_raw(),
+                    Err(_) => ptr::null_mut(),
+                }
+            }
+            None => {
+                // Clear last error so callers can distinguish "not found" (empty error)
+                // from a real error (non-empty error) when they receive NULL.
+                set_error("");
+                ptr::null_mut()
             }
         }
-        None => {
-            // Clear last error so callers can distinguish "not found" (empty error)
-            // from a real error (non-empty error) when they receive NULL.
-            set_error("");
-            ptr::null_mut()
-        }
-    }
+    })
 }
 
 /// Get a snapshot of currently active subscriptions.
@@ -3193,26 +3374,28 @@ pub unsafe extern "C" fn tdx_fpss_contract_lookup(
 pub unsafe extern "C" fn tdx_fpss_active_subscriptions(
     handle: *const TdxFpssHandle,
 ) -> *mut TdxSubscriptionArray {
-    if handle.is_null() {
-        set_error("FPSS handle is null");
-        return ptr::null_mut();
-    }
-    let handle = unsafe { &*handle };
-    let guard = handle
-        .inner
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let client = if let Some(c) = guard.as_ref() {
-        c
-    } else {
-        set_error("FPSS client is shut down");
-        return ptr::null_mut();
-    };
-    let subs = client.active_subscriptions();
-    build_subscription_array(
-        subs.into_iter()
-            .map(|(kind, contract)| (format!("{kind:?}"), format!("{contract}"))),
-    )
+    ffi_boundary!(std::ptr::null_mut(), {
+        if handle.is_null() {
+            set_error("FPSS handle is null");
+            return ptr::null_mut();
+        }
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let client = if let Some(c) = guard.as_ref() {
+            c
+        } else {
+            set_error("FPSS client is shut down");
+            return ptr::null_mut();
+        };
+        let subs = client.active_subscriptions();
+        build_subscription_array(
+            subs.into_iter()
+                .map(|(kind, contract)| (format!("{kind:?}"), format!("{contract}"))),
+        )
+    })
 }
 
 /// Poll for the next FPSS event as a typed `#[repr(C)]` struct.
@@ -3226,26 +3409,28 @@ pub unsafe extern "C" fn tdx_fpss_next_event(
     handle: *const TdxFpssHandle,
     timeout_ms: u64,
 ) -> *mut TdxFpssEvent {
-    if handle.is_null() {
-        set_error("FPSS handle is null");
-        return ptr::null_mut();
-    }
-    let handle = unsafe { &*handle };
-    let rx = handle
-        .rx
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let timeout = std::time::Duration::from_millis(timeout_ms);
-    match rx.recv_timeout(timeout) {
-        Ok(buffered) => {
-            // Box the entire FfiBufferedEvent so _detail_string/_raw_payload
-            // stay alive. Cast to *mut TdxFpssEvent (first field) for FFI.
-            let ptr = Box::into_raw(Box::new(buffered));
-            ptr.cast::<TdxFpssEvent>()
+    ffi_boundary!(std::ptr::null_mut(), {
+        if handle.is_null() {
+            set_error("FPSS handle is null");
+            return ptr::null_mut();
         }
-        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => ptr::null_mut(),
-        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => ptr::null_mut(),
-    }
+        let handle = unsafe { &*handle };
+        let rx = handle
+            .rx
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let timeout = std::time::Duration::from_millis(timeout_ms);
+        match rx.recv_timeout(timeout) {
+            Ok(buffered) => {
+                // Box the entire FfiBufferedEvent so _detail_string/_raw_payload
+                // stay alive. Cast to *mut TdxFpssEvent (first field) for FFI.
+                let ptr = Box::into_raw(Box::new(buffered));
+                ptr.cast::<TdxFpssEvent>()
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => ptr::null_mut(),
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => ptr::null_mut(),
+        }
+    })
 }
 
 /// Free a `TdxFpssEvent` returned by `tdx_fpss_next_event` or
@@ -3257,13 +3442,15 @@ pub unsafe extern "C" fn tdx_fpss_next_event(
 /// `tdx_string_free` on `control.detail`.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_fpss_event_free(event: *mut TdxFpssEvent) {
-    if !event.is_null() {
-        // The pointer was created by boxing a FfiBufferedEvent and casting
-        // to *mut TdxFpssEvent (which is the first field). Cast back to
-        // free the entire FfiBufferedEvent including owned _detail_string
-        // and _raw_payload.
-        drop(unsafe { Box::from_raw(event.cast::<FfiBufferedEvent>()) });
-    }
+    ffi_boundary!((), {
+        if !event.is_null() {
+            // The pointer was created by boxing a FfiBufferedEvent and casting
+            // to *mut TdxFpssEvent (which is the first field). Cast back to
+            // free the entire FfiBufferedEvent including owned _detail_string
+            // and _raw_payload.
+            drop(unsafe { Box::from_raw(event.cast::<FfiBufferedEvent>()) });
+        }
+    })
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -3300,41 +3487,43 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_option_quotes(
     strike: *const c_char,
     right: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("FPSS handle is null");
-        return -1;
-    }
-    let (sym, exp, stk, rt) =
-        if let Some(args) = unsafe { parse_option_args(symbol, expiration, strike, right) } {
-            args
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("FPSS handle is null");
+            return -1;
+        }
+        let (sym, exp, stk, rt) =
+            if let Some(args) = unsafe { parse_option_args(symbol, expiration, strike, right) } {
+                args
+            } else {
+                return -1;
+            };
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let client = if let Some(c) = guard.as_ref() {
+            c
         } else {
+            set_error("FPSS client is shut down");
             return -1;
         };
-    let handle = unsafe { &*handle };
-    let guard = handle
-        .inner
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let client = if let Some(c) = guard.as_ref() {
-        c
-    } else {
-        set_error("FPSS client is shut down");
-        return -1;
-    };
-    let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
-        Ok(c) => c,
-        Err(e) => {
-            set_error(&e.to_string());
-            return -1;
+        let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
+            Ok(c) => c,
+            Err(e) => {
+                set_error(&e.to_string());
+                return -1;
+            }
+        };
+        match client.subscribe_quotes(&contract) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
         }
-    };
-    match client.subscribe_quotes(&contract) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
-        }
-    }
+    })
 }
 
 /// Subscribe to trade data for an option contract.
@@ -3348,41 +3537,43 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_option_trades(
     strike: *const c_char,
     right: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("FPSS handle is null");
-        return -1;
-    }
-    let (sym, exp, stk, rt) =
-        if let Some(args) = unsafe { parse_option_args(symbol, expiration, strike, right) } {
-            args
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("FPSS handle is null");
+            return -1;
+        }
+        let (sym, exp, stk, rt) =
+            if let Some(args) = unsafe { parse_option_args(symbol, expiration, strike, right) } {
+                args
+            } else {
+                return -1;
+            };
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let client = if let Some(c) = guard.as_ref() {
+            c
         } else {
+            set_error("FPSS client is shut down");
             return -1;
         };
-    let handle = unsafe { &*handle };
-    let guard = handle
-        .inner
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let client = if let Some(c) = guard.as_ref() {
-        c
-    } else {
-        set_error("FPSS client is shut down");
-        return -1;
-    };
-    let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
-        Ok(c) => c,
-        Err(e) => {
-            set_error(&e.to_string());
-            return -1;
+        let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
+            Ok(c) => c,
+            Err(e) => {
+                set_error(&e.to_string());
+                return -1;
+            }
+        };
+        match client.subscribe_trades(&contract) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
         }
-    };
-    match client.subscribe_trades(&contract) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
-        }
-    }
+    })
 }
 
 /// Subscribe to open interest data for an option contract.
@@ -3396,41 +3587,43 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_option_open_interest(
     strike: *const c_char,
     right: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("FPSS handle is null");
-        return -1;
-    }
-    let (sym, exp, stk, rt) =
-        if let Some(args) = unsafe { parse_option_args(symbol, expiration, strike, right) } {
-            args
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("FPSS handle is null");
+            return -1;
+        }
+        let (sym, exp, stk, rt) =
+            if let Some(args) = unsafe { parse_option_args(symbol, expiration, strike, right) } {
+                args
+            } else {
+                return -1;
+            };
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let client = if let Some(c) = guard.as_ref() {
+            c
         } else {
+            set_error("FPSS client is shut down");
             return -1;
         };
-    let handle = unsafe { &*handle };
-    let guard = handle
-        .inner
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let client = if let Some(c) = guard.as_ref() {
-        c
-    } else {
-        set_error("FPSS client is shut down");
-        return -1;
-    };
-    let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
-        Ok(c) => c,
-        Err(e) => {
-            set_error(&e.to_string());
-            return -1;
+        let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
+            Ok(c) => c,
+            Err(e) => {
+                set_error(&e.to_string());
+                return -1;
+            }
+        };
+        match client.subscribe_open_interest(&contract) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
         }
-    };
-    match client.subscribe_open_interest(&contract) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
-        }
-    }
+    })
 }
 
 /// Unsubscribe from quote data for an option contract.
@@ -3444,41 +3637,43 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_option_quotes(
     strike: *const c_char,
     right: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("FPSS handle is null");
-        return -1;
-    }
-    let (sym, exp, stk, rt) =
-        if let Some(args) = unsafe { parse_option_args(symbol, expiration, strike, right) } {
-            args
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("FPSS handle is null");
+            return -1;
+        }
+        let (sym, exp, stk, rt) =
+            if let Some(args) = unsafe { parse_option_args(symbol, expiration, strike, right) } {
+                args
+            } else {
+                return -1;
+            };
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let client = if let Some(c) = guard.as_ref() {
+            c
         } else {
+            set_error("FPSS client is shut down");
             return -1;
         };
-    let handle = unsafe { &*handle };
-    let guard = handle
-        .inner
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let client = if let Some(c) = guard.as_ref() {
-        c
-    } else {
-        set_error("FPSS client is shut down");
-        return -1;
-    };
-    let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
-        Ok(c) => c,
-        Err(e) => {
-            set_error(&e.to_string());
-            return -1;
+        let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
+            Ok(c) => c,
+            Err(e) => {
+                set_error(&e.to_string());
+                return -1;
+            }
+        };
+        match client.unsubscribe_quotes(&contract) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
         }
-    };
-    match client.unsubscribe_quotes(&contract) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
-        }
-    }
+    })
 }
 
 /// Unsubscribe from trade data for an option contract.
@@ -3492,41 +3687,43 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_option_trades(
     strike: *const c_char,
     right: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("FPSS handle is null");
-        return -1;
-    }
-    let (sym, exp, stk, rt) =
-        if let Some(args) = unsafe { parse_option_args(symbol, expiration, strike, right) } {
-            args
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("FPSS handle is null");
+            return -1;
+        }
+        let (sym, exp, stk, rt) =
+            if let Some(args) = unsafe { parse_option_args(symbol, expiration, strike, right) } {
+                args
+            } else {
+                return -1;
+            };
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let client = if let Some(c) = guard.as_ref() {
+            c
         } else {
+            set_error("FPSS client is shut down");
             return -1;
         };
-    let handle = unsafe { &*handle };
-    let guard = handle
-        .inner
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let client = if let Some(c) = guard.as_ref() {
-        c
-    } else {
-        set_error("FPSS client is shut down");
-        return -1;
-    };
-    let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
-        Ok(c) => c,
-        Err(e) => {
-            set_error(&e.to_string());
-            return -1;
+        let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
+            Ok(c) => c,
+            Err(e) => {
+                set_error(&e.to_string());
+                return -1;
+            }
+        };
+        match client.unsubscribe_trades(&contract) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
         }
-    };
-    match client.unsubscribe_trades(&contract) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
-        }
-    }
+    })
 }
 
 /// Unsubscribe from open interest data for an option contract.
@@ -3540,41 +3737,43 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_option_open_interest(
     strike: *const c_char,
     right: *const c_char,
 ) -> i32 {
-    if handle.is_null() {
-        set_error("FPSS handle is null");
-        return -1;
-    }
-    let (sym, exp, stk, rt) =
-        if let Some(args) = unsafe { parse_option_args(symbol, expiration, strike, right) } {
-            args
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("FPSS handle is null");
+            return -1;
+        }
+        let (sym, exp, stk, rt) =
+            if let Some(args) = unsafe { parse_option_args(symbol, expiration, strike, right) } {
+                args
+            } else {
+                return -1;
+            };
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let client = if let Some(c) = guard.as_ref() {
+            c
         } else {
+            set_error("FPSS client is shut down");
             return -1;
         };
-    let handle = unsafe { &*handle };
-    let guard = handle
-        .inner
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let client = if let Some(c) = guard.as_ref() {
-        c
-    } else {
-        set_error("FPSS client is shut down");
-        return -1;
-    };
-    let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
-        Ok(c) => c,
-        Err(e) => {
-            set_error(&e.to_string());
-            return -1;
+        let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
+            Ok(c) => c,
+            Err(e) => {
+                set_error(&e.to_string());
+                return -1;
+            }
+        };
+        match client.unsubscribe_open_interest(&contract) {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
         }
-    };
-    match client.unsubscribe_open_interest(&contract) {
-        Ok(()) => 0,
-        Err(e) => {
-            set_error(&e.to_string());
-            -1
-        }
-    }
+    })
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -3589,27 +3788,29 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_option_open_interest(
 pub unsafe extern "C" fn tdx_fpss_contract_map(
     handle: *const TdxFpssHandle,
 ) -> *mut TdxContractMapArray {
-    if handle.is_null() {
-        set_error("FPSS handle is null");
-        return ptr::null_mut();
-    }
-    let handle = unsafe { &*handle };
-    let guard = handle
-        .inner
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let client = if let Some(c) = guard.as_ref() {
-        c
-    } else {
-        set_error("FPSS client is shut down");
-        return ptr::null_mut();
-    };
-    build_contract_map_array(
-        client
-            .contract_map()
-            .into_iter()
-            .map(|(id, contract)| (id, format!("{contract}"))),
-    )
+    ffi_boundary!(std::ptr::null_mut(), {
+        if handle.is_null() {
+            set_error("FPSS handle is null");
+            return ptr::null_mut();
+        }
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let client = if let Some(c) = guard.as_ref() {
+            c
+        } else {
+            set_error("FPSS client is shut down");
+            return ptr::null_mut();
+        };
+        build_contract_map_array(
+            client
+                .contract_map()
+                .into_iter()
+                .map(|(id, contract)| (id, format!("{contract}"))),
+        )
+    })
 }
 
 /// Reconnect the FPSS streaming client, re-subscribing all previous subscriptions.
@@ -3627,136 +3828,138 @@ pub unsafe extern "C" fn tdx_fpss_contract_map(
 /// gap detection and replay logic.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32 {
-    if handle.is_null() {
-        set_error("FPSS handle is null");
-        return -1;
-    }
-    let handle = unsafe { &*handle };
-    let params = &handle.connect_params;
-
-    // 1. Save active subscriptions from the current client
-    let (saved_subs, saved_full_subs) = {
-        let guard = handle
-            .inner
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        match guard.as_ref() {
-            Some(c) => (c.active_subscriptions(), c.active_full_subscriptions()),
-            None => (Vec::new(), Vec::new()),
-        }
-    };
-
-    // 2. Shut down the old client
-    {
-        let mut guard = handle
-            .inner
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if let Some(old) = guard.take() {
-            old.shutdown();
-        }
-    }
-
-    // 3. Create a new mpsc channel and connect
-    let (tx, rx) = std::sync::mpsc::channel::<FfiBufferedEvent>();
-    // Clone the handle-level counter so the drop count survives
-    // reconnect (same reasoning as Python / TS SDKs; see the struct-
-    // level field doc for the full rationale).
-    let dropped_events = Arc::clone(&handle.dropped_events);
-
-    let new_client = match thetadatadx::fpss::FpssClient::connect(
-        &params.creds,
-        &params.hosts,
-        params.ring_size,
-        params.flush_mode,
-        params.reconnect_policy.clone(),
-        params.derive_ohlcvc,
-        move |event: &thetadatadx::fpss::FpssEvent| {
-            let buffered = fpss_event_to_ffi(event);
-            if tx.send(buffered).is_err() {
-                let count = dropped_events.fetch_add(1, Ordering::Relaxed) + 1;
-                tracing::debug!(
-                    target: "thetadatadx::ffi::streaming",
-                    dropped_total = count,
-                    "fpss event dropped -- receiver dead (post-reconnect)",
-                );
-            }
-        },
-    ) {
-        Ok(c) => c,
-        Err(e) => {
-            set_error(&e.to_string());
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("FPSS handle is null");
             return -1;
         }
-    };
+        let handle = unsafe { &*handle };
+        let params = &handle.connect_params;
 
-    // 4. Re-subscribe all previous subscriptions (best-effort; failures are non-fatal,
-    // but MUST be surfaced through tracing so ops can see silent re-subscription
-    // failures across a reconnect boundary — mirrors the same diagnostic the
-    // unified reconnect path above emits).
-    for (kind, contract) in &saved_subs {
-        let result = match kind {
-            thetadatadx::fpss::protocol::SubscriptionKind::Quote => {
-                new_client.subscribe_quotes(contract)
-            }
-            thetadatadx::fpss::protocol::SubscriptionKind::Trade => {
-                new_client.subscribe_trades(contract)
-            }
-            thetadatadx::fpss::protocol::SubscriptionKind::OpenInterest => {
-                new_client.subscribe_open_interest(contract)
+        // 1. Save active subscriptions from the current client
+        let (saved_subs, saved_full_subs) = {
+            let guard = handle
+                .inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            match guard.as_ref() {
+                Some(c) => (c.active_subscriptions(), c.active_full_subscriptions()),
+                None => (Vec::new(), Vec::new()),
             }
         };
-        if let Err(e) = result {
-            tracing::warn!(
-                target: "thetadatadx::ffi::reconnect",
-                error = %e,
-                kind = ?kind,
-                root = %contract.root,
-                "resubscribe failed after reconnect"
-            );
-        }
-    }
 
-    for (kind, sec_type) in &saved_full_subs {
-        let result = match kind {
-            thetadatadx::fpss::protocol::SubscriptionKind::Trade => {
-                new_client.subscribe_full_trades(*sec_type)
+        // 2. Shut down the old client
+        {
+            let mut guard = handle
+                .inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if let Some(old) = guard.take() {
+                old.shutdown();
             }
-            thetadatadx::fpss::protocol::SubscriptionKind::OpenInterest => {
-                new_client.subscribe_full_open_interest(*sec_type)
+        }
+
+        // 3. Create a new mpsc channel and connect
+        let (tx, rx) = std::sync::mpsc::channel::<FfiBufferedEvent>();
+        // Clone the handle-level counter so the drop count survives
+        // reconnect (same reasoning as Python / TS SDKs; see the struct-
+        // level field doc for the full rationale).
+        let dropped_events = Arc::clone(&handle.dropped_events);
+
+        let new_client = match thetadatadx::fpss::FpssClient::connect(
+            &params.creds,
+            &params.hosts,
+            params.ring_size,
+            params.flush_mode,
+            params.reconnect_policy.clone(),
+            params.derive_ohlcvc,
+            move |event: &thetadatadx::fpss::FpssEvent| {
+                let buffered = fpss_event_to_ffi(event);
+                if tx.send(buffered).is_err() {
+                    let count = dropped_events.fetch_add(1, Ordering::Relaxed) + 1;
+                    tracing::debug!(
+                        target: "thetadatadx::ffi::streaming",
+                        dropped_total = count,
+                        "fpss event dropped -- receiver dead (post-reconnect)",
+                    );
+                }
+            },
+        ) {
+            Ok(c) => c,
+            Err(e) => {
+                set_error(&e.to_string());
+                return -1;
             }
-            thetadatadx::fpss::protocol::SubscriptionKind::Quote => continue,
         };
-        if let Err(e) = result {
-            tracing::warn!(
-                target: "thetadatadx::ffi::reconnect",
-                error = %e,
-                kind = ?kind,
-                sec_type = ?sec_type,
-                "full-stream resubscribe failed after reconnect"
-            );
+
+        // 4. Re-subscribe all previous subscriptions (best-effort; failures are non-fatal,
+        // but MUST be surfaced through tracing so ops can see silent re-subscription
+        // failures across a reconnect boundary — mirrors the same diagnostic the
+        // unified reconnect path above emits).
+        for (kind, contract) in &saved_subs {
+            let result = match kind {
+                thetadatadx::fpss::protocol::SubscriptionKind::Quote => {
+                    new_client.subscribe_quotes(contract)
+                }
+                thetadatadx::fpss::protocol::SubscriptionKind::Trade => {
+                    new_client.subscribe_trades(contract)
+                }
+                thetadatadx::fpss::protocol::SubscriptionKind::OpenInterest => {
+                    new_client.subscribe_open_interest(contract)
+                }
+            };
+            if let Err(e) = result {
+                tracing::warn!(
+                    target: "thetadatadx::ffi::reconnect",
+                    error = %e,
+                    kind = ?kind,
+                    root = %contract.root,
+                    "resubscribe failed after reconnect"
+                );
+            }
         }
-    }
 
-    // 5. Store the new client and rx
-    {
-        let mut guard = handle
-            .inner
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        *guard = Some(new_client);
-    }
-    {
-        let mut rx_guard = handle
-            .rx
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        // The old rx is dropped here; any buffered events from the old connection
-        // are lost, which is expected behavior for reconnection.
-        *rx_guard = rx;
-    }
+        for (kind, sec_type) in &saved_full_subs {
+            let result = match kind {
+                thetadatadx::fpss::protocol::SubscriptionKind::Trade => {
+                    new_client.subscribe_full_trades(*sec_type)
+                }
+                thetadatadx::fpss::protocol::SubscriptionKind::OpenInterest => {
+                    new_client.subscribe_full_open_interest(*sec_type)
+                }
+                thetadatadx::fpss::protocol::SubscriptionKind::Quote => continue,
+            };
+            if let Err(e) = result {
+                tracing::warn!(
+                    target: "thetadatadx::ffi::reconnect",
+                    error = %e,
+                    kind = ?kind,
+                    sec_type = ?sec_type,
+                    "full-stream resubscribe failed after reconnect"
+                );
+            }
+        }
 
-    0
+        // 5. Store the new client and rx
+        {
+            let mut guard = handle
+                .inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            *guard = Some(new_client);
+        }
+        {
+            let mut rx_guard = handle
+                .rx
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            // The old rx is dropped here; any buffered events from the old connection
+            // are lost, which is expected behavior for reconnection.
+            *rx_guard = rx;
+        }
+
+        0
+    })
 }
 
 /// Cumulative count of FPSS events dropped on this handle because the FFI
@@ -3771,10 +3974,12 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
 /// `tdx.dropped_events()` contract of "always callable, never panic").
 #[no_mangle]
 pub unsafe extern "C" fn tdx_fpss_dropped_events(handle: *const TdxFpssHandle) -> u64 {
-    if handle.is_null() {
-        return 0;
-    }
-    unsafe { (*handle).dropped_events.load(Ordering::Relaxed) }
+    ffi_boundary!(0, {
+        if handle.is_null() {
+            return 0;
+        }
+        unsafe { (*handle).dropped_events.load(Ordering::Relaxed) }
+    })
 }
 
 /// Shut down the FPSS client, stopping all background threads.
@@ -3783,23 +3988,67 @@ pub unsafe extern "C" fn tdx_fpss_dropped_events(handle: *const TdxFpssHandle) -
 /// will return errors.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_fpss_shutdown(handle: *const TdxFpssHandle) {
-    if handle.is_null() {
-        return;
-    }
-    let handle = unsafe { &*handle };
-    let mut guard = handle
-        .inner
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    if let Some(client) = guard.take() {
-        client.shutdown();
-    }
+    ffi_boundary!((), {
+        if handle.is_null() {
+            return;
+        }
+        let handle = unsafe { &*handle };
+        let mut guard = handle
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(client) = guard.take() {
+            client.shutdown();
+        }
+    })
 }
 
 /// Free a FPSS handle. Must be called after `tdx_fpss_shutdown()`.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_fpss_free(handle: *mut TdxFpssHandle) {
-    if !handle.is_null() {
-        drop(unsafe { Box::from_raw(handle) });
-    }
+    ffi_boundary!((), {
+        if !handle.is_null() {
+            drop(unsafe { Box::from_raw(handle) });
+        }
+    })
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  Test-only panic entry points (feature `testing-panic-boundary`)
+//
+//  These exist purely so the integration test at
+//  `ffi/tests/panic_boundary.rs` can prove that panics inside an
+//  `extern "C"` body:
+//    1. do NOT abort the process (the test binary would crash),
+//    2. return the declared default (`-1` here, matching the
+//       existing `i32` status-code convention),
+//    3. make the panic payload retrievable via `tdx_last_error()`.
+//
+//  The symbols are only compiled in when the feature is enabled, so
+//  the shared library shipped to Go / C++ / Python consumers never
+//  carries a "panic-on-demand" entry point.
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Deliberately panic with a `&'static str` payload. Returns -1 via the
+/// boundary's default handler. The panic message becomes part of the
+/// `tdx_last_error()` string so the caller can verify the downcast path
+/// that handles `&'static str` payloads works end to end.
+#[cfg(feature = "testing-panic-boundary")]
+#[no_mangle]
+pub extern "C" fn tdx_test_panic_str() -> i32 {
+    ffi_boundary!(-1, {
+        panic!("intentional test panic via &'static str");
+    })
+}
+
+/// Deliberately panic with a heap-allocated `String` payload. Returns -1
+/// via the boundary's default handler. Separate from the `&'static str`
+/// variant so the test suite can exercise both `downcast_ref::<&'static
+/// str>` and `downcast_ref::<String>` branches of the macro.
+#[cfg(feature = "testing-panic-boundary")]
+#[no_mangle]
+pub extern "C" fn tdx_test_panic_string() -> i32 {
+    ffi_boundary!(-1, {
+        panic!("{}", String::from("intentional test panic via String"));
+    })
 }

@@ -568,13 +568,50 @@ fn render_python_event_class_struct(event_name: &str, def: &EventDef) -> String 
     out.push_str("}\n");
     writeln!(out, "#[pymethods]").unwrap();
     writeln!(out, "impl {event_name} {{").unwrap();
-    // `format!("…(...)")` with no format args is flagged as
-    // `useless_format` — emit the equivalent owned-string path directly.
-    writeln!(
-        out,
-        "    fn __repr__(&self) -> String {{ \"{event_name}(...)\".to_string() }}\n"
-    )
-    .unwrap();
+    // `__repr__` surfaces live per-instance field values (mirroring the
+    // tick-class renderer in `ticks.rs::render_python_tick_class_struct`)
+    // so pdb, Jupyter, pytest short-repr, and print()-based debugging
+    // show actionable diagnostic data instead of an opaque
+    // `"Ohlcvc(...)"` placeholder. Cap at six columns to stay one-line
+    // readable; `Vec<u8>` payload columns (only on `RawData`) and
+    // `received_at_ns` are skipped because the first is unbounded and
+    // the second is a timestamp that dwarfs the other fields visually.
+    let repr_fields = fpss_event_repr_fields(&def.columns, 6);
+    if repr_fields.is_empty() {
+        // Defensive fallback — every schema event has columns, but keep
+        // the fallback so a future zero-column variant still compiles.
+        writeln!(
+            out,
+            "    fn __repr__(&self) -> String {{ \"{event_name}()\".to_string() }}"
+        )
+        .unwrap();
+    } else {
+        let mut fmt_string = String::new();
+        for (idx, field) in repr_fields.iter().enumerate() {
+            if idx > 0 {
+                fmt_string.push_str(", ");
+            }
+            fmt_string.push_str(field.name);
+            fmt_string.push('=');
+            // `{:?}` quotes strings and surfaces `None` / `Some(..)` on
+            // Option fields (`Simple.detail`, `Simple.id`); `{}` for
+            // numerics keeps the output tight.
+            fmt_string.push_str(if field.use_debug { "{:?}" } else { "{}" });
+        }
+        let args = repr_fields
+            .iter()
+            .map(|f| format!("self.{}", f.name))
+            .collect::<Vec<_>>()
+            .join(", ");
+        writeln!(out, "    fn __repr__(&self) -> String {{").unwrap();
+        writeln!(
+            out,
+            "        format!(\"{event_name}({fmt_string})\", {args})"
+        )
+        .unwrap();
+        out.push_str("    }\n");
+    }
+    out.push('\n');
     // Use the same lowercase/snake_case wire tag the existing dict-based
     // `next_event` emits ("quote", "trade", "open_interest", "ohlcvc") so
     // `next_event_typed` is a true drop-in — consumer `event.kind` checks
@@ -588,6 +625,49 @@ fn render_python_event_class_struct(event_name: &str, def: &EventDef) -> String 
     .unwrap();
     out.push_str("}\n");
     out
+}
+
+struct FpssReprField<'a> {
+    name: &'a str,
+    use_debug: bool,
+}
+
+/// Pick the first handful of FPSS event columns for `__repr__`
+/// rendering. Mirrors the tick-class heuristic
+/// (`ticks.rs::repr_fields_for_tick`) but skips diagnostic noise:
+///
+/// * `Vec<u8>` payload columns (unbounded byte blobs — would balloon
+///   the repr past a single screen and tank any REPL that auto-repr's
+///   incoming events).
+/// * `received_at_ns` — a nanosecond epoch timestamp that dwarfs every
+///   other field visually and carries no per-event routing signal for
+///   debugger consumption. Consumers that need it still read the
+///   attribute directly.
+fn fpss_event_repr_fields<'a>(
+    columns: &'a [ColumnDef],
+    max_fields: usize,
+) -> Vec<FpssReprField<'a>> {
+    let mut fields: Vec<FpssReprField<'a>> = Vec::new();
+    for column in columns {
+        if fields.len() >= max_fields {
+            break;
+        }
+        // Skip noise fields (see doc comment above).
+        if column.r#type == "Vec<u8>" || column.name == "received_at_ns" {
+            continue;
+        }
+        // `Option<..>` and `String` types render better with `{:?}`
+        // (quoted strings, explicit `None` / `Some(..)`).
+        let use_debug = matches!(
+            column.r#type.as_str(),
+            "String" | "Option<String>" | "Option<i32>"
+        );
+        fields.push(FpssReprField {
+            name: &column.name,
+            use_debug,
+        });
+    }
+    fields
 }
 
 fn render_python_buffered_match_arm(event_name: &str, def: &EventDef) -> String {

@@ -167,6 +167,22 @@ struct GeneratedSourceFile {
     contents: String,
 }
 
+/// Rendering shape shared by the `MethodKind` match arms in
+/// `validate_method_spec`. Name extracted to keep
+/// `clippy::type_complexity` happy and document the structure:
+///
+/// * `0` — optional fixed method name (`None` when the name varies per
+///   endpoint inside the kind, e.g. `StockContractCall`);
+/// * `1` — targets this kind is allowed to project to;
+/// * `2` — `true` when the targets list must be exact (no omissions);
+/// * `3` — required parameter layout `(name, type)` pairs.
+type MethodShape<'a> = (
+    Option<&'a str>,
+    &'a [MethodTarget],
+    bool,
+    &'a [(&'static str, ParamType)],
+);
+
 pub fn write_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
     for file in render_sdk_generated_files()? {
         let path = repo_root.join(file.relative_path);
@@ -385,7 +401,7 @@ fn validate_method_spec(method: &MethodSpec) -> Result<(), Box<dyn std::error::E
     const CPP: MethodTarget = MethodTarget::CppFpss;
     const LIFE: MethodTarget = MethodTarget::CppLifecycle;
     const TS: MethodTarget = MethodTarget::TypescriptNapi;
-    let shape: (Option<&str>, &[MethodTarget], bool, &[(&str, ParamType)]) = match method.kind {
+    let shape: MethodShape<'_> = match method.kind {
         MethodKind::StartStreaming => (Some("start_streaming"), &[PY, TS], true, &[]),
         MethodKind::IsStreaming => (Some("is_streaming"), &[PY, TS], true, &[]),
         MethodKind::StockContractCall => (
@@ -1285,21 +1301,51 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             out.push_str("        drop(rx_outer);\n");
             writeln!(
                 out,
-                "        let timeout = std::time::Duration::from_millis({});",
+                "        let total_timeout = std::time::Duration::from_millis({});",
                 param.name
             )
             .unwrap();
-            // True blocking recv inside `py.detach` (GIL released). No
-            // polling — the OS wakes us the moment a frame lands on the
-            // mpsc channel. Zero CPU while idle, zero delivery jitter.
-            // Disconnect distinguished from timeout so consumer loops
-            // don't spin 100% CPU on a dead socket.
-            out.push_str("        let result = py.detach(move || {\n");
+            // Poll in ≤100 ms chunks so Python's `KeyboardInterrupt`
+            // (Ctrl+C) is honoured even on multi-minute `timeout_ms`
+            // values. A pure blocking `recv_timeout(total_timeout)` on a
+            // cold subscription makes the process un-killable from the
+            // REPL — signals are delivered to the main thread, but the
+            // GIL is released inside `py.detach` and `check_signals`
+            // never runs until the mpsc wakes us. Asymmetric with
+            // `run_blocking` (which polls signals on the async side
+            // every 100 ms); unify the two cancellation stories here.
+            // Disconnect is still distinguished from timeout so consumer
+            // loops don't spin 100% CPU on a dead socket.
+            out.push_str("        let deadline = std::time::Instant::now() + total_timeout;\n");
+            out.push_str("        let result = loop {\n");
+            out.push_str("            let remaining = deadline.saturating_duration_since(std::time::Instant::now());\n");
+            out.push_str("            let poll = std::cmp::min(remaining, std::time::Duration::from_millis(100));\n");
+            out.push_str("            let rx_arc_inner = Arc::clone(&rx_arc);\n");
+            out.push_str("            let recv_result = py.detach(move || {\n");
             out.push_str(
-                "            let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());\n",
+                "                let rx = rx_arc_inner.lock().unwrap_or_else(|e| e.into_inner());\n",
             );
-            out.push_str("            rx.recv_timeout(timeout)\n");
-            out.push_str("        });\n");
+            out.push_str("                rx.recv_timeout(poll)\n");
+            out.push_str("            });\n");
+            out.push_str("            match recv_result {\n");
+            out.push_str("                Ok(event) => break Ok(event),\n");
+            out.push_str(
+                "                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {\n",
+            );
+            out.push_str(
+                "                    break Err(std::sync::mpsc::RecvTimeoutError::Disconnected);\n",
+            );
+            out.push_str("                }\n");
+            out.push_str("                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {\n");
+            out.push_str("                    py.check_signals()?;\n");
+            out.push_str("                    if std::time::Instant::now() >= deadline {\n");
+            out.push_str(
+                "                        break Err(std::sync::mpsc::RecvTimeoutError::Timeout);\n",
+            );
+            out.push_str("                    }\n");
+            out.push_str("                }\n");
+            out.push_str("            }\n");
+            out.push_str("        };\n");
             out.push_str("        match result {\n");
             out.push_str(
                 "            Ok(event) => Ok(Some(buffered_event_to_typed(py, &event)?)),\n",

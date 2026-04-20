@@ -68,7 +68,7 @@ g = all_greeks(
     spot=450.0, strike=455.0, rate=0.05, div_yield=0.015,
     tte=30/365, option_price=8.50, right="C"
 )
-print(f"IV={g['iv']:.4f} Delta={g['delta']:.4f} Gamma={g['gamma']:.6f}")
+print(f"IV={g.iv:.4f} Delta={g.delta:.4f} Gamma={g.gamma:.6f}")
 
 # Just IV
 iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30/365, 8.50, "C")
@@ -313,7 +313,7 @@ to audit. See the "DataFrame Conversion (Arrow-Backed)" section
 below for the recipe.
 
 ### `all_greeks(spot, strike, rate, div_yield, tte, option_price, right)`
-`right` accepts `"C"`/`"P"` or `"call"`/`"put"` case-insensitively. Returns dict with 22 Greeks: delta, gamma, theta, vega, rho, iv, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda.
+`right` accepts `"C"`/`"P"` or `"call"`/`"put"` case-insensitively. Returns `AllGreeks` pyclass with 22 attribute fields (`g.iv`, `g.delta`, `g.gamma`, ...). All fields are `float` (f64). Consult `help(thetadatadx.AllGreeks)` for the full list.
 
 ### `implied_volatility(spot, strike, rate, div_yield, tte, option_price, right)`
 `right` accepts `"C"`/`"P"` or `"call"`/`"put"` case-insensitively. Returns `(iv, error)` tuple.

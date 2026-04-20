@@ -6,39 +6,41 @@ pub unsafe extern "C" fn tdx_stock_list_symbols_with_options(
     client: *const TdxClient,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxStringArray {
-    let empty = TdxStringArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxStringArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
+        let mut args = thetadatadx::EndpointArgs::new();
 
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
 
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_list_symbols", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
-            Ok(arr) => arr,
-            Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_list_symbols", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for stock_list_symbols: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for stock_list_symbols: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// List available dates for a stock by request type (EOD, TRADE, QUOTE, etc.). with optional builder parameters.
@@ -51,69 +53,71 @@ pub unsafe extern "C" fn tdx_stock_list_dates_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxStringArray {
-    let empty = TdxStringArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxStringArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let request_type = match unsafe { cstr_to_str(request_type) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("request_type is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("request_type is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "request_type".to_string(),
-        thetadatadx::EndpointArgValue::Str(request_type.to_string()),
-    );
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_list_dates", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let request_type = match unsafe { cstr_to_str(request_type) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("request_type is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("request_type is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "request_type".to_string(),
+            thetadatadx::EndpointArgValue::Str(request_type.to_string()),
+        );
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_list_dates", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for stock_list_dates: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for stock_list_dates: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Get the latest OHLC snapshot for one or more stocks. with optional builder parameters.
@@ -124,47 +128,49 @@ pub unsafe extern "C" fn tdx_stock_snapshot_ohlc_with_options(
     symbols_len: usize,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxOhlcTickArray {
-    let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxOhlcTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
-        Some(values) => values,
-        None => return empty,
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbols.join(",")),
-    );
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
+            Some(values) => values,
+            None => return empty,
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbols.join(",")),
+        );
 
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
 
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_ohlc", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
-            Ok(arr) => arr,
-            Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_ohlc", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for stock_snapshot_ohlc: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for stock_snapshot_ohlc: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Get the latest trade snapshot for one or more stocks. with optional builder parameters.
@@ -175,47 +181,49 @@ pub unsafe extern "C" fn tdx_stock_snapshot_trade_with_options(
     symbols_len: usize,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxTradeTickArray {
-    let empty = TdxTradeTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxTradeTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxTradeTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
-        Some(values) => values,
-        None => return empty,
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbols.join(",")),
-    );
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
+            Some(values) => values,
+            None => return empty,
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbols.join(",")),
+        );
 
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
 
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_trade", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match TdxTradeTickArray::from_vec(values) {
-            Ok(arr) => arr,
-            Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_trade", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match TdxTradeTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for stock_snapshot_trade: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for stock_snapshot_trade: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Get the latest NBBO quote snapshot for one or more stocks. with optional builder parameters.
@@ -226,47 +234,49 @@ pub unsafe extern "C" fn tdx_stock_snapshot_quote_with_options(
     symbols_len: usize,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxQuoteTickArray {
-    let empty = TdxQuoteTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxQuoteTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxQuoteTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
-        Some(values) => values,
-        None => return empty,
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbols.join(",")),
-    );
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
+            Some(values) => values,
+            None => return empty,
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbols.join(",")),
+        );
 
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
 
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_quote", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match TdxQuoteTickArray::from_vec(values) {
-            Ok(arr) => arr,
-            Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_quote", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match TdxQuoteTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for stock_snapshot_quote: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for stock_snapshot_quote: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Get the latest market value snapshot for one or more stocks. with optional builder parameters.
@@ -277,47 +287,49 @@ pub unsafe extern "C" fn tdx_stock_snapshot_market_value_with_options(
     symbols_len: usize,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxMarketValueTickArray {
-    let empty = TdxMarketValueTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxMarketValueTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxMarketValueTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
-        Some(values) => values,
-        None => return empty,
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbols.join(",")),
-    );
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
+            Some(values) => values,
+            None => return empty,
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbols.join(",")),
+        );
 
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
 
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_market_value", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => match TdxMarketValueTickArray::from_vec(values) {
-            Ok(arr) => arr,
-            Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_market_value", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => match TdxMarketValueTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for stock_snapshot_market_value: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for stock_snapshot_market_value: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day. with optional builder parameters.
@@ -332,84 +344,86 @@ pub unsafe extern "C" fn tdx_stock_history_eod_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxEodTickArray {
-    let empty = TdxEodTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxEodTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxEodTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let start_date = match unsafe { cstr_to_str(start_date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("start_date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("start_date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "start_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(start_date.to_string()),
-    );
-    let end_date = match unsafe { cstr_to_str(end_date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("end_date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("end_date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "end_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(end_date.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_eod", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::EodTicks(values)) => match TdxEodTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let start_date = match unsafe { cstr_to_str(start_date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("start_date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("start_date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "start_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(start_date.to_string()),
+        );
+        let end_date = match unsafe { cstr_to_str(end_date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("end_date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("end_date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "end_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(end_date.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_eod", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::EodTicks(values)) => match TdxEodTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for stock_history_eod: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for stock_history_eod: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch intraday OHLC bars for a stock on a single date. with optional builder parameters.
@@ -424,84 +438,86 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxOhlcTickArray {
-    let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxOhlcTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let date = match unsafe { cstr_to_str(date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "date".to_string(),
-        thetadatadx::EndpointArgValue::Str(date.to_string()),
-    );
-    let interval = match unsafe { cstr_to_str(interval) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("interval is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("interval is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "interval".to_string(),
-        thetadatadx::EndpointArgValue::Str(interval.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_ohlc", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let date = match unsafe { cstr_to_str(date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+        let interval = match unsafe { cstr_to_str(interval) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("interval is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("interval is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "interval".to_string(),
+            thetadatadx::EndpointArgValue::Str(interval.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_ohlc", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for stock_history_ohlc: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for stock_history_ohlc: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch all trades for a stock on a given date. with optional builder parameters.
@@ -514,69 +530,71 @@ pub unsafe extern "C" fn tdx_stock_history_trade_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxTradeTickArray {
-    let empty = TdxTradeTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxTradeTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxTradeTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let date = match unsafe { cstr_to_str(date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "date".to_string(),
-        thetadatadx::EndpointArgValue::Str(date.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_trade", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match TdxTradeTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let date = match unsafe { cstr_to_str(date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_trade", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match TdxTradeTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for stock_history_trade: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for stock_history_trade: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch NBBO quotes for a stock on a given date at a given interval. with optional builder parameters.
@@ -591,84 +609,86 @@ pub unsafe extern "C" fn tdx_stock_history_quote_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxQuoteTickArray {
-    let empty = TdxQuoteTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxQuoteTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxQuoteTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let date = match unsafe { cstr_to_str(date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "date".to_string(),
-        thetadatadx::EndpointArgValue::Str(date.to_string()),
-    );
-    let interval = match unsafe { cstr_to_str(interval) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("interval is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("interval is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "interval".to_string(),
-        thetadatadx::EndpointArgValue::Str(interval.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_quote", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match TdxQuoteTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let date = match unsafe { cstr_to_str(date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+        let interval = match unsafe { cstr_to_str(interval) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("interval is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("interval is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "interval".to_string(),
+            thetadatadx::EndpointArgValue::Str(interval.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_quote", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match TdxQuoteTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for stock_history_quote: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for stock_history_quote: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable. with optional builder parameters.
@@ -681,69 +701,71 @@ pub unsafe extern "C" fn tdx_stock_history_trade_quote_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxTradeQuoteTickArray {
-    let empty = TdxTradeQuoteTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxTradeQuoteTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxTradeQuoteTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let date = match unsafe { cstr_to_str(date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "date".to_string(),
-        thetadatadx::EndpointArgValue::Str(date.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_trade_quote", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::TradeQuoteTicks(values)) => match TdxTradeQuoteTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let date = match unsafe { cstr_to_str(date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_trade_quote", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::TradeQuoteTicks(values)) => match TdxTradeQuoteTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for stock_history_trade_quote: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for stock_history_trade_quote: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch the trade at a specific time of day across a date range. with optional builder parameters.
@@ -760,99 +782,101 @@ pub unsafe extern "C" fn tdx_stock_at_time_trade_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxTradeTickArray {
-    let empty = TdxTradeTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxTradeTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxTradeTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let start_date = match unsafe { cstr_to_str(start_date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("start_date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("start_date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "start_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(start_date.to_string()),
-    );
-    let end_date = match unsafe { cstr_to_str(end_date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("end_date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("end_date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "end_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(end_date.to_string()),
-    );
-    let time_of_day = match unsafe { cstr_to_str(time_of_day) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("time_of_day is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("time_of_day is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "time_of_day".to_string(),
-        thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_at_time_trade", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match TdxTradeTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let start_date = match unsafe { cstr_to_str(start_date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("start_date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("start_date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "start_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(start_date.to_string()),
+        );
+        let end_date = match unsafe { cstr_to_str(end_date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("end_date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("end_date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "end_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(end_date.to_string()),
+        );
+        let time_of_day = match unsafe { cstr_to_str(time_of_day) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("time_of_day is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("time_of_day is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "time_of_day".to_string(),
+            thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_at_time_trade", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match TdxTradeTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for stock_at_time_trade: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for stock_at_time_trade: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch the quote at a specific time of day across a date range. with optional builder parameters.
@@ -869,99 +893,101 @@ pub unsafe extern "C" fn tdx_stock_at_time_quote_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxQuoteTickArray {
-    let empty = TdxQuoteTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxQuoteTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxQuoteTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let start_date = match unsafe { cstr_to_str(start_date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("start_date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("start_date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "start_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(start_date.to_string()),
-    );
-    let end_date = match unsafe { cstr_to_str(end_date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("end_date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("end_date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "end_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(end_date.to_string()),
-    );
-    let time_of_day = match unsafe { cstr_to_str(time_of_day) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("time_of_day is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("time_of_day is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "time_of_day".to_string(),
-        thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_at_time_quote", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match TdxQuoteTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let start_date = match unsafe { cstr_to_str(start_date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("start_date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("start_date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "start_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(start_date.to_string()),
+        );
+        let end_date = match unsafe { cstr_to_str(end_date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("end_date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("end_date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "end_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(end_date.to_string()),
+        );
+        let time_of_day = match unsafe { cstr_to_str(time_of_day) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("time_of_day is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("time_of_day is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "time_of_day".to_string(),
+            thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_at_time_quote", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match TdxQuoteTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for stock_at_time_quote: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for stock_at_time_quote: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// List all available option underlying symbols. with optional builder parameters.
@@ -970,39 +996,41 @@ pub unsafe extern "C" fn tdx_option_list_symbols_with_options(
     client: *const TdxClient,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxStringArray {
-    let empty = TdxStringArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxStringArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
+        let mut args = thetadatadx::EndpointArgs::new();
 
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
 
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_symbols", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
-            Ok(arr) => arr,
-            Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_symbols", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_list_symbols: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_list_symbols: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// List available dates for an option contract by request type. with optional builder parameters.
@@ -1021,114 +1049,116 @@ pub unsafe extern "C" fn tdx_option_list_dates_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxStringArray {
-    let empty = TdxStringArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxStringArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let request_type = match unsafe { cstr_to_str(request_type) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("request_type is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("request_type is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "request_type".to_string(),
-        thetadatadx::EndpointArgValue::Str(request_type.to_string()),
-    );
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_dates", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let request_type = match unsafe { cstr_to_str(request_type) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("request_type is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("request_type is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "request_type".to_string(),
+            thetadatadx::EndpointArgValue::Str(request_type.to_string()),
+        );
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_dates", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_list_dates: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_list_dates: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// List available expiration dates for an option underlying. with optional builder parameters.
@@ -1139,54 +1169,56 @@ pub unsafe extern "C" fn tdx_option_list_expirations_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxStringArray {
-    let empty = TdxStringArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
-
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
+    ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxStringArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
             return empty;
         }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
 
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_expirations", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_expirations", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_list_expirations: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_list_expirations: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// List available strike prices for an option at a given expiration. with optional builder parameters.
@@ -1199,69 +1231,71 @@ pub unsafe extern "C" fn tdx_option_list_strikes_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxStringArray {
-    let empty = TdxStringArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxStringArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_strikes", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_strikes", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_list_strikes: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_list_strikes: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// List all option contracts for a symbol on a given date. with optional builder parameters.
@@ -1276,84 +1310,86 @@ pub unsafe extern "C" fn tdx_option_list_contracts_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxOptionContractArray {
-    let empty = TdxOptionContractArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxOptionContractArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxOptionContractArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let request_type = match unsafe { cstr_to_str(request_type) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("request_type is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("request_type is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "request_type".to_string(),
-        thetadatadx::EndpointArgValue::Str(request_type.to_string()),
-    );
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let date = match unsafe { cstr_to_str(date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "date".to_string(),
-        thetadatadx::EndpointArgValue::Str(date.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_contracts", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::OptionContracts(values)) => match TdxOptionContractArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let request_type = match unsafe { cstr_to_str(request_type) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("request_type is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("request_type is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "request_type".to_string(),
+            thetadatadx::EndpointArgValue::Str(request_type.to_string()),
+        );
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let date = match unsafe { cstr_to_str(date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_contracts", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::OptionContracts(values)) => match TdxOptionContractArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_list_contracts: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_list_contracts: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Get the latest OHLC snapshot for an option contract. with optional builder parameters.
@@ -1370,99 +1406,101 @@ pub unsafe extern "C" fn tdx_option_snapshot_ohlc_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxOhlcTickArray {
-    let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxOhlcTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_ohlc", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_ohlc", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_snapshot_ohlc: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_snapshot_ohlc: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Get the latest trade snapshot for an option contract. with optional builder parameters.
@@ -1479,99 +1517,101 @@ pub unsafe extern "C" fn tdx_option_snapshot_trade_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxTradeTickArray {
-    let empty = TdxTradeTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxTradeTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxTradeTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_trade", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match TdxTradeTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_trade", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match TdxTradeTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_snapshot_trade: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_snapshot_trade: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Get the latest NBBO quote snapshot for an option contract. with optional builder parameters.
@@ -1588,99 +1628,101 @@ pub unsafe extern "C" fn tdx_option_snapshot_quote_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxQuoteTickArray {
-    let empty = TdxQuoteTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxQuoteTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxQuoteTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_quote", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match TdxQuoteTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_quote", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match TdxQuoteTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_snapshot_quote: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_snapshot_quote: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Get the latest open interest snapshot for an option contract. with optional builder parameters.
@@ -1697,99 +1739,101 @@ pub unsafe extern "C" fn tdx_option_snapshot_open_interest_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxOpenInterestTickArray {
-    let empty = TdxOpenInterestTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxOpenInterestTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxOpenInterestTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_open_interest", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::OpenInterestTicks(values)) => match TdxOpenInterestTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_open_interest", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::OpenInterestTicks(values)) => match TdxOpenInterestTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_snapshot_open_interest: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_snapshot_open_interest: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Get the latest market value snapshot for an option contract. with optional builder parameters.
@@ -1806,99 +1850,101 @@ pub unsafe extern "C" fn tdx_option_snapshot_market_value_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxMarketValueTickArray {
-    let empty = TdxMarketValueTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxMarketValueTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxMarketValueTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_market_value", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => match TdxMarketValueTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_market_value", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => match TdxMarketValueTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_snapshot_market_value: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_snapshot_market_value: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Get implied volatility snapshot for an option contract (from ThetaData server). with optional builder parameters.
@@ -1915,99 +1961,101 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_implied_volatility_with_opti
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxIvTickArray {
-    let empty = TdxIvTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxIvTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxIvTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_implied_volatility", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::IvTicks(values)) => match TdxIvTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_implied_volatility", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::IvTicks(values)) => match TdxIvTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_snapshot_greeks_implied_volatility: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_snapshot_greeks_implied_volatility: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Get all Greeks snapshot for an option contract (from ThetaData server). with optional builder parameters.
@@ -2024,99 +2072,101 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_all_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxGreeksTickArray {
-    let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_all", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_all", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_snapshot_greeks_all: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_snapshot_greeks_all: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract. with optional builder parameters.
@@ -2133,99 +2183,101 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_first_order_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxGreeksTickArray {
-    let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_first_order", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_first_order", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_snapshot_greeks_first_order: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_snapshot_greeks_first_order: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract. with optional builder parameters.
@@ -2242,99 +2294,101 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_second_order_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxGreeksTickArray {
-    let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_second_order", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_second_order", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_snapshot_greeks_second_order: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_snapshot_greeks_second_order: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract. with optional builder parameters.
@@ -2351,99 +2405,101 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_third_order_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxGreeksTickArray {
-    let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_third_order", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_third_order", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_snapshot_greeks_third_order: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_snapshot_greeks_third_order: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch end-of-day option data for a contract over a date range. with optional builder parameters.
@@ -2464,129 +2520,131 @@ pub unsafe extern "C" fn tdx_option_history_eod_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxEodTickArray {
-    let empty = TdxEodTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxEodTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxEodTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-    let start_date = match unsafe { cstr_to_str(start_date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("start_date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("start_date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "start_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(start_date.to_string()),
-    );
-    let end_date = match unsafe { cstr_to_str(end_date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("end_date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("end_date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "end_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(end_date.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_eod", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::EodTicks(values)) => match TdxEodTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+        let start_date = match unsafe { cstr_to_str(start_date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("start_date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("start_date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "start_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(start_date.to_string()),
+        );
+        let end_date = match unsafe { cstr_to_str(end_date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("end_date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("end_date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "end_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(end_date.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_eod", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::EodTicks(values)) => match TdxEodTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_eod: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_history_eod: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch intraday OHLC bars for an option contract. with optional builder parameters.
@@ -2607,129 +2665,131 @@ pub unsafe extern "C" fn tdx_option_history_ohlc_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxOhlcTickArray {
-    let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxOhlcTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-    let date = match unsafe { cstr_to_str(date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "date".to_string(),
-        thetadatadx::EndpointArgValue::Str(date.to_string()),
-    );
-    let interval = match unsafe { cstr_to_str(interval) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("interval is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("interval is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "interval".to_string(),
-        thetadatadx::EndpointArgValue::Str(interval.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_ohlc", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+        let date = match unsafe { cstr_to_str(date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+        let interval = match unsafe { cstr_to_str(interval) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("interval is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("interval is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "interval".to_string(),
+            thetadatadx::EndpointArgValue::Str(interval.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_ohlc", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_ohlc: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_history_ohlc: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch all trades for an option contract on a given date. with optional builder parameters.
@@ -2748,114 +2808,116 @@ pub unsafe extern "C" fn tdx_option_history_trade_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxTradeTickArray {
-    let empty = TdxTradeTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxTradeTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxTradeTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-    let date = match unsafe { cstr_to_str(date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "date".to_string(),
-        thetadatadx::EndpointArgValue::Str(date.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match TdxTradeTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+        let date = match unsafe { cstr_to_str(date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match TdxTradeTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_trade: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_history_trade: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch NBBO quotes for an option contract on a given date. with optional builder parameters.
@@ -2876,129 +2938,131 @@ pub unsafe extern "C" fn tdx_option_history_quote_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxQuoteTickArray {
-    let empty = TdxQuoteTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxQuoteTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxQuoteTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-    let date = match unsafe { cstr_to_str(date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "date".to_string(),
-        thetadatadx::EndpointArgValue::Str(date.to_string()),
-    );
-    let interval = match unsafe { cstr_to_str(interval) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("interval is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("interval is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "interval".to_string(),
-        thetadatadx::EndpointArgValue::Str(interval.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_quote", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match TdxQuoteTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+        let date = match unsafe { cstr_to_str(date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+        let interval = match unsafe { cstr_to_str(interval) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("interval is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("interval is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "interval".to_string(),
+            thetadatadx::EndpointArgValue::Str(interval.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_quote", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match TdxQuoteTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_quote: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_history_quote: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch combined trade + quote ticks for an option contract. with optional builder parameters.
@@ -3017,114 +3081,116 @@ pub unsafe extern "C" fn tdx_option_history_trade_quote_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxTradeQuoteTickArray {
-    let empty = TdxTradeQuoteTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxTradeQuoteTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxTradeQuoteTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-    let date = match unsafe { cstr_to_str(date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "date".to_string(),
-        thetadatadx::EndpointArgValue::Str(date.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_quote", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::TradeQuoteTicks(values)) => match TdxTradeQuoteTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+        let date = match unsafe { cstr_to_str(date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_quote", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::TradeQuoteTicks(values)) => match TdxTradeQuoteTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_trade_quote: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_history_trade_quote: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch open interest history for an option contract. with optional builder parameters.
@@ -3143,114 +3209,116 @@ pub unsafe extern "C" fn tdx_option_history_open_interest_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxOpenInterestTickArray {
-    let empty = TdxOpenInterestTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxOpenInterestTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxOpenInterestTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-    let date = match unsafe { cstr_to_str(date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "date".to_string(),
-        thetadatadx::EndpointArgValue::Str(date.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_open_interest", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::OpenInterestTicks(values)) => match TdxOpenInterestTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+        let date = match unsafe { cstr_to_str(date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_open_interest", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::OpenInterestTicks(values)) => match TdxOpenInterestTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_open_interest: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_history_open_interest: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch end-of-day Greeks history for an option contract. with optional builder parameters.
@@ -3271,129 +3339,131 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxGreeksTickArray {
-    let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-    let start_date = match unsafe { cstr_to_str(start_date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("start_date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("start_date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "start_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(start_date.to_string()),
-    );
-    let end_date = match unsafe { cstr_to_str(end_date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("end_date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("end_date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "end_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(end_date.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_eod", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+        let start_date = match unsafe { cstr_to_str(start_date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("start_date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("start_date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "start_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(start_date.to_string()),
+        );
+        let end_date = match unsafe { cstr_to_str(end_date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("end_date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("end_date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "end_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(end_date.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_eod", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_eod: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_eod: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch all Greeks history for an option contract (intraday, sampled by interval). with optional builder parameters.
@@ -3414,129 +3484,131 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxGreeksTickArray {
-    let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-    let date = match unsafe { cstr_to_str(date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "date".to_string(),
-        thetadatadx::EndpointArgValue::Str(date.to_string()),
-    );
-    let interval = match unsafe { cstr_to_str(interval) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("interval is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("interval is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "interval".to_string(),
-        thetadatadx::EndpointArgValue::Str(interval.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_all", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+        let date = match unsafe { cstr_to_str(date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+        let interval = match unsafe { cstr_to_str(interval) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("interval is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("interval is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "interval".to_string(),
+            thetadatadx::EndpointArgValue::Str(interval.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_all", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_all: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_all: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch all Greeks on each trade for an option contract. with optional builder parameters.
@@ -3555,114 +3627,116 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxGreeksTickArray {
-    let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-    let date = match unsafe { cstr_to_str(date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "date".to_string(),
-        thetadatadx::EndpointArgValue::Str(date.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_all", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+        let date = match unsafe { cstr_to_str(date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_all", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_trade_greeks_all: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_history_trade_greeks_all: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch first-order Greeks history (intraday, sampled by interval). with optional builder parameters.
@@ -3683,129 +3757,131 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxGreeksTickArray {
-    let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-    let date = match unsafe { cstr_to_str(date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "date".to_string(),
-        thetadatadx::EndpointArgValue::Str(date.to_string()),
-    );
-    let interval = match unsafe { cstr_to_str(interval) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("interval is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("interval is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "interval".to_string(),
-        thetadatadx::EndpointArgValue::Str(interval.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_first_order", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+        let date = match unsafe { cstr_to_str(date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+        let interval = match unsafe { cstr_to_str(interval) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("interval is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("interval is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "interval".to_string(),
+            thetadatadx::EndpointArgValue::Str(interval.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_first_order", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_first_order: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_first_order: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch first-order Greeks on each trade for an option contract. with optional builder parameters.
@@ -3824,114 +3900,116 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_option
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxGreeksTickArray {
-    let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-    let date = match unsafe { cstr_to_str(date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "date".to_string(),
-        thetadatadx::EndpointArgValue::Str(date.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_first_order", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+        let date = match unsafe { cstr_to_str(date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_first_order", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_trade_greeks_first_order: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_history_trade_greeks_first_order: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch second-order Greeks history (intraday, sampled by interval). with optional builder parameters.
@@ -3952,129 +4030,131 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxGreeksTickArray {
-    let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-    let date = match unsafe { cstr_to_str(date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "date".to_string(),
-        thetadatadx::EndpointArgValue::Str(date.to_string()),
-    );
-    let interval = match unsafe { cstr_to_str(interval) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("interval is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("interval is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "interval".to_string(),
-        thetadatadx::EndpointArgValue::Str(interval.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_second_order", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+        let date = match unsafe { cstr_to_str(date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+        let interval = match unsafe { cstr_to_str(interval) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("interval is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("interval is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "interval".to_string(),
+            thetadatadx::EndpointArgValue::Str(interval.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_second_order", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_second_order: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_second_order: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch second-order Greeks on each trade for an option contract. with optional builder parameters.
@@ -4093,114 +4173,116 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_optio
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxGreeksTickArray {
-    let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-    let date = match unsafe { cstr_to_str(date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "date".to_string(),
-        thetadatadx::EndpointArgValue::Str(date.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_second_order", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+        let date = match unsafe { cstr_to_str(date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_second_order", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_trade_greeks_second_order: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_history_trade_greeks_second_order: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch third-order Greeks history (intraday, sampled by interval). with optional builder parameters.
@@ -4221,129 +4303,131 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxGreeksTickArray {
-    let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-    let date = match unsafe { cstr_to_str(date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "date".to_string(),
-        thetadatadx::EndpointArgValue::Str(date.to_string()),
-    );
-    let interval = match unsafe { cstr_to_str(interval) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("interval is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("interval is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "interval".to_string(),
-        thetadatadx::EndpointArgValue::Str(interval.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_third_order", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+        let date = match unsafe { cstr_to_str(date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+        let interval = match unsafe { cstr_to_str(interval) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("interval is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("interval is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "interval".to_string(),
+            thetadatadx::EndpointArgValue::Str(interval.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_third_order", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_third_order: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_third_order: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch third-order Greeks on each trade for an option contract. with optional builder parameters.
@@ -4362,114 +4446,116 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_option
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxGreeksTickArray {
-    let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-    let date = match unsafe { cstr_to_str(date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "date".to_string(),
-        thetadatadx::EndpointArgValue::Str(date.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_third_order", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+        let date = match unsafe { cstr_to_str(date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_third_order", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_trade_greeks_third_order: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_history_trade_greeks_third_order: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch implied volatility history (intraday, sampled by interval). with optional builder parameters.
@@ -4490,129 +4576,131 @@ pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_with_optio
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxIvTickArray {
-    let empty = TdxIvTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxIvTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxIvTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-    let date = match unsafe { cstr_to_str(date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "date".to_string(),
-        thetadatadx::EndpointArgValue::Str(date.to_string()),
-    );
-    let interval = match unsafe { cstr_to_str(interval) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("interval is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("interval is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "interval".to_string(),
-        thetadatadx::EndpointArgValue::Str(interval.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_implied_volatility", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::IvTicks(values)) => match TdxIvTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+        let date = match unsafe { cstr_to_str(date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+        let interval = match unsafe { cstr_to_str(interval) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("interval is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("interval is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "interval".to_string(),
+            thetadatadx::EndpointArgValue::Str(interval.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_implied_volatility", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::IvTicks(values)) => match TdxIvTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_implied_volatility: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_implied_volatility: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch implied volatility on each trade for an option contract. with optional builder parameters.
@@ -4631,114 +4719,116 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_with
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxIvTickArray {
-    let empty = TdxIvTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxIvTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxIvTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-    let date = match unsafe { cstr_to_str(date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "date".to_string(),
-        thetadatadx::EndpointArgValue::Str(date.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_implied_volatility", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::IvTicks(values)) => match TdxIvTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+        let date = match unsafe { cstr_to_str(date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_implied_volatility", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::IvTicks(values)) => match TdxIvTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_trade_greeks_implied_volatility: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_history_trade_greeks_implied_volatility: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch the trade at a specific time of day across a date range for an option. with optional builder parameters.
@@ -4761,144 +4851,146 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxTradeTickArray {
-    let empty = TdxTradeTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxTradeTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxTradeTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-    let start_date = match unsafe { cstr_to_str(start_date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("start_date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("start_date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "start_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(start_date.to_string()),
-    );
-    let end_date = match unsafe { cstr_to_str(end_date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("end_date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("end_date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "end_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(end_date.to_string()),
-    );
-    let time_of_day = match unsafe { cstr_to_str(time_of_day) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("time_of_day is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("time_of_day is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "time_of_day".to_string(),
-        thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_at_time_trade", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match TdxTradeTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+        let start_date = match unsafe { cstr_to_str(start_date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("start_date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("start_date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "start_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(start_date.to_string()),
+        );
+        let end_date = match unsafe { cstr_to_str(end_date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("end_date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("end_date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "end_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(end_date.to_string()),
+        );
+        let time_of_day = match unsafe { cstr_to_str(time_of_day) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("time_of_day is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("time_of_day is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "time_of_day".to_string(),
+            thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_at_time_trade", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match TdxTradeTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_at_time_trade: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_at_time_trade: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch the quote at a specific time of day across a date range for an option. with optional builder parameters.
@@ -4921,144 +5013,146 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxQuoteTickArray {
-    let empty = TdxQuoteTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxQuoteTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxQuoteTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let expiration = match unsafe { cstr_to_str(expiration) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("expiration is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("expiration is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "expiration".to_string(),
-        thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-    );
-    let strike = match unsafe { cstr_to_str(strike) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("strike is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("strike is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "strike".to_string(),
-        thetadatadx::EndpointArgValue::Str(strike.to_string()),
-    );
-    let right = match unsafe { cstr_to_str(right) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("right is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("right is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "right".to_string(),
-        thetadatadx::EndpointArgValue::Str(right.to_string()),
-    );
-    let start_date = match unsafe { cstr_to_str(start_date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("start_date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("start_date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "start_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(start_date.to_string()),
-    );
-    let end_date = match unsafe { cstr_to_str(end_date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("end_date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("end_date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "end_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(end_date.to_string()),
-    );
-    let time_of_day = match unsafe { cstr_to_str(time_of_day) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("time_of_day is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("time_of_day is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "time_of_day".to_string(),
-        thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_at_time_quote", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match TdxQuoteTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = match unsafe { cstr_to_str(expiration) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("expiration is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("expiration is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let strike = match unsafe { cstr_to_str(strike) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("strike is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("strike is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "strike".to_string(),
+            thetadatadx::EndpointArgValue::Str(strike.to_string()),
+        );
+        let right = match unsafe { cstr_to_str(right) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("right is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("right is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "right".to_string(),
+            thetadatadx::EndpointArgValue::Str(right.to_string()),
+        );
+        let start_date = match unsafe { cstr_to_str(start_date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("start_date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("start_date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "start_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(start_date.to_string()),
+        );
+        let end_date = match unsafe { cstr_to_str(end_date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("end_date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("end_date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "end_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(end_date.to_string()),
+        );
+        let time_of_day = match unsafe { cstr_to_str(time_of_day) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("time_of_day is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("time_of_day is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "time_of_day".to_string(),
+            thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_at_time_quote", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match TdxQuoteTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_at_time_quote: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for option_at_time_quote: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// List all available index symbols. with optional builder parameters.
@@ -5067,39 +5161,41 @@ pub unsafe extern "C" fn tdx_index_list_symbols_with_options(
     client: *const TdxClient,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxStringArray {
-    let empty = TdxStringArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxStringArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
+        let mut args = thetadatadx::EndpointArgs::new();
 
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
 
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_list_symbols", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
-            Ok(arr) => arr,
-            Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_list_symbols", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for index_list_symbols: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for index_list_symbols: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// List available dates for an index symbol. with optional builder parameters.
@@ -5110,54 +5206,56 @@ pub unsafe extern "C" fn tdx_index_list_dates_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxStringArray {
-    let empty = TdxStringArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
-
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
+    ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxStringArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
             return empty;
         }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
 
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_list_dates", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_list_dates", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::StringList(values)) => match TdxStringArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for index_list_dates: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for index_list_dates: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Get the latest OHLC snapshot for one or more indices. with optional builder parameters.
@@ -5168,47 +5266,49 @@ pub unsafe extern "C" fn tdx_index_snapshot_ohlc_with_options(
     symbols_len: usize,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxOhlcTickArray {
-    let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxOhlcTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
-        Some(values) => values,
-        None => return empty,
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbols.join(",")),
-    );
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
+            Some(values) => values,
+            None => return empty,
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbols.join(",")),
+        );
 
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
 
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_ohlc", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
-            Ok(arr) => arr,
-            Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_ohlc", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for index_snapshot_ohlc: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for index_snapshot_ohlc: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Get the latest price snapshot for one or more indices. with optional builder parameters.
@@ -5219,47 +5319,49 @@ pub unsafe extern "C" fn tdx_index_snapshot_price_with_options(
     symbols_len: usize,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxPriceTickArray {
-    let empty = TdxPriceTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxPriceTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxPriceTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
-        Some(values) => values,
-        None => return empty,
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbols.join(",")),
-    );
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
+            Some(values) => values,
+            None => return empty,
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbols.join(",")),
+        );
 
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
 
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_price", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::PriceTicks(values)) => match TdxPriceTickArray::from_vec(values) {
-            Ok(arr) => arr,
-            Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_price", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::PriceTicks(values)) => match TdxPriceTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for index_snapshot_price: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for index_snapshot_price: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Get the latest market value snapshot for one or more indices. with optional builder parameters.
@@ -5270,47 +5372,49 @@ pub unsafe extern "C" fn tdx_index_snapshot_market_value_with_options(
     symbols_len: usize,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxMarketValueTickArray {
-    let empty = TdxMarketValueTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxMarketValueTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxMarketValueTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
-        Some(values) => values,
-        None => return empty,
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbols.join(",")),
-    );
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
+            Some(values) => values,
+            None => return empty,
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbols.join(",")),
+        );
 
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
 
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_market_value", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => match TdxMarketValueTickArray::from_vec(values) {
-            Ok(arr) => arr,
-            Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_market_value", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => match TdxMarketValueTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for index_snapshot_market_value: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for index_snapshot_market_value: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch end-of-day index data for a date range. with optional builder parameters.
@@ -5325,84 +5429,86 @@ pub unsafe extern "C" fn tdx_index_history_eod_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxEodTickArray {
-    let empty = TdxEodTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxEodTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxEodTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let start_date = match unsafe { cstr_to_str(start_date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("start_date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("start_date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "start_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(start_date.to_string()),
-    );
-    let end_date = match unsafe { cstr_to_str(end_date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("end_date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("end_date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "end_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(end_date.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_eod", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::EodTicks(values)) => match TdxEodTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let start_date = match unsafe { cstr_to_str(start_date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("start_date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("start_date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "start_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(start_date.to_string()),
+        );
+        let end_date = match unsafe { cstr_to_str(end_date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("end_date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("end_date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "end_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(end_date.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_eod", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::EodTicks(values)) => match TdxEodTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for index_history_eod: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for index_history_eod: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch intraday OHLC bars for an index. with optional builder parameters.
@@ -5419,99 +5525,101 @@ pub unsafe extern "C" fn tdx_index_history_ohlc_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxOhlcTickArray {
-    let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxOhlcTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let start_date = match unsafe { cstr_to_str(start_date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("start_date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("start_date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "start_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(start_date.to_string()),
-    );
-    let end_date = match unsafe { cstr_to_str(end_date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("end_date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("end_date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "end_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(end_date.to_string()),
-    );
-    let interval = match unsafe { cstr_to_str(interval) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("interval is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("interval is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "interval".to_string(),
-        thetadatadx::EndpointArgValue::Str(interval.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_ohlc", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let start_date = match unsafe { cstr_to_str(start_date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("start_date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("start_date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "start_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(start_date.to_string()),
+        );
+        let end_date = match unsafe { cstr_to_str(end_date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("end_date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("end_date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "end_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(end_date.to_string()),
+        );
+        let interval = match unsafe { cstr_to_str(interval) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("interval is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("interval is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "interval".to_string(),
+            thetadatadx::EndpointArgValue::Str(interval.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_ohlc", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for index_history_ohlc: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for index_history_ohlc: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch intraday price history for an index. with optional builder parameters.
@@ -5526,84 +5634,86 @@ pub unsafe extern "C" fn tdx_index_history_price_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxPriceTickArray {
-    let empty = TdxPriceTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxPriceTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxPriceTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let date = match unsafe { cstr_to_str(date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "date".to_string(),
-        thetadatadx::EndpointArgValue::Str(date.to_string()),
-    );
-    let interval = match unsafe { cstr_to_str(interval) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("interval is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("interval is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "interval".to_string(),
-        thetadatadx::EndpointArgValue::Str(interval.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_price", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::PriceTicks(values)) => match TdxPriceTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let date = match unsafe { cstr_to_str(date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+        let interval = match unsafe { cstr_to_str(interval) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("interval is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("interval is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "interval".to_string(),
+            thetadatadx::EndpointArgValue::Str(interval.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_price", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::PriceTicks(values)) => match TdxPriceTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for index_history_price: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for index_history_price: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch the index price at a specific time of day across a date range. with optional builder parameters.
@@ -5620,99 +5730,101 @@ pub unsafe extern "C" fn tdx_index_at_time_price_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxPriceTickArray {
-    let empty = TdxPriceTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxPriceTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxPriceTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let start_date = match unsafe { cstr_to_str(start_date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("start_date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("start_date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "start_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(start_date.to_string()),
-    );
-    let end_date = match unsafe { cstr_to_str(end_date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("end_date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("end_date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "end_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(end_date.to_string()),
-    );
-    let time_of_day = match unsafe { cstr_to_str(time_of_day) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("time_of_day is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("time_of_day is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "time_of_day".to_string(),
-        thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_at_time_price", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::PriceTicks(values)) => match TdxPriceTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let start_date = match unsafe { cstr_to_str(start_date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("start_date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("start_date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "start_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(start_date.to_string()),
+        );
+        let end_date = match unsafe { cstr_to_str(end_date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("end_date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("end_date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "end_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(end_date.to_string()),
+        );
+        let time_of_day = match unsafe { cstr_to_str(time_of_day) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("time_of_day is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("time_of_day is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "time_of_day".to_string(),
+            thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_at_time_price", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::PriceTicks(values)) => match TdxPriceTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for index_at_time_price: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for index_at_time_price: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Check whether the market is open today. with optional builder parameters.
@@ -5721,39 +5833,41 @@ pub unsafe extern "C" fn tdx_calendar_open_today_with_options(
     client: *const TdxClient,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxCalendarDayArray {
-    let empty = TdxCalendarDayArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxCalendarDayArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxCalendarDayArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
+        let mut args = thetadatadx::EndpointArgs::new();
 
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
 
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_open_today", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => match TdxCalendarDayArray::from_vec(values) {
-            Ok(arr) => arr,
-            Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_open_today", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => match TdxCalendarDayArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for calendar_open_today: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for calendar_open_today: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Get calendar information for a specific date. with optional builder parameters.
@@ -5764,54 +5878,56 @@ pub unsafe extern "C" fn tdx_calendar_on_date_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxCalendarDayArray {
-    let empty = TdxCalendarDayArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
-
-    let mut args = thetadatadx::EndpointArgs::new();
-    let date = match unsafe { cstr_to_str(date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("date is null");
+    ffi_boundary!(TdxCalendarDayArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxCalendarDayArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
             return empty;
         }
-        Err(e) => {
-            set_error(&format!("date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "date".to_string(),
-        thetadatadx::EndpointArgValue::Str(date.to_string()),
-    );
 
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_on_date", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => match TdxCalendarDayArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let date = match unsafe { cstr_to_str(date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("date is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_on_date", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => match TdxCalendarDayArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for calendar_on_date: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for calendar_on_date: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Get calendar information for an entire year. with optional builder parameters.
@@ -5822,54 +5938,56 @@ pub unsafe extern "C" fn tdx_calendar_year_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxCalendarDayArray {
-    let empty = TdxCalendarDayArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
-
-    let mut args = thetadatadx::EndpointArgs::new();
-    let year = match unsafe { cstr_to_str(year) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("year is null");
+    ffi_boundary!(TdxCalendarDayArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxCalendarDayArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
             return empty;
         }
-        Err(e) => {
-            set_error(&format!("year is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "year".to_string(),
-        thetadatadx::EndpointArgValue::Str(year.to_string()),
-    );
 
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_year", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => match TdxCalendarDayArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let year = match unsafe { cstr_to_str(year) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("year is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("year is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "year".to_string(),
+            thetadatadx::EndpointArgValue::Str(year.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_year", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => match TdxCalendarDayArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for calendar_year: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for calendar_year: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch end-of-day interest rate history. with optional builder parameters.
@@ -5884,84 +6002,86 @@ pub unsafe extern "C" fn tdx_interest_rate_history_eod_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxInterestRateTickArray {
-    let empty = TdxInterestRateTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxInterestRateTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxInterestRateTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let start_date = match unsafe { cstr_to_str(start_date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("start_date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("start_date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "start_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(start_date.to_string()),
-    );
-    let end_date = match unsafe { cstr_to_str(end_date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("end_date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("end_date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "end_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(end_date.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "interest_rate_history_eod", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::InterestRateTicks(values)) => match TdxInterestRateTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let start_date = match unsafe { cstr_to_str(start_date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("start_date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("start_date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "start_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(start_date.to_string()),
+        );
+        let end_date = match unsafe { cstr_to_str(end_date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("end_date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("end_date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "end_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(end_date.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "interest_rate_history_eod", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::InterestRateTicks(values)) => match TdxInterestRateTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for interest_rate_history_eod: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for interest_rate_history_eod: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
 /// Fetch intraday OHLC bars across a date range. with optional builder parameters.
@@ -5978,98 +6098,100 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_range_with_options(
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxOhlcTickArray {
-    let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
-    if client.is_null() {
-        set_error("client handle is null");
-        return empty;
-    }
+    ffi_boundary!(TdxOhlcTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
+        if client.is_null() {
+            set_error("client handle is null");
+            return empty;
+        }
 
-    let mut args = thetadatadx::EndpointArgs::new();
-    let symbol = match unsafe { cstr_to_str(symbol) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("symbol is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("symbol is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "symbol".to_string(),
-        thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-    );
-    let start_date = match unsafe { cstr_to_str(start_date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("start_date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("start_date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "start_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(start_date.to_string()),
-    );
-    let end_date = match unsafe { cstr_to_str(end_date) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("end_date is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("end_date is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "end_date".to_string(),
-        thetadatadx::EndpointArgValue::Str(end_date.to_string()),
-    );
-    let interval = match unsafe { cstr_to_str(interval) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("interval is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("interval is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
-    args.insert(
-        "interval".to_string(),
-        thetadatadx::EndpointArgValue::Str(interval.to_string()),
-    );
-
-    if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-        set_error(&message);
-        return empty;
-    }
-
-    let client = unsafe { &*client };
-    match runtime().block_on(async {
-        thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_ohlc_range", &args).await
-    }) {
-        Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
-            Ok(arr) => arr,
+        let mut args = thetadatadx::EndpointArgs::new();
+        let symbol = match unsafe { cstr_to_str(symbol) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("symbol is null");
+                return empty;
+            }
             Err(e) => {
-                set_error(&format!("interior NUL in server string: {e}"));
+                set_error(&format!("symbol is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let start_date = match unsafe { cstr_to_str(start_date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("start_date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("start_date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "start_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(start_date.to_string()),
+        );
+        let end_date = match unsafe { cstr_to_str(end_date) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("end_date is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("end_date is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "end_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(end_date.to_string()),
+        );
+        let interval = match unsafe { cstr_to_str(interval) } {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                set_error("interval is null");
+                return empty;
+            }
+            Err(e) => {
+                set_error(&format!("interval is not valid UTF-8: {e}"));
+                return empty;
+            }
+        };
+        args.insert(
+            "interval".to_string(),
+            thetadatadx::EndpointArgValue::Str(interval.to_string()),
+        );
+
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            set_error(&message);
+            return empty;
+        }
+
+        let client = unsafe { &*client };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_ohlc_range", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match TdxOhlcTickArray::from_vec(values) {
+                Ok(arr) => arr,
+                Err(e) => {
+                    set_error(&format!("interior NUL in server string: {e}"));
+                    empty
+                }
+            },
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for stock_history_ohlc_range: {other:?}"));
                 empty
             }
-        },
-        Ok(other) => {
-            set_error(&format!("internal error: unexpected endpoint output for stock_history_ohlc_range: {other:?}"));
-            empty
+            Err(error) => {
+                set_error(&error.to_string());
+                empty
+            }
         }
-        Err(error) => {
-            set_error(&error.to_string());
-            empty
-        }
-    }
+    })
 }
 
