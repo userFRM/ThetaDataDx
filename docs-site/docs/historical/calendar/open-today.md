@@ -22,8 +22,8 @@ for t in &data {
 ```python [Python]
 data = tdx.calendar_open_today()
 for t in data:
-    print(f"date={t['date']} is_open={t['is_open']} "
-          f"open_time={t['open_time']} close_time={t['close_time']}")
+    print(f"date={t.date} is_open={t.is_open} "
+          f"open_time={t.open_time} close_time={t.close_time}")
 ```
 ```typescript [TypeScript]
 const data = tdx.calendarOpenToday();

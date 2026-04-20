@@ -83,38 +83,38 @@ while True:
         continue  # timeout, no event
 
     # Control events
-    if event["kind"] == "contract_assigned":
-        contracts[event["id"]] = event["contract"]
-        print(f"Contract {event['id']} = {event['contract']}")
+    if event.kind == "contract_assigned":
+        contracts[event.id] = event.contract
+        print(f"Contract {event.id} = {event.contract}")
         continue
 
-    if event["kind"] == "login_success":
-        print(f"Logged in: {event.get('detail')}")
+    if event.kind == "login_success":
+        print(f"Logged in: {getattr(event, 'detail', None)}")
         continue
 
     # Data events -- all carry received_at_ns
-    if event["kind"] == "quote":
-        contract_id = event["contract_id"]
+    if event.kind == "quote":
+        contract_id = event.contract_id
         symbol = contracts.get(contract_id, f"id={contract_id}")
-        print(f"Quote: {symbol} bid={event['bid']} ask={event['ask']} "
-              f"rx={event['received_at_ns']}ns")
+        print(f"Quote: {symbol} bid={event.bid} ask={event.ask} "
+              f"rx={event.received_at_ns}ns")
 
-    elif event["kind"] == "trade":
-        contract_id = event["contract_id"]
+    elif event.kind == "trade":
+        contract_id = event.contract_id
         symbol = contracts.get(contract_id, f"id={contract_id}")
-        print(f"Trade: {symbol} price={event['price']} size={event['size']} "
-              f"seq={event['sequence']} rx={event['received_at_ns']}ns")
+        print(f"Trade: {symbol} price={event.price} size={event.size} "
+              f"seq={event.sequence} rx={event.received_at_ns}ns")
 
-    elif event["kind"] == "open_interest":
-        print(f"OI: contract={event['contract_id']} oi={event['open_interest']}")
+    elif event.kind == "open_interest":
+        print(f"OI: contract={event.contract_id} oi={event.open_interest}")
 
-    elif event["kind"] == "ohlcvc":
-        print(f"OHLCVC: contract={event['contract_id']} "
-              f"O={event['open']} H={event['high']} L={event['low']} C={event['close']} "
-              f"vol={event['volume']} n={event['count']}")
+    elif event.kind == "ohlcvc":
+        print(f"OHLCVC: contract={event.contract_id} "
+              f"O={event.open} H={event.high} L={event.low} C={event.close} "
+              f"vol={event.volume} n={event.count}")
 
-    elif event["kind"] == "disconnected":
-        print(f"Disconnected: {event.get('detail')}")
+    elif event.kind == "disconnected":
+        print(f"Disconnected: {getattr(event, 'detail', None)}")
         break
 ```
 ```go [Go]
@@ -377,11 +377,12 @@ Price fields (`Bid`, `Ask`, `Price`, `Open`, `High`, `Low`, `Close`) are `float6
 
 ### Python
 
-`next_event(timeout_ms)` returns a Python `dict` with all fields as key-value pairs:
+`next_event(timeout_ms)` returns a typed pyclass object (`Quote`, `Trade`, `Ohlcvc`, `OpenInterest`, `Simple`, or `RawData`) with attribute access:
 
-- `event["kind"]` -- string: `"quote"`, `"trade"`, `"open_interest"`, `"ohlcvc"`, `"login_success"`, `"contract_assigned"`, `"req_response"`, `"market_open"`, `"market_close"`, `"server_error"`, `"disconnected"`, `"error"`
+- `event.kind` -- string: `"quote"`, `"trade"`, `"open_interest"`, `"ohlcvc"`, `"login_success"`, `"contract_assigned"`, `"req_response"`, `"market_open"`, `"market_close"`, `"server_error"`, `"disconnected"`, `"error"`
 - Price fields in quotes and trades are pre-decoded to `float` (bid, ask, price, open, high, low, close)
 - All data events include `received_at_ns` as an integer
+- Variant-specific fields (e.g. `contract_id`, `bid`, `price`) exist only on data variants -- use `getattr(event, "contract_id", None)` when walking mixed streams
 
 ## Streaming Methods Reference
 

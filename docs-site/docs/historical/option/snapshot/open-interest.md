@@ -22,8 +22,8 @@ for t in &data {
 ```python [Python]
 data = tdx.option_snapshot_open_interest("SPY", "20260417", "550", "C")
 for t in data:
-    print(f"date={t['date']} open_interest={t['open_interest']} "
-          f"expiration={t['expiration']} strike={t['strike']:.2f}")
+    print(f"date={t.date} open_interest={t.open_interest} "
+          f"expiration={t.expiration} strike={t.strike:.2f}")
 ```
 ```typescript [TypeScript]
 const data = tdx.optionSnapshotOpenInterest('SPY', '20260417', '550', 'C');

@@ -111,7 +111,13 @@ impl Credentials {
     }
 
     fn __repr__(&self) -> String {
-        format!("Credentials(email={:?})", self.inner.email)
+        // Match the redacted Rust `Debug` impl on `auth::Credentials`
+        // (`crates/thetadatadx/src/auth/creds.rs`). The Python binding
+        // previously reached around the Debug impl by formatting
+        // `self.inner.email` directly — that leaked the email into
+        // Jupyter `repr()`, tracebacks, and any structured logger that
+        // captures pyclass reprs.
+        "Credentials(email=<redacted>)".to_string()
     }
 }
 

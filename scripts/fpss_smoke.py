@@ -15,10 +15,10 @@ def _require_data_event(client, *, timeout_secs: float) -> tuple[int | None, str
         event = client.next_event(timeout_ms=500)
         if event is None:
             continue
-        kind = str(event.get("kind", "unknown"))
+        kind = str(event.kind)
         last_kind = kind
         if kind in {"quote", "trade", "open_interest", "ohlcvc"}:
-            return event.get("contract_id"), kind
+            return getattr(event, "contract_id", None), kind
     raise RuntimeError(f"timed out waiting for FPSS data event (last kind={last_kind})")
 
 

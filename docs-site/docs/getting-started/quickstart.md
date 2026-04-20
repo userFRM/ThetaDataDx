@@ -59,8 +59,8 @@ client = ThetaDataDx(creds, Config.production())
 # Fetch end-of-day stock data
 eod = client.stock_history_eod("AAPL", "20240101", "20240301")
 for tick in eod:
-    print(f"{tick['date']}: O={tick['open']:.2f} H={tick['high']:.2f} "
-          f"L={tick['low']:.2f} C={tick['close']:.2f} V={tick['volume']}")
+    print(f"{tick.date}: O={tick.open:.2f} H={tick.high:.2f} "
+          f"L={tick.low:.2f} C={tick.close:.2f} V={tick.volume}")
 
 # List option expirations
 exps = client.option_list_expirations("SPY")

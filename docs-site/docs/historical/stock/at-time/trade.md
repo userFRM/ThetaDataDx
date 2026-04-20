@@ -24,7 +24,7 @@ for t in &data {
 ```python [Python]
 data = tdx.stock_at_time_trade("SPY", "20260101", "20260301", "09:30:00.000")
 for t in data:
-    print(f"date={t['date']} ms_of_day={t['ms_of_day']} price={t['price']:.2f} size={t['size']}")
+    print(f"date={t.date} ms_of_day={t.ms_of_day} price={t.price:.2f} size={t.size}")
 ```
 ```typescript [TypeScript]
 const data = tdx.stockAtTimeTrade('SPY', '20260101', '20260301', '09:30:00.000');
@@ -99,8 +99,8 @@ for (const auto& t : data) {
 <div class="param-desc">Exchange code</div>
 </div>
 <div class="param">
-<div class="param-header"><code>price</code><span class="param-type">i32</span></div>
-<div class="param-desc">Trade price (<code>f64</code>, decoded at parse time).</div>
+<div class="param-header"><code>price</code><span class="param-type">f64</span></div>
+<div class="param-desc">Trade price (decoded at parse time).</div>
 </div>
 <div class="param">
 <div class="param-header"><code>condition_flags</code><span class="param-type">i32</span></div>

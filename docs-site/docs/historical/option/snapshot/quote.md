@@ -22,8 +22,8 @@ for t in &data {
 ```python [Python]
 data = tdx.option_snapshot_quote("SPY", "20260417", "550", "C")
 for t in data:
-    print(f"date={t['date']} ms_of_day={t['ms_of_day']} bid={t['bid']:.2f} ask={t['ask']:.2f} "
-          f"bid_size={t['bid_size']} ask_size={t['ask_size']} expiration={t['expiration']} strike={t['strike']:.2f}")
+    print(f"date={t.date} ms_of_day={t.ms_of_day} bid={t.bid:.2f} ask={t.ask:.2f} "
+          f"bid_size={t.bid_size} ask_size={t.ask_size} expiration={t.expiration} strike={t.strike:.2f}")
 ```
 ```typescript [TypeScript]
 const data = tdx.optionSnapshotQuote('SPY', '20260417', '550', 'C');

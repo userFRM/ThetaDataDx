@@ -262,18 +262,18 @@ while True:
     if event is None:
         continue
 
-    if event["kind"] == "contract_assigned":
-        contracts[event["id"]] = event["contract"]
-    elif event["kind"] == "quote":
-        name = contracts.get(event["contract_id"], "?")
-        print(f"[QUOTE] {name}: bid={event['bid']} ask={event['ask']} "
-              f"rx={event['received_at_ns']}ns")
-    elif event["kind"] == "trade":
-        name = contracts.get(event["contract_id"], "?")
-        print(f"[TRADE] {name}: price={event['price']} size={event['size']} "
-              f"rx={event['received_at_ns']}ns")
-    elif event["kind"] == "disconnected":
-        print(f"Disconnected: {event.get('detail')}")
+    if event.kind == "contract_assigned":
+        contracts[event.id] = event.contract
+    elif event.kind == "quote":
+        name = contracts.get(event.contract_id, "?")
+        print(f"[QUOTE] {name}: bid={event.bid} ask={event.ask} "
+              f"rx={event.received_at_ns}ns")
+    elif event.kind == "trade":
+        name = contracts.get(event.contract_id, "?")
+        print(f"[TRADE] {name}: price={event.price} size={event.size} "
+              f"rx={event.received_at_ns}ns")
+    elif event.kind == "disconnected":
+        print(f"Disconnected: {getattr(event, 'detail', None)}")
         break
 
 tdx.stop_streaming()

@@ -22,8 +22,8 @@ for t in &data {
 ```python [Python]
 data = tdx.option_snapshot_greeks_all("SPY", "20260417", "550", "C")
 for t in data:
-    print(f"date={t['date']} ms_of_day={t['ms_of_day']} implied_volatility={t['implied_volatility']:.4f} delta={t['delta']:.4f} gamma={t['gamma']:.4f} theta={t['theta']:.4f} vega={t['vega']:.4f} rho={t['rho']:.4f} vanna={t['vanna']:.4f} charm={t['charm']:.4f} "
-          f"vomma={t['vomma']:.4f} veta={t['veta']:.4f} speed={t['speed']:.4f} zomma={t['zomma']:.4f} color={t['color']:.4f} ultima={t['ultima']:.4f} epsilon={t['epsilon']:.4f} lambda={t['lambda']:.4f} expiration={t['expiration']} strike={t['strike']:.2f}")
+    print(f"date={t.date} ms_of_day={t.ms_of_day} implied_volatility={t.implied_volatility:.4f} delta={t.delta:.4f} gamma={t.gamma:.4f} theta={t.theta:.4f} vega={t.vega:.4f} rho={t.rho:.4f} vanna={t.vanna:.4f} charm={t.charm:.4f} "
+          f"vomma={t.vomma:.4f} veta={t.veta:.4f} speed={t.speed:.4f} zomma={t.zomma:.4f} color={t.color:.4f} ultima={t.ultima:.4f} epsilon={t.epsilon:.4f} lambda={t.lambda:.4f} expiration={t.expiration} strike={t.strike:.2f}")
 ```
 ```typescript [TypeScript]
 const data = tdx.optionSnapshotGreeksAll('SPY', '20260417', '550', 'C');

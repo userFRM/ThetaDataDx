@@ -52,10 +52,29 @@ fn json_response(val: &sonic_rs::Value) -> Response {
         .into_response()
 }
 
+/// Max query parameter count per request. The widest legitimate endpoint in
+/// the registry takes ~10 params (`option_history_trade_quote` + format /
+/// pagination knobs); 32 leaves generous headroom without letting a caller
+/// allocate ~MB of `HashMap` slack via `?a=1&b=2&...` with thousands of
+/// unique 60-byte keys that each pass the 64-byte per-param cap.
+pub(crate) const MAX_QUERY_PARAMS: usize = 32;
+
 fn build_endpoint_args(
     ep: &EndpointMeta,
     params: &HashMap<String, String>,
 ) -> Result<EndpointArgs, EndpointError> {
+    // Cap the TOTAL number of query parameters before iterating. Per-param
+    // length caps alone don't defend against `?a=1&b=2&...` with 10 000
+    // unique 60-byte keys: each one passes the 64-byte validator yet the
+    // `HashMap` backing store rehashes up into the megabyte range. 32 is
+    // strictly above the widest endpoint in the registry.
+    if params.len() > MAX_QUERY_PARAMS {
+        return Err(EndpointError::InvalidParams(format!(
+            "request has {} query parameters; max is {MAX_QUERY_PARAMS}",
+            params.len()
+        )));
+    }
+
     // Length-cap every incoming query-param BEFORE parsing. This bounds
     // memory-DoS on malicious inputs (`?root=<1 MB string>`) at the edge
     // and keeps format errors below (`?right=garbage`) surfaced as 400
@@ -214,4 +233,69 @@ pub async fn system_shutdown(State(state): State<AppState>, headers: HeaderMap) 
     state.shutdown();
     let body = format::ok_envelope(vec![sonic_rs::Value::from("OK")]);
     json_response(&body)
+}
+
+// ---------------------------------------------------------------------------
+//  Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use thetadatadx::registry::ENDPOINTS;
+
+    /// Grab any registered endpoint as a stand-in for the per-endpoint
+    /// arg-building path. The param cap lives outside `ep.params` so any
+    /// endpoint exercises the same code path.
+    fn any_endpoint() -> &'static EndpointMeta {
+        ENDPOINTS
+            .first()
+            .expect("registry must have at least one endpoint")
+    }
+
+    #[test]
+    fn build_endpoint_args_rejects_too_many_params() {
+        let ep = any_endpoint();
+        let mut params: HashMap<String, String> = HashMap::with_capacity(MAX_QUERY_PARAMS + 1);
+        for i in 0..=MAX_QUERY_PARAMS {
+            params.insert(format!("k{i}"), format!("v{i}"));
+        }
+        assert_eq!(params.len(), MAX_QUERY_PARAMS + 1);
+
+        let err = build_endpoint_args(ep, &params)
+            .expect_err("over-limit query-param count must be rejected");
+        match err {
+            EndpointError::InvalidParams(msg) => {
+                assert!(
+                    msg.contains("query parameters"),
+                    "error message should mention query parameters: {msg}"
+                );
+                assert!(
+                    msg.contains(&MAX_QUERY_PARAMS.to_string()),
+                    "error message should mention the cap: {msg}"
+                );
+            }
+            other => panic!("expected InvalidParams, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn build_endpoint_args_accepts_limit_boundary() {
+        // At exactly MAX_QUERY_PARAMS the count check must not fire; any
+        // failure must come from downstream validators (missing required
+        // params etc.), NOT from the count cap.
+        let ep = any_endpoint();
+        let mut params: HashMap<String, String> = HashMap::with_capacity(MAX_QUERY_PARAMS);
+        for i in 0..MAX_QUERY_PARAMS {
+            params.insert(format!("k{i}"), format!("v{i}"));
+        }
+        // We don't assert Ok here -- missing required params still fail --
+        // but the error must never be the count-cap message.
+        if let Err(EndpointError::InvalidParams(msg)) = build_endpoint_args(ep, &params) {
+            assert!(
+                !msg.contains("query parameters; max is"),
+                "count cap tripped at the boundary: {msg}"
+            );
+        }
+    }
 }

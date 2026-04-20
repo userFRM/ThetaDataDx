@@ -21,7 +21,7 @@ for t in &data {
 ```python [Python]
 data = tdx.interest_rate_history_eod("SOFR", "20260101", "20260301")
 for t in data:
-    print(f"date={t['date']} rate={t['rate']:.4f}")
+    print(f"date={t.date} rate={t.rate:.4f}")
 ```
 ```typescript [TypeScript]
 const data = tdx.interestRateHistoryEod('SOFR', '20260101', '20260301');

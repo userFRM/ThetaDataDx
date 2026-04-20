@@ -22,8 +22,8 @@ for t in &data {
 ```python [Python]
 data = tdx.option_history_greeks_third_order("SPY", "20260417", "550", "C", "20260315", "60000")
 for t in data:
-    print(f"date={t['date']} ms_of_day={t['ms_of_day']} speed={t['speed']:.4f} "
-          f"zomma={t['zomma']:.4f} color={t['color']:.4f} ultima={t['ultima']:.4f}")
+    print(f"date={t.date} ms_of_day={t.ms_of_day} speed={t.speed:.4f} "
+          f"zomma={t.zomma:.4f} color={t.color:.4f} ultima={t.ultima:.4f}")
 ```
 ```typescript [TypeScript]
 const data = tdx.optionHistoryGreeksThirdOrder('SPY', '20260417', '550', 'C', '20260315', '60000');

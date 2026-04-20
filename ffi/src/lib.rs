@@ -2442,9 +2442,13 @@ pub unsafe extern "C" fn tdx_unified_reconnect(handle: *const TdxUnified) -> i32
         *guard = Some(Arc::new(Mutex::new(rx)));
     }
 
-    // Re-subscribe all previous subscriptions (best-effort; failures are non-fatal)
+    // Re-subscribe all previous subscriptions (best-effort; failures are non-fatal,
+    // but MUST be surfaced through tracing so ops can see silent re-subscription
+    // failures across a reconnect boundary — a dropped subscription here would
+    // otherwise manifest as "the stream is up but no ticks for AAPL" with no log
+    // trail to diagnose it).
     for (kind, contract) in &saved_subs {
-        let _result = match kind {
+        let result = match kind {
             thetadatadx::fpss::protocol::SubscriptionKind::Quote => {
                 handle.inner.subscribe_quotes(contract)
             }
@@ -2455,10 +2459,19 @@ pub unsafe extern "C" fn tdx_unified_reconnect(handle: *const TdxUnified) -> i32
                 handle.inner.subscribe_open_interest(contract)
             }
         };
+        if let Err(e) = result {
+            tracing::warn!(
+                target: "thetadatadx::ffi::reconnect",
+                error = %e,
+                kind = ?kind,
+                root = %contract.root,
+                "resubscribe failed after reconnect"
+            );
+        }
     }
 
     for (kind, sec_type) in &saved_full_subs {
-        let _result = match kind {
+        let result = match kind {
             thetadatadx::fpss::protocol::SubscriptionKind::Trade => {
                 handle.inner.subscribe_full_trades(*sec_type)
             }
@@ -2467,6 +2480,15 @@ pub unsafe extern "C" fn tdx_unified_reconnect(handle: *const TdxUnified) -> i32
             }
             thetadatadx::fpss::protocol::SubscriptionKind::Quote => continue,
         };
+        if let Err(e) = result {
+            tracing::warn!(
+                target: "thetadatadx::ffi::reconnect",
+                error = %e,
+                kind = ?kind,
+                sec_type = ?sec_type,
+                "full-stream resubscribe failed after reconnect"
+            );
+        }
     }
 
     0
@@ -3668,9 +3690,12 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
         }
     };
 
-    // 4. Re-subscribe all previous subscriptions (best-effort; failures are non-fatal)
+    // 4. Re-subscribe all previous subscriptions (best-effort; failures are non-fatal,
+    // but MUST be surfaced through tracing so ops can see silent re-subscription
+    // failures across a reconnect boundary — mirrors the same diagnostic the
+    // unified reconnect path above emits).
     for (kind, contract) in &saved_subs {
-        let _result = match kind {
+        let result = match kind {
             thetadatadx::fpss::protocol::SubscriptionKind::Quote => {
                 new_client.subscribe_quotes(contract)
             }
@@ -3681,10 +3706,19 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
                 new_client.subscribe_open_interest(contract)
             }
         };
+        if let Err(e) = result {
+            tracing::warn!(
+                target: "thetadatadx::ffi::reconnect",
+                error = %e,
+                kind = ?kind,
+                root = %contract.root,
+                "resubscribe failed after reconnect"
+            );
+        }
     }
 
     for (kind, sec_type) in &saved_full_subs {
-        let _result = match kind {
+        let result = match kind {
             thetadatadx::fpss::protocol::SubscriptionKind::Trade => {
                 new_client.subscribe_full_trades(*sec_type)
             }
@@ -3693,6 +3727,15 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
             }
             thetadatadx::fpss::protocol::SubscriptionKind::Quote => continue,
         };
+        if let Err(e) = result {
+            tracing::warn!(
+                target: "thetadatadx::ffi::reconnect",
+                error = %e,
+                kind = ?kind,
+                sec_type = ?sec_type,
+                "full-stream resubscribe failed after reconnect"
+            );
+        }
     }
 
     // 5. Store the new client and rx

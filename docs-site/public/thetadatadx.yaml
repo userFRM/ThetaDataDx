@@ -304,22 +304,28 @@ x-anchors:
         type: integer
         description: Milliseconds since midnight ET
       open:
-        type: integer
-        description: Opening price (f64, decoded)
+        type: number
+        format: double
+        description: Opening price (f64)
       high:
-        type: integer
-        description: Highest price (f64, decoded)
+        type: number
+        format: double
+        description: Highest price (f64)
       low:
-        type: integer
-        description: Lowest price (f64, decoded)
+        type: number
+        format: double
+        description: Lowest price (f64)
       close:
-        type: integer
-        description: Closing price (f64, decoded)
+        type: number
+        format: double
+        description: Closing price (f64)
       volume:
         type: integer
+        format: int64
         description: Number of shares/contracts traded
       count:
         type: integer
+        format: int64
         description: Number of trades
       date:
         type: integer
@@ -339,8 +345,8 @@ x-anchors:
         description: Trade size in shares
       price:
         type: number
-              format: double
-        description: Trade price (f64, decoded)
+        format: double
+        description: Trade price (f64)
       exchange:
         type: integer
         description: Exchange code
@@ -359,12 +365,12 @@ x-anchors:
         description: Milliseconds since midnight ET
       bid:
         type: number
-              format: double
-        description: Bid price (fixed-point)
+        format: double
+        description: Bid price (f64)
       ask:
         type: number
-              format: double
-        description: Ask price (fixed-point)
+        format: double
+        description: Ask price (f64)
       bid_size:
         type: integer
         description: Bid size
@@ -381,27 +387,32 @@ x-anchors:
       ms_of_day:
         type: integer
       open:
-        type: integer
+        type: number
+        format: double
       high:
-        type: integer
+        type: number
+        format: double
       low:
-        type: integer
+        type: number
+        format: double
       close:
-        type: integer
+        type: number
+        format: double
       volume:
         type: integer
+        format: int64
       count:
         type: integer
+        format: int64
       bid:
         type: number
-              format: double
+        format: double
       ask:
         type: number
-              format: double
+        format: double
       bid_size:
         type: integer
       ask_size:
-        type: integer
         type: integer
       date:
         type: integer
@@ -429,21 +440,20 @@ x-anchors:
         type: integer
       price:
         type: number
-              format: double
+        format: double
       exchange:
         type: integer
       condition:
         type: integer
       bid:
         type: number
-              format: double
+        format: double
       ask:
         type: number
-              format: double
+        format: double
       bid_size:
         type: integer
       ask_size:
-        type: integer
         type: integer
       date:
         type: integer
@@ -3197,6 +3207,25 @@ paths:
           source: |
             auto rates = client.interest_rate_history_eod("SOFR", "20240101", "20240301");
 
+  /v3/system/shutdown:
+    post:
+      tags: [system]
+      summary: Graceful server shutdown
+      description: |
+        Initiates a graceful shutdown of the thetadatadx server.
+        Requires a valid `X-Shutdown-Token` header (random UUID printed to
+        stderr on server startup). Rate-limited to ~3 attempts per hour per
+        client IP.
+      security:
+        - shutdownToken: []
+      responses:
+        '200':
+          description: Shutdown initiated
+        '401':
+          description: Missing or invalid token
+        '429':
+          description: Too many attempts (rate-limited)
+
 # ---------------------------------------------------------------------------
 # COMPONENTS
 # ---------------------------------------------------------------------------
@@ -3209,6 +3238,14 @@ components:
       description: |
         Session UUID obtained by authenticating credentials against the Nexus HTTP API.
         The SDK handles this automatically via `ThetaDataDx::connect()`.
+    shutdownToken:
+      type: apiKey
+      in: header
+      name: X-Shutdown-Token
+      description: |
+        Random UUID printed to stderr on server startup. Required on the
+        `/v3/system/shutdown` POST endpoint. Rate-limited to ~3 attempts
+        per hour per client IP. See `tools/server/README.md`.
 
   schemas:
     OhlcTick: *ohlc-tick
@@ -3265,15 +3302,31 @@ components:
       format: double
       description: All prices are decoded to f64 (double) during parsing.
 
+    FpssEventKind:
+      type: string
+      description: |
+        Discriminator for FPSS event variants. This is a literal-union string
+        (not a TypeScript `const enum`). The TypeScript SDK previously emitted
+        `const enum FpssEventKind`, but that was removed in #376 because
+        `isolatedModules: true` breaks on const enums.
+      enum:
+        - ohlcvc
+        - open_interest
+        - quote
+        - trade
+        - simple
+        - raw_data
+
     FpssEvent:
       type: object
       description: Real-time streaming event from FPSS
       oneOf:
         - type: object
+          description: Quote tick (best bid/ask update)
           properties:
-            type:
+            kind:
               type: string
-              enum: [Quote]
+              enum: [quote]
             contract_id:
               type: integer
             ms_of_day:
@@ -3294,11 +3347,16 @@ components:
               type: integer
             date:
               type: integer
+            received_at_ns:
+              type: integer
+              format: int64
+              description: Nanosecond monotonic receipt timestamp
         - type: object
+          description: Trade tick
           properties:
-            type:
+            kind:
               type: string
-              enum: [Trade]
+              enum: [trade]
             contract_id:
               type: integer
             ms_of_day:
@@ -3316,11 +3374,16 @@ components:
               type: integer
             date:
               type: integer
+            received_at_ns:
+              type: integer
+              format: int64
+              description: Nanosecond monotonic receipt timestamp
         - type: object
+          description: Open interest tick
           properties:
-            type:
+            kind:
               type: string
-              enum: [OpenInterest]
+              enum: [open_interest]
             contract_id:
               type: integer
             ms_of_day:
@@ -3329,6 +3392,82 @@ components:
               type: integer
             date:
               type: integer
+            received_at_ns:
+              type: integer
+              format: int64
+              description: Nanosecond monotonic receipt timestamp
+        - type: object
+          description: |
+            OHLCVC bar (open/high/low/close + volume + count).
+            Volume and count are `i64`.
+          properties:
+            kind:
+              type: string
+              enum: [ohlcvc]
+            contract_id:
+              type: integer
+            ms_of_day:
+              type: integer
+            open:
+              type: number
+              format: double
+            high:
+              type: number
+              format: double
+            low:
+              type: number
+              format: double
+            close:
+              type: number
+              format: double
+            volume:
+              type: integer
+              format: int64
+            count:
+              type: integer
+              format: int64
+            date:
+              type: integer
+            received_at_ns:
+              type: integer
+              format: int64
+              description: Nanosecond monotonic receipt timestamp
+        - type: object
+          description: |
+            Control message from FPSS (stream lifecycle signals).
+            `kind` here is a small int32 discriminator (0..=12) —
+            not the top-level variant discriminator.
+          properties:
+            kind:
+              type: integer
+              format: int32
+              description: Control-message discriminator (0..=12)
+            id:
+              type: integer
+              format: int32
+            detail:
+              type: string
+              nullable: true
+        - type: object
+          description: |
+            Raw (non-decoded) FPSS payload. `payload` is a base64-encoded
+            copy of the original bytes (escape-hatch for forward-compat /
+            debugging; SDKs should prefer decoded variants above).
+          properties:
+            kind:
+              type: string
+              enum: [raw_data]
+            code:
+              type: integer
+              format: uint8
+              description: FPSS frame code
+            payload:
+              type: string
+              description: Base64-encoded raw bytes
+            received_at_ns:
+              type: integer
+              format: int64
+              description: Nanosecond monotonic receipt timestamp
 
     Error:
       type: object

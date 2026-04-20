@@ -22,8 +22,8 @@ for t in &data {
 ```python [Python]
 data = tdx.stock_snapshot_market_value(["SPY"])
 for t in data:
-    print(f"date={t['date']} market_bid={t['market_bid']:.4f} "
-          f"market_ask={t['market_ask']:.4f} market_price={t['market_price']:.4f}")
+    print(f"date={t.date} market_bid={t.market_bid:.4f} "
+          f"market_ask={t.market_ask:.4f} market_price={t.market_price:.4f}")
 ```
 ```typescript [TypeScript]
 const data = tdx.stockSnapshotMarketValue(['SPY']);

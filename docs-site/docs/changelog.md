@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Security audit follow-ups** (#377) -- FPSS TLS now uses SPKI (Subject Public Key Info) pinning via constant-time SHA-256 comparison against the captured ThetaData keypair, rejecting MITM attempts even with valid CA-signed certs. `POST /v3/system/shutdown` now requires an `X-Shutdown-Token` header and is separately rate-limited to ~3 attempts per hour per IP. Server-wide per-IP rate limit of 20 rps / burst 40 via `tower_governor`, 256 max concurrent connections, 64 KB request-body limit. Credentials zeroized on drop. CSV export now defuses formula-injection payloads (`= + - @`). Dropped-events counter exposed through every SDK (`tdx.dropped_events()` / `tdx.droppedEvents()` / `client.DroppedEvents()` / `client.dropped_events()`) and Prometheus metrics (`tdx_fpss_dropped_events`, `tdx_unified_dropped_events`). Replaced the unmaintained `paste` macro dep with `pastey`.
+- **Java-parity mid-frame retry on FPSS decoder errors** (#370) -- FPSS I/O loop now retries the current frame on transient decode failure before dropping the connection, matching the Java terminal's tolerance for partial-frame glitches.
+
+### Changed
+
+- **Full SSOT sweep + `i64` widening + audit-v2 follow-ups** (#375) -- `OhlcTick`/`EodTick` `volume` and `count` fields widened from `i32` to `i64` (fixes silent saturation on high-volume instruments). Tick schema, FFI, every SDK (Python, Go, TypeScript, C++), and documentation aligned with a single source of truth. Audit findings addressed without shortcuts.
+- **Post-SSOT review fixes** (#376) -- C++ field order drift fixed, CSV headers unified, Rust const enum removed in favour of a dedupe-friendly `next_event_typed`, `Credentials` / `Config` surfaces made consistent across SDKs, tick `__repr__` made useful, Go field renames cleaned up.
+
 ### Changed — BREAKING (Python SDK)
 
 - **Historical endpoints now return `list[TickClass]` instead of a columnar `dict[str, list]`** (#364 / #365). The 53 tick-returning historical methods (list endpoints returning scalar `Vec<String>` — symbols, dates, expirations, strikes — are unchanged) in the Python SDK (`stock_history_eod`, `option_history_trade`, `calendar_*`, ...) now return a Python list of typed pyclass objects — `EodTick`, `TradeTick`, `QuoteTick`, `OhlcTick`, `TradeQuoteTick`, `OpenInterestTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`. Brings the Python SDK into line with Rust core, TypeScript, Go, and C++ FFI. Migration:
@@ -554,7 +564,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 ### Added
 
 - **Fully typed returns for all 61 endpoints** - 9 new tick types (`TradeQuoteTick`, `OpenInterestTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`). All 31 endpoints that returned raw `proto::DataTable` now return typed `Vec<T>`. The `raw_endpoint!` macro has been removed entirely. Zero raw protobuf in the public API.
-- **TOML-driven codegen** - `tick_schema.toml` is the single source of truth for all 14 tick type definitions and DataTable column schemas. `build.rs` generates Rust structs and parsers at compile time. Adding a new column = one line in the TOML.
+- **TOML-driven codegen** - `tick_schema.toml` is the single source of truth for all tick type definitions and DataTable column schemas. `build.rs` generates Rust structs and parsers at compile time. Adding a new column = one line in the TOML.
 - **Proto maintenance guide** (`proto/MAINTENANCE.md`) - step-by-step instructions for ThetaData engineers to add columns, RPCs, or replace proto files.
 - 10 new parse functions in `decode.rs` (including `parse_eod_ticks` moved from inline in `direct.rs`)
 - All downstream consumers updated: FFI (9 new JSON converters), CLI (9 new renderers), Server (9 new sonic_rs serializers), MCP (9 new serializers), Python SDK (9 new dict converters)
@@ -618,7 +628,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
   Dynamically generated from endpoint registry. `cargo install thetadatadx-cli`
 - **MCP Server** (`tools/mcp/`) — Model Context Protocol server giving LLMs instant
   access to 64 tools (61 endpoints + ping + greeks + IV) over JSON-RPC stdio.
-  Works with Claude Code, Cursor, Codex.
+  Works with Claude Code, Cursor, and other MCP-compatible clients.
 - **REST+WS Server** (`tools/server/`) — drop-in replacement for the Java terminal.
   v3 API on port 25503, WebSocket on 25520 with real FPSS bridge. sonic-rs JSON.
 - **VitePress documentation site** (`docs-site/`) — 33 pages covering API reference,
@@ -652,9 +662,9 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 - **SIMD FIT removed** — was 2.2x slower than scalar (regression). Pure scalar now.
 - **Server trade_greeks routes** — 5 option history trade_greeks endpoints were silently
   dropped due to subcategory mismatch in path generation
-- **All Gemini findings** — hot-path allocations, wrapping_add, BufWriter, find_header
+- **Audit findings (hot-path)** — hot-path allocations, wrapping_add, BufWriter, find_header
   fallback, DATE marker handling, MCP sanitization, Price dedup
-- **All Codex findings** — server security (CORS, shutdown auth), CLI expect(), MCP
+- **Audit findings (server/CLI)** — server security (CORS, shutdown auth), CLI expect(), MCP
   JSON-RPC validation, stale docs
 - **Auth response parsing** — subscription fields are integers not strings
 

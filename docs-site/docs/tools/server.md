@@ -92,6 +92,26 @@ The WebSocket server at `/v1/events` replicates the Java terminal's streaming pr
 The WebSocket endpoint supports a single concurrent client connection. If a second client connects, the first connection will be dropped. For multi-client setups, run multiple server instances on different ports.
 :::
 
+## Security Hardening
+
+The REST server ships with defence-in-depth hardening applied in #377:
+
+- **`POST /v3/system/shutdown` requires an `X-Shutdown-Token` header.** The token is set via the `THETADX_SHUTDOWN_TOKEN` environment variable (or `--shutdown-token`); requests missing or mismatching the header get `401 Unauthorized`. A separate per-IP limiter on the shutdown route caps attempts at ~3 per hour.
+- **Global per-IP rate limit** via `tower_governor`: 20 requests per second with a burst of 40. Excess traffic is rejected with `429 Too Many Requests`.
+- **256 max concurrent connections** enforced by a `tower::limit::GlobalConcurrencyLimitLayer`.
+- **64 KB request-body limit** on every POST route via `RequestBodyLimitLayer`.
+- **Dropped-events counter** exposed through every SDK surface:
+
+  | SDK | Accessor |
+  |-----|----------|
+  | Python | `tdx.dropped_events()` |
+  | TypeScript | `tdx.droppedEvents()` |
+  | Go | `client.DroppedEvents()` |
+  | C++ | `client.dropped_events()` |
+  | Prometheus | `tdx_fpss_dropped_events`, `tdx_unified_dropped_events` |
+
+  Every time the server publisher cannot keep up (the Disruptor ring buffer is full), the counter increments instead of silently dropping.
+
 ## System Routes
 
 | Route | Description |

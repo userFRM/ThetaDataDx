@@ -35,7 +35,7 @@
     "thetadatadx-win32-x64-msvc": "7.3.1"
   },
   "engines": {
-    "node": ">= 18"
+    "node": ">= 20"
   },
   "files": [
     "index.js",

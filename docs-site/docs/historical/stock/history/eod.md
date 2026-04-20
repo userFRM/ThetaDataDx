@@ -22,8 +22,8 @@ for t in &data {
 ```python [Python]
 data = tdx.stock_history_eod("SPY", "20260101", "20260301")
 for t in data:
-    print(f"date={t['date']} open={t['open']:.2f} high={t['high']:.2f} low={t['low']:.2f} "
-          f"close={t['close']:.2f} volume={t['volume']} bid={t['bid']:.2f} ask={t['ask']:.2f}")
+    print(f"date={t.date} open={t.open:.2f} high={t.high:.2f} low={t.low:.2f} "
+          f"close={t.close:.2f} volume={t.volume} bid={t.bid:.2f} ask={t.ask:.2f}")
 ```
 ```typescript [TypeScript]
 const data = tdx.stockHistoryEod('SPY', '20260101', '20260301');
@@ -72,15 +72,15 @@ for (const auto& t : data) {
 <div class="param-desc">Timestamps (milliseconds since midnight Eastern Time)</div>
 </div>
 <div class="param">
-<div class="param-header"><code>open</code> / <code>high</code> / <code>low</code> / <code>close</code><span class="param-type">i32</span></div>
-<div class="param-desc">OHLC prices (<code>f64</code>, decoded at parse time).</div>
+<div class="param-header"><code>open</code> / <code>high</code> / <code>low</code> / <code>close</code><span class="param-type">f64</span></div>
+<div class="param-desc">OHLC prices (decoded at parse time).</div>
 </div>
 <div class="param">
-<div class="param-header"><code>volume</code><span class="param-type">i32</span></div>
+<div class="param-header"><code>volume</code><span class="param-type">i64</span></div>
 <div class="param-desc">Total daily volume</div>
 </div>
 <div class="param">
-<div class="param-header"><code>count</code><span class="param-type">i32</span></div>
+<div class="param-header"><code>count</code><span class="param-type">i64</span></div>
 <div class="param-desc">Total trade count for the day</div>
 </div>
 <div class="param">
@@ -92,8 +92,8 @@ for (const auto& t : data) {
 <div class="param-desc">Closing quote exchange codes</div>
 </div>
 <div class="param">
-<div class="param-header"><code>bid</code> / <code>ask</code><span class="param-type">i32</span></div>
-<div class="param-desc">Closing bid/ask prices (<code>f64</code>, decoded at parse time).</div>
+<div class="param-header"><code>bid</code> / <code>ask</code><span class="param-type">f64</span></div>
+<div class="param-desc">Closing bid/ask prices (decoded at parse time).</div>
 </div>
 <div class="param">
 <div class="param-header"><code>bid_condition</code> / <code>ask_condition</code><span class="param-type">i32</span></div>

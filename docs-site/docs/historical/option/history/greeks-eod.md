@@ -33,8 +33,8 @@ data = tdx.option_history_greeks_eod(
     strike_range=5,
 )
 for t in data:
-    print(f"date={t['date']} implied_volatility={t['implied_volatility']:.4f} delta={t['delta']:.4f} "
-          f"gamma={t['gamma']:.4f} theta={t['theta']:.4f} vega={t['vega']:.4f} rho={t['rho']:.4f}")
+    print(f"date={t.date} implied_volatility={t.implied_volatility:.4f} delta={t.delta:.4f} "
+          f"gamma={t.gamma:.4f} theta={t.theta:.4f} vega={t.vega:.4f} rho={t.rho:.4f}")
 ```
 ```typescript [TypeScript]
 const data = tdx.optionHistoryGreeksEod(

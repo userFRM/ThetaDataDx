@@ -22,8 +22,8 @@ for t in &data {
 ```python [Python]
 data = tdx.option_history_quote("SPY", "20260417", "550", "C", "20260315", "60000")
 for t in data:
-    print(f"date={t['date']} ms_of_day={t['ms_of_day']} bid={t['bid']:.2f} "
-          f"ask={t['ask']:.2f} bid_size={t['bid_size']} ask_size={t['ask_size']}")
+    print(f"date={t.date} ms_of_day={t.ms_of_day} bid={t.bid:.2f} "
+          f"ask={t.ask:.2f} bid_size={t.bid_size} ask_size={t.ask_size}")
 ```
 ```typescript [TypeScript]
 const data = tdx.optionHistoryQuote('SPY', '20260417', '550', 'C', '20260315', '60000');

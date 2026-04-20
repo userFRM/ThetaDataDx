@@ -42,3 +42,9 @@ uuid = { version = "1.23.1", features = ["v4"] }
 # `String ==` early-exits on the first differing byte and is a timing
 # oracle for remote token-guessing attacks.
 subtle = "2.6.1"
+
+# `Zeroizing<String>` scrubs the CLI password from the process's memory
+# image as soon as it drops. Without this, `/proc/<pid>/mem` (or a core
+# dump) would retain the plaintext for the lifetime of the process even
+# after `Credentials` internally moved it into its own `Zeroizing`.
+zeroize = "1.8.2"

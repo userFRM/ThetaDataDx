@@ -22,8 +22,8 @@ for t in &data {
 ```python [Python]
 data = tdx.option_history_greeks_first_order("SPY", "20260417", "550", "C", "20260315", "60000")
 for t in data:
-    print(f"date={t['date']} ms_of_day={t['ms_of_day']} implied_volatility={t['implied_volatility']:.4f} delta={t['delta']:.4f} "
-          f"theta={t['theta']:.4f} vega={t['vega']:.4f} rho={t['rho']:.4f} epsilon={t['epsilon']:.4f} lambda={t['lambda']:.4f}")
+    print(f"date={t.date} ms_of_day={t.ms_of_day} implied_volatility={t.implied_volatility:.4f} delta={t.delta:.4f} "
+          f"theta={t.theta:.4f} vega={t.vega:.4f} rho={t.rho:.4f} epsilon={t.epsilon:.4f} lambda={t.lambda:.4f}")
 ```
 ```typescript [TypeScript]
 const data = tdx.optionHistoryGreeksFirstOrder('SPY', '20260417', '550', 'C', '20260315', '60000');

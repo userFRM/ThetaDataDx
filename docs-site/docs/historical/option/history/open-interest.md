@@ -21,7 +21,7 @@ for t in &data {
 ```python [Python]
 data = tdx.option_history_open_interest("SPY", "20260417", "550", "C", "20260315")
 for t in data:
-    print(f"date={t['date']} open_interest={t['open_interest']}")
+    print(f"date={t.date} open_interest={t.open_interest}")
 ```
 ```typescript [TypeScript]
 const data = tdx.optionHistoryOpenInterest('SPY', '20260417', '550', 'C', '20260315');

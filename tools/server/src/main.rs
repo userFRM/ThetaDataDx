@@ -32,6 +32,7 @@ use std::net::SocketAddr;
 use clap::Parser;
 use tower_http::cors::CorsLayer;
 use tracing_subscriber::EnvFilter;
+use zeroize::Zeroizing;
 
 use thetadatadx::{Credentials, DirectConfig, ThetaDataDx};
 
@@ -100,7 +101,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .install_default()
         .expect("failed to install rustls crypto provider");
 
-    let args = Args::parse();
+    let mut args = Args::parse();
 
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -140,9 +141,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Step 1: Load credentials -- prefer --email/--password over --creds file.
-    let creds = if let (Some(email), Some(password)) = (&args.email, &args.password) {
-        tracing::info!("loaded credentials from --email/--password flags");
-        Credentials::new(email, password)
+    //
+    // # Zeroization of the CLI password
+    //
+    // `args.password` is a `Option<String>` populated by clap from argv.
+    // We cannot make clap allocate it inside `Zeroizing` without a custom
+    // value parser, but we can minimize the lifetime of the unzeroized
+    // bytes: `args.password.take()` moves the raw `String` out of the
+    // clap struct the moment we touch it, then `Zeroizing::new` takes
+    // ownership. When the wrapper drops at the end of this scope, its
+    // `Drop` impl zeros the backing allocation before it is freed.
+    //
+    // `Credentials::new` allocates its own internally-zeroized copy (see
+    // `crates/thetadatadx/src/auth/creds.rs`), so passing a temporary
+    // `String` clone via `as_str().to_string()` is safe: the
+    // intermediate `String` is consumed by the `Into<String>` bound and
+    // re-wrapped in `Credentials`'s own `Zeroizing<String>`. Our
+    // `Zeroizing<String>` here guarantees that by the time this block
+    // exits, the clap-produced allocation has been overwritten.
+    let creds = if let Some(email) = args.email.as_ref() {
+        match args.password.take() {
+            Some(raw_password) => {
+                let password: Zeroizing<String> = Zeroizing::new(raw_password);
+                tracing::info!("loaded credentials from --email/--password flags");
+                let c = Credentials::new(email.clone(), password.as_str().to_string());
+                drop(password); // explicit for readers; `Zeroizing` scrubs on drop
+                c
+            }
+            None => {
+                let c = Credentials::from_file(&args.creds)?;
+                tracing::info!(creds_file = %args.creds, "loaded credentials from file");
+                c
+            }
+        }
     } else {
         let c = Credentials::from_file(&args.creds)?;
         tracing::info!(creds_file = %args.creds, "loaded credentials from file");

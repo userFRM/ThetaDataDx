@@ -22,8 +22,8 @@ for t in &data {
 ```python [Python]
 data = tdx.stock_history_quote("SPY", "20260315", "60000")
 for t in data:
-    print(f"date={t['date']} ms_of_day={t['ms_of_day']} bid={t['bid']:.2f} "
-          f"bid_size={t['bid_size']} ask={t['ask']:.2f} ask_size={t['ask_size']} midpoint={t['midpoint']:.2f}")
+    print(f"date={t.date} ms_of_day={t.ms_of_day} bid={t.bid:.2f} "
+          f"bid_size={t.bid_size} ask={t.ask:.2f} ask_size={t.ask_size} midpoint={t['midpoint']:.2f}")
 ```
 ```typescript [TypeScript]
 const data = tdx.stockHistoryQuote('SPY', '20260315', '60000');
@@ -92,8 +92,8 @@ for (const auto& t : data) {
 <div class="param-desc">Exchange codes</div>
 </div>
 <div class="param">
-<div class="param-header"><code>bid</code> / <code>ask</code><span class="param-type">i32</span></div>
-<div class="param-desc">Bid/ask prices (<code>f64</code>, decoded at parse time). <code>midpoint</code> is pre-computed.</div>
+<div class="param-header"><code>bid</code> / <code>ask</code><span class="param-type">f64</span></div>
+<div class="param-desc">Bid/ask prices (decoded at parse time). <code>midpoint</code> is pre-computed.</div>
 </div>
 <div class="param">
 <div class="param-header"><code>bid_condition</code> / <code>ask_condition</code><span class="param-type">i32</span></div>
