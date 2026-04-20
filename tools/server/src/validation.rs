@@ -192,24 +192,12 @@ pub fn validate_venue(value: &str, field: &'static str) -> Result<(), Validation
 /// Generic fallback length check for any string param not matched by a
 /// more specific validator. Use this for request-type strings, free-form
 /// `?ivl=...` values past interval shorthand, etc.
-pub fn validate_generic(value: &str, field: &'static str) -> Result<(), ValidationError> {
-    if value.len() > MAX_GENERIC_LEN {
-        return Err(ValidationError::too_long(
-            field,
-            value.len(),
-            MAX_GENERIC_LEN,
-        ));
-    }
-    Ok(())
-}
-
-/// Length-cap an unknown query parameter — same 64-byte ceiling as
-/// `validate_generic`, but keeps the caller-supplied parameter name in the
-/// error message so operators can identify which field triggered the
-/// rejection. The struct's `field` label stays `"parameter"` (a 'static
-/// alias for unknown names); the real name appears in `message` so the
-/// HTTP 400 body reads e.g. `"'foobar' exceeds maximum length of 64 bytes
-/// (got 9001)"`.
+/// Length-cap an unknown query parameter at 64 bytes. Keeps the
+/// caller-supplied parameter name in the error message so operators can
+/// identify which field triggered the rejection. The struct's `field`
+/// label stays `"parameter"` (a 'static alias for unknown names); the
+/// real name appears in `message` so the HTTP 400 body reads e.g.
+/// `"'foobar' exceeds maximum length of 64 bytes (got 9001)"`.
 pub fn validate_generic_named(value: &str, param_name: &str) -> Result<(), ValidationError> {
     if value.len() > MAX_GENERIC_LEN {
         return Err(ValidationError {
@@ -336,7 +324,13 @@ mod tests {
     #[test]
     fn generic_rejects_megabyte_payload() {
         let big = "x".repeat(MAX_GENERIC_LEN + 1);
-        assert!(validate_generic(&big, "other").is_err());
+        let err = validate_generic_named(&big, "foobar").expect_err("oversized must reject");
+        assert_eq!(err.field, "parameter");
+        assert!(
+            err.message.contains("'foobar'"),
+            "error must surface the real param name, got: {}",
+            err.message
+        );
     }
 
     #[test]
