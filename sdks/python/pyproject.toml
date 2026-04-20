@@ -27,6 +27,17 @@ Documentation = "https://github.com/userFRM/ThetaDataDx/blob/main/docs/api-refer
 Discord = "https://discord.thetadata.us/"
 
 [project.optional-dependencies]
-pandas = ["pandas>=1.5"]
-polars = ["polars>=0.20"]
-all = ["pandas>=1.5", "polars>=0.20"]
+# Arrow columnar pipeline (feat/arrow-columnar-dataframe):
+#   - `to_arrow()` returns a `pyarrow.Table` zero-copy from Rust via the
+#     Arrow C Data Interface. Requires `pyarrow>=14.0` so the C-Data
+#     bindings match the `arrow-rs` 58 on the Rust side.
+#   - `to_dataframe()` calls `pyarrow.Table.to_pandas()` under the hood,
+#     which is zero-copy for numeric columns on pandas 2.x (numpy-backed
+#     arrays alias the underlying Arrow buffers). pandas <2.0 works but
+#     forces a full copy per column.
+#   - `to_polars()` calls `polars.from_arrow()`. polars 0.20+ consumes
+#     Arrow buffers directly.
+arrow = ["pyarrow>=14.0"]
+pandas = ["pandas>=2.1", "pyarrow>=14.0"]
+polars = ["polars>=0.20", "pyarrow>=14.0"]
+all = ["pandas>=2.1", "polars>=0.20", "pyarrow>=14.0"]

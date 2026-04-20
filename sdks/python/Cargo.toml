@@ -22,6 +22,25 @@ tdbe = { version = "0.10.0", path = "../../crates/tdbe" }
 # every Python version from 3.9 upward.
 pyo3 = { version = "=0.28.2", features = ["abi3-py39", "multiple-pymethods"] }
 
+# Apache Arrow columnar pipeline for the DataFrame adapter. We pick the
+# upstream `arrow` crate with the `pyarrow` feature over the third-party
+# `pyo3-arrow` because:
+#   1. Arrow Apache owns the pyo3 compat matrix — version bumps ship
+#      together (arrow 58 <-> pyo3 0.28), so we stay on the canonical
+#      upgrade path.
+#   2. Single dep, fewer surfaces to audit. `arrow_pyarrow::{IntoPyArrow,
+#      PyArrowType, Table}` is all we need.
+#   3. Zero-copy to pyarrow via the Arrow C Data Interface, identical
+#      semantics to pyo3-arrow.
+#
+# `arrow-array` + `arrow-schema` give us the typed builders
+# (Int32Array / Float64Array / Int64Array / StringArray) and `Schema` /
+# `DataType` needed to construct RecordBatch from Vec<TickType> in one
+# allocation per column.
+arrow = { version = "58.1.0", features = ["pyarrow"] }
+arrow-array = "58.1.0"
+arrow-schema = "58.1.0"
+
 # Async bridge: run tokio futures from sync Python
 tokio = { version = "1.52.1", features = ["rt-multi-thread"] }
 
