@@ -16,6 +16,17 @@ pub(crate) struct CalendarDay {
 }
 #[pymethods]
 impl CalendarDay {
+    #[new]
+    #[pyo3(signature = (*, date = 0i32, is_open = 0i32, open_time = 0i32, close_time = 0i32, status = 0i32))]
+    fn new(date: i32, is_open: i32, open_time: i32, close_time: i32, status: i32) -> Self {
+        Self {
+            date,
+            is_open,
+            open_time,
+            close_time,
+            status,
+        }
+    }
     fn __repr__(&self) -> String {
         format!("CalendarDay(date={}, is_open={}, open_time={}, close_time={}, status={})", self.date, self.is_open, self.open_time, self.close_time, self.status)
     }
@@ -49,6 +60,32 @@ pub(crate) struct EodTick {
 }
 #[pymethods]
 impl EodTick {
+    #[new]
+    #[pyo3(signature = (*, ms_of_day = 0i32, ms_of_day2 = 0i32, open = 0.0f64, high = 0.0f64, low = 0.0f64, close = 0.0f64, volume = 0i64, count = 0i64, bid_size = 0i32, bid_exchange = 0i32, bid = 0.0f64, bid_condition = 0i32, ask_size = 0i32, ask_exchange = 0i32, ask = 0.0f64, ask_condition = 0i32, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
+    fn new(ms_of_day: i32, ms_of_day2: i32, open: f64, high: f64, low: f64, close: f64, volume: i64, count: i64, bid_size: i32, bid_exchange: i32, bid: f64, bid_condition: i32, ask_size: i32, ask_exchange: i32, ask: f64, ask_condition: i32, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+        Self {
+            ms_of_day,
+            ms_of_day2,
+            open,
+            high,
+            low,
+            close,
+            volume,
+            count,
+            bid_size,
+            bid_exchange,
+            bid,
+            bid_condition,
+            ask_size,
+            ask_exchange,
+            ask,
+            ask_condition,
+            date,
+            expiration,
+            strike,
+            right,
+        }
+    }
     fn __repr__(&self) -> String {
         format!("EodTick(ms_of_day={}, ms_of_day2={}, open={}, high={}, low={}, close={})", self.ms_of_day, self.ms_of_day2, self.open, self.high, self.low, self.close)
     }
@@ -89,6 +126,39 @@ pub(crate) struct GreeksTick {
 }
 #[pymethods]
 impl GreeksTick {
+    #[new]
+    #[pyo3(signature = (*, ms_of_day = 0i32, implied_volatility = 0.0f64, delta = 0.0f64, gamma = 0.0f64, theta = 0.0f64, vega = 0.0f64, rho = 0.0f64, iv_error = 0.0f64, vanna = 0.0f64, charm = 0.0f64, vomma = 0.0f64, veta = 0.0f64, speed = 0.0f64, zomma = 0.0f64, color = 0.0f64, ultima = 0.0f64, d1 = 0.0f64, d2 = 0.0f64, dual_delta = 0.0f64, dual_gamma = 0.0f64, epsilon = 0.0f64, lambda = 0.0f64, vera = 0.0f64, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
+    fn new(ms_of_day: i32, implied_volatility: f64, delta: f64, gamma: f64, theta: f64, vega: f64, rho: f64, iv_error: f64, vanna: f64, charm: f64, vomma: f64, veta: f64, speed: f64, zomma: f64, color: f64, ultima: f64, d1: f64, d2: f64, dual_delta: f64, dual_gamma: f64, epsilon: f64, lambda: f64, vera: f64, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+        Self {
+            ms_of_day,
+            implied_volatility,
+            delta,
+            gamma,
+            theta,
+            vega,
+            rho,
+            iv_error,
+            vanna,
+            charm,
+            vomma,
+            veta,
+            speed,
+            zomma,
+            color,
+            ultima,
+            d1,
+            d2,
+            dual_delta,
+            dual_gamma,
+            epsilon,
+            lambda,
+            vera,
+            date,
+            expiration,
+            strike,
+            right,
+        }
+    }
     fn __repr__(&self) -> String {
         format!("GreeksTick(ms_of_day={}, implied_volatility={}, delta={}, gamma={}, theta={}, vega={})", self.ms_of_day, self.implied_volatility, self.delta, self.gamma, self.theta, self.vega)
     }
@@ -105,6 +175,15 @@ pub(crate) struct InterestRateTick {
 }
 #[pymethods]
 impl InterestRateTick {
+    #[new]
+    #[pyo3(signature = (*, ms_of_day = 0i32, rate = 0.0f64, date = 0i32))]
+    fn new(ms_of_day: i32, rate: f64, date: i32) -> Self {
+        Self {
+            ms_of_day,
+            rate,
+            date,
+        }
+    }
     fn __repr__(&self) -> String {
         format!("InterestRateTick(ms_of_day={}, rate={}, date={})", self.ms_of_day, self.rate, self.date)
     }
@@ -125,6 +204,19 @@ pub(crate) struct IvTick {
 }
 #[pymethods]
 impl IvTick {
+    #[new]
+    #[pyo3(signature = (*, ms_of_day = 0i32, implied_volatility = 0.0f64, iv_error = 0.0f64, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
+    fn new(ms_of_day: i32, implied_volatility: f64, iv_error: f64, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+        Self {
+            ms_of_day,
+            implied_volatility,
+            iv_error,
+            date,
+            expiration,
+            strike,
+            right,
+        }
+    }
     fn __repr__(&self) -> String {
         format!("IvTick(ms_of_day={}, implied_volatility={}, iv_error={}, date={})", self.ms_of_day, self.implied_volatility, self.iv_error, self.date)
     }
@@ -146,6 +238,20 @@ pub(crate) struct MarketValueTick {
 }
 #[pymethods]
 impl MarketValueTick {
+    #[new]
+    #[pyo3(signature = (*, ms_of_day = 0i32, market_bid = 0.0f64, market_ask = 0.0f64, market_price = 0.0f64, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
+    fn new(ms_of_day: i32, market_bid: f64, market_ask: f64, market_price: f64, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+        Self {
+            ms_of_day,
+            market_bid,
+            market_ask,
+            market_price,
+            date,
+            expiration,
+            strike,
+            right,
+        }
+    }
     fn __repr__(&self) -> String {
         format!("MarketValueTick(ms_of_day={}, market_bid={}, market_ask={}, market_price={}, date={})", self.ms_of_day, self.market_bid, self.market_ask, self.market_price, self.date)
     }
@@ -170,6 +276,23 @@ pub(crate) struct OhlcTick {
 }
 #[pymethods]
 impl OhlcTick {
+    #[new]
+    #[pyo3(signature = (*, ms_of_day = 0i32, open = 0.0f64, high = 0.0f64, low = 0.0f64, close = 0.0f64, volume = 0i64, count = 0i64, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
+    fn new(ms_of_day: i32, open: f64, high: f64, low: f64, close: f64, volume: i64, count: i64, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+        Self {
+            ms_of_day,
+            open,
+            high,
+            low,
+            close,
+            volume,
+            count,
+            date,
+            expiration,
+            strike,
+            right,
+        }
+    }
     fn __repr__(&self) -> String {
         format!("OhlcTick(ms_of_day={}, open={}, high={}, low={}, close={}, volume={})", self.ms_of_day, self.open, self.high, self.low, self.close, self.volume)
     }
@@ -189,6 +312,18 @@ pub(crate) struct OpenInterestTick {
 }
 #[pymethods]
 impl OpenInterestTick {
+    #[new]
+    #[pyo3(signature = (*, ms_of_day = 0i32, open_interest = 0i32, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
+    fn new(ms_of_day: i32, open_interest: i32, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+        Self {
+            ms_of_day,
+            open_interest,
+            date,
+            expiration,
+            strike,
+            right,
+        }
+    }
     fn __repr__(&self) -> String {
         format!("OpenInterestTick(ms_of_day={}, open_interest={}, date={})", self.ms_of_day, self.open_interest, self.date)
     }
@@ -208,6 +343,16 @@ pub(crate) struct OptionContract {
 }
 #[pymethods]
 impl OptionContract {
+    #[new]
+    #[pyo3(signature = (*, root = String::new(), expiration = 0i32, strike = 0.0f64, right = String::new()))]
+    fn new(root: String, expiration: i32, strike: f64, right: String) -> Self {
+        Self {
+            root,
+            expiration,
+            strike,
+            right,
+        }
+    }
     fn __repr__(&self) -> String {
         format!("OptionContract(root={:?}, expiration={}, strike={}, right={:?})", self.root, self.expiration, self.strike, self.right)
     }
@@ -224,6 +369,15 @@ pub(crate) struct PriceTick {
 }
 #[pymethods]
 impl PriceTick {
+    #[new]
+    #[pyo3(signature = (*, ms_of_day = 0i32, price = 0.0f64, date = 0i32))]
+    fn new(ms_of_day: i32, price: f64, date: i32) -> Self {
+        Self {
+            ms_of_day,
+            price,
+            date,
+        }
+    }
     fn __repr__(&self) -> String {
         format!("PriceTick(ms_of_day={}, price={}, date={})", self.ms_of_day, self.price, self.date)
     }
@@ -251,6 +405,26 @@ pub(crate) struct QuoteTick {
 }
 #[pymethods]
 impl QuoteTick {
+    #[new]
+    #[pyo3(signature = (*, ms_of_day = 0i32, bid_size = 0i32, bid_exchange = 0i32, bid = 0.0f64, bid_condition = 0i32, ask_size = 0i32, ask_exchange = 0i32, ask = 0.0f64, ask_condition = 0i32, date = 0i32, midpoint = 0.0f64, expiration = 0i32, strike = 0.0f64, right = String::new()))]
+    fn new(ms_of_day: i32, bid_size: i32, bid_exchange: i32, bid: f64, bid_condition: i32, ask_size: i32, ask_exchange: i32, ask: f64, ask_condition: i32, date: i32, midpoint: f64, expiration: i32, strike: f64, right: String) -> Self {
+        Self {
+            ms_of_day,
+            bid_size,
+            bid_exchange,
+            bid,
+            bid_condition,
+            ask_size,
+            ask_exchange,
+            ask,
+            ask_condition,
+            date,
+            midpoint,
+            expiration,
+            strike,
+            right,
+        }
+    }
     fn __repr__(&self) -> String {
         format!("QuoteTick(ms_of_day={}, bid_size={}, bid_exchange={}, bid={}, bid_condition={}, ask_size={})", self.ms_of_day, self.bid_size, self.bid_exchange, self.bid, self.bid_condition, self.ask_size)
     }
@@ -291,6 +465,39 @@ pub(crate) struct TradeQuoteTick {
 }
 #[pymethods]
 impl TradeQuoteTick {
+    #[new]
+    #[pyo3(signature = (*, ms_of_day = 0i32, sequence = 0i32, ext_condition1 = 0i32, ext_condition2 = 0i32, ext_condition3 = 0i32, ext_condition4 = 0i32, condition = 0i32, size = 0i32, exchange = 0i32, price = 0.0f64, condition_flags = 0i32, price_flags = 0i32, volume_type = 0i32, records_back = 0i32, quote_ms_of_day = 0i32, bid_size = 0i32, bid_exchange = 0i32, bid = 0.0f64, bid_condition = 0i32, ask_size = 0i32, ask_exchange = 0i32, ask = 0.0f64, ask_condition = 0i32, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
+    fn new(ms_of_day: i32, sequence: i32, ext_condition1: i32, ext_condition2: i32, ext_condition3: i32, ext_condition4: i32, condition: i32, size: i32, exchange: i32, price: f64, condition_flags: i32, price_flags: i32, volume_type: i32, records_back: i32, quote_ms_of_day: i32, bid_size: i32, bid_exchange: i32, bid: f64, bid_condition: i32, ask_size: i32, ask_exchange: i32, ask: f64, ask_condition: i32, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+        Self {
+            ms_of_day,
+            sequence,
+            ext_condition1,
+            ext_condition2,
+            ext_condition3,
+            ext_condition4,
+            condition,
+            size,
+            exchange,
+            price,
+            condition_flags,
+            price_flags,
+            volume_type,
+            records_back,
+            quote_ms_of_day,
+            bid_size,
+            bid_exchange,
+            bid,
+            bid_condition,
+            ask_size,
+            ask_exchange,
+            ask,
+            ask_condition,
+            date,
+            expiration,
+            strike,
+            right,
+        }
+    }
     fn __repr__(&self) -> String {
         format!("TradeQuoteTick(ms_of_day={}, sequence={}, ext_condition1={}, ext_condition2={}, ext_condition3={}, ext_condition4={})", self.ms_of_day, self.sequence, self.ext_condition1, self.ext_condition2, self.ext_condition3, self.ext_condition4)
     }
@@ -322,6 +529,30 @@ pub(crate) struct TradeTick {
 }
 #[pymethods]
 impl TradeTick {
+    #[new]
+    #[pyo3(signature = (*, ms_of_day = 0i32, sequence = 0i32, ext_condition1 = 0i32, ext_condition2 = 0i32, ext_condition3 = 0i32, ext_condition4 = 0i32, condition = 0i32, size = 0i32, exchange = 0i32, price = 0.0f64, condition_flags = 0i32, price_flags = 0i32, volume_type = 0i32, records_back = 0i32, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
+    fn new(ms_of_day: i32, sequence: i32, ext_condition1: i32, ext_condition2: i32, ext_condition3: i32, ext_condition4: i32, condition: i32, size: i32, exchange: i32, price: f64, condition_flags: i32, price_flags: i32, volume_type: i32, records_back: i32, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+        Self {
+            ms_of_day,
+            sequence,
+            ext_condition1,
+            ext_condition2,
+            ext_condition3,
+            ext_condition4,
+            condition,
+            size,
+            exchange,
+            price,
+            condition_flags,
+            price_flags,
+            volume_type,
+            records_back,
+            date,
+            expiration,
+            strike,
+            right,
+        }
+    }
     fn __repr__(&self) -> String {
         format!("TradeTick(ms_of_day={}, sequence={}, ext_condition1={}, ext_condition2={}, ext_condition3={}, ext_condition4={})", self.ms_of_day, self.sequence, self.ext_condition1, self.ext_condition2, self.ext_condition3, self.ext_condition4)
     }
@@ -627,24 +858,3 @@ pub(crate) fn register_tick_classes(m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-/// Static column-name schemas keyed by the tick pyclass `__qualname__`.
-/// Used by `pyclass_list_to_columnar` to build DataFrame-ready column lists
-/// in deterministic schema order, independent of Python runtime reflection.
-pub(crate) fn columns_for_qualname(qualname: &str) -> Option<&'static [&'static str]> {
-    match qualname {
-        "CalendarDay" => Some(&["date", "is_open", "open_time", "close_time", "status"]),
-        "EodTick" => Some(&["ms_of_day", "ms_of_day2", "open", "high", "low", "close", "volume", "count", "bid_size", "bid_exchange", "bid", "bid_condition", "ask_size", "ask_exchange", "ask", "ask_condition", "date", "expiration", "strike", "right"]),
-        "GreeksTick" => Some(&["ms_of_day", "implied_volatility", "delta", "gamma", "theta", "vega", "rho", "iv_error", "vanna", "charm", "vomma", "veta", "speed", "zomma", "color", "ultima", "d1", "d2", "dual_delta", "dual_gamma", "epsilon", "lambda", "vera", "date", "expiration", "strike", "right"]),
-        "InterestRateTick" => Some(&["ms_of_day", "rate", "date"]),
-        "IvTick" => Some(&["ms_of_day", "implied_volatility", "iv_error", "date", "expiration", "strike", "right"]),
-        "MarketValueTick" => Some(&["ms_of_day", "market_bid", "market_ask", "market_price", "date", "expiration", "strike", "right"]),
-        "OhlcTick" => Some(&["ms_of_day", "open", "high", "low", "close", "volume", "count", "date", "expiration", "strike", "right"]),
-        "OpenInterestTick" => Some(&["ms_of_day", "open_interest", "date", "expiration", "strike", "right"]),
-        "OptionContract" => Some(&["root", "expiration", "strike", "right"]),
-        "PriceTick" => Some(&["ms_of_day", "price", "date"]),
-        "QuoteTick" => Some(&["ms_of_day", "bid_size", "bid_exchange", "bid", "bid_condition", "ask_size", "ask_exchange", "ask", "ask_condition", "date", "midpoint", "expiration", "strike", "right"]),
-        "TradeQuoteTick" => Some(&["ms_of_day", "sequence", "ext_condition1", "ext_condition2", "ext_condition3", "ext_condition4", "condition", "size", "exchange", "price", "condition_flags", "price_flags", "volume_type", "records_back", "quote_ms_of_day", "bid_size", "bid_exchange", "bid", "bid_condition", "ask_size", "ask_exchange", "ask", "ask_condition", "date", "expiration", "strike", "right"]),
-        "TradeTick" => Some(&["ms_of_day", "sequence", "ext_condition1", "ext_condition2", "ext_condition3", "ext_condition4", "condition", "size", "exchange", "price", "condition_flags", "price_flags", "volume_type", "records_back", "date", "expiration", "strike", "right"]),
-        _ => None,
-    }
-}

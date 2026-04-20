@@ -2826,18 +2826,47 @@ pub enum Error {
 
 ## Python-Specific Features
 
-### DataFrame Support
+### DataFrame Support (Arrow-Backed)
 
-All 61 data methods have `_df` variants that return pandas DataFrames directly:
+The DataFrame adapter is built on an Apache Arrow columnar
+pipeline. Every entry point goes through a single
+`Rust -> arrow::RecordBatch -> pyarrow.Table` handoff via the
+Arrow C Data Interface (zero-copy); pandas / polars / raw Arrow
+are the three terminal consumers. At 100k x 20 ticks the
+wall-clock is ~8ms (vs ~300-500ms for the legacy dict-of-lists
+path that this replaces).
+
+**Shortcut wrappers** for the four hot-path historical endpoints:
 
 ```python
-df = tdx.stock_history_eod_df("AAPL", "20240101", "20240301")
-df = tdx.option_history_ohlc_df("SPY", "20241220", "500", "C", "20240315", "60000")
+df = to_dataframe(tdx.stock_history_eod("AAPL", "20240101", "20240301"))
+df = to_dataframe(tdx.stock_history_ohlc("AAPL", "20240315", "60000"))
+df = to_dataframe(tdx.stock_history_trade("AAPL", "20240315"))
+df = to_dataframe(tdx.stock_history_quote("AAPL", "20240315", "60000"))
+```
+
+These go through the Rust-tick-slice fast path (no pyclass-list
+walk) -- strictly faster than `to_dataframe(ticks)` on the same
+data. Requires `pip install thetadatadx[pandas]`.
+
+### `to_dataframe(ticks) -> pandas.DataFrame`
+
+Generic pandas entry point. Pandas 2.x aliases the underlying
+Arrow buffers in place for all numeric columns, so large result
+sets materialize at near-zero-copy cost:
+
+```python
+from thetadatadx import to_dataframe
+
+eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
+df = to_dataframe(eod)
 ```
 
 Requires `pip install thetadatadx[pandas]`.
 
-### Polars Support
+### `to_polars(ticks) -> polars.DataFrame`
+
+Same Arrow batch, routed through `polars.from_arrow`:
 
 ```python
 from thetadatadx import to_polars
@@ -2848,11 +2877,27 @@ df = to_polars(eod)
 
 Requires `pip install thetadatadx[polars]`.
 
-### Manual Conversion
+### `to_arrow(ticks) -> pyarrow.Table`
+
+The intermediate `pyarrow.Table` surfaced directly -- ideal for
+DuckDB / Arrow-Flight / cuDF / polars-arrow pipelines that want
+to consume Arrow without a pandas or polars roundtrip:
 
 ```python
-from thetadatadx import to_dataframe
+from thetadatadx import to_arrow
+import duckdb
 
 eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
-df = to_dataframe(eod)
+table = to_arrow(eod)              # pyarrow.Table, zero-copy
+con = duckdb.connect()
+con.register("eod", table)         # DuckDB reads the same buffers
+con.sql("SELECT AVG(close) FROM eod").show()
 ```
+
+Requires `pip install thetadatadx[arrow]` (pyarrow only; no
+pandas/polars dep).
+
+Empty-list behaviour:
+- `to_arrow([])` returns a zero-column `pyarrow.Table`.
+- The `to_dataframe` / `to_polars` / `to_arrow` adapters return an empty DataFrame with
+  the typed schema (column names + Arrow dtypes) populated.

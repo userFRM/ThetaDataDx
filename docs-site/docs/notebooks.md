@@ -43,7 +43,7 @@ Authentication, connecting, your first EOD and OHLC queries. Covers `Credentials
 
 **[`102_historical_analysis.ipynb`](https://github.com/userFRM/ThetaDataDx/blob/main/notebooks/102_historical_analysis.ipynb)**
 
-Deep dive into historical data: EOD time series, intraday OHLC bars at various intervals, tick-level trade and quote data. Demonstrates `_df` convenience methods and data visualization.
+Deep dive into historical data: EOD time series, intraday OHLC bars at various intervals, tick-level trade and quote data. Demonstrates the typed endpoint → Arrow-backed DataFrame pipeline (`to_dataframe(ticks)`) and data visualization.
 
 ### 103 - Options Chain
 

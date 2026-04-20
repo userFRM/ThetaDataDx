@@ -9,13 +9,16 @@ Python SDK for ThetaData market data, powered by the `thetadatadx` Rust crate vi
 ```bash
 pip install thetadatadx
 
-# With pandas DataFrame support
+# With pandas DataFrame support (Arrow-backed, zero-copy on pandas 2.x)
 pip install thetadatadx[pandas]
 
 # With polars DataFrame support
 pip install thetadatadx[polars]
 
-# Both
+# Raw Arrow (pyarrow.Table for DuckDB / Arrow-Flight / cuDF / polars-arrow)
+pip install thetadatadx[arrow]
+
+# All optional adapters
 pip install thetadatadx[all]
 ```
 
@@ -273,20 +276,41 @@ You can also subscribe to per-contract streams if you only need specific symbols
 | `reconnect()` | Reconnect streaming and restore subscriptions |
 | `shutdown()` | Graceful shutdown |
 
+### `to_arrow(ticks)`
+Convert a `list[TickClass]` to a `pyarrow.Table` with a zero-copy
+handoff via the Arrow C Data Interface. The underlying Arrow buffers
+are the same ones Rust just filled -- nothing is copied at the
+pyo3 boundary. Requires `pip install thetadatadx[arrow]`.
+
+Use this to feed DuckDB, Arrow-Flight, cuDF, polars-arrow, or any
+other Arrow-native tool without an intermediate pandas step:
+
+```python
+import duckdb
+table = thetadatadx.to_arrow(eod)          # pyarrow.Table
+con = duckdb.connect()
+con.register("eod", table)                  # zero-copy into DuckDB
+con.sql("SELECT AVG(close) FROM eod").show()
+```
+
 ### `to_dataframe(ticks)`
-Convert a `list[TickClass]` returned by any historical endpoint to a
-pandas DataFrame. Requires `pip install thetadatadx[pandas]`.
+Convert a `list[TickClass]` to a pandas DataFrame. Backed by the
+Arrow columnar pipeline -- on pandas 2.x the numeric columns alias
+the Arrow buffers in place (zero copy). Benchmarks at 100k rows /
+20 columns show ~8ms wall-clock (vs ~300-500ms for the legacy
+dict-of-lists path). Requires `pip install thetadatadx[pandas]`.
 
 ### `to_polars(ticks)`
-Same pivot to a polars DataFrame. Requires `pip install thetadatadx[polars]`.
+Convert to a polars DataFrame via `polars.from_arrow` -- zero-copy
+at the Arrow boundary. Requires `pip install thetadatadx[polars]`.
 
-### `_df` method variants
-Shortcut wrappers for the most common historical endpoints — they call
-the typed endpoint under the hood and return a DataFrame directly:
-`stock_history_eod_df()`, `stock_history_ohlc_df()`,
-`stock_history_trade_df()`, `stock_history_quote_df()`. For any other
-endpoint, call it directly and pipe the result through
-`to_dataframe(ticks)`.
+### Unified DataFrame path
+No per-endpoint `_df` / `_arrow` / `_polars` convenience wrappers.
+Every historical endpoint returns `list[TickClass]`; chain
+`to_dataframe(ticks)` / `to_polars(ticks)` / `to_arrow(ticks)` for
+the Arrow-backed conversion. One code path, one schema, one place
+to audit. See the "DataFrame Conversion (Arrow-Backed)" section
+below for the recipe.
 
 ### `all_greeks(spot, strike, rate, div_yield, tte, option_price, right)`
 `right` accepts `"C"`/`"P"` or `"call"`/`"put"` case-insensitively. Returns dict with 22 Greeks: delta, gamma, theta, vega, rho, iv, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda.
@@ -333,28 +357,53 @@ while True:
 tdx.stop_streaming()
 ```
 
-## pandas DataFrame Conversion
+## DataFrame Conversion (Arrow-Backed)
 
-Convert any result to a pandas DataFrame:
+Every DataFrame entry point goes through a single Arrow columnar
+pipeline: Rust -> `arrow::RecordBatch` -> `pyarrow.Table` via the
+Arrow C Data Interface (zero-copy) -> pandas / polars / raw Arrow.
+On pandas 2.x the numeric DataFrame columns alias the Arrow
+buffers in place, so a 100k x 20 result set converts in ~8ms
+(vs ~300-500ms for the old dict-of-lists path).
 
 ```python
-from thetadatadx import Credentials, Config, ThetaDataDx, to_dataframe
+from thetadatadx import (
+    Credentials, Config, ThetaDataDx,
+    to_arrow, to_dataframe, to_polars,
+)
 
 creds = Credentials.from_file("creds.txt")
-# Or inline: creds = Credentials("user@example.com", "your-password")
 tdx = ThetaDataDx(creds, Config.production())
 
-# Option 1: convert an existing result
-eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
-df = to_dataframe(eod)
-print(df.head())
+# One typed path: historical endpoints return `list[TickClass]`,
+# then chain the Arrow-backed adapter for pandas / polars / raw Arrow.
 
-# Option 2: use _df convenience wrappers (available for the four most
-# common historical endpoints; call to_dataframe() on anything else)
-df = tdx.stock_history_eod_df("AAPL", "20240101", "20240301")
-df = tdx.stock_history_ohlc_df("AAPL", "20240315", "1m")
-df = tdx.stock_history_trade_df("AAPL", "20240315")
-df = tdx.stock_history_quote_df("AAPL", "20240315", "1m")
+eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
+
+# Pandas -- zero-copy numeric columns on pandas 2.x
+df = to_dataframe(eod)
+
+# Polars via polars.from_arrow -- zero-copy
+pdf = to_polars(eod)
+
+# Raw Arrow -- plug straight into DuckDB / Arrow-Flight / cuDF
+table = to_arrow(eod)
+
+# Same recipe for any of the 44 tick-returning historical endpoints:
+ohlc = tdx.stock_history_ohlc("AAPL", "20240315", "1m")
+df   = to_dataframe(ohlc)
+
+trd  = tdx.option_history_trade("SPY", "20240620", "550", "C", "20240315")
+df   = to_dataframe(trd)
 ```
 
-Install with: `pip install thetadatadx[pandas]`
+See the Arrow project docs for the [C Data
+Interface](https://arrow.apache.org/docs/format/CDataInterface.html)
+(how the zero-copy handoff works) and [pyarrow Table
+docs](https://arrow.apache.org/docs/python/generated/pyarrow.Table.html)
+for consumer APIs.
+
+Install with:
+- `pip install thetadatadx[pandas]` — pandas + pyarrow
+- `pip install thetadatadx[polars]` — polars + pyarrow
+- `pip install thetadatadx[arrow]`  — pyarrow only

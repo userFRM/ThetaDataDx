@@ -66,10 +66,10 @@ Intervals are millisecond strings: `"60000"` for 1 minute, `"300000"` for 5 minu
 
 ## DataFrame Support (Python)
 
-All data methods have `_df` variants that return pandas DataFrames directly:
+Every historical method returns `list[TickClass]`; chain `thetadatadx.to_dataframe(...)` / `.to_polars(...)` / `.to_arrow(...)` for a DataFrame:
 
 ```python
-df = tdx.stock_history_eod_df("AAPL", "20240101", "20240301")
+df = to_dataframe(tdx.stock_history_eod("AAPL", "20240101", "20240301"))
 ```
 
 Or convert any result explicitly:
