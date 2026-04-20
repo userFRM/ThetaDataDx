@@ -87,6 +87,7 @@ mod delta;
 mod events;
 pub mod framing;
 mod io_loop;
+mod pinning;
 pub mod protocol;
 pub mod ring;
 mod session;

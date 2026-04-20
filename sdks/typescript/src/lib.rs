@@ -6,6 +6,7 @@
 #[macro_use]
 extern crate napi_derive;
 
+use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use tdbe::types::tick;
@@ -68,6 +69,12 @@ type EventRx = Arc<Mutex<Option<Arc<Mutex<std::sync::mpsc::Receiver<BufferedEven
 pub struct ThetaDataDx {
     tdx: thetadatadx::ThetaDataDx,
     rx: EventRx,
+    /// Count of FPSS events dropped because the JS polling side
+    /// disconnected before the FPSS callback could hand them off.
+    /// Survives reconnect (the `start_streaming` / `reconnect` closures
+    /// capture an `Arc<AtomicU64>` clone). Exposed to JS via
+    /// [`Self::dropped_events`] as a `bigint`.
+    dropped_events: Arc<AtomicU64>,
 }
 
 #[napi]
@@ -86,6 +93,7 @@ impl ThetaDataDx {
         Ok(ThetaDataDx {
             tdx,
             rx: Arc::new(Mutex::new(None)),
+            dropped_events: Arc::new(AtomicU64::new(0)),
         })
     }
 
@@ -100,7 +108,25 @@ impl ThetaDataDx {
         Ok(ThetaDataDx {
             tdx,
             rx: Arc::new(Mutex::new(None)),
+            dropped_events: Arc::new(AtomicU64::new(0)),
         })
+    }
+
+    /// Cumulative count of FPSS events dropped because the JS polling
+    /// side disconnected before the FPSS callback could hand them off.
+    ///
+    /// Counter lives on the client instance (not inside the
+    /// `start_streaming` / `reconnect` closures), so the value survives
+    /// reconnect and is observable at any point — before streaming,
+    /// during, or after `shutdown()`.
+    ///
+    /// Returned as `bigint` so it can represent the full `u64` range
+    /// (Number would top out at 2^53).
+    #[napi(js_name = "droppedEvents")]
+    pub fn dropped_events(&self) -> napi::bindgen_prelude::BigInt {
+        napi::bindgen_prelude::BigInt::from(
+            self.dropped_events.load(std::sync::atomic::Ordering::Relaxed),
+        )
     }
 }
 

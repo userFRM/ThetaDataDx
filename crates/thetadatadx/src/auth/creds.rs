@@ -10,6 +10,8 @@
 
 use std::path::Path;
 
+use zeroize::Zeroizing;
+
 use crate::error::Error;
 
 /// Raw credentials parsed from `creds.txt`.
@@ -17,19 +19,23 @@ use crate::error::Error;
 /// These are used for both auth flows:
 /// - **MDDS (gRPC)**: email + password are sent to Nexus API to obtain a session UUID
 /// - **FPSS (TCP)**: email + password are sent directly over the TCP connection
+///
+/// The `password` is wrapped in [`zeroize::Zeroizing`] so the backing buffer is
+/// wiped when the struct (or any clone) is dropped, preventing plaintext
+/// recovery from a core dump or `/proc/<pid>/mem`.
 #[derive(Clone)]
 pub struct Credentials {
     /// Email address, lowercased and trimmed (matches Java `toLowerCase().trim()`).
     pub email: String,
-    /// Password, trimmed.
-    pub(crate) password: String,
+    /// Password, trimmed. Zeroed on drop.
+    pub(crate) password: Zeroizing<String>,
 }
 
 impl std::fmt::Debug for Credentials {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Credentials")
-            .field("email", &self.email)
-            .field("password", &"[REDACTED]")
+            .field("email", &"<redacted>")
+            .field("password", &"<redacted>")
             .finish()
     }
 }
@@ -99,7 +105,10 @@ impl Credentials {
             });
         }
 
-        Ok(Self { email, password })
+        Ok(Self {
+            email,
+            password: Zeroizing::new(password),
+        })
     }
 
     /// Get the password.
@@ -112,7 +121,7 @@ impl Credentials {
     pub fn new(email: impl Into<String>, password: impl Into<String>) -> Self {
         Self {
             email: email.into().trim().to_lowercase(),
-            password: password.into().trim().to_string(),
+            password: Zeroizing::new(password.into().trim().to_string()),
         }
     }
 }
@@ -125,7 +134,7 @@ mod tests {
     fn parse_basic() {
         let creds = Credentials::parse("user@example.com\nhunter2\n").unwrap();
         assert_eq!(creds.email, "user@example.com");
-        assert_eq!(creds.password, "hunter2");
+        assert_eq!(creds.password(), "hunter2");
     }
 
     #[test]
@@ -138,21 +147,21 @@ mod tests {
     fn parse_trims_whitespace() {
         let creds = Credentials::parse("  user@example.com  \n  hunter2  \n").unwrap();
         assert_eq!(creds.email, "user@example.com");
-        assert_eq!(creds.password, "hunter2");
+        assert_eq!(creds.password(), "hunter2");
     }
 
     #[test]
     fn parse_ignores_extra_lines() {
         let creds = Credentials::parse("user@example.com\nhunter2\nextra line\nanother\n").unwrap();
         assert_eq!(creds.email, "user@example.com");
-        assert_eq!(creds.password, "hunter2");
+        assert_eq!(creds.password(), "hunter2");
     }
 
     #[test]
     fn parse_no_trailing_newline() {
         let creds = Credentials::parse("user@example.com\nhunter2").unwrap();
         assert_eq!(creds.email, "user@example.com");
-        assert_eq!(creds.password, "hunter2");
+        assert_eq!(creds.password(), "hunter2");
     }
 
     #[test]
@@ -183,6 +192,38 @@ mod tests {
     fn new_trims_and_lowercases() {
         let creds = Credentials::new("  User@Example.COM  ", "  hunter2  ");
         assert_eq!(creds.email, "user@example.com");
-        assert_eq!(creds.password, "hunter2");
+        assert_eq!(creds.password(), "hunter2");
+    }
+
+    /// `Debug` must never expose the email or the password -- both would
+    /// land in panic output, `tracing::error!("{:?}", ...)`, crash dumps,
+    /// and Jupyter `repr()` on the Python bindings.
+    #[test]
+    fn debug_redacts_email_and_password() {
+        let creds = Credentials::new("user@example.com", "hunter2");
+        let rendered = format!("{creds:?}");
+        assert!(
+            !rendered.contains("user@example.com"),
+            "Debug impl leaked email: {rendered}"
+        );
+        assert!(
+            !rendered.contains("hunter2"),
+            "Debug impl leaked password: {rendered}"
+        );
+        assert!(
+            rendered.contains("<redacted>"),
+            "Debug missing redaction marker: {rendered}"
+        );
+    }
+
+    /// Smoke test that the `Zeroizing<String>` wrapper derefs to `&str` so
+    /// every existing `&creds.password` call site keeps compiling. The
+    /// actual zero-on-drop behavior is covered by the `zeroize` crate's
+    /// own tests; asserting on freed memory here would be UB.
+    #[test]
+    fn password_derefs_to_str() {
+        let creds = Credentials::new("user@example.com", "hunter2");
+        let borrowed: &str = &creds.password;
+        assert_eq!(borrowed, "hunter2");
     }
 }

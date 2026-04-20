@@ -477,12 +477,37 @@ fn render_csv_value(value: &sonic_rs::Value) -> String {
     escape_csv_field(&rendered)
 }
 
+/// CSV-escape a single field.
+///
+/// Handles two categories:
+///
+/// 1. **RFC 4180 special characters** (`,`, `"`, `\n`, `\r`) are escaped by
+///    wrapping the whole field in double quotes and doubling any inner quote.
+/// 2. **Formula-injection prefixes** (`=`, `+`, `-`, `@`, `\t`) cause Excel /
+///    LibreOffice Calc / Google Sheets to evaluate the cell as a formula when
+///    the CSV is opened. An attacker who can place a string of their choosing
+///    into a symbol, condition, or any other CSV-rendered field could exfil
+///    data or trigger `cmd|'/C calc'` style payloads on the viewer's machine.
+///    We defuse by prepending a single quote (`'`) *inside* the quoted field,
+///    which is the OWASP-recommended mitigation: spreadsheet apps display the
+///    cell verbatim while refusing to evaluate it as a formula.
+///
+/// The leading single-quote forces the field into the "needs quoting" branch
+/// unconditionally, so a risky field is always wrapped in `"`.
 fn escape_csv_field(value: &str) -> String {
-    if value.contains([',', '"', '\n', '\r']) {
-        format!("\"{}\"", value.replace('"', "\"\""))
-    } else {
-        value.to_owned()
+    let needs_formula_prefix = value
+        .chars()
+        .next()
+        .is_some_and(|c| matches!(c, '=' | '+' | '-' | '@' | '\t'));
+    let has_special = value.contains([',', '"', '\n', '\r']);
+
+    if !needs_formula_prefix && !has_special {
+        return value.to_owned();
     }
+
+    let escaped = value.replace('"', "\"\"");
+    let prefix = if needs_formula_prefix { "'" } else { "" };
+    format!("\"{prefix}{escaped}\"")
 }
 
 #[cfg(test)]
@@ -521,6 +546,45 @@ mod tests {
         ]);
 
         assert!(csv.is_none(), "mixed row shapes should not format as CSV");
+    }
+
+    /// Regression: CSV formula-injection defense.
+    ///
+    /// Any cell that starts with `=`, `+`, `-`, `@`, or `\t` is interpreted
+    /// as a formula by Excel / LibreOffice Calc / Google Sheets. An attacker
+    /// who can place a crafted string into a symbol, condition, or any
+    /// other field rendered to CSV could trigger `cmd|'/C calc'!A1` style
+    /// payloads on the viewer's machine. The fix prepends `'` *inside* the
+    /// quoted field, which spreadsheet apps render verbatim without
+    /// evaluating. Every payload below must round-trip as `"'<original>"`.
+    #[test]
+    fn json_to_csv_defuses_formula_injection() {
+        let csv = json_to_csv(&[
+            sonic_rs::json!({ "cell": "=cmd|'/C calc'!A1" }),
+            sonic_rs::json!({ "cell": "+1+cmd|'/C calc'!A1" }),
+            sonic_rs::json!({ "cell": "-2+cmd|'/C calc'!A1" }),
+            sonic_rs::json!({ "cell": "@SUM(A1:A10)" }),
+            sonic_rs::json!({ "cell": "\tnull-byte-start" }),
+        ])
+        .expect("formula payloads should still format as CSV");
+
+        // Header row is trivially safe ("cell" starts with 'c').
+        let lines: Vec<&str> = csv.lines().collect();
+        assert_eq!(lines[0], "cell");
+
+        // Each dangerous payload must be quoted AND prefixed with a single
+        // quote so the spreadsheet sees a literal string, not a formula.
+        // Inner double-quotes in the payload are RFC-4180 doubled to `""`.
+        assert_eq!(lines[1], "\"'=cmd|'/C calc'!A1\"");
+        assert_eq!(lines[2], "\"'+1+cmd|'/C calc'!A1\"");
+        assert_eq!(lines[3], "\"'-2+cmd|'/C calc'!A1\"");
+        assert_eq!(lines[4], "\"'@SUM(A1:A10)\"");
+        assert_eq!(lines[5], "\"'\tnull-byte-start\"");
+
+        // Sanity: a benign string must NOT be quoted or prefixed -- the fix
+        // must be surgical, not a blanket "quote everything".
+        let benign = json_to_csv(&[sonic_rs::json!({ "cell": "AAPL" })]).unwrap();
+        assert_eq!(benign, "cell\nAAPL\n");
     }
 
     /// Regression: the header key set must be the UNION of keys across

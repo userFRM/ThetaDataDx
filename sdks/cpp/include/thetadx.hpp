@@ -489,6 +489,16 @@ public:
         return *this;
     }
 
+    /** Cumulative count of FPSS events dropped because the internal
+     *  receiver was gone (channel disconnected) when the callback tried
+     *  to deliver. Survives `reconnect()`. Parity with the Python
+     *  `tdx.dropped_events()` / TypeScript `tdx.droppedEvents()` /
+     *  Go `client.DroppedEvents()` getters. Safe to call on a moved-from
+     *  client (returns 0). */
+    uint64_t dropped_events() const {
+        return handle_ ? tdx_fpss_dropped_events(handle_.get()) : 0;
+    }
+
 private:
     std::unique_ptr<TdxFpssHandle, FpssHandleDeleter> handle_;
 };

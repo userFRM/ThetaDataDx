@@ -29,6 +29,7 @@ use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{FpssControl, FpssData, FpssEvent};
 
 use crate::state::AppState;
+use crate::validation;
 
 /// Build the WebSocket router (single route: `/v1/events`).
 pub fn router(state: AppState) -> Router {
@@ -199,6 +200,26 @@ async fn handle_client_message(state: &AppState, text: &str, socket: &mut WebSoc
     let root_val = contract_obj.get("root").unwrap_or(&null_val);
     let root = root_val.as_str().unwrap_or("");
 
+    // Bound the client-supplied ticker root length BEFORE the string flows
+    // into `Contract::stock(root)` / `Contract::option_raw(root, ...)`.
+    // Without this a malicious client can send a multi-megabyte `"root"`
+    // value in the JSON subscribe envelope, triggering allocation inside
+    // the FPSS contract map keyed by that string. Mirrors the REST
+    // validation performed in `handler::build_endpoint_args`.
+    if let Err(e) = validation::validate_symbol(root, "root") {
+        tracing::warn!(error = %e, "WS subscribe: root failed length validation");
+        let resp = sonic_rs::json!({
+            "header": {
+                "type": "REQ_RESPONSE",
+                "response": "ERROR",
+                "req_id": req_id,
+                "error": e.message.as_str(),
+            }
+        });
+        send_response(socket, &resp, "bad_request_reply").await;
+        return;
+    }
+
     tracing::info!(
         msg_type = %msg_type,
         sec_type = %sec_type,
@@ -210,10 +231,85 @@ async fn handle_client_message(state: &AppState, text: &str, socket: &mut WebSoc
     );
 
     let contract = if sec_type == "OPTION" {
+        // Reject externally-sourced values that don't fit `i32`. Silent
+        // narrowing (`as i32`) on client input is a principle violation:
+        // a caller sending `strike = 9_000_000_000` would have wrapped
+        // to a garbage ThetaData contract instead of surfacing the bad
+        // request. Both `expiration` and `strike` are parsed fallibly.
         let exp_val = contract_obj.get("expiration").unwrap_or(&null_val);
-        let exp = exp_val.as_i64().unwrap_or(0) as i32;
+        let exp_i64 = match exp_val.as_i64() {
+            Some(v) => v,
+            None => {
+                tracing::warn!("WS subscribe: option expiration missing or not an integer");
+                let resp = sonic_rs::json!({
+                    "header": {
+                        "type": "REQ_RESPONSE",
+                        "response": "ERROR",
+                        "req_id": req_id,
+                        "error": "expiration must be an integer",
+                    }
+                });
+                send_response(socket, &resp, "bad_request_reply").await;
+                return;
+            }
+        };
+        let exp = match i32::try_from(exp_i64) {
+            Ok(v) => v,
+            Err(_) => {
+                tracing::warn!(
+                    expiration = exp_i64,
+                    "WS subscribe: option expiration out of i32 range"
+                );
+                let err_msg = format!("expiration {exp_i64} exceeds i32 range");
+                let resp = sonic_rs::json!({
+                    "header": {
+                        "type": "REQ_RESPONSE",
+                        "response": "ERROR",
+                        "req_id": req_id,
+                        "error": err_msg.as_str(),
+                    }
+                });
+                send_response(socket, &resp, "bad_request_reply").await;
+                return;
+            }
+        };
         let strike_val = contract_obj.get("strike").unwrap_or(&null_val);
-        let strike = strike_val.as_i64().unwrap_or(0) as i32;
+        let strike_i64 = match strike_val.as_i64() {
+            Some(v) => v,
+            None => {
+                tracing::warn!("WS subscribe: option strike missing or not an integer");
+                let resp = sonic_rs::json!({
+                    "header": {
+                        "type": "REQ_RESPONSE",
+                        "response": "ERROR",
+                        "req_id": req_id,
+                        "error": "strike must be an integer",
+                    }
+                });
+                send_response(socket, &resp, "bad_request_reply").await;
+                return;
+            }
+        };
+        let strike = match i32::try_from(strike_i64) {
+            Ok(v) => v,
+            Err(_) => {
+                tracing::warn!(
+                    strike = strike_i64,
+                    "WS subscribe: option strike out of i32 range"
+                );
+                let err_msg = format!("strike {strike_i64} exceeds i32 range");
+                let resp = sonic_rs::json!({
+                    "header": {
+                        "type": "REQ_RESPONSE",
+                        "response": "ERROR",
+                        "req_id": req_id,
+                        "error": err_msg.as_str(),
+                    }
+                });
+                send_response(socket, &resp, "bad_request_reply").await;
+                return;
+            }
+        };
         let right_val = contract_obj.get("right").unwrap_or(&null_val);
         let is_call = right_val
             .as_str()

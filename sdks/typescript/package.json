@@ -23,7 +23,7 @@
   "scripts": {
     "build": "napi build --platform --release",
     "build:debug": "napi build --platform",
-    "test": "node --test __tests__/basic.test.mjs",
+    "test": "node --test __tests__/basic.test.mjs __tests__/dropped_events.test.mjs",
     "version": "napi version"
   },
   "devDependencies": {

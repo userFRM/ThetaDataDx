@@ -209,6 +209,10 @@ extern TdxSubscriptionArray* tdx_fpss_active_subscriptions(const TdxFpssHandle* 
 extern TdxFpssEvent* tdx_fpss_next_event(const TdxFpssHandle* h, uint64_t timeout_ms);
 extern void tdx_fpss_event_free(TdxFpssEvent* event);
 extern int tdx_fpss_reconnect(const TdxFpssHandle* h);
+/* Cumulative count of FPSS events dropped because the internal receiver
+ * was gone when the callback tried to deliver. Survives reconnect. Returns
+ * 0 if the handle is null. */
+extern uint64_t tdx_fpss_dropped_events(const TdxFpssHandle* h);
 extern void tdx_fpss_shutdown(const TdxFpssHandle* h);
 extern void tdx_fpss_free(TdxFpssHandle* h);
 
@@ -242,6 +246,10 @@ extern TdxSubscriptionArray* tdx_unified_active_subscriptions(const TdxUnified* 
 extern TdxFpssEvent* tdx_unified_next_event(const TdxUnified* handle, uint64_t timeout_ms);
 extern const TdxClient* tdx_unified_historical(const TdxUnified* handle);
 extern void tdx_unified_stop_streaming(const TdxUnified* handle);
+/* Cumulative count of FPSS events dropped because the internal receiver
+ * was gone when the callback tried to deliver. Survives reconnect. Returns
+ * 0 if the handle is null. */
+extern uint64_t tdx_unified_dropped_events(const TdxUnified* handle);
 extern void tdx_unified_free(TdxUnified* handle);
 
 #endif

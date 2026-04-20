@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
+use subtle::ConstantTimeEq;
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::ThetaDataDx;
 use tokio::sync::{mpsc, RwLock};
@@ -180,8 +181,16 @@ impl AppState {
     }
 
     /// Validate a shutdown token against the one generated at startup.
+    ///
+    /// Uses constant-time comparison (`subtle::ConstantTimeEq`) so an
+    /// attacker cannot probe the token byte-by-byte via the response
+    /// latency of `POST /shutdown`. `ct_eq` returns `false` cleanly when
+    /// the lengths differ, so no explicit length check is needed.
     pub fn validate_shutdown_token(&self, token: &str) -> bool {
-        self.inner.shutdown_token == token
+        let expected = self.inner.shutdown_token.as_bytes();
+        let provided = token.as_bytes();
+        let eq: bool = expected.ct_eq(provided).into();
+        eq
     }
 
     /// Signal graceful server shutdown. Stops FPSS streaming if active.

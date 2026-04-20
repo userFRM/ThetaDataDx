@@ -61,7 +61,7 @@ macro_rules! list_endpoint {
         request: $req:ident;
         query: $query:ident { $($field:ident : $val:expr),* $(,)? };
     ) => {
-        ::paste::paste! {
+        ::pastey::paste! {
             #[allow(clippy::too_many_arguments)] // Reason: ThetaData endpoints require many parameters (symbol, date, strike, exp, right, etc.).
             $(#[$meta])*
             /// # Errors

@@ -1,0 +1,53 @@
+name: Security audit
+
+# Runs RustSec advisory-db scan on:
+#   - every PR that touches dependency files
+#   - every push to main
+#   - a weekly cron so we catch newly-published advisories against
+#     already-pinned versions (dependabot only reacts to new releases,
+#     not to new CVEs filed against versions already in Cargo.lock).
+#
+# `cargo-deny` (license / bans / sources policy) runs from ci.yml; this
+# workflow is scoped to advisory scanning only.
+
+on:
+  pull_request:
+    paths:
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - "deny.toml"
+      - ".github/workflows/security-audit.yml"
+  push:
+    branches: [main]
+    paths:
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - "deny.toml"
+      - ".github/workflows/security-audit.yml"
+  schedule:
+    # 03:00 UTC every Monday. Catches advisories filed against pinned
+    # versions between dependency-graph changes.
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # `rustsec/audit-check` writes inline annotations on the commit /
+  # PR. It needs issues:write to surface advisories in the Checks tab.
+  issues: write
+  checks: write
+
+concurrency:
+  group: security-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security-audit:
+    name: RustSec advisory scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}

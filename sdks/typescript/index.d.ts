@@ -8,6 +8,19 @@ export declare class ThetaDataDx {
   static connect(email: string, password: string): ThetaDataDx
   /** Connect with a credentials file (line 1 = email, line 2 = password). */
   static connectFromFile(path: string): ThetaDataDx
+  /**
+   * Cumulative count of FPSS events dropped because the JS polling
+   * side disconnected before the FPSS callback could hand them off.
+   *
+   * Counter lives on the client instance (not inside the
+   * `start_streaming` / `reconnect` closures), so the value survives
+   * reconnect and is observable at any point — before streaming,
+   * during, or after `shutdown()`.
+   *
+   * Returned as `bigint` so it can represent the full `u64` range
+   * (Number would top out at 2^53).
+   */
+  droppedEvents(): bigint
   /** List all available stock ticker symbols. */
   stockListSymbols(timeoutMs?: number | undefined | null): Array<string>
   /** List available dates for a stock by request type (EOD, TRADE, QUOTE, etc.). */

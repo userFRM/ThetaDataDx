@@ -20,3 +20,4 @@ build/
 private/
 # Live validator per-cell artifacts (scripts/validate_agreement.py reads these).
 artifacts/
+todo.md
