@@ -14,6 +14,7 @@
 #include "thetadx.h"
 
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -67,6 +68,164 @@ static_assert(sizeof(TradeQuoteTick) == 192 && alignof(TradeQuoteTick) == 64,
               "TdxTradeQuoteTick layout drifted from Rust");
 static_assert(sizeof(TradeTick) == 128 && alignof(TradeTick) == 64,
               "TdxTradeTick layout drifted from Rust");
+
+// ── FPSS event struct layout guards ──
+//
+// Field-level offsetof guards. These would have caught the pre-#??? bug
+// where the hand-written C++ `TdxFpssEvent` ordered its Data fields as
+// { quote, trade, open_interest, ohlcvc } while the Rust FFI emitted
+// { ohlcvc, open_interest, quote, trade } — every `event->quote.*` read
+// in the C++ SDK dereferenced memory belonging to a different struct.
+// The generator now owns both the Go and C++ C header, so field order
+// comes straight from `fpss_event_schema.toml`; these asserts catch any
+// ABI-level drift (padding, alignment, scalar widths) the schema alone
+// cannot express.
+
+// TdxFpssOhlcvc — alphabetized first data variant (sorted_data_events).
+static_assert(offsetof(TdxFpssOhlcvc, contract_id) == 0,
+              "TdxFpssOhlcvc::contract_id offset drifted");
+static_assert(offsetof(TdxFpssOhlcvc, ms_of_day) == 4,
+              "TdxFpssOhlcvc::ms_of_day offset drifted");
+static_assert(offsetof(TdxFpssOhlcvc, open) == 8,
+              "TdxFpssOhlcvc::open offset drifted");
+static_assert(offsetof(TdxFpssOhlcvc, high) == 16,
+              "TdxFpssOhlcvc::high offset drifted");
+static_assert(offsetof(TdxFpssOhlcvc, low) == 24,
+              "TdxFpssOhlcvc::low offset drifted");
+static_assert(offsetof(TdxFpssOhlcvc, close) == 32,
+              "TdxFpssOhlcvc::close offset drifted");
+static_assert(offsetof(TdxFpssOhlcvc, volume) == 40,
+              "TdxFpssOhlcvc::volume offset drifted");
+static_assert(offsetof(TdxFpssOhlcvc, count) == 48,
+              "TdxFpssOhlcvc::count offset drifted");
+static_assert(offsetof(TdxFpssOhlcvc, date) == 56,
+              "TdxFpssOhlcvc::date offset drifted");
+static_assert(offsetof(TdxFpssOhlcvc, received_at_ns) == 64,
+              "TdxFpssOhlcvc::received_at_ns offset drifted");
+static_assert(sizeof(TdxFpssOhlcvc) == 72,
+              "TdxFpssOhlcvc total size drifted");
+
+// TdxFpssOpenInterest
+static_assert(offsetof(TdxFpssOpenInterest, contract_id) == 0,
+              "TdxFpssOpenInterest::contract_id offset drifted");
+static_assert(offsetof(TdxFpssOpenInterest, ms_of_day) == 4,
+              "TdxFpssOpenInterest::ms_of_day offset drifted");
+static_assert(offsetof(TdxFpssOpenInterest, open_interest) == 8,
+              "TdxFpssOpenInterest::open_interest offset drifted");
+static_assert(offsetof(TdxFpssOpenInterest, date) == 12,
+              "TdxFpssOpenInterest::date offset drifted");
+static_assert(offsetof(TdxFpssOpenInterest, received_at_ns) == 16,
+              "TdxFpssOpenInterest::received_at_ns offset drifted");
+static_assert(sizeof(TdxFpssOpenInterest) == 24,
+              "TdxFpssOpenInterest total size drifted");
+
+// TdxFpssQuote
+static_assert(offsetof(TdxFpssQuote, contract_id) == 0,
+              "TdxFpssQuote::contract_id offset drifted");
+static_assert(offsetof(TdxFpssQuote, ms_of_day) == 4,
+              "TdxFpssQuote::ms_of_day offset drifted");
+static_assert(offsetof(TdxFpssQuote, bid_size) == 8,
+              "TdxFpssQuote::bid_size offset drifted");
+static_assert(offsetof(TdxFpssQuote, bid_exchange) == 12,
+              "TdxFpssQuote::bid_exchange offset drifted");
+static_assert(offsetof(TdxFpssQuote, bid) == 16,
+              "TdxFpssQuote::bid offset drifted");
+static_assert(offsetof(TdxFpssQuote, bid_condition) == 24,
+              "TdxFpssQuote::bid_condition offset drifted");
+static_assert(offsetof(TdxFpssQuote, ask_size) == 28,
+              "TdxFpssQuote::ask_size offset drifted");
+static_assert(offsetof(TdxFpssQuote, ask_exchange) == 32,
+              "TdxFpssQuote::ask_exchange offset drifted");
+static_assert(offsetof(TdxFpssQuote, ask) == 40,
+              "TdxFpssQuote::ask offset drifted");
+static_assert(offsetof(TdxFpssQuote, ask_condition) == 48,
+              "TdxFpssQuote::ask_condition offset drifted");
+static_assert(offsetof(TdxFpssQuote, date) == 52,
+              "TdxFpssQuote::date offset drifted");
+static_assert(offsetof(TdxFpssQuote, received_at_ns) == 56,
+              "TdxFpssQuote::received_at_ns offset drifted");
+static_assert(sizeof(TdxFpssQuote) == 64,
+              "TdxFpssQuote total size drifted");
+
+// TdxFpssTrade
+static_assert(offsetof(TdxFpssTrade, contract_id) == 0,
+              "TdxFpssTrade::contract_id offset drifted");
+static_assert(offsetof(TdxFpssTrade, ms_of_day) == 4,
+              "TdxFpssTrade::ms_of_day offset drifted");
+static_assert(offsetof(TdxFpssTrade, sequence) == 8,
+              "TdxFpssTrade::sequence offset drifted");
+static_assert(offsetof(TdxFpssTrade, ext_condition1) == 12,
+              "TdxFpssTrade::ext_condition1 offset drifted");
+static_assert(offsetof(TdxFpssTrade, ext_condition2) == 16,
+              "TdxFpssTrade::ext_condition2 offset drifted");
+static_assert(offsetof(TdxFpssTrade, ext_condition3) == 20,
+              "TdxFpssTrade::ext_condition3 offset drifted");
+static_assert(offsetof(TdxFpssTrade, ext_condition4) == 24,
+              "TdxFpssTrade::ext_condition4 offset drifted");
+static_assert(offsetof(TdxFpssTrade, condition) == 28,
+              "TdxFpssTrade::condition offset drifted");
+static_assert(offsetof(TdxFpssTrade, size) == 32,
+              "TdxFpssTrade::size offset drifted");
+static_assert(offsetof(TdxFpssTrade, exchange) == 36,
+              "TdxFpssTrade::exchange offset drifted");
+static_assert(offsetof(TdxFpssTrade, price) == 40,
+              "TdxFpssTrade::price offset drifted");
+static_assert(offsetof(TdxFpssTrade, condition_flags) == 48,
+              "TdxFpssTrade::condition_flags offset drifted");
+static_assert(offsetof(TdxFpssTrade, price_flags) == 52,
+              "TdxFpssTrade::price_flags offset drifted");
+static_assert(offsetof(TdxFpssTrade, volume_type) == 56,
+              "TdxFpssTrade::volume_type offset drifted");
+static_assert(offsetof(TdxFpssTrade, records_back) == 60,
+              "TdxFpssTrade::records_back offset drifted");
+static_assert(offsetof(TdxFpssTrade, date) == 64,
+              "TdxFpssTrade::date offset drifted");
+static_assert(offsetof(TdxFpssTrade, received_at_ns) == 72,
+              "TdxFpssTrade::received_at_ns offset drifted");
+static_assert(sizeof(TdxFpssTrade) == 80,
+              "TdxFpssTrade total size drifted");
+
+// TdxFpssControl — sub-type tag + id + optional detail string.
+static_assert(offsetof(TdxFpssControl, kind) == 0,
+              "TdxFpssControl::kind offset drifted");
+static_assert(offsetof(TdxFpssControl, id) == 4,
+              "TdxFpssControl::id offset drifted");
+static_assert(offsetof(TdxFpssControl, detail) == 8,
+              "TdxFpssControl::detail offset drifted");
+static_assert(sizeof(TdxFpssControl) == 16,
+              "TdxFpssControl total size drifted");
+
+// TdxFpssRawData — unrecognized wire frame passthrough.
+static_assert(offsetof(TdxFpssRawData, code) == 0,
+              "TdxFpssRawData::code offset drifted");
+static_assert(offsetof(TdxFpssRawData, payload) == 8,
+              "TdxFpssRawData::payload offset drifted");
+static_assert(offsetof(TdxFpssRawData, payload_len) == 16,
+              "TdxFpssRawData::payload_len offset drifted");
+static_assert(sizeof(TdxFpssRawData) == 24,
+              "TdxFpssRawData total size drifted");
+
+// TdxFpssEvent — the tagged wrapper. Field ORDER must match the Rust
+// `#[repr(C)] struct TdxFpssEvent` exactly: { kind, ohlcvc, open_interest,
+// quote, trade, control, raw_data }. Every field's offset is reproduced
+// below so swapping two same-size variants (which would pass a sizeof
+// check) still fails the build.
+static_assert(offsetof(TdxFpssEvent, kind) == 0,
+              "TdxFpssEvent::kind offset drifted");
+static_assert(offsetof(TdxFpssEvent, ohlcvc) == 8,
+              "TdxFpssEvent::ohlcvc offset drifted");
+static_assert(offsetof(TdxFpssEvent, open_interest) == 80,
+              "TdxFpssEvent::open_interest offset drifted");
+static_assert(offsetof(TdxFpssEvent, quote) == 104,
+              "TdxFpssEvent::quote offset drifted");
+static_assert(offsetof(TdxFpssEvent, trade) == 168,
+              "TdxFpssEvent::trade offset drifted");
+static_assert(offsetof(TdxFpssEvent, control) == 248,
+              "TdxFpssEvent::control offset drifted");
+static_assert(offsetof(TdxFpssEvent, raw_data) == 264,
+              "TdxFpssEvent::raw_data offset drifted");
+static_assert(sizeof(TdxFpssEvent) == 288,
+              "TdxFpssEvent total size drifted");
 
 // OptionContract uses std::string for root to avoid use-after-free.
 // The C FFI TdxOptionContract uses a raw char* that is freed with the array,

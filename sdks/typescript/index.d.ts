@@ -228,31 +228,13 @@ export interface FpssEvent {
    * Narrowed to a literal union in TS so `switch (event.kind)`
    * correctly narrows the optional payload fields.
    */
-  kind: FpssEventKind
+  kind: 'ohlcvc' | 'open_interest' | 'quote' | 'raw_data' | 'simple' | 'trade'
   ohlcvc?: Ohlcvc
   openInterest?: OpenInterest
   quote?: Quote
   trade?: Trade
   simple?: FpssSimplePayload
   rawData?: FpssRawDataPayload
-}
-
-/**
- * Discriminator tag for [`FpssEvent`].
- *
- * Each variant corresponds to a `#[napi(object)]` payload field on
- * `FpssEvent`. Emitted as a `string_enum` so the JS-side wire value
- * is the snake_case literal (`'ohlcvc'`, `'open_interest'`, ...) and
- * the Rust-side value is a stack-stored discriminant — no per-event
- * `String` allocation on the hot path.
- */
-export declare const enum FpssEventKind {
-  Ohlcvc = 'ohlcvc',
-  OpenInterest = 'open_interest',
-  Quote = 'quote',
-  RawData = 'raw_data',
-  Simple = 'simple',
-  Trade = 'trade'
 }
 
 /** FPSS raw-bytes payload for frames the decoder did not recognise. */

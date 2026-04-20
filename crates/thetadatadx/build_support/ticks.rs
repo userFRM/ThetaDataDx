@@ -990,6 +990,66 @@ fn render_python_tick_columns_for_qualname(schema: &Schema) -> String {
     out
 }
 
+/// Strip " -- N fields[...]." from the first doc line so the rendered
+/// comment reflects the actual field set once `contract_id` and
+/// `QuoteTick` midpoint get appended to `def.columns`. Words stay stable
+/// even when a schema edit adds/removes a column, so we drop the numeric
+/// count instead of recomputing it per surface.
+fn strip_field_count_from_doc(doc: &str) -> String {
+    let first_line = doc.lines().next().unwrap_or("");
+    if let Some(pos) = first_line.find(" -- ") {
+        let after_dash = &first_line[pos + 4..];
+        if after_dash.starts_with(|c: char| c.is_ascii_digit()) {
+            let rest = after_dash
+                .find(". ")
+                .map(|i| &after_dash[i + 2..])
+                .unwrap_or("");
+            if rest.is_empty() {
+                return format!("{}.", &first_line[..pos]);
+            }
+            return format!("{}. {rest}", &first_line[..pos]);
+        }
+    }
+    first_line.to_string()
+}
+
+/// Pick the first few fields for `__repr__` rendering. Caps at
+/// `max_fields` to keep output one-line readable in REPL / debugger
+/// transcripts. Contract-id fields are appended after the schema
+/// columns on the emitted struct, so we mirror that order here — the
+/// first few real columns come first (e.g. `ms_of_day`, `open`,
+/// `high`, `low`), never the trailing `expiration`/`strike`/`right`
+/// triple which is identical across a result set and carries no
+/// per-row diagnostic signal.
+fn repr_fields_for_tick<'a>(
+    type_name: &str,
+    def: &'a TickTypeDef,
+    max_fields: usize,
+) -> Vec<ReprField<'a>> {
+    let mut fields: Vec<ReprField<'a>> = Vec::new();
+    for column in &def.columns {
+        if fields.len() >= max_fields {
+            break;
+        }
+        // `OptionContract.right` is surfaced as a String (see
+        // `render_python_tick_class_struct`), so prefer `{:?}` so the
+        // quotes are visible — consistent with other String fields
+        // like `QuoteTick` never exposing `right` directly.
+        let is_string = (type_name == "OptionContract" && column.field == "right")
+            || matches!(column.r#type.as_str(), "String");
+        fields.push(ReprField {
+            name: &column.field,
+            is_string,
+        });
+    }
+    fields
+}
+
+struct ReprField<'a> {
+    name: &'a str,
+    is_string: bool,
+}
+
 fn render_python_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String {
     let mut out = String::new();
     let class = pyclass_name(type_name);
@@ -997,7 +1057,17 @@ fn render_python_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String
     let doc_text = if def.doc.is_empty() {
         format!("Typed {type_name} record.")
     } else {
-        def.doc.clone()
+        let stripped = strip_field_count_from_doc(&def.doc);
+        // Preserve any trailing doc lines (e.g. `OptionContract`'s "Cannot
+        // be `Copy` ..." note) by splicing the stripped first line back
+        // onto the rest of the original doc. Lines after the first rarely
+        // carry field-count language.
+        let mut combined = stripped;
+        for line in def.doc.lines().skip(1) {
+            combined.push('\n');
+            combined.push_str(line);
+        }
+        combined
     };
     for line in doc_text.lines() {
         writeln!(out, "/// {line}").unwrap();
@@ -1035,16 +1105,44 @@ fn render_python_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String
     }
     out.push_str("}\n");
 
-    // __repr__ for discoverability. `format!("…(...)")` with no format
-    // args is flagged as `useless_format` — emit the equivalent owned-
-    // string path directly.
+    // `__repr__` shows the first six schema fields with their live
+    // values so REPLs and debuggers (pdb, IDE watch windows, pytest
+    // short-repr) surface per-instance data instead of a useless
+    // `"<EodTick(...)>"`. Six is a readable cap; `contract_id` columns
+    // (`expiration`/`strike`/`right`) are identical across a result
+    // set and carry no per-row signal, so we skip them.
     writeln!(out, "#[pymethods]").unwrap();
     writeln!(out, "impl {class} {{").unwrap();
-    writeln!(
-        out,
-        "    fn __repr__(&self) -> String {{ \"{class}(...)\".to_string() }}"
-    )
-    .unwrap();
+    let repr_fields = repr_fields_for_tick(type_name, def, 6);
+    if repr_fields.is_empty() {
+        // Unlikely (every tick has columns), but keep the fallback so
+        // a future schema type without columns still compiles.
+        writeln!(
+            out,
+            "    fn __repr__(&self) -> String {{ \"{class}()\".to_string() }}"
+        )
+        .unwrap();
+    } else {
+        let mut fmt_string = String::new();
+        for (idx, field) in repr_fields.iter().enumerate() {
+            if idx > 0 {
+                fmt_string.push_str(", ");
+            }
+            fmt_string.push_str(field.name);
+            fmt_string.push('=');
+            // `{:?}` quotes strings (`right="C"`), `{}` for numerics —
+            // matches the shape an engineer expects in a debugger line.
+            fmt_string.push_str(if field.is_string { "{:?}" } else { "{}" });
+        }
+        let args = repr_fields
+            .iter()
+            .map(|f| format!("self.{}", f.name))
+            .collect::<Vec<_>>()
+            .join(", ");
+        writeln!(out, "    fn __repr__(&self) -> String {{").unwrap();
+        writeln!(out, "        format!(\"{class}({fmt_string})\", {args})").unwrap();
+        out.push_str("    }\n");
+    }
     out.push_str("}\n");
     out
 }
@@ -1168,27 +1266,10 @@ fn render_ts_tick_classes(schema: &Schema) -> String {
 fn render_ts_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String {
     let mut out = String::new();
     let is_quote_tick = type_name == "QuoteTick";
-    // Strip " -- N fields[...]." from doc so the TS class reflects true field
-    // count once contract-id columns + midpoint are appended.
-    let first_line = def.doc.lines().next().unwrap_or("");
-    let doc = if let Some(pos) = first_line.find(" -- ") {
-        let after_dash = &first_line[pos + 4..];
-        if after_dash.starts_with(|c: char| c.is_ascii_digit()) {
-            let rest = after_dash
-                .find(". ")
-                .map(|i| &after_dash[i + 2..])
-                .unwrap_or("");
-            if rest.is_empty() {
-                format!("{}.", &first_line[..pos])
-            } else {
-                format!("{}. {rest}", &first_line[..pos])
-            }
-        } else {
-            first_line.to_string()
-        }
-    } else {
-        first_line.to_string()
-    };
+    // Strip " -- N fields[...]." from the first doc line — see
+    // `strip_field_count_from_doc` for rationale. Shared with the Python
+    // emitter so both surfaces drift together.
+    let doc = strip_field_count_from_doc(&def.doc);
     writeln!(out, "/// {doc}").unwrap();
     // `#[must_use]` — Vec<T> returned from expensive network calls should
     // not be silently dropped on the Rust side (napi-rs generates JS

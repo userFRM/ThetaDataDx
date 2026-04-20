@@ -763,103 +763,23 @@ int tdx_implied_volatility(double spot, double strike, double rate, double div_y
 /*  FPSS — #[repr(C)] streaming event types                               */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/** FPSS event kind tag. Check this to determine which field of
- *  TdxFpssEvent is valid. */
-typedef enum {
-    TDX_FPSS_QUOTE = 0,
-    TDX_FPSS_TRADE = 1,
-    TDX_FPSS_OPEN_INTEREST = 2,
-    TDX_FPSS_OHLCVC = 3,
-    TDX_FPSS_CONTROL = 4,
-    TDX_FPSS_RAW_DATA = 5,
-} TdxFpssEventKind;
-
-typedef struct {
-    int32_t contract_id;
-    int32_t ms_of_day;
-    int32_t bid_size;
-    int32_t bid_exchange;
-    double bid;
-    int32_t bid_condition;
-    int32_t ask_size;
-    int32_t ask_exchange;
-    double ask;
-    int32_t ask_condition;
-    int32_t date;
-    uint64_t received_at_ns;
-} TdxFpssQuote;
-
-typedef struct {
-    int32_t contract_id;
-    int32_t ms_of_day;
-    int32_t sequence;
-    int32_t ext_condition1;
-    int32_t ext_condition2;
-    int32_t ext_condition3;
-    int32_t ext_condition4;
-    int32_t condition;
-    int32_t size;
-    int32_t exchange;
-    double price;
-    int32_t condition_flags;
-    int32_t price_flags;
-    int32_t volume_type;
-    int32_t records_back;
-    int32_t date;
-    uint64_t received_at_ns;
-} TdxFpssTrade;
-
-typedef struct {
-    int32_t contract_id;
-    int32_t ms_of_day;
-    int32_t open_interest;
-    int32_t date;
-    uint64_t received_at_ns;
-} TdxFpssOpenInterest;
-
-typedef struct {
-    int32_t contract_id;
-    int32_t ms_of_day;
-    double open;
-    double high;
-    double low;
-    double close;
-    int64_t volume;
-    int64_t count;
-    int32_t date;
-    uint64_t received_at_ns;
-} TdxFpssOhlcvc;
-
-/** FPSS control event.
- *  kind: 0=login_success, 1=contract_assigned, 2=req_response,
- *        3=market_open, 4=market_close, 5=server_error,
- *        6=disconnected, 7=error, 8=unknown
- *  id:   contract_id or req_id where applicable, 0 otherwise.
- *  detail: NUL-terminated string, may be NULL. Do NOT free. */
-typedef struct {
-    int32_t kind;
-    int32_t id;
-    const char* detail;
-} TdxFpssControl;
-
-/** FPSS raw/undecoded data event. */
-typedef struct {
-    uint8_t code;
-    const uint8_t* payload;
-    size_t payload_len;
-} TdxFpssRawData;
-
-/** Tagged FPSS event. Check `kind` then read the corresponding field.
- *  Only the field matching `kind` contains valid data. */
-typedef struct {
-    TdxFpssEventKind kind;
-    TdxFpssQuote quote;
-    TdxFpssTrade trade;
-    TdxFpssOpenInterest open_interest;
-    TdxFpssOhlcvc ohlcvc;
-    TdxFpssControl control;
-    TdxFpssRawData raw_data;
-} TdxFpssEvent;
+/* FPSS event structs are schema-driven. The include below pulls in the
+ * same typedefs the Go SDK uses, generated from
+ * `crates/thetadatadx/fpss_event_schema.toml` — so the C++ header can
+ * never drift from the Rust `#[repr(C)]` layout again. See
+ * `thetadx.hpp` for `static_assert(offsetof)` guards that fail the
+ * build at compile time if the schema and the C++ consumer ever
+ * disagree.
+ *
+ * `TdxFpssControl::kind` encodes the sub-type:
+ *   0=login_success, 1=contract_assigned, 2=req_response,
+ *   3=market_open, 4=market_close, 5=server_error,
+ *   6=disconnected, 8=reconnecting, 9=reconnected,
+ *   10=error, 11=unknown_frame, 12=unknown_event
+ * (value 7 is reserved). `id` carries the contract_id / req_id /
+ * reconnect attempt where applicable (0 otherwise). `detail` is a
+ * NUL-terminated string; may be NULL. Do NOT free. */
+#include "fpss_event_structs.h.inc"
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  FPSS — Real-time streaming client                                     */

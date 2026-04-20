@@ -124,12 +124,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         args.bind, args.http_port, shutdown_token
     );
 
+    // The shutdown token is deliberately NOT part of the structured log --
+    // structured logs flow to aggregators / SIEMs / persisted buffers and
+    // the token is a bearer credential for the shutdown endpoint. The
+    // eprintln! banner above already prints it once to stderr for the
+    // operator starting the process; keeping it out of `tracing::info!`
+    // means it never reaches a log pipeline.
     tracing::info!(
         version,
         http_port = args.http_port,
         ws_port = args.ws_port,
         bind = %args.bind,
-        shutdown_token = %shutdown_token,
         "starting thetadatadx-server"
     );
 

@@ -1731,6 +1731,7 @@ dependencies = [
  "tdbe",
  "thetadatadx",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

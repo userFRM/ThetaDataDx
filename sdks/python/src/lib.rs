@@ -79,8 +79,14 @@ fn parse_sec_type(sec_type: &str) -> PyResult<tdbe::types::enums::SecType> {
 
 // ── Credentials ──
 // Lifecycle: intentionally hand-written (language-specific constructor semantics).
+//
+// `skip_from_py_object` matches every generated pyclass: these are constructed
+// on the Python side and passed to Rust by reference (`&Credentials` in
+// `ThetaDataDx::new`), never extracted by value, so the auto-derived
+// `FromPyObject` impl is dead weight (and deprecated for `Clone` pyclasses in
+// pyo3 0.28+).
 
-#[pyclass(from_py_object)]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
 struct Credentials {
     inner: auth::Credentials,
@@ -110,11 +116,24 @@ impl Credentials {
 
 // ── Config ──
 // Lifecycle: intentionally hand-written (language-specific constructor semantics).
+//
+// `frozen` + `skip_from_py_object` matches every generated pyclass: the
+// outer handle is immutable from Rust's perspective (no `&mut self` across
+// the GIL), while the inner `DirectConfig` is guarded by a `Mutex` so
+// Python-side setters (`config.reconnect_policy = "auto"`) still mutate in
+// place. Python-side semantics are unchanged.
 
-#[pyclass(from_py_object)]
-#[derive(Clone)]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 struct Config {
-    inner: config::DirectConfig,
+    inner: Mutex<config::DirectConfig>,
+}
+
+impl Config {
+    fn from_direct(inner: config::DirectConfig) -> Self {
+        Self {
+            inner: Mutex::new(inner),
+        }
+    }
 }
 
 #[pymethods]
@@ -122,25 +141,19 @@ impl Config {
     /// Production configuration (ThetaData NJ datacenter).
     #[staticmethod]
     fn production() -> Self {
-        Self {
-            inner: config::DirectConfig::production(),
-        }
+        Self::from_direct(config::DirectConfig::production())
     }
 
     /// Dev FPSS configuration (port 20200, infinite historical replay).
     #[staticmethod]
     fn dev() -> Self {
-        Self {
-            inner: config::DirectConfig::dev(),
-        }
+        Self::from_direct(config::DirectConfig::dev())
     }
 
     /// Stage FPSS configuration (port 20100, testing, unstable).
     #[staticmethod]
     fn stage() -> Self {
-        Self {
-            inner: config::DirectConfig::stage(),
-        }
+        Self::from_direct(config::DirectConfig::stage())
     }
 
     /// Set the FPSS reconnect policy.
@@ -148,8 +161,8 @@ impl Config {
     /// - "auto" (default): auto-reconnect matching Java terminal behavior.
     /// - "manual": no auto-reconnect, user calls reconnect explicitly.
     #[setter]
-    fn set_reconnect_policy(&mut self, policy: &str) -> PyResult<()> {
-        self.inner.reconnect_policy = match policy.to_lowercase().as_str() {
+    fn set_reconnect_policy(&self, policy: &str) -> PyResult<()> {
+        let parsed = match policy.to_lowercase().as_str() {
             "manual" => config::ReconnectPolicy::Manual,
             "auto" => config::ReconnectPolicy::Auto,
             other => {
@@ -158,13 +171,16 @@ impl Config {
                 )))
             }
         };
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.reconnect_policy = parsed;
         Ok(())
     }
 
     /// Get the current reconnect policy as a string.
     #[getter]
-    fn get_reconnect_policy(&self) -> &str {
-        match self.inner.reconnect_policy {
+    fn get_reconnect_policy(&self) -> &'static str {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        match guard.reconnect_policy {
             config::ReconnectPolicy::Auto => "auto",
             config::ReconnectPolicy::Manual => "manual",
             config::ReconnectPolicy::Custom(_) => "custom",
@@ -176,22 +192,25 @@ impl Config {
     /// When ``False``, only server-sent OHLCVC frames are emitted,
     /// reducing per-trade throughput overhead.
     #[setter]
-    fn set_derive_ohlcvc(&mut self, enabled: bool) {
-        self.inner.derive_ohlcvc = enabled;
+    fn set_derive_ohlcvc(&self, enabled: bool) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.derive_ohlcvc = enabled;
     }
 
     /// Get the current OHLCVC derivation setting.
     #[getter]
     fn get_derive_ohlcvc(&self) -> bool {
-        self.inner.derive_ohlcvc
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.derive_ohlcvc
     }
 
     fn __repr__(&self) -> String {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         format!(
             "Config(mdds={}:{}, fpss_hosts={})",
-            self.inner.mdds_host,
-            self.inner.mdds_port,
-            self.inner.fpss_hosts.len()
+            guard.mdds_host,
+            guard.mdds_port,
+            guard.fpss_hosts.len()
         )
     }
 }
@@ -256,10 +275,17 @@ impl ThetaDataDx {
     /// to begin FPSS real-time data.
     #[new]
     fn new(creds: &Credentials, config: &Config) -> PyResult<Self> {
+        // Snapshot the DirectConfig under the mutex — connect() takes
+        // ownership, and the outer `Config` handle may still be mutated
+        // Python-side after construction.
+        let direct_config = {
+            let guard = config.inner.lock().unwrap_or_else(|e| e.into_inner());
+            guard.clone()
+        };
         let tdx = runtime()
             .block_on(thetadatadx::ThetaDataDx::connect(
                 &creds.inner,
-                config.inner.clone(),
+                direct_config,
             ))
             .map_err(to_py_err)?;
 
@@ -351,14 +377,14 @@ impl ThetaDataDx {
 
     // ── Typed-pyclass event streaming ──
     //
-    // Intentional exception: hand-written high-throughput API that
-    // preserves the mental model of `next_event` (one event at a time,
-    // attribute/field access) while avoiding the per-event `PyDict`
-    // allocation. Matches the typed-record approach used by comparable
-    // market-data SDKs. Respects SSOT: generated methods still live in
-    // `streaming_methods.rs`.
+    // `next_event` is the single implementation (generated in
+    // `streaming_methods.rs` from `sdk_surface.toml`). `next_event_typed`
+    // is a public alias documented in the README for consumers that
+    // prefer the explicit naming — it simply delegates so there's only
+    // one code path to audit.
 
-    /// Pull the next FPSS event as a typed Python object.
+    /// Pull the next FPSS event as a typed Python object (alias for
+    /// [`Self::next_event`]).
     ///
     /// Every variant returns a concrete `#[pyclass]` — `Quote`, `Trade`,
     /// `OpenInterest`, `Ohlcvc` for market data; `Simple` for control /
@@ -388,31 +414,7 @@ impl ThetaDataDx {
     /// `isinstance(event, Simple)`). Consumer code ports across
     /// languages with a `.kind` switch and identical field names.
     fn next_event_typed(&self, py: Python<'_>, timeout_ms: u64) -> PyResult<Option<Py<PyAny>>> {
-        let rx_outer = self.rx.lock().unwrap_or_else(|e| e.into_inner());
-        let rx_arc = match rx_outer.as_ref() {
-            Some(arc) => Arc::clone(arc),
-            None => {
-                return Err(PyRuntimeError::new_err(
-                    "streaming not started -- call start_streaming() first",
-                ))
-            }
-        };
-        drop(rx_outer);
-        let timeout = std::time::Duration::from_millis(timeout_ms);
-        // True blocking recv inside `py.detach` (GIL released). No
-        // polling — the OS wakes us the moment a frame lands on the
-        // mpsc channel. Zero CPU while idle, zero delivery jitter.
-        let result = py.detach(move || {
-            let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());
-            rx.recv_timeout(timeout)
-        });
-        match result {
-            Ok(event) => Ok(Some(buffered_event_to_typed(py, &event)?)),
-            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Ok(None),
-            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Err(PyRuntimeError::new_err(
-                "streaming channel disconnected -- call reconnect() or start_streaming() again",
-            )),
-        }
+        self.next_event(py, timeout_ms)
     }
 }
 
