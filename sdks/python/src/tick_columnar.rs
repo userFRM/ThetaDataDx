@@ -2,21 +2,9 @@
 // Columnar converters: dict-of-lists instead of list-of-dicts.
 // Each function returns a single Python dict where each key maps to a list of values.
 // This is the fastest input format for pd.DataFrame().
-
-fn calendar_days_to_columnar(py: Python<'_>, ticks: &[tick::CalendarDay]) -> Py<PyAny> {
-    let col_date: Vec<i32> = ticks.iter().map(|t| t.date).collect();
-    let col_is_open: Vec<i32> = ticks.iter().map(|t| t.is_open).collect();
-    let col_open_time: Vec<i32> = ticks.iter().map(|t| t.open_time).collect();
-    let col_close_time: Vec<i32> = ticks.iter().map(|t| t.close_time).collect();
-    let col_status: Vec<i32> = ticks.iter().map(|t| t.status).collect();
-    let dict = PyDict::new(py);
-    dict.set_item("date", col_date).unwrap();
-    dict.set_item("is_open", col_is_open).unwrap();
-    dict.set_item("open_time", col_open_time).unwrap();
-    dict.set_item("close_time", col_close_time).unwrap();
-    dict.set_item("status", col_status).unwrap();
-    dict.into_any().unbind()
-}
+// Emitted only for the tick types called by the hand-written `*_df`
+// wrappers in `lib.rs`; the generic `pyclass_list_to_columnar` covers
+// the rest so we do not ship dead code.
 
 fn eod_ticks_to_columnar(py: Python<'_>, ticks: &[tick::EodTick]) -> Py<PyAny> {
     let col_ms_of_day: Vec<i32> = ticks.iter().map(|t| t.ms_of_day).collect();
@@ -63,116 +51,6 @@ fn eod_ticks_to_columnar(py: Python<'_>, ticks: &[tick::EodTick]) -> Py<PyAny> {
     dict.into_any().unbind()
 }
 
-fn greeks_ticks_to_columnar(py: Python<'_>, ticks: &[tick::GreeksTick]) -> Py<PyAny> {
-    let col_ms_of_day: Vec<i32> = ticks.iter().map(|t| t.ms_of_day).collect();
-    let col_implied_volatility: Vec<f64> = ticks.iter().map(|t| t.implied_volatility).collect();
-    let col_delta: Vec<f64> = ticks.iter().map(|t| t.delta).collect();
-    let col_gamma: Vec<f64> = ticks.iter().map(|t| t.gamma).collect();
-    let col_theta: Vec<f64> = ticks.iter().map(|t| t.theta).collect();
-    let col_vega: Vec<f64> = ticks.iter().map(|t| t.vega).collect();
-    let col_rho: Vec<f64> = ticks.iter().map(|t| t.rho).collect();
-    let col_iv_error: Vec<f64> = ticks.iter().map(|t| t.iv_error).collect();
-    let col_vanna: Vec<f64> = ticks.iter().map(|t| t.vanna).collect();
-    let col_charm: Vec<f64> = ticks.iter().map(|t| t.charm).collect();
-    let col_vomma: Vec<f64> = ticks.iter().map(|t| t.vomma).collect();
-    let col_veta: Vec<f64> = ticks.iter().map(|t| t.veta).collect();
-    let col_speed: Vec<f64> = ticks.iter().map(|t| t.speed).collect();
-    let col_zomma: Vec<f64> = ticks.iter().map(|t| t.zomma).collect();
-    let col_color: Vec<f64> = ticks.iter().map(|t| t.color).collect();
-    let col_ultima: Vec<f64> = ticks.iter().map(|t| t.ultima).collect();
-    let col_d1: Vec<f64> = ticks.iter().map(|t| t.d1).collect();
-    let col_d2: Vec<f64> = ticks.iter().map(|t| t.d2).collect();
-    let col_dual_delta: Vec<f64> = ticks.iter().map(|t| t.dual_delta).collect();
-    let col_dual_gamma: Vec<f64> = ticks.iter().map(|t| t.dual_gamma).collect();
-    let col_epsilon: Vec<f64> = ticks.iter().map(|t| t.epsilon).collect();
-    let col_lambda: Vec<f64> = ticks.iter().map(|t| t.lambda).collect();
-    let col_vera: Vec<f64> = ticks.iter().map(|t| t.vera).collect();
-    let col_date: Vec<i32> = ticks.iter().map(|t| t.date).collect();
-    let col_expiration: Vec<i32> = ticks.iter().map(|t| t.expiration).collect();
-    let col_strike: Vec<f64> = ticks.iter().map(|t| t.strike).collect();
-    let col_right: Vec<&str> = ticks.iter().map(|t| if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).collect();
-    let dict = PyDict::new(py);
-    dict.set_item("ms_of_day", col_ms_of_day).unwrap();
-    dict.set_item("implied_volatility", col_implied_volatility).unwrap();
-    dict.set_item("delta", col_delta).unwrap();
-    dict.set_item("gamma", col_gamma).unwrap();
-    dict.set_item("theta", col_theta).unwrap();
-    dict.set_item("vega", col_vega).unwrap();
-    dict.set_item("rho", col_rho).unwrap();
-    dict.set_item("iv_error", col_iv_error).unwrap();
-    dict.set_item("vanna", col_vanna).unwrap();
-    dict.set_item("charm", col_charm).unwrap();
-    dict.set_item("vomma", col_vomma).unwrap();
-    dict.set_item("veta", col_veta).unwrap();
-    dict.set_item("speed", col_speed).unwrap();
-    dict.set_item("zomma", col_zomma).unwrap();
-    dict.set_item("color", col_color).unwrap();
-    dict.set_item("ultima", col_ultima).unwrap();
-    dict.set_item("d1", col_d1).unwrap();
-    dict.set_item("d2", col_d2).unwrap();
-    dict.set_item("dual_delta", col_dual_delta).unwrap();
-    dict.set_item("dual_gamma", col_dual_gamma).unwrap();
-    dict.set_item("epsilon", col_epsilon).unwrap();
-    dict.set_item("lambda", col_lambda).unwrap();
-    dict.set_item("vera", col_vera).unwrap();
-    dict.set_item("date", col_date).unwrap();
-    dict.set_item("expiration", col_expiration).unwrap();
-    dict.set_item("strike", col_strike).unwrap();
-    dict.set_item("right", col_right).unwrap();
-    dict.into_any().unbind()
-}
-
-fn interest_rate_ticks_to_columnar(py: Python<'_>, ticks: &[tick::InterestRateTick]) -> Py<PyAny> {
-    let col_ms_of_day: Vec<i32> = ticks.iter().map(|t| t.ms_of_day).collect();
-    let col_rate: Vec<f64> = ticks.iter().map(|t| t.rate).collect();
-    let col_date: Vec<i32> = ticks.iter().map(|t| t.date).collect();
-    let dict = PyDict::new(py);
-    dict.set_item("ms_of_day", col_ms_of_day).unwrap();
-    dict.set_item("rate", col_rate).unwrap();
-    dict.set_item("date", col_date).unwrap();
-    dict.into_any().unbind()
-}
-
-fn iv_ticks_to_columnar(py: Python<'_>, ticks: &[tick::IvTick]) -> Py<PyAny> {
-    let col_ms_of_day: Vec<i32> = ticks.iter().map(|t| t.ms_of_day).collect();
-    let col_implied_volatility: Vec<f64> = ticks.iter().map(|t| t.implied_volatility).collect();
-    let col_iv_error: Vec<f64> = ticks.iter().map(|t| t.iv_error).collect();
-    let col_date: Vec<i32> = ticks.iter().map(|t| t.date).collect();
-    let col_expiration: Vec<i32> = ticks.iter().map(|t| t.expiration).collect();
-    let col_strike: Vec<f64> = ticks.iter().map(|t| t.strike).collect();
-    let col_right: Vec<&str> = ticks.iter().map(|t| if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).collect();
-    let dict = PyDict::new(py);
-    dict.set_item("ms_of_day", col_ms_of_day).unwrap();
-    dict.set_item("implied_volatility", col_implied_volatility).unwrap();
-    dict.set_item("iv_error", col_iv_error).unwrap();
-    dict.set_item("date", col_date).unwrap();
-    dict.set_item("expiration", col_expiration).unwrap();
-    dict.set_item("strike", col_strike).unwrap();
-    dict.set_item("right", col_right).unwrap();
-    dict.into_any().unbind()
-}
-
-fn market_value_ticks_to_columnar(py: Python<'_>, ticks: &[tick::MarketValueTick]) -> Py<PyAny> {
-    let col_ms_of_day: Vec<i32> = ticks.iter().map(|t| t.ms_of_day).collect();
-    let col_market_bid: Vec<f64> = ticks.iter().map(|t| t.market_bid).collect();
-    let col_market_ask: Vec<f64> = ticks.iter().map(|t| t.market_ask).collect();
-    let col_market_price: Vec<f64> = ticks.iter().map(|t| t.market_price).collect();
-    let col_date: Vec<i32> = ticks.iter().map(|t| t.date).collect();
-    let col_expiration: Vec<i32> = ticks.iter().map(|t| t.expiration).collect();
-    let col_strike: Vec<f64> = ticks.iter().map(|t| t.strike).collect();
-    let col_right: Vec<&str> = ticks.iter().map(|t| if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).collect();
-    let dict = PyDict::new(py);
-    dict.set_item("ms_of_day", col_ms_of_day).unwrap();
-    dict.set_item("market_bid", col_market_bid).unwrap();
-    dict.set_item("market_ask", col_market_ask).unwrap();
-    dict.set_item("market_price", col_market_price).unwrap();
-    dict.set_item("date", col_date).unwrap();
-    dict.set_item("expiration", col_expiration).unwrap();
-    dict.set_item("strike", col_strike).unwrap();
-    dict.set_item("right", col_right).unwrap();
-    dict.into_any().unbind()
-}
-
 fn ohlc_ticks_to_columnar(py: Python<'_>, ticks: &[tick::OhlcTick]) -> Py<PyAny> {
     let col_ms_of_day: Vec<i32> = ticks.iter().map(|t| t.ms_of_day).collect();
     let col_open: Vec<f64> = ticks.iter().map(|t| t.open).collect();
@@ -197,47 +75,6 @@ fn ohlc_ticks_to_columnar(py: Python<'_>, ticks: &[tick::OhlcTick]) -> Py<PyAny>
     dict.set_item("expiration", col_expiration).unwrap();
     dict.set_item("strike", col_strike).unwrap();
     dict.set_item("right", col_right).unwrap();
-    dict.into_any().unbind()
-}
-
-fn open_interest_ticks_to_columnar(py: Python<'_>, ticks: &[tick::OpenInterestTick]) -> Py<PyAny> {
-    let col_ms_of_day: Vec<i32> = ticks.iter().map(|t| t.ms_of_day).collect();
-    let col_open_interest: Vec<i32> = ticks.iter().map(|t| t.open_interest).collect();
-    let col_date: Vec<i32> = ticks.iter().map(|t| t.date).collect();
-    let col_expiration: Vec<i32> = ticks.iter().map(|t| t.expiration).collect();
-    let col_strike: Vec<f64> = ticks.iter().map(|t| t.strike).collect();
-    let col_right: Vec<&str> = ticks.iter().map(|t| if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).collect();
-    let dict = PyDict::new(py);
-    dict.set_item("ms_of_day", col_ms_of_day).unwrap();
-    dict.set_item("open_interest", col_open_interest).unwrap();
-    dict.set_item("date", col_date).unwrap();
-    dict.set_item("expiration", col_expiration).unwrap();
-    dict.set_item("strike", col_strike).unwrap();
-    dict.set_item("right", col_right).unwrap();
-    dict.into_any().unbind()
-}
-
-fn option_contracts_to_columnar(py: Python<'_>, ticks: &[tick::OptionContract]) -> Py<PyAny> {
-    let col_root: Vec<&str> = ticks.iter().map(|t| t.root.as_str()).collect();
-    let col_expiration: Vec<i32> = ticks.iter().map(|t| t.expiration).collect();
-    let col_strike: Vec<f64> = ticks.iter().map(|t| t.strike).collect();
-    let col_right: Vec<i32> = ticks.iter().map(|t| t.right).collect();
-    let dict = PyDict::new(py);
-    dict.set_item("root", col_root).unwrap();
-    dict.set_item("expiration", col_expiration).unwrap();
-    dict.set_item("strike", col_strike).unwrap();
-    dict.set_item("right", col_right).unwrap();
-    dict.into_any().unbind()
-}
-
-fn price_ticks_to_columnar(py: Python<'_>, ticks: &[tick::PriceTick]) -> Py<PyAny> {
-    let col_ms_of_day: Vec<i32> = ticks.iter().map(|t| t.ms_of_day).collect();
-    let col_price: Vec<f64> = ticks.iter().map(|t| t.price).collect();
-    let col_date: Vec<i32> = ticks.iter().map(|t| t.date).collect();
-    let dict = PyDict::new(py);
-    dict.set_item("ms_of_day", col_ms_of_day).unwrap();
-    dict.set_item("price", col_price).unwrap();
-    dict.set_item("date", col_date).unwrap();
     dict.into_any().unbind()
 }
 
@@ -268,65 +105,6 @@ fn quote_ticks_to_columnar(py: Python<'_>, ticks: &[tick::QuoteTick]) -> Py<PyAn
     dict.set_item("ask_condition", col_ask_condition).unwrap();
     dict.set_item("date", col_date).unwrap();
     dict.set_item("midpoint", col_midpoint).unwrap();
-    dict.set_item("expiration", col_expiration).unwrap();
-    dict.set_item("strike", col_strike).unwrap();
-    dict.set_item("right", col_right).unwrap();
-    dict.into_any().unbind()
-}
-
-fn trade_quote_ticks_to_columnar(py: Python<'_>, ticks: &[tick::TradeQuoteTick]) -> Py<PyAny> {
-    let col_ms_of_day: Vec<i32> = ticks.iter().map(|t| t.ms_of_day).collect();
-    let col_sequence: Vec<i32> = ticks.iter().map(|t| t.sequence).collect();
-    let col_ext_condition1: Vec<i32> = ticks.iter().map(|t| t.ext_condition1).collect();
-    let col_ext_condition2: Vec<i32> = ticks.iter().map(|t| t.ext_condition2).collect();
-    let col_ext_condition3: Vec<i32> = ticks.iter().map(|t| t.ext_condition3).collect();
-    let col_ext_condition4: Vec<i32> = ticks.iter().map(|t| t.ext_condition4).collect();
-    let col_condition: Vec<i32> = ticks.iter().map(|t| t.condition).collect();
-    let col_size: Vec<i32> = ticks.iter().map(|t| t.size).collect();
-    let col_exchange: Vec<i32> = ticks.iter().map(|t| t.exchange).collect();
-    let col_price: Vec<f64> = ticks.iter().map(|t| t.price).collect();
-    let col_condition_flags: Vec<i32> = ticks.iter().map(|t| t.condition_flags).collect();
-    let col_price_flags: Vec<i32> = ticks.iter().map(|t| t.price_flags).collect();
-    let col_volume_type: Vec<i32> = ticks.iter().map(|t| t.volume_type).collect();
-    let col_records_back: Vec<i32> = ticks.iter().map(|t| t.records_back).collect();
-    let col_quote_ms_of_day: Vec<i32> = ticks.iter().map(|t| t.quote_ms_of_day).collect();
-    let col_bid_size: Vec<i32> = ticks.iter().map(|t| t.bid_size).collect();
-    let col_bid_exchange: Vec<i32> = ticks.iter().map(|t| t.bid_exchange).collect();
-    let col_bid: Vec<f64> = ticks.iter().map(|t| t.bid).collect();
-    let col_bid_condition: Vec<i32> = ticks.iter().map(|t| t.bid_condition).collect();
-    let col_ask_size: Vec<i32> = ticks.iter().map(|t| t.ask_size).collect();
-    let col_ask_exchange: Vec<i32> = ticks.iter().map(|t| t.ask_exchange).collect();
-    let col_ask: Vec<f64> = ticks.iter().map(|t| t.ask).collect();
-    let col_ask_condition: Vec<i32> = ticks.iter().map(|t| t.ask_condition).collect();
-    let col_date: Vec<i32> = ticks.iter().map(|t| t.date).collect();
-    let col_expiration: Vec<i32> = ticks.iter().map(|t| t.expiration).collect();
-    let col_strike: Vec<f64> = ticks.iter().map(|t| t.strike).collect();
-    let col_right: Vec<&str> = ticks.iter().map(|t| if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).collect();
-    let dict = PyDict::new(py);
-    dict.set_item("ms_of_day", col_ms_of_day).unwrap();
-    dict.set_item("sequence", col_sequence).unwrap();
-    dict.set_item("ext_condition1", col_ext_condition1).unwrap();
-    dict.set_item("ext_condition2", col_ext_condition2).unwrap();
-    dict.set_item("ext_condition3", col_ext_condition3).unwrap();
-    dict.set_item("ext_condition4", col_ext_condition4).unwrap();
-    dict.set_item("condition", col_condition).unwrap();
-    dict.set_item("size", col_size).unwrap();
-    dict.set_item("exchange", col_exchange).unwrap();
-    dict.set_item("price", col_price).unwrap();
-    dict.set_item("condition_flags", col_condition_flags).unwrap();
-    dict.set_item("price_flags", col_price_flags).unwrap();
-    dict.set_item("volume_type", col_volume_type).unwrap();
-    dict.set_item("records_back", col_records_back).unwrap();
-    dict.set_item("quote_ms_of_day", col_quote_ms_of_day).unwrap();
-    dict.set_item("bid_size", col_bid_size).unwrap();
-    dict.set_item("bid_exchange", col_bid_exchange).unwrap();
-    dict.set_item("bid", col_bid).unwrap();
-    dict.set_item("bid_condition", col_bid_condition).unwrap();
-    dict.set_item("ask_size", col_ask_size).unwrap();
-    dict.set_item("ask_exchange", col_ask_exchange).unwrap();
-    dict.set_item("ask", col_ask).unwrap();
-    dict.set_item("ask_condition", col_ask_condition).unwrap();
-    dict.set_item("date", col_date).unwrap();
     dict.set_item("expiration", col_expiration).unwrap();
     dict.set_item("strike", col_strike).unwrap();
     dict.set_item("right", col_right).unwrap();

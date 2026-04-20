@@ -58,9 +58,7 @@ where
                 tokio::select! {
                     out = &mut fut => return out.map_err(to_py_err),
                     _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {
-                        if let Err(e) = Python::attach(|py| py.check_signals()) {
-                            return Err(e);
-                        }
+                        Python::attach(|py| py.check_signals())?;
                     }
                 }
             }
@@ -213,7 +211,6 @@ include!("utility_functions.rs");
 
 // ── FPSS streaming client ──
 
-
 // ── BufferedEvent + converter (generated from fpss_event_schema.toml) ──
 //
 // The intermediate flat event type that crosses the mpsc channel from the
@@ -221,7 +218,6 @@ include!("utility_functions.rs");
 // is identical to the TypeScript SDK copy; `fpss_event_schema.toml` is the
 // single source of truth.
 include!("buffered_event.rs");
-
 
 // ── Unified ThetaDataDx client ──
 
@@ -292,7 +288,9 @@ impl ThetaDataDx {
         // Go straight through the Rust SDK → `*_to_columnar` helper so we
         // avoid the pyclass allocation + __dir__ pivot round-trip.
         let ticks = run_blocking(py, async move {
-            self.tdx.stock_history_eod(symbol, start_date, end_date).await
+            self.tdx
+                .stock_history_eod(symbol, start_date, end_date)
+                .await
         })?;
         let columnar = eod_ticks_to_columnar(py, &ticks);
         columnar_to_dataframe(py, columnar)
@@ -368,11 +366,28 @@ impl ThetaDataDx {
     /// `RawData` for unrecognized wire frames. No `PyDict` path anywhere.
     /// One allocation per event (the pyclass instance), field access via
     /// attribute (direct C-offset lookup).
-    fn next_event_typed(
-        &self,
-        py: Python<'_>,
-        timeout_ms: u64,
-    ) -> PyResult<Option<Py<PyAny>>> {
+    ///
+    /// # Parity contract with the TypeScript SDK
+    ///
+    /// The `event.kind` discriminator is the stable cross-language tag:
+    /// `"ohlcvc"`, `"open_interest"`, `"quote"`, `"trade"`, `"simple"`,
+    /// `"raw_data"`. Concrete control-event names (`"login_success"`,
+    /// `"contract_assigned"`, `"disconnected"`, `"market_open"`,
+    /// `"market_close"`, `"server_error"`, `"reconnecting"`,
+    /// `"reconnected"`, `"error"`, `"unknown_frame"`, `"unknown_data"`,
+    /// `"unknown_control"`) live on `Simple.event_type`, mirroring
+    /// `FpssSimplePayload.eventType` on the TS side. Payload field names
+    /// match byte-for-byte (modulo snake_case ↔ camelCase). Both surfaces
+    /// are generated from `fpss_event_schema.toml` — adding a field
+    /// regenerates both SDKs in lockstep, so the discriminator and
+    /// payload shape cannot drift.
+    ///
+    /// Idiomatic nesting differs by design: TS exposes a
+    /// discriminated-union struct (`event.simple.eventType`), Python
+    /// dispatches on pyclass (`event.event_type` where
+    /// `isinstance(event, Simple)`). Consumer code ports across
+    /// languages with a `.kind` switch and identical field names.
+    fn next_event_typed(&self, py: Python<'_>, timeout_ms: u64) -> PyResult<Option<Py<PyAny>>> {
         let rx_outer = self.rx.lock().unwrap_or_else(|e| e.into_inner());
         let rx_arc = match rx_outer.as_ref() {
             Some(arc) => Arc::clone(arc),
@@ -422,32 +437,53 @@ include!("historical_methods.rs");
 /// Historical endpoints return `list[TickClass]` (typed pyclass objects,
 /// matching Rust/TS/Go/C++). For DataFrame construction we need the same
 /// dict-of-lists shape pandas consumes natively; this helper does the
-/// one pivot, skipping private attributes and anything non-field (bound
-/// methods, `kind`, `__repr__`).
+/// one pivot.
+///
+/// Column names and order come from `tick_classes::columns_for_qualname`
+/// (generated from `crates/thetadatadx/tick_schema.toml`), not from
+/// Python-side reflection. This guarantees:
+///
+/// 1. **Deterministic column order** across PyO3 versions — `__dir__`
+///    ordering is interpreter-dependent.
+/// 2. **Empty-list schema preservation** — if the caller knows the expected
+///    tick type at compile time, it can pass `empty_qualname_hint` so
+///    pandas/polars still see the correct column set (and can infer dtypes
+///    on insert) when the result set is empty. When no hint is provided
+///    and the list is empty, this returns an empty dict — matching the
+///    legacy behaviour for generic callers that don't know the type.
 fn pyclass_list_to_columnar<'py>(
     py: Python<'py>,
     ticks: &Bound<'py, pyo3::types::PyList>,
+    empty_qualname_hint: Option<&str>,
 ) -> PyResult<Bound<'py, PyDict>> {
     let out = PyDict::new(py);
-    let n = ticks.len();
-    if n == 0 {
-        return Ok(out);
-    }
-    let first = ticks.get_item(0)?;
-    let attrs_list = first.call_method0("__dir__")?;
-    let attrs: Vec<String> = attrs_list.extract()?;
-    for name in attrs.iter().filter(|a| !a.starts_with('_')) {
-        // Skip callables and the synthetic `kind` accessor if any.
-        let probe = first.getattr(name.as_str())?;
-        if probe.is_callable() {
-            continue;
+    let columns: &[&str] = if ticks.len() == 0 {
+        match empty_qualname_hint.and_then(columns_for_qualname) {
+            Some(cols) => cols,
+            // No hint and empty list -> empty dict. Matches legacy behaviour
+            // for callers that don't know the tick type statically.
+            None => return Ok(out),
         }
+    } else {
+        let first = ticks.get_item(0)?;
+        let qualname: String = first.get_type().qualname()?.extract()?;
+        match columns_for_qualname(&qualname) {
+            Some(cols) => cols,
+            None => {
+                return Err(PyRuntimeError::new_err(format!(
+                    "pyclass_list_to_columnar: unknown tick type `{qualname}` — \
+                     expected a value from `thetadatadx`'s typed tick classes"
+                )));
+            }
+        }
+    };
+    for name in columns {
         let col = pyo3::types::PyList::empty(py);
-        for i in 0..n {
+        for i in 0..ticks.len() {
             let item = ticks.get_item(i)?;
-            col.append(item.getattr(name.as_str())?)?;
+            col.append(item.getattr(*name)?)?;
         }
-        out.set_item(name.as_str(), col)?;
+        out.set_item(*name, col)?;
     }
     Ok(out)
 }
@@ -474,10 +510,16 @@ fn pyclass_list_to_dataframe(py: Python<'_>, ticks: Py<PyAny>) -> PyResult<Py<Py
         )
     })?;
     let bound = ticks.bind(py);
-    let list = bound.downcast::<pyo3::types::PyList>().map_err(|_| {
+    let list = bound.cast::<pyo3::types::PyList>().map_err(|_| {
         PyValueError::new_err("to_dataframe() expects a list of typed tick objects")
     })?;
-    let columnar = pyclass_list_to_columnar(py, list)?;
+    // `to_dataframe` / `to_polars` are generic entry points — they receive a
+    // list of tick pyclasses without knowing the tick type at compile time.
+    // Pass `None` for `empty_qualname_hint` so empty input lists yield an
+    // empty dict (legacy behaviour). Callers that know the type statically
+    // (e.g. per-endpoint helpers) can pass the qualname to preserve the
+    // schema on empty results.
+    let columnar = pyclass_list_to_columnar(py, list, None)?;
     let df = pandas.call_method1("DataFrame", (columnar,))?;
     Ok(df.unbind())
 }
@@ -514,10 +556,12 @@ fn to_polars(py: Python<'_>, ticks: Py<PyAny>) -> PyResult<Py<PyAny>> {
         )
     })?;
     let bound = ticks.bind(py);
-    let list = bound.downcast::<pyo3::types::PyList>().map_err(|_| {
-        PyValueError::new_err("to_polars() expects a list of typed tick objects")
-    })?;
-    let columnar = pyclass_list_to_columnar(py, list)?;
+    let list = bound
+        .cast::<pyo3::types::PyList>()
+        .map_err(|_| PyValueError::new_err("to_polars() expects a list of typed tick objects"))?;
+    // See `pyclass_list_to_dataframe` for the `None` rationale — generic
+    // entry point, tick type is not known at compile time.
+    let columnar = pyclass_list_to_columnar(py, list, None)?;
     let df = polars.call_method1("DataFrame", (columnar,))?;
     Ok(df.unbind())
 }

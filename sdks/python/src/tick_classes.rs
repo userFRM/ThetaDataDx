@@ -4,7 +4,8 @@
 // and C++ FFI. Primary return shape for historical endpoint methods.
 
 /// Calendar day -- 5 fields. Market open/close schedule.
-#[pyclass(module = "thetadatadx", frozen)]
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct CalendarDay {
     #[pyo3(get)] pub date: i32,
@@ -15,11 +16,12 @@ pub(crate) struct CalendarDay {
 }
 #[pymethods]
 impl CalendarDay {
-    fn __repr__(&self) -> String { format!("CalendarDay(...)") }
+    fn __repr__(&self) -> String { "CalendarDay(...)".to_string() }
 }
 
 /// End-of-day tick -- 17 fields. Full EOD snapshot with OHLC + quote.
-#[pyclass(module = "thetadatadx", frozen)]
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct EodTick {
     #[pyo3(get)] pub ms_of_day: i32,
@@ -45,11 +47,12 @@ pub(crate) struct EodTick {
 }
 #[pymethods]
 impl EodTick {
-    fn __repr__(&self) -> String { format!("EodTick(...)") }
+    fn __repr__(&self) -> String { "EodTick(...)".to_string() }
 }
 
 /// Greeks tick -- 24 fields. Full set of option greeks.
-#[pyclass(module = "thetadatadx", frozen)]
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct GreeksTick {
     #[pyo3(get)] pub ms_of_day: i32,
@@ -82,11 +85,12 @@ pub(crate) struct GreeksTick {
 }
 #[pymethods]
 impl GreeksTick {
-    fn __repr__(&self) -> String { format!("GreeksTick(...)") }
+    fn __repr__(&self) -> String { "GreeksTick(...)".to_string() }
 }
 
 /// Interest rate tick -- 3 fields. End-of-day interest rate.
-#[pyclass(module = "thetadatadx", frozen)]
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct InterestRateTick {
     #[pyo3(get)] pub ms_of_day: i32,
@@ -95,11 +99,12 @@ pub(crate) struct InterestRateTick {
 }
 #[pymethods]
 impl InterestRateTick {
-    fn __repr__(&self) -> String { format!("InterestRateTick(...)") }
+    fn __repr__(&self) -> String { "InterestRateTick(...)".to_string() }
 }
 
 /// Implied volatility tick -- 4 fields.
-#[pyclass(module = "thetadatadx", frozen)]
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct IvTick {
     #[pyo3(get)] pub ms_of_day: i32,
@@ -112,11 +117,12 @@ pub(crate) struct IvTick {
 }
 #[pymethods]
 impl IvTick {
-    fn __repr__(&self) -> String { format!("IvTick(...)") }
+    fn __repr__(&self) -> String { "IvTick(...)".to_string() }
 }
 
 /// Market value tick -- quoted bid/ask/price for a symbol.
-#[pyclass(module = "thetadatadx", frozen)]
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct MarketValueTick {
     #[pyo3(get)] pub ms_of_day: i32,
@@ -130,11 +136,12 @@ pub(crate) struct MarketValueTick {
 }
 #[pymethods]
 impl MarketValueTick {
-    fn __repr__(&self) -> String { format!("MarketValueTick(...)") }
+    fn __repr__(&self) -> String { "MarketValueTick(...)".to_string() }
 }
 
 /// OHLC tick -- 8 fields. Aggregated bar data.
-#[pyclass(module = "thetadatadx", frozen)]
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct OhlcTick {
     #[pyo3(get)] pub ms_of_day: i32,
@@ -151,11 +158,12 @@ pub(crate) struct OhlcTick {
 }
 #[pymethods]
 impl OhlcTick {
-    fn __repr__(&self) -> String { format!("OhlcTick(...)") }
+    fn __repr__(&self) -> String { "OhlcTick(...)".to_string() }
 }
 
 /// Open interest tick -- 3 fields.
-#[pyclass(module = "thetadatadx", frozen)]
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct OpenInterestTick {
     #[pyo3(get)] pub ms_of_day: i32,
@@ -167,13 +175,14 @@ pub(crate) struct OpenInterestTick {
 }
 #[pymethods]
 impl OpenInterestTick {
-    fn __repr__(&self) -> String { format!("OpenInterestTick(...)") }
+    fn __repr__(&self) -> String { "OpenInterestTick(...)".to_string() }
 }
 
 /// Option contract -- 4 fields. Contract specification.
 /// 
 /// Cannot be `Copy` because of the `String` root field.
-#[pyclass(module = "thetadatadx", frozen)]
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct OptionContract {
     #[pyo3(get)] pub root: String,
@@ -183,11 +192,12 @@ pub(crate) struct OptionContract {
 }
 #[pymethods]
 impl OptionContract {
-    fn __repr__(&self) -> String { format!("OptionContract(...)") }
+    fn __repr__(&self) -> String { "OptionContract(...)".to_string() }
 }
 
 /// Price tick -- 3 fields. Generic price data point.
-#[pyclass(module = "thetadatadx", frozen)]
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct PriceTick {
     #[pyo3(get)] pub ms_of_day: i32,
@@ -196,11 +206,12 @@ pub(crate) struct PriceTick {
 }
 #[pymethods]
 impl PriceTick {
-    fn __repr__(&self) -> String { format!("PriceTick(...)") }
+    fn __repr__(&self) -> String { "PriceTick(...)".to_string() }
 }
 
 /// Quote tick -- 10 fields + midpoint. NBBO quote data.
-#[pyclass(module = "thetadatadx", frozen)]
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct QuoteTick {
     #[pyo3(get)] pub ms_of_day: i32,
@@ -220,11 +231,12 @@ pub(crate) struct QuoteTick {
 }
 #[pymethods]
 impl QuoteTick {
-    fn __repr__(&self) -> String { format!("QuoteTick(...)") }
+    fn __repr__(&self) -> String { "QuoteTick(...)".to_string() }
 }
 
 /// Combined trade + quote tick -- 24 fields.
-#[pyclass(module = "thetadatadx", frozen)]
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct TradeQuoteTick {
     #[pyo3(get)] pub ms_of_day: i32,
@@ -257,11 +269,12 @@ pub(crate) struct TradeQuoteTick {
 }
 #[pymethods]
 impl TradeQuoteTick {
-    fn __repr__(&self) -> String { format!("TradeQuoteTick(...)") }
+    fn __repr__(&self) -> String { "TradeQuoteTick(...)".to_string() }
 }
 
 /// Trade tick -- 15 fields. Core unit of trade data.
-#[pyclass(module = "thetadatadx", frozen)]
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct TradeTick {
     #[pyo3(get)] pub ms_of_day: i32,
@@ -285,7 +298,7 @@ pub(crate) struct TradeTick {
 }
 #[pymethods]
 impl TradeTick {
-    fn __repr__(&self) -> String { format!("TradeTick(...)") }
+    fn __repr__(&self) -> String { "TradeTick(...)".to_string() }
 }
 
 pub(crate) fn calendar_days_to_pyclass_list(py: Python<'_>, ticks: &[tick::CalendarDay]) -> PyResult<Py<PyAny>> {
@@ -586,4 +599,26 @@ pub(crate) fn register_tick_classes(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<TradeQuoteTick>()?;
     m.add_class::<TradeTick>()?;
     Ok(())
+}
+
+/// Static column-name schemas keyed by the tick pyclass `__qualname__`.
+/// Used by `pyclass_list_to_columnar` to build DataFrame-ready column lists
+/// in deterministic schema order, independent of Python runtime reflection.
+pub(crate) fn columns_for_qualname(qualname: &str) -> Option<&'static [&'static str]> {
+    match qualname {
+        "CalendarDay" => Some(&["date", "is_open", "open_time", "close_time", "status"]),
+        "EodTick" => Some(&["ms_of_day", "ms_of_day2", "open", "high", "low", "close", "volume", "count", "bid_size", "bid_exchange", "bid", "bid_condition", "ask_size", "ask_exchange", "ask", "ask_condition", "date", "expiration", "strike", "right"]),
+        "GreeksTick" => Some(&["ms_of_day", "implied_volatility", "delta", "gamma", "theta", "vega", "rho", "iv_error", "vanna", "charm", "vomma", "veta", "speed", "zomma", "color", "ultima", "d1", "d2", "dual_delta", "dual_gamma", "epsilon", "lambda", "vera", "date", "expiration", "strike", "right"]),
+        "InterestRateTick" => Some(&["ms_of_day", "rate", "date"]),
+        "IvTick" => Some(&["ms_of_day", "implied_volatility", "iv_error", "date", "expiration", "strike", "right"]),
+        "MarketValueTick" => Some(&["ms_of_day", "market_bid", "market_ask", "market_price", "date", "expiration", "strike", "right"]),
+        "OhlcTick" => Some(&["ms_of_day", "open", "high", "low", "close", "volume", "count", "date", "expiration", "strike", "right"]),
+        "OpenInterestTick" => Some(&["ms_of_day", "open_interest", "date", "expiration", "strike", "right"]),
+        "OptionContract" => Some(&["root", "expiration", "strike", "right"]),
+        "PriceTick" => Some(&["ms_of_day", "price", "date"]),
+        "QuoteTick" => Some(&["ms_of_day", "bid_size", "bid_exchange", "bid", "bid_condition", "ask_size", "ask_exchange", "ask", "ask_condition", "date", "midpoint", "expiration", "strike", "right"]),
+        "TradeQuoteTick" => Some(&["ms_of_day", "sequence", "ext_condition1", "ext_condition2", "ext_condition3", "ext_condition4", "condition", "size", "exchange", "price", "condition_flags", "price_flags", "volume_type", "records_back", "quote_ms_of_day", "bid_size", "bid_exchange", "bid", "bid_condition", "ask_size", "ask_exchange", "ask", "ask_condition", "date", "expiration", "strike", "right"]),
+        "TradeTick" => Some(&["ms_of_day", "sequence", "ext_condition1", "ext_condition2", "ext_condition3", "ext_condition4", "condition", "size", "exchange", "price", "condition_flags", "price_flags", "volume_type", "records_back", "date", "expiration", "strike", "right"]),
+        _ => None,
+    }
 }

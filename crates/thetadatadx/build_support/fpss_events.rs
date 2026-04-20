@@ -540,7 +540,12 @@ fn render_python_event_class_struct(event_name: &str, def: &EventDef) -> String 
     for line in doc_text.lines() {
         writeln!(out, "/// {line}").unwrap();
     }
-    out.push_str("#[pyclass(module = \"thetadatadx\", frozen)]\n");
+    // `#[must_use]` — events surfaced from the FPSS stream; silently dropping
+    // decoded events is a bug. `skip_from_py_object` opts out of the
+    // deprecated auto-derived `FromPyObject` impl for `Clone` pyclasses
+    // (pyo3 0.28+); these event structs flow FROM Rust to Python only.
+    out.push_str("#[must_use]\n");
+    out.push_str("#[pyclass(module = \"thetadatadx\", frozen, skip_from_py_object)]\n");
     out.push_str("#[derive(Clone)]\n");
     writeln!(out, "pub(crate) struct {event_name} {{").unwrap();
     for column in &def.columns {
@@ -550,9 +555,11 @@ fn render_python_event_class_struct(event_name: &str, def: &EventDef) -> String 
     out.push_str("}\n");
     writeln!(out, "#[pymethods]").unwrap();
     writeln!(out, "impl {event_name} {{").unwrap();
+    // `format!("…(...)")` with no format args is flagged as
+    // `useless_format` — emit the equivalent owned-string path directly.
     writeln!(
         out,
-        "    fn __repr__(&self) -> String {{ format!(\"{event_name}(...)\") }}\n"
+        "    fn __repr__(&self) -> String {{ \"{event_name}(...)\".to_string() }}\n"
     )
     .unwrap();
     // Use the same lowercase/snake_case wire tag the existing dict-based
@@ -584,22 +591,19 @@ fn render_python_buffered_match_arm(event_name: &str, def: &EventDef) -> String 
     out.push_str("            py,\n");
     writeln!(out, "            {event_name} {{").unwrap();
     for column in &def.columns {
-        let rhs =
-            if is_option(&column.r#type) || column.r#type == "String" || column.r#type == "Vec<u8>"
-            {
-                // Non-`Copy` types clone through the deref of the pattern binding.
+        let rhs = match column.r#type.as_str() {
+            // Owned non-`Copy` types + `Option<String>` clone through
+            // the deref of the pattern binding. `Option<i32>` implements
+            // `Copy`, so explicit `.clone()` is flagged by clippy —
+            // deref like a plain primitive instead.
+            "String" | "Vec<u8>" | "Option<String>" => {
                 format!("{field}.clone()", field = column.name)
-            } else {
-                // `Copy` primitives — explicit deref of the reference binding.
-                format!("*{field}", field = column.name)
-            };
-        writeln!(
-            out,
-            "                {field}: {rhs},",
-            field = column.name,
-            rhs = rhs
-        )
-        .unwrap();
+            }
+            // `Copy` primitives (including `Option<i32>`) — explicit
+            // deref of the reference binding.
+            _ => format!("*{field}", field = column.name),
+        };
+        writeln!(out, "                {field}: {rhs},", field = column.name).unwrap();
     }
     out.push_str("            },\n        )\n        .map(|p| p.into_any()),\n");
     out
@@ -640,6 +644,7 @@ fn render_ts_fpss_event_classes(schema: &Schema) -> String {
     // Simple / diagnostic payload + raw payload.
     out.push_str("/// FPSS simple / diagnostic payload (login, disconnect, market open,\n");
     out.push_str("/// unknown-data fallback, ...). Mirrors `BufferedEvent::Simple`.\n");
+    out.push_str("#[must_use]\n");
     out.push_str("#[napi(object)]\n");
     out.push_str("#[derive(Clone)]\n");
     out.push_str("pub struct FpssSimplePayload {\n");
@@ -655,11 +660,31 @@ fn render_ts_fpss_event_classes(schema: &Schema) -> String {
     out.push_str("}\n\n");
 
     out.push_str("/// FPSS raw-bytes payload for frames the decoder did not recognise.\n");
+    out.push_str("#[must_use]\n");
     out.push_str("#[napi(object)]\n");
     out.push_str("#[derive(Clone)]\n");
     out.push_str("pub struct FpssRawDataPayload {\n");
     out.push_str("    pub code: u32,\n");
     out.push_str("    pub payload: Vec<u8>,\n");
+    out.push_str("}\n\n");
+
+    // String-enum discriminator. Emits `export type FpssEventKind =
+    // 'ohlcvc' | 'open_interest' | ...` on the TS side and a stack-valued
+    // Rust enum on the Rust side, replacing the per-event
+    // `"ohlcvc".to_string()` heap allocation in the dispatcher.
+    out.push_str("/// Discriminator tag for [`FpssEvent`].\n");
+    out.push_str("///\n");
+    out.push_str("/// Each variant corresponds to a `#[napi(object)]` payload field on\n");
+    out.push_str("/// `FpssEvent`. Emitted as a `string_enum` so the JS-side wire value\n");
+    out.push_str("/// is the snake_case literal (`'ohlcvc'`, `'open_interest'`, ...) and\n");
+    out.push_str("/// the Rust-side value is a stack-stored discriminant — no per-event\n");
+    out.push_str("/// `String` allocation on the hot path.\n");
+    out.push_str("#[napi(string_enum = \"snake_case\")]\n");
+    out.push_str("#[derive(Clone, Copy)]\n");
+    out.push_str("pub enum FpssEventKind {\n");
+    for event_name in &names {
+        writeln!(out, "    {event_name},").unwrap();
+    }
     out.push_str("}\n\n");
 
     // Flat wrapper struct with `kind` tag + optional payloads.
@@ -668,36 +693,23 @@ fn render_ts_fpss_event_classes(schema: &Schema) -> String {
     out.push_str("/// `kind` is the discriminator — switch on it and read the matching\n");
     out.push_str("/// payload field. The shape is stable and every payload is typed, so\n");
     out.push_str("/// consumers never fall back to untyped `any`.\n");
+    out.push_str("#[must_use]\n");
     out.push_str("#[napi(object)]\n");
     out.push_str("#[derive(Clone)]\n");
     out.push_str("pub struct FpssEvent {\n");
-    // Emit the `kind` literal-union discriminator from the same schema
-    // path as the method-level `ts_return_type` union, so the struct
-    // definition and `nextEvent()`'s narrowing shape never diverge when
-    // a new variant is added to `fpss_event_schema.toml`.
-    // Kind tags: one per data variant + the fixed `simple` / `raw_data`
-    // tags (emitted via the `FpssSimplePayload` / `FpssRawDataPayload`
-    // payload fields below). Schema Simple / RawData variants produce
-    // the same two tags, so `names` here picks up both from the schema.
-    let kind_tags: Vec<String> = names
-        .iter()
-        .map(|n| format!("'{}'", snake_case(n)))
-        .collect();
-    let kind_union = kind_tags.join(" | ");
+    // `kind` is typed as `FpssEventKind` — napi-rs surfaces the
+    // `string_enum` as a literal union in TS (`'ohlcvc' | 'open_interest'
+    // | ...`), so `switch (event.kind)` narrows optional payload fields
+    // exactly as before. Rust-side it is a stack value: no `String`
+    // allocation per event.
     out.push_str("    /// Discriminator matching one of the typed payload fields below.\n");
     out.push_str("    /// Narrowed to a literal union in TS so `switch (event.kind)`\n");
     out.push_str("    /// correctly narrows the optional payload fields.\n");
-    writeln!(out, "    #[napi(ts_type = \"{kind_union}\")]").unwrap();
-    out.push_str("    pub kind: String,\n");
+    out.push_str("    pub kind: FpssEventKind,\n");
     // One optional typed payload per data variant.
     for event_name in &data_names {
         let field = snake_case(event_name);
-        writeln!(
-            out,
-            "    pub {field}: Option<{event_name}>,",
-            event_name = event_name
-        )
-        .unwrap();
+        writeln!(out, "    pub {field}: Option<{event_name}>,").unwrap();
     }
     // Plus the two fixed payloads for non-data variants. These field
     // names align with the `kind` tag produced by the schema Simple /
@@ -707,10 +719,12 @@ fn render_ts_fpss_event_classes(schema: &Schema) -> String {
     out.push_str("    pub raw_data: Option<FpssRawDataPayload>,\n");
     out.push_str("}\n\n");
 
-    // Dispatcher.
+    // Dispatcher. Every arm must assign `out.kind` exactly once, so we
+    // initialise it to a harmless variant (Simple) that every arm then
+    // overwrites. Zero heap allocs on the hot per-event path.
     out.push_str("pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {\n");
     out.push_str("    let mut out = FpssEvent {\n");
-    out.push_str("        kind: String::new(),\n");
+    out.push_str("        kind: FpssEventKind::Simple,\n");
     for event_name in &data_names {
         let field = snake_case(event_name);
         writeln!(out, "        {field}: None,").unwrap();
@@ -722,42 +736,41 @@ fn render_ts_fpss_event_classes(schema: &Schema) -> String {
     for event_name in &data_names {
         let def = &schema.events[*event_name];
         let field = snake_case(event_name);
-        let kind_tag = snake_case(event_name);
         writeln!(out, "        BufferedEvent::{event_name} {{").unwrap();
         for column in &def.columns {
             writeln!(out, "            {},", column.name).unwrap();
         }
         out.push_str("        } => {\n");
-        writeln!(out, "            out.kind = \"{kind_tag}\".to_string();").unwrap();
+        writeln!(out, "            out.kind = FpssEventKind::{event_name};").unwrap();
         writeln!(out, "            out.{field} = Some({event_name} {{").unwrap();
         for column in &def.columns {
             // u64/i64 wire columns cross to JS as `bigint` to preserve
             // full precision. Nanosecond timestamps today already exceed
             // `Number.MAX_SAFE_INTEGER` by three orders of magnitude, so
-            // `number` is not an option.
-            let rhs = match column.r#type.as_str() {
-                "u64" | "i64" => format!("BigInt::from({name})", name = column.name),
-                _ => column.name.clone(),
-            };
-            writeln!(
-                out,
-                "                {name}: {rhs},",
-                name = column.name,
-                rhs = rhs
-            )
-            .unwrap();
+            // `number` is not an option. All other columns use the
+            // field-init shorthand (`contract_id,`) — clippy flags the
+            // explicit `name: name,` form as `redundant_field_names`.
+            match column.r#type.as_str() {
+                "u64" | "i64" => writeln!(
+                    out,
+                    "                {name}: BigInt::from({name}),",
+                    name = column.name
+                )
+                .unwrap(),
+                _ => writeln!(out, "                {name},", name = column.name).unwrap(),
+            }
         }
         out.push_str("            });\n        }\n");
     }
     out.push_str("        BufferedEvent::RawData { code, payload } => {\n");
-    out.push_str("            out.kind = \"raw_data\".to_string();\n");
+    out.push_str("            out.kind = FpssEventKind::RawData;\n");
     out.push_str("            out.raw_data = Some(FpssRawDataPayload {\n");
     out.push_str("                code: code as u32,\n");
     out.push_str("                payload,\n");
     out.push_str("            });\n");
     out.push_str("        }\n");
     out.push_str("        BufferedEvent::Simple { event_type, detail, id } => {\n");
-    out.push_str("            out.kind = \"simple\".to_string();\n");
+    out.push_str("            out.kind = FpssEventKind::Simple;\n");
     out.push_str("            out.simple = Some(FpssSimplePayload {\n");
     out.push_str("                event_type,\n");
     out.push_str("                detail,\n");
@@ -781,6 +794,10 @@ fn render_ts_event_class_struct(event_name: &str, def: &EventDef) -> String {
     for line in doc_text.lines() {
         writeln!(out, "/// {line}").unwrap();
     }
+    // `#[must_use]` — events surfaced from the FPSS stream; silently dropping
+    // decoded events on the Rust side is a bug even though napi-rs is the
+    // primary consumer.
+    out.push_str("#[must_use]\n");
     out.push_str("#[napi(object)]\n");
     out.push_str("#[derive(Clone)]\n");
     writeln!(out, "pub struct {event_name} {{").unwrap();

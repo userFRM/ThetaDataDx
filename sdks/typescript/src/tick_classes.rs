@@ -5,6 +5,7 @@
 use napi::bindgen_prelude::BigInt;
 
 /// Calendar day. Market open/close schedule.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct CalendarDay {
@@ -16,6 +17,7 @@ pub struct CalendarDay {
 }
 
 /// End-of-day tick. Full EOD snapshot with OHLC + quote.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct EodTick {
@@ -42,6 +44,7 @@ pub struct EodTick {
 }
 
 /// Greeks tick. Full set of option greeks.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct GreeksTick {
@@ -75,6 +78,7 @@ pub struct GreeksTick {
 }
 
 /// Interest rate tick. End-of-day interest rate.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct InterestRateTick {
@@ -84,6 +88,7 @@ pub struct InterestRateTick {
 }
 
 /// Implied volatility tick.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct IvTick {
@@ -97,6 +102,7 @@ pub struct IvTick {
 }
 
 /// Market value tick -- quoted bid/ask/price for a symbol.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct MarketValueTick {
@@ -111,6 +117,7 @@ pub struct MarketValueTick {
 }
 
 /// OHLC tick. Aggregated bar data.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct OhlcTick {
@@ -128,6 +135,7 @@ pub struct OhlcTick {
 }
 
 /// Open interest tick.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct OpenInterestTick {
@@ -140,6 +148,7 @@ pub struct OpenInterestTick {
 }
 
 /// Option contract. Contract specification.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct OptionContract {
@@ -150,6 +159,7 @@ pub struct OptionContract {
 }
 
 /// Price tick. Generic price data point.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct PriceTick {
@@ -159,6 +169,7 @@ pub struct PriceTick {
 }
 
 /// Quote tick. NBBO quote data.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct QuoteTick {
@@ -179,6 +190,7 @@ pub struct QuoteTick {
 }
 
 /// Combined trade + quote tick.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct TradeQuoteTick {
@@ -212,6 +224,7 @@ pub struct TradeQuoteTick {
 }
 
 /// Trade tick. Core unit of trade data.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct TradeTick {

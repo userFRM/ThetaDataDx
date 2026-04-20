@@ -39,6 +39,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+          components: clippy
       - uses: actions/setup-node@v6
         with:
           node-version: "20"
@@ -48,6 +49,13 @@ jobs:
       - uses: ./.github/actions/install-protoc
       - working-directory: sdks/typescript
         run: npm install
+      # `too_many_arguments` is allow-listed because every offender is a
+      # generated napi endpoint method whose signature mirrors the
+      # underlying REST surface — not a real code smell. Every other
+      # warning (including new ones) stays fatal.
+      - name: Clippy (TypeScript SDK)
+        working-directory: sdks/typescript
+        run: cargo clippy --all-targets --target ${{ matrix.target }} -- -D warnings -A clippy::too_many_arguments
       - name: Build native addon
         working-directory: sdks/typescript
         run: npx napi build --platform --release --target ${{ matrix.target }} --strip

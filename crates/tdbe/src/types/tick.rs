@@ -1,4 +1,5 @@
 /// Calendar day. Market open/close schedule.
+#[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
 pub struct CalendarDay {
@@ -12,6 +13,7 @@ pub struct CalendarDay {
 /// End-of-day tick. Full EOD snapshot with OHLC + quote.
 ///
 /// All price fields are decoded to `f64` during parsing.
+#[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
 pub struct EodTick {
@@ -41,6 +43,7 @@ pub struct EodTick {
 }
 
 /// Greeks tick. Full set of option greeks.
+#[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
 pub struct GreeksTick {
@@ -74,6 +77,7 @@ pub struct GreeksTick {
 }
 
 /// Interest rate tick.
+#[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
 pub struct InterestRateTick {
@@ -83,6 +87,7 @@ pub struct InterestRateTick {
 }
 
 /// Implied volatility tick.
+#[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
 pub struct IvTick {
@@ -98,6 +103,7 @@ pub struct IvTick {
 /// Market value tick — quoted bid/ask/price for a symbol.
 ///
 /// All price fields are decoded to `f64` during parsing.
+#[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
 pub struct MarketValueTick {
@@ -114,6 +120,7 @@ pub struct MarketValueTick {
 /// OHLC tick. Aggregated bar data.
 ///
 /// All price fields are decoded to `f64` during parsing.
+#[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
 pub struct OhlcTick {
@@ -131,6 +138,7 @@ pub struct OhlcTick {
 }
 
 /// Open interest tick.
+#[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
 pub struct OpenInterestTick {
@@ -143,6 +151,7 @@ pub struct OpenInterestTick {
 }
 
 /// Option contract specification.
+#[must_use]
 #[derive(Debug, Clone)]
 pub struct OptionContract {
     pub root: String,
@@ -154,6 +163,7 @@ pub struct OptionContract {
 /// Price tick. Generic price data point.
 ///
 /// Price is decoded to `f64` during parsing.
+#[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
 pub struct PriceTick {
@@ -166,6 +176,7 @@ pub struct PriceTick {
 ///
 /// All price fields are decoded to `f64` during parsing.
 /// `midpoint` is computed as `(bid + ask) / 2.0` at parse time.
+#[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
 pub struct QuoteTick {
@@ -189,6 +200,7 @@ pub struct QuoteTick {
 /// Combined trade + quote tick.
 ///
 /// All price fields are decoded to `f64` during parsing.
+#[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
 pub struct TradeQuoteTick {
@@ -224,6 +236,7 @@ pub struct TradeQuoteTick {
 /// Trade tick. Core unit of trade data.
 ///
 /// Price is decoded to `f64` during parsing.
+#[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
 pub struct TradeTick {

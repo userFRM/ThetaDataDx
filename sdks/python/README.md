@@ -219,7 +219,16 @@ Real-time streaming is accessed through the same `ThetaDataDx` instance.
 3. The trade itself
 4. Two post-trade NBBO quotes
 
-Events arrive as a mix of `quote`, `trade`, and `ohlcvc` kinds. Use `contract_id` to identify which contract each event belongs to, and filter on `kind` to select the data types you care about:
+Events arrive as typed objects — `Quote`, `Trade`, `Ohlcvc`, `OpenInterest`
+for market data; `Simple` for control / diagnostic events
+(login_success, contract_assigned, disconnected, market_open/close, ...);
+`RawData` for unrecognized wire frames. Every variant carries a `.kind`
+discriminator matching the TypeScript SDK's `FpssEvent.kind` tag exactly
+(`"quote"`, `"trade"`, `"ohlcvc"`, `"open_interest"`, `"simple"`,
+`"raw_data"`). Concrete control-event names (`"login_success"`,
+`"contract_assigned"`, ...) live on `Simple.event_type` — mirroring
+`FpssSimplePayload.eventType` on the TS side. Filter on `event.kind` to
+route, then read attributes directly:
 
 ```python
 tdx.start_streaming()
@@ -233,18 +242,18 @@ while True:
     if event is None:
         continue
 
-    # Track contract assignments
-    if event["kind"] == "contract_assigned":
-        contracts[event["id"]] = event["detail"]
+    # Track contract assignments (control events go through `Simple`)
+    if event.kind == "simple" and event.event_type == "contract_assigned":
+        contracts[event.id] = event.detail
         continue
 
-    contract = contracts.get(event.get("contract_id"), "unknown")
+    contract = contracts.get(getattr(event, "contract_id", None), "unknown")
 
     # Filter by type - you choose what you want
-    if event["kind"] == "trade":
-        print(f"[{contract}] TRADE {event['price']:.2f} x {event['size']}")
-    elif event["kind"] == "quote":
-        print(f"[{contract}] QUOTE bid={event['bid']:.2f} ask={event['ask']:.2f}")
+    if event.kind == "trade":
+        print(f"[{contract}] TRADE {event.price:.2f} x {event.size}")
+    elif event.kind == "quote":
+        print(f"[{contract}] QUOTE bid={event.bid:.2f} ask={event.ask:.2f}")
     # Skip ohlcvc if you don't need bars
 
 tdx.stop_streaming()
@@ -259,7 +268,8 @@ You can also subscribe to per-contract streams if you only need specific symbols
 | `contract_map()` | Get dict mapping contract IDs to string descriptions |
 | `contract_lookup(id)` | Look up a single contract by ID (returns str or None) |
 | `active_subscriptions()` | Get list of active subscriptions (list of dicts with "kind" and "contract") |
-| `next_event(timeout_ms=5000)` | Poll for the next event (returns dict or None on timeout) |
+| `next_event(timeout_ms=5000)` | Poll for the next event (returns a typed `Quote` / `Trade` / `Ohlcvc` / `OpenInterest` / `Simple` / `RawData` pyclass, or `None` on timeout). `event.kind` carries the same discriminator tag as the TypeScript SDK's `FpssEvent.kind`. |
+| `next_event_typed(timeout_ms=5000)` | Alias — same return type and shape as `next_event`. |
 | `reconnect()` | Reconnect streaming and restore subscriptions |
 | `shutdown()` | Graceful shutdown |
 
@@ -310,15 +320,15 @@ tdx.start_streaming()
 tdx.subscribe_quotes("AAPL")
 tdx.subscribe_trades("SPY")
 
-# Poll for events
+# Poll for events (typed pyclasses: `Quote`, `Trade`, `Ohlcvc`, ...)
 while True:
     event = tdx.next_event(timeout_ms=5000)
     if event is None:
         break  # timeout, no event received
-    if event["kind"] == "quote":
-        print(f"Quote: {event['contract']} bid={event['bid']} ask={event['ask']}")
-    elif event["kind"] == "trade":
-        print(f"Trade: {event['contract']} price={event['price']} size={event['size']}")
+    if event.kind == "quote":
+        print(f"Quote: contract_id={event.contract_id} bid={event.bid} ask={event.ask}")
+    elif event.kind == "trade":
+        print(f"Trade: contract_id={event.contract_id} price={event.price} size={event.size}")
 
 tdx.stop_streaming()
 ```

@@ -39,10 +39,20 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-rust-deps
+        with:
+          components: clippy
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
       - run: cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces --locked -- --check
+      # `too_many_arguments` is allow-listed because every offender is a
+      # generated pyo3 endpoint method whose signature mirrors the
+      # underlying REST surface — not a real code smell. Every other
+      # warning (including new ones) stays fatal.
+      - name: Clippy (Python SDK)
+        shell: bash
+        working-directory: sdks/python
+        run: cargo clippy --all-targets -- -D warnings -A clippy::too_many_arguments
       - shell: bash
         run: python -m pip install --upgrade pip "maturin>=1.9.4,<2.0"
       - name: Build wheel

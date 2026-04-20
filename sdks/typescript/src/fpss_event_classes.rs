@@ -11,6 +11,7 @@
 // `sdks/typescript/src/lib.rs`), so importing it here would collide.
 
 /// FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct Ohlcvc {
@@ -27,6 +28,7 @@ pub struct Ohlcvc {
 }
 
 /// FPSS OpenInterest tick. Mirrors `FpssData::OpenInterest`.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct OpenInterest {
@@ -38,6 +40,7 @@ pub struct OpenInterest {
 }
 
 /// FPSS Quote tick. Mirrors `FpssData::Quote` (symbol-less — `contract_id` is the stable key).
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct Quote {
@@ -56,6 +59,7 @@ pub struct Quote {
 }
 
 /// FPSS Trade tick. Mirrors `FpssData::Trade`.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct Trade {
@@ -80,6 +84,7 @@ pub struct Trade {
 
 /// FPSS simple / diagnostic payload (login, disconnect, market open,
 /// unknown-data fallback, ...). Mirrors `BufferedEvent::Simple`.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct FpssSimplePayload {
@@ -93,6 +98,7 @@ pub struct FpssSimplePayload {
 }
 
 /// FPSS raw-bytes payload for frames the decoder did not recognise.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct FpssRawDataPayload {
@@ -100,19 +106,37 @@ pub struct FpssRawDataPayload {
     pub payload: Vec<u8>,
 }
 
+/// Discriminator tag for [`FpssEvent`].
+///
+/// Each variant corresponds to a `#[napi(object)]` payload field on
+/// `FpssEvent`. Emitted as a `string_enum` so the JS-side wire value
+/// is the snake_case literal (`'ohlcvc'`, `'open_interest'`, ...) and
+/// the Rust-side value is a stack-stored discriminant — no per-event
+/// `String` allocation on the hot path.
+#[napi(string_enum = "snake_case")]
+#[derive(Clone, Copy)]
+pub enum FpssEventKind {
+    Ohlcvc,
+    OpenInterest,
+    Quote,
+    RawData,
+    Simple,
+    Trade,
+}
+
 /// A single FPSS event surfaced to JS/TS.
 ///
 /// `kind` is the discriminator — switch on it and read the matching
 /// payload field. The shape is stable and every payload is typed, so
 /// consumers never fall back to untyped `any`.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct FpssEvent {
     /// Discriminator matching one of the typed payload fields below.
     /// Narrowed to a literal union in TS so `switch (event.kind)`
     /// correctly narrows the optional payload fields.
-    #[napi(ts_type = "'ohlcvc' | 'open_interest' | 'quote' | 'raw_data' | 'simple' | 'trade'")]
-    pub kind: String,
+    pub kind: FpssEventKind,
     pub ohlcvc: Option<Ohlcvc>,
     pub open_interest: Option<OpenInterest>,
     pub quote: Option<Quote>,
@@ -123,7 +147,7 @@ pub struct FpssEvent {
 
 pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
     let mut out = FpssEvent {
-        kind: String::new(),
+        kind: FpssEventKind::Simple,
         ohlcvc: None,
         open_interest: None,
         quote: None,
@@ -144,17 +168,17 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             date,
             received_at_ns,
         } => {
-            out.kind = "ohlcvc".to_string();
+            out.kind = FpssEventKind::Ohlcvc;
             out.ohlcvc = Some(Ohlcvc {
-                contract_id: contract_id,
-                ms_of_day: ms_of_day,
-                open: open,
-                high: high,
-                low: low,
-                close: close,
+                contract_id,
+                ms_of_day,
+                open,
+                high,
+                low,
+                close,
                 volume: BigInt::from(volume),
                 count: BigInt::from(count),
-                date: date,
+                date,
                 received_at_ns: BigInt::from(received_at_ns),
             });
         }
@@ -165,12 +189,12 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             date,
             received_at_ns,
         } => {
-            out.kind = "open_interest".to_string();
+            out.kind = FpssEventKind::OpenInterest;
             out.open_interest = Some(OpenInterest {
-                contract_id: contract_id,
-                ms_of_day: ms_of_day,
-                open_interest: open_interest,
-                date: date,
+                contract_id,
+                ms_of_day,
+                open_interest,
+                date,
                 received_at_ns: BigInt::from(received_at_ns),
             });
         }
@@ -188,19 +212,19 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             date,
             received_at_ns,
         } => {
-            out.kind = "quote".to_string();
+            out.kind = FpssEventKind::Quote;
             out.quote = Some(Quote {
-                contract_id: contract_id,
-                ms_of_day: ms_of_day,
-                bid_size: bid_size,
-                bid_exchange: bid_exchange,
-                bid: bid,
-                bid_condition: bid_condition,
-                ask_size: ask_size,
-                ask_exchange: ask_exchange,
-                ask: ask,
-                ask_condition: ask_condition,
-                date: date,
+                contract_id,
+                ms_of_day,
+                bid_size,
+                bid_exchange,
+                bid,
+                bid_condition,
+                ask_size,
+                ask_exchange,
+                ask,
+                ask_condition,
+                date,
                 received_at_ns: BigInt::from(received_at_ns),
             });
         }
@@ -223,36 +247,36 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             date,
             received_at_ns,
         } => {
-            out.kind = "trade".to_string();
+            out.kind = FpssEventKind::Trade;
             out.trade = Some(Trade {
-                contract_id: contract_id,
-                ms_of_day: ms_of_day,
-                sequence: sequence,
-                ext_condition1: ext_condition1,
-                ext_condition2: ext_condition2,
-                ext_condition3: ext_condition3,
-                ext_condition4: ext_condition4,
-                condition: condition,
-                size: size,
-                exchange: exchange,
-                price: price,
-                condition_flags: condition_flags,
-                price_flags: price_flags,
-                volume_type: volume_type,
-                records_back: records_back,
-                date: date,
+                contract_id,
+                ms_of_day,
+                sequence,
+                ext_condition1,
+                ext_condition2,
+                ext_condition3,
+                ext_condition4,
+                condition,
+                size,
+                exchange,
+                price,
+                condition_flags,
+                price_flags,
+                volume_type,
+                records_back,
+                date,
                 received_at_ns: BigInt::from(received_at_ns),
             });
         }
         BufferedEvent::RawData { code, payload } => {
-            out.kind = "raw_data".to_string();
+            out.kind = FpssEventKind::RawData;
             out.raw_data = Some(FpssRawDataPayload {
                 code: code as u32,
                 payload,
             });
         }
         BufferedEvent::Simple { event_type, detail, id } => {
-            out.kind = "simple".to_string();
+            out.kind = FpssEventKind::Simple;
             out.simple = Some(FpssSimplePayload {
                 event_type,
                 detail,
