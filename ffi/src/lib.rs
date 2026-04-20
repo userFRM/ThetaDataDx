@@ -39,6 +39,7 @@
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::ptr;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
 // ── Global tokio runtime (same pattern as the Python bindings) ──
@@ -133,6 +134,14 @@ pub struct TdxUnified {
     inner: thetadatadx::ThetaDataDx,
     /// Created lazily when `tdx_unified_start_streaming()` is called.
     rx: Mutex<Option<Arc<Mutex<std::sync::mpsc::Receiver<FfiBufferedEvent>>>>>,
+    /// Cumulative count of FPSS events dropped because the FFI receiver
+    /// was gone (queue shut down or consumer stopped polling) before the
+    /// callback could hand the event off. Exposed via
+    /// `tdx_unified_dropped_events` so Go / C++ consumers have parity
+    /// with the Python / TypeScript SDKs' `dropped_events()` getter.
+    /// Lives on the handle (not the closure) so the count survives the
+    /// single `start_streaming` call that this handle supports.
+    dropped_events: Arc<AtomicU64>,
 }
 
 /// Opaque FPSS streaming client handle.
@@ -145,6 +154,14 @@ pub struct TdxFpssHandle {
     rx: Arc<Mutex<std::sync::mpsc::Receiver<FfiBufferedEvent>>>,
     /// Saved connection parameters for reconnection (Gap 3).
     connect_params: FpssConnectParams,
+    /// Cumulative count of FPSS events dropped because the FFI receiver
+    /// was gone (queue shut down or consumer stopped polling) before the
+    /// callback could hand the event off. Exposed via
+    /// `tdx_fpss_dropped_events` so Go / C++ consumers have parity with
+    /// the Python / TypeScript SDKs' `dropped_events()` getter. The
+    /// `Arc` is cloned into every callback closure (initial connect +
+    /// each reconnect), so the counter survives reconnection.
+    dropped_events: Arc<AtomicU64>,
 }
 
 /// Saved FPSS connection parameters for FFI-safe reconnection.
@@ -1764,6 +1781,7 @@ pub unsafe extern "C" fn tdx_unified_connect(
         Ok(tdx) => Box::into_raw(Box::new(TdxUnified {
             inner: tdx,
             rx: Mutex::new(None),
+            dropped_events: Arc::new(AtomicU64::new(0)),
         })),
         Err(e) => {
             set_error(&e.to_string());
@@ -1787,12 +1805,24 @@ pub unsafe extern "C" fn tdx_unified_start_streaming(handle: *const TdxUnified) 
     let handle = unsafe { &*handle };
 
     let (tx, rx) = std::sync::mpsc::channel::<FfiBufferedEvent>();
+    // Clone the handle-level counter so the send-failure path in the
+    // callback increments the same `AtomicU64` the
+    // `tdx_unified_dropped_events` getter reads. Parity with the Python
+    // / TS SDKs: silent drops need to be countable from C / Go / C++.
+    let dropped_events = Arc::clone(&handle.dropped_events);
 
     match handle
         .inner
         .start_streaming(move |event: &thetadatadx::fpss::FpssEvent| {
             let buffered = fpss_event_to_ffi(event);
-            let _ = tx.send(buffered);
+            if tx.send(buffered).is_err() {
+                let count = dropped_events.fetch_add(1, Ordering::Relaxed) + 1;
+                tracing::debug!(
+                    target: "thetadatadx::ffi::streaming",
+                    dropped_total = count,
+                    "fpss event dropped -- receiver dead",
+                );
+            }
         }) {
         Ok(()) => {
             if let Ok(mut guard) = handle.rx.lock() {
@@ -2383,12 +2413,24 @@ pub unsafe extern "C" fn tdx_unified_reconnect(handle: *const TdxUnified) -> i32
 
     // Start a new streaming connection with an internal buffered channel
     let (tx, rx) = std::sync::mpsc::channel::<FfiBufferedEvent>();
+    // Reuse the handle-level counter so `tdx_unified_dropped_events`
+    // reflects drops across both the initial `start_streaming` and
+    // every subsequent reconnect. Closure-local counters would reset
+    // here and make the getter useless for long-lived clients.
+    let dropped_events = Arc::clone(&handle.dropped_events);
 
     if let Err(e) = handle
         .inner
         .start_streaming(move |event: &thetadatadx::fpss::FpssEvent| {
             let buffered = fpss_event_to_ffi(event);
-            let _ = tx.send(buffered);
+            if tx.send(buffered).is_err() {
+                let count = dropped_events.fetch_add(1, Ordering::Relaxed) + 1;
+                tracing::debug!(
+                    target: "thetadatadx::ffi::streaming",
+                    dropped_total = count,
+                    "fpss event dropped -- receiver dead (post-reconnect)",
+                );
+            }
         })
     {
         set_error(&e.to_string());
@@ -2575,6 +2617,19 @@ pub unsafe extern "C" fn tdx_unified_stop_streaming(handle: *const TdxUnified) {
     }
 }
 
+/// Cumulative count of FPSS events dropped on this unified handle because
+/// the FFI receiver was gone before the callback could deliver the event.
+///
+/// Survives `tdx_unified_reconnect()` (the counter `Arc` is cloned into
+/// every callback). Returns 0 if the handle is null.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_dropped_events(handle: *const TdxUnified) -> u64 {
+    if handle.is_null() {
+        return 0;
+    }
+    unsafe { (*handle).dropped_events.load(Ordering::Relaxed) }
+}
+
 /// Free a unified client handle.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_unified_free(handle: *mut TdxUnified) {
@@ -2611,6 +2666,13 @@ pub unsafe extern "C" fn tdx_fpss_connect(
     let config = unsafe { &*config };
 
     let (tx, rx) = std::sync::mpsc::channel::<FfiBufferedEvent>();
+    // Pre-allocate the counter Arc so the callback closure (registered
+    // with the client before the handle exists) and the returned handle
+    // point at the same `AtomicU64`. `tdx_fpss_reconnect` will also
+    // clone this Arc into the new callback, preserving the count across
+    // reconnects.
+    let dropped_events = Arc::new(AtomicU64::new(0));
+    let dropped_events_cb = Arc::clone(&dropped_events);
 
     let client = match thetadatadx::fpss::FpssClient::connect(
         &creds.inner,
@@ -2621,7 +2683,14 @@ pub unsafe extern "C" fn tdx_fpss_connect(
         config.inner.derive_ohlcvc,
         move |event: &thetadatadx::fpss::FpssEvent| {
             let buffered = fpss_event_to_ffi(event);
-            let _ = tx.send(buffered);
+            if tx.send(buffered).is_err() {
+                let count = dropped_events_cb.fetch_add(1, Ordering::Relaxed) + 1;
+                tracing::debug!(
+                    target: "thetadatadx::ffi::streaming",
+                    dropped_total = count,
+                    "fpss event dropped -- receiver dead",
+                );
+            }
         },
     ) {
         Ok(c) => c,
@@ -2642,6 +2711,7 @@ pub unsafe extern "C" fn tdx_fpss_connect(
             reconnect_policy: config.inner.reconnect_policy.clone(),
             derive_ohlcvc: config.inner.derive_ohlcvc,
         },
+        dropped_events,
     }))
 }
 
@@ -3567,6 +3637,10 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
 
     // 3. Create a new mpsc channel and connect
     let (tx, rx) = std::sync::mpsc::channel::<FfiBufferedEvent>();
+    // Clone the handle-level counter so the drop count survives
+    // reconnect (same reasoning as Python / TS SDKs; see the struct-
+    // level field doc for the full rationale).
+    let dropped_events = Arc::clone(&handle.dropped_events);
 
     let new_client = match thetadatadx::fpss::FpssClient::connect(
         &params.creds,
@@ -3577,7 +3651,14 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
         params.derive_ohlcvc,
         move |event: &thetadatadx::fpss::FpssEvent| {
             let buffered = fpss_event_to_ffi(event);
-            let _ = tx.send(buffered);
+            if tx.send(buffered).is_err() {
+                let count = dropped_events.fetch_add(1, Ordering::Relaxed) + 1;
+                tracing::debug!(
+                    target: "thetadatadx::ffi::streaming",
+                    dropped_total = count,
+                    "fpss event dropped -- receiver dead (post-reconnect)",
+                );
+            }
         },
     ) {
         Ok(c) => c,
@@ -3633,6 +3714,24 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
     }
 
     0
+}
+
+/// Cumulative count of FPSS events dropped on this handle because the FFI
+/// receiver was gone (channel disconnected) before the callback could deliver
+/// the event.
+///
+/// The counter lives on the handle, so the value survives
+/// `tdx_fpss_reconnect()` — callers get a true lifetime total for drops
+/// across the initial connection and every subsequent reconnect.
+///
+/// Returns 0 if the handle is null (defensive; matches the Python
+/// `tdx.dropped_events()` contract of "always callable, never panic").
+#[no_mangle]
+pub unsafe extern "C" fn tdx_fpss_dropped_events(handle: *const TdxFpssHandle) -> u64 {
+    if handle.is_null() {
+        return 0;
+    }
+    unsafe { (*handle).dropped_events.load(Ordering::Relaxed) }
 }
 
 /// Shut down the FPSS client, stopping all background threads.

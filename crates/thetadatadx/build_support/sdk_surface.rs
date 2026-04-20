@@ -1041,12 +1041,12 @@ fn python_streaming_method(method: &MethodSpec) -> String {
         MethodKind::StartStreaming => {
             writeln!(out, "    fn {}(&self) -> PyResult<()> {{", method.name).unwrap();
             out.push_str("        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();\n");
-            // Per-closure counter for trace observability. Shutdown-time
-            // send failures (Python rx dropped before tx closure) are
-            // normal, so emit at `trace` only — production logs stay
-            // clean while diagnostic builds (RUST_LOG=thetadatadx=trace)
-            // get the drop count without callers having to instrument.
-            out.push_str("        let dropped_events = std::sync::atomic::AtomicU64::new(0);\n\n");
+            // Clone the instance-level `Arc<AtomicU64>` into the closure.
+            // Counter lives on `ThetaDataDx`, so it survives reconnect and
+            // is observable from Python via `tdx.dropped_events()` — a
+            // closure-local `AtomicU64::new(0)` would reset on every
+            // reconnect and would never be reachable from consumers.
+            out.push_str("        let dropped_events = Arc::clone(&self.dropped_events);\n\n");
             out.push_str("        self.tdx\n");
             out.push_str("            .start_streaming(move |event: &fpss::FpssEvent| {\n");
             out.push_str("                let buffered = fpss_event_to_buffered(event);\n");
@@ -1056,7 +1056,12 @@ fn python_streaming_method(method: &MethodSpec) -> String {
                 "                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)\n",
             );
             out.push_str("                        + 1;\n");
-            out.push_str("                    tracing::trace!(\n");
+            // `debug!` is the level ops-teams enable in production when
+            // diagnosing drops. `trace` is too quiet (default filters
+            // strip it); `warn` is too loud for normal shutdown-time
+            // drops. Consumers polling via `dropped_events()` remain the
+            // primary observability path.
+            out.push_str("                    tracing::debug!(\n");
             out.push_str("                        target: \"thetadatadx::sdk::streaming\",\n");
             out.push_str("                        dropped_total = count,\n");
             out.push_str(
@@ -1267,9 +1272,9 @@ fn python_streaming_method(method: &MethodSpec) -> String {
         MethodKind::Reconnect => {
             writeln!(out, "    fn {}(&self) -> PyResult<()> {{", method.name).unwrap();
             out.push_str("        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();\n");
-            // Mirrors `start_streaming` — see comment there for why this
-            // is `trace` and not `warn`.
-            out.push_str("        let dropped_events = std::sync::atomic::AtomicU64::new(0);\n");
+            // Clone the instance-level counter so the drop count survives
+            // reconnect (see `StartStreaming` for the full rationale).
+            out.push_str("        let dropped_events = Arc::clone(&self.dropped_events);\n");
             out.push_str("        self.tdx\n");
             out.push_str("            .reconnect_streaming(move |event: &fpss::FpssEvent| {\n");
             out.push_str("                let buffered = fpss_event_to_buffered(event);\n");
@@ -1279,7 +1284,7 @@ fn python_streaming_method(method: &MethodSpec) -> String {
                 "                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)\n",
             );
             out.push_str("                        + 1;\n");
-            out.push_str("                    tracing::trace!(\n");
+            out.push_str("                    tracing::debug!(\n");
             out.push_str("                        target: \"thetadatadx::sdk::streaming\",\n");
             out.push_str("                        dropped_total = count,\n");
             out.push_str("                        \"fpss event dropped: receiver disconnected (post-reconnect)\",\n");
@@ -2497,12 +2502,12 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             );
             out.push_str("        // under backpressure. Same pattern as the Python SDK.\n");
             out.push_str("        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();\n");
-            // Per-closure counter for trace observability. Shutdown-time
-            // send failures (JS rx dropped before tx closure) are normal,
-            // so emit at `trace` only — production logs stay clean while
-            // diagnostic builds (RUST_LOG=thetadatadx=trace) get the drop
-            // count without callers having to instrument.
-            out.push_str("        let dropped_events = std::sync::atomic::AtomicU64::new(0);\n\n");
+            // Clone the instance-level `Arc<AtomicU64>` into the closure.
+            // Counter lives on `ThetaDataDx`, so it survives reconnect
+            // and is observable from JS via `tdx.droppedEvents()` — a
+            // closure-local `AtomicU64::new(0)` would reset on every
+            // reconnect and be unreachable from consumers.
+            out.push_str("        let dropped_events = Arc::clone(&self.dropped_events);\n\n");
             out.push_str("        self.tdx\n");
             out.push_str("            .start_streaming(move |event: &fpss::FpssEvent| {\n");
             out.push_str("                let buffered = fpss_event_to_buffered(event);\n");
@@ -2512,7 +2517,9 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
                 "                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)\n",
             );
             out.push_str("                        + 1;\n");
-            out.push_str("                    tracing::trace!(\n");
+            // `debug!` is the level ops-teams enable in production when
+            // diagnosing drops (see Python SDK comment for full detail).
+            out.push_str("                    tracing::debug!(\n");
             out.push_str("                        target: \"thetadatadx::sdk::streaming\",\n");
             out.push_str("                        dropped_total = count,\n");
             out.push_str(
@@ -2753,9 +2760,9 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             )
             .unwrap();
             out.push_str("        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();\n");
-            // Mirrors `start_streaming` — see comment there for why this
-            // is `trace` and not `warn`.
-            out.push_str("        let dropped_events = std::sync::atomic::AtomicU64::new(0);\n");
+            // Clone the instance-level counter so the drop count survives
+            // reconnect (see `StartStreaming` for the full rationale).
+            out.push_str("        let dropped_events = Arc::clone(&self.dropped_events);\n");
             out.push_str("        self.tdx\n");
             out.push_str("            .reconnect_streaming(move |event: &fpss::FpssEvent| {\n");
             out.push_str("                let buffered = fpss_event_to_buffered(event);\n");
@@ -2765,7 +2772,7 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
                 "                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)\n",
             );
             out.push_str("                        + 1;\n");
-            out.push_str("                    tracing::trace!(\n");
+            out.push_str("                    tracing::debug!(\n");
             out.push_str("                        target: \"thetadatadx::sdk::streaming\",\n");
             out.push_str("                        dropped_total = count,\n");
             out.push_str("                        \"fpss event dropped: receiver disconnected (post-reconnect)\",\n");

@@ -66,3 +66,20 @@ func (f *FpssClient) Close() {
 		f.handle = nil
 	}
 }
+
+// DroppedEvents returns the cumulative count of FPSS events dropped
+// because the internal receiver was gone (channel disconnected) when
+// the callback tried to deliver. Survives Reconnect.
+//
+// Parity with the Python `tdx.dropped_events()` and TypeScript
+// `tdx.droppedEvents()` getters: ops teams diagnosing silent drops on
+// production Go consumers get a cheap sample path without scraping
+// `RUST_LOG=thetadatadx::ffi::streaming=debug` logs.
+//
+// Safe to call on a nil / closed handle; returns 0 in either case.
+func (f *FpssClient) DroppedEvents() uint64 {
+	if f == nil || f.handle == nil {
+		return 0
+	}
+	return uint64(C.tdx_fpss_dropped_events(f.handle))
+}

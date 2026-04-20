@@ -860,6 +860,11 @@ void tdx_fpss_event_free(TdxFpssEvent* event);
 /** Reconnect FPSS, re-subscribing all previous subscriptions. Returns 0 or -1. */
 int tdx_fpss_reconnect(const TdxFpssHandle* h);
 
+/** Cumulative count of FPSS events dropped because the internal receiver
+ *  was gone when the callback tried to deliver. Survives reconnect.
+ *  Returns 0 if the handle is null. */
+uint64_t tdx_fpss_dropped_events(const TdxFpssHandle* h);
+
 /** Shut down the FPSS client. */
 void tdx_fpss_shutdown(const TdxFpssHandle* h);
 
@@ -951,6 +956,11 @@ const TdxClient* tdx_unified_historical(const TdxUnified* handle);
 
 /** Stop streaming on the unified client. Historical remains available. */
 void tdx_unified_stop_streaming(const TdxUnified* handle);
+
+/** Cumulative count of FPSS events dropped because the unified handle's
+ *  internal receiver was gone when the callback tried to deliver.
+ *  Survives reconnect. Returns 0 if the handle is null. */
+uint64_t tdx_unified_dropped_events(const TdxUnified* handle);
 
 /** Free a unified client handle. */
 void tdx_unified_free(TdxUnified* handle);

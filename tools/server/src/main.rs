@@ -24,6 +24,7 @@ mod format;
 mod handler;
 mod router;
 mod state;
+mod validation;
 mod ws;
 
 use std::net::SocketAddr;
@@ -120,7 +121,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     eprintln!();
     eprintln!("Shutdown token: {shutdown_token}");
     eprintln!(
-        "  curl http://{}:{}/v3/system/shutdown -H 'X-Shutdown-Token: {}'",
+        "  curl -X POST http://{}:{}/v3/system/shutdown -H 'X-Shutdown-Token: {}'",
         args.bind, args.http_port, shutdown_token
     );
 
@@ -211,15 +212,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!(%ws_addr, "WebSocket server starting");
 
     let shutdown_state = state.clone();
+    // `into_make_service_with_connect_info::<SocketAddr>()` is required for
+    // the per-IP rate limiter (`tower_governor::SmartIpKeyExtractor`) to
+    // read the peer address on each request. Without it, the SmartIp key
+    // extractor falls back to rejecting every request as "no client IP".
     let http_server = axum::serve(
         tokio::net::TcpListener::bind(http_addr).await?,
-        http_app.into_make_service(),
+        http_app.into_make_service_with_connect_info::<SocketAddr>(),
     )
     .with_graceful_shutdown(shutdown_signal(shutdown_state.clone()));
 
     let ws_server = axum::serve(
         tokio::net::TcpListener::bind(ws_addr).await?,
-        ws_app.into_make_service(),
+        ws_app.into_make_service_with_connect_info::<SocketAddr>(),
     )
     .with_graceful_shutdown(shutdown_signal(shutdown_state));
 

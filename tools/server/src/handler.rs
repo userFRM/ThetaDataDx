@@ -17,6 +17,7 @@ use thetadatadx::registry::EndpointMeta;
 
 use crate::format;
 use crate::state::AppState;
+use crate::validation;
 
 // ---------------------------------------------------------------------------
 //  Helpers
@@ -55,6 +56,23 @@ fn build_endpoint_args(
     ep: &EndpointMeta,
     params: &HashMap<String, String>,
 ) -> Result<EndpointArgs, EndpointError> {
+    // Length-cap every incoming query-param BEFORE parsing. This bounds
+    // memory-DoS on malicious inputs (`?root=<1 MB string>`) at the edge
+    // and keeps format errors below (`?right=garbage`) surfaced as 400
+    // instead of 500.
+    //
+    // Length checks are server-side and orthogonal to the semantic
+    // validators in `thetadatadx::validate`, which enforce *format*
+    // (digit-count, right vocabulary, strike wildcard) but accept
+    // arbitrarily long strings.
+    //
+    // The generic fallback (`MAX_GENERIC_LEN`) also blocks unknown params
+    // like `?format=<megabytes>` that don't appear in `ep.params` but
+    // could still be passed through `HashMap<String, String>`.
+    for (name, raw) in params {
+        validation::validate_query_param(name, raw)?;
+    }
+
     let mut args = EndpointArgs::new();
     for param in ep.params {
         match params.get(param.name) {
@@ -173,7 +191,11 @@ pub async fn system_fpss_status(State(state): State<AppState>) -> Response {
     json_response(&body)
 }
 
-/// GET /v3/system/shutdown -- requires `X-Shutdown-Token` header.
+/// POST /v3/system/shutdown -- requires `X-Shutdown-Token` header.
+/// Changed from GET in #377 review: shutdown mutates server state, so it
+/// belongs on an idempotent non-cacheable verb. GET would be cached /
+/// prefetched / CSRF-triggered; POST requires an explicit, intentional
+/// client action.
 pub async fn system_shutdown(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let token = headers
         .get("X-Shutdown-Token")

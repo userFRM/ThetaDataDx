@@ -241,13 +241,13 @@ As of v1.2.0:
 | **Source** | Decompiled request builders in `providers/` handlers | `direct.rs` gRPC query construction |
 | **Rationale** | The Java terminal always sends `"nqb"` as the default venue for stock endpoints (snapshots, OHLC, trades, quotes, trade-quotes). This selects NASDAQ Basic (UTP SIP) data, which is the standard consolidated tape for US equities. Previous Rust versions did not set a venue, which caused the server to return data from a different default source. As of v4.2.0, the Rust implementation matches the Java terminal's venue default exactly on all applicable stock endpoints. |
 
-### FPSS TLS Certificate Verification Skip
+### FPSS TLS SPKI Pinning
 
 | | Java | Rust | Impact |
 |---|---|---|---|
-| **Behavior** | `SSLSocketFactory.getDefault()` accepts the expired FPSS certificate | `rustls` with `danger::ServerCertVerifier` disabled (NoVerifier) | Identical behavior |
-| **Source** | `FPSSClient.connect()` via default JSSE | `fpss/connection.rs:tls_client_config()` |
-| **Rationale** | ThetaData's FPSS servers use TLS certificates that have been expired since January 2024. Java's default `SSLSocketFactory` in practice accepts expired certificates without error. Rust's `rustls` strictly validates certificate expiry, causing connection failures. We skip certificate verification for FPSS connections only (not MDDS gRPC, which uses valid certificates) to match the Java terminal's behavior. This is a **pragmatic workaround** for a server-side certificate issue, not a security design choice. |
+| **Behavior** | `SSLSocketFactory.getDefault()` accepts the expired FPSS certificate (full chain trust, but no chain validation failures in practice) | `rustls` with a `PinnedVerifier` that SHA-256-compares the leaf's `SubjectPublicKeyInfo` against a hard-coded digest and enforces a hostname allowlist | Rust is **stricter** than Java: Rust accepts only ThetaData's known public key on known hostnames, while Java would accept any cert the system trust store trusts for those hosts |
+| **Source** | `FPSSClient.connect()` via default JSSE | `fpss/connection.rs:tls_client_config()` + `fpss/pinning.rs:PinnedVerifier` |
+| **Rationale** | ThetaData's FPSS servers use TLS certificates that have been expired since January 2024. The previous Rust implementation disabled certificate verification entirely to work around the expiry, which silently converted the expiry problem into a credential-harvesting MITM hole (FPSS sends email + password in the first frame after the handshake). The current implementation pins on the `SubjectPublicKeyInfo` digest instead: this authenticates the server on its public key alone, without touching the expired `notAfter` field. The pin is captured from `nj-a.thetadata.us:20000` and covers every known FPSS endpoint (prod, dev, stage — same keypair). If ThetaData rotates the keypair, the pin must be re-captured out-of-band, which is the intended human-in-the-loop checkpoint. |
 
 ### Interval Normalization: Shorthand Conversion
 

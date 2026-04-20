@@ -5,7 +5,7 @@ impl ThetaDataDx {
     /// Start FPSS streaming. Events are buffered; poll with next_event().
     fn start_streaming(&self) -> PyResult<()> {
         let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();
-        let dropped_events = std::sync::atomic::AtomicU64::new(0);
+        let dropped_events = Arc::clone(&self.dropped_events);
 
         self.tdx
             .start_streaming(move |event: &fpss::FpssEvent| {
@@ -14,7 +14,7 @@ impl ThetaDataDx {
                     let count = dropped_events
                         .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
                         + 1;
-                    tracing::trace!(
+                    tracing::debug!(
                         target: "thetadatadx::sdk::streaming",
                         dropped_total = count,
                         "fpss event dropped: receiver disconnected",
@@ -228,7 +228,7 @@ impl ThetaDataDx {
     /// Reconnect streaming and re-subscribe all previous subscriptions.
     fn reconnect(&self) -> PyResult<()> {
         let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();
-        let dropped_events = std::sync::atomic::AtomicU64::new(0);
+        let dropped_events = Arc::clone(&self.dropped_events);
         self.tdx
             .reconnect_streaming(move |event: &fpss::FpssEvent| {
                 let buffered = fpss_event_to_buffered(event);
@@ -236,7 +236,7 @@ impl ThetaDataDx {
                     let count = dropped_events
                         .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
                         + 1;
-                    tracing::trace!(
+                    tracing::debug!(
                         target: "thetadatadx::sdk::streaming",
                         dropped_total = count,
                         "fpss event dropped: receiver disconnected (post-reconnect)",

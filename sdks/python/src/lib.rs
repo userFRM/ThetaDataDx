@@ -6,6 +6,7 @@
 use pyo3::exceptions::{PyConnectionError, PyRuntimeError, PyTimeoutError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use std::sync::atomic::AtomicU64;
 use std::sync::OnceLock;
 use std::sync::{Arc, Mutex};
 use tdbe::types::tick;
@@ -263,6 +264,14 @@ struct ThetaDataDx {
     tdx: thetadatadx::ThetaDataDx,
     /// Created lazily when `start_streaming()` is called.
     rx: EventRx,
+    /// Count of FPSS events dropped because the Python polling side
+    /// disconnected before the callback could hand the event off. Lives
+    /// on the struct (not inside the `start_streaming` closure) so the
+    /// counter survives reconnect and is visible to callers via
+    /// [`Self::dropped_events`]. `Arc<AtomicU64>` so each closure gets
+    /// its own clone while they all increment the same underlying
+    /// counter.
+    dropped_events: Arc<AtomicU64>,
 }
 
 #[pymethods]
@@ -292,6 +301,7 @@ impl ThetaDataDx {
         Ok(Self {
             tdx,
             rx: Arc::new(Mutex::new(None)),
+            dropped_events: Arc::new(AtomicU64::new(0)),
         })
     }
 
@@ -415,6 +425,25 @@ impl ThetaDataDx {
     /// languages with a `.kind` switch and identical field names.
     fn next_event_typed(&self, py: Python<'_>, timeout_ms: u64) -> PyResult<Option<Py<PyAny>>> {
         self.next_event(py, timeout_ms)
+    }
+
+    /// Cumulative count of FPSS events dropped because the Python polling
+    /// side disconnected before the FPSS callback could hand them off.
+    ///
+    /// Counter lives on the client instance (not inside the
+    /// `start_streaming` / `reconnect` closures), so:
+    ///
+    /// * the value survives reconnect (otherwise every reconnect would
+    ///   reset observability to zero), and
+    /// * consumers can call ``tdx.dropped_events()`` at any point —
+    ///   before streaming starts (returns 0), during (live count), or
+    ///   after stop/shutdown (post-mortem count).
+    ///
+    /// Enabling ``RUST_LOG=thetadatadx::sdk::streaming=debug`` emits
+    /// per-drop log lines; this getter is the cheap path to sample the
+    /// total without scraping logs.
+    fn dropped_events(&self) -> u64 {
+        self.dropped_events.load(std::sync::atomic::Ordering::Relaxed)
     }
 }
 

@@ -286,7 +286,20 @@ pub(super) fn io_loop<F>(
                     Ok(IoCommand::Shutdown) => {
                         let stop_payload = protocol::build_stop_payload();
                         let writer = reader.get_mut();
-                        let _ = write_raw_frame(writer, StreamMsgType::Stop, &stop_payload);
+                        // Best-effort STOP: we're about to tear down the
+                        // socket anyway, so write failure here is not
+                        // actionable. But silent failure masks half-closed
+                        // sockets and kernel buffer exhaustion -- surface
+                        // the error so operators can diagnose kernel-side
+                        // issues from logs rather than from stream
+                        // truncation alone.
+                        if let Err(e) = write_raw_frame(writer, StreamMsgType::Stop, &stop_payload)
+                        {
+                            tracing::warn!(
+                                error = %e,
+                                "failed to send STOP frame on shutdown"
+                            );
+                        }
                         tracing::debug!("sent STOP, I/O thread exiting");
                         shutdown.store(true, Ordering::Release);
                         break;
@@ -509,7 +522,17 @@ pub(super) fn io_loop<F>(
                 Ok(IoCommand::Shutdown) => {
                     let stop_payload = protocol::build_stop_payload();
                     let writer = reader.get_mut();
-                    let _ = write_raw_frame(writer, StreamMsgType::Stop, &stop_payload);
+                    // Best-effort STOP on the reconnect-path queued
+                    // command drain. Mirror the diagnostic treatment in
+                    // the primary shutdown branch above: log the error so
+                    // half-closed sockets and kernel buffer exhaustion
+                    // are observable in traces.
+                    if let Err(e) = write_raw_frame(writer, StreamMsgType::Stop, &stop_payload) {
+                        tracing::warn!(
+                            error = %e,
+                            "failed to send STOP frame on reconnect-path shutdown"
+                        );
+                    }
                     shutdown.store(true, Ordering::Release);
                     break;
                 }

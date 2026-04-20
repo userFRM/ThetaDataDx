@@ -1,0 +1,86 @@
+# cargo-deny policy for ThetaDataDx.
+#
+# Purpose:
+#   - `advisories`: deny any known CVE / yanked crate / unmaintained dep
+#     in the workspace dependency tree.
+#   - `licenses`:   enforce the OSS license set we can actually ship.
+#   - `bans`:       reject wildcard version requirements on registry
+#                   deps and surface duplicate-version bloat.
+#   - `sources`:    only pull from crates.io; any git source surfaces.
+#
+# Run locally:
+#   cargo install cargo-deny
+#   cargo deny check
+#
+# Every `ignore` entry requires a `# Reason:` comment explaining why the
+# advisory does not apply to our use. No silent pins.
+
+[graph]
+# Check every target triple we actually build against -- the FFI and SDK
+# matrix touches Linux, macOS (aarch64 + x86_64) and both Windows ABIs.
+targets = [
+    { triple = "x86_64-unknown-linux-gnu" },
+    { triple = "aarch64-apple-darwin" },
+    { triple = "x86_64-apple-darwin" },
+    { triple = "x86_64-pc-windows-msvc" },
+    { triple = "x86_64-pc-windows-gnu" },
+]
+all-features = false
+no-default-features = false
+
+[advisories]
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+yanked = "deny"
+# No advisories ignored. If a RUSTSEC fires, fix the dependency — or
+# document the exception here with a concrete `# Reason:` comment.
+ignore = []
+
+[licenses]
+# Workspace crates (tdbe, thetadatadx) are GPL-3.0-or-later. That is NOT
+# denied -- it is OUR license. The allowlist below determines which
+# *dependency* licenses we accept in the tree. Anything unlisted fails.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "CC0-1.0",
+    "Unicode-DFS-2016",
+    "Unicode-3.0",
+    "MPL-2.0",
+    # Reason: webpki-roots 1.x is CDLA-Permissive-2.0. The Community
+    # Data License Agreement - Permissive 2.0 is a data-sharing license
+    # (Linux Foundation) with effectively no copyleft on output; rustls
+    # uses it only for the static Mozilla CA bundle.
+    "CDLA-Permissive-2.0",
+    # Our own workspace crates use GPL-3.0-or-later; allow it so the tree
+    # doesn't fail on the root packages themselves.
+    "GPL-3.0",
+    "GPL-3.0-or-later",
+]
+confidence-threshold = 0.8
+exceptions = []
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# Allow wildcard version requirements on path dependencies (intra-
+# workspace) only. Public crates published to crates.io cannot use
+# path-only deps, so this is safe for `thetadatadx-cli`, `thetadatadx-
+# ffi`, and the SDK shims that pull in `thetadatadx` via path.
+allow-wildcard-paths = true
+highlight = "all"
+# Allow cargo-deny to skip duplicate-version noise rooted at these
+# trees when it is unavoidable (e.g. `syn 1.x` vs `syn 2.x`). Add
+# entries here only after confirming the duplication is upstream.
+skip-tree = []
+
+[sources]
+unknown-registry = "warn"
+unknown-git = "warn"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
