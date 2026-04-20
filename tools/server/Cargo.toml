@@ -35,6 +35,11 @@ tower-http = { version = "0.6.8", features = ["cors"] }
 tower_governor = "0.8.0"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+# `serde_urlencoded` parses the raw query string inside the custom
+# `BoundedQuery` extractor. It's already in-tree as an axum transitive
+# dep; the direct dependency here keeps the extractor self-contained
+# and immune to future axum internals shifting.
+serde_urlencoded = "0.7.1"
 clap = { version = "4.6.1", features = ["derive"] }
 uuid = { version = "1.23.1", features = ["v4"] }
 

@@ -22,7 +22,7 @@ for t in &data {
 ```python [Python]
 data = tdx.stock_history_trade_quote("SPY", "20260315")
 for t in data:
-    print(f"date={t.date} ms_of_day={t.ms_of_day} trade_price={t['trade_price']:.2f} "
+    print(f"date={t.date} ms_of_day={t.ms_of_day} trade_price={t.trade_price:.2f} "
           f"size={t.size} bid={t.bid:.2f} ask={t.ask:.2f} exchange={t.exchange}")
 ```
 ```typescript [TypeScript]

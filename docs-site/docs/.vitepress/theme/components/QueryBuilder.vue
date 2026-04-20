@@ -627,12 +627,12 @@ symbol = "${sym()}"
 # EOD bars (date range)
 eod = tdx.stock_history_eod(symbol, "${startDate()}", "${endDate()}")
 for tick in eod:
-    print(f"{tick['date']}: open={tick['open']} high={tick['high']} low={tick['low']} close={tick['close']} vol={tick['volume']}")
+    print(f"{tick.date}: open={tick.open} high={tick.high} low={tick.low} close={tick.close} vol={tick.volume}")
 
 # Intraday OHLC (interval: ${interval()})
 ohlc = tdx.stock_history_ohlc(symbol, "${endDate()}", "${interval()}")
 for tick in ohlc:
-    print(f"{tick['date']} ms={tick['ms_of_day']}: open={tick['open']} close={tick['close']} vol={tick['volume']}")`
+    print(f"{tick.date} ms={tick.ms_of_day}: open={tick.open} close={tick.close} vol={tick.volume}")`
 
     case 'option_chain_snapshot': return `${h}
 
@@ -805,12 +805,12 @@ right  = "${right()}"  # "C" for call, "P" for put
 ticks = tdx.option_history_greeks_all(symbol, exp, strike, right, "${singleDate()}", "${interval()}")
 for tick in ticks:
     print(
-        f"{tick['date']} ms={tick['ms_of_day']:>8}: "
-        f"iv={tick['implied_volatility']:.4f}  "
-        f"delta={tick['delta']:+.4f}  "
-        f"gamma={tick['gamma']:.6f}  "
-        f"theta={tick['theta']:+.4f}  "
-        f"vega={tick['vega']:.4f}"
+        f"{tick.date} ms={tick.ms_of_day:>8}: "
+        f"iv={tick.implied_volatility:.4f}  "
+        f"delta={tick.delta:+.4f}  "
+        f"gamma={tick.gamma:.6f}  "
+        f"theta={tick.theta:+.4f}  "
+        f"vega={tick.vega:.4f}"
     )
 
 print(f"\\nTotal ticks: {len(ticks)}")`
@@ -843,8 +843,8 @@ for trading_date in exps:
     trades = tdx.stock_history_trade(symbol, trading_date)
     for t in trades:
         # Round price to nearest $0.25 bucket
-        bucket = round(t["price"] * 4) / 4
-        price_buckets[bucket] += t["size"]
+        bucket = round(t.price * 4) / 4
+        price_buckets[bucket] += t.size
 
 # Sort and display
 sorted_profile = sorted(price_buckets.items())
@@ -898,7 +898,7 @@ while True:
     event = tdx.next_event(timeout_ms=5000)
     if event is None:
         continue
-    if event.kind == "contract_assigned":
+    if event.kind == "simple" and event.event_type == "contract_assigned":
         contracts[event.id] = event.detail
     elif event.kind == "quote":
         name   = contracts.get(event.contract_id, "?")
@@ -926,7 +926,7 @@ while True:
     event = tdx.next_event(timeout_ms=5000)
     if event is None:
         continue
-    if event.kind == "contract_assigned":
+    if event.kind == "simple" and event.event_type == "contract_assigned":
         contracts[event.id] = event.detail
     elif event.kind == "trade":
         name  = contracts.get(event.contract_id, "?")
@@ -954,7 +954,7 @@ while True:
     event = tdx.next_event(timeout_ms=5000)
     if event is None:
         continue
-    if event.kind == "contract_assigned":
+    if event.kind == "simple" and event.event_type == "contract_assigned":
         contracts[event.id] = event.detail
     elif event.kind == "trade":
         contract = contracts.get(event.contract_id, "?")
@@ -988,7 +988,7 @@ while True:
     event = tdx.next_event(timeout_ms=5000)
     if event is None:
         continue
-    if event.kind == "contract_assigned":
+    if event.kind == "simple" and event.event_type == "contract_assigned":
         contracts[event.id] = event.detail
     elif event.kind == "quote":
         name = contracts.get(event.contract_id, "?")

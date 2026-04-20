@@ -396,8 +396,12 @@ while True:
     if event is None:
         continue
 
-    if event.kind == "contract_assigned":
-        contracts[event.id] = event.contract
+    # Control events flatten into `Simple` pyclass — `event.kind`
+    # is "simple" and `event.event_type` carries the concrete variant.
+    # `event.detail` holds the formatted contract string for
+    # contract_assigned; `event.id` is the contract_id.
+    if event.kind == "simple" and event.event_type == "contract_assigned":
+        contracts[event.id] = event.detail
     elif event.kind == "quote":
         name = contracts.get(event.contract_id, "?")
         print(f"[QUOTE] {name}: bid={event.bid} ask={event.ask}")

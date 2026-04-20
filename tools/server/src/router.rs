@@ -99,12 +99,11 @@ pub fn build(state: AppState) -> Router {
     for ep in ENDPOINTS {
         let ep_arc: &'static EndpointMeta = ep;
         let ep_shared = Arc::new(ep_arc);
-        let handler_fn =
-            move |s: axum::extract::State<AppState>,
-                  q: axum::extract::Query<std::collections::HashMap<String, String>>| {
-                let ep = Arc::clone(&ep_shared);
-                async move { handler::generic(s, q, &ep).await }
-            };
+        let handler_fn = move |s: axum::extract::State<AppState>,
+                               q: handler::BoundedQuery<{ handler::MAX_QUERY_PARAMS }>| {
+            let ep = Arc::clone(&ep_shared);
+            async move { handler::generic(s, q, &ep).await }
+        };
         app = app.route(ep.rest_path, get(handler_fn));
         registered += 1;
         tracing::debug!(endpoint = ep.name, path = ep.rest_path, "registered route");

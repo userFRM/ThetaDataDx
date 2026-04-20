@@ -122,7 +122,7 @@ chain = tdx.option_history_eod("SPY", exp, "*", "C",
 
 # Each row has contract ID fields (expiration, strike, right)
 for row in chain[:5]:
-    print(f"strike={row['strike']:.2f} close={row['close']:.2f} vol={row['volume']}")
+    print(f"strike={row.strike:.2f} close={row.close:.2f} vol={row.volume}")
 ```
 
 ---
@@ -160,8 +160,10 @@ for t in &trades {
 # Wildcard: all SPY call contracts on a given date
 trades = client.option_history_trade("SPY", "0", "0", "C", "20240315")
 for t in trades:
-    if "expiration" in t:
-        print(f"{t['expiration']} {t['right']} strike={t['strike']:.2f} price={t['price']:.4f}")
+    # `expiration` / `strike` / `right` are only populated on option tick
+    # types — stock tick rows leave them at the pyclass default.
+    if t.expiration:
+        print(f"{t.expiration} {t.right} strike={t.strike:.2f} price={t.price:.4f}")
 ```
 :::
 

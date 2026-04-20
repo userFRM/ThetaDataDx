@@ -25,7 +25,7 @@ for t in &data {
 data = tdx.stock_at_time_quote("SPY", "20260101", "20260301", "09:30:00.000")
 for t in data:
     print(f"date={t.date} ms_of_day={t.ms_of_day} "
-          f"bid={t.bid:.2f} ask={t.ask:.2f} midpoint={t['midpoint']:.2f}")
+          f"bid={t.bid:.2f} ask={t.ask:.2f} midpoint={t.midpoint:.2f}")
 ```
 ```typescript [TypeScript]
 const data = tdx.stockAtTimeQuote('SPY', '20260101', '20260301', '09:30:00.000');

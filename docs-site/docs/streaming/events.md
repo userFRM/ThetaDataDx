@@ -82,14 +82,18 @@ while True:
     if event is None:
         continue  # timeout, no event
 
-    # Control events
-    if event.kind == "contract_assigned":
-        contracts[event.id] = event.contract
-        print(f"Contract {event.id} = {event.contract}")
+    # Control / diagnostic events flatten into a single `Simple` pyclass
+    # with `kind == "simple"` and an `event_type` discriminator. The
+    # contract payload is serialized into `detail` (formatted string like
+    # "AAPL 20260417 550 C"); `id` carries the contract_id / req_id /
+    # reconnect attempt number where applicable.
+    if event.kind == "simple" and event.event_type == "contract_assigned":
+        contracts[event.id] = event.detail
+        print(f"Contract {event.id} = {event.detail}")
         continue
 
-    if event.kind == "login_success":
-        print(f"Logged in: {getattr(event, 'detail', None)}")
+    if event.kind == "simple" and event.event_type == "login_success":
+        print(f"Logged in: {event.detail}")
         continue
 
     # Data events -- all carry received_at_ns
@@ -113,8 +117,8 @@ while True:
               f"O={event.open} H={event.high} L={event.low} C={event.close} "
               f"vol={event.volume} n={event.count}")
 
-    elif event.kind == "disconnected":
-        print(f"Disconnected: {getattr(event, 'detail', None)}")
+    elif event.kind == "simple" and event.event_type == "disconnected":
+        print(f"Disconnected: {event.detail}")
         break
 ```
 ```go [Go]
@@ -379,10 +383,13 @@ Price fields (`Bid`, `Ask`, `Price`, `Open`, `High`, `Low`, `Close`) are `float6
 
 `next_event(timeout_ms)` returns a typed pyclass object (`Quote`, `Trade`, `Ohlcvc`, `OpenInterest`, `Simple`, or `RawData`) with attribute access:
 
-- `event.kind` -- string: `"quote"`, `"trade"`, `"open_interest"`, `"ohlcvc"`, `"login_success"`, `"contract_assigned"`, `"req_response"`, `"market_open"`, `"market_close"`, `"server_error"`, `"disconnected"`, `"error"`
-- Price fields in quotes and trades are pre-decoded to `float` (bid, ask, price, open, high, low, close)
-- All data events include `received_at_ns` as an integer
-- Variant-specific fields (e.g. `contract_id`, `bid`, `price`) exist only on data variants -- use `getattr(event, "contract_id", None)` when walking mixed streams
+- `event.kind` -- string discriminator for the TOP-LEVEL pyclass: `"quote"`, `"trade"`, `"open_interest"`, `"ohlcvc"`, `"simple"`, or `"raw_data"`.
+- Concrete control-event names (`"login_success"`, `"contract_assigned"`, `"req_response"`, `"market_open"`, `"market_close"`, `"server_error"`, `"disconnected"`, `"reconnecting"`, `"reconnected"`, `"error"`, `"unknown_frame"`, `"unknown_event"`) live on `Simple.event_type`. Branch with `event.kind == "simple" and event.event_type == "<name>"`.
+- `Simple.detail` (Optional[str]) — free-form diagnostic payload; holds the contract-string for `contract_assigned`.
+- `Simple.id` (Optional[int]) — contract_id / req_id / reconnect attempt number where applicable.
+- Price fields in quotes and trades are pre-decoded to `float` (bid, ask, price, open, high, low, close).
+- All data events include `received_at_ns` as an integer.
+- Variant-specific fields (e.g. `contract_id`, `bid`, `price`) exist only on data variants — use `getattr(event, "contract_id", None)` when walking mixed streams.
 
 ## Streaming Methods Reference
 

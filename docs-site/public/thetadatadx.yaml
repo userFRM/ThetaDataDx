@@ -3434,20 +3434,46 @@ components:
               description: Nanosecond monotonic receipt timestamp
         - type: object
           description: |
-            Control message from FPSS (stream lifecycle signals).
-            `kind` here is a small int32 discriminator (0..=12) —
-            not the top-level variant discriminator.
+            Control / diagnostic event (FPSS stream lifecycle). SDKs flatten
+            every `FpssControl` variant into a single `Simple` pyclass / TS
+            object with `kind: "simple"` and an `event_type` discriminator.
+            Use `event_type` to branch on the concrete variant; `detail` is
+            a free-form diagnostic string; `id` is the contract_id / req_id
+            / reconnect-attempt number where applicable.
           properties:
             kind:
-              type: integer
-              format: int32
-              description: Control-message discriminator (0..=12)
-            id:
-              type: integer
-              format: int32
+              type: string
+              enum: [simple]
+              description: Top-level variant discriminator — always "simple" for control events.
+            event_type:
+              type: string
+              enum:
+                - login_success
+                - contract_assigned
+                - req_response
+                - market_open
+                - market_close
+                - server_error
+                - disconnected
+                - reconnecting
+                - reconnected
+                - error
+                - unknown_frame
+                - unknown_event
+              description: Concrete control-event name.
             detail:
               type: string
               nullable: true
+              description: Free-form diagnostic payload; `null` for variants with no payload.
+            id:
+              type: integer
+              format: int32
+              nullable: true
+              description: contract_id / req_id / reconnect attempt number (variant-specific).
+            received_at_ns:
+              type: integer
+              format: int64
+              description: Nanosecond monotonic receipt timestamp
         - type: object
           description: |
             Raw (non-decoded) FPSS payload. `payload` is a base64-encoded
@@ -3459,8 +3485,10 @@ components:
               enum: [raw_data]
             code:
               type: integer
-              format: uint8
-              description: FPSS frame code
+              format: int32
+              minimum: 0
+              maximum: 255
+              description: Wire byte code (0-255). Original FPSS protocol uses unsigned 8-bit.
             payload:
               type: string
               description: Base64-encoded raw bytes

@@ -542,12 +542,14 @@ async fn handle_client_message(state: &AppState, text: &str, socket: &mut WebSoc
 // ---------------------------------------------------------------------------
 
 /// Peek the contract for an event's `contract_id`, if any, while briefly
-/// holding the shared contract-map lock. Returns a cloned `Contract` so the
-/// lock can be released before the (O(fields)) JSON serialization runs.
+/// holding the shared contract-map lock. Returns an `Arc<Contract>` so the
+/// lock can be released before the (O(fields)) JSON serialization runs —
+/// cloning the `Arc` is a refcount bump, not a heap allocation on the
+/// `Contract::root: String`.
 fn lookup_event_contract(
     event: &FpssEvent,
-    contract_map: &Mutex<HashMap<i32, Contract>>,
-) -> Option<Contract> {
+    contract_map: &Mutex<HashMap<i32, Arc<Contract>>>,
+) -> Option<Arc<Contract>> {
     let cid = match event {
         FpssEvent::Data(FpssData::Quote { contract_id, .. })
         | FpssEvent::Data(FpssData::Trade { contract_id, .. })
@@ -763,13 +765,13 @@ fn contract_to_json(c: &Contract) -> sonic_rs::Value {
 /// The Disruptor callback runs on a blocking consumer thread and must stay
 /// cheap. It only: (1) updates the contract map and connection flags,
 /// (2) peeks the event's current contract under the map lock, and
-/// (3) hands a cloned event + peeked contract snapshot to an unbounded
-/// channel. A dedicated tokio task serializes the JSON and fans out to
-/// every WS client.
+/// (3) hands a cloned event + peeked `Arc<Contract>` snapshot to an
+/// unbounded channel. A dedicated tokio task serializes the JSON and fans
+/// out to every WS client.
 ///
 /// # TOCTOU safety
 ///
-/// The `(FpssEvent, Option<Contract>)` tuple pins the contract snapshot
+/// The `(FpssEvent, Option<Arc<Contract>>)` tuple pins the contract snapshot
 /// captured **at the exact moment the callback thread saw the event**.
 /// Before this change, the broadcast task re-looked up the contract just
 /// before serialization — which meant a concurrent map `clear()` triggered
@@ -777,9 +779,17 @@ fn contract_to_json(c: &Contract) -> sonic_rs::Value {
 /// contract and silently producing `{"id": N}` JSON with no root / strike /
 /// right. That silent degradation is unacceptable across market-close /
 /// reconnect boundaries. Peeking-before-send removes the race entirely:
-/// the cloned `Contract` value is immune to subsequent map mutations.
+/// the `Arc<Contract>` refcount holds the snapshot alive even after the
+/// map is cleared or rewritten.
+///
+/// # Hot-path cost
+///
+/// Values in the contract map are stored as `Arc<Contract>`. The per-event
+/// snapshot `Arc::clone` is a single refcount bump — no heap allocation,
+/// no `String::clone` on `Contract::root`. At 100k events/sec this is the
+/// difference between zero hot-path allocations and 100k `String` allocs/sec.
 pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
-    let contract_map: Arc<Mutex<HashMap<i32, Contract>>> = state.contract_map();
+    let contract_map: Arc<Mutex<HashMap<i32, Arc<Contract>>>> = state.contract_map();
     let map_for_cb = Arc::clone(&contract_map);
     let state_for_cb = state.clone();
     let state_for_task = state.clone();
@@ -791,9 +801,11 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
     // Per-tick clone is intentionally cheap: `FpssData::{Quote,Trade,Ohlcvc,
     // OpenInterest}` carry only primitives plus `Arc<str>` for symbol, so
     // `event.clone()` is a field copy + refcount bump — not a heap allocation
-    // on the hot path. The `Option<Contract>` tail is an `Arc<str>` for the
-    // root plus a few primitives, same cost profile.
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<(FpssEvent, Option<Contract>)>();
+    // on the hot path. The `Option<Arc<Contract>>` tail is a refcount bump on
+    // a shared `Contract` already in the map, not a fresh `Contract` clone
+    // (which would allocate the `root: String` per event).
+    let (tx, mut rx) =
+        tokio::sync::mpsc::unbounded_channel::<(FpssEvent, Option<Arc<Contract>>)>();
 
     // Observability counter for the `tx.send` drop path below. Lives on the
     // callback closure so it survives the Disruptor consumer thread's
@@ -806,7 +818,9 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
         while let Some((event, peeked)) = rx.recv().await {
             // Snapshot already taken on the callback thread — just encode
             // and broadcast. No map lock acquired in the broadcast task.
-            let json = fpss_event_to_ws_json(&event, peeked.as_ref());
+            // Borrow through the `Arc` (deref) so the serializer sees the
+            // same `&Contract` it always did.
+            let json = fpss_event_to_ws_json(&event, peeked.as_deref());
             if let Some(ws_json) = json {
                 let msg: Arc<str> = Arc::from(ws_json);
                 state_for_task.broadcast_ws(msg).await;
@@ -824,7 +838,13 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
             // panicked, the map state may be partial but that is strictly
             // less bad than losing every subsequent symbol assignment.
             let mut map = map_for_cb.lock().unwrap_or_else(|e| e.into_inner());
-            map.insert(*id, contract.clone());
+            // One `Contract::clone` on INSERT (rare — only on contract
+            // assignment), then every subsequent per-event lookup is an
+            // `Arc::clone` (refcount bump). This is the key perf win
+            // vs the old `HashMap<i32, Contract>` that forced a
+            // `Contract::clone` (with `String::clone` of `root`) on every
+            // single event.
+            map.insert(*id, Arc::new(contract.clone()));
         }
 
         // Update connection status.
@@ -949,12 +969,12 @@ mod tests {
 
     #[test]
     fn contract_snapshot_survives_concurrent_map_clear() {
-        let map: Arc<Mutex<HashMap<i32, Contract>>> = Arc::new(Mutex::new(HashMap::new()));
+        let map: Arc<Mutex<HashMap<i32, Arc<Contract>>>> = Arc::new(Mutex::new(HashMap::new()));
 
         // Pre-populate the map with a contract the event will reference.
         {
             let contract = Contract::stock("AAPL");
-            map.lock().unwrap().insert(42, contract);
+            map.lock().unwrap().insert(42, Arc::new(contract));
         }
 
         // Construct an event whose contract_id matches the pre-populated
@@ -974,8 +994,9 @@ mod tests {
         map.lock().unwrap().clear();
 
         // With the fix, the peeked snapshot still carries the full
-        // contract — serialization must succeed with root = "AAPL".
-        let json = fpss_event_to_ws_json(&event, peeked.as_ref())
+        // contract via the Arc refcount — serialization must succeed
+        // with root = "AAPL".
+        let json = fpss_event_to_ws_json(&event, peeked.as_deref())
             .expect("serialization must succeed with peeked contract");
         assert!(
             json.contains("\"root\":\"AAPL\""),
@@ -993,5 +1014,31 @@ mod tests {
         let json = fpss_event_to_ws_json(&event, None)
             .expect("serialization must succeed with no contract");
         assert!(json.contains("\"id\":99"));
+    }
+
+    // -----------------------------------------------------------------------
+    //  Hot-path: Arc<Contract> clone is a refcount bump, not a heap alloc
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn arc_contract_clone_is_refcount_bump_not_string_alloc() {
+        // Prove the structural claim: the map stores `Arc<Contract>`, so
+        // `lookup_event_contract` returns an `Arc` that shares the SAME
+        // heap allocation as the map entry. Before the fix, the lookup
+        // returned a freshly-cloned `Contract` (new `String` heap alloc
+        // per event). This test pins the invariant: same backing pointer.
+        let map: Arc<Mutex<HashMap<i32, Arc<Contract>>>> = Arc::new(Mutex::new(HashMap::new()));
+        let contract = Arc::new(Contract::stock("AAPL"));
+        let original_ptr = Arc::as_ptr(&contract);
+        map.lock().unwrap().insert(7, Arc::clone(&contract));
+
+        let event = make_quote(7);
+        let peeked = lookup_event_contract(&event, &map).expect("peek must succeed");
+        assert_eq!(
+            Arc::as_ptr(&peeked),
+            original_ptr,
+            "lookup must return an Arc pointing at the SAME Contract heap cell — \
+             a different pointer means we regressed to per-event Contract::clone"
+        );
     }
 }

@@ -132,7 +132,7 @@ while True:
     elif event.kind == "trade":
         print(f"Trade: contract={event.contract_id} "
               f"price={event.price:.2f} size={event.size}")
-    elif event.kind == "disconnected":
+    elif event.kind == "simple" and event.event_type == "disconnected":
         break
 
 tdx.stop_streaming()

@@ -2372,6 +2372,7 @@ dependencies = [
  "clap",
  "rustls",
  "serde",
+ "serde_urlencoded",
  "sonic-rs",
  "subtle",
  "tdbe",
