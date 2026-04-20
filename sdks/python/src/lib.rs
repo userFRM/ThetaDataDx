@@ -222,14 +222,14 @@ impl Config {
     }
 }
 
-// ── Tick converters + typed pyclasses (generated from tick_schema.toml) ──
+// ── Typed-pyclass tick definitions (generated from tick_schema.toml) ──
 //
-// `tick_columnar.rs` is used internally by DataFrame wrappers (pandas
-// ingest path). `tick_classes.rs` is the primary return path for all
-// historical endpoints — matches the typed-struct approach used by Rust
-// core, TypeScript, Go, and C++ FFI.
-
-include!("tick_columnar.rs");
+// `tick_classes.rs` is the sole return path for every historical
+// endpoint — matches the typed-struct approach used by Rust core,
+// TypeScript, Go, and C++ FFI. The previous specialized PyDict-returning
+// `*_ticks_to_columnar` helpers (in a since-deleted `tick_columnar.rs`)
+// were a second, redundant fast-path; users now get a pandas DataFrame
+// by chaining `thetadatadx.to_dataframe(client.stock_history_eod(...))`.
 
 include!("tick_classes.rs");
 
@@ -311,76 +311,21 @@ impl ThetaDataDx {
         })
     }
 
-    // ── DataFrame convenience wrappers ──
+    // ── DataFrame helper ──
     //
-    // Intentional exception: hand-written convenience methods wrapping generated
-    // endpoints + dicts_to_dataframe(). Only the most common endpoints get _df
-    // variants; users can call to_dataframe() on any endpoint result themselves.
-    // Not generated because emitting _df for all 44 tick-returning endpoints
-    // would be API noise with no SSOT benefit.
-
-    /// Fetch stock EOD history and return a pandas DataFrame.
-    fn stock_history_eod_df(
-        &self,
-        py: Python<'_>,
-        symbol: &str,
-        start_date: &str,
-        end_date: &str,
-    ) -> PyResult<Py<PyAny>> {
-        // Go straight through the Rust SDK → `*_to_columnar` helper so we
-        // avoid the pyclass allocation + __dir__ pivot round-trip.
-        let ticks = run_blocking(py, async move {
-            self.tdx
-                .stock_history_eod(symbol, start_date, end_date)
-                .await
-        })?;
-        let columnar = eod_ticks_to_columnar(py, &ticks);
-        columnar_to_dataframe(py, columnar)
-    }
-
-    /// Fetch stock OHLC history and return a pandas DataFrame.
-    fn stock_history_ohlc_df(
-        &self,
-        py: Python<'_>,
-        symbol: &str,
-        date: &str,
-        interval: &str,
-    ) -> PyResult<Py<PyAny>> {
-        let ticks = run_blocking(py, async move {
-            self.tdx.stock_history_ohlc(symbol, date, interval).await
-        })?;
-        let columnar = ohlc_ticks_to_columnar(py, &ticks);
-        columnar_to_dataframe(py, columnar)
-    }
-
-    /// Fetch stock trade history and return a pandas DataFrame.
-    fn stock_history_trade_df(
-        &self,
-        py: Python<'_>,
-        symbol: &str,
-        date: &str,
-    ) -> PyResult<Py<PyAny>> {
-        let ticks = run_blocking(py, async move {
-            self.tdx.stock_history_trade(symbol, date).await
-        })?;
-        let columnar = trade_ticks_to_columnar(py, &ticks);
-        columnar_to_dataframe(py, columnar)
-    }
-
-    /// Fetch stock quote history and return a pandas DataFrame.
-    fn stock_history_quote_df(
-        &self,
-        py: Python<'_>,
-        symbol: &str,
-        date: &str,
-        interval: &str,
-    ) -> PyResult<Py<PyAny>> {
-        let ticks = run_blocking(py, async move {
-            self.tdx.stock_history_quote(symbol, date, interval).await
-        })?;
-        let columnar = quote_ticks_to_columnar(py, &ticks);
-        columnar_to_dataframe(py, columnar)
-    }
+    // Previously offered per-endpoint `*_df(...)` convenience methods
+    // (stock_history_eod_df / ohlc_df / trade_df / quote_df) that
+    // bypassed the typed pyclass layer via specialized `Py<PyDict>`
+    // (dict-of-lists) helpers in a generated `tick_columnar.rs`. That
+    // path was an SSOT violation (two typed/untyped paths) and a
+    // PyDict leak into the public Python API. Removed. The unified
+    // path is:
+    //
+    //   ticks = client.stock_history_eod("AAPL", "20240101", "20240301")
+    //   df    = thetadatadx.to_dataframe(ticks)
+    //
+    // Same work, one clear path, typed pyclass as the sole endpoint
+    // return — exactly what the cross-SDK contract promises.
 
     fn __repr__(&self) -> String {
         let streaming = if self.tdx.is_streaming() {
@@ -467,28 +412,36 @@ include!("streaming_methods.rs");
 
 include!("historical_methods.rs");
 
-// ── pandas DataFrame helpers ──
+// ── pandas DataFrame / polars adapter ──
+//
+// Single source of `PyDict` in the Python SDK. Scope: `pandas.DataFrame`
+// and `polars.DataFrame` both consume dict-of-lists natively as their
+// constructor input. There is no public-API PyDict — every endpoint
+// return is a typed `#[pyclass]`, every FPSS event is a typed
+// `#[pyclass]`, every utility (greeks / IV) is a typed `#[pyclass]`.
+// The dict below exists exactly between `list[TickClass]` and pandas'
+// `pd.DataFrame(dict)` entry point and is never surfaced to Python
+// users.
 
-/// Convert a list of typed tick pyclasses into a columnar dict of lists.
+/// Internal-only pandas / polars adapter.
 ///
-/// Historical endpoints return `list[TickClass]` (typed pyclass objects,
-/// matching Rust/TS/Go/C++). For DataFrame construction we need the same
-/// dict-of-lists shape pandas consumes natively; this helper does the
-/// one pivot.
+/// Pivots `list[TickClass]` into the `dict[str, list]` shape that
+/// `pandas.DataFrame(...)` / `polars.DataFrame(...)` accept as native
+/// constructor input. **This is the sole `PyDict` allocation in the
+/// Python SDK** — it is private, never exposed to Python users, and
+/// the intermediate dict is immediately consumed by pandas / polars.
 ///
-/// Column names and order come from `tick_classes::columns_for_qualname`
-/// (generated from `crates/thetadatadx/tick_schema.toml`), not from
-/// Python-side reflection. This guarantees:
+/// Column names and order come from `columns_for_qualname` (generated
+/// from `crates/thetadatadx/tick_schema.toml`), not from Python-side
+/// reflection. This guarantees:
 ///
 /// 1. **Deterministic column order** across PyO3 versions — `__dir__`
 ///    ordering is interpreter-dependent.
 /// 2. **Empty-list schema preservation** — if the caller knows the expected
 ///    tick type at compile time, it can pass `empty_qualname_hint` so
 ///    pandas/polars still see the correct column set (and can infer dtypes
-///    on insert) when the result set is empty. When no hint is provided
-///    and the list is empty, this returns an empty dict — matching the
-///    legacy behaviour for generic callers that don't know the type.
-fn pyclass_list_to_columnar<'py>(
+///    on insert) when the result set is empty.
+fn tick_list_to_pandas_input<'py>(
     py: Python<'py>,
     ticks: &Bound<'py, pyo3::types::PyList>,
     empty_qualname_hint: Option<&str>,
@@ -508,7 +461,7 @@ fn pyclass_list_to_columnar<'py>(
             Some(cols) => cols,
             None => {
                 return Err(PyRuntimeError::new_err(format!(
-                    "pyclass_list_to_columnar: unknown tick type `{qualname}` — \
+                    "tick_list_to_pandas_input: unknown tick type `{qualname}` — \
                      expected a value from `thetadatadx`'s typed tick classes"
                 )));
             }
@@ -523,20 +476,6 @@ fn pyclass_list_to_columnar<'py>(
         out.set_item(*name, col)?;
     }
     Ok(out)
-}
-
-/// Internal helper: convert a generated columnar dict (dict-of-lists, as
-/// produced by the schema-generated `*_to_columnar` converters) into a
-/// pandas DataFrame. Used by the `*_df` convenience wrappers so they can
-/// skip the pyclass-list round-trip and the slower `__dir__` pivot.
-fn columnar_to_dataframe(py: Python<'_>, columnar: Py<PyAny>) -> PyResult<Py<PyAny>> {
-    let pandas = py.import("pandas").map_err(|_| {
-        pyo3::exceptions::PyImportError::new_err(
-            "pandas is required for DataFrame conversion. Install with: pip install pandas",
-        )
-    })?;
-    let df = pandas.call_method1("DataFrame", (columnar,))?;
-    Ok(df.unbind())
 }
 
 /// Internal helper: convert a list of tick pyclasses into a pandas DataFrame.
@@ -556,7 +495,7 @@ fn pyclass_list_to_dataframe(py: Python<'_>, ticks: Py<PyAny>) -> PyResult<Py<Py
     // empty dict (legacy behaviour). Callers that know the type statically
     // (e.g. per-endpoint helpers) can pass the qualname to preserve the
     // schema on empty results.
-    let columnar = pyclass_list_to_columnar(py, list, None)?;
+    let columnar = tick_list_to_pandas_input(py, list, None)?;
     let df = pandas.call_method1("DataFrame", (columnar,))?;
     Ok(df.unbind())
 }
@@ -598,7 +537,7 @@ fn to_polars(py: Python<'_>, ticks: Py<PyAny>) -> PyResult<Py<PyAny>> {
         .map_err(|_| PyValueError::new_err("to_polars() expects a list of typed tick objects"))?;
     // See `pyclass_list_to_dataframe` for the `None` rationale — generic
     // entry point, tick type is not known at compile time.
-    let columnar = pyclass_list_to_columnar(py, list, None)?;
+    let columnar = tick_list_to_pandas_input(py, list, None)?;
     let df = polars.call_method1("DataFrame", (columnar,))?;
     Ok(df.unbind())
 }
