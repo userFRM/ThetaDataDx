@@ -19,61 +19,66 @@ Artifact: `artifacts/validator_cli.json`.
 
 ### Stock
 
+Tier column mirrors the `min_tier` declarations in `scripts/validate_cli.py`
+(which in turn reflect `endpoint_surface.toml`). No stock RPC in
+`proto/external.proto` is gated behind `professional` — the Stock Pro
+subscription upgrades data content, not the endpoint list.
+
 | Endpoint | Tier | Status |
 |----------|------|--------|
 | `stock_list_symbols()` | Free | Verified |
 | `stock_list_dates(req, sym)` | Free | Verified |
-| `stock_history_eod(sym, start, end)` | Standard | Verified |
-| `stock_history_ohlc(sym, date, interval)` | Standard | Verified |
-| `stock_history_ohlc_range(sym, start, end, interval)` | Standard | Verified |
+| `stock_history_eod(sym, start, end)` | Free | Verified |
+| `stock_history_ohlc(sym, date, interval)` | Value | Verified |
+| `stock_history_ohlc_range(sym, start, end, interval)` | Value | Verified |
 | `stock_history_trade(sym, date)` | Standard | Verified |
-| `stock_history_quote(sym, date)` | Standard | Verified |
+| `stock_history_quote(sym, date)` | Value | Verified |
 | `stock_history_trade_quote(sym, date)` | Standard | Verified |
-| `stock_snapshot_ohlc(sym)` | Standard | Verified |
+| `stock_snapshot_ohlc(sym)` | Value | Verified |
 | `stock_snapshot_trade(sym)` | Standard | Verified |
-| `stock_snapshot_quote(sym)` | Standard | Verified |
-| `stock_snapshot_market_value(sym)` | Value | Not tested (account lacks tier) |
+| `stock_snapshot_quote(sym)` | Value | Verified |
+| `stock_snapshot_market_value(sym)` | Standard | Verified |
 | `stock_at_time_trade(sym, date, time)` | Standard | Verified |
-| `stock_at_time_quote(sym, date, time)` | Standard | Verified |
+| `stock_at_time_quote(sym, date, time)` | Value | Verified |
 
 ### Option
 
 | Endpoint | Tier | Status |
 |----------|------|--------|
 | `option_list_symbols()` | Free | Verified |
-| `option_list_contracts(req, sym, date)` | Standard | Verified |
-| `option_list_expirations(sym)` | Standard | Verified |
-| `option_list_strikes(sym, exp)` | Standard | Verified |
-| `option_list_dates(req, sym, exp, strike, right)` | Standard | Verified |
-| `option_history_eod(...)` | Standard | Verified (concrete + bulk_chain + all_strikes_one_exp) |
-| `option_history_ohlc(...)` | Standard | Verified (concrete + bulk_chain + all_strikes_one_exp) |
+| `option_list_contracts(req, sym, date)` | Value | Verified |
+| `option_list_expirations(sym)` | Free | Verified |
+| `option_list_strikes(sym, exp)` | Free | Verified |
+| `option_list_dates(req, sym, exp, strike, right)` | Free | Verified |
+| `option_history_eod(...)` | Free | Verified (concrete + bulk_chain + all_strikes_one_exp) |
+| `option_history_ohlc(...)` | Value | Verified (concrete + bulk_chain + all_strikes_one_exp) |
 | `option_history_trade(...)` | Standard | Verified (concrete + bulk_chain + all_strikes_one_exp) |
-| `option_history_quote(...)` | Standard | Verified (concrete + bulk_chain + all_strikes_one_exp) |
+| `option_history_quote(...)` | Value | Verified (concrete + bulk_chain + all_strikes_one_exp) |
 | `option_history_trade_quote(...)` | Standard | Verified |
-| `option_history_open_interest(...)` | Standard | Verified |
-| `option_snapshot_ohlc(...)` | Standard | Verified (concrete + all_exps_one_strike) |
+| `option_history_open_interest(...)` | Value | Verified |
+| `option_snapshot_ohlc(...)` | Value | Verified (concrete + all_exps_one_strike) |
 | `option_snapshot_trade(...)` | Standard | Verified |
-| `option_snapshot_quote(...)` | Standard | Verified (concrete + all_exps_one_strike) |
-| `option_snapshot_open_interest(...)` | Standard | Verified |
+| `option_snapshot_quote(...)` | Value | Verified (concrete + all_exps_one_strike) |
+| `option_snapshot_open_interest(...)` | Value | Verified |
 | `option_snapshot_market_value(...)` | Standard | Verified |
-| `option_snapshot_greeks_iv(...)` | Pro | Verified (concrete + all_exps_one_strike) |
-| `option_snapshot_greeks_all(...)` | Pro | Verified (concrete + all_exps_one_strike) |
-| `option_snapshot_greeks_first_order(...)` | Pro | Verified |
-| `option_snapshot_greeks_second_order(...)` | Pro | Verified |
-| `option_snapshot_greeks_third_order(...)` | Pro | Verified |
-| `option_history_greeks_eod(...)` | Pro | Verified |
-| `option_history_greeks_iv(...)` | Pro | Verified |
-| `option_history_greeks_all(...)` | Pro | Verified |
-| `option_history_greeks_first_order(...)` | Pro | Verified |
-| `option_history_greeks_second_order(...)` | Pro | Verified |
-| `option_history_greeks_third_order(...)` | Pro | Verified |
-| `option_history_trade_greeks_iv(...)` | Pro | Verified |
-| `option_history_trade_greeks_all(...)` | Pro | Verified |
-| `option_history_trade_greeks_first_order(...)` | Pro | Verified |
-| `option_history_trade_greeks_second_order(...)` | Pro | Verified |
-| `option_history_trade_greeks_third_order(...)` | Pro | Verified |
+| `option_snapshot_greeks_implied_volatility(...)` | Standard | Verified |
+| `option_snapshot_greeks_first_order(...)` | Standard | Verified |
+| `option_snapshot_greeks_all(...)` | Professional | Verified (concrete + all_exps_one_strike) |
+| `option_snapshot_greeks_second_order(...)` | Professional | Verified |
+| `option_snapshot_greeks_third_order(...)` | Professional | Verified |
+| `option_history_greeks_eod(...)` | Standard | Verified |
+| `option_history_greeks_implied_volatility(...)` | Standard | Verified |
+| `option_history_greeks_first_order(...)` | Standard | Verified |
+| `option_history_greeks_all(...)` | Professional | Verified |
+| `option_history_greeks_second_order(...)` | Professional | Verified |
+| `option_history_greeks_third_order(...)` | Professional | Verified |
+| `option_history_trade_greeks_implied_volatility(...)` | Professional | Verified |
+| `option_history_trade_greeks_all(...)` | Professional | Verified |
+| `option_history_trade_greeks_first_order(...)` | Professional | Verified |
+| `option_history_trade_greeks_second_order(...)` | Professional | Verified |
+| `option_history_trade_greeks_third_order(...)` | Professional | Verified |
 | `option_at_time_trade(...)` | Standard | Verified |
-| `option_at_time_quote(...)` | Standard | Verified |
+| `option_at_time_quote(...)` | Value | Verified |
 
 ### Index
 
@@ -86,17 +91,25 @@ Artifact: `artifacts/validator_cli.json`.
 | `index_snapshot_market_value(sym)` | Standard | Not tested (account lacks tier) |
 | `index_history_eod(sym, start, end)` | Free | Verified |
 | `index_history_ohlc(...)` | Standard | Not tested (account lacks tier) |
+| `index_at_time_price(...)` | Value | Not tested (account lacks tier) |
 | `index_history_price(...)` | Value | Not tested (account lacks tier) |
-| `index_at_time_price(...)` | Standard | Not tested (account lacks tier) |
 
 ### Calendar, Interest Rate, Utility
 
 | Endpoint | Tier | Status |
 |----------|------|--------|
-| `interest_rate_history_eod(sym, start, end)` | Value | Not tested (account lacks tier) |
-| `calendar_year(year)` | Free | Verified |
-| `calendar_on_date(date)` | Free | Verified |
+| `interest_rate_history_eod(sym, start, end)` | Free † | Not tested (server rejects with PermissionDenied) |
+| `calendar_year(year)` | Value | Verified |
+| `calendar_on_date(date)` | Value | Verified |
 | `calendar_open_today()` | Free | Verified |
+
+† **Schema drift**: `endpoint_surface.toml` declares `interest_rate_history_eod`
+as `min_tier=free`, but the live server returns
+`PermissionDenied: requires value subscription`. One of the two is wrong.
+Follow-up: either bump the schema to `value` (if the server is authoritative)
+or ask ThetaData to clarify whether rate data should be free. Tracked
+against the `validator_cli.json` artifact so any future schema refresh
+picks this up.
 
 ### FPSS Streaming
 
