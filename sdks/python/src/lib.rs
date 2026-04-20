@@ -288,8 +288,14 @@ impl ThetaDataDx {
     ///
     /// Authenticates once, opens gRPC channel. Call ``start_streaming()``
     /// to begin FPSS real-time data.
+    ///
+    /// Routed through [`run_blocking`] so a hung TLS handshake or slow
+    /// auth round-trip stays cancellable via Ctrl+C — a plain
+    /// `runtime().block_on(connect(...))` would swallow `SIGINT` until
+    /// the network returned (signals can't fire while the GIL is
+    /// released inside `block_on`).
     #[new]
-    fn new(creds: &Credentials, config: &Config) -> PyResult<Self> {
+    fn new(py: Python<'_>, creds: &Credentials, config: &Config) -> PyResult<Self> {
         // Snapshot the DirectConfig under the mutex — connect() takes
         // ownership, and the outer `Config` handle may still be mutated
         // Python-side after construction.
@@ -297,12 +303,10 @@ impl ThetaDataDx {
             let guard = config.inner.lock().unwrap_or_else(|e| e.into_inner());
             guard.clone()
         };
-        let tdx = runtime()
-            .block_on(thetadatadx::ThetaDataDx::connect(
-                &creds.inner,
-                direct_config,
-            ))
-            .map_err(to_py_err)?;
+        let inner_creds = creds.inner.clone();
+        let tdx = run_blocking(py, async move {
+            thetadatadx::ThetaDataDx::connect(&inner_creds, direct_config).await
+        })?;
 
         Ok(Self {
             tdx,
@@ -480,9 +484,12 @@ fn pyarrow_table_to_polars(py: Python<'_>, table: Py<PyAny>) -> PyResult<Py<PyAn
 /// Convert a list of typed tick pyclasses to a `pyarrow.Table` with a
 /// zero-copy Arrow C Data Interface handoff.
 ///
-/// This is the "raw Arrow" entry point: users wanting DuckDB /
-/// Arrow-Flight / cuDF / polars-arrow pipelines can consume this
-/// directly without a pandas / polars roundtrip.
+/// `to_arrow(ticks)` accepts a typed `list[TickClass]` returned by any
+/// historical endpoint (e.g. `client.stock_history_eod(...)`,
+/// `client.option_history_trade(...)`). The returned `pyarrow.Table`
+/// is backed by the Arrow C Data Interface, so downstream consumers
+/// (pandas 2.x, polars, DuckDB, Arrow-Flight, cuDF) alias the Rust
+/// buffers in place with zero copies at the pyo3 boundary.
 ///
 /// Requires pyarrow: ``pip install thetadatadx[arrow]``
 ///
@@ -490,20 +497,27 @@ fn pyarrow_table_to_polars(py: Python<'_>, table: Py<PyAny>) -> PyResult<Py<PyAn
 ///
 /// * Non-empty list: schema is inferred from the pyclass qualname; all
 ///   items must be the same type (mixed types raise `RuntimeError`).
-/// * Empty list: returns a zero-column `pyarrow.Table`. Pass the
-///   concrete tick class via the `*_df` helpers on `ThetaDataDx` (or
-///   build your own list of at least one item) if you need the typed
-///   schema on empty results.
+/// * Empty list + `hint`: schema is inferred from the `hint` pyclass
+///   qualname, producing a zero-row `pyarrow.Table` with the full
+///   schema — useful when downstream pandas / polars callers need the
+///   column dtypes even on empty results.
+/// * Empty list + no hint: returns a zero-column `pyarrow.Table`. For
+///   schema preservation materialise a single-row placeholder tick or
+///   pass the `hint=` kwarg.
 ///
 /// Example::
 ///
 ///     ticks = client.stock_history_eod("AAPL", "20240101", "20240301")
 ///     table = thetadatadx.to_arrow(ticks)  # pyarrow.Table
 ///     con.register("eod", table)           # zero-copy into DuckDB
+///
+///     # Typed empty result
+///     empty = thetadatadx.to_arrow([], hint="EodTick")
 #[pyfunction]
-fn to_arrow(py: Python<'_>, ticks: Py<PyAny>) -> PyResult<Py<PyAny>> {
+#[pyo3(signature = (ticks, hint = None))]
+fn to_arrow(py: Python<'_>, ticks: Py<PyAny>, hint: Option<&str>) -> PyResult<Py<PyAny>> {
     let list = as_pyclass_list(py, &ticks, "to_arrow")?;
-    pyclass_list_to_arrow_table(py, &list, None)
+    pyclass_list_to_arrow_table(py, &list, hint)
 }
 
 /// Convert a list of typed tick pyclasses to a pandas DataFrame.
@@ -515,14 +529,20 @@ fn to_arrow(py: Python<'_>, ticks: Py<PyAny>) -> PyResult<Py<PyAny>> {
 /// copy). Benchmarks at 100k EodTick rows show a ~6x wall-clock
 /// speedup over the legacy dict-of-lists path.
 ///
+/// `hint` carries the pyclass qualname (e.g. `"EodTick"`) for empty
+/// inputs so the returned DataFrame preserves the typed column schema
+/// even with zero rows.
+///
 /// Example::
 ///
 ///     ticks = client.stock_history_eod("AAPL", "20240101", "20240301")
 ///     df = thetadatadx.to_dataframe(ticks)
+///     empty = thetadatadx.to_dataframe([], hint="EodTick")
 #[pyfunction]
-fn to_dataframe(py: Python<'_>, ticks: Py<PyAny>) -> PyResult<Py<PyAny>> {
+#[pyo3(signature = (ticks, hint = None))]
+fn to_dataframe(py: Python<'_>, ticks: Py<PyAny>, hint: Option<&str>) -> PyResult<Py<PyAny>> {
     let list = as_pyclass_list(py, &ticks, "to_dataframe")?;
-    let table = pyclass_list_to_arrow_table(py, &list, None)?;
+    let table = pyclass_list_to_arrow_table(py, &list, hint)?;
     pyarrow_table_to_pandas(py, table)
 }
 
@@ -531,14 +551,20 @@ fn to_dataframe(py: Python<'_>, ticks: Py<PyAny>) -> PyResult<Py<PyAny>> {
 ///
 /// Requires polars + pyarrow: ``pip install thetadatadx[polars]``
 ///
+/// `hint` carries the pyclass qualname (e.g. `"EodTick"`) for empty
+/// inputs so the returned DataFrame preserves the typed column schema
+/// even with zero rows.
+///
 /// Example::
 ///
 ///     ticks = client.stock_history_eod("AAPL", "20240101", "20240301")
 ///     df = thetadatadx.to_polars(ticks)
+///     empty = thetadatadx.to_polars([], hint="EodTick")
 #[pyfunction]
-fn to_polars(py: Python<'_>, ticks: Py<PyAny>) -> PyResult<Py<PyAny>> {
+#[pyo3(signature = (ticks, hint = None))]
+fn to_polars(py: Python<'_>, ticks: Py<PyAny>, hint: Option<&str>) -> PyResult<Py<PyAny>> {
     let list = as_pyclass_list(py, &ticks, "to_polars")?;
-    let table = pyclass_list_to_arrow_table(py, &list, None)?;
+    let table = pyclass_list_to_arrow_table(py, &list, hint)?;
     pyarrow_table_to_polars(py, table)
 }
 

@@ -8,6 +8,23 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //  Code-generate tick structs + parsers from tick_schema.toml
 // ─────────────────────────────────────────────────────────────────────────────
+//
+// ── Removed surfaces (audit trail) ───────────────────────────────────────────
+//
+// * `sdks/python/src/tick_columnar.rs` — dict-of-lists `*_ticks_to_columnar`
+//   helpers returning `Py<PyDict>`. Replaced by typed pyclass lists + the
+//   Arrow columnar pipeline. (PR #365 dropped PyDict returns on historical
+//   endpoints; PR #379 finished the Arrow cutover.)
+// * Per-type `*_ticks_to_arrow_batch(&[tick::T])` fast-path helpers — only
+//   reached by the `stock_history_*_df` convenience wrappers, which were
+//   themselves dropped for SSOT purity. The sole public DataFrame path is
+//   now the `pyclass_list_to_arrow_table` trait dispatcher. (PR #379.)
+// * `sdks/typescript/src/*_to_columnar` serde_json converters — superseded
+//   by the typed `#[napi(object)]` class-vec path (`render_ts_tick_classes`).
+//   (PR #366.)
+// * `sdks/typescript/src/types.ts` — hand-imported counterpart to the
+//   deleted `*_to_columnar` helpers. Typed shapes now come from `index.d.ts`
+//   emitted by napi-rs from the `#[napi(object)]` tick classes. (PR #368.)
 
 #[derive(Debug, Deserialize)]
 struct Schema {
@@ -597,21 +614,13 @@ pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
 
 fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std::error::Error>> {
     let schema = load_schema()?;
-    // `tick_columnar.rs` is intentionally NOT emitted. The previous
-    // specialized `*_ticks_to_columnar` helpers returned `Py<PyDict>`
-    // (dict-of-lists) to feed `pandas.DataFrame`. The user-mandate is
-    // typed pyclass everywhere, so the `*_df` convenience wrappers were
-    // removed in favor of the unified
-    // `thetadatadx.to_dataframe(client.stock_history_eod(...))` path
-    // backed by `pyclass_list_to_columnar` — a single thin
-    // pandas-adapter lives in `sdks/python/src/lib.rs` and is
-    // documented there.
+    // Note: `tick_columnar.rs` is intentionally NOT emitted — see the
+    // "Removed surfaces" block at the top of this file for the audit trail.
     Ok(vec![
         GeneratedSourceFile {
-            // Arrow columnar pipeline -- replaces the old `tick_columnar.rs`
-            // (dict-of-lists) with schema-generated `*_ticks_to_arrow_batch`
-            // + `pyclass_list_to_arrow_table` dispatcher + typed Arrow
-            // schema map. Single alloc per column, zero-copy to pyarrow.
+            // Arrow columnar pipeline: `pyclass_list_to_arrow_table` dispatcher
+            // + typed Arrow schema map. Single alloc per column, zero-copy to
+            // pyarrow via the Arrow C Data Interface.
             relative_path: "sdks/python/src/tick_arrow.rs",
             contents: render_python_tick_arrow(&schema),
         },
@@ -651,34 +660,21 @@ fn sorted_type_names(schema: &Schema) -> Vec<&str> {
     names
 }
 
-/// Tick types that the Python SDK's hand-written `*_df` convenience
-/// wrappers in `lib.rs` call directly. Only these need the fast-path
-/// `*_ticks_to_arrow_batch` converter from `&[tick::T]` — everything
-/// else routes through the generic `pyclass_list_to_arrow_table`
-/// dispatcher which reads `#[pyo3(get)]` fields off the typed pyclass
-/// list. Keeping this list tight avoids generating dead code that
-/// would otherwise require `#[allow(dead_code)]` to ship under
-/// `-D warnings`.
-const PYTHON_TICK_ARROW_DIRECT_TYPES: &[&str] = &["EodTick", "OhlcTick", "QuoteTick", "TradeTick"];
-
-/// Emit `sdks/python/src/tick_arrow.rs`. The file contains three
+/// Emit `sdks/python/src/tick_arrow.rs`. The file contains two
 /// generator-owned surfaces:
 ///
-/// 1. `*_ticks_to_arrow_batch(ticks: &[tick::T]) -> Result<RecordBatch, ArrowError>`
-///    — fast path from the Rust tick struct slice. Only emitted for
-///    tick types reached by the hand-written `*_df` wrappers in
-///    `lib.rs` (see `PYTHON_TICK_ARROW_DIRECT_TYPES`).
+/// 1. `arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>>`
+///    — schema map keyed by tick pyclass `__qualname__`, so the
+///    empty-list case returns an empty `pyarrow.Table` with the
+///    correct typed schema (not a bare dict).
 ///
 /// 2. `pyclass_list_to_arrow_table(py, ticks, empty_qualname_hint)
-///    -> PyResult<Py<PyAny>>` — dispatcher used by the public
+///    -> PyResult<Py<PyAny>>` — trait-driven dispatcher over
+///    `<T as ArrowFromPyclassList>::read_batch`, used by the public
 ///    `to_arrow` / `to_dataframe` / `to_polars` entry points. Reads
 ///    `#[pyo3(get)]` fields off the typed pyclass instances directly
 ///    into Arrow builders — no Rust-tick-struct roundtrip, so it's
 ///    strictly faster than the old dict-of-lists pivot.
-///
-/// 3. `arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>>`
-///    — schema map so the empty-list case returns an empty
-///    `pyarrow.Table` with the correct typed schema (not a bare dict).
 ///
 /// Zero-copy to `pyarrow`: each `RecordBatch` buffer is handed over
 /// via the Arrow C Data Interface at the pyo3 boundary (courtesy of
@@ -709,15 +705,9 @@ fn render_python_tick_arrow(schema: &Schema) -> String {
     out.push_str("use arrow::pyarrow::IntoPyArrow;\n");
     out.push_str("use arrow::record_batch::RecordBatch;\n\n");
 
-    // Per-type fast-path `*_ticks_to_arrow_batch(&[tick::T])` helpers
-    // are intentionally NOT emitted — they were called only from the
-    // `stock_history_*_df` convenience wrappers in `lib.rs`, which were
-    // removed for SSOT purity. The sole public DataFrame path goes
-    // through `pyclass_list_to_arrow_table` (trait-driven, one surface
-    // covering every tick type) + the public `to_dataframe` / `to_polars`
-    // / `to_arrow` adapters.
-
     // Schema map + pyclass dispatcher (one surface covering every tick type).
+    // Note: per-type `*_ticks_to_arrow_batch` fast-path helpers are not
+    // emitted — see "Removed surfaces" at the top of this file.
     out.push_str(&render_python_arrow_schema_map(schema));
     out.push('\n');
     out.push_str(&render_python_pyclass_to_arrow_dispatcher(schema));
@@ -751,79 +741,6 @@ fn arrow_array_ctor(column_type: &str) -> &'static str {
         "String" => "StringArray",
         other => panic!("unsupported Arrow array ctor for column type '{other}'"),
     }
-}
-
-/// Per-tick-type fast-path emitter. Walks the schema columns plus the
-/// midpoint / contract-id injections, builds one `Arc<dyn Array>` per
-/// column via `from_iter`, and wraps them in a single `RecordBatch`.
-fn render_python_tick_arrow_batch_fn(type_name: &str, def: &TickTypeDef) -> String {
-    let mut out = String::new();
-    let fn_name = match type_name {
-        "EodTick" => "eod_ticks_to_arrow_batch",
-        "OhlcTick" => "ohlc_ticks_to_arrow_batch",
-        "TradeTick" => "trade_ticks_to_arrow_batch",
-        "QuoteTick" => "quote_ticks_to_arrow_batch",
-        other => panic!("unsupported Python Arrow direct type: {other}"),
-    };
-    let is_quote_tick = type_name == "QuoteTick";
-    let class = pyclass_name(type_name);
-
-    writeln!(
-        out,
-        "pub(crate) fn {fn_name}(ticks: &[tick::{type_name}]) -> Result<RecordBatch, ArrowError> {{"
-    )
-    .unwrap();
-    writeln!(
-        out,
-        "    let schema = arrow_schema_for_qualname(\"{class}\")\n        .expect(\"generated schema must be present for {class}\");",
-    )
-    .unwrap();
-
-    // Emit one Arc<dyn Array> per column into a Vec<ArrayRef>.
-    out.push_str("    let columns: Vec<ArrayRef> = vec![\n");
-    for column in &def.columns {
-        let ctor = arrow_array_ctor(column.r#type.as_str());
-        let field = &column.field;
-        match column.r#type.as_str() {
-            "String" => {
-                writeln!(
-                    out,
-                    "        Arc::new({ctor}::from_iter_values(ticks.iter().map(|t| t.{field}.as_str()))) as ArrayRef,"
-                )
-                .unwrap();
-            }
-            _ => {
-                writeln!(
-                    out,
-                    "        Arc::new({ctor}::from_iter_values(ticks.iter().map(|t| t.{field}))) as ArrayRef,"
-                )
-                .unwrap();
-            }
-        }
-    }
-    if is_quote_tick {
-        out.push_str(
-            "        Arc::new(Float64Array::from_iter_values(ticks.iter().map(|t| t.midpoint))) as ArrayRef,\n",
-        );
-    }
-    if def.contract_id {
-        out.push_str(
-            "        Arc::new(Int32Array::from_iter_values(ticks.iter().map(|t| t.expiration))) as ArrayRef,\n",
-        );
-        out.push_str(
-            "        Arc::new(Float64Array::from_iter_values(ticks.iter().map(|t| t.strike))) as ArrayRef,\n",
-        );
-        // `right` is an ASCII code on the Rust tick (67='C', 80='P'); project
-        // to a string to match the pyclass surface and the historical
-        // DataFrame contract consumers already depend on.
-        out.push_str(
-            "        Arc::new(StringArray::from_iter_values(ticks.iter().map(|t| if t.is_call() { \"C\" } else if t.is_put() { \"P\" } else { \"\" }))) as ArrayRef,\n",
-        );
-    }
-    out.push_str("    ];\n");
-    out.push_str("    RecordBatch::try_new(schema, columns)\n");
-    out.push_str("}\n");
-    out
 }
 
 /// Emit `arrow_schema_for_qualname` — a static schema map keyed on
@@ -1638,13 +1555,6 @@ fn render_python_tick_class_list_fn(type_name: &str, def: &TickTypeDef) -> Strin
     out
 }
 
-// ── TypeScript tick columnar converters (serde_json) ──────────────────────
-
-// TypeScript columnar converters were removed: the typed class-vec path
-// (see `render_ts_tick_classes`) is the only surface consumed by the
-// TypeScript SDK. Keeping dead `*_to_columnar` fns behind `#[allow(dead_code)]`
-// violates the project's "no band-aid" quality rule.
-
 // ── TypeScript tick classes (#[napi(object)] structs) ────────────────────
 //
 // Each tick type is emitted as a flat `#[napi(object)]` struct so napi-rs
@@ -1820,10 +1730,6 @@ fn ts_class_rust_type(column_type: &str, type_name: &str, field: &str) -> &'stat
 fn ts_column_needs_bigint(column_type: &str) -> bool {
     matches!(column_type, "i64" | "eod_num64")
 }
-
-// TypeScript columnar-interface file (`src/types.ts`) was removed with
-// the columnar Rust path. Consumers get typed shapes from `index.d.ts`
-// (emitted by napi-rs from the `#[napi(object)]` tick classes) instead.
 
 fn render_go_tick_converters(schema: &Schema) -> String {
     let mut out = String::new();

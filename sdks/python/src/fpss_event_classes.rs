@@ -21,7 +21,9 @@ pub(crate) struct Ohlcvc {
 }
 #[pymethods]
 impl Ohlcvc {
-    fn __repr__(&self) -> String { "Ohlcvc(...)".to_string() }
+    fn __repr__(&self) -> String {
+        format!("Ohlcvc(contract_id={}, ms_of_day={}, open={}, high={}, low={}, close={})", self.contract_id, self.ms_of_day, self.open, self.high, self.low, self.close)
+    }
 
     #[getter]
     fn kind(&self) -> &'static str { "ohlcvc" }
@@ -40,7 +42,9 @@ pub(crate) struct OpenInterest {
 }
 #[pymethods]
 impl OpenInterest {
-    fn __repr__(&self) -> String { "OpenInterest(...)".to_string() }
+    fn __repr__(&self) -> String {
+        format!("OpenInterest(contract_id={}, ms_of_day={}, open_interest={}, date={})", self.contract_id, self.ms_of_day, self.open_interest, self.date)
+    }
 
     #[getter]
     fn kind(&self) -> &'static str { "open_interest" }
@@ -66,7 +70,9 @@ pub(crate) struct Quote {
 }
 #[pymethods]
 impl Quote {
-    fn __repr__(&self) -> String { "Quote(...)".to_string() }
+    fn __repr__(&self) -> String {
+        format!("Quote(contract_id={}, ms_of_day={}, bid_size={}, bid_exchange={}, bid={}, bid_condition={})", self.contract_id, self.ms_of_day, self.bid_size, self.bid_exchange, self.bid, self.bid_condition)
+    }
 
     #[getter]
     fn kind(&self) -> &'static str { "quote" }
@@ -82,7 +88,9 @@ pub(crate) struct RawData {
 }
 #[pymethods]
 impl RawData {
-    fn __repr__(&self) -> String { "RawData(...)".to_string() }
+    fn __repr__(&self) -> String {
+        format!("RawData(code={})", self.code)
+    }
 
     #[getter]
     fn kind(&self) -> &'static str { "raw_data" }
@@ -99,7 +107,9 @@ pub(crate) struct Simple {
 }
 #[pymethods]
 impl Simple {
-    fn __repr__(&self) -> String { "Simple(...)".to_string() }
+    fn __repr__(&self) -> String {
+        format!("Simple(event_type={:?}, detail={:?}, id={:?})", self.event_type, self.detail, self.id)
+    }
 
     #[getter]
     fn kind(&self) -> &'static str { "simple" }
@@ -130,7 +140,9 @@ pub(crate) struct Trade {
 }
 #[pymethods]
 impl Trade {
-    fn __repr__(&self) -> String { "Trade(...)".to_string() }
+    fn __repr__(&self) -> String {
+        format!("Trade(contract_id={}, ms_of_day={}, sequence={}, ext_condition1={}, ext_condition2={}, ext_condition3={})", self.contract_id, self.ms_of_day, self.sequence, self.ext_condition1, self.ext_condition2, self.ext_condition3)
+    }
 
     #[getter]
     fn kind(&self) -> &'static str { "trade" }

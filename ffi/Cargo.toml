@@ -9,7 +9,18 @@ license = "GPL-3.0-or-later"
 publish = false
 
 [lib]
-crate-type = ["cdylib", "staticlib"]
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[features]
+# Expose a pair of `extern "C"` symbols (`tdx_test_panic_str` and
+# `tdx_test_panic_string`) that deliberately panic inside the
+# `ffi_boundary!` wrapper. Used only by the integration test at
+# `tests/panic_boundary.rs` to verify that panics crossing the FFI
+# boundary are caught, that the default return value is emitted, and
+# that `tdx_last_error()` surfaces the panic payload. Off by default so
+# the shared library shipped to SDK consumers never carries a
+# "panic-on-demand" symbol.
+testing-panic-boundary = []
 
 [dependencies]
 thetadatadx = { path = "../crates/thetadatadx" }

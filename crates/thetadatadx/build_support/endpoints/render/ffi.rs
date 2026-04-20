@@ -143,70 +143,108 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
     }
     out.push_str(",\n    options: *const TdxEndpointRequestOptions,\n");
     writeln!(out, ") -> {} {{", array_type).unwrap();
+    // Wrap the entire body in `ffi_boundary!` so a panic inside
+    // `runtime().block_on`, `apply_endpoint_request_options`, or any
+    // converter never crosses the `extern "C"` boundary. Rust 1.81+
+    // converts an unwinding panic across `extern "C"` into a process
+    // abort (pre-1.81 it was UB); either way, killing the host process
+    // from a library binding is unacceptable. Defaults to the empty
+    // sentinel so callers see the same `data=null, len=0` they already
+    // handle for real errors, and the panic payload is surfaced through
+    // `tdx_last_error()`.
     writeln!(
         out,
-        "    let empty = {} {{ data: ptr::null(), len: 0 }};",
+        "    ffi_boundary!({} {{ data: ptr::null(), len: 0 }}, {{",
         array_type
     )
     .unwrap();
-    out.push_str("    if client.is_null() {\n");
-    out.push_str("        set_error(\"client handle is null\");\n");
-    out.push_str("        return empty;\n");
-    out.push_str("    }\n\n");
-    out.push_str("    let mut args = thetadatadx::EndpointArgs::new();\n");
+    writeln!(
+        out,
+        "        let empty = {} {{ data: ptr::null(), len: 0 }};",
+        array_type
+    )
+    .unwrap();
+    out.push_str("        if client.is_null() {\n");
+    out.push_str("            set_error(\"client handle is null\");\n");
+    out.push_str("            return empty;\n");
+    out.push_str("        }\n\n");
+    out.push_str("        let mut args = thetadatadx::EndpointArgs::new();\n");
 
     for param in &method_params {
         if param.param_type == "Symbols" {
-            out.push_str(include_str!("templates/ffi/symbols_extract.rs.tmpl"));
+            // Indent the template body one extra level so everything lives
+            // inside the `ffi_boundary!` block.
+            let symbols_tmpl = include_str!("templates/ffi/symbols_extract.rs.tmpl");
+            out.push_str(&indent_template(symbols_tmpl));
         } else {
-            out.push_str(
-                &include_str!("templates/ffi/cstr_extract.rs.tmpl")
-                    .replace("__NAME__", &param.name),
-            );
+            let cstr_tmpl =
+                include_str!("templates/ffi/cstr_extract.rs.tmpl").replace("__NAME__", &param.name);
+            out.push_str(&indent_template(&cstr_tmpl));
         }
     }
 
     out.push_str(
-        "\n    if let Err(message) = apply_endpoint_request_options(&mut args, options) {\n",
+        "\n        if let Err(message) = apply_endpoint_request_options(&mut args, options) {\n",
     );
-    out.push_str("        set_error(&message);\n");
-    out.push_str("        return empty;\n");
-    out.push_str("    }\n\n");
-    out.push_str("    let client = unsafe { &*client };\n");
-    out.push_str("    match runtime().block_on(async {\n");
+    out.push_str("            set_error(&message);\n");
+    out.push_str("            return empty;\n");
+    out.push_str("        }\n\n");
+    out.push_str("        let client = unsafe { &*client };\n");
+    out.push_str("        match runtime().block_on(async {\n");
     writeln!(
         out,
-        "        thetadatadx::endpoint::invoke_endpoint(&client.inner, {:?}, &args).await",
+        "            thetadatadx::endpoint::invoke_endpoint(&client.inner, {:?}, &args).await",
         endpoint.name
     )
     .unwrap();
-    out.push_str("    }) {\n");
+    out.push_str("        }) {\n");
     writeln!(
         out,
-        "        Ok(thetadatadx::EndpointOutput::{}(values)) => match {}::from_vec(values) {{",
+        "            Ok(thetadatadx::EndpointOutput::{}(values)) => match {}::from_vec(values) {{",
         output_variant, from_vec_type
     )
     .unwrap();
-    out.push_str("            Ok(arr) => arr,\n");
-    out.push_str("            Err(e) => {\n");
-    out.push_str("                set_error(&format!(\"interior NUL in server string: {e}\"));\n");
-    out.push_str("                empty\n");
-    out.push_str("            }\n");
-    out.push_str("        },\n");
-    out.push_str("        Ok(other) => {\n");
+    out.push_str("                Ok(arr) => arr,\n");
+    out.push_str("                Err(e) => {\n");
+    out.push_str(
+        "                    set_error(&format!(\"interior NUL in server string: {e}\"));\n",
+    );
+    out.push_str("                    empty\n");
+    out.push_str("                }\n");
+    out.push_str("            },\n");
+    out.push_str("            Ok(other) => {\n");
     writeln!(
         out,
-        "            set_error(&format!(\"internal error: unexpected endpoint output for {}: {{other:?}}\"));",
+        "                set_error(&format!(\"internal error: unexpected endpoint output for {}: {{other:?}}\"));",
         endpoint.name
     )
     .unwrap();
-    out.push_str("            empty\n");
+    out.push_str("                empty\n");
+    out.push_str("            }\n");
+    out.push_str("            Err(error) => {\n");
+    out.push_str("                set_error(&error.to_string());\n");
+    out.push_str("                empty\n");
+    out.push_str("            }\n");
     out.push_str("        }\n");
-    out.push_str("        Err(error) => {\n");
-    out.push_str("            set_error(&error.to_string());\n");
-    out.push_str("            empty\n");
-    out.push_str("        }\n");
-    out.push_str("    }\n");
+    out.push_str("    })\n");
     out.push_str("}\n");
     out
+}
+
+/// Re-indent each non-empty line of an `include_str!` template by a single
+/// 4-space level so it nests one scope deeper. Used when the template's
+/// surrounding block moves inside `ffi_boundary!` — without the shift every
+/// line would sit flush-left of the block and rustfmt would re-indent on
+/// every regeneration.
+fn indent_template(template: &str) -> String {
+    template
+        .lines()
+        .map(|line| {
+            if line.is_empty() {
+                String::from("\n")
+            } else {
+                format!("    {line}\n")
+            }
+        })
+        .collect()
 }
