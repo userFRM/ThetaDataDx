@@ -38,14 +38,17 @@ pub(super) struct SurfaceSpec {
 /// Schema-validation-only: fields exist to enforce the TOML shape via serde
 /// (`deny_unknown_fields` + required keys) but are not read by the Rust
 /// generator today. The docs-consistency drift check uses the raw TOML.
+/// Leading underscores signal "shape-check only" to the compiler and suppress
+/// `dead_code` without an `#[allow(dead_code)]` escape hatch.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
-#[allow(dead_code)]
 pub(super) struct SurfaceGlobalRequestOption {
-    pub(super) name: String,
-    pub(super) description: String,
+    #[serde(rename = "name")]
+    _name: String,
+    #[serde(rename = "description")]
+    _description: String,
     #[serde(rename = "type")]
-    pub(super) ty: String,
+    _ty: String,
 }
 
 /// Representative fixture values feeding the live-validator parameter-mode

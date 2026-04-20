@@ -205,7 +205,7 @@ impl ThetaDataDx {
             rx.recv_timeout(timeout)
         });
         match result {
-            Ok(event) => Ok(Some(buffered_event_to_py(py, &event))),
+            Ok(event) => Ok(Some(buffered_event_to_typed(py, &event)?)),
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Ok(None),
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Err(
                 PyRuntimeError::new_err(

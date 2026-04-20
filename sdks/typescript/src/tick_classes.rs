@@ -2,7 +2,10 @@
 // Typed #[napi(object)] tick structs + Vec factories. Replaces the old
 // serde_json columnar returns with concrete TypeScript types in index.d.ts.
 
+use napi::bindgen_prelude::BigInt;
+
 /// Calendar day. Market open/close schedule.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct CalendarDay {
@@ -14,6 +17,7 @@ pub struct CalendarDay {
 }
 
 /// End-of-day tick. Full EOD snapshot with OHLC + quote.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct EodTick {
@@ -23,8 +27,8 @@ pub struct EodTick {
     pub high: f64,
     pub low: f64,
     pub close: f64,
-    pub volume: i32,
-    pub count: i32,
+    pub volume: BigInt,
+    pub count: BigInt,
     pub bid_size: i32,
     pub bid_exchange: i32,
     pub bid: f64,
@@ -40,6 +44,7 @@ pub struct EodTick {
 }
 
 /// Greeks tick. Full set of option greeks.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct GreeksTick {
@@ -73,6 +78,7 @@ pub struct GreeksTick {
 }
 
 /// Interest rate tick. End-of-day interest rate.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct InterestRateTick {
@@ -82,6 +88,7 @@ pub struct InterestRateTick {
 }
 
 /// Implied volatility tick.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct IvTick {
@@ -95,6 +102,7 @@ pub struct IvTick {
 }
 
 /// Market value tick -- quoted bid/ask/price for a symbol.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct MarketValueTick {
@@ -109,6 +117,7 @@ pub struct MarketValueTick {
 }
 
 /// OHLC tick. Aggregated bar data.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct OhlcTick {
@@ -117,8 +126,8 @@ pub struct OhlcTick {
     pub high: f64,
     pub low: f64,
     pub close: f64,
-    pub volume: i32,
-    pub count: i32,
+    pub volume: BigInt,
+    pub count: BigInt,
     pub date: i32,
     pub expiration: i32,
     pub strike: f64,
@@ -126,6 +135,7 @@ pub struct OhlcTick {
 }
 
 /// Open interest tick.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct OpenInterestTick {
@@ -138,6 +148,7 @@ pub struct OpenInterestTick {
 }
 
 /// Option contract. Contract specification.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct OptionContract {
@@ -148,6 +159,7 @@ pub struct OptionContract {
 }
 
 /// Price tick. Generic price data point.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct PriceTick {
@@ -157,6 +169,7 @@ pub struct PriceTick {
 }
 
 /// Quote tick. NBBO quote data.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct QuoteTick {
@@ -177,6 +190,7 @@ pub struct QuoteTick {
 }
 
 /// Combined trade + quote tick.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct TradeQuoteTick {
@@ -210,6 +224,7 @@ pub struct TradeQuoteTick {
 }
 
 /// Trade tick. Core unit of trade data.
+#[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct TradeTick {
@@ -259,8 +274,8 @@ fn eod_ticks_to_class_vec(ticks: &[tick::EodTick]) -> Vec<EodTick> {
                 high: t.high,
                 low: t.low,
                 close: t.close,
-                volume: t.volume,
-                count: t.count,
+                volume: BigInt::from(t.volume),
+                count: BigInt::from(t.count),
                 bid_size: t.bid_size,
                 bid_exchange: t.bid_exchange,
                 bid: t.bid,
@@ -373,8 +388,8 @@ fn ohlc_ticks_to_class_vec(ticks: &[tick::OhlcTick]) -> Vec<OhlcTick> {
                 high: t.high,
                 low: t.low,
                 close: t.close,
-                volume: t.volume,
-                count: t.count,
+                volume: BigInt::from(t.volume),
+                count: BigInt::from(t.count),
                 date: t.date,
                 expiration: t.expiration,
                 strike: t.strike,

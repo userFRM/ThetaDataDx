@@ -49,7 +49,13 @@ import type { OhlcTick, GreeksTick, Quote, Trade, FpssEvent } from 'thetadatadx'
 ```
 
 Historical endpoints return `Tick[]`; `nextEvent()` returns a discriminated
-`FpssEvent` union narrowed on `event.kind`.
+`FpssEvent` union narrowed on `event.kind`. The discriminator tag set
+(`"ohlcvc" | "open_interest" | "quote" | "trade" | "simple" | "raw_data"`)
+and the `FpssSimplePayload.eventType` values (`"login_success"`,
+`"contract_assigned"`, `"disconnected"`, `"market_open"`, `"market_close"`,
+...) match the Python SDK's `next_event` pyclasses byte-for-byte — both
+surfaces are generated from `fpss_event_schema.toml`, so consumer code
+ports between the two languages without a discriminator rewrite.
 
 ## Building from source
 

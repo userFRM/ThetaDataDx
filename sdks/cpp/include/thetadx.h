@@ -66,23 +66,25 @@ TDX_ALIGN64_BEGIN typedef struct {
     double high;
     double low;
     double close;
-    int32_t volume;
-    int32_t count;
+    /* volume/count are int64 to match the core crate (issue #372) and
+     * prevent overflow on high-volume symbols (2.1B+ cumulative volume). */
+    int64_t volume;
+    int64_t count;
     int32_t bid_size;
     int32_t bid_exchange;
     double bid;
     int32_t bid_condition;
-    /* 4 bytes padding */
     int32_t ask_size;
     int32_t ask_exchange;
+    /* 4 bytes padding before f64 */
     double ask;
     int32_t ask_condition;
     int32_t date;
     int32_t expiration;
-    /* 4 bytes padding */
+    /* 4 bytes padding before f64 */
     double strike;
     int32_t right;
-    uint8_t _tail_padding[8];
+    uint8_t _tail_padding[4];
 } TdxEodTick TDX_ALIGN64_END;
 
 TDX_ALIGN64_BEGIN typedef struct {
@@ -157,13 +159,15 @@ TDX_ALIGN64_BEGIN typedef struct {
     double high;
     double low;
     double close;
-    int32_t volume;
-    int32_t count;
+    /* volume/count are int64 to match the core crate (issue #372) and
+     * prevent overflow on high-volume symbols (2.1B+ cumulative volume). */
+    int64_t volume;
+    int64_t count;
     int32_t date;
     int32_t expiration;
     double strike;
     int32_t right;
-    uint8_t _tail_padding[56];
+    uint8_t _tail_padding[52];
 } TdxOhlcTick TDX_ALIGN64_END;
 
 TDX_ALIGN64_BEGIN typedef struct {

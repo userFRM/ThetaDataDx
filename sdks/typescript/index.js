@@ -577,3 +577,4 @@ if (!nativeBinding) {
 
 module.exports = nativeBinding
 module.exports.ThetaDataDx = nativeBinding.ThetaDataDx
+module.exports.FpssEventKind = nativeBinding.FpssEventKind

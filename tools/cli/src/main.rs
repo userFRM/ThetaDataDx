@@ -479,6 +479,13 @@ fn raw_i32(value: i32) -> sonic_rs::Value {
     sonic_rs::Value::from(sonic_rs::Number::from(value))
 }
 
+/// Raw 64-bit integer value as JSON number. Used for schema columns
+/// widened to `i64` (OHLCVC `volume` / `count`) where `i32` would
+/// overflow on high-volume symbols.
+fn raw_i64(value: i64) -> sonic_rs::Value {
+    sonic_rs::Value::from(sonic_rs::Number::from(value))
+}
+
 /// Raw string (tick fields like `OptionContract::root`).
 fn raw_str(value: &str) -> sonic_rs::Value {
     sonic_rs::Value::from(value)
@@ -555,8 +562,8 @@ fn render_eod(ticks: &[tdbe::types::tick::EodTick], fmt: &OutputFormat) {
                 raw_f64(t.high),
                 raw_f64(t.low),
                 raw_f64(t.close),
-                raw_i32(t.volume),
-                raw_i32(t.count),
+                raw_i64(t.volume),
+                raw_i64(t.count),
                 raw_i32(t.bid_size),
                 raw_i32(t.bid_exchange),
                 raw_f64(t.bid),
@@ -600,8 +607,8 @@ fn render_ohlc(ticks: &[tdbe::types::tick::OhlcTick], fmt: &OutputFormat) {
                 raw_f64(t.high),
                 raw_f64(t.low),
                 raw_f64(t.close),
-                raw_i32(t.volume),
-                raw_i32(t.count),
+                raw_i64(t.volume),
+                raw_i64(t.count),
                 raw_date(t.date),
                 raw_i32(t.expiration),
                 raw_f64(t.strike),

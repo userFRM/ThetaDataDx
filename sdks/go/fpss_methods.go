@@ -311,7 +311,7 @@ func (f *FpssClient) NextEvent(timeoutMs uint64) (*FpssEvent, error) {
         }
     case FpssOpenInterestEvent:
         oi := raw.open_interest
-        event.OpenInterest = &FpssOpenInterestData{
+        event.OpenInterest = &FpssOpenInterest{
             ContractID:   int32(oi.contract_id),
             MsOfDay:      int32(oi.ms_of_day),
             OpenInterest: int32(oi.open_interest),
@@ -338,16 +338,18 @@ func (f *FpssClient) NextEvent(timeoutMs uint64) (*FpssEvent, error) {
         if ctrl.detail != nil {
             detail = C.GoString(ctrl.detail)
         }
-        event.Control = &FpssControlData{
+        event.Control = &FpssControl{
             Kind:   int32(ctrl.kind),
             ID:     int32(ctrl.id),
             Detail: detail,
         }
     case FpssRawDataEvent:
         rd := raw.raw_data
-        event.RawCode = uint8(rd.code)
+        event.RawData = &FpssRawData{
+            Code: uint8(rd.code),
+        }
         if rd.payload != nil && rd.payload_len > 0 {
-            event.RawPayload = C.GoBytes(unsafe.Pointer(rd.payload), C.int(rd.payload_len))
+            event.RawData.Payload = C.GoBytes(unsafe.Pointer(rd.payload), C.int(rd.payload_len))
         }
     }
 

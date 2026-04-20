@@ -1229,7 +1229,9 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             out.push_str("            rx.recv_timeout(timeout)\n");
             out.push_str("        });\n");
             out.push_str("        match result {\n");
-            out.push_str("            Ok(event) => Ok(Some(buffered_event_to_py(py, &event))),\n");
+            out.push_str(
+                "            Ok(event) => Ok(Some(buffered_event_to_typed(py, &event)?)),\n",
+            );
             out.push_str(
                 "            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Ok(None),\n",
             );
@@ -1568,7 +1570,7 @@ fn go_fpss_method(method: &MethodSpec) -> String {
             out.push_str("        }\n");
             out.push_str("    case FpssOpenInterestEvent:\n");
             out.push_str("        oi := raw.open_interest\n");
-            out.push_str("        event.OpenInterest = &FpssOpenInterestData{\n");
+            out.push_str("        event.OpenInterest = &FpssOpenInterest{\n");
             out.push_str("            ContractID:   int32(oi.contract_id),\n");
             out.push_str("            MsOfDay:      int32(oi.ms_of_day),\n");
             out.push_str("            OpenInterest: int32(oi.open_interest),\n");
@@ -1595,16 +1597,18 @@ fn go_fpss_method(method: &MethodSpec) -> String {
             out.push_str("        if ctrl.detail != nil {\n");
             out.push_str("            detail = C.GoString(ctrl.detail)\n");
             out.push_str("        }\n");
-            out.push_str("        event.Control = &FpssControlData{\n");
+            out.push_str("        event.Control = &FpssControl{\n");
             out.push_str("            Kind:   int32(ctrl.kind),\n");
             out.push_str("            ID:     int32(ctrl.id),\n");
             out.push_str("            Detail: detail,\n");
             out.push_str("        }\n");
             out.push_str("    case FpssRawDataEvent:\n");
             out.push_str("        rd := raw.raw_data\n");
-            out.push_str("        event.RawCode = uint8(rd.code)\n");
+            out.push_str("        event.RawData = &FpssRawData{\n");
+            out.push_str("            Code: uint8(rd.code),\n");
+            out.push_str("        }\n");
             out.push_str("        if rd.payload != nil && rd.payload_len > 0 {\n");
-            out.push_str("            event.RawPayload = C.GoBytes(unsafe.Pointer(rd.payload), C.int(rd.payload_len))\n");
+            out.push_str("            event.RawData.Payload = C.GoBytes(unsafe.Pointer(rd.payload), C.int(rd.payload_len))\n");
             out.push_str("        }\n");
             out.push_str("    }\n\n");
             out.push_str("    return event, nil\n");
