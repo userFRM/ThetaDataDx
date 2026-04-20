@@ -25,8 +25,11 @@
 //! Fully synchronous -- no tokio, no async.
 
 use std::io::{Read, Write};
+use std::time::{Duration, Instant};
 
 use tdbe::types::enums::StreamMsgType;
+
+use super::protocol::READ_TIMEOUT_MS;
 
 /// Maximum payload length (single unsigned byte).
 ///
@@ -66,20 +69,37 @@ const MAX_CONSECUTIVE_UNKNOWN_CODES: usize = 5;
 
 /// Read the 2-byte FPSS header.
 ///
-/// Timeout semantics (Java-aligned, `FPSSClient.onEvent` → reconnect):
-/// - If `reader.read` returns EOF before any byte is read, return `Ok(None)` —
-///   graceful server close.
-/// - If `WouldBlock` / `TimedOut` fires BEFORE any byte is read, propagate as
-///   `std::io::Error` so `io_loop::is_read_timeout` can drive ping/command
-///   housekeeping and resume.
-/// - If either fires AFTER at least 1 byte has been read, we are mid-frame
-///   and the cursor is desynced. Return a FATAL `FpssErrorKind::ProtocolError`
-///   so `io_loop` treats it as involuntary disconnect and reconnects —
-///   matches Java's `PacketStream.readCopy` → `SocketTimeoutException` →
-///   `handleInvoluntaryDisconnect` path.
+/// Thin wrapper that plugs the production [`READ_TIMEOUT_MS`] deadline
+/// into [`read_header_with_timeout`]. Splitting the function lets tests
+/// exercise the timeout/retry contract with a short deadline.
 fn read_header<R: Read>(reader: &mut R) -> Result<Option<[u8; 2]>, crate::error::Error> {
+    read_header_with_timeout(reader, Duration::from_millis(READ_TIMEOUT_MS))
+}
+
+/// Read the 2-byte FPSS header with a configurable per-stall timeout.
+///
+/// Byte-for-byte match with Java `PacketStream2.readCopy` +
+/// `socket.setSoTimeout(10_000)`:
+/// - EOF before any byte → `Ok(None)` (graceful server close).
+/// - Pre-header `WouldBlock` / `TimedOut` (n == 0) → propagate as `Error::Io`
+///   so `io_loop::is_read_timeout` drains pings + command queue.
+/// - Mid-header `WouldBlock` / `TimedOut` (n > 0) → retry. The stall
+///   deadline is **re-armed on every successful byte**, matching Java's
+///   per-`read()` `setSoTimeout` semantics. Only fatal if we go
+///   `stall_timeout` without any forward progress.
+///
+/// Earlier revisions treated the first mid-header `WouldBlock` as a fatal
+/// desync. Captured raw-byte dumps on both dev and prod showed the bytes
+/// were valid frames that arrived 50-76 ms after the first `WouldBlock`;
+/// aggressive escalation caused a reconnect storm whose downstream effects
+/// accounted for the spurious "unknown message code" reports (#192, #369).
+fn read_header_with_timeout<R: Read>(
+    reader: &mut R,
+    stall_timeout: Duration,
+) -> Result<Option<[u8; 2]>, crate::error::Error> {
     let mut header = [0u8; 2];
     let mut n = 0usize;
+    let mut stall_deadline: Option<Instant> = None;
     loop {
         match reader.read(&mut header[n..]) {
             Ok(0) if n == 0 => return Ok(None),
@@ -90,6 +110,8 @@ fn read_header<R: Read>(reader: &mut R) -> Result<Option<[u8; 2]>, crate::error:
                 })
             }
             Ok(read) => {
+                // Forward progress — re-arm the stall clock for the next gap.
+                stall_deadline = None;
                 n += read;
                 if n >= 2 {
                     return Ok(Some(header));
@@ -110,28 +132,55 @@ fn read_header<R: Read>(reader: &mut R) -> Result<Option<[u8; 2]>, crate::error:
                         std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
                     ) =>
             {
-                // Mid-header timeout: stream cursor is desynced by `n` bytes.
-                // Treat as fatal so io_loop reconnects instead of re-reading
-                // payload bytes as a header.
-                return Err(crate::error::Error::Fpss {
-                    kind: crate::error::FpssErrorKind::ProtocolError,
-                    message: format!("mid-header read timeout after {n} of 2 byte(s): {e}"),
-                });
+                let deadline =
+                    *stall_deadline.get_or_insert_with(|| Instant::now() + stall_timeout);
+                if Instant::now() >= deadline {
+                    return Err(crate::error::Error::Fpss {
+                        kind: crate::error::FpssErrorKind::ProtocolError,
+                        message: format!(
+                            "mid-header read timeout after {n} of 2 byte(s) without progress for {} ms: {e}",
+                            stall_timeout.as_millis()
+                        ),
+                    });
+                }
+                continue;
             }
             Err(e) => return Err(e.into()),
         }
     }
 }
 
-/// Read exactly `buf.len()` bytes of payload, treating mid-frame stalls as
-/// fatal. Once the header has committed us to N payload bytes, a timeout
-/// before all N arrive means the reader cursor is desynced — abandon the
-/// connection and reconnect rather than retry.
+/// Read exactly `buf.len()` bytes of payload.
 ///
-/// Only `Interrupted` is retried (POSIX signal wakeups are benign); any
-/// `WouldBlock` / `TimedOut` mid-payload is escalated.
+/// Thin wrapper that plugs the production [`READ_TIMEOUT_MS`] deadline
+/// into [`read_exact_payload_with_timeout`]. Splitting the function lets
+/// tests exercise the timeout/retry contract with a short deadline.
 fn read_exact_payload<R: Read>(reader: &mut R, buf: &mut [u8]) -> Result<(), crate::error::Error> {
+    read_exact_payload_with_timeout(reader, buf, Duration::from_millis(READ_TIMEOUT_MS))
+}
+
+/// Read exactly `buf.len()` bytes of payload with a configurable per-stall timeout.
+///
+/// Matches Java `DataInputStream.readNBytes` + `setSoTimeout(10_000)`:
+/// every `WouldBlock` / `TimedOut` re-arms a fresh `stall_timeout` deadline
+/// **from the last successful byte of progress**, not from function entry.
+/// A stream that dribbles data in slowly but steadily is fine; only
+/// `stall_timeout` of total silence fails.
+///
+/// Earlier revisions treated the first `WouldBlock` as a fatal desync.
+/// Raw-byte tap captures on dev and prod showed every "corruption" event
+/// was a valid frame that finished arriving 50-76 ms after the first
+/// `WouldBlock`. Java tolerates that gap silently; so do we now.
+///
+/// `Interrupted` is retried (POSIX signal wakeups are benign). `EOF` and
+/// going `stall_timeout` without progress are still fatal.
+fn read_exact_payload_with_timeout<R: Read>(
+    reader: &mut R,
+    buf: &mut [u8],
+    stall_timeout: Duration,
+) -> Result<(), crate::error::Error> {
     let mut n = 0usize;
+    let mut stall_deadline: Option<Instant> = None;
     while n < buf.len() {
         match reader.read(&mut buf[n..]) {
             Ok(0) => {
@@ -140,7 +189,11 @@ fn read_exact_payload<R: Read>(reader: &mut R, buf: &mut [u8]) -> Result<(), cra
                     message: format!("EOF mid-payload: got {n} of {} bytes", buf.len()),
                 })
             }
-            Ok(k) => n += k,
+            Ok(k) => {
+                // Forward progress — re-arm the stall clock for the next gap.
+                stall_deadline = None;
+                n += k;
+            }
             Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
             Err(e)
                 if matches!(
@@ -148,13 +201,19 @@ fn read_exact_payload<R: Read>(reader: &mut R, buf: &mut [u8]) -> Result<(), cra
                     std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
                 ) =>
             {
-                return Err(crate::error::Error::Fpss {
-                    kind: crate::error::FpssErrorKind::ProtocolError,
-                    message: format!(
-                        "mid-payload read timeout after {n} of {} byte(s): {e}",
-                        buf.len()
-                    ),
-                });
+                let deadline =
+                    *stall_deadline.get_or_insert_with(|| Instant::now() + stall_timeout);
+                if Instant::now() >= deadline {
+                    return Err(crate::error::Error::Fpss {
+                        kind: crate::error::FpssErrorKind::ProtocolError,
+                        message: format!(
+                            "mid-payload read timeout after {n} of {} byte(s) without progress for {} ms: {e}",
+                            buf.len(),
+                            stall_timeout.as_millis()
+                        ),
+                    });
+                }
+                continue;
             }
             Err(e) => return Err(e.into()),
         }
@@ -527,48 +586,245 @@ mod tests {
         }
     }
 
-    /// Mid-header `WouldBlock` (one byte delivered, second byte stalls)
-    /// must escalate to fatal `ProtocolError` — the cursor is desynced by
-    /// one byte and retrying would read a payload byte as a frame header.
+    /// Reader that emits a prefix, then `err_count` `WouldBlock` errors,
+    /// then resumes with the suffix. Models the TCP pause between the
+    /// header bytes and the payload that we captured on dev + prod.
+    struct PrefixThenStallThenResume {
+        prefix: Vec<u8>,
+        suffix: Vec<u8>,
+        prefix_pos: usize,
+        suffix_pos: usize,
+        remaining_stalls: usize,
+    }
+
+    impl std::io::Read for PrefixThenStallThenResume {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            if self.prefix_pos < self.prefix.len() {
+                let remaining = &self.prefix[self.prefix_pos..];
+                let n = remaining.len().min(buf.len());
+                buf[..n].copy_from_slice(&remaining[..n]);
+                self.prefix_pos += n;
+                return Ok(n);
+            }
+            if self.remaining_stalls > 0 {
+                self.remaining_stalls -= 1;
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::WouldBlock,
+                    "simulated stall",
+                ));
+            }
+            if self.suffix_pos < self.suffix.len() {
+                let remaining = &self.suffix[self.suffix_pos..];
+                let n = remaining.len().min(buf.len());
+                buf[..n].copy_from_slice(&remaining[..n]);
+                self.suffix_pos += n;
+                return Ok(n);
+            }
+            Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "reader exhausted",
+            ))
+        }
+    }
+
+    /// Mid-header `WouldBlock` (one byte delivered, second stalls briefly)
+    /// must retry within the `READ_TIMEOUT_MS` aggregate deadline, matching
+    /// Java `readByte` + `setSoTimeout(10_000)`. Capture evidence: real
+    /// server pauses between LEN and CODE measured at 50-76 ms on dev; the
+    /// surrounding bytes were valid.
     #[test]
-    fn mid_header_timeout_escalates_to_fatal() {
-        let mut reader = PrefixThenErr {
-            prefix: vec![0x05],
+    fn mid_header_would_block_retries_and_recovers() {
+        // 1 byte (LEN=1), 3 WouldBlock stalls, then CODE=PING + 1 payload byte.
+        let mut reader = PrefixThenStallThenResume {
+            prefix: vec![0x01],
+            suffix: vec![StreamMsgType::Ping as u8, 0xAA],
+            prefix_pos: 0,
+            suffix_pos: 0,
+            remaining_stalls: 3,
+        };
+        let frame = read_frame(&mut reader).unwrap().unwrap();
+        assert_eq!(frame.code, StreamMsgType::Ping);
+        assert_eq!(frame.payload, vec![0xAA]);
+    }
+
+    /// Mid-payload `WouldBlock` (header + partial payload, brief stall,
+    /// rest arrives) must retry and complete, matching Java `readNBytes`
+    /// + `setSoTimeout(10_000)`. Overwhelmingly most common case in the field.
+    #[test]
+    fn mid_payload_would_block_retries_and_recovers() {
+        // header: len=4, code=PING; 2 payload bytes; 3 stalls; 2 more payload bytes.
+        let mut reader = PrefixThenStallThenResume {
+            prefix: vec![0x04, StreamMsgType::Ping as u8, 0x01, 0x02],
+            suffix: vec![0x03, 0x04],
+            prefix_pos: 0,
+            suffix_pos: 0,
+            remaining_stalls: 3,
+        };
+        let frame = read_frame(&mut reader).unwrap().unwrap();
+        assert_eq!(frame.code, StreamMsgType::Ping);
+        assert_eq!(frame.payload, vec![0x01, 0x02, 0x03, 0x04]);
+    }
+
+    /// Reader that always returns `WouldBlock` (or a caller-chosen kind).
+    /// Models a stream where the header arrived but the payload never does.
+    struct AlwaysStalledAfter {
+        prefix: Vec<u8>,
+        pos: usize,
+        err_kind: std::io::ErrorKind,
+    }
+
+    impl std::io::Read for AlwaysStalledAfter {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            if self.pos < self.prefix.len() {
+                let remaining = &self.prefix[self.pos..];
+                let n = remaining.len().min(buf.len());
+                buf[..n].copy_from_slice(&remaining[..n]);
+                self.pos += n;
+                Ok(n)
+            } else {
+                Err(std::io::Error::new(self.err_kind, "simulated stall"))
+            }
+        }
+    }
+
+    /// A prolonged mid-payload stall (no progress past the short stall
+    /// deadline) must escalate to a fatal `ProtocolError`. The reader
+    /// never delivers the remaining payload bytes.
+    #[test]
+    fn mid_payload_stall_past_deadline_escalates_to_fatal() {
+        // LEN=4, CODE=PING; 2 of 4 payload bytes arrive; then infinite stall.
+        let mut reader = AlwaysStalledAfter {
+            prefix: vec![0x04, StreamMsgType::Ping as u8, 0x01, 0x02],
             pos: 0,
             err_kind: std::io::ErrorKind::WouldBlock,
         };
-        let err = read_frame(&mut reader).unwrap_err();
+        // Consume the header via the public entry point, then the payload
+        // path (timeout-configurable variant) must bail after 20 ms of
+        // no-progress. Build a minimal 2-byte buffer matching payload size.
+        let mut header = [0u8; 2];
+        std::io::Read::read_exact(&mut reader, &mut header).unwrap();
+        assert_eq!(header, [0x04, StreamMsgType::Ping as u8]);
+        let mut payload = [0u8; 4];
+        // First two payload bytes land; next reads stall forever.
+        let err =
+            read_exact_payload_with_timeout(&mut reader, &mut payload, Duration::from_millis(20))
+                .unwrap_err();
         match err {
             crate::error::Error::Fpss { kind, message } => {
                 assert_eq!(kind, crate::error::FpssErrorKind::ProtocolError);
                 assert!(
-                    message.contains("mid-header"),
-                    "expected mid-header message, got: {message}"
+                    message.contains("mid-payload")
+                        && message.contains("without progress for 20 ms"),
+                    "unexpected message: {message}"
                 );
             }
             other => panic!("expected fatal ProtocolError, got {other:?}"),
         }
     }
 
-    /// Mid-payload `TimedOut` (header + partial payload delivered, remaining
-    /// payload stalls) must escalate to fatal `ProtocolError`. Retrying would
-    /// leave `N - k` payload bytes in the stream that the next `read_frame`
-    /// would parse as a bogus header.
+    /// A slow-trickling stream whose gaps are each under the deadline but
+    /// whose aggregate duration exceeds it must still succeed. Proves the
+    /// deadline re-arms on every successful byte (Java `setSoTimeout`
+    /// per-read semantics) rather than running from function entry.
+    /// Delivers one byte per `Ok`, with each byte preceded by a single
+    /// `WouldBlock` that sleeps for `sleep_per_stall` wall-clock time.
+    /// Used to verify the stall-deadline actually resets on progress —
+    /// cumulative sleep exceeds the configured deadline, but each
+    /// individual gap is under it. If the deadline did not reset, the
+    /// second gap would trip it.
+    struct SleepingTrickle {
+        remaining: Vec<u8>,
+        sleep_per_stall: Duration,
+        stalled_since_last_byte: bool,
+    }
+
+    impl std::io::Read for SleepingTrickle {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            if self.remaining.is_empty() {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    "done",
+                ));
+            }
+            if !self.stalled_since_last_byte {
+                self.stalled_since_last_byte = true;
+                std::thread::sleep(self.sleep_per_stall);
+                return Err(std::io::Error::new(std::io::ErrorKind::WouldBlock, "tick"));
+            }
+            buf[0] = self.remaining.remove(0);
+            self.stalled_since_last_byte = false;
+            Ok(1)
+        }
+    }
+
+    /// With an 8-byte payload + 15 ms of WouldBlock sleep per byte + a 40 ms
+    /// stall deadline:
+    /// - Cumulative wall time: 8 × 15 ms = 120 ms (> 40 ms)
+    /// - Longest single gap: 15 ms (< 40 ms)
+    ///
+    /// Must succeed under the Java-parity "reset on progress" semantics.
+    /// A fixed deadline from function entry (prior implementation style)
+    /// would fail around cycle 3 once cumulative sleep crossed 40 ms.
     #[test]
-    fn mid_payload_timeout_escalates_to_fatal() {
-        // header: len=4, code=PING; then 2 of 4 payload bytes before the stall.
-        let mut reader = PrefixThenErr {
-            prefix: vec![0x04, StreamMsgType::Ping as u8, 0x01, 0x02],
+    fn mid_payload_progress_resets_deadline() {
+        let mut reader = SleepingTrickle {
+            remaining: (1..=8).collect::<Vec<u8>>(),
+            sleep_per_stall: Duration::from_millis(15),
+            stalled_since_last_byte: false,
+        };
+        let mut payload = [0u8; 8];
+        let started = Instant::now();
+        read_exact_payload_with_timeout(&mut reader, &mut payload, Duration::from_millis(40))
+            .unwrap();
+        let elapsed = started.elapsed();
+        assert_eq!(payload, [1, 2, 3, 4, 5, 6, 7, 8]);
+        assert!(
+            elapsed >= Duration::from_millis(40),
+            "cumulative wall time {elapsed:?} should exceed the 40 ms deadline — \
+             otherwise the reset-on-progress property is vacuously true"
+        );
+    }
+
+    /// `TimedOut` must be classified identically to `WouldBlock`. macOS
+    /// produces `TimedOut` on `SO_RCVTIMEO`; Linux produces `WouldBlock`.
+    #[test]
+    fn mid_payload_timed_out_treated_like_would_block() {
+        let mut reader = AlwaysStalledAfter {
+            prefix: vec![0x03, StreamMsgType::Ping as u8, 0xAA],
             pos: 0,
             err_kind: std::io::ErrorKind::TimedOut,
         };
-        let err = read_frame(&mut reader).unwrap_err();
+        let mut header = [0u8; 2];
+        std::io::Read::read_exact(&mut reader, &mut header).unwrap();
+        let mut payload = [0u8; 3];
+        let err =
+            read_exact_payload_with_timeout(&mut reader, &mut payload, Duration::from_millis(20))
+                .unwrap_err();
+        match err {
+            crate::error::Error::Fpss { kind, message } => {
+                assert_eq!(kind, crate::error::FpssErrorKind::ProtocolError);
+                assert!(message.contains("mid-payload"), "got: {message}");
+            }
+            other => panic!("expected fatal ProtocolError, got {other:?}"),
+        }
+    }
+
+    /// Same three-property set but for the header path.
+    #[test]
+    fn mid_header_stall_past_deadline_escalates_to_fatal() {
+        let mut reader = AlwaysStalledAfter {
+            prefix: vec![0x05],
+            pos: 0,
+            err_kind: std::io::ErrorKind::WouldBlock,
+        };
+        let err = read_header_with_timeout(&mut reader, Duration::from_millis(20)).unwrap_err();
         match err {
             crate::error::Error::Fpss { kind, message } => {
                 assert_eq!(kind, crate::error::FpssErrorKind::ProtocolError);
                 assert!(
-                    message.contains("mid-payload"),
-                    "expected mid-payload message, got: {message}"
+                    message.contains("mid-header")
+                        && message.contains("without progress for 20 ms"),
+                    "unexpected message: {message}"
                 );
             }
             other => panic!("expected fatal ProtocolError, got {other:?}"),
