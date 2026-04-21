@@ -1,16 +1,19 @@
 [package]
 name = "tdbe"
 version = "0.10.0"
-edition = "2021"
-rust-version = "1.85"
-authors = ["userFRM"]
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
 description = "ThetaData Binary Encoding -- market data types, FIT/FIE codecs, Black-Scholes Greeks"
 documentation = "https://docs.rs/tdbe"
-homepage = "https://github.com/userFRM/ThetaDataDx"
-repository = "https://github.com/userFRM/ThetaDataDx"
-license = "Apache-2.0"
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
 keywords = ["thetadata", "encoding", "market-data", "codec", "greeks"]
 categories = ["encoding", "finance"]
+
+[lints]
+workspace = true
 
 [dependencies]
 thiserror = "2.0.18"
