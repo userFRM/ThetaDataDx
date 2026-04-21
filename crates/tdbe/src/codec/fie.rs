@@ -1,6 +1,6 @@
 //! FIE string-to-nibble encoder — used for building FPSS request lines.
 //!
-//! Reverse-engineered from decompiled `FIE.java` in `ThetaData`'s terminal JAR.
+//! Mirrors `FIE.java` in ThetaData's terminal for wire-format parity.
 //!
 //! # Character-to-Nibble Mapping
 //!

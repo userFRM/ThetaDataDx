@@ -36,6 +36,6 @@ The Python SDK ships pre-built wheels for common platforms. You do not need a Ru
 3. [Authentication](./authentication) - set up credentials
 4. [Quick Start](./quickstart) - run your first query
 
-::: tip ThetaData Official Documentation
-ThetaDataDx is a community SDK. For official documentation on data coverage, exchange details, and account management, visit [docs.thetadata.us](https://docs.thetadata.us/).
+::: tip ThetaData Documentation
+For ThetaData's documentation on data coverage, exchange details, and account management, visit [docs.thetadata.us](https://docs.thetadata.us/).
 :::

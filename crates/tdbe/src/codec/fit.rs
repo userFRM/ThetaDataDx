@@ -1,6 +1,6 @@
 //! FIT nibble decoder — the core compression codec for FPSS tick data.
 //!
-//! Reverse-engineered from decompiled `FITReader.java` in `ThetaData`'s terminal JAR.
+//! Mirrors `FITReader.java` in ThetaData's terminal for wire-format parity.
 //!
 //! # Wire Format
 //!

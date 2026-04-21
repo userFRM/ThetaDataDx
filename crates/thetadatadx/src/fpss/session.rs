@@ -113,7 +113,7 @@ where
 ///
 /// Source: `FPSSClient.java` -- reconnect logic checks `RemoveReason` to decide delay.
 ///
-/// # Intentional divergence from Java (see jvm-deviations.md)
+/// # Intentional divergence from Java (see docs/java-parity-checklist.md)
 ///
 /// Java only treats `AccountAlreadyConnected` (code 6) as a permanent error,
 /// retrying forever on invalid credentials — which burns rate limits and never
@@ -125,7 +125,7 @@ pub fn reconnect_delay(reason: RemoveReason) -> Option<u64> {
     match reason {
         // Permanent errors -- no amount of reconnection will fix bad credentials.
         // Java only checks AccountAlreadyConnected here; we extend this to all
-        // credential errors. See jvm-deviations.md "Permanent Disconnect".
+        // credential errors. See docs/java-parity-checklist.md (Reconnection).
         RemoveReason::AccountAlreadyConnected
         | RemoveReason::InvalidCredentials
         | RemoveReason::InvalidLoginValues

@@ -216,7 +216,7 @@ impl DirectClient {
             }),
             query_parameters,
             client_type: CLIENT_TYPE.to_string(),
-            // Intentional divergence from Java (see jvm-deviations.md):
+            // Intentional divergence from Java (see docs/java-parity-checklist.md):
             // Java fills this with the terminal's build git commit hash.
             // We are not the Java terminal and have no git commit to report,
             // so we leave it empty. The server accepts empty strings here.

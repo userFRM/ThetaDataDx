@@ -493,7 +493,7 @@ Every SDK lives over the same Rust core (`thetadatadx` + `tdbe`) — Python via 
 
 ### Typed pyclass surface (Python)
 
-All 61 historical endpoints return `list[TickClass]` — typed pyclass instances (`EodTick`, `OhlcTick`, `TradeTick`, `QuoteTick`, `TradeQuoteTick`, `OpenInterestTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`) with attribute access (`t.close`, `t.bid`, `t.volume`) and generated `__repr__` / `__new__` constructors. Streaming `next_event(timeout_ms)` returns one of `Quote` / `Trade` / `Ohlcvc` / `OpenInterest` / `Simple` / `RawData`, all typed pyclasses. `all_greeks(...)` returns an `AllGreeks` pyclass with 22 f64 fields. Zero `PyDict` allocations on the public surface.
+All tick-returning historical endpoints return `list[TickClass]` — typed pyclass instances (`EodTick`, `OhlcTick`, `TradeTick`, `QuoteTick`, `TradeQuoteTick`, `OpenInterestTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`) with attribute access (`t.close`, `t.bid`, `t.volume`) and generated `__repr__` / `__new__` constructors. List endpoints (`list_symbols`, `list_dates`, `list_expirations`, `list_strikes`, `list_contracts`) return `list[str]` scalar lists. Streaming `next_event(timeout_ms)` returns one of `Quote` / `Trade` / `Ohlcvc` / `OpenInterest` / `Simple` / `RawData`, all typed pyclasses. `all_greeks(...)` returns an `AllGreeks` pyclass with 22 f64 fields. Zero `PyDict` allocations on the public surface.
 
 ### Arrow columnar adapter (Python)
 

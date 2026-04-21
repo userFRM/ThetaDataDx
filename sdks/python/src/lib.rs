@@ -31,8 +31,7 @@ fn to_py_err(e: thetadatadx::Error) -> PyErr {
         // `Error::Timeout` maps to Python's stdlib `builtins.TimeoutError`
         // (which inherits from `OSError` in 3.3+) so callers can write
         // `except TimeoutError`. Falls back through `except Exception`
-        // for backward compat. Documented in
-        // [docs/dev/w3-async-cancellation-design.md].
+        // for backward compat.
         thetadatadx::Error::Timeout { .. } => PyTimeoutError::new_err(e.to_string()),
         _ => PyRuntimeError::new_err(e.to_string()),
     }

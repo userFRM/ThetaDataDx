@@ -281,7 +281,7 @@ export default withMermaid(defineConfig({
     },
 
     footer: {
-      message: 'Released under the GPL-3.0-or-later License.',
+      message: 'Released under the Apache-2.0 License.',
       copyright: 'Copyright 2024-present ThetaDataDx Contributors',
     },
 

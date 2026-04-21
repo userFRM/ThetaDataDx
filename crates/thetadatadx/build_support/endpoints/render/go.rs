@@ -169,14 +169,13 @@ pub(super) fn render_go_historical(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("\t\"runtime\"\n");
     out.push_str("\t\"unsafe\"\n");
     out.push_str(")\n\n");
-    // cgo-thread-local correctness (W3 round-3): the FFI stores the last
-    // error in a Rust `thread_local!`. Go's runtime can migrate a
-    // goroutine to a different OS thread between successive cgo calls, so
-    // reading the error slot after a call on a different thread returns
-    // stale/empty data. Every generated wrapper pins the goroutine to
-    // one OS thread for the duration of the clear/call/check sequence
-    // via runtime.LockOSThread. See
-    // [docs/dev/w3-async-cancellation-design.md].
+    // cgo-thread-local correctness: the FFI stores the last error in a
+    // Rust `thread_local!`. Go's runtime can migrate a goroutine to a
+    // different OS thread between successive cgo calls, so reading the
+    // error slot after a call on a different thread returns stale/empty
+    // data. Every generated wrapper pins the goroutine to one OS thread
+    // for the duration of the clear/call/check sequence via
+    // runtime.LockOSThread.
 
     for endpoint in endpoints
         .iter()

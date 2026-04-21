@@ -86,9 +86,9 @@ type Credentials struct {
 // NewCredentials creates credentials from email and password.
 //
 // Pins the goroutine to one OS thread across the cgo call + TLS error
-// read because the FFI's last-error slot is a Rust thread_local. See
-// `docs/dev/w3-async-cancellation-design.md` "cgo thread-local
-// correctness".
+// read because the FFI's last-error slot is a Rust thread_local; without
+// the pin, Go's runtime could migrate the goroutine and the error read
+// would see an empty slot on the wrong thread.
 func NewCredentials(email, password string) (*Credentials, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -107,9 +107,9 @@ func NewCredentials(email, password string) (*Credentials, error) {
 // CredentialsFromFile loads credentials from a file (line 1 = email, line 2 = password).
 //
 // Pins the goroutine to one OS thread across the cgo call + TLS error
-// read because the FFI's last-error slot is a Rust thread_local. See
-// `docs/dev/w3-async-cancellation-design.md` "cgo thread-local
-// correctness".
+// read because the FFI's last-error slot is a Rust thread_local; without
+// the pin, Go's runtime could migrate the goroutine and the error read
+// would see an empty slot on the wrong thread.
 func CredentialsFromFile(path string) (*Credentials, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()

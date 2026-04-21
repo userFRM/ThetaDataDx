@@ -13,7 +13,7 @@
 // the throw surfaces as a tdx::Error carrying "Request deadline
 // exceeded". RAII destructors run normally because the SDK has already
 // cleaned up its in-flight state. See issues #287, #290 and
-// [docs/dev/w3-async-cancellation-design.md].
+//
 #include <algorithm>
 #include <cctype>
 #include <chrono>

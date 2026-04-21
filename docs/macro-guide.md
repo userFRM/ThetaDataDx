@@ -17,7 +17,7 @@ surface.
 ## `parsed_endpoint!` -- the core macro
 
 Every non-streaming `DirectClient` endpoint ultimately expands through
-`parsed_endpoint!` in `crates/thetadatadx/src/direct.rs`. A single invocation
+`parsed_endpoint!` in `crates/thetadatadx/src/macros.rs`. A single invocation
 generates three things:
 
 1. **A builder struct** (e.g., `StockHistoryOhlcBuilder`) that holds required

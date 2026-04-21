@@ -15,9 +15,7 @@ cargo install thetadatadx-mcp --git https://github.com/userFRM/ThetaDataDx
 
 ## Configuration
 
-### Claude Code
-
-Add to `.claude/settings.json`:
+Most MCP clients read an `mcpServers` block from a project-local or user-level settings file. The shape is identical across clients; consult your client's documentation for the exact file path.
 
 ```json
 {
@@ -33,23 +31,7 @@ Add to `.claude/settings.json`:
 }
 ```
 
-### Cursor
-
-Add to `.cursor/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "thetadata": {
-      "command": "thetadatadx-mcp",
-      "env": {
-        "THETA_EMAIL": "you@example.com",
-        "THETA_PASSWORD": "your-password"
-      }
-    }
-  }
-}
-```
+Typical locations include `.cursor/mcp.json` for Cursor, or the settings file documented by your preferred MCP-capable client.
 
 ::: warning
 Store credentials in environment variables or a secrets manager rather than committing them to config files in version control.
