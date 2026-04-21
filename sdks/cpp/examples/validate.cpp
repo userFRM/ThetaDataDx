@@ -12,7 +12,8 @@
 // tokio::time::timeout and cancels the in-flight gRPC stream on expiry;
 // the throw surfaces as a tdx::Error carrying "Request deadline
 // exceeded". RAII destructors run normally because the SDK has already
-// cleaned up its in-flight state. See issues #287, #290.
+// cleaned up its in-flight state. See issues #287, #290 and
+//
 #include <algorithm>
 #include <cctype>
 #include <chrono>

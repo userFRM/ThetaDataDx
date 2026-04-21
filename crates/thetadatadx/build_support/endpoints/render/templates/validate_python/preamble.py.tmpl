@@ -18,7 +18,7 @@ history / at-time endpoints) use 180 seconds because a full-chain
 payload legitimately takes longer than a minute. On expiry the in-flight
 gRPC stream is cancelled and a RuntimeError carrying "Request deadline
 exceeded" is raised. The `ThetaDataDx` handle stays usable for
-subsequent cells. See [docs/dev/w3-async-cancellation-design.md] (W3).
+subsequent cells.
 """
 import json
 import pathlib

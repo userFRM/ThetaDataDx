@@ -1,6 +1,6 @@
 # ThetaDataDx
 
-High-performance Rust SDK for ThetaData market data — single-language core, five language bindings, sub-millisecond decode.
+High-performance Rust SDK for ThetaData market data — single-language core, five language bindings, zero-allocation streaming hot path.
 
 [![build](https://github.com/userFRM/ThetaDataDx/actions/workflows/ci.yml/badge.svg)](https://github.com/userFRM/ThetaDataDx/actions/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
@@ -20,7 +20,7 @@ High-performance Rust SDK for ThetaData market data — single-language core, fi
 - **Typed everywhere.** 61 ThetaData endpoints exposed as typed methods across all five SDKs; zero raw JSON or protobuf on the public surface.
 - **Arrow-backed DataFrames.** Python `to_arrow()` / `to_pandas()` / `to_polars()` pipe through zero-copy Arrow buffers.
 - **SPKI-pinned FPSS TLS.** Public-key pinning on the FPSS streaming handshake (stricter than a system-CA trust flow).
-- **Sub-millisecond decode.** Nibble-packed FIT decoder and lock-free ring buffer on the streaming path; no JVM warmup, no GC pauses.
+- **Zero-allocation streaming.** Nibble-packed FIT decoder and lock-free ring buffer on the FPSS path; no JVM warmup, no GC pauses. Measured decode cost is on the nanosecond scale per tick (bench harness in `crates/thetadatadx/benches/`).
 - **Zero-copy FFI.** Go, C++, and Node.js go through the same `extern "C"` layer; Python wheel ships via PyO3 ABI3.
 - **Feature-complete against the Java terminal.** Same MDDS gRPC contract, same FPSS wire format, same reconnect semantics. See [Java parity checklist](docs/java-parity-checklist.md).
 
