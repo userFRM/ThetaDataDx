@@ -216,9 +216,9 @@ either v2-style or v3-style parameter values.
 
 | v2 | v3 | Where |
 |----|----|-------|
-| `"C"` / `"c"` | `"call"` | `normalize_right()` in `direct.rs` |
-| `"P"` / `"p"` | `"put"` | `normalize_right()` in `direct.rs` |
-| `"*"` | `"both"` | `normalize_right()` in `direct.rs` |
+| `"C"` / `"c"` | `"call"` | `normalize_right()` in `wire_semantics.rs` |
+| `"P"` / `"p"` | `"put"` | `normalize_right()` in `wire_semantics.rs` |
+| `"*"` | `"both"` | `normalize_right()` in `wire_semantics.rs` |
 
 ### Interval
 
