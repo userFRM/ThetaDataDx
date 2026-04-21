@@ -206,8 +206,12 @@ impl Contract {
     const OCC21_LEN: usize = 21;
 
     /// Validate that a candidate root ticker is 1..=6 ASCII uppercase letters
-    /// (optionally containing a single `.`). Returns an `Error::Config` with
-    /// the offending input on failure.
+    /// optionally containing a single `.` (e.g. `"BRK.B"`). Multiple dots
+    /// are rejected — industry-practice single-dot compound tickers like
+    /// `"BRK.A"` / `"BRK.B"` / `"RDS.A"` never carry more than one dot,
+    /// and allowing `"A..B"` would let callers sneak past the shape check
+    /// with unconventional symbols that fail downstream exchange lookups.
+    /// Returns an `Error::Config` with the offending input on failure.
     fn validate_root(input: &str, root: &str) -> Result<(), Error> {
         if root.is_empty() || root.len() > 6 {
             return Err(Error::Config(format!(
@@ -215,8 +219,16 @@ impl Contract {
                 root.len()
             )));
         }
+        let mut dot_count = 0usize;
         for ch in root.chars() {
-            if !(ch.is_ascii_uppercase() || ch == '.') {
+            if ch == '.' {
+                dot_count += 1;
+                if dot_count > 1 {
+                    return Err(Error::Config(format!(
+                        "Contract::from_str: root must contain at most one '.', got {root:?} in {input:?}"
+                    )));
+                }
+            } else if !ch.is_ascii_uppercase() {
                 return Err(Error::Config(format!(
                     "Contract::from_str: root must be ASCII A-Z (or '.'), got {ch:?} in {input:?}",
                 )));
@@ -233,6 +245,17 @@ impl Contract {
     ///   `20000000 + YYMMDD` (e.g. `260417` -> `20260417`).
     /// - byte `12`: `'C'` or `'P'`.
     /// - bytes `13..21`: zero-padded strike in thousandths of a dollar.
+    ///
+    /// # Scope
+    ///
+    /// This parser is scoped to OCC symbols in the 2000-2099 range. Any
+    /// two-digit YY maps to `2000 + YY`, so `"AAPL  990101C00100000"`
+    /// parses to `exp_date = 20990101` (2099-01-01). The OCC roster
+    /// re-uses YY codes every century; callers transitioning past 2099
+    /// must introduce an explicit century argument. The live FPSS feed
+    /// will never surface a pre-2000 OCC symbol (the market-data channel
+    /// only ships live contracts), so no roll-over heuristic is
+    /// encoded.
     ///
     /// # Errors
     ///
@@ -259,7 +282,7 @@ impl Contract {
         let root = root_raw.trim_end_matches(' ').to_string();
         Self::validate_root(input, &root)?;
 
-        // YYMMDD -> integer, then centuryed to YYYYMMDD.
+        // YYMMDD -> integer, then centuried to YYYYMMDD.
         let yymmdd_raw = &input[6..12];
         let yymmdd: i32 = yymmdd_raw.parse().map_err(|e| {
             Error::Config(format!(
@@ -271,11 +294,11 @@ impl Contract {
                 "Contract::from_str: expiration YYMMDD out of range ({yymmdd}) in {input:?}"
             )));
         }
-        // OCC convention: two-digit year is the 21st-century year, so
-        // 260417 -> 2026-04-17. No roll-over heuristic — the OCC roster
-        // will carry any expirations that actually matter for live
-        // subscriptions, and the reverse mapping (YYYYMMDD -> YYMMDD on
-        // wire output) is not used here.
+        // Scope: 2000-2099. See the doc-comment `# Scope` section.
+        // Any two-digit YY is interpreted as `2000 + YY`, so `99`
+        // maps to 2099 rather than 1999. The FPSS live feed only
+        // ships contracts with future expirations, so pre-2000 OCC
+        // symbols cannot reach this parser over the wire.
         let exp_date: i32 = 20_000_000 + yymmdd;
 
         // Right byte.
@@ -513,11 +536,13 @@ impl std::str::FromStr for Contract {
     ///    ```
     /// 2. **OCC-21 option identifier**. 21 ASCII characters:
     ///    `[root (6, space-padded)] [YYMMDD (6)] [C|P (1)] [strike (8, 1/1000$)]`.
-    ///    A leading/trailing whitespace-trim applies so
-    ///    `"AAPL 260417C00550000"` (20 chars, single-space after root) is
-    ///    coerced to `"AAPL  260417C00550000"` (21 chars, double-space)
-    ///    before the strict parse — matching the Java terminal's tolerant
-    ///    upstream feed which sometimes ships 20-char variants.
+    ///    Both 21-char (canonical) and 20-char (one space inside the
+    ///    root-padding region) inputs are accepted. The 20-char form is
+    ///    repaired by peeling off the fixed 15-char `YYMMDD+right+strike`
+    ///    suffix and right-padding the leading root slice to 6 chars —
+    ///    byte-for-byte equivalent to the 21-char form for the same
+    ///    contract, matching the tolerant upstream feed that occasionally
+    ///    ships the 20-char variant.
     ///    ```
     ///    # use std::str::FromStr;
     ///    # use thetadatadx::fpss::protocol::Contract;
@@ -546,23 +571,39 @@ impl std::str::FromStr for Contract {
                 "Contract::from_str: empty or whitespace-only input in {input:?}"
             )));
         }
-        // The raw OCC-21 layout is exactly 21 chars; some upstream
-        // sources drop a single leading/trailing space so we also try
-        // padding to 21 before rejecting. Only one pad attempt (right
-        // side) because the OCC layout is left-anchored at root.
         if trimmed.len() == Self::OCC21_LEN {
             return Self::parse_occ21(trimmed);
         }
-        if trimmed.len() < Self::OCC21_LEN && trimmed.len() > 6 {
-            // Neither a valid root length (<=6) nor the OCC-21 length.
-            // Pad with a trailing space to reach 21 and retry so the
-            // strict parser reports the specific position that failed.
-            let padded = format!("{:<21}", trimmed);
-            if padded.len() == Self::OCC21_LEN {
-                // If padding shifted the right byte out of position 12
-                // the strict parser will explain. We only attempt this
-                // one repair.
-                return Self::parse_occ21(&padded);
+        // 20-char tolerance: some upstream sources drop a single space
+        // INSIDE the root-padding region (e.g. `"SPY 260417C00550000"`
+        // has "SPY" + one pad space + 15-char suffix = 20 chars). The
+        // OCC-21 layout is [6-char root][15-char YYMMDD+right+strike],
+        // so repair by peeling the trailing 15 chars as the fixed
+        // suffix and right-padding the leading root slice to 6 chars.
+        //
+        // This is strictly a repair heuristic. The strict 21-char
+        // parser runs on the repaired string, so all other constraints
+        // (digits, right byte, strike width) still surface their exact
+        // errors with the repaired input in the message.
+        const OCC21_SUFFIX_LEN: usize = 15; // YYMMDD(6) + right(1) + strike(8)
+        if trimmed.len() == Self::OCC21_LEN - 1 && trimmed.len() > OCC21_SUFFIX_LEN {
+            let split = trimmed.len() - OCC21_SUFFIX_LEN;
+            let root_slice = trimmed[..split].trim_end_matches(' ');
+            let suffix = &trimmed[split..];
+            if !root_slice.is_empty() && root_slice.len() <= 6 {
+                // Rebuild with the root re-padded to 6 chars, then the
+                // 15-char suffix — byte-for-byte equivalent to a
+                // correctly-formatted OCC-21 string for the same
+                // contract.
+                let mut repaired = String::with_capacity(Self::OCC21_LEN);
+                repaired.push_str(root_slice);
+                for _ in root_slice.len()..6 {
+                    repaired.push(' ');
+                }
+                repaired.push_str(suffix);
+                if repaired.len() == Self::OCC21_LEN {
+                    return Self::parse_occ21(&repaired);
+                }
             }
         }
 
@@ -1290,5 +1331,95 @@ mod tests {
             err.contains("Contract::from_str"),
             "expected Contract::from_str-prefixed error, got: {err}"
         );
+    }
+
+    // -- OCC-21 20-char tolerance -------------------------------------------
+    //
+    // Upstream feeds occasionally ship OCC symbols one space short of the
+    // canonical 21 bytes because the missing space sits INSIDE the root
+    // padding region. The repair MUST peel the fixed 15-char suffix, then
+    // re-pad the leading root slice to 6 chars so the strict 21-char
+    // parser sees the exact same bytes it would have on a correctly
+    // formatted input.
+
+    #[test]
+    fn from_str_occ21_20char_single_space_padded_root() {
+        use std::str::FromStr;
+        // 20-char form: "SPY" + two pad spaces (one short) + 15-char
+        // suffix. Canonical OCC-21 has three pad spaces after SPY.
+        let twenty = "SPY  260417C00550000";
+        assert_eq!(twenty.len(), 20);
+        let c20 = Contract::from_str(twenty).expect("20-char OCC-21 must repair");
+
+        // 21-char canonical: "SPY" + 3 pad spaces + 15-char suffix.
+        let twentyone = "SPY   260417C00550000";
+        assert_eq!(twentyone.len(), 21);
+        let c21 = Contract::from_str(twentyone).expect("21-char OCC-21 must parse");
+
+        // Both strings MUST produce the same Contract. This pins the
+        // repair behaviour — previously the 20-char form was padded
+        // with a trailing space, which shifted the right-byte into a
+        // digit slot and either errored or decoded a different contract.
+        assert_eq!(c20, c21, "20-char and 21-char forms must parse identically");
+        assert_eq!(c20.root, "SPY");
+        assert_eq!(c20.exp_date, Some(20_260_417));
+        assert_eq!(c20.is_call, Some(true));
+        assert_eq!(c20.strike, Some(550_000));
+    }
+
+    #[test]
+    fn from_str_occ21_20char_two_char_root() {
+        use std::str::FromStr;
+        // Root "T" (1 char) + 4 pad spaces (5-char root field) + suffix
+        // = 20 chars. Canonical has 5 pad spaces after "T".
+        let twenty = "T    260417C00150000";
+        assert_eq!(twenty.len(), 20);
+        let c = Contract::from_str(twenty).expect("20-char OCC-21 with short root must repair");
+        assert_eq!(c.root, "T");
+        assert_eq!(c.is_call, Some(true));
+        assert_eq!(c.strike, Some(150_000));
+    }
+
+    // -- Century scope (2000-2099) -------------------------------------------
+
+    #[test]
+    fn from_str_occ21_yy_99_maps_to_2099() {
+        use std::str::FromStr;
+        // YY=99 maps to 2099 under the documented 2000-2099 scope.
+        // Any post-2099 expansion MUST add an explicit century argument;
+        // the live FPSS feed ships only live contracts so a pre-2000
+        // OCC symbol cannot reach this parser over the wire.
+        let c = Contract::from_str("AAPL  990101C00100000").expect("YY=99 must parse");
+        assert_eq!(c.exp_date, Some(20_990_101), "YY=99 must map to 2099-01-01");
+        assert_eq!(c.root, "AAPL");
+        assert_eq!(c.is_call, Some(true));
+        assert_eq!(c.strike, Some(100_000));
+    }
+
+    // -- validate_root: at most one dot --------------------------------------
+
+    #[test]
+    fn from_str_bare_root_rejects_multiple_dots() {
+        use std::str::FromStr;
+        // "A..B" has two dots and must be rejected — no real ticker
+        // has more than one dot in its root.
+        let err = Contract::from_str("A..B").unwrap_err().to_string();
+        assert!(
+            err.contains("at most one '.'"),
+            "expected single-dot error, got: {err}"
+        );
+        assert!(
+            err.contains("A..B"),
+            "expected error to include the offending input, got: {err}"
+        );
+    }
+
+    #[test]
+    fn from_str_bare_root_allows_exactly_one_dot() {
+        use std::str::FromStr;
+        // Industry-practice single-dot compound tickers MUST still
+        // parse — keeping BRK.A / BRK.B / RDS.A reachable.
+        let c = Contract::from_str("BRK.B").expect("single-dot root must parse");
+        assert_eq!(c.root, "BRK.B");
     }
 }

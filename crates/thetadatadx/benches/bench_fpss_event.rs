@@ -13,15 +13,20 @@
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::hint::black_box;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{FpssData, FpssEvent};
 
+/// Single process-lifetime `Arc<Contract>`. Every sample event below
+/// clones THIS Arc — the benchmark measures pure refcount-bump cost on
+/// `FpssEvent::clone`, not allocator noise from per-call `Arc::new` +
+/// `String::clone("SPY")` inside each `sample_*` helper.
+static SAMPLE_CONTRACT: LazyLock<Arc<Contract>> =
+    LazyLock::new(|| Arc::new(Contract::stock("SPY")));
+
 fn sample_contract() -> Arc<Contract> {
-    // One allocation — the same Arc is cloned into every sample event so
-    // the benchmark measures per-event clone cost without allocator noise.
-    Arc::new(Contract::stock("SPY"))
+    Arc::clone(&SAMPLE_CONTRACT)
 }
 
 fn sample_quote(contract_id: i32) -> FpssEvent {

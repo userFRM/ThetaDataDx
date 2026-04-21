@@ -251,8 +251,13 @@ impl FpssClient {
         tracing::debug!("sent CREDENTIALS to {server_addr}");
 
         // Wait for METADATA (success) or DISCONNECTED (failure)
-        // Source: FPSSClient.connect() -- blocks until login response arrives
-        let login_result = wait_for_login(&mut stream)?;
+        // Source: FPSSClient.connect() -- blocks until login response arrives.
+        // `pending_connected` is set to true if the server emits CONNECTED
+        // (code 4) during the handshake; the io_loop forwards it as
+        // `FpssControl::Connected` on the event bus so user callbacks see
+        // it alongside the regular post-METADATA event stream.
+        let mut pending_connected = false;
+        let login_result = wait_for_login(&mut stream, &mut pending_connected)?;
 
         let permissions = match login_result {
             LoginResult::Success(permissions) => {
@@ -334,6 +339,7 @@ impl FpssClient {
                     io_authenticated,
                     io_contract_map,
                     permissions,
+                    pending_connected,
                     io_server_addr,
                     derive_ohlcvc,
                     flush_mode,

@@ -1,4 +1,12 @@
 /// Security type identifier.
+///
+/// `Unknown` is a sentinel for contracts whose shape has not yet been resolved.
+/// The FPSS decoder uses it for the empty-contract placeholder that flows on
+/// data events arriving before their `ContractAssigned` frame — downstream
+/// consumers can pattern-match `sec_type == SecType::Unknown` instead of
+/// relying on `contract.root.is_empty()`. `Unknown` has no wire-protocol
+/// representation: [`SecType::from_code`] never returns it, and it is not
+/// serialized in subscribe payloads.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(i32)]
 pub enum SecType {
@@ -6,6 +14,8 @@ pub enum SecType {
     Option = 1,
     Index = 2,
     Rate = 3,
+    /// Unresolved contract shape (client-side sentinel, never sent over the wire).
+    Unknown = -1,
 }
 
 impl SecType {
@@ -16,6 +26,9 @@ impl SecType {
             1 => Some(Self::Option),
             2 => Some(Self::Index),
             3 => Some(Self::Rate),
+            // `Unknown` has no wire representation — it is synthesized
+            // client-side only. Returning `None` keeps the wire-protocol
+            // parser strict.
             _ => None,
         }
     }
@@ -27,6 +40,7 @@ impl SecType {
             Self::Option => "OPTION",
             Self::Index => "INDEX",
             Self::Rate => "RATE",
+            Self::Unknown => "UNKNOWN",
         }
     }
 }

@@ -9,19 +9,27 @@ use super::schema::{load_schema, sorted_data_event_names, sorted_event_names, Ev
 /// Emit the Contract napi struct. Same shape across every language —
 /// `root` is always present (empty when not yet resolved), option fields
 /// are `Option<T>` on the Rust side / `?: T` on the TS side.
+///
+/// Uses a raw string literal (`r#""#`) so the field indentation is
+/// preserved verbatim. The previous backslash-newline continuation form
+/// stripped every line's leading whitespace (Rust `\`-followed-by-space
+/// elision), producing fields that were flush-left inside the generated
+/// struct — not aligned with the rest of the file.
 fn render_contract_napi() -> &'static str {
-    "/// FPSS contract identifier. Surfaced on every decoded FPSS data\n\
-/// event as `event.quote.contract` / `event.trade.contract` / etc.\n\
-#[must_use]\n\
-#[napi(object)]\n\
-#[derive(Clone)]\n\
-pub struct Contract {\n\
-    pub root: String,\n\
-    pub sec_type: i32,\n\
-    pub exp_date: Option<i32>,\n\
-    pub is_call: Option<bool>,\n\
-    pub strike: Option<i32>,\n\
-}\n\n"
+    r#"/// FPSS contract identifier. Surfaced on every decoded FPSS data
+/// event as `event.quote.contract` / `event.trade.contract` / etc.
+#[must_use]
+#[napi(object)]
+#[derive(Clone)]
+pub struct Contract {
+    pub root: String,
+    pub sec_type: i32,
+    pub exp_date: Option<i32>,
+    pub is_call: Option<bool>,
+    pub strike: Option<i32>,
+}
+
+"#
 }
 
 pub(super) fn render_ts_fpss_event_classes(schema: &Schema) -> String {

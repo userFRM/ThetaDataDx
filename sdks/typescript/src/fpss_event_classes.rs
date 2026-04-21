@@ -16,11 +16,11 @@
 #[napi(object)]
 #[derive(Clone)]
 pub struct Contract {
-pub root: String,
-pub sec_type: i32,
-pub exp_date: Option<i32>,
-pub is_call: Option<bool>,
-pub strike: Option<i32>,
+    pub root: String,
+    pub sec_type: i32,
+    pub exp_date: Option<i32>,
+    pub is_call: Option<bool>,
+    pub strike: Option<i32>,
 }
 
 /// FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`.
