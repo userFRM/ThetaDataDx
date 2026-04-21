@@ -1,11 +1,13 @@
 ---
 title: Installation
-description: Install ThetaDataDx for Rust, Python, TypeScript/Node.js, Go, or C++.
+description: Install ThetaDataDx for Rust, Python, TypeScript/Node.js, Go, or C++ — the ThetaData Python SDK is Python-only; ThetaDataDx ships five languages.
 ---
 
 # Installation
 
-## SDK Installation
+The ThetaData Python SDK is Python-only. ThetaDataDx ships five native SDKs from one Rust core; pick your language and the one-liner below.
+
+## SDK installation
 
 ::: code-group
 ```toml [Rust]
@@ -17,12 +19,13 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```bash [Python]
 pip install thetadatadx
 
-# With DataFrame support:
-pip install thetadatadx[pandas]    # pandas DataFrames
-pip install thetadatadx[polars]    # polars DataFrames
-pip install thetadatadx[all]       # both
+# With DataFrame adapters:
+pip install thetadatadx[pandas]    # pandas
+pip install thetadatadx[polars]    # polars
+pip install thetadatadx[arrow]     # pyarrow only
+pip install thetadatadx[all]       # all three
 
-# Requires Python 3.9+. Pre-built wheels are provided - no Rust toolchain required.
+# Requires Python 3.9+. Pre-built abi3 wheels — no Rust toolchain required.
 ```
 ```bash [TypeScript]
 npm install thetadatadx
@@ -36,7 +39,7 @@ npm run build
 ```bash [Go]
 # Prerequisites: Go 1.21+, Rust toolchain, C compiler (for CGo)
 
-# First, build the Rust FFI library:
+# Build the Rust FFI library:
 git clone https://github.com/userFRM/ThetaDataDx.git
 cd ThetaDataDx
 cargo build --release -p thetadatadx-ffi
@@ -46,7 +49,6 @@ cargo build --release -p thetadatadx-ffi
 # On Windows, the Go SDK links against the GNU Rust target instead:
 rustup target add x86_64-pc-windows-gnu
 cargo build --release --target x86_64-pc-windows-gnu -p thetadatadx-ffi
-# Produces artifacts under target/x86_64-pc-windows-gnu/release/
 
 # Then add the Go module:
 go get github.com/userFRM/thetadatadx/sdks/go
@@ -54,24 +56,34 @@ go get github.com/userFRM/thetadatadx/sdks/go
 ```bash [C++]
 # Prerequisites: C++17 compiler, CMake 3.16+, Rust toolchain
 
-# First, build the Rust FFI library:
+# Build the Rust FFI library:
 git clone https://github.com/userFRM/ThetaDataDx.git
 cd ThetaDataDx
 cargo build --release -p thetadatadx-ffi
-# Produces target/release/libthetadatadx_ffi.so (Linux)
-# or libthetadatadx_ffi.dylib (macOS)
 
-# Then build the C++ SDK:
+# Build the C++ SDK:
 cd sdks/cpp
 mkdir build && cd build
 cmake ..
 make
+
+# The C++ header lives at sdks/cpp/include/thetadx.hpp and pulls in
+# endpoint_options.hpp.inc alongside the generated C header.
 ```
 :::
 
-## Building Python from Source
+## Python abi3 wheels
 
-For unsupported platforms where pre-built wheels are not available:
+The Python SDK ships a single `abi3` wheel per OS. One wheel built against Python 3.12 works on Python 3.9 → 3.14 without a per-version recompile, which is why the Rust toolchain is never needed on supported platforms.
+
+| Platform | Wheel |
+|----------|-------|
+| Linux x86_64 (`manylinux2014`) | pre-built |
+| macOS (universal2) | pre-built |
+| Windows x86_64 | pre-built |
+| Anything else | build from source (`maturin develop --release`) |
+
+### Building Python from source
 
 ```bash
 pip install "maturin>=1.9.4,<2.0"
@@ -81,18 +93,18 @@ maturin develop --release
 ```
 
 ::: warning
-Building from source requires a working Rust toolchain. Install it via [rustup.rs](https://rustup.rs) if you do not have one.
+Building from source requires a working Rust toolchain. Install it via [rustup.rs](https://rustup.rs).
 :::
 
-## Memory Management
+## Memory management (Go / C++)
 
 ### Go
 
-All Go SDK objects that wrap FFI handles must be closed when no longer needed:
+Every Go SDK handle that wraps an FFI pointer must be `Close()`d:
 
 ```go
 creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
-defer creds.Close()  // frees the Rust-side allocation
+defer creds.Close()
 
 config := thetadatadx.ProductionConfig()
 defer config.Close()
@@ -103,20 +115,18 @@ defer client.Close()
 
 ### C++
 
-The C++ SDK uses RAII wrappers around the C FFI handles. All objects automatically free their resources when they go out of scope. No manual memory management required.
+The C++ SDK uses RAII wrappers around the C FFI handles. Resources free on scope exit; no manual cleanup.
 
 ```cpp
 {
     auto client = tdx::Client::connect(creds, tdx::Config::production());
-    // ... use client ...
-}  // client automatically freed here
+    // use client
+}  // freed here
 ```
 
-All methods throw `std::runtime_error` on failure.
+Methods throw `std::runtime_error` on failure.
 
-## Verify Installation
-
-After installing, verify everything works by running a simple connectivity check:
+## Verify the install
 
 ::: code-group
 ```rust [Rust]
@@ -125,7 +135,7 @@ use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
-    let client = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+    let _tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
     println!("Connected successfully");
     Ok(())
 }
@@ -134,7 +144,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
 from thetadatadx import Credentials, Config, ThetaDataDx
 
 creds = Credentials.from_file("creds.txt")
-client = ThetaDataDx(creds, Config.production())
+tdx = ThetaDataDx(creds, Config.production())
 print("Connected successfully")
 ```
 ```typescript [TypeScript]
@@ -145,18 +155,14 @@ console.log('Connected successfully');
 ```
 ```go [Go]
 creds, err := thetadatadx.CredentialsFromFile("creds.txt")
-if err != nil {
-    log.Fatal(err)
-}
+if err != nil { log.Fatal(err) }
 defer creds.Close()
 
 config := thetadatadx.ProductionConfig()
 defer config.Close()
 
 client, err := thetadatadx.Connect(creds, config)
-if err != nil {
-    log.Fatal(err)
-}
+if err != nil { log.Fatal(err) }
 defer client.Close()
 fmt.Println("Connected successfully")
 ```
@@ -166,3 +172,8 @@ auto client = tdx::Client::connect(creds, tdx::Config::production());
 std::cout << "Connected successfully" << std::endl;
 ```
 :::
+
+## Next
+
+- [Authentication](./authentication) — credentials file, env vars, session lifecycle
+- [First query](./first-query) — one historical call in every language
