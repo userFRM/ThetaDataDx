@@ -98,6 +98,44 @@ pub(super) fn optional_getter_name(param_type: &str) -> &'static str {
     }
 }
 
+// ───────────────────────── Docstring composition ───────────────────────────
+//
+// SSOT: `endpoint.description` is the short DX-native sentence that already
+// drives every sync method's `///` line today. `endpoint.vendor_docstring`
+// is the upstream vendor's richer prose (feed-source notes, subscription
+// tier behavior, parameter defaults). We emit `description` first — the
+// typed-return description stays on top for grep-ability — then a blank
+// line and the vendor block. Both sync and async methods, and the fluent
+// builder's `arrow()` / `list()` / `polars()` / `pandas()` terminals,
+// pull from the same composed string so no variant can drift.
+
+/// Compose the full doc body for an endpoint: native description first,
+/// vendor block (if any) appended with a blank separator line.
+pub(super) fn compose_endpoint_doc(endpoint: &GeneratedEndpoint) -> String {
+    match endpoint.vendor_docstring.as_deref() {
+        Some(vendor) if !vendor.is_empty() => {
+            format!("{}\n\n{vendor}", endpoint.description)
+        }
+        _ => endpoint.description.clone(),
+    }
+}
+
+/// Format an endpoint doc body as a sequence of Rust `///` lines with the
+/// given indent. Used by the Python + TypeScript pymethod/napi emitters
+/// so that sync, async, and builder variants share one render path.
+pub(super) fn render_rust_doc_block(indent: &str, doc: &str) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    for line in doc.lines() {
+        if line.is_empty() {
+            writeln!(out, "{indent}///").unwrap();
+        } else {
+            writeln!(out, "{indent}/// {line}").unwrap();
+        }
+    }
+    out
+}
+
 // ───────────────────────── Casing ────────────────────────────────────────────
 
 pub(super) fn to_pascal_case(value: &str) -> String {
