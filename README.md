@@ -171,20 +171,30 @@ All endpoints return fully typed data in every language. See the [API Reference]
 
 ## Architecture
 
-```
-            +------------------------------------------------+
-            |                thetadatadx (Rust)              |
-            |                                                |
-            |  auth  |  MDDS gRPC  |  FPSS TCP  |  decode    |
-            |                                                |
-            |                 tdbe (types / codec / Greeks)  |
-            +------------------------------------------------+
-                                     |
-              +---------+-------------+-------------+---------+
-              |         |             |             |         |
-           PyO3     napi-rs         CGo          C FFI      tonic
-             |         |             |             |         |
-           Python  TypeScript       Go           C++       Rust
+```mermaid
+flowchart TB
+    subgraph core["Rust core"]
+        direction TB
+        thetadatadx["<b>thetadatadx</b><br/>auth · MDDS gRPC · FPSS TCP · decode"]
+        tdbe["<b>tdbe</b><br/>types · FIT / FIE codec · Greeks · Price"]
+        thetadatadx --> tdbe
+    end
+
+    ffi["<b>ffi</b><br/>stable C ABI · panic boundary"]
+    core --> ffi
+
+    ffi -->|PyO3 / maturin| python["Python SDK<br/>(pyo3 · Arrow)"]
+    ffi -->|napi-rs| ts["TypeScript SDK<br/>(N-API · BigInt)"]
+    ffi -->|cgo| go["Go SDK"]
+    ffi -->|extern C| cpp["C++ SDK<br/>(RAII header-only)"]
+    core -->|tonic| rust["Rust consumer<br/>(direct crate)"]
+
+    classDef coreStyle fill:#1e3a8a,stroke:#0c1e5c,color:#fff
+    classDef ffiStyle fill:#7c2d12,stroke:#450a0a,color:#fff
+    classDef sdkStyle fill:#14532d,stroke:#052e16,color:#fff
+    class thetadatadx,tdbe coreStyle
+    class ffi ffiStyle
+    class python,ts,go,cpp,rust sdkStyle
 ```
 
 | Layer | Crate / package | Purpose |
