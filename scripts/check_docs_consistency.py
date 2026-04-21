@@ -8,6 +8,12 @@ surface by checking a few high-signal invariants:
 - REST/OpenAPI path + operationId parity with `endpoint_surface.toml`
 - docs-site API reference coverage for every endpoint
 - current server docs staying on the v3 path scheme and current defaults
+- `CHANGELOG.md` and `docs-site/docs/changelog.md` staying byte-identical
+  (the docs-site build re-publishes whatever is on `main`, so any drift
+  is a release-note bug the moment it lands)
+
+Exits non-zero on any mismatch. Run from repo root; the script resolves
+the workspace root from its own path so `cd` is not required.
 """
 
 from __future__ import annotations

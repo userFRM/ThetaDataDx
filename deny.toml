@@ -14,6 +14,12 @@
 #
 # Every `ignore` entry requires a `# Reason:` comment explaining why the
 # advisory does not apply to our use. No silent pins.
+#
+# CI runs the same command on every PR plus a weekly Monday 03:00 UTC cron
+# (`.github/workflows/security-audit.yml`). A newly-published advisory on a
+# transitive dependency is surfaced by the cron job before it reaches a
+# release; do not downgrade the `yanked = "deny"` bar without a matching
+# `# Reason:` entry below.
 
 [graph]
 # Check every target triple we actually build against -- the FFI and SDK

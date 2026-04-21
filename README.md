@@ -226,6 +226,7 @@ flowchart TB
 | [Java Parity Checklist](docs/java-parity-checklist.md) | Feature-by-feature comparison with the Java terminal |
 | [Endpoint Schema](docs/endpoint-schema.md) | TOML codegen format for adding new types/columns |
 | [Proto Maintenance](crates/thetadatadx/proto/MAINTENANCE.md) | Guide for updating proto files |
+| [Changelog](CHANGELOG.md) | Release notes with breaking changes, features, and fixes |
 
 ## Contributing
 
