@@ -14,11 +14,11 @@ use std::path::PathBuf;
 // called from both entry points.
 #[path = "../../build_support/endpoints/mod.rs"]
 mod endpoints;
-#[path = "../../build_support/fpss_events.rs"]
+#[path = "../../build_support/fpss_events/mod.rs"]
 mod fpss_events;
-#[path = "../../build_support/sdk_surface.rs"]
+#[path = "../../build_support/sdk_surface/mod.rs"]
 mod sdk_surface;
-#[path = "../../build_support/ticks.rs"]
+#[path = "../../build_support/ticks/mod.rs"]
 mod ticks;
 #[path = "../../build_support/upstream_openapi.rs"]
 mod upstream_openapi;

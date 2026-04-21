@@ -1,18 +1,21 @@
 [package]
 name = "thetadatadx"
 version = "7.3.1"
-edition = "2021"
-rust-version = "1.85"
-authors = ["userFRM"]
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
 description = "No-JVM ThetaData Terminal — native Rust SDK for direct MDDS (gRPC) and FPSS (TCP) market data access"
 documentation = "https://docs.rs/thetadatadx"
-homepage = "https://github.com/userFRM/ThetaDataDx"
-repository = "https://github.com/userFRM/ThetaDataDx"
-license = "Apache-2.0"
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
 keywords = ["thetadata", "market-data", "tick-data", "zero-copy", "low-latency"]
 categories = ["finance", "api-bindings", "network-programming", "encoding"]
 readme = "../../README.md"
 include = ["src/**/*", "proto/**/*", "build.rs", "build_support/**/*", "Cargo.toml", "tick_schema.toml", "endpoint_surface.toml", "sdk_surface.toml", "fpss_event_schema.toml"]
+
+[lints]
+workspace = true
 
 [package.metadata.docs.rs]
 all-features = true

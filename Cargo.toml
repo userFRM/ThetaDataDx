@@ -2,3 +2,44 @@
 members = ["crates/tdbe", "crates/thetadatadx", "tools/cli", "ffi"]
 exclude = ["sdks/python", "sdks/typescript", "tools/mcp", "tools/server"]
 resolver = "2"
+
+# Shared package metadata. Member crates inherit individual fields via
+# `<field>.workspace = true` so bumping the repo URL, the Apache-2.0
+# license, or the MSRV happens in exactly one place.
+#
+# `version` is intentionally NOT hoisted because the workspace ships two
+# independent semver tracks: `tdbe` (0.x encoding crate) and everything
+# else (the 7.x SDK line). Each member keeps its own `version = "..."`.
+[workspace.package]
+edition = "2021"
+rust-version = "1.85"
+authors = ["userFRM"]
+license = "Apache-2.0"
+homepage = "https://github.com/userFRM/ThetaDataDx"
+repository = "https://github.com/userFRM/ThetaDataDx"
+
+# Workspace-wide lint configuration. Matches what CI enforces
+# (`cargo clippy --workspace -- -D warnings`) at the Cargo.toml layer so
+# local `cargo clippy` behaves identically to the CI job without relying
+# on a remembered flag. Keeping this here also means new member crates
+# inherit the strict profile automatically once they add `[lints]
+# workspace = true`.
+[workspace.lints.rust]
+# Deny the rustc `warnings` lint group — this is what the `-D warnings`
+# flag on the CI clippy command promotes to an error. Expressing it
+# declaratively makes local `cargo clippy` / `cargo check` fail on the
+# same rustc warnings CI rejects, with no flag required.
+warnings = "deny"
+# `unsafe_op_in_unsafe_fn` forces every unsafe operation inside an
+# `unsafe fn` body to be wrapped in its own `unsafe { ... }` block. This
+# is the lang-team-recommended hygiene and matches our FFI boundary
+# discipline (see `ffi/src/lib.rs`). Promoted to `deny` alongside the
+# rest of the `warnings` group.
+unsafe_op_in_unsafe_fn = "deny"
+
+[workspace.lints.clippy]
+# Deny the default clippy set — same bar as `cargo clippy -- -D warnings`
+# but expressed declaratively so it applies to every member crate, every
+# target (lib, bins, tests, benches, examples), without needing the flag
+# on the command line.
+all = { level = "deny", priority = -1 }

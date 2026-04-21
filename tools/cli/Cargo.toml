@@ -1,12 +1,19 @@
 [package]
 name = "thetadatadx-cli"
 version = "7.3.1"
-edition = "2021"
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
 description = "CLI for ThetaDataDx — query ThetaData from your terminal"
-license = "Apache-2.0"
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
 # Internal CLI — never published to crates.io. Only `tdbe` and
 # `thetadatadx` are published (see publish-crate job in ci.yml).
 publish = false
+
+[lints]
+workspace = true
 
 [[bin]]
 name = "tdx"
