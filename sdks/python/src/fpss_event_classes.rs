@@ -45,7 +45,6 @@ strike: c.strike,
 /// FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
-#[derive(Clone)]
 pub(crate) struct Ohlcvc {
     #[pyo3(get)] pub contract_id: i32,
     #[pyo3(get)] pub contract: Py<Contract>,
@@ -72,7 +71,6 @@ impl Ohlcvc {
 /// FPSS OpenInterest tick. Mirrors `FpssData::OpenInterest`.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
-#[derive(Clone)]
 pub(crate) struct OpenInterest {
     #[pyo3(get)] pub contract_id: i32,
     #[pyo3(get)] pub contract: Py<Contract>,
@@ -94,7 +92,6 @@ impl OpenInterest {
 /// FPSS Quote tick. Mirrors `FpssData::Quote`.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
-#[derive(Clone)]
 pub(crate) struct Quote {
     #[pyo3(get)] pub contract_id: i32,
     #[pyo3(get)] pub contract: Py<Contract>,
@@ -123,7 +120,6 @@ impl Quote {
 /// FPSS raw-bytes event for frames the decoder did not recognize. `code` is the wire message code; `payload` is the full frame body.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
-#[derive(Clone)]
 pub(crate) struct RawData {
     #[pyo3(get)] pub code: u8,
     #[pyo3(get)] pub payload: Vec<u8>,
@@ -141,7 +137,6 @@ impl RawData {
 /// FPSS control / diagnostic event. Flattened from every `FpssControl` variant (login_success, contract_assigned, req_response, market_open/close, server_error, disconnected, reconnecting, reconnected, error, unknown_frame) and from the unknown-data / unknown-control fallbacks. `event_type` carries the concrete variant name; `detail` is a free-form diagnostic string (None when the variant carries no payload); `id` is the contract_id / req_id / reconnect attempt number where applicable.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
-#[derive(Clone)]
 pub(crate) struct Simple {
     #[pyo3(get)] pub event_type: String,
     #[pyo3(get)] pub detail: Option<String>,
@@ -160,7 +155,6 @@ impl Simple {
 /// FPSS Trade tick. Mirrors `FpssData::Trade`.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
-#[derive(Clone)]
 pub(crate) struct Trade {
     #[pyo3(get)] pub contract_id: i32,
     #[pyo3(get)] pub contract: Py<Contract>,

@@ -115,11 +115,17 @@ fn render_python_event_class_struct(event_name: &str, def: &EventDef) -> String 
     }
     // `#[must_use]` — events surfaced from the FPSS stream; silently dropping
     // decoded events is a bug. `skip_from_py_object` opts out of the
-    // deprecated auto-derived `FromPyObject` impl for `Clone` pyclasses
+    // deprecated auto-derived `FromPyObject` impl for pyclasses
     // (pyo3 0.28+); these event structs flow FROM Rust to Python only.
+    //
+    // No `#[derive(Clone)]` on data-variant event classes: the `contract`
+    // field is `Py<Contract>`, which does not implement `Clone` (cloning
+    // a Python reference needs a GIL token via `clone_ref(py)`). These
+    // events flow one-way from the Rust callback to the Python consumer
+    // and are never cloned on the Rust side, so the derive would be dead
+    // code even if it compiled.
     out.push_str("#[must_use]\n");
     out.push_str("#[pyclass(module = \"thetadatadx\", frozen, skip_from_py_object)]\n");
-    out.push_str("#[derive(Clone)]\n");
     writeln!(out, "pub(crate) struct {event_name} {{").unwrap();
     for column in &def.columns {
         let ty = python_rust_field_type(&column.r#type, event_name, &column.name);
