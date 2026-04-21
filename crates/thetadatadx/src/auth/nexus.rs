@@ -209,10 +209,22 @@ fn is_transient_network_error(err: &reqwest::Error) -> bool {
     err.is_connect() || err.is_timeout()
 }
 
+/// Authenticate against the default Nexus URL. Delegates to
+/// [`authenticate_at`] with the hardcoded URL constant.
+///
+/// # Errors
+///
+/// Returns an error on network, authentication, or parsing failure.
+pub async fn authenticate(creds: &Credentials) -> Result<AuthResponse, Error> {
+    authenticate_at(NEXUS_AUTH_URL, creds).await
+}
+
 /// Authenticate against the Nexus API and return the session info.
 ///
 /// This performs the same HTTP POST as the Java terminal's
-/// `AuthenticationManager.authenticateViaCloud()`.
+/// `AuthenticationManager.authenticateViaCloud()`, but against a caller-
+/// supplied URL. Used by auto-refresh and by deployments that redirect
+/// auth to a staging cluster via [`crate::config::ENV_NEXUS_URL`].
 ///
 /// The returned `AuthResponse.session_id` is a UUID string that must be
 /// embedded in every MDDS gRPC request as `QueryInfo.auth_token.session_uuid`.
@@ -224,7 +236,7 @@ fn is_transient_network_error(err: &reqwest::Error) -> bool {
 /// # Errors
 ///
 /// Returns an error on network, authentication, or parsing failure.
-pub async fn authenticate(creds: &Credentials) -> Result<AuthResponse, Error> {
+pub async fn authenticate_at(url: &str, creds: &Credentials) -> Result<AuthResponse, Error> {
     metrics::counter!("thetadatadx.auth.requests").increment(1);
     let auth_start = std::time::Instant::now();
 
@@ -249,7 +261,7 @@ pub async fn authenticate(creds: &Credentials) -> Result<AuthResponse, Error> {
     // address.
     tracing::debug!(
         email_prefix = %redacted_email_prefix(&creds.email),
-        url = NEXUS_AUTH_URL,
+        url = url,
         "authenticating against Nexus API"
     );
 
@@ -259,7 +271,7 @@ pub async fn authenticate(creds: &Credentials) -> Result<AuthResponse, Error> {
     let resp = 'retry: {
         for attempt in 1..=AUTH_MAX_RETRIES {
             match client
-                .post(NEXUS_AUTH_URL)
+                .post(url)
                 .header(TERMINAL_KEY_HEADER, TERMINAL_KEY)
                 .header("Accept", "application/json")
                 .json(&body)

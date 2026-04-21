@@ -1,0 +1,35 @@
+/// Merge a list of prost-encoded `proto::ResponseData` frames into the same
+/// single `DataTable` the live gRPC collector would produce.
+///
+/// Mirrors `MddsClient::collect_stream`: each chunk is prost-decoded, then
+/// the zstd payload is decompressed and the rows are concatenated. Headers
+/// are taken from the first chunk that carries them (matches collect_stream
+/// semantics).
+fn decode_chunks_into_table(
+    chunks: &[&[u8]],
+) -> PyResult<thetadatadx::proto::DataTable> {
+    let mut headers: Vec<String> = Vec::new();
+    let mut rows: Vec<thetadatadx::proto::DataValueList> = Vec::new();
+    for (idx, chunk) in chunks.iter().enumerate() {
+        let response = <thetadatadx::proto::ResponseData as thetadatadx::prost::Message>::decode(*chunk)
+            .map_err(|e| {
+                pyo3::exceptions::PyValueError::new_err(format!(
+                    "decode_response_bytes: chunk {idx} is not a valid proto::ResponseData: {e}"
+                ))
+            })?;
+        let table = thetadatadx::decode::decode_data_table(&response).map_err(|e| {
+            pyo3::exceptions::PyRuntimeError::new_err(format!(
+                "decode_response_bytes: chunk {idx} decode failed: {e}"
+            ))
+        })?;
+        if headers.is_empty() {
+            headers = table.headers;
+        }
+        rows.extend(table.data_table);
+    }
+    Ok(thetadatadx::proto::DataTable {
+        headers,
+        data_table: rows,
+    })
+}
+

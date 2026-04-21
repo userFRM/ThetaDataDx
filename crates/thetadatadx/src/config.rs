@@ -39,6 +39,36 @@ use tdbe::types::enums::RemoveReason;
 
 use crate::error::Error;
 
+// ── Environment variable names ────────────────────────────────────────────
+//
+// Two groups:
+//
+// * Compatibility set (`THETADATA_MDDS_HOST`, `THETADATA_MDDS_PORT`,
+//   `THETADATA_EMAIL`, `THETADATA_PASSWORD`) — environment variable names
+//   operators already use to configure existing `ThetaData` clients;
+//   reusing them here means an existing shell config keeps working.
+// * DX extensions — cover surfaces that were previously hardcoded (Nexus
+//   URL, FPSS host/port, `client_type`) so site operators can steer
+//   traffic at a staging cluster without a code change.
+//
+// Precedence is documented on `DirectConfig`: explicit builder setter >
+// env var > hardcoded default.
+
+/// MDDS gRPC host.
+pub const ENV_MDDS_HOST: &str = "THETADATA_MDDS_HOST";
+/// MDDS gRPC port.
+pub const ENV_MDDS_PORT: &str = "THETADATA_MDDS_PORT";
+/// Nexus auth base URL override.
+pub const ENV_NEXUS_URL: &str = "THETADATA_NEXUS_URL";
+/// FPSS hostname override. Replaces the primary FPSS host slot; fallback
+/// hosts are preserved.
+pub const ENV_FPSS_HOST: &str = "THETADATA_FPSS_HOST";
+/// FPSS port override. Pairs with [`ENV_FPSS_HOST`].
+pub const ENV_FPSS_PORT: &str = "THETADATA_FPSS_PORT";
+/// `QueryInfo.client_type` override — steer server-side quotas and
+/// dashboards to treat a deployment as a named fleet.
+pub const ENV_CLIENT_TYPE: &str = "THETADATA_CLIENT_TYPE";
+
 /// Controls FPSS reconnection behavior after a disconnect.
 ///
 /// # Default
@@ -91,9 +121,161 @@ pub enum FpssFlushMode {
     Immediate,
 }
 
+/// Exponential-backoff retry policy for transient gRPC errors on MDDS.
+///
+/// Only wired on status codes `Unavailable`, `DeadlineExceeded`, and
+/// `ResourceExhausted`. Permission / credential failures route through
+/// the separate auto-refresh path (see [`MddsClient`] wrappers) and are
+/// never retried by this policy.
+///
+/// # Jitter
+///
+/// With `jitter = true` (default) the sleep duration follows AWS's
+/// *full jitter* pattern: `delay = rand(0, min(max_delay, initial *
+/// 2^attempt))`. Full jitter provably minimises retry-storm contention
+/// relative to equal jitter or no jitter; see
+/// <https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/>.
+///
+/// With `jitter = false` the delay is the deterministic backoff
+/// `min(max_delay, initial * 2^attempt)`. Useful for tests that
+/// need to assert exact timings.
+#[derive(Debug, Clone, Copy)]
+pub struct RetryPolicy {
+    /// Delay used for the first retry (attempt 1). Doubles per attempt.
+    pub initial_delay: Duration,
+    /// Upper bound on the computed backoff delay, regardless of attempt.
+    pub max_delay: Duration,
+    /// Total attempt budget. `1` disables retry (single call only);
+    /// `0` still permits the initial call but allows no retries.
+    pub max_attempts: u32,
+    /// Apply AWS-style full jitter to each retry delay.
+    pub jitter: bool,
+}
+
+impl Default for RetryPolicy {
+    fn default() -> Self {
+        Self {
+            initial_delay: Duration::from_millis(250),
+            max_delay: Duration::from_secs(30),
+            max_attempts: 5,
+            jitter: true,
+        }
+    }
+}
+
+impl RetryPolicy {
+    /// Build a policy with retry disabled — single attempt, no backoff.
+    #[must_use]
+    pub fn disabled() -> Self {
+        Self {
+            initial_delay: Duration::ZERO,
+            max_delay: Duration::ZERO,
+            max_attempts: 1,
+            jitter: false,
+        }
+    }
+
+    /// Compute the sleep delay before the next retry.
+    ///
+    /// `attempt` is 1-based (attempt 1 = first retry after the initial
+    /// call failed). The returned duration is:
+    ///
+    /// * capped at `max_delay`,
+    /// * exponentiated as `initial_delay * 2^(attempt - 1)`,
+    /// * jittered (when `self.jitter`) across `[0, capped_delay]`.
+    ///
+    /// Overflow in `initial_delay * 2^(attempt - 1)` saturates at
+    /// `max_delay` rather than wrapping, so pathological `attempt`
+    /// values never yield a zero delay.
+    #[must_use]
+    pub fn delay_for_attempt(&self, attempt: u32) -> Duration {
+        let capped = self.capped_backoff(attempt);
+        if self.jitter {
+            jitter_sample(capped)
+        } else {
+            capped
+        }
+    }
+
+    /// Deterministic capped backoff (no jitter). Exposed for tests that
+    /// need to assert the upper-bound envelope for a given attempt.
+    #[must_use]
+    pub fn capped_backoff(&self, attempt: u32) -> Duration {
+        if attempt == 0 {
+            return Duration::ZERO;
+        }
+        // `shift = attempt - 1` so attempt 1 = base, attempt 2 = base*2,
+        // attempt 3 = base*4. `u32::checked_shl(shift)` overflows
+        // exactly when `shift >= 32`; clamp before shifting.
+        let shift = (attempt - 1).min(31);
+        let base_nanos = self.initial_delay.as_nanos();
+        let scaled_nanos = base_nanos.checked_shl(shift).unwrap_or(u128::MAX);
+        let max_nanos = self.max_delay.as_nanos();
+        let nanos = scaled_nanos.min(max_nanos);
+        // `Duration::from_nanos` takes u64 — clamp rather than truncate.
+        Duration::from_nanos(u64::try_from(nanos).unwrap_or(u64::MAX))
+    }
+}
+
+/// Full-jitter sampler: uniform on `[0, ceiling]`. Uses the `Instant`-
+/// derived nanosecond clock as an entropy source so we do not pull in
+/// a dedicated RNG crate — sufficient for jitter randomisation where
+/// the statistical quality requirement is "any non-pathological spread
+/// across callers", not cryptographic randomness.
+fn jitter_sample(ceiling: Duration) -> Duration {
+    let ceiling_nanos = ceiling.as_nanos();
+    if ceiling_nanos == 0 {
+        return Duration::ZERO;
+    }
+    // `Instant::elapsed` inside a test might return 0 on some CI
+    // schedulers; folding both `elapsed` and a process-local counter
+    // guarantees the sampler advances even then.
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let tick = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let now_nanos = u64::try_from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos()),
+    )
+    .unwrap_or(u64::MAX);
+    // Reason: splitmix64 constants — documented mixer, fine for jitter.
+    let mut seed = now_nanos ^ tick.wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    seed ^= seed >> 30;
+    seed = seed.wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    seed ^= seed >> 27;
+    seed = seed.wrapping_mul(0x94D0_49BB_1331_11EB);
+    seed ^= seed >> 31;
+    let ceiling_u128 = ceiling_nanos;
+    let bounded = u128::from(seed) % (ceiling_u128 + 1);
+    Duration::from_nanos(u64::try_from(bounded).unwrap_or(u64::MAX))
+}
+
 /// Configuration for connecting to `ThetaData` servers directly.
 ///
 /// Use [`DirectConfig::production()`] for the standard NJ production servers.
+///
+/// # Environment variable overrides
+///
+/// [`DirectConfig::production()`] reads the following environment variables
+/// and applies them on top of the hardcoded defaults. Explicit builder
+/// setters (`.with_metrics_port(...)` etc.) take precedence over env vars,
+/// which in turn take precedence over the hardcoded defaults.
+///
+/// | Variable | Type | Effect |
+/// |---|---|---|
+/// | `THETADATA_MDDS_HOST` | host | overrides `mdds_host` |
+/// | `THETADATA_MDDS_PORT` | u16  | overrides `mdds_port` |
+/// | `THETADATA_NEXUS_URL` | url  | overrides the Nexus auth URL |
+/// | `THETADATA_FPSS_HOST` | host | overrides the primary FPSS host |
+/// | `THETADATA_FPSS_PORT` | u16  | overrides the primary FPSS port |
+/// | `THETADATA_CLIENT_TYPE` | str | overrides `QueryInfo.client_type` |
+/// | `THETADATA_EMAIL`       | str | credential helper ([`crate::auth`]) |
+/// | `THETADATA_PASSWORD`    | str | credential helper ([`crate::auth`]) |
+///
+/// Malformed values (e.g. a non-integer `THETADATA_MDDS_PORT`) are ignored
+/// with a `tracing::warn!` — the hardcoded default is retained so a typo
+/// in the environment never silently breaks production.
 #[derive(Debug, Clone)]
 pub struct DirectConfig {
     // -- MDDS (gRPC) --
@@ -241,17 +423,60 @@ pub struct DirectConfig {
     /// NOTE: Not automatically wired — caller should use this when building
     /// a custom tokio runtime.
     pub tokio_worker_threads: Option<usize>,
+
+    // -- Retry / reliability --
+    /// Exponential-backoff retry policy for transient gRPC errors on MDDS.
+    /// See [`RetryPolicy`] for defaults and the list of retried status codes.
+    pub retry_policy: RetryPolicy,
+
+    // -- Endpoints overridable via env --
+    /// Nexus auth URL. Default matches the upstream production endpoint; set
+    /// [`ENV_NEXUS_URL`] to redirect at a staging cluster.
+    pub nexus_url: String,
+
+    /// Value used for `QueryInfo.client_type`. Defaults to `"rust-thetadatadx"`;
+    /// override via [`ENV_CLIENT_TYPE`] to identify a deployment fleet in
+    /// server-side dashboards.
+    pub client_type: String,
+
+    // -- Observability --
+    /// Port the Prometheus exporter binds to when the `metrics-prometheus`
+    /// cargo feature is enabled. `None` disables the exporter even when the
+    /// feature is compiled in; `Some(port)` starts an HTTP listener on
+    /// `0.0.0.0:<port>` whose `/metrics` endpoint exposes every counter
+    /// and histogram recorded through the `metrics` crate.
+    pub metrics_port: Option<u16>,
 }
 
 impl DirectConfig {
+    /// Default Nexus auth URL (matches the upstream production endpoint).
+    pub const DEFAULT_NEXUS_URL: &'static str =
+        "https://nexus-api.thetadata.us/identity/terminal/auth_user";
+
+    /// Default `QueryInfo.client_type`.
+    pub const DEFAULT_CLIENT_TYPE: &'static str = "rust-thetadatadx";
+
     /// Production configuration for `ThetaData`'s NJ datacenter.
     ///
     /// All values extracted from the decompiled Java terminal:
     /// - MDDS: `mdds-01.thetadata.us:443` (gRPC over TLS)
     /// - FPSS: 4 hosts from `config_0.properties` `FPSS_NJ_HOSTS`
     /// - Timeouts: from `config_0.properties`
+    ///
+    /// Environment variables listed on [`DirectConfig`] are layered on
+    /// top of these defaults.
     #[must_use]
     pub fn production() -> Self {
+        let mut config = Self::production_defaults();
+        config.apply_env_overrides();
+        config.validate()
+    }
+
+    /// Production defaults without env-var overrides. Tests use this to
+    /// assert the hardcoded shape in isolation; every caller that wants
+    /// env-var precedence should reach for [`DirectConfig::production`].
+    #[must_use]
+    pub fn production_defaults() -> Self {
         Self {
             // Source: MddsConnectionManager (v3 gRPC path)
             mdds_host: "mdds-01.thetadata.us".to_string(),
@@ -298,8 +523,84 @@ impl DirectConfig {
 
             // Default: use all CPU cores
             tokio_worker_threads: None,
+
+            retry_policy: RetryPolicy::default(),
+            nexus_url: Self::DEFAULT_NEXUS_URL.to_string(),
+            client_type: Self::DEFAULT_CLIENT_TYPE.to_string(),
+            metrics_port: None,
         }
-        .validate()
+    }
+
+    /// Apply the documented [`DirectConfig`] env-var matrix on top of the
+    /// receiver. Unknown / malformed values are logged and skipped so a
+    /// typo never silently flips production to the wrong endpoint.
+    fn apply_env_overrides(&mut self) {
+        if let Ok(host) = std::env::var(ENV_MDDS_HOST) {
+            let trimmed = host.trim();
+            if !trimmed.is_empty() {
+                self.mdds_host = trimmed.to_string();
+            }
+        }
+        if let Ok(port_str) = std::env::var(ENV_MDDS_PORT) {
+            match port_str.trim().parse::<u16>() {
+                Ok(port) if port > 0 => self.mdds_port = port,
+                _ => tracing::warn!(
+                    env = ENV_MDDS_PORT,
+                    value = %port_str,
+                    "ignoring malformed env var; keeping hardcoded default"
+                ),
+            }
+        }
+        if let Ok(url) = std::env::var(ENV_NEXUS_URL) {
+            let trimmed = url.trim();
+            if !trimmed.is_empty() {
+                self.nexus_url = trimmed.to_string();
+            }
+        }
+        if let Ok(client_type) = std::env::var(ENV_CLIENT_TYPE) {
+            let trimmed = client_type.trim();
+            if !trimmed.is_empty() {
+                self.client_type = trimmed.to_string();
+            }
+        }
+        // FPSS host/port are mirrored as a (host, port) tuple in the
+        // primary slot. If only one of the pair is set we keep the
+        // default for the other half rather than guessing.
+        let env_host = std::env::var(ENV_FPSS_HOST).ok();
+        let env_port = std::env::var(ENV_FPSS_PORT).ok();
+        if env_host.is_some() || env_port.is_some() {
+            if self.fpss_hosts.is_empty() {
+                // Empty defaults would mean "no primary to override".
+                // Skip silently — production_defaults seeds 4 hosts, so
+                // this only fires for hand-built configs.
+                tracing::warn!(
+                    "ignoring THETADATA_FPSS_HOST / THETADATA_FPSS_PORT; \
+                     DirectConfig has no FPSS hosts to override"
+                );
+            } else {
+                let (default_host, default_port) = self.fpss_hosts[0].clone();
+                let host = env_host
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map_or(default_host, str::to_string);
+                let port = env_port
+                    .as_deref()
+                    .and_then(|raw| match raw.trim().parse::<u16>() {
+                        Ok(p) if p > 0 => Some(p),
+                        _ => {
+                            tracing::warn!(
+                                env = ENV_FPSS_PORT,
+                                value = %raw,
+                                "ignoring malformed env var; keeping hardcoded default"
+                            );
+                            None
+                        }
+                    })
+                    .unwrap_or(default_port);
+                self.fpss_hosts[0] = (host, port);
+            }
+        }
     }
 
     /// Dev FPSS configuration.
@@ -378,6 +679,38 @@ impl DirectConfig {
     #[must_use]
     pub fn derive_ohlcvc(mut self, enabled: bool) -> Self {
         self.derive_ohlcvc = enabled;
+        self
+    }
+
+    /// Set the port the Prometheus exporter should bind to when the
+    /// `metrics-prometheus` cargo feature is enabled. The exporter
+    /// exposes `/metrics` over HTTP on `0.0.0.0:<port>`.
+    #[must_use]
+    pub fn with_metrics_port(mut self, port: u16) -> Self {
+        self.metrics_port = Some(port);
+        self
+    }
+
+    /// Override the retry policy for transient gRPC errors.
+    #[must_use]
+    pub fn with_retry_policy(mut self, policy: RetryPolicy) -> Self {
+        self.retry_policy = policy;
+        self
+    }
+
+    /// Override the Nexus auth URL. Intended for staging deployments —
+    /// production should use [`ENV_NEXUS_URL`] or the default.
+    #[must_use]
+    pub fn with_nexus_url(mut self, url: impl Into<String>) -> Self {
+        self.nexus_url = url.into();
+        self
+    }
+
+    /// Override `QueryInfo.client_type`. Appears in server-side logs
+    /// and dashboards; useful for tagging a deployment fleet.
+    #[must_use]
+    pub fn with_client_type(mut self, client_type: impl Into<String>) -> Self {
+        self.client_type = client_type.into();
         self
     }
 
@@ -669,6 +1002,14 @@ mod config_file {
                 derive_ohlcvc: true,
 
                 tokio_worker_threads: None,
+
+                // TOML does not surface RetryPolicy / observability fields
+                // today — the builder API (`with_retry_policy`,
+                // `with_metrics_port`, env vars) is the opt-in path.
+                retry_policy: super::RetryPolicy::default(),
+                nexus_url: DirectConfig::DEFAULT_NEXUS_URL.to_string(),
+                client_type: DirectConfig::DEFAULT_CLIENT_TYPE.to_string(),
+                metrics_port: None,
             }
             .validate())
         }
@@ -859,7 +1200,7 @@ mod tests {
 
     #[test]
     fn validate_clamps_out_of_range_values() {
-        let mut config = DirectConfig::production();
+        let mut config = DirectConfig::production_defaults();
         config.fpss_queue_depth = 5;
         config.mdds_window_size_kb = 2_048;
         let config = config.validate();
@@ -869,9 +1210,185 @@ mod tests {
 
     #[test]
     fn validate_preserves_in_range_values() {
-        let config = DirectConfig::production();
+        let config = DirectConfig::production_defaults();
         let validated = config.validate();
         assert_eq!(validated.fpss_queue_depth, 1_000_000);
         assert_eq!(validated.mdds_window_size_kb, 64);
+    }
+
+    // ── RetryPolicy / env var tests ──────────────────────────────────
+
+    #[test]
+    fn retry_policy_default_shape_is_stable() {
+        let p = RetryPolicy::default();
+        assert_eq!(p.initial_delay, Duration::from_millis(250));
+        assert_eq!(p.max_delay, Duration::from_secs(30));
+        assert_eq!(p.max_attempts, 5);
+        assert!(p.jitter);
+    }
+
+    #[test]
+    fn retry_policy_capped_backoff_doubles_each_attempt_then_caps() {
+        let p = RetryPolicy {
+            initial_delay: Duration::from_millis(100),
+            max_delay: Duration::from_millis(800),
+            max_attempts: 10,
+            jitter: false,
+        };
+        assert_eq!(p.capped_backoff(0), Duration::ZERO);
+        assert_eq!(p.capped_backoff(1), Duration::from_millis(100));
+        assert_eq!(p.capped_backoff(2), Duration::from_millis(200));
+        assert_eq!(p.capped_backoff(3), Duration::from_millis(400));
+        assert_eq!(p.capped_backoff(4), Duration::from_millis(800));
+        // Saturates at max_delay; never exceeds the cap even on absurd attempt counts.
+        assert_eq!(p.capped_backoff(5), Duration::from_millis(800));
+        assert_eq!(p.capped_backoff(60), Duration::from_millis(800));
+    }
+
+    #[test]
+    fn retry_policy_delay_for_attempt_respects_jitter_upper_bound() {
+        let p = RetryPolicy {
+            initial_delay: Duration::from_millis(100),
+            max_delay: Duration::from_millis(1_000),
+            max_attempts: 10,
+            jitter: true,
+        };
+        // Full-jitter envelope: sample ∈ [0, capped_backoff(attempt)].
+        // Exercise 200 draws per attempt to shake out off-by-one issues
+        // without making the test flaky — every sample must land in
+        // the closed interval above.
+        for attempt in 1..=6u32 {
+            let ceiling = p.capped_backoff(attempt);
+            for _ in 0..200 {
+                let delay = p.delay_for_attempt(attempt);
+                assert!(
+                    delay <= ceiling,
+                    "attempt {attempt}: delay {delay:?} exceeded ceiling {ceiling:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn retry_policy_delay_for_attempt_deterministic_without_jitter() {
+        let p = RetryPolicy {
+            initial_delay: Duration::from_millis(50),
+            max_delay: Duration::from_millis(400),
+            max_attempts: 5,
+            jitter: false,
+        };
+        // No jitter → every draw equals the capped backoff envelope.
+        for attempt in 1..=4u32 {
+            let expected = p.capped_backoff(attempt);
+            for _ in 0..16 {
+                assert_eq!(p.delay_for_attempt(attempt), expected);
+            }
+        }
+    }
+
+    #[test]
+    fn retry_policy_disabled_yields_single_attempt() {
+        let p = RetryPolicy::disabled();
+        assert_eq!(p.max_attempts, 1);
+        assert_eq!(p.delay_for_attempt(1), Duration::ZERO);
+        assert!(!p.jitter);
+    }
+
+    // `std::env` is a process-global singleton; the env-var tests use a
+    // single mutex so they don't trample each other under
+    // `cargo test -- --test-threads=N`. Each test keeps hold of the
+    // guard for the duration of the config build + assertions.
+    fn env_test_guard() -> std::sync::MutexGuard<'static, ()> {
+        use std::sync::{Mutex, OnceLock};
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+    }
+
+    fn clear_env_matrix() {
+        // Unset every variable the `apply_env_overrides` path reads so
+        // no test leaks into another. The guard above pins us as the
+        // sole writer.
+        unsafe {
+            // Reason: test-only mutation; protected by env_test_guard.
+            std::env::remove_var(ENV_MDDS_HOST);
+            std::env::remove_var(ENV_MDDS_PORT);
+            std::env::remove_var(ENV_NEXUS_URL);
+            std::env::remove_var(ENV_FPSS_HOST);
+            std::env::remove_var(ENV_FPSS_PORT);
+            std::env::remove_var(ENV_CLIENT_TYPE);
+        }
+    }
+
+    #[test]
+    fn env_overrides_apply_on_production() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        unsafe {
+            // Reason: test-only mutation; protected by env_test_guard.
+            std::env::set_var(ENV_MDDS_HOST, "mdds.staging.example.com");
+            std::env::set_var(ENV_MDDS_PORT, "8443");
+            std::env::set_var(ENV_NEXUS_URL, "https://nexus.staging.example.com/auth");
+            std::env::set_var(ENV_CLIENT_TYPE, "rust-thetadatadx-staging");
+            std::env::set_var(ENV_FPSS_HOST, "fpss.staging.example.com");
+            std::env::set_var(ENV_FPSS_PORT, "21000");
+        }
+        let config = DirectConfig::production();
+        assert_eq!(config.mdds_host, "mdds.staging.example.com");
+        assert_eq!(config.mdds_port, 8443);
+        assert_eq!(config.nexus_url, "https://nexus.staging.example.com/auth");
+        assert_eq!(config.client_type, "rust-thetadatadx-staging");
+        assert_eq!(
+            config.fpss_hosts[0],
+            ("fpss.staging.example.com".to_string(), 21000)
+        );
+        clear_env_matrix();
+    }
+
+    #[test]
+    fn builder_takes_precedence_over_env_var() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        unsafe {
+            // Reason: test-only mutation; protected by env_test_guard.
+            std::env::set_var(ENV_CLIENT_TYPE, "env-wins-when-no-builder");
+        }
+        let config = DirectConfig::production().with_client_type("builder-wins");
+        assert_eq!(config.client_type, "builder-wins");
+        clear_env_matrix();
+    }
+
+    #[test]
+    fn env_overrides_skipped_when_values_malformed() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        unsafe {
+            // Reason: test-only mutation; protected by env_test_guard.
+            std::env::set_var(ENV_MDDS_PORT, "not-a-port");
+            std::env::set_var(ENV_FPSS_PORT, "0"); // reject zero
+            std::env::set_var(ENV_MDDS_HOST, "   "); // whitespace-only
+        }
+        let config = DirectConfig::production();
+        let defaults = DirectConfig::production_defaults();
+        assert_eq!(config.mdds_host, defaults.mdds_host);
+        assert_eq!(config.mdds_port, defaults.mdds_port);
+        assert_eq!(config.fpss_hosts[0].1, defaults.fpss_hosts[0].1);
+        clear_env_matrix();
+    }
+
+    #[test]
+    fn production_defaults_are_not_sensitive_to_env() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        unsafe {
+            // Reason: test-only mutation; protected by env_test_guard.
+            std::env::set_var(ENV_MDDS_HOST, "ignored-by-defaults");
+            std::env::set_var(ENV_MDDS_PORT, "9999");
+        }
+        let config = DirectConfig::production_defaults();
+        assert_eq!(config.mdds_host, "mdds-01.thetadata.us");
+        assert_eq!(config.mdds_port, 443);
+        clear_env_matrix();
     }
 }

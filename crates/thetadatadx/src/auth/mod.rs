@@ -18,6 +18,8 @@
 
 pub mod creds;
 pub mod nexus;
+pub mod session;
 
 pub use creds::Credentials;
-pub use nexus::{authenticate, AuthResponse, AuthUser};
+pub use nexus::{authenticate, authenticate_at, AuthResponse, AuthUser};
+pub use session::SessionToken;

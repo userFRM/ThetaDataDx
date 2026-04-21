@@ -97,7 +97,9 @@ pub mod decode;
 pub mod endpoint;
 pub mod error;
 pub mod fpss;
+pub mod observability;
 pub mod registry;
+pub(crate) mod retry;
 pub mod right;
 pub mod unified;
 pub(crate) mod validate;
@@ -116,6 +118,12 @@ pub mod mdds;
 pub mod proto {
     tonic::include_proto!("beta_endpoints");
 }
+
+// Re-export `prost::Message` so downstream crates (e.g. the Python
+// bindings' `decode_response_bytes` hook) can decode `proto::ResponseData`
+// without taking a direct dep on prost. Keeps the version pin single-
+// sourced on the `thetadatadx` crate.
+pub use prost;
 
 pub use auth::Credentials;
 pub use config::{DirectConfig, FpssFlushMode, ReconnectPolicy};

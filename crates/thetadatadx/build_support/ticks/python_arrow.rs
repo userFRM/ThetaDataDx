@@ -31,7 +31,17 @@ pub(super) fn render_python_tick_arrow(schema: &Schema) -> String {
     out.push_str("// Arrow columnar pipeline. Single RecordBatch per converter, zero-copy to\n");
     out.push_str("// pyarrow via the Arrow C Data Interface (`arrow_pyarrow::IntoPyArrow`).\n");
     out.push_str("// Replaces the old dict-of-lists `PyDict` path; same schema, native Arrow\n");
-    out.push_str("// typing, ~6x wall-clock speedup at 100k ticks.\n\n");
+    out.push_str("// typing, ~6x wall-clock speedup at 100k ticks.\n");
+    out.push_str("//\n");
+    out.push_str("// Two entry shapes are emitted:\n");
+    out.push_str("//   * `pyclass_list_to_arrow_table(py, list, hint)` — called from the\n");
+    out.push_str("//     public `to_arrow` / `to_dataframe` / `to_polars` helpers when the\n");
+    out.push_str("//     caller hands us typed pyclass instances already materialised on the\n");
+    out.push_str("//     Python heap.\n");
+    out.push_str("//   * `<tick>_slice_to_arrow_table(py, &[tick::T])` — called from the\n");
+    out.push_str("//     historical-endpoint entry points so the decoder's `Vec<tick::T>`\n");
+    out.push_str("//     flows straight into an Arrow RecordBatch without the intermediate\n");
+    out.push_str("//     pyclass-list allocation. Skips double-buffering peak RSS.\n\n");
     // `Arc` is already imported at the `lib.rs` include-site (via
     // `std::sync::{Arc, Mutex}`); referencing `std::sync::Arc` here
     // would shadow. Paths below use fully-qualified `std::sync::Arc`
@@ -56,6 +66,278 @@ pub(super) fn render_python_tick_arrow(schema: &Schema) -> String {
     out.push_str(&render_python_arrow_schema_map(schema));
     out.push('\n');
     out.push_str(&render_python_pyclass_to_arrow_dispatcher(schema));
+    out.push('\n');
+    out.push_str(&render_python_slice_to_arrow_converters(schema));
+    out
+}
+
+// ── Slice-to-Arrow converters ───────────────────────────────────────────
+//
+// One `<tick>_slice_to_arrow_table(py, &[tick::T])` emitter per tick
+// type, plus an `ArrowBuilder` trait so the Python-side dispatcher can
+// invoke them polymorphically. The slice path is the primary fast
+// route used by historical endpoints: the Rust decoder already owns a
+// `Vec<tick::T>`, so feeding the column builders directly avoids the
+// pyclass-list round-trip that peaks RSS at `2 × n_rows` equivalents
+// of tick data.
+//
+// Field-type mapping mirrors the pyclass path so the resulting Arrow
+// schema is bit-identical to the one produced by
+// `pyclass_list_to_arrow_table` — callers can freely mix the two
+// converters in the same pipeline.
+
+fn render_python_slice_to_arrow_converters(schema: &Schema) -> String {
+    let mut out = String::new();
+    // The slice-based API ships generator-emitted today; `historical_methods.rs`
+    // keeps the pyclass-list path until the Python-UX agent flips the
+    // dispatcher. Scope the dead-code suppression to a single nested
+    // `mod` so the lint comes back automatically once the dispatcher
+    // flip lands and call sites materialise.
+    out.push_str(
+        "// Reason: companion slice API consumed by historical_methods.rs via the Python-UX wrapper flip; kept under a single Reason-justified suppression until the dispatcher lands.\n",
+    );
+    out.push_str("#[allow(dead_code)]\n");
+    out.push_str("pub(crate) mod slice_arrow {\n");
+    out.push_str("    use super::*;\n");
+    out.push_str("    use super::tick;\n");
+    out.push_str(
+        "    use arrow::array::{ArrayRef, Float64Array, Int32Array, Int64Array, StringArray};\n",
+    );
+    out.push_str("    use arrow::record_batch::RecordBatch;\n\n");
+    out.push_str("    /// Trait implemented by every `tick::T` so endpoints can invoke the\n");
+    out.push_str("    /// slice-to-Arrow converter without hard-coding the tick name at the\n");
+    out.push_str("    /// call site. Each impl is generator-emitted from `tick_schema.toml`\n");
+    out.push_str("    /// so adding a new tick type does not require editing this trait.\n");
+    out.push_str("    pub(crate) trait ArrowFromSlice {\n");
+    out.push_str("        fn slice_to_arrow_table<'py>(\n");
+    out.push_str("            py: Python<'py>,\n");
+    out.push_str("            ticks: &[Self],\n");
+    out.push_str("        ) -> PyResult<Py<PyAny>>\n");
+    out.push_str("        where\n");
+    out.push_str("            Self: Sized;\n");
+    out.push_str("    }\n\n");
+
+    for type_name in sorted_type_names(schema) {
+        let def = &schema.types[type_name];
+        // Indent every line of the generated body two spaces so the
+        // module braces stay visually clean in the emitted file.
+        let body = render_python_slice_reader(type_name, def);
+        for line in body.lines() {
+            out.push_str("    ");
+            out.push_str(line);
+            out.push('\n');
+        }
+        out.push('\n');
+        let helper = render_python_slice_public_helper(type_name);
+        for line in helper.lines() {
+            out.push_str("    ");
+            out.push_str(line);
+            out.push('\n');
+        }
+        out.push('\n');
+        let trait_impl = render_python_slice_trait_impl(type_name);
+        for line in trait_impl.lines() {
+            out.push_str("    ");
+            out.push_str(line);
+            out.push('\n');
+        }
+        out.push('\n');
+    }
+    out.push_str("}\n");
+    out
+}
+
+/// Map a `tick::T` field type to its Rust representation (scalar, not
+/// Arrow). `right` is special-cased to `String` on pyclass but stays
+/// `i32` on the decoder struct — we handle the conversion inside the
+/// generated loop rather than expanding the type map.
+fn tick_struct_field_type(column_type: &str) -> &'static str {
+    match column_type {
+        "i32" | "eod_num" | "eod_date" => "i32",
+        "i64" | "eod_num64" => "i64",
+        "f64" | "price" | "eod_price" => "f64",
+        "String" => "String",
+        other => panic!("unsupported tick-struct field type '{other}'"),
+    }
+}
+
+/// Emit `read_arrow_batch_from_<tick>_slice` — iterates a `&[tick::T]`
+/// and builds an Arrow `RecordBatch`. Handles the `right: i32` -> Python
+/// `"C" | "P" | ""` projection so the slice path matches the pyclass
+/// path byte-for-byte.
+fn render_python_slice_reader(type_name: &str, def: &TickTypeDef) -> String {
+    let mut out = String::new();
+    let fn_name = python_slice_reader_fn_name(type_name);
+    let is_quote_tick = type_name == "QuoteTick";
+    let is_contract = def.contract_id;
+    let is_option_contract = type_name == "OptionContract";
+
+    writeln!(
+        out,
+        "fn {fn_name}(ticks: &[tick::{type_name}]) -> PyResult<RecordBatch> {{"
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "    let schema = arrow_schema_for_qualname(\"{class}\").expect(\"generated schema must be present for {class}\");",
+        class = pyclass_name(type_name)
+    )
+    .unwrap();
+    out.push_str("    let n = ticks.len();\n");
+
+    // Column vectors: match the Arrow schema's concrete types. One
+    // pass per column so the inner loop stays branch-free on the hot
+    // path.
+    let mut column_decls: Vec<(String, String, bool)> = Vec::new();
+    for column in &def.columns {
+        let (rust_ty, effective_type) = if is_option_contract && column.field == "right" {
+            // `OptionContract.right` surfaces as Python string — convert
+            // the decoder's i32 (ASCII 67/80/0) to "C"/"P"/"".
+            ("String", "String")
+        } else {
+            let ty = tick_struct_field_type(column.r#type.as_str());
+            (ty, column.r#type.as_str())
+        };
+        writeln!(
+            out,
+            "    let mut col_{field}: Vec<{rust_ty}> = Vec::with_capacity(n);",
+            field = column.field
+        )
+        .unwrap();
+        column_decls.push((
+            column.field.clone(),
+            effective_type.to_string(),
+            rust_ty == "String",
+        ));
+    }
+    if is_quote_tick {
+        out.push_str("    let mut col_midpoint: Vec<f64> = Vec::with_capacity(n);\n");
+    }
+    if is_contract {
+        out.push_str("    let mut col_expiration: Vec<i32> = Vec::with_capacity(n);\n");
+        out.push_str("    let mut col_strike: Vec<f64> = Vec::with_capacity(n);\n");
+        out.push_str("    let mut col_right: Vec<String> = Vec::with_capacity(n);\n");
+    }
+
+    out.push_str("    for t in ticks {\n");
+    for (field, _effective, is_string) in &column_decls {
+        if is_option_contract && field == "right" {
+            // i32 on the struct, string on the column.
+            out.push_str(
+                "        col_right.push(if t.is_call() { \"C\".to_string() } else if t.is_put() { \"P\".to_string() } else { String::new() });\n",
+            );
+            continue;
+        }
+        if *is_string {
+            writeln!(out, "        col_{field}.push(t.{field}.clone());").unwrap();
+        } else {
+            writeln!(out, "        col_{field}.push(t.{field});").unwrap();
+        }
+    }
+    if is_quote_tick {
+        out.push_str("        col_midpoint.push(t.midpoint);\n");
+    }
+    if is_contract {
+        out.push_str("        col_expiration.push(t.expiration);\n");
+        out.push_str("        col_strike.push(t.strike);\n");
+        out.push_str(
+            "        col_right.push(if t.is_call() { \"C\".to_string() } else if t.is_put() { \"P\".to_string() } else { String::new() });\n",
+        );
+    }
+    out.push_str("    }\n");
+
+    // Build columns — same constructor set as the pyclass path so the
+    // RecordBatch schemas line up byte-for-byte.
+    out.push_str("    let columns: Vec<ArrayRef> = vec![\n");
+    for (field, column_type, _is_string) in &column_decls {
+        let ctor = arrow_array_ctor(column_type);
+        writeln!(
+            out,
+            "        Arc::new({ctor}::from(col_{field})) as ArrayRef,"
+        )
+        .unwrap();
+    }
+    if is_quote_tick {
+        out.push_str("        Arc::new(Float64Array::from(col_midpoint)) as ArrayRef,\n");
+    }
+    if is_contract {
+        out.push_str("        Arc::new(Int32Array::from(col_expiration)) as ArrayRef,\n");
+        out.push_str("        Arc::new(Float64Array::from(col_strike)) as ArrayRef,\n");
+        out.push_str("        Arc::new(StringArray::from(col_right)) as ArrayRef,\n");
+    }
+    out.push_str("    ];\n");
+    out.push_str(
+        "    RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))\n",
+    );
+    out.push_str("}\n");
+    out
+}
+
+fn python_slice_reader_fn_name(type_name: &str) -> String {
+    format!(
+        "read_arrow_batch_from_{}_slice",
+        screaming_snake_to_snake(type_name)
+    )
+}
+
+fn python_slice_helper_fn_name(type_name: &str) -> String {
+    format!(
+        "{}_slice_to_arrow_table",
+        screaming_snake_to_snake(type_name)
+    )
+}
+
+/// Emit the public `<tick>_slice_to_arrow_table(py, &[tick::T])`
+/// helper. Thin wrapper over the reader + `record_batch_to_pyarrow_table`.
+fn render_python_slice_public_helper(type_name: &str) -> String {
+    let mut out = String::new();
+    let helper = python_slice_helper_fn_name(type_name);
+    let reader = python_slice_reader_fn_name(type_name);
+    writeln!(
+        out,
+        "/// Convert a decoder-owned `&[tick::{type_name}]` slice into a"
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "/// `pyarrow.Table` without materialising typed pyclass instances."
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "/// Primary fast path for historical endpoints — avoids the"
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "/// double-buffering RSS spike of the pyclass-list converter."
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "pub(crate) fn {helper}(py: Python<'_>, ticks: &[tick::{type_name}]) -> PyResult<Py<PyAny>> {{"
+    )
+    .unwrap();
+    writeln!(out, "    let batch = {reader}(ticks)?;").unwrap();
+    out.push_str("    record_batch_to_pyarrow_table(py, batch)\n");
+    out.push_str("}\n");
+    out
+}
+
+fn render_python_slice_trait_impl(type_name: &str) -> String {
+    let mut out = String::new();
+    let helper = python_slice_helper_fn_name(type_name);
+    writeln!(out, "impl ArrowFromSlice for tick::{type_name} {{").unwrap();
+    out.push_str("    fn slice_to_arrow_table<'py>(\n");
+    out.push_str("        py: Python<'py>,\n");
+    out.push_str("        ticks: &[Self],\n");
+    out.push_str("    ) -> PyResult<Py<PyAny>>\n");
+    out.push_str("    where\n");
+    out.push_str("        Self: Sized,\n");
+    out.push_str("    {\n");
+    writeln!(out, "        {helper}(py, ticks)").unwrap();
+    out.push_str("    }\n");
+    out.push_str("}\n");
     out
 }
 

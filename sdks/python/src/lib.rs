@@ -407,6 +407,12 @@ include!("streaming_methods.rs");
 
 include!("historical_methods.rs");
 
+// `decode_response_bytes(endpoint, chunks)` hook used by the external
+// parity bench harness. Generator-emitted from `endpoint_surface.toml`
+// so every new endpoint is auto-wired — no manual edits here. See
+// `crates/thetadatadx/build_support/endpoints/render/python.rs::render_python_decode_bench`.
+include!("decode_bench.rs");
+
 // ── DataFrame adapter: Arrow columnar pipeline ──
 //
 // The adapter is built on the schema-generated Arrow surface in
@@ -587,5 +593,6 @@ fn thetadatadx_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(to_arrow, m)?)?;
     m.add_function(wrap_pyfunction!(to_dataframe, m)?)?;
     m.add_function(wrap_pyfunction!(to_polars, m)?)?;
+    m.add_function(wrap_pyfunction!(decode_response_bytes, m)?)?;
     Ok(())
 }
