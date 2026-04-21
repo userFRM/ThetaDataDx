@@ -1,0 +1,74 @@
+        fpss::FpssEvent::Control(ctrl) => match ctrl {
+            fpss::FpssControl::LoginSuccess { permissions } => BufferedEvent::Simple {
+                event_type: "login_success".to_string(),
+                detail: Some(permissions.clone()),
+                id: None,
+            },
+            fpss::FpssControl::ContractAssigned { id, contract } => BufferedEvent::Simple {
+                event_type: "contract_assigned".to_string(),
+                detail: Some(format!("{contract}")),
+                id: Some(*id),
+            },
+            fpss::FpssControl::ReqResponse { req_id, result } => BufferedEvent::Simple {
+                event_type: "req_response".to_string(),
+                detail: Some(format!("{result:?}")),
+                id: Some(*req_id),
+            },
+            fpss::FpssControl::MarketOpen => BufferedEvent::Simple {
+                event_type: "market_open".to_string(),
+                detail: None,
+                id: None,
+            },
+            fpss::FpssControl::MarketClose => BufferedEvent::Simple {
+                event_type: "market_close".to_string(),
+                detail: None,
+                id: None,
+            },
+            fpss::FpssControl::ServerError { message } => BufferedEvent::Simple {
+                event_type: "server_error".to_string(),
+                detail: Some(message.clone()),
+                id: None,
+            },
+            fpss::FpssControl::Disconnected { reason } => BufferedEvent::Simple {
+                event_type: "disconnected".to_string(),
+                detail: Some(format!("{reason:?}")),
+                id: None,
+            },
+            fpss::FpssControl::Reconnecting {
+                reason,
+                attempt,
+                delay_ms,
+            } => BufferedEvent::Simple {
+                event_type: "reconnecting".to_string(),
+                detail: Some(format!(
+                    "reason={reason:?} attempt={attempt} delay_ms={delay_ms}"
+                )),
+                id: Some(i32::try_from(*attempt).unwrap_or(i32::MAX)),
+            },
+            fpss::FpssControl::Reconnected => BufferedEvent::Simple {
+                event_type: "reconnected".to_string(),
+                detail: None,
+                id: None,
+            },
+            fpss::FpssControl::Error { message } => BufferedEvent::Simple {
+                event_type: "error".to_string(),
+                detail: Some(message.clone()),
+                id: None,
+            },
+            fpss::FpssControl::UnknownFrame { code, payload } => BufferedEvent::Simple {
+                event_type: "unknown_frame".to_string(),
+                detail: Some(format!(
+                    "code={code} payload_hex={}",
+                    payload
+                        .iter()
+                        .map(|b| format!("{b:02x}"))
+                        .collect::<String>()
+                )),
+                id: Some(*code as i32),
+            },
+            _ => BufferedEvent::Simple {
+                event_type: "unknown_control".to_string(),
+                detail: None,
+                id: None,
+            },
+        },

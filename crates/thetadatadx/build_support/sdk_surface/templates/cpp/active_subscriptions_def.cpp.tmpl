@@ -1,0 +1,3 @@
+std::vector<Subscription> FpssClient::active_subscriptions() const {
+    return detail::subscription_array_to_vector(tdx_fpss_active_subscriptions(handle_.get()));
+}

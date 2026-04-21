@@ -30,50 +30,17 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
                 method.name
             )
             .unwrap();
-            out.push_str(
-                "        // Unbounded: the FPSS network thread must never block on send.\n",
-            );
-            out.push_str(
-                "        // If the JS consumer falls behind, events queue in RAM and drain\n",
-            );
-            out.push_str(
-                "        // when polling resumes. A bounded channel would cause disconnects\n",
-            );
-            out.push_str("        // under backpressure. Same pattern as the Python SDK.\n");
-            out.push_str("        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();\n");
             // Clone the instance-level `Arc<AtomicU64>` into the closure.
             // Counter lives on `ThetaDataDx`, so it survives reconnect
             // and is observable from JS via `tdx.droppedEvents()` — a
             // closure-local `AtomicU64::new(0)` would reset on every
             // reconnect and be unreachable from consumers.
-            out.push_str("        let dropped_events = Arc::clone(&self.dropped_events);\n\n");
-            out.push_str("        self.tdx\n");
-            out.push_str("            .start_streaming(move |event: &fpss::FpssEvent| {\n");
-            out.push_str("                let buffered = fpss_event_to_buffered(event);\n");
-            out.push_str("                if tx.send(buffered).is_err() {\n");
-            out.push_str("                    let count = dropped_events\n");
-            out.push_str(
-                "                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)\n",
-            );
-            out.push_str("                        + 1;\n");
+            //
             // `debug!` is the level ops-teams enable in production when
             // diagnosing drops (see Python SDK comment for full detail).
-            out.push_str("                    tracing::debug!(\n");
-            out.push_str("                        target: \"thetadatadx::sdk::streaming\",\n");
-            out.push_str("                        dropped_total = count,\n");
-            out.push_str(
-                "                        \"fpss event dropped: receiver disconnected\",\n",
-            );
-            out.push_str("                    );\n");
-            out.push_str("                }\n");
-            out.push_str("            })\n");
-            out.push_str("            .map_err(to_napi_err)?;\n\n");
-            out.push_str(
-                "        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());\n",
-            );
-            out.push_str("        *guard = Some(Arc::new(Mutex::new(rx)));\n");
-            out.push_str("        Ok(())\n");
-            out.push_str("    }\n");
+            out.push_str(include_str!(
+                "templates/typescript/start_streaming_body.rs.tmpl"
+            ));
         }
         MethodKind::IsStreaming => {
             writeln!(out, "    #[napi(js_name = \"isStreaming\")]").unwrap();
@@ -238,21 +205,9 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             // task — otherwise the guard would be held across `.await`
             // and the compiler (correctly) refuses to make the future
             // `Send`.
-            out.push_str("        let rx_arc = {\n");
-            out.push_str(
-                "            let rx_outer = self.rx.lock().unwrap_or_else(|e| e.into_inner());\n",
-            );
-            out.push_str("            match rx_outer.as_ref() {\n");
-            out.push_str("                Some(arc) => Arc::clone(arc),\n");
-            out.push_str("                None => {\n");
-            out.push_str("                    return Err(napi::Error::from_reason(\n");
-            out.push_str(
-                "                        \"streaming not started -- call startStreaming() first\",\n",
-            );
-            out.push_str("                    ))\n");
-            out.push_str("                }\n");
-            out.push_str("            }\n");
-            out.push_str("        };\n");
+            out.push_str(include_str!(
+                "templates/typescript/next_event_prelude.rs.tmpl"
+            ));
             writeln!(
                 out,
                 "        let timeout = std::time::Duration::from_millis({} as u64);",
@@ -262,33 +217,11 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             // `spawn_blocking` offloads the OS-level blocking wait to a
             // dedicated tokio worker so the V8 main thread is free to
             // service other JS work while we wait for the next frame.
-            out.push_str("        let result = tokio::task::spawn_blocking(move || {\n");
-            out.push_str(
-                "            let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());\n",
-            );
-            out.push_str("            rx.recv_timeout(timeout)\n");
-            out.push_str("        })\n");
-            out.push_str("        .await\n");
-            out.push_str(
-                "        .map_err(|e| napi::Error::from_reason(format!(\"blocking task join error: {e}\")))?;\n",
-            );
+            //
             // Disconnected = streaming loop dropped the sender half.
             // Surface as an error, not `null`, so dead-socket consumers
             // can reconnect explicitly.
-            out.push_str("        match result {\n");
-            out.push_str("            Ok(event) => Ok(Some(buffered_event_to_typed(event))),\n");
-            out.push_str(
-                "            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Ok(None),\n",
-            );
-            out.push_str(
-                "            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Err(napi::Error::from_reason(\n",
-            );
-            out.push_str(
-                "                \"streaming channel disconnected -- call reconnect() or startStreaming() again\",\n",
-            );
-            out.push_str("            )),\n");
-            out.push_str("        }\n");
-            out.push_str("    }\n");
+            out.push_str(include_str!("templates/typescript/next_event_body.rs.tmpl"));
         }
         MethodKind::Reconnect => {
             writeln!(out, "    #[napi(js_name = \"reconnect\")]").unwrap();
@@ -298,33 +231,9 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
                 method.name
             )
             .unwrap();
-            out.push_str("        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();\n");
             // Clone the instance-level counter so the drop count survives
             // reconnect (see `StartStreaming` for the full rationale).
-            out.push_str("        let dropped_events = Arc::clone(&self.dropped_events);\n");
-            out.push_str("        self.tdx\n");
-            out.push_str("            .reconnect_streaming(move |event: &fpss::FpssEvent| {\n");
-            out.push_str("                let buffered = fpss_event_to_buffered(event);\n");
-            out.push_str("                if tx.send(buffered).is_err() {\n");
-            out.push_str("                    let count = dropped_events\n");
-            out.push_str(
-                "                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)\n",
-            );
-            out.push_str("                        + 1;\n");
-            out.push_str("                    tracing::debug!(\n");
-            out.push_str("                        target: \"thetadatadx::sdk::streaming\",\n");
-            out.push_str("                        dropped_total = count,\n");
-            out.push_str("                        \"fpss event dropped: receiver disconnected (post-reconnect)\",\n");
-            out.push_str("                    );\n");
-            out.push_str("                }\n");
-            out.push_str("            })\n");
-            out.push_str("            .map_err(to_napi_err)?;\n");
-            out.push_str(
-                "        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());\n",
-            );
-            out.push_str("        *guard = Some(Arc::new(Mutex::new(rx)));\n");
-            out.push_str("        Ok(())\n");
-            out.push_str("    }\n");
+            out.push_str(include_str!("templates/typescript/reconnect_body.rs.tmpl"));
         }
         MethodKind::StopStreaming | MethodKind::Shutdown => {
             let js_name = to_ts_camel_case(&method.name);

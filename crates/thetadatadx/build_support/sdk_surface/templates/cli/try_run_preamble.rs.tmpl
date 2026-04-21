@@ -1,0 +1,6 @@
+async fn try_run_generated_utility(
+    subcommand: Option<(&str, &ArgMatches)>,
+    fmt: &OutputFormat,
+    creds_path: &str,
+) -> Result<bool, thetadatadx::Error> {
+    match subcommand {

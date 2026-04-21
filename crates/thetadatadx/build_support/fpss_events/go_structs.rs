@@ -19,35 +19,10 @@ pub(super) fn render_go_fpss_event_structs(schema: &Schema) -> String {
     out.push_str("// the `thetadatadx` package alongside the hand-written client glue.\n\n");
     out.push_str("package thetadatadx\n\n");
 
-    out.push_str("// FpssEventKind identifies the type of an FPSS streaming event.\n");
-    out.push_str("type FpssEventKind int\n\n");
-    out.push_str("const (\n");
-    out.push_str("\tFpssQuoteEvent        FpssEventKind = 0\n");
-    out.push_str("\tFpssTradeEvent        FpssEventKind = 1\n");
-    out.push_str("\tFpssOpenInterestEvent FpssEventKind = 2\n");
-    out.push_str("\tFpssOhlcvcEvent       FpssEventKind = 3\n");
-    out.push_str("\tFpssControlEvent      FpssEventKind = 4\n");
-    out.push_str("\tFpssRawDataEvent      FpssEventKind = 5\n");
-    out.push_str(")\n\n");
-
-    out.push_str("// FpssControlKind identifies the sub-type of a control event.\n");
-    out.push_str("// Use with FpssControl.Kind.\n");
-    out.push_str("type FpssControlKind = int32\n\n");
-    out.push_str("const (\n");
-    out.push_str("\tFpssCtrlLoginSuccess     FpssControlKind = 0\n");
-    out.push_str("\tFpssCtrlContractAssigned FpssControlKind = 1\n");
-    out.push_str("\tFpssCtrlReqResponse      FpssControlKind = 2\n");
-    out.push_str("\tFpssCtrlMarketOpen       FpssControlKind = 3\n");
-    out.push_str("\tFpssCtrlMarketClose      FpssControlKind = 4\n");
-    out.push_str("\tFpssCtrlServerError      FpssControlKind = 5\n");
-    out.push_str("\tFpssCtrlDisconnected     FpssControlKind = 6\n");
-    out.push_str("\tFpssCtrlReconnecting     FpssControlKind = 8\n");
-    out.push_str("\tFpssCtrlReconnected      FpssControlKind = 9\n");
-    out.push_str("\tFpssCtrlError            FpssControlKind = 10\n");
-    out.push_str("\tFpssCtrlUnknownFrame     FpssControlKind = 11 // ID = frame code, Detail = hex payload\n");
-    out.push_str("\tFpssCtrlUnknownEvent     FpssControlKind = 12 // non-Data / non-Control / non-RawData fallback\n");
-    out.push_str("\t// Value 7 is reserved for future use.\n");
-    out.push_str(")\n\n");
+    out.push_str(include_str!("templates/go_structs/kind_enum.go.tmpl"));
+    out.push_str(include_str!(
+        "templates/go_structs/control_kind_consts.go.tmpl"
+    ));
 
     for (event_name, def) in sorted_data_events(schema) {
         let doc_text = if def.doc.is_empty() {
@@ -77,27 +52,9 @@ pub(super) fn render_go_fpss_event_structs(schema: &Schema) -> String {
         out.push_str("}\n\n");
     }
 
-    out.push_str("// FpssControl is a control/lifecycle event from FPSS.\n");
-    out.push_str("//\n");
-    out.push_str("// Kind encodes the sub-type; see the FpssCtrl* constants above for the\n");
-    out.push_str("// canonical numeric mapping (0..=6, 8..=12). Value 7 is currently\n");
-    out.push_str("// unassigned — use the named constants, not literals.\n");
-    out.push_str("//\n");
-    out.push_str("// ID carries the contract_id, req_id, or reconnect attempt number where\n");
-    out.push_str("// applicable (0 otherwise). Detail is a human-readable string (may be\n");
-    out.push_str("// empty).\n");
-    out.push_str("type FpssControl struct {\n");
-    out.push_str("\tKind   int32\n");
-    out.push_str("\tID     int32\n");
-    out.push_str("\tDetail string\n");
-    out.push_str("}\n\n");
-
-    out.push_str("// FpssRawData is an undecoded frame from FPSS. Surfaced when the wire\n");
-    out.push_str("// message code does not match any known decoder.\n");
-    out.push_str("type FpssRawData struct {\n");
-    out.push_str("\tCode    uint8\n");
-    out.push_str("\tPayload []byte\n");
-    out.push_str("}\n\n");
+    out.push_str(include_str!(
+        "templates/go_structs/control_and_raw_data.go.tmpl"
+    ));
 
     out.push_str("// FpssEvent is a tagged streaming event from FPSS.\n");
     out.push_str("// Check Kind to determine which field is non-nil.\n");

@@ -1,0 +1,7 @@
+/// Trait impl'd by every generated tick pyclass so the qualname match
+/// in `pyclass_list_to_arrow_table` dispatches straight to a typed
+/// per-class reader instead of duplicating the body per arm.
+trait ArrowFromPyclassList: pyo3::PyClass {
+    fn read_batch<'py>(ticks: &Bound<'py, pyo3::types::PyList>) -> PyResult<RecordBatch>;
+}
+

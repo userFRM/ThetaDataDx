@@ -1,0 +1,5 @@
+FpssClient::FpssClient(const Credentials& creds, const Config& config) {
+    auto h = tdx_fpss_connect(creds.get(), config.get());
+    if (!h) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+    handle_.reset(h);
+}

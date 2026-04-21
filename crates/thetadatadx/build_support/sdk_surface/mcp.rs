@@ -16,9 +16,7 @@ pub(super) fn render_mcp_utilities(utilities: &[&UtilitySpec]) -> String {
         out.push_str(&mcp_tool_definition(utility));
     }
     out.push_str("}\n\n");
-    out.push_str(
-        "async fn try_execute_generated_utility(\n    client: &Option<ThetaDataDx>,\n    name: &str,\n    args: &Value,\n    start_time: std::time::Instant,\n) -> Option<Result<Value, ToolError>> {\n    macro_rules! param_or_return {\n        ($expr:expr) => {\n            match $expr {\n                Ok(value) => value,\n                Err(error) => return Some(Err(ToolError::InvalidParams(error))),\n            }\n        };\n    }\n    match name {\n",
-    );
+    out.push_str(include_str!("templates/mcp/try_execute_preamble.rs.tmpl"));
     for utility in utilities {
         out.push_str(&mcp_execute_arm(utility));
     }

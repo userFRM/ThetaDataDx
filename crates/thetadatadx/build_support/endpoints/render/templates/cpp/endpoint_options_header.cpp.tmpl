@@ -1,0 +1,6 @@
+/// Optional builder parameters for registry-driven endpoint wrappers.
+///
+/// `timeout_ms` is the cross-cutting per-call deadline (W3); see `with_timeout_ms`
+/// and `with_deadline`. On expiry the in-flight gRPC call is cancelled and a
+/// `tdx::Error` carrying "Request deadline exceeded" is thrown.
+struct EndpointRequestOptions {

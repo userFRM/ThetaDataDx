@@ -1,0 +1,5 @@
+                strike: match _cid_strike_idx {
+                    Some(i) if _cid_strike_is_typed => row_price_f64(row, i)?.unwrap_or(0.0),
+                    Some(i) => row_number(row, i)?.unwrap_or(0) as f64,
+                    None => 0.0,
+                },

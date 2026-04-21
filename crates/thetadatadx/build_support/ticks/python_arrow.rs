@@ -214,20 +214,9 @@ fn render_python_pyclass_to_arrow_dispatcher(schema: &Schema) -> String {
     // Interface. The conversion is zero-copy: the RecordBatch buffers are
     // exported through an ArrowArrayStream whose lifetime pyarrow assumes.
     out.push('\n');
-    out.push_str("/// Zero-copy RecordBatch -> pyarrow.Table via `arrow::pyarrow::IntoPyArrow`\n");
-    out.push_str("/// on `arrow::pyarrow::Table`. One batch in, one Table out; pyarrow owns\n");
-    out.push_str("/// the buffers afterwards. The conversion goes through the Arrow C Data\n");
-    out.push_str("/// Interface -- Rust hands pyarrow an `ArrowArrayStream` FFI pointer and\n");
-    out.push_str("/// the Python side aliases the underlying buffers in place.\n");
-    out.push_str("pub(crate) fn record_batch_to_pyarrow_table(py: Python<'_>, batch: RecordBatch) -> PyResult<Py<PyAny>> {\n");
-    out.push_str("    let schema = batch.schema();\n");
-    out.push_str("    let table = arrow::pyarrow::Table::try_new(vec![batch], schema)\n");
-    out.push_str(
-        "        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;\n",
-    );
-    out.push_str("    let obj = table.into_pyarrow(py)?;\n");
-    out.push_str("    Ok(obj.unbind())\n");
-    out.push_str("}\n");
+    out.push_str(include_str!(
+        "templates/python_arrow/record_batch_to_pyarrow_table.rs.tmpl"
+    ));
 
     // Per-class pyclass reader -- one helper per tick class. Casts each list
     // item down to the concrete pyclass and reads every #[pyo3(get)] field
@@ -241,14 +230,9 @@ fn render_python_pyclass_to_arrow_dispatcher(schema: &Schema) -> String {
     // Trait + impls -- lets each dispatcher arm call
     // `<ClassType as ArrowFromPyclassList>::read_batch(ticks)` without
     // re-emitting the body in every match arm.
-    out.push_str("/// Trait impl'd by every generated tick pyclass so the qualname match\n");
-    out.push_str("/// in `pyclass_list_to_arrow_table` dispatches straight to a typed\n");
-    out.push_str("/// per-class reader instead of duplicating the body per arm.\n");
-    out.push_str("trait ArrowFromPyclassList: pyo3::PyClass {\n");
-    out.push_str(
-        "    fn read_batch<'py>(ticks: &Bound<'py, pyo3::types::PyList>) -> PyResult<RecordBatch>;\n",
-    );
-    out.push_str("}\n\n");
+    out.push_str(include_str!(
+        "templates/python_arrow/arrow_from_pyclass_list_trait.rs.tmpl"
+    ));
     for type_name in sorted_type_names(schema) {
         let def = &schema.types[type_name];
         out.push_str(&render_python_arrow_trait_impl(type_name, def));

@@ -1,0 +1,37 @@
+            let creds = thetadatadx::Credentials::from_file(creds_path)?;
+            let resp = thetadatadx::auth::authenticate(&creds).await?;
+            let mut td = TabularData::new(vec![
+                "session_id",
+                "email",
+                "stock_tier",
+                "options_tier",
+                "indices_tier",
+                "rate_tier",
+                "created",
+            ]);
+            let user = resp.user.as_ref();
+            let redacted_session = if resp.session_id.len() >= 8 {
+                format!("{}...", &resp.session_id[..8])
+            } else {
+                resp.session_id.clone()
+            };
+            td.push(vec![
+                redacted_session,
+                user.and_then(|u| u.email.clone()).unwrap_or_default(),
+                user.and_then(|u| u.stock_subscription)
+                    .map(|t| format!("{t}"))
+                    .unwrap_or_default(),
+                user.and_then(|u| u.options_subscription)
+                    .map(|t| format!("{t}"))
+                    .unwrap_or_default(),
+                user.and_then(|u| u.indices_subscription)
+                    .map(|t| format!("{t}"))
+                    .unwrap_or_default(),
+                user.and_then(|u| u.interest_rate_subscription)
+                    .map(|t| format!("{t}"))
+                    .unwrap_or_default(),
+                resp.session_created.unwrap_or_default(),
+            ]);
+            td.render(fmt);
+            Ok(true)
+        }

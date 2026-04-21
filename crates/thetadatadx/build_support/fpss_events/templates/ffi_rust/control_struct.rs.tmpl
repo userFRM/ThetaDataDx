@@ -1,0 +1,22 @@
+/// `#[repr(C)]` FPSS control event.
+///
+/// `kind` encodes the control sub-type:
+///   `0=login_success`, `1=contract_assigned`, `2=req_response`,
+///   `3=market_open`, `4=market_close`, `5=server_error`,
+///   `6=disconnected`, `8=reconnecting`, `9=reconnected`,
+///   `10=error`, `11=unknown_frame`, `12=unknown_event` (non-Data /
+///   non-Control / non-RawData fallback; carries no payload).
+///   Value `7` is reserved for future use. `99` is an internal sentinel
+///   for "unknown control-variant" — kept for backward compat; new
+///   consumers should treat `12` as the canonical unknown marker.
+///
+/// `id` carries the `contract_id`, `req_id`, reconnect attempt number,
+/// or unknown-frame code where applicable (0 otherwise).
+/// `detail` is a NUL-terminated C string (may be null).
+#[repr(C)]
+pub struct TdxFpssControl {
+    pub kind: i32,
+    pub id: i32,
+    pub detail: *const c_char,
+}
+

@@ -61,31 +61,17 @@ pub(super) fn render_python_utility_functions(utilities: &[&UtilitySpec]) -> Str
 /// mirror `tdbe::greeks::GreeksResult` 1:1 via `greek_result_fields()`.
 fn render_all_greeks_pyclass() -> String {
     let mut out = String::new();
-    out.push_str(
-        "/// All 22 Black-Scholes Greeks + IV in a single frozen typed\n\
-         /// pyclass. Mirrors `tdbe::greeks::GreeksResult`; replaces the\n\
-         /// earlier `PyDict`-returning path for cross-SDK parity.\n",
-    );
-    out.push_str("#[must_use]\n");
-    out.push_str("#[pyclass(module = \"thetadatadx\", frozen, skip_from_py_object)]\n");
-    out.push_str("#[derive(Clone, Debug)]\n");
-    out.push_str("pub(crate) struct AllGreeks {\n");
+    out.push_str(include_str!(
+        "templates/python/all_greeks_pyclass_header.rs.tmpl"
+    ));
     for (field, _rust_field) in greek_result_fields() {
         writeln!(out, "    #[pyo3(get)]").unwrap();
         writeln!(out, "    pub {field}: f64,").unwrap();
     }
     out.push_str("}\n\n");
-    out.push_str("#[pymethods]\n");
-    out.push_str("impl AllGreeks {\n");
-    out.push_str("    fn __repr__(&self) -> String {\n");
-    out.push_str(
-        "        format!(\n\
-             \"AllGreeks(value={}, iv={}, delta={}, gamma={}, theta={}, vega={})\",\n\
-             self.value, self.iv, self.delta, self.gamma, self.theta, self.vega\n\
-         )\n",
-    );
-    out.push_str("    }\n");
-    out.push_str("}\n");
+    out.push_str(include_str!(
+        "templates/python/all_greeks_pymethods.rs.tmpl"
+    ));
     out
 }
 
@@ -95,46 +81,24 @@ fn python_streaming_method(method: &MethodSpec) -> String {
     match method.kind {
         MethodKind::StartStreaming => {
             writeln!(out, "    fn {}(&self) -> PyResult<()> {{", method.name).unwrap();
-            out.push_str("        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();\n");
             // Clone the instance-level `Arc<AtomicU64>` into the closure.
             // Counter lives on `ThetaDataDx`, so it survives reconnect and
             // is observable from Python via `tdx.dropped_events()` — a
             // closure-local `AtomicU64::new(0)` would reset on every
             // reconnect and would never be reachable from consumers.
-            out.push_str("        let dropped_events = Arc::clone(&self.dropped_events);\n\n");
-            out.push_str("        self.tdx\n");
-            out.push_str("            .start_streaming(move |event: &fpss::FpssEvent| {\n");
-            out.push_str("                let buffered = fpss_event_to_buffered(event);\n");
-            out.push_str("                if tx.send(buffered).is_err() {\n");
-            out.push_str("                    let count = dropped_events\n");
-            out.push_str(
-                "                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)\n",
-            );
-            out.push_str("                        + 1;\n");
+            //
             // `debug!` is the level ops-teams enable in production when
             // diagnosing drops. `trace` is too quiet (default filters
             // strip it); `warn` is too loud for normal shutdown-time
             // drops. Consumers polling via `dropped_events()` remain the
             // primary observability path.
-            out.push_str("                    tracing::debug!(\n");
-            out.push_str("                        target: \"thetadatadx::sdk::streaming\",\n");
-            out.push_str("                        dropped_total = count,\n");
-            out.push_str(
-                "                        \"fpss event dropped: receiver disconnected\",\n",
-            );
-            out.push_str("                    );\n");
-            out.push_str("                }\n");
-            out.push_str("            })\n");
-            out.push_str("            .map_err(to_py_err)?;\n\n");
+            //
             // Recover poisoned lock rather than silently dropping the
             // swap. A stale receiver behind a closed channel is worse
             // than a partial state from a prior panic.
-            out.push_str(
-                "        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());\n",
-            );
-            out.push_str("        *guard = Some(Arc::new(Mutex::new(rx)));\n");
-            out.push_str("        Ok(())\n");
-            out.push_str("    }\n");
+            out.push_str(include_str!(
+                "templates/python/start_streaming_body.rs.tmpl"
+            ));
         }
         MethodKind::IsStreaming => {
             writeln!(out, "    fn {}(&self) -> bool {{", method.name).unwrap();
@@ -276,20 +240,7 @@ fn python_streaming_method(method: &MethodSpec) -> String {
                 python_type(param.param_type)
             )
             .unwrap();
-            out.push_str(
-                "        let rx_outer = self.rx.lock().unwrap_or_else(|e| e.into_inner());\n",
-            );
-            out.push_str("        let rx_arc = match rx_outer.as_ref() {\n");
-            out.push_str("            Some(arc) => Arc::clone(arc),\n");
-            out.push_str("            None => {\n");
-            out.push_str("                return Err(PyRuntimeError::new_err(\n");
-            out.push_str(
-                "                    \"streaming not started -- call start_streaming() first\",\n",
-            );
-            out.push_str("                ))\n");
-            out.push_str("            }\n");
-            out.push_str("        };\n");
-            out.push_str("        drop(rx_outer);\n");
+            out.push_str(include_str!("templates/python/next_event_prelude.rs.tmpl"));
             writeln!(
                 out,
                 "        let total_timeout = std::time::Duration::from_millis({});",
@@ -307,82 +258,13 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             // every 100 ms); unify the two cancellation stories here.
             // Disconnect is still distinguished from timeout so consumer
             // loops don't spin 100% CPU on a dead socket.
-            out.push_str("        let deadline = std::time::Instant::now() + total_timeout;\n");
-            out.push_str("        let result = loop {\n");
-            out.push_str("            let remaining = deadline.saturating_duration_since(std::time::Instant::now());\n");
-            out.push_str("            let poll = std::cmp::min(remaining, std::time::Duration::from_millis(100));\n");
-            out.push_str("            let rx_arc_inner = Arc::clone(&rx_arc);\n");
-            out.push_str("            let recv_result = py.detach(move || {\n");
-            out.push_str(
-                "                let rx = rx_arc_inner.lock().unwrap_or_else(|e| e.into_inner());\n",
-            );
-            out.push_str("                rx.recv_timeout(poll)\n");
-            out.push_str("            });\n");
-            out.push_str("            match recv_result {\n");
-            out.push_str("                Ok(event) => break Ok(event),\n");
-            out.push_str(
-                "                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {\n",
-            );
-            out.push_str(
-                "                    break Err(std::sync::mpsc::RecvTimeoutError::Disconnected);\n",
-            );
-            out.push_str("                }\n");
-            out.push_str("                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {\n");
-            out.push_str("                    py.check_signals()?;\n");
-            out.push_str("                    if std::time::Instant::now() >= deadline {\n");
-            out.push_str(
-                "                        break Err(std::sync::mpsc::RecvTimeoutError::Timeout);\n",
-            );
-            out.push_str("                    }\n");
-            out.push_str("                }\n");
-            out.push_str("            }\n");
-            out.push_str("        };\n");
-            out.push_str("        match result {\n");
-            out.push_str(
-                "            Ok(event) => Ok(Some(buffered_event_to_typed(py, &event)?)),\n",
-            );
-            out.push_str(
-                "            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Ok(None),\n",
-            );
-            out.push_str(
-                "            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Err(\n",
-            );
-            out.push_str("                PyRuntimeError::new_err(\n");
-            out.push_str("                    \"streaming channel disconnected -- call reconnect() or start_streaming() again\",\n");
-            out.push_str("                ),\n");
-            out.push_str("            ),\n");
-            out.push_str("        }\n");
-            out.push_str("    }\n");
+            out.push_str(include_str!("templates/python/next_event_body.rs.tmpl"));
         }
         MethodKind::Reconnect => {
             writeln!(out, "    fn {}(&self) -> PyResult<()> {{", method.name).unwrap();
-            out.push_str("        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();\n");
             // Clone the instance-level counter so the drop count survives
             // reconnect (see `StartStreaming` for the full rationale).
-            out.push_str("        let dropped_events = Arc::clone(&self.dropped_events);\n");
-            out.push_str("        self.tdx\n");
-            out.push_str("            .reconnect_streaming(move |event: &fpss::FpssEvent| {\n");
-            out.push_str("                let buffered = fpss_event_to_buffered(event);\n");
-            out.push_str("                if tx.send(buffered).is_err() {\n");
-            out.push_str("                    let count = dropped_events\n");
-            out.push_str(
-                "                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)\n",
-            );
-            out.push_str("                        + 1;\n");
-            out.push_str("                    tracing::debug!(\n");
-            out.push_str("                        target: \"thetadatadx::sdk::streaming\",\n");
-            out.push_str("                        dropped_total = count,\n");
-            out.push_str("                        \"fpss event dropped: receiver disconnected (post-reconnect)\",\n");
-            out.push_str("                    );\n");
-            out.push_str("                }\n");
-            out.push_str("            })\n");
-            out.push_str("            .map_err(to_py_err)?;\n");
-            out.push_str(
-                "        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());\n",
-            );
-            out.push_str("        *guard = Some(Arc::new(Mutex::new(rx)));\n");
-            out.push_str("        Ok(())\n");
-            out.push_str("    }\n");
+            out.push_str(include_str!("templates/python/reconnect_body.rs.tmpl"));
         }
         MethodKind::StopStreaming | MethodKind::Shutdown => {
             writeln!(out, "    fn {}(&self) {{", method.name).unwrap();

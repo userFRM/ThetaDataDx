@@ -16,9 +16,7 @@ pub(super) fn render_cli_utilities(utilities: &[&UtilitySpec]) -> String {
         out.push_str(&cli_command_builder(utility));
     }
     out.push_str("    app\n}\n\n");
-    out.push_str(
-        "async fn try_run_generated_utility(\n    subcommand: Option<(&str, &ArgMatches)>,\n    fmt: &OutputFormat,\n    creds_path: &str,\n) -> Result<bool, thetadatadx::Error> {\n    match subcommand {\n",
-    );
+    out.push_str(include_str!("templates/cli/try_run_preamble.rs.tmpl"));
     for utility in utilities {
         out.push_str(&cli_dispatch_arm(utility));
     }
@@ -86,34 +84,7 @@ fn cli_dispatch_arm(utility: &UtilitySpec) -> String {
                 rust_string_literal(cli_name)
             )
             .unwrap();
-            out.push_str(
-                "            let creds = thetadatadx::Credentials::from_file(creds_path)?;\n",
-            );
-            out.push_str(
-                "            let resp = thetadatadx::auth::authenticate(&creds).await?;\n",
-            );
-            out.push_str("            let mut td = TabularData::new(vec![\n");
-            out.push_str("                \"session_id\",\n                \"email\",\n                \"stock_tier\",\n                \"options_tier\",\n                \"indices_tier\",\n                \"rate_tier\",\n                \"created\",\n            ]);\n");
-            out.push_str("            let user = resp.user.as_ref();\n");
-            out.push_str("            let redacted_session = if resp.session_id.len() >= 8 {\n");
-            out.push_str("                format!(\"{}...\", &resp.session_id[..8])\n");
-            out.push_str("            } else {\n");
-            out.push_str("                resp.session_id.clone()\n");
-            out.push_str("            };\n");
-            out.push_str("            td.push(vec![\n");
-            out.push_str("                redacted_session,\n");
-            out.push_str(
-                "                user.and_then(|u| u.email.clone()).unwrap_or_default(),\n",
-            );
-            out.push_str("                user.and_then(|u| u.stock_subscription)\n                    .map(|t| format!(\"{t}\"))\n                    .unwrap_or_default(),\n");
-            out.push_str("                user.and_then(|u| u.options_subscription)\n                    .map(|t| format!(\"{t}\"))\n                    .unwrap_or_default(),\n");
-            out.push_str("                user.and_then(|u| u.indices_subscription)\n                    .map(|t| format!(\"{t}\"))\n                    .unwrap_or_default(),\n");
-            out.push_str("                user.and_then(|u| u.interest_rate_subscription)\n                    .map(|t| format!(\"{t}\"))\n                    .unwrap_or_default(),\n");
-            out.push_str("                resp.session_created.unwrap_or_default(),\n");
-            out.push_str("            ]);\n");
-            out.push_str("            td.render(fmt);\n");
-            out.push_str("            Ok(true)\n");
-            out.push_str("        }\n");
+            out.push_str(include_str!("templates/cli/auth_arm_body.rs.tmpl"));
         }
         UtilityKind::AllGreeks => {
             writeln!(

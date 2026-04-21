@@ -1,0 +1,4 @@
+FpssEventPtr FpssClient::next_event(uint64_t timeout_ms) {
+    auto* raw = tdx_fpss_next_event(handle_.get(), timeout_ms);
+    return FpssEventPtr(raw);
+}

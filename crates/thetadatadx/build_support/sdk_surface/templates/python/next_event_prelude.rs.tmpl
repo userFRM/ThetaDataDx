@@ -1,0 +1,10 @@
+        let rx_outer = self.rx.lock().unwrap_or_else(|e| e.into_inner());
+        let rx_arc = match rx_outer.as_ref() {
+            Some(arc) => Arc::clone(arc),
+            None => {
+                return Err(PyRuntimeError::new_err(
+                    "streaming not started -- call start_streaming() first",
+                ))
+            }
+        };
+        drop(rx_outer);

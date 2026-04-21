@@ -1,0 +1,32 @@
+        let deadline = std::time::Instant::now() + total_timeout;
+        let result = loop {
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            let poll = std::cmp::min(remaining, std::time::Duration::from_millis(100));
+            let rx_arc_inner = Arc::clone(&rx_arc);
+            let recv_result = py.detach(move || {
+                let rx = rx_arc_inner.lock().unwrap_or_else(|e| e.into_inner());
+                rx.recv_timeout(poll)
+            });
+            match recv_result {
+                Ok(event) => break Ok(event),
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                    break Err(std::sync::mpsc::RecvTimeoutError::Disconnected);
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                    py.check_signals()?;
+                    if std::time::Instant::now() >= deadline {
+                        break Err(std::sync::mpsc::RecvTimeoutError::Timeout);
+                    }
+                }
+            }
+        };
+        match result {
+            Ok(event) => Ok(Some(buffered_event_to_typed(py, &event)?)),
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Ok(None),
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Err(
+                PyRuntimeError::new_err(
+                    "streaming channel disconnected -- call reconnect() or start_streaming() again",
+                ),
+            ),
+        }
+    }

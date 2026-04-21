@@ -1,0 +1,9 @@
+std::optional<std::string> FpssClient::contract_lookup(int id) const {
+    detail::FfiString result(tdx_fpss_contract_lookup(handle_.get(), id));
+    if (!result.ok()) {
+        std::string err = detail::last_ffi_error();
+        if (!err.empty()) throw std::runtime_error("thetadatadx: " + err);
+        return std::nullopt;
+    }
+    return result.str();
+}

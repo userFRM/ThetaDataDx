@@ -1,0 +1,4 @@
+void FpssClient::reconnect() {
+    int rc = tdx_fpss_reconnect(handle_.get());
+    if (rc < 0) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+}

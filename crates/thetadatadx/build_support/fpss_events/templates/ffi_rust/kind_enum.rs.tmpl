@@ -1,0 +1,12 @@
+/// FPSS event kind tag. Check this to determine which field of
+/// `TdxFpssEvent` is valid.
+#[repr(C)]
+pub enum TdxFpssEventKind {
+    Quote = 0,
+    Trade = 1,
+    OpenInterest = 2,
+    Ohlcvc = 3,
+    Control = 4,
+    RawData = 5,
+}
+

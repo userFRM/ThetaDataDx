@@ -1,0 +1,93 @@
+    if raw == nil {
+        return nil, nil
+    }
+    defer C.tdx_fpss_event_free(raw)
+
+    event := &FpssEvent{
+        Kind: FpssEventKind(raw.kind),
+    }
+
+    switch event.Kind {
+    case FpssQuoteEvent:
+        q := raw.quote
+        event.Quote = &FpssQuote{
+            ContractID:   int32(q.contract_id),
+            MsOfDay:      int32(q.ms_of_day),
+            BidSize:      int32(q.bid_size),
+            BidExchange:  int32(q.bid_exchange),
+            Bid:          float64(q.bid),
+            BidCondition: int32(q.bid_condition),
+            AskSize:      int32(q.ask_size),
+            AskExchange:  int32(q.ask_exchange),
+            Ask:          float64(q.ask),
+            AskCondition: int32(q.ask_condition),
+            Date:         int32(q.date),
+            ReceivedAtNs: uint64(q.received_at_ns),
+        }
+    case FpssTradeEvent:
+        t := raw.trade
+        event.Trade = &FpssTrade{
+            ContractID:     int32(t.contract_id),
+            MsOfDay:        int32(t.ms_of_day),
+            Sequence:       int32(t.sequence),
+            ExtCondition1:  int32(t.ext_condition1),
+            ExtCondition2:  int32(t.ext_condition2),
+            ExtCondition3:  int32(t.ext_condition3),
+            ExtCondition4:  int32(t.ext_condition4),
+            Condition:      int32(t.condition),
+            Size:           int32(t.size),
+            Exchange:       int32(t.exchange),
+            Price:          float64(t.price),
+            ConditionFlags: int32(t.condition_flags),
+            PriceFlags:     int32(t.price_flags),
+            VolumeType:     int32(t.volume_type),
+            RecordsBack:    int32(t.records_back),
+            Date:           int32(t.date),
+            ReceivedAtNs:   uint64(t.received_at_ns),
+        }
+    case FpssOpenInterestEvent:
+        oi := raw.open_interest
+        event.OpenInterest = &FpssOpenInterest{
+            ContractID:   int32(oi.contract_id),
+            MsOfDay:      int32(oi.ms_of_day),
+            OpenInterest: int32(oi.open_interest),
+            Date:         int32(oi.date),
+            ReceivedAtNs: uint64(oi.received_at_ns),
+        }
+    case FpssOhlcvcEvent:
+        o := raw.ohlcvc
+        event.Ohlcvc = &FpssOhlcvc{
+            ContractID:   int32(o.contract_id),
+            MsOfDay:      int32(o.ms_of_day),
+            Open:         float64(o.open),
+            High:         float64(o.high),
+            Low:          float64(o.low),
+            Close:        float64(o.close),
+            Volume:       int64(o.volume),
+            Count:        int64(o.count),
+            Date:         int32(o.date),
+            ReceivedAtNs: uint64(o.received_at_ns),
+        }
+    case FpssControlEvent:
+        ctrl := raw.control
+        detail := ""
+        if ctrl.detail != nil {
+            detail = C.GoString(ctrl.detail)
+        }
+        event.Control = &FpssControl{
+            Kind:   int32(ctrl.kind),
+            ID:     int32(ctrl.id),
+            Detail: detail,
+        }
+    case FpssRawDataEvent:
+        rd := raw.raw_data
+        event.RawData = &FpssRawData{
+            Code: uint8(rd.code),
+        }
+        if rd.payload != nil && rd.payload_len > 0 {
+            event.RawData.Payload = C.GoBytes(unsafe.Pointer(rd.payload), C.int(rd.payload_len))
+        }
+    }
+
+    return event, nil
+}

@@ -1,0 +1,42 @@
+Greeks all_greeks(double spot, double strike, double rate, double div_yield,
+                  double tte, double option_price, const std::string& right) {
+    TdxGreeksResult* raw = tdx_all_greeks(
+        spot,
+        strike,
+        rate,
+        div_yield,
+        tte,
+        option_price,
+        right.c_str()
+    );
+    if (raw == nullptr) {
+        throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+    }
+
+    Greeks result{
+        raw->value,
+        raw->delta,
+        raw->gamma,
+        raw->theta,
+        raw->vega,
+        raw->rho,
+        raw->iv,
+        raw->iv_error,
+        raw->vanna,
+        raw->charm,
+        raw->vomma,
+        raw->veta,
+        raw->speed,
+        raw->zomma,
+        raw->color,
+        raw->ultima,
+        raw->d1,
+        raw->d2,
+        raw->dual_delta,
+        raw->dual_gamma,
+        raw->epsilon,
+        raw->lambda,
+    };
+    tdx_greeks_result_free(raw);
+    return result;
+}

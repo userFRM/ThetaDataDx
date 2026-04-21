@@ -1,0 +1,21 @@
+        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();
+        let dropped_events = Arc::clone(&self.dropped_events);
+        self.tdx
+            .reconnect_streaming(move |event: &fpss::FpssEvent| {
+                let buffered = fpss_event_to_buffered(event);
+                if tx.send(buffered).is_err() {
+                    let count = dropped_events
+                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                        + 1;
+                    tracing::debug!(
+                        target: "thetadatadx::sdk::streaming",
+                        dropped_total = count,
+                        "fpss event dropped: receiver disconnected (post-reconnect)",
+                    );
+                }
+            })
+            .map_err(to_napi_err)?;
+        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());
+        *guard = Some(Arc::new(Mutex::new(rx)));
+        Ok(())
+    }

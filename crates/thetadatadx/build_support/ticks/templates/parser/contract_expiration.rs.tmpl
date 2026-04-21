@@ -1,0 +1,21 @@
+                expiration: match _cid_exp_idx {
+                    Some(i) => {
+                        let dv = row.values.get(i).ok_or(DecodeError::MissingCell { column: i })?;
+                        match dv.data_type.as_ref() {
+                            Some(crate::proto::data_value::DataType::Number(n)) => *n as i32,
+                            Some(crate::proto::data_value::DataType::Text(s)) => parse_iso_date(s),
+                            Some(crate::proto::data_value::DataType::NullValue(_)) => 0,
+                            None => return Err(DecodeError::TypeMismatch {
+                                column: i,
+                                expected: "Number|Text",
+                                observed: "Unset",
+                            }),
+                            other => return Err(DecodeError::TypeMismatch {
+                                column: i,
+                                expected: "Number|Text",
+                                observed: crate::decode::observed_name(other),
+                            }),
+                        }
+                    }
+                    None => 0,
+                },
