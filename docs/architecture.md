@@ -164,7 +164,7 @@ flowchart LR
     SURFACE["endpoint_surface.toml<br/><i>endpoint spec<br/>groups + templates</i>"]
     PROTO["mdds.proto<br/><i>official wire contract</i>"]
     BUILD["build.rs<br/><i>delegates to build_support/</i>"]
-    SUPPORT["build_support/<br/><i>endpoints.rs + ticks.rs</i>"]
+    SUPPORT["build_support/<br/><i>endpoints/ + ticks/</i>"]
     PARSERS["$OUT_DIR/decode_generated.rs<br/><i>parse_* functions</i>"]
     RUNTIME["$OUT_DIR/endpoint_generated.rs<br/><i>shared endpoint runtime</i>"]
     REGISTRY_GEN["$OUT_DIR/registry_generated.rs<br/><i>EndpointMeta static</i>"]
@@ -560,7 +560,7 @@ graph TD
             SCHEMA["tick_schema.toml<br/><i>13 tick type definitions</i>"]
             SURFACE["endpoint_surface.toml<br/><i>endpoint surface spec<br/>groups + templates</i>"]
             BUILD["build.rs<br/><i>delegates to build_support/</i>"]
-            SUPPORT["build_support/<br/><i>endpoints.rs + ticks.rs</i>"]
+            SUPPORT["build_support/<br/><i>endpoints/ + ticks/</i>"]
         end
 
         subgraph proto["proto/"]

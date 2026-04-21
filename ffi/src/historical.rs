@@ -41,27 +41,24 @@ macro_rules! ffi_list_endpoint_no_params {
         pub unsafe extern "C" fn $ffi_name(client: *const TdxClient) -> TdxStringArray {
             ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
                 let empty = TdxStringArray { data: ptr::null(), len: 0 };
-                ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
-                    if client.is_null() {
-                        set_error("client handle is null");
-                        return empty;
-                    }
-                    let client = unsafe { &*client };
-                    match runtime().block_on(async { client.inner.$method().await }) {
-                        Ok(items) => match TdxStringArray::from_vec(items) {
-                            Ok(arr) => arr,
-                            Err(e) => {
-                                set_error(&format!("interior NUL in server string: {e}"));
-                                empty
-                            }
-                        },
+                if client.is_null() {
+                    set_error("client handle is null");
+                    return empty;
+                }
+                let client = unsafe { &*client };
+                match runtime().block_on(async { client.inner.$method().await }) {
+                    Ok(items) => match TdxStringArray::from_vec(items) {
+                        Ok(arr) => arr,
                         Err(e) => {
-                            set_error(&e.to_string());
+                            set_error(&format!("interior NUL in server string: {e}"));
                             empty
                         }
+                    },
+                    Err(e) => {
+                        set_error(&e.to_string());
+                        empty
                     }
-                })
-
+                }
             })
         }
     };

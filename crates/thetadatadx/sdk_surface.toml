@@ -9,7 +9,7 @@
 #   - small C++ lifecycle wrappers
 #
 # This spec now declares the public method set, parameter lists, target
-# projections, and user-facing docs. build_support/sdk_surface.rs is only the
+# projections, and user-facing docs. build_support/sdk_surface/ is only the
 # renderer: it maps semantic kinds below onto language-specific code templates.
 
 version = 2

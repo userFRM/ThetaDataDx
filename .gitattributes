@@ -24,9 +24,10 @@ sdks/go/validate.go                  text eol=lf linguist-generated=true
 sdks/python/src/historical_methods.rs text eol=lf linguist-generated=true
 sdks/python/src/streaming_methods.rs text eol=lf linguist-generated=true
 scripts/validate_python.py           text eol=lf linguist-generated=true
-sdks/python/src/tick_columnar.rs     text eol=lf linguist-generated=true
 sdks/python/src/fpss_event_classes.rs text eol=lf linguist-generated=true
 sdks/python/src/tick_classes.rs      text eol=lf linguist-generated=true
+sdks/python/src/tick_arrow.rs        text eol=lf linguist-generated=true
+sdks/python/src/buffered_event.rs    text eol=lf linguist-generated=true
 sdks/python/src/utility_functions.rs text eol=lf linguist-generated=true
 tools/cli/src/utilities.rs           text eol=lf linguist-generated=true
 tools/mcp/src/utilities.rs           text eol=lf linguist-generated=true
@@ -34,6 +35,9 @@ sdks/typescript/src/historical_methods.rs text eol=lf linguist-generated=true
 sdks/typescript/src/streaming_methods.rs text eol=lf linguist-generated=true
 sdks/typescript/src/tick_classes.rs  text eol=lf linguist-generated=true
 sdks/typescript/src/fpss_event_classes.rs text eol=lf linguist-generated=true
+sdks/typescript/src/buffered_event.rs text eol=lf linguist-generated=true
+sdks/go/fpss_event_structs.go        text eol=lf linguist-generated=true
+sdks/cpp/include/fpss_event_structs.h.inc text eol=lf linguist-generated=true
 
 # Generated validator surfaces that were missed from the original list.
 scripts/validate_cli.py              text eol=lf linguist-generated=true

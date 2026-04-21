@@ -557,7 +557,7 @@ pub(super) fn python_columnar_converter(return_type: &str) -> &'static str {
 /// Name of the generated `*_to_pyclass_list` converter for a given tick
 /// return type. This is the PRIMARY return path for Python historical
 /// endpoints — typed `#[pyclass]` objects matching Rust/TS/Go/C++ SDKs.
-/// See `build_support/ticks.rs::render_python_tick_classes`.
+/// See `build_support/ticks/python_classes.rs::render_python_tick_classes`.
 pub(super) fn python_pyclass_list_converter(return_type: &str) -> &'static str {
     match return_type {
         "EodTicks" => "eod_ticks_to_pyclass_list",

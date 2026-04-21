@@ -1,7 +1,7 @@
 # FPSS streaming event schema — single source of truth for every event
 # shape exposed to downstream SDKs.
 #
-# Read by `build_support/fpss_events.rs`. Drives:
+# Read by `build_support/fpss_events/`. Drives:
 #   - per-language typed structs for every variant (Python pyclass,
 #     TS napi `#[napi(object)]`, Go struct, C++ struct, FFI struct).
 #   - the `BufferedEvent` enum in Python + TS (generator-emitted, not

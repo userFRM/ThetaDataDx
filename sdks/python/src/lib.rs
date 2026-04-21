@@ -397,7 +397,7 @@ impl ThetaDataDx {
 // All FPSS `#[pyclass]` definitions and the `BufferedEvent` → typed
 // dispatch live in a generated file whose SSOT is
 // `crates/thetadatadx/fpss_event_schema.toml`. The generator is
-// `crates/thetadatadx/build_support/fpss_events.rs`; regenerate via
+// `crates/thetadatadx/build_support/fpss_events/`; regenerate via
 // `cargo run --bin generate_sdk_surfaces --features config-file -- --write`.
 
 include!("fpss_event_classes.rs");
