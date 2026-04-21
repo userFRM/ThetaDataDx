@@ -10,12 +10,26 @@
 // files `include!` into the same TS-SDK module scope (see
 // `sdks/typescript/src/lib.rs`), so importing it here would collide.
 
+/// FPSS contract identifier. Surfaced on every decoded FPSS data
+/// event as `event.quote.contract` / `event.trade.contract` / etc.
+#[must_use]
+#[napi(object)]
+#[derive(Clone)]
+pub struct Contract {
+    pub root: String,
+    pub sec_type: i32,
+    pub exp_date: Option<i32>,
+    pub is_call: Option<bool>,
+    pub strike: Option<i32>,
+}
+
 /// FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`.
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct Ohlcvc {
     pub contract_id: i32,
+    pub contract: Contract,
     pub ms_of_day: i32,
     pub open: f64,
     pub high: f64,
@@ -33,18 +47,20 @@ pub struct Ohlcvc {
 #[derive(Clone)]
 pub struct OpenInterest {
     pub contract_id: i32,
+    pub contract: Contract,
     pub ms_of_day: i32,
     pub open_interest: i32,
     pub date: i32,
     pub received_at_ns: BigInt,
 }
 
-/// FPSS Quote tick. Mirrors `FpssData::Quote` (symbol-less — `contract_id` is the stable key).
+/// FPSS Quote tick. Mirrors `FpssData::Quote`.
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct Quote {
     pub contract_id: i32,
+    pub contract: Contract,
     pub ms_of_day: i32,
     pub bid_size: i32,
     pub bid_exchange: i32,
@@ -64,6 +80,7 @@ pub struct Quote {
 #[derive(Clone)]
 pub struct Trade {
     pub contract_id: i32,
+    pub contract: Contract,
     pub ms_of_day: i32,
     pub sequence: i32,
     pub ext_condition1: i32,
@@ -141,6 +158,7 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
     match event {
         BufferedEvent::Ohlcvc {
             contract_id,
+            contract,
             ms_of_day,
             open,
             high,
@@ -154,6 +172,13 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             out.kind = "ohlcvc";
             out.ohlcvc = Some(Ohlcvc {
                 contract_id,
+                contract: Contract {
+                    root: contract.root.clone(),
+                    sec_type: contract.sec_type as i32,
+                    exp_date: contract.exp_date,
+                    is_call: contract.is_call,
+                    strike: contract.strike,
+                },
                 ms_of_day,
                 open,
                 high,
@@ -167,6 +192,7 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
         }
         BufferedEvent::OpenInterest {
             contract_id,
+            contract,
             ms_of_day,
             open_interest,
             date,
@@ -175,6 +201,13 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             out.kind = "open_interest";
             out.open_interest = Some(OpenInterest {
                 contract_id,
+                contract: Contract {
+                    root: contract.root.clone(),
+                    sec_type: contract.sec_type as i32,
+                    exp_date: contract.exp_date,
+                    is_call: contract.is_call,
+                    strike: contract.strike,
+                },
                 ms_of_day,
                 open_interest,
                 date,
@@ -183,6 +216,7 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
         }
         BufferedEvent::Quote {
             contract_id,
+            contract,
             ms_of_day,
             bid_size,
             bid_exchange,
@@ -198,6 +232,13 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             out.kind = "quote";
             out.quote = Some(Quote {
                 contract_id,
+                contract: Contract {
+                    root: contract.root.clone(),
+                    sec_type: contract.sec_type as i32,
+                    exp_date: contract.exp_date,
+                    is_call: contract.is_call,
+                    strike: contract.strike,
+                },
                 ms_of_day,
                 bid_size,
                 bid_exchange,
@@ -213,6 +254,7 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
         }
         BufferedEvent::Trade {
             contract_id,
+            contract,
             ms_of_day,
             sequence,
             ext_condition1,
@@ -233,6 +275,13 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             out.kind = "trade";
             out.trade = Some(Trade {
                 contract_id,
+                contract: Contract {
+                    root: contract.root.clone(),
+                    sec_type: contract.sec_type as i32,
+                    exp_date: contract.exp_date,
+                    is_call: contract.is_call,
+                    strike: contract.strike,
+                },
                 ms_of_day,
                 sequence,
                 ext_condition1,

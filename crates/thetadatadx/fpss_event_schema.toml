@@ -18,16 +18,24 @@
 #                           market_open, unknown-data fallback) flattened
 #                           into one struct with `event_type`, `detail`, `id`.
 #   - `kind = "raw_data"` — raw frame bytes for unrecognized wire codes.
+#
+# Column type `Contract` is a nested struct: every language emits a
+# Contract struct/class with (root, sec_type, exp_date?, is_call?, strike?).
+# Optional fields (exp_date / is_call / strike) use the language-native
+# nullable shape (`Option<..>` in Rust, `Option<..>` in napi, `Optional[..]`
+# in Python via pyo3 `Option<..>`, `*T` pointer in Go, `std::optional<..>`
+# in C++).
 
-version = 2
+version = 3
 
 # ── Data variants — market-data ticks ─────────────────────────────────
 
 [events.Quote]
 kind = "data"
-doc = "FPSS Quote tick. Mirrors `FpssData::Quote` (symbol-less — `contract_id` is the stable key)."
+doc = "FPSS Quote tick. Mirrors `FpssData::Quote`."
 columns = [
     { name = "contract_id",   type = "i32" },
+    { name = "contract",      type = "Contract" },
     { name = "ms_of_day",     type = "i32" },
     { name = "bid_size",      type = "i32" },
     { name = "bid_exchange",  type = "i32" },
@@ -46,6 +54,7 @@ kind = "data"
 doc = "FPSS Trade tick. Mirrors `FpssData::Trade`."
 columns = [
     { name = "contract_id",     type = "i32" },
+    { name = "contract",        type = "Contract" },
     { name = "ms_of_day",       type = "i32" },
     { name = "sequence",        type = "i32" },
     { name = "ext_condition1",  type = "i32" },
@@ -69,6 +78,7 @@ kind = "data"
 doc = "FPSS OpenInterest tick. Mirrors `FpssData::OpenInterest`."
 columns = [
     { name = "contract_id",   type = "i32" },
+    { name = "contract",      type = "Contract" },
     { name = "ms_of_day",     type = "i32" },
     { name = "open_interest", type = "i32" },
     { name = "date",          type = "i32" },
@@ -80,6 +90,7 @@ kind = "data"
 doc = "FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`."
 columns = [
     { name = "contract_id",    type = "i32" },
+    { name = "contract",       type = "Contract" },
     { name = "ms_of_day",      type = "i32" },
     { name = "open",           type = "f64" },
     { name = "high",           type = "f64" },

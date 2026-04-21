@@ -22,8 +22,26 @@ use super::protocol::{
 };
 use super::reconnect_delay;
 
-/// Empty symbol placeholder used when the contract_id has not been resolved yet.
-static EMPTY_SYMBOL: std::sync::LazyLock<Arc<str>> = std::sync::LazyLock::new(|| Arc::from(""));
+/// Empty-contract placeholder used when the contract_id has not been
+/// resolved via a `ContractAssigned` frame yet. A single `Arc<Contract>`
+/// is shared across every "unknown" event so the hot path is always
+/// `Arc::clone` (refcount bump) with no allocation.
+///
+/// `root` is the empty string AND `sec_type` is [`SecType::Unknown`].
+/// Downstream code detecting the sentinel should pattern-match
+/// `contract.sec_type == SecType::Unknown` — this is the type-safe check
+/// that survives future contract-root relaxations (e.g. unicode roots,
+/// numeric-prefix tickers) where `root.is_empty()` alone could match a
+/// real contract whose root is merely absent or transiently empty.
+static EMPTY_CONTRACT: std::sync::LazyLock<Arc<Contract>> = std::sync::LazyLock::new(|| {
+    Arc::new(Contract {
+        root: String::new(),
+        sec_type: tdbe::types::enums::SecType::Unknown,
+        exp_date: None,
+        is_call: None,
+        strike: None,
+    })
+});
 
 /// Decode a frame into zero, one, or two `FpssEvent`s.
 ///
@@ -45,8 +63,8 @@ pub(super) fn decode_frame(
     code: StreamMsgType,
     payload: &[u8],
     authenticated: &AtomicBool,
-    contract_map: &Mutex<HashMap<i32, Contract>>,
-    local_symbols: &mut HashMap<i32, Arc<str>>,
+    contract_map: &Mutex<HashMap<i32, Arc<Contract>>>,
+    local_contracts: &mut HashMap<i32, Arc<Contract>>,
     shutdown: &AtomicBool,
     delta_state: &mut DeltaState,
     derive_ohlcvc: bool,
@@ -57,24 +75,29 @@ pub(super) fn decode_frame(
         .unwrap_or_default()
         .as_nanos() as u64;
 
-    // Resolve contract_id to a symbol string from the thread-local cache.
-    // Returns Arc::clone of the cached symbol, or the empty-string sentinel.
-    // Zero allocation, zero Mutex locks on the hot path -- the Arc<str> was
-    // built once in the ContractAssigned handler below and inserted into the
-    // local HashMap owned by the I/O thread.
-    let resolve_symbol = |contract_id: i32, syms: &HashMap<i32, Arc<str>>| -> Arc<str> {
-        syms.get(&contract_id)
-            .map(Arc::clone)
-            .unwrap_or_else(|| Arc::clone(&EMPTY_SYMBOL))
-    };
+    // Resolve contract_id to an Arc<Contract> from the thread-local cache.
+    // Returns Arc::clone of the cached contract, or the empty-root sentinel.
+    // Zero allocation, zero Mutex locks on the hot path -- the Arc<Contract>
+    // was built once in the ContractAssigned handler below and inserted into
+    // the local HashMap owned by the I/O thread.
+    let resolve_contract =
+        |contract_id: i32, cache: &HashMap<i32, Arc<Contract>>| -> Arc<Contract> {
+            cache
+                .get(&contract_id)
+                .map(Arc::clone)
+                .unwrap_or_else(|| Arc::clone(&EMPTY_CONTRACT))
+        };
 
     // Log a warning when ticks arrive for contract IDs not in the local
-    // symbol cache. Suppress for 5 seconds after STOP (market close) since
+    // contract cache. Suppress for 5 seconds after STOP (market close) since
     // stale ticks are expected during teardown. Matches Java terminal behavior.
     // Uses the thread-local cache instead of locking the shared contract_map.
     let warn_unknown_contract =
-        |contract_id: i32, kind: &str, delta_state: &DeltaState, syms: &HashMap<i32, Arc<str>>| {
-            if !syms.contains_key(&contract_id) && !delta_state.is_in_stop_suppression_window() {
+        |contract_id: i32,
+         kind: &str,
+         delta_state: &DeltaState,
+         cache: &HashMap<i32, Arc<Contract>>| {
+            if !cache.contains_key(&contract_id) && !delta_state.is_in_stop_suppression_window() {
                 tracing::warn!(contract_id, kind, "no contract for ID");
             }
         };
@@ -98,23 +121,26 @@ pub(super) fn decode_frame(
         StreamMsgType::Contract => match parse_contract_message(payload) {
             Ok((id, contract)) => {
                 tracing::debug!(id, contract = %contract, "contract assigned");
-                // Pre-render the symbol string once and cache as Arc<str>
-                // so resolve_symbol() on the hot path is just Arc::clone.
-                // `Arc::<str>::from(String)` consumes the String's heap buffer
-                // directly instead of allocating a fresh copy from the &str.
-                let symbol_str: Arc<str> = Arc::<str>::from(contract.to_string());
+                // Wrap the parsed contract in Arc once on insert. Every
+                // subsequent data event refcount-clones this Arc, so the
+                // only `Contract::clone` (and therefore the only
+                // `String::clone` of `contract.root`) happens here —
+                // at most once per contract_id per session.
+                let arc_contract: Arc<Contract> = Arc::new(contract);
                 // Insert into thread-local cache (zero-lock hot-path lookups).
-                local_symbols.insert(id, symbol_str);
+                local_contracts.insert(id, Arc::clone(&arc_contract));
                 // Also update shared map for external callers (contract_map(),
-                // contract_lookup() public APIs on FpssClient).
+                // contract_lookup() public APIs on FpssClient). Same Arc —
+                // the string heap allocation is shared across the I/O
+                // thread's cache, the shared map, and every emitted event.
                 contract_map
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .insert(id, contract.clone());
+                    .insert(id, Arc::clone(&arc_contract));
                 (
                     Some(FpssEvent::Control(FpssControl::ContractAssigned {
                         id,
-                        contract,
+                        contract: arc_contract,
                     })),
                     None,
                 )
@@ -134,13 +160,13 @@ pub(super) fn decode_frame(
             let msg_code = code as u8;
             match delta_state.decode_tick(msg_code, payload, QUOTE_FIELDS) {
                 Some((contract_id, f, _n)) => {
-                    warn_unknown_contract(contract_id, "quote", delta_state, local_symbols);
+                    warn_unknown_contract(contract_id, "quote", delta_state, local_contracts);
                     metrics::counter!("thetadatadx.fpss.events", "kind" => "quote").increment(1);
                     let pt = f[9];
                     (
                         Some(FpssEvent::Data(FpssData::Quote {
                             contract_id,
-                            symbol: resolve_symbol(contract_id, local_symbols),
+                            contract: resolve_contract(contract_id, local_contracts),
                             ms_of_day: f[0],
                             bid_size: f[1],
                             bid_exchange: f[2],
@@ -173,7 +199,7 @@ pub(super) fn decode_frame(
             let msg_code = code as u8;
             match delta_state.decode_tick(msg_code, payload, TRADE_FIELDS) {
                 Some((contract_id, f, n_data)) => {
-                    warn_unknown_contract(contract_id, "trade", delta_state, local_symbols);
+                    warn_unknown_contract(contract_id, "trade", delta_state, local_contracts);
                     metrics::counter!("thetadatadx.fpss.events", "kind" => "trade").increment(1);
 
                     if n_data != 8 && n_data != TRADE_FIELDS {
@@ -186,12 +212,12 @@ pub(super) fn decode_frame(
 
                     // 8-field: [ms_of_day, sequence, size, condition, price, exchange, price_type, date]
                     // 16-field: [ms_of_day, sequence, ext1..ext4, condition, size, exchange, price, cond_flags, price_flags, vol_type, records_back, price_type, date]
-                    let sym = resolve_symbol(contract_id, local_symbols);
+                    let contract_arc = resolve_contract(contract_id, local_contracts);
                     let trade_event = if n_data <= 8 {
                         let pt = f[6];
                         FpssEvent::Data(FpssData::Trade {
                             contract_id,
-                            symbol: Arc::clone(&sym),
+                            contract: Arc::clone(&contract_arc),
                             ms_of_day: f[0],
                             sequence: f[1],
                             ext_condition1: 0,
@@ -213,7 +239,7 @@ pub(super) fn decode_frame(
                         let pt = f[14];
                         FpssEvent::Data(FpssData::Trade {
                             contract_id,
-                            symbol: Arc::clone(&sym),
+                            contract: Arc::clone(&contract_arc),
                             ms_of_day: f[0],
                             sequence: f[1],
                             ext_condition1: f[2],
@@ -250,7 +276,7 @@ pub(super) fn decode_frame(
                                 let apt = acc.price_type;
                                 Some(FpssEvent::Data(FpssData::Ohlcvc {
                                     contract_id,
-                                    symbol: Arc::clone(&sym),
+                                    contract: Arc::clone(&contract_arc),
                                     ms_of_day: acc.ms_of_day,
                                     open: Price::new(acc.open, apt).to_f64(),
                                     high: Price::new(acc.high, apt).to_f64(),
@@ -288,13 +314,18 @@ pub(super) fn decode_frame(
             let msg_code = code as u8;
             match delta_state.decode_tick(msg_code, payload, OI_FIELDS) {
                 Some((contract_id, f, _n)) => {
-                    warn_unknown_contract(contract_id, "open_interest", delta_state, local_symbols);
+                    warn_unknown_contract(
+                        contract_id,
+                        "open_interest",
+                        delta_state,
+                        local_contracts,
+                    );
                     metrics::counter!("thetadatadx.fpss.events", "kind" => "open_interest")
                         .increment(1);
                     (
                         Some(FpssEvent::Data(FpssData::OpenInterest {
                             contract_id,
-                            symbol: resolve_symbol(contract_id, local_symbols),
+                            contract: resolve_contract(contract_id, local_contracts),
                             ms_of_day: f[0],
                             open_interest: f[1],
                             date: f[2],
@@ -318,7 +349,7 @@ pub(super) fn decode_frame(
             let msg_code = code as u8;
             match delta_state.decode_tick(msg_code, payload, OHLCVC_FIELDS) {
                 Some((contract_id, f, _n)) => {
-                    warn_unknown_contract(contract_id, "ohlcvc", delta_state, local_symbols);
+                    warn_unknown_contract(contract_id, "ohlcvc", delta_state, local_contracts);
                     metrics::counter!("thetadatadx.fpss.events", "kind" => "ohlcvc").increment(1);
                     let acc = delta_state
                         .ohlcvc
@@ -329,7 +360,7 @@ pub(super) fn decode_frame(
                     (
                         Some(FpssEvent::Data(FpssData::Ohlcvc {
                             contract_id,
-                            symbol: resolve_symbol(contract_id, local_symbols),
+                            contract: resolve_contract(contract_id, local_contracts),
                             ms_of_day: f[0],
                             open: Price::new(f[1], pt).to_f64(),
                             high: Price::new(f[2], pt).to_f64(),
@@ -379,7 +410,7 @@ pub(super) fn decode_frame(
         StreamMsgType::Start => {
             tracing::info!("market open signal received");
             delta_state.clear();
-            local_symbols.clear();
+            local_contracts.clear();
             contract_map
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -391,7 +422,7 @@ pub(super) fn decode_frame(
             tracing::info!("market close signal received");
             delta_state.last_stop = Some(Instant::now());
             delta_state.clear();
-            local_symbols.clear();
+            local_contracts.clear();
             contract_map
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -438,6 +469,64 @@ pub(super) fn decode_frame(
                 Some(FpssEvent::Control(FpssControl::Disconnected { reason })),
                 None,
             )
+        }
+
+        // Known server→client control frames. Each of these previously
+        // fell through to `UnknownFrame`, leaving consumers to filter
+        // noise they did not ask for. Each now maps to its own typed
+        // `FpssControl` variant so downstream code can match directly.
+        StreamMsgType::Connected => {
+            // Code 4: connection ack. Java: FPSSClient.onConnected logs
+            // "connected" and returns — no side effects other than
+            // acknowledging the transition.
+            tracing::debug!("FPSS server CONNECTED frame received");
+            (Some(FpssEvent::Control(FpssControl::Connected)), None)
+        }
+
+        StreamMsgType::Ping => {
+            // Code 10: server heartbeat. Observed payload is a single
+            // zero byte `[0]`; the client does NOT respond — the client
+            // itself sends its own independent 100ms pings. Preserve the
+            // raw payload for diagnostics so anomalous heartbeats can be
+            // inspected after-the-fact.
+            (
+                Some(FpssEvent::Control(FpssControl::Ping {
+                    payload: payload.to_vec(),
+                })),
+                None,
+            )
+        }
+
+        StreamMsgType::Reconnected => {
+            // Code 13: server-side reconnect ack. Distinct from
+            // `FpssControl::Reconnected` which the client emits when its
+            // own auto-reconnect state machine completes. Both can be
+            // observed in the same session — e.g. a client-side
+            // reconnect produces `Reconnected`, while a transparent
+            // server-side reconnect produces `ReconnectedServer`.
+            tracing::debug!("FPSS server RECONNECTED frame received");
+            (
+                Some(FpssEvent::Control(FpssControl::ReconnectedServer)),
+                None,
+            )
+        }
+
+        StreamMsgType::Restart => {
+            // Code 31: server stream restart. A restart is a reset
+            // signal — contract IDs assigned before the restart may be
+            // reused or re-announced with different shapes afterwards.
+            // Mirror the START (code 30) / STOP (code 32) arms: clear
+            // delta decode state AND both contract caches so subsequent
+            // ticks on unseen IDs get the empty-contract sentinel rather
+            // than a stale (and possibly shape-wrong) Contract.
+            tracing::info!("FPSS server RESTART frame received");
+            delta_state.clear();
+            local_contracts.clear();
+            contract_map
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clear();
+            (Some(FpssEvent::Control(FpssControl::Restart)), None)
         }
 
         // Emit unrecognized frame codes as UnknownFrame events with raw
@@ -566,7 +655,7 @@ mod tests {
         // Simulate the mapping from decode_frame's Trade arm:
         let trade = FpssData::Trade {
             contract_id,
-            symbol: Arc::from(""),
+            contract: Arc::clone(&EMPTY_CONTRACT),
             ms_of_day: f[0],
             sequence: f[1],
             ext_condition1: 0,
@@ -693,7 +782,7 @@ mod tests {
         assert!(n_data > 8);
         let trade = FpssData::Trade {
             contract_id,
-            symbol: Arc::from(""),
+            contract: Arc::clone(&EMPTY_CONTRACT),
             ms_of_day: f[0],
             sequence: f[1],
             ext_condition1: f[2],
@@ -750,6 +839,421 @@ mod tests {
                 assert_eq!(date, 20250428);
             }
             other => panic!("expected Trade, got {other:?}"),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // New control frame codes: 4 (Connected), 10 (Ping), 13 (ReconnectedServer),
+    // 31 (Restart). Each of these previously fell through to UnknownFrame.
+    // -----------------------------------------------------------------------
+
+    fn decode_ctrl(code: StreamMsgType, payload: &[u8]) -> FpssEvent {
+        use std::sync::Mutex as StdMutex;
+        let contract_map: std::sync::Mutex<HashMap<i32, Arc<Contract>>> =
+            StdMutex::new(HashMap::new());
+        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let authenticated = AtomicBool::new(true);
+        let shutdown = AtomicBool::new(false);
+        let mut delta_state = DeltaState::new();
+        let (primary, _) = decode_frame(
+            code,
+            payload,
+            &authenticated,
+            &contract_map,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+            false,
+        );
+        primary.expect("decode_frame must emit a primary event for known control codes")
+    }
+
+    #[test]
+    fn decode_code_4_connected_emits_typed_variant() {
+        let evt = decode_ctrl(StreamMsgType::Connected, &[]);
+        match evt {
+            FpssEvent::Control(FpssControl::Connected) => {}
+            other => panic!("expected Control(Connected), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn decode_code_10_ping_emits_typed_variant_with_payload() {
+        // Observed on production FPSS streams: 1-byte payload `[0]`.
+        let evt = decode_ctrl(StreamMsgType::Ping, &[0u8]);
+        match evt {
+            FpssEvent::Control(FpssControl::Ping { payload }) => {
+                assert_eq!(payload.as_slice(), &[0u8]);
+            }
+            other => panic!("expected Control(Ping), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn decode_code_13_reconnected_server_emits_typed_variant() {
+        let evt = decode_ctrl(StreamMsgType::Reconnected, &[]);
+        match evt {
+            FpssEvent::Control(FpssControl::ReconnectedServer) => {}
+            other => panic!("expected Control(ReconnectedServer), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn decode_code_31_restart_emits_typed_variant_and_clears_delta_state() {
+        // Seed delta state so we can verify it was cleared.
+        use std::sync::Mutex as StdMutex;
+        let contract_map: std::sync::Mutex<HashMap<i32, Arc<Contract>>> =
+            StdMutex::new(HashMap::new());
+        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let authenticated = AtomicBool::new(true);
+        let shutdown = AtomicBool::new(false);
+        let mut delta_state = DeltaState::new();
+        // Insert a synthetic OHLCVC accumulator entry so we can assert
+        // `delta_state.clear()` actually ran on the Restart arm.
+        delta_state
+            .ohlcvc
+            .insert(42, super::super::accumulator::OhlcvcAccumulator::new());
+        assert!(delta_state.ohlcvc.contains_key(&42));
+
+        let (primary, _) = decode_frame(
+            StreamMsgType::Restart,
+            &[],
+            &authenticated,
+            &contract_map,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+            false,
+        );
+        match primary.expect("Restart must emit a primary event") {
+            FpssEvent::Control(FpssControl::Restart) => {}
+            other => panic!("expected Control(Restart), got {other:?}"),
+        }
+        assert!(
+            !delta_state.ohlcvc.contains_key(&42),
+            "Restart must clear delta state so downstream deltas don't \
+             decode against a stale baseline"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // ContractAssigned must now hand out Arc<Contract> -- the same Arc that
+    // every subsequent data event carries, proving the hot-path refcount
+    // claim: one heap allocation per contract_id, not per event.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn contract_assigned_uses_arc_contract_and_shares_heap_allocation() {
+        use crate::fpss::protocol::Contract as ProtoContract;
+
+        // Build a synthetic CONTRACT payload: 4-byte id + contract bytes.
+        let expected_contract = ProtoContract::stock("AAPL");
+        let mut payload = Vec::new();
+        payload.extend_from_slice(&777i32.to_be_bytes());
+        payload.extend_from_slice(&expected_contract.to_bytes());
+
+        use std::sync::Mutex as StdMutex;
+        let contract_map: std::sync::Mutex<HashMap<i32, Arc<Contract>>> =
+            StdMutex::new(HashMap::new());
+        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let authenticated = AtomicBool::new(true);
+        let shutdown = AtomicBool::new(false);
+        let mut delta_state = DeltaState::new();
+
+        let (primary, _) = decode_frame(
+            StreamMsgType::Contract,
+            &payload,
+            &authenticated,
+            &contract_map,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+            false,
+        );
+
+        let assigned_arc: Arc<Contract> =
+            match primary.expect("ContractAssigned must emit a primary event") {
+                FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
+                    assert_eq!(id, 777);
+                    assert_eq!(contract.root, "AAPL");
+                    // The Arc inside the event, the Arc in the shared map, and
+                    // the Arc in the thread-local cache must all point at the
+                    // SAME Contract heap cell — a different pointer would mean
+                    // we regressed to per-event Contract::clone.
+                    let emitted_ptr = Arc::as_ptr(&contract);
+                    let cache_ptr = Arc::as_ptr(
+                        local_contracts
+                            .get(&777)
+                            .expect("local cache must have the contract"),
+                    );
+                    let map_ptr = Arc::as_ptr(
+                        contract_map
+                            .lock()
+                            .unwrap()
+                            .get(&777)
+                            .expect("shared map must have the contract"),
+                    );
+                    assert_eq!(
+                        emitted_ptr, cache_ptr,
+                        "event's Arc<Contract> must alias the I/O thread cache"
+                    );
+                    assert_eq!(
+                        emitted_ptr, map_ptr,
+                        "event's Arc<Contract> must alias the shared contract_map"
+                    );
+                    contract
+                }
+                other => panic!("expected Control(ContractAssigned), got {other:?}"),
+            };
+
+        // Every FpssData event decoded after the assignment must carry
+        // an Arc<Contract> pointing at that same heap allocation. Verify
+        // via the resolve_contract helper path (quote frame).
+        //
+        // Craft a minimal FIT quote payload for contract_id 777.
+        const FIELD_SEP: u8 = 0xB;
+        const END_NIB: u8 = 0xD;
+        fn nibbles(val: i32) -> Vec<u8> {
+            let abs = (val as i64).unsigned_abs();
+            let s = abs.to_string();
+            s.chars().map(|c| c.to_digit(10).unwrap() as u8).collect()
+        }
+        let mut nibs: Vec<u8> = Vec::new();
+        for (i, v) in [777i32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0].iter().enumerate() {
+            if i > 0 {
+                nibs.push(FIELD_SEP);
+            }
+            nibs.extend(nibbles(*v));
+        }
+        nibs.push(END_NIB);
+        let mut bytes = Vec::new();
+        let mut j = 0;
+        while j < nibs.len() {
+            let h = nibs[j];
+            let l = if j + 1 < nibs.len() { nibs[j + 1] } else { 0 };
+            bytes.push((h << 4) | (l & 0x0F));
+            j += 2;
+        }
+
+        let (primary, _) = decode_frame(
+            StreamMsgType::Quote,
+            &bytes,
+            &authenticated,
+            &contract_map,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+            false,
+        );
+        match primary.expect("Quote must emit a primary event") {
+            FpssEvent::Data(FpssData::Quote { contract, .. }) => {
+                assert_eq!(contract.root, "AAPL");
+                // Arc::ptr_eq proves both events share the SAME heap
+                // allocation — `assert_eq!(contract.root, "AAPL")` alone
+                // only checks that both events carry the same *value*,
+                // which a regression to per-event Contract::clone would
+                // still pass. Pointer equality pins down the exact
+                // optimisation the feature promises.
+                assert!(
+                    Arc::ptr_eq(&assigned_arc, &contract),
+                    "quote's Arc<Contract> must alias the ContractAssigned Arc"
+                );
+            }
+            other => panic!("expected Data(Quote), got {other:?}"),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Empty-contract sentinel path: tick arrives BEFORE ContractAssigned.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn quote_for_unknown_contract_id_uses_empty_contract_sentinel() {
+        use std::sync::Mutex as StdMutex;
+        let contract_map: std::sync::Mutex<HashMap<i32, Arc<Contract>>> =
+            StdMutex::new(HashMap::new());
+        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let authenticated = AtomicBool::new(true);
+        let shutdown = AtomicBool::new(false);
+        let mut delta_state = DeltaState::new();
+
+        // Craft a minimal FIT quote payload for contract_id 999 with no
+        // matching ContractAssigned. The contract cache lookup MUST miss
+        // and the decoded Quote MUST carry the empty-contract sentinel.
+        const FIELD_SEP: u8 = 0xB;
+        const END_NIB: u8 = 0xD;
+        fn nibbles(val: i32) -> Vec<u8> {
+            let abs = (val as i64).unsigned_abs();
+            let s = abs.to_string();
+            s.chars().map(|c| c.to_digit(10).unwrap() as u8).collect()
+        }
+        let mut nibs: Vec<u8> = Vec::new();
+        for (i, v) in [999i32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0].iter().enumerate() {
+            if i > 0 {
+                nibs.push(FIELD_SEP);
+            }
+            nibs.extend(nibbles(*v));
+        }
+        nibs.push(END_NIB);
+        let mut bytes = Vec::new();
+        let mut j = 0;
+        while j < nibs.len() {
+            let h = nibs[j];
+            let l = if j + 1 < nibs.len() { nibs[j + 1] } else { 0 };
+            bytes.push((h << 4) | (l & 0x0F));
+            j += 2;
+        }
+
+        let (primary, _) = decode_frame(
+            StreamMsgType::Quote,
+            &bytes,
+            &authenticated,
+            &contract_map,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+            false,
+        );
+        match primary.expect("Quote must emit a primary event") {
+            FpssEvent::Data(FpssData::Quote { contract, .. }) => {
+                // The type-safe sentinel check: sec_type is Unknown,
+                // not Stock. Consumers no longer have to rely on
+                // `root.is_empty()` to detect the pre-ContractAssigned
+                // state.
+                assert_eq!(
+                    contract.sec_type,
+                    tdbe::types::enums::SecType::Unknown,
+                    "missing contract_id must surface sec_type = Unknown"
+                );
+                assert!(
+                    contract.root.is_empty(),
+                    "empty-contract sentinel must also have an empty root"
+                );
+                // Same Arc as EMPTY_CONTRACT — the hot path never
+                // allocates for unknown IDs.
+                assert!(
+                    Arc::ptr_eq(&contract, &EMPTY_CONTRACT),
+                    "unknown-id quote must reuse the single EMPTY_CONTRACT Arc"
+                );
+            }
+            other => panic!("expected Data(Quote), got {other:?}"),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Non-zero Ping payload: every byte must survive the control dispatch.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn decode_code_10_ping_preserves_multi_byte_payload() {
+        // The protocol keeps the Ping payload opaque for diagnostics;
+        // the `[0]` single-byte case was already tested. A multi-byte
+        // payload (e.g. `[0, 1, 2]`) MUST be preserved byte-for-byte
+        // so post-hoc trace inspection catches anomalous heartbeats.
+        let evt = decode_ctrl(StreamMsgType::Ping, &[0u8, 1u8, 2u8]);
+        match evt {
+            FpssEvent::Control(FpssControl::Ping { payload }) => {
+                assert_eq!(payload.as_slice(), &[0u8, 1u8, 2u8]);
+            }
+            other => panic!("expected Control(Ping), got {other:?}"),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Restart arm MUST clear contract_map + local_contracts, mirroring
+    // the START/STOP arms. Without this, contract IDs the server reuses
+    // or re-announces after a restart would resolve to stale shapes.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn restart_clears_contract_map_and_local_contracts() {
+        use crate::fpss::protocol::Contract as ProtoContract;
+        use std::sync::Mutex as StdMutex;
+
+        let contract_map: std::sync::Mutex<HashMap<i32, Arc<Contract>>> =
+            StdMutex::new(HashMap::new());
+        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let authenticated = AtomicBool::new(true);
+        let shutdown = AtomicBool::new(false);
+        let mut delta_state = DeltaState::new();
+
+        // Seed both caches (as if a ContractAssigned had arrived).
+        let seeded = Arc::new(ProtoContract::stock("SEED"));
+        local_contracts.insert(42, Arc::clone(&seeded));
+        contract_map.lock().unwrap().insert(42, Arc::clone(&seeded));
+
+        let (primary, _) = decode_frame(
+            StreamMsgType::Restart,
+            &[],
+            &authenticated,
+            &contract_map,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+            false,
+        );
+        match primary.expect("Restart must emit a primary event") {
+            FpssEvent::Control(FpssControl::Restart) => {}
+            other => panic!("expected Control(Restart), got {other:?}"),
+        }
+        assert!(
+            local_contracts.is_empty(),
+            "Restart must clear the thread-local contract cache"
+        );
+        assert!(
+            contract_map.lock().unwrap().is_empty(),
+            "Restart must clear the shared contract_map"
+        );
+
+        // A subsequent tick on the now-unknown ID MUST route through
+        // the empty-contract sentinel, not the pre-restart SEED shape.
+        const FIELD_SEP: u8 = 0xB;
+        const END_NIB: u8 = 0xD;
+        fn nibbles(val: i32) -> Vec<u8> {
+            let abs = (val as i64).unsigned_abs();
+            let s = abs.to_string();
+            s.chars().map(|c| c.to_digit(10).unwrap() as u8).collect()
+        }
+        let mut nibs: Vec<u8> = Vec::new();
+        for (i, v) in [42i32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0].iter().enumerate() {
+            if i > 0 {
+                nibs.push(FIELD_SEP);
+            }
+            nibs.extend(nibbles(*v));
+        }
+        nibs.push(END_NIB);
+        let mut bytes = Vec::new();
+        let mut j = 0;
+        while j < nibs.len() {
+            let h = nibs[j];
+            let l = if j + 1 < nibs.len() { nibs[j + 1] } else { 0 };
+            bytes.push((h << 4) | (l & 0x0F));
+            j += 2;
+        }
+
+        let (primary, _) = decode_frame(
+            StreamMsgType::Quote,
+            &bytes,
+            &authenticated,
+            &contract_map,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+            false,
+        );
+        match primary.expect("Quote must emit a primary event") {
+            FpssEvent::Data(FpssData::Quote { contract, .. }) => {
+                assert_eq!(
+                    contract.sec_type,
+                    tdbe::types::enums::SecType::Unknown,
+                    "post-Restart tick on known-but-cleared ID must surface Unknown"
+                );
+                assert_ne!(
+                    contract.root, "SEED",
+                    "post-Restart decoder must NOT resurrect the pre-restart Contract"
+                );
+            }
+            other => panic!("expected Data(Quote), got {other:?}"),
         }
     }
 }

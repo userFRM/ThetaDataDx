@@ -13,14 +13,26 @@
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::hint::black_box;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
+use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{FpssData, FpssEvent};
+
+/// Single process-lifetime `Arc<Contract>`. Every sample event below
+/// clones THIS Arc — the benchmark measures pure refcount-bump cost on
+/// `FpssEvent::clone`, not allocator noise from per-call `Arc::new` +
+/// `String::clone("SPY")` inside each `sample_*` helper.
+static SAMPLE_CONTRACT: LazyLock<Arc<Contract>> =
+    LazyLock::new(|| Arc::new(Contract::stock("SPY")));
+
+fn sample_contract() -> Arc<Contract> {
+    Arc::clone(&SAMPLE_CONTRACT)
+}
 
 fn sample_quote(contract_id: i32) -> FpssEvent {
     FpssEvent::Data(FpssData::Quote {
         contract_id,
-        symbol: Arc::from("SPY"),
+        contract: sample_contract(),
         ms_of_day: 34_200_000,
         bid_size: 100,
         bid_exchange: 1,
@@ -38,7 +50,7 @@ fn sample_quote(contract_id: i32) -> FpssEvent {
 fn sample_trade(contract_id: i32) -> FpssEvent {
     FpssEvent::Data(FpssData::Trade {
         contract_id,
-        symbol: Arc::from("SPY"),
+        contract: sample_contract(),
         ms_of_day: 34_200_001,
         sequence: 42,
         ext_condition1: 0,
@@ -61,7 +73,7 @@ fn sample_trade(contract_id: i32) -> FpssEvent {
 fn sample_ohlcvc(contract_id: i32) -> FpssEvent {
     FpssEvent::Data(FpssData::Ohlcvc {
         contract_id,
-        symbol: Arc::from("SPY"),
+        contract: sample_contract(),
         ms_of_day: 34_200_000,
         open: 449.5,
         high: 450.3,
@@ -74,9 +86,10 @@ fn sample_ohlcvc(contract_id: i32) -> FpssEvent {
     })
 }
 
-/// FpssEvent::clone cost per variant. `FpssData` variants use `Arc<str>` for
-/// `symbol`, so cloning a Data event should be a field copy + single
-/// refcount bump — no heap allocation on the hot path.
+/// FpssEvent::clone cost per variant. `FpssData` variants carry
+/// `Arc<Contract>` for the parsed contract, so cloning a Data event is a
+/// field copy plus a single refcount bump — no heap allocation on the
+/// hot path.
 fn bench_event_clone(c: &mut Criterion) {
     let mut group = c.benchmark_group("FpssEvent::clone");
     for (label, ev) in [

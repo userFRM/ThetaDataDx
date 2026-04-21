@@ -157,7 +157,11 @@ pub struct FpssClient {
     pub(in crate::fpss) active_full_subs:
         Arc<Mutex<Vec<(SubscriptionKind, tdbe::types::enums::SecType)>>>,
     /// Server-assigned contract ID mapping.
-    contract_map: Arc<Mutex<HashMap<i32, Contract>>>,
+    ///
+    /// Stores `Arc<Contract>` so the I/O thread, the shared map, and
+    /// every decoded data event share a single heap allocation per
+    /// contract_id.
+    contract_map: Arc<Mutex<HashMap<i32, Arc<Contract>>>>,
     /// The server address we connected to.
     server_addr: String,
 }
@@ -247,8 +251,13 @@ impl FpssClient {
         tracing::debug!("sent CREDENTIALS to {server_addr}");
 
         // Wait for METADATA (success) or DISCONNECTED (failure)
-        // Source: FPSSClient.connect() -- blocks until login response arrives
-        let login_result = wait_for_login(&mut stream)?;
+        // Source: FPSSClient.connect() -- blocks until login response arrives.
+        // `pending_connected` is set to true if the server emits CONNECTED
+        // (code 4) during the handshake; the io_loop forwards it as
+        // `FpssControl::Connected` on the event bus so user callbacks see
+        // it alongside the regular post-METADATA event stream.
+        let mut pending_connected = false;
+        let login_result = wait_for_login(&mut stream, &mut pending_connected)?;
 
         let permissions = match login_result {
             LoginResult::Success(permissions) => {
@@ -330,6 +339,7 @@ impl FpssClient {
                     io_authenticated,
                     io_contract_map,
                     permissions,
+                    pending_connected,
                     io_server_addr,
                     derive_ohlcvc,
                     flush_mode,
@@ -617,6 +627,167 @@ impl FpssClient {
         self.unsubscribe(SubscriptionKind::OpenInterest, contract)
     }
 
+    // -----------------------------------------------------------------------
+    // Ergonomic stock/option shortcuts
+    //
+    // One-liners that build the `Contract` and dispatch through the typed
+    // subscribe/unsubscribe methods above. Stock contract construction is
+    // infallible; option construction goes through `Contract::option`
+    // which validates expiration / strike / right and returns
+    // `Error::Config` on bad input.
+    // -----------------------------------------------------------------------
+
+    /// Subscribe to real-time quotes for a stock symbol.
+    /// # Errors
+    ///
+    /// Returns an error on network or authentication failure.
+    pub fn subscribe_quotes_stock(&self, symbol: &str) -> Result<(), Error> {
+        self.subscribe_quotes(&Contract::stock(symbol))
+    }
+
+    /// Subscribe to real-time trades for a stock symbol.
+    /// # Errors
+    ///
+    /// Returns an error on network or authentication failure.
+    pub fn subscribe_trades_stock(&self, symbol: &str) -> Result<(), Error> {
+        self.subscribe_trades(&Contract::stock(symbol))
+    }
+
+    /// Subscribe to open interest updates for a stock symbol.
+    ///
+    /// Note: the FPSS server's handling of stock open interest is
+    /// different from options. Some subscription tiers reject this as
+    /// `InvalidPerms` via a `ReqResponse`; the SDK still issues the
+    /// subscribe — consumers should watch for the response code.
+    /// # Errors
+    ///
+    /// Returns an error on network or authentication failure.
+    pub fn subscribe_open_interest_stock(&self, symbol: &str) -> Result<(), Error> {
+        self.subscribe_open_interest(&Contract::stock(symbol))
+    }
+
+    /// Subscribe to real-time quotes for an option contract.
+    ///
+    /// See [`Contract::option`] for the accepted argument formats.
+    /// # Errors
+    ///
+    /// Returns `Error::Config` if the option arguments fail to parse,
+    /// or a network/authentication error on send failure.
+    pub fn subscribe_quotes_option(
+        &self,
+        root: &str,
+        exp: &str,
+        strike: &str,
+        right: &str,
+    ) -> Result<(), Error> {
+        let contract = Contract::option(root, exp, strike, right)?;
+        self.subscribe_quotes(&contract)
+    }
+
+    /// Subscribe to real-time trades for an option contract.
+    /// # Errors
+    ///
+    /// Returns `Error::Config` if the option arguments fail to parse,
+    /// or a network/authentication error on send failure.
+    pub fn subscribe_trades_option(
+        &self,
+        root: &str,
+        exp: &str,
+        strike: &str,
+        right: &str,
+    ) -> Result<(), Error> {
+        let contract = Contract::option(root, exp, strike, right)?;
+        self.subscribe_trades(&contract)
+    }
+
+    /// Subscribe to open interest updates for an option contract.
+    /// # Errors
+    ///
+    /// Returns `Error::Config` if the option arguments fail to parse,
+    /// or a network/authentication error on send failure.
+    pub fn subscribe_open_interest_option(
+        &self,
+        root: &str,
+        exp: &str,
+        strike: &str,
+        right: &str,
+    ) -> Result<(), Error> {
+        let contract = Contract::option(root, exp, strike, right)?;
+        self.subscribe_open_interest(&contract)
+    }
+
+    /// Unsubscribe from quote data for a stock symbol.
+    /// # Errors
+    ///
+    /// Returns an error on network or authentication failure.
+    pub fn unsubscribe_quotes_stock(&self, symbol: &str) -> Result<(), Error> {
+        self.unsubscribe_quotes(&Contract::stock(symbol))
+    }
+
+    /// Unsubscribe from trade data for a stock symbol.
+    /// # Errors
+    ///
+    /// Returns an error on network or authentication failure.
+    pub fn unsubscribe_trades_stock(&self, symbol: &str) -> Result<(), Error> {
+        self.unsubscribe_trades(&Contract::stock(symbol))
+    }
+
+    /// Unsubscribe from open interest data for a stock symbol.
+    /// # Errors
+    ///
+    /// Returns an error on network or authentication failure.
+    pub fn unsubscribe_open_interest_stock(&self, symbol: &str) -> Result<(), Error> {
+        self.unsubscribe_open_interest(&Contract::stock(symbol))
+    }
+
+    /// Unsubscribe from quote data for an option contract.
+    /// # Errors
+    ///
+    /// Returns `Error::Config` if the option arguments fail to parse,
+    /// or a network/authentication error on send failure.
+    pub fn unsubscribe_quotes_option(
+        &self,
+        root: &str,
+        exp: &str,
+        strike: &str,
+        right: &str,
+    ) -> Result<(), Error> {
+        let contract = Contract::option(root, exp, strike, right)?;
+        self.unsubscribe_quotes(&contract)
+    }
+
+    /// Unsubscribe from trade data for an option contract.
+    /// # Errors
+    ///
+    /// Returns `Error::Config` if the option arguments fail to parse,
+    /// or a network/authentication error on send failure.
+    pub fn unsubscribe_trades_option(
+        &self,
+        root: &str,
+        exp: &str,
+        strike: &str,
+        right: &str,
+    ) -> Result<(), Error> {
+        let contract = Contract::option(root, exp, strike, right)?;
+        self.unsubscribe_trades(&contract)
+    }
+
+    /// Unsubscribe from open interest data for an option contract.
+    /// # Errors
+    ///
+    /// Returns `Error::Config` if the option arguments fail to parse,
+    /// or a network/authentication error on send failure.
+    pub fn unsubscribe_open_interest_option(
+        &self,
+        root: &str,
+        exp: &str,
+        strike: &str,
+        right: &str,
+    ) -> Result<(), Error> {
+        let contract = Contract::option(root, exp, strike, right)?;
+        self.unsubscribe_open_interest(&contract)
+    }
+
     /// Internal subscribe implementation.
     fn subscribe(&self, kind: SubscriptionKind, contract: &Contract) -> Result<(), Error> {
         self.check_connected()?;
@@ -717,10 +888,12 @@ impl FpssClient {
         &self.server_addr
     }
 
-    /// Get the current contract map (server-assigned IDs -> contracts).
+    /// Get the current contract map (server-assigned IDs -> `Arc<Contract>`).
     ///
-    /// Useful for decoding data messages that reference contracts by ID.
-    pub fn contract_map(&self) -> HashMap<i32, Contract> {
+    /// Each value is the SAME `Arc<Contract>` the I/O thread hands to every
+    /// decoded data event for that contract_id. Cloning the map clones
+    /// `Arc`s (refcount bumps), not the underlying `Contract` values.
+    pub fn contract_map(&self) -> HashMap<i32, Arc<Contract>> {
         self.contract_map
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -729,9 +902,12 @@ impl FpssClient {
 
     /// Look up a single contract by its server-assigned ID.
     ///
-    /// Much cheaper than [`contract_map()`](Self::contract_map) for the hot path
-    /// where callers decode FIT ticks and need to resolve individual contract IDs.
-    pub fn contract_lookup(&self, id: i32) -> Option<Contract> {
+    /// Returns `Arc<Contract>` so the caller participates in the same
+    /// heap allocation used by every decoded data event. Much cheaper
+    /// than [`contract_map()`](Self::contract_map) for the hot path
+    /// where callers decode FIT ticks and need to resolve individual
+    /// contract IDs.
+    pub fn contract_lookup(&self, id: i32) -> Option<Arc<Contract>> {
         self.contract_map
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)

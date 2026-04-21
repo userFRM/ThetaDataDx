@@ -34,7 +34,7 @@
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use crate::auth::Credentials;
 use crate::config::DirectConfig;
@@ -255,19 +255,162 @@ impl ThetaDataDx {
         self.with_streaming(|s| s.unsubscribe_full_open_interest(sec_type))
     }
 
+    // -----------------------------------------------------------------------
+    // Ergonomic stock/option shortcuts (mirror FpssClient surface).
+    // -----------------------------------------------------------------------
+
+    /// Subscribe to real-time quotes for a stock symbol.
+    /// # Errors
+    ///
+    /// Returns an error on network or authentication failure.
+    pub fn subscribe_quotes_stock(&self, symbol: &str) -> Result<(), Error> {
+        self.with_streaming(|s| s.subscribe_quotes_stock(symbol))
+    }
+
+    /// Subscribe to real-time trades for a stock symbol.
+    /// # Errors
+    ///
+    /// Returns an error on network or authentication failure.
+    pub fn subscribe_trades_stock(&self, symbol: &str) -> Result<(), Error> {
+        self.with_streaming(|s| s.subscribe_trades_stock(symbol))
+    }
+
+    /// Subscribe to open interest updates for a stock symbol.
+    /// # Errors
+    ///
+    /// Returns an error on network or authentication failure.
+    pub fn subscribe_open_interest_stock(&self, symbol: &str) -> Result<(), Error> {
+        self.with_streaming(|s| s.subscribe_open_interest_stock(symbol))
+    }
+
+    /// Subscribe to real-time quotes for an option contract.
+    /// # Errors
+    ///
+    /// Returns `Error::Config` on parse failure, or a network error on send.
+    pub fn subscribe_quotes_option(
+        &self,
+        root: &str,
+        exp: &str,
+        strike: &str,
+        right: &str,
+    ) -> Result<(), Error> {
+        self.with_streaming(|s| s.subscribe_quotes_option(root, exp, strike, right))
+    }
+
+    /// Subscribe to real-time trades for an option contract.
+    /// # Errors
+    ///
+    /// Returns `Error::Config` on parse failure, or a network error on send.
+    pub fn subscribe_trades_option(
+        &self,
+        root: &str,
+        exp: &str,
+        strike: &str,
+        right: &str,
+    ) -> Result<(), Error> {
+        self.with_streaming(|s| s.subscribe_trades_option(root, exp, strike, right))
+    }
+
+    /// Subscribe to open interest updates for an option contract.
+    /// # Errors
+    ///
+    /// Returns `Error::Config` on parse failure, or a network error on send.
+    pub fn subscribe_open_interest_option(
+        &self,
+        root: &str,
+        exp: &str,
+        strike: &str,
+        right: &str,
+    ) -> Result<(), Error> {
+        self.with_streaming(|s| s.subscribe_open_interest_option(root, exp, strike, right))
+    }
+
+    /// Unsubscribe from quote data for a stock symbol.
+    /// # Errors
+    ///
+    /// Returns an error on network or authentication failure.
+    pub fn unsubscribe_quotes_stock(&self, symbol: &str) -> Result<(), Error> {
+        self.with_streaming(|s| s.unsubscribe_quotes_stock(symbol))
+    }
+
+    /// Unsubscribe from trade data for a stock symbol.
+    /// # Errors
+    ///
+    /// Returns an error on network or authentication failure.
+    pub fn unsubscribe_trades_stock(&self, symbol: &str) -> Result<(), Error> {
+        self.with_streaming(|s| s.unsubscribe_trades_stock(symbol))
+    }
+
+    /// Unsubscribe from open interest data for a stock symbol.
+    /// # Errors
+    ///
+    /// Returns an error on network or authentication failure.
+    pub fn unsubscribe_open_interest_stock(&self, symbol: &str) -> Result<(), Error> {
+        self.with_streaming(|s| s.unsubscribe_open_interest_stock(symbol))
+    }
+
+    /// Unsubscribe from quote data for an option contract.
+    /// # Errors
+    ///
+    /// Returns `Error::Config` on parse failure, or a network error on send.
+    pub fn unsubscribe_quotes_option(
+        &self,
+        root: &str,
+        exp: &str,
+        strike: &str,
+        right: &str,
+    ) -> Result<(), Error> {
+        self.with_streaming(|s| s.unsubscribe_quotes_option(root, exp, strike, right))
+    }
+
+    /// Unsubscribe from trade data for an option contract.
+    /// # Errors
+    ///
+    /// Returns `Error::Config` on parse failure, or a network error on send.
+    pub fn unsubscribe_trades_option(
+        &self,
+        root: &str,
+        exp: &str,
+        strike: &str,
+        right: &str,
+    ) -> Result<(), Error> {
+        self.with_streaming(|s| s.unsubscribe_trades_option(root, exp, strike, right))
+    }
+
+    /// Unsubscribe from open interest data for an option contract.
+    /// # Errors
+    ///
+    /// Returns `Error::Config` on parse failure, or a network error on send.
+    pub fn unsubscribe_open_interest_option(
+        &self,
+        root: &str,
+        exp: &str,
+        strike: &str,
+        right: &str,
+    ) -> Result<(), Error> {
+        self.with_streaming(|s| s.unsubscribe_open_interest_option(root, exp, strike, right))
+    }
+
     /// Get the current contract ID to Contract mapping.
+    ///
+    /// Values are `Arc<Contract>` — the same refcounted contract every
+    /// decoded FPSS event carries. Cloning the map clones Arcs, not
+    /// underlying `Contract` values.
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
-    pub fn contract_map(&self) -> Result<HashMap<i32, Contract>, Error> {
+    pub fn contract_map(&self) -> Result<HashMap<i32, Arc<Contract>>, Error> {
         self.with_streaming(|s| Ok(s.contract_map()))
     }
 
     /// Look up a contract by its server-assigned ID.
+    ///
+    /// Returns `Arc<Contract>` so callers share the same heap allocation
+    /// as the I/O thread cache and every decoded data event.
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
-    pub fn contract_lookup(&self, id: i32) -> Result<Option<Contract>, Error> {
+    pub fn contract_lookup(&self, id: i32) -> Result<Option<Arc<Contract>>, Error> {
         self.with_streaming(|s| Ok(s.contract_lookup(id)))
     }
 

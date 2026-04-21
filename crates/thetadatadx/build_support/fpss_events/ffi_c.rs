@@ -6,6 +6,27 @@ use std::fmt::Write as _;
 use super::common::{c_ffi_scalar, snake_case};
 use super::schema::{sorted_data_events, Schema};
 
+/// Emit the C `TdxContract` struct mirrored from the Rust
+/// `#[repr(C)] TdxContract`. Layout must match field-for-field with
+/// `render_contract_struct_rust` in `ffi_rust.rs`.
+fn render_contract_struct_c() -> &'static str {
+    "/* FPSS Contract shared across every data event. `root` is a\n\
+ * NUL-terminated C string (may be null when not yet resolved);\n\
+ * optional option fields use a tagged-present bool because C has no\n\
+ * Option<T>. Layout is byte-identical to Rust's #[repr(C)] TdxContract.\n\
+ */\n\
+typedef struct {\n\
+    const char *root;\n\
+    int32_t sec_type;\n\
+    bool has_exp_date;\n\
+    int32_t exp_date;\n\
+    bool has_is_call;\n\
+    bool is_call;\n\
+    bool has_strike;\n\
+    int32_t strike;\n\
+} TdxContract;\n\n"
+}
+
 /// Emit the C mirror of the Rust FFI event structs. `#include`'d from
 /// `sdks/go/ffi_bridge.h` for Go's cgo consumption AND from
 /// `sdks/cpp/include/thetadx.h` for the C++ SDK. Keeps field order and
@@ -24,7 +45,12 @@ pub(super) fn render_c_fpss_event_header(schema: &Schema) -> String {
     out.push_str(" * (C++ SDK). Plain C typedefs — both surfaces see byte-identical\n");
     out.push_str(" * layout. Do not hand-edit. */\n\n");
 
+    // `<stdbool.h>` is needed for the `bool` type used by the Contract
+    // struct's `has_*` tagged-optional flags. Safe to include repeatedly
+    // at the `.h.inc` level — `<stdbool.h>` is idempotent.
+    out.push_str("#include <stdbool.h>\n\n");
     out.push_str(include_str!("templates/ffi_c/kind_enum.h.tmpl"));
+    out.push_str(render_contract_struct_c());
 
     for (event_name, def) in sorted_data_events(schema) {
         out.push_str("typedef struct {\n");

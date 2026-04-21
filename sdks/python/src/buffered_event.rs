@@ -9,6 +9,7 @@ pub(crate) enum BufferedEvent {
     /// FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`.
     Ohlcvc {
         contract_id: i32,
+        contract: fpss::protocol::Contract,
         ms_of_day: i32,
         open: f64,
         high: f64,
@@ -22,14 +23,16 @@ pub(crate) enum BufferedEvent {
     /// FPSS OpenInterest tick. Mirrors `FpssData::OpenInterest`.
     OpenInterest {
         contract_id: i32,
+        contract: fpss::protocol::Contract,
         ms_of_day: i32,
         open_interest: i32,
         date: i32,
         received_at_ns: u64,
     },
-    /// FPSS Quote tick. Mirrors `FpssData::Quote` (symbol-less — `contract_id` is the stable key).
+    /// FPSS Quote tick. Mirrors `FpssData::Quote`.
     Quote {
         contract_id: i32,
+        contract: fpss::protocol::Contract,
         ms_of_day: i32,
         bid_size: i32,
         bid_exchange: i32,
@@ -56,6 +59,7 @@ pub(crate) enum BufferedEvent {
     /// FPSS Trade tick. Mirrors `FpssData::Trade`.
     Trade {
         contract_id: i32,
+        contract: fpss::protocol::Contract,
         ms_of_day: i32,
         sequence: i32,
         ext_condition1: i32,
@@ -80,6 +84,7 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
         fpss::FpssEvent::Data(data) => match data {
             fpss::FpssData::Ohlcvc {
                 contract_id,
+                contract,
                 ms_of_day,
                 open,
                 high,
@@ -92,6 +97,7 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                 ..
             } => BufferedEvent::Ohlcvc {
                 contract_id: *contract_id,
+                contract: (**contract).clone(),
                 ms_of_day: *ms_of_day,
                 open: *open,
                 high: *high,
@@ -104,6 +110,7 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
             },
             fpss::FpssData::OpenInterest {
                 contract_id,
+                contract,
                 ms_of_day,
                 open_interest,
                 date,
@@ -111,6 +118,7 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                 ..
             } => BufferedEvent::OpenInterest {
                 contract_id: *contract_id,
+                contract: (**contract).clone(),
                 ms_of_day: *ms_of_day,
                 open_interest: *open_interest,
                 date: *date,
@@ -118,6 +126,7 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
             },
             fpss::FpssData::Quote {
                 contract_id,
+                contract,
                 ms_of_day,
                 bid_size,
                 bid_exchange,
@@ -132,6 +141,7 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                 ..
             } => BufferedEvent::Quote {
                 contract_id: *contract_id,
+                contract: (**contract).clone(),
                 ms_of_day: *ms_of_day,
                 bid_size: *bid_size,
                 bid_exchange: *bid_exchange,
@@ -146,6 +156,7 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
             },
             fpss::FpssData::Trade {
                 contract_id,
+                contract,
                 ms_of_day,
                 sequence,
                 ext_condition1,
@@ -165,6 +176,7 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                 ..
             } => BufferedEvent::Trade {
                 contract_id: *contract_id,
+                contract: (**contract).clone(),
                 ms_of_day: *ms_of_day,
                 sequence: *sequence,
                 ext_condition1: *ext_condition1,
@@ -255,6 +267,31 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::FpssEvent) -> BufferedEvent {
                         .collect::<String>()
                 )),
                 id: Some(*code as i32),
+            },
+            fpss::FpssControl::Connected => BufferedEvent::Simple {
+                event_type: "connected".to_string(),
+                detail: None,
+                id: None,
+            },
+            fpss::FpssControl::Ping { payload } => BufferedEvent::Simple {
+                event_type: "ping".to_string(),
+                detail: Some(
+                    payload
+                        .iter()
+                        .map(|b| format!("{b:02x}"))
+                        .collect::<String>(),
+                ),
+                id: None,
+            },
+            fpss::FpssControl::ReconnectedServer => BufferedEvent::Simple {
+                event_type: "reconnected_server".to_string(),
+                detail: None,
+                id: None,
+            },
+            fpss::FpssControl::Restart => BufferedEvent::Simple {
+                event_type: "restart".to_string(),
+                detail: None,
+                id: None,
             },
             _ => BufferedEvent::Simple {
                 event_type: "unknown_control".to_string(),

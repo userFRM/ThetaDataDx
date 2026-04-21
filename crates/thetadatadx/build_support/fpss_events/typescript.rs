@@ -6,6 +6,32 @@ use std::fmt::Write as _;
 use super::common::{snake_case, snake_to_camel, ts_rust_field_type};
 use super::schema::{load_schema, sorted_data_event_names, sorted_event_names, EventDef, Schema};
 
+/// Emit the Contract napi struct. Same shape across every language —
+/// `root` is always present (empty when not yet resolved), option fields
+/// are `Option<T>` on the Rust side / `?: T` on the TS side.
+///
+/// Uses a raw string literal (`r#""#`) so the field indentation is
+/// preserved verbatim. The previous backslash-newline continuation form
+/// stripped every line's leading whitespace (Rust `\`-followed-by-space
+/// elision), producing fields that were flush-left inside the generated
+/// struct — not aligned with the rest of the file.
+fn render_contract_napi() -> &'static str {
+    r#"/// FPSS contract identifier. Surfaced on every decoded FPSS data
+/// event as `event.quote.contract` / `event.trade.contract` / etc.
+#[must_use]
+#[napi(object)]
+#[derive(Clone)]
+pub struct Contract {
+    pub root: String,
+    pub sec_type: i32,
+    pub exp_date: Option<i32>,
+    pub is_call: Option<bool>,
+    pub strike: Option<i32>,
+}
+
+"#
+}
+
 pub(super) fn render_ts_fpss_event_classes(schema: &Schema) -> String {
     let mut out = String::new();
     out.push_str(
@@ -29,6 +55,9 @@ pub(super) fn render_ts_fpss_event_classes(schema: &Schema) -> String {
     // `#[serde(rename = "simple" / "raw_data")]` in `BufferedEvent`.
     let data_names = sorted_data_event_names(schema);
     let names = sorted_event_names(schema);
+
+    // Contract struct — every data variant's `contract` field is of this type.
+    out.push_str(render_contract_napi());
 
     for event_name in &data_names {
         let def = &schema.events[*event_name];
@@ -132,6 +161,14 @@ pub(super) fn render_ts_fpss_event_classes(schema: &Schema) -> String {
                 "u64" | "i64" => writeln!(
                     out,
                     "                {name}: BigInt::from({name}),",
+                    name = column.name
+                )
+                .unwrap(),
+                // Contract is constructed explicitly — `root` clones, the
+                // option fields transfer by value.
+                "Contract" => writeln!(
+                    out,
+                    "                {name}: Contract {{\n                    root: {name}.root.clone(),\n                    sec_type: {name}.sec_type as i32,\n                    exp_date: {name}.exp_date,\n                    is_call: {name}.is_call,\n                    strike: {name}.strike,\n                }},",
                     name = column.name
                 )
                 .unwrap(),

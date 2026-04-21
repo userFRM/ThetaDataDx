@@ -3,18 +3,22 @@
 type FpssControlKind = int32
 
 const (
-	FpssCtrlLoginSuccess     FpssControlKind = 0
-	FpssCtrlContractAssigned FpssControlKind = 1
-	FpssCtrlReqResponse      FpssControlKind = 2
-	FpssCtrlMarketOpen       FpssControlKind = 3
-	FpssCtrlMarketClose      FpssControlKind = 4
-	FpssCtrlServerError      FpssControlKind = 5
-	FpssCtrlDisconnected     FpssControlKind = 6
-	FpssCtrlReconnecting     FpssControlKind = 8
-	FpssCtrlReconnected      FpssControlKind = 9
-	FpssCtrlError            FpssControlKind = 10
-	FpssCtrlUnknownFrame     FpssControlKind = 11 // ID = frame code, Detail = hex payload
-	FpssCtrlUnknownEvent     FpssControlKind = 12 // non-Data / non-Control / non-RawData fallback
+	FpssCtrlLoginSuccess      FpssControlKind = 0
+	FpssCtrlContractAssigned  FpssControlKind = 1
+	FpssCtrlReqResponse       FpssControlKind = 2
+	FpssCtrlMarketOpen        FpssControlKind = 3
+	FpssCtrlMarketClose       FpssControlKind = 4
+	FpssCtrlServerError       FpssControlKind = 5
+	FpssCtrlDisconnected      FpssControlKind = 6
+	FpssCtrlReconnecting      FpssControlKind = 8
+	FpssCtrlReconnected       FpssControlKind = 9
+	FpssCtrlError             FpssControlKind = 10
+	FpssCtrlUnknownFrame      FpssControlKind = 11 // ID = frame code, Detail = hex payload
+	FpssCtrlUnknownEvent      FpssControlKind = 12 // non-Data / non-Control / non-RawData fallback
+	FpssCtrlConnected         FpssControlKind = 13 // server CONNECTED ack (wire code 4)
+	FpssCtrlPing              FpssControlKind = 14 // server heartbeat (wire code 10); Detail = hex payload
+	FpssCtrlReconnectedServer FpssControlKind = 15 // server RECONNECTED ack (wire code 13); distinct from 9=reconnected
+	FpssCtrlRestart           FpssControlKind = 16 // server RESTART (wire code 31)
 	// Value 7 is reserved for future use.
 )
 

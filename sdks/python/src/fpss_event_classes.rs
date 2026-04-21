@@ -3,12 +3,51 @@
 // helper that converts a `BufferedEvent` into one of them. The single
 // source of truth is `crates/thetadatadx/fpss_event_schema.toml`.
 
-/// FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`.
+/// FPSS contract identifier. Surfaced on every decoded FPSS data
+/// event as `event.contract`. Matches the shape of the Rust
+/// `thetadatadx::fpss::protocol::Contract` struct one-for-one.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
+pub(crate) struct Contract {
+#[pyo3(get)] pub root: String,
+#[pyo3(get)] pub sec_type: i32,
+#[pyo3(get)] pub exp_date: Option<i32>,
+#[pyo3(get)] pub is_call: Option<bool>,
+#[pyo3(get)] pub strike: Option<i32>,
+}
+#[pymethods]
+impl Contract {
+fn __repr__(&self) -> String {
+format!(
+"Contract(root={:?}, sec_type={}, exp_date={:?}, is_call={:?}, strike={:?})",
+self.root, self.sec_type, self.exp_date, self.is_call, self.strike
+)
+}
+}
+impl Contract {
+/// Build from the core `thetadatadx::fpss::protocol::Contract` value
+/// carried by each `BufferedEvent::*` Data arm. The `sec_type` enum
+/// is cast to its `#[repr(i32)]` discriminant; Python consumers get
+/// a plain int and can compare against `tdbe.types.enums.SecType`
+/// exports if they need a symbolic reading.
+pub(crate) fn from_core(c: &fpss::protocol::Contract) -> Self {
+Self {
+root: c.root.clone(),
+sec_type: c.sec_type as i32,
+exp_date: c.exp_date,
+is_call: c.is_call,
+strike: c.strike,
+}
+}
+}
+
+/// FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`.
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct Ohlcvc {
     #[pyo3(get)] pub contract_id: i32,
+    #[pyo3(get)] pub contract: Py<Contract>,
     #[pyo3(get)] pub ms_of_day: i32,
     #[pyo3(get)] pub open: f64,
     #[pyo3(get)] pub high: f64,
@@ -32,9 +71,9 @@ impl Ohlcvc {
 /// FPSS OpenInterest tick. Mirrors `FpssData::OpenInterest`.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
-#[derive(Clone)]
 pub(crate) struct OpenInterest {
     #[pyo3(get)] pub contract_id: i32,
+    #[pyo3(get)] pub contract: Py<Contract>,
     #[pyo3(get)] pub ms_of_day: i32,
     #[pyo3(get)] pub open_interest: i32,
     #[pyo3(get)] pub date: i32,
@@ -50,12 +89,12 @@ impl OpenInterest {
     fn kind(&self) -> &'static str { "open_interest" }
 }
 
-/// FPSS Quote tick. Mirrors `FpssData::Quote` (symbol-less — `contract_id` is the stable key).
+/// FPSS Quote tick. Mirrors `FpssData::Quote`.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
-#[derive(Clone)]
 pub(crate) struct Quote {
     #[pyo3(get)] pub contract_id: i32,
+    #[pyo3(get)] pub contract: Py<Contract>,
     #[pyo3(get)] pub ms_of_day: i32,
     #[pyo3(get)] pub bid_size: i32,
     #[pyo3(get)] pub bid_exchange: i32,
@@ -81,7 +120,6 @@ impl Quote {
 /// FPSS raw-bytes event for frames the decoder did not recognize. `code` is the wire message code; `payload` is the full frame body.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
-#[derive(Clone)]
 pub(crate) struct RawData {
     #[pyo3(get)] pub code: u8,
     #[pyo3(get)] pub payload: Vec<u8>,
@@ -99,7 +137,6 @@ impl RawData {
 /// FPSS control / diagnostic event. Flattened from every `FpssControl` variant (login_success, contract_assigned, req_response, market_open/close, server_error, disconnected, reconnecting, reconnected, error, unknown_frame) and from the unknown-data / unknown-control fallbacks. `event_type` carries the concrete variant name; `detail` is a free-form diagnostic string (None when the variant carries no payload); `id` is the contract_id / req_id / reconnect attempt number where applicable.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
-#[derive(Clone)]
 pub(crate) struct Simple {
     #[pyo3(get)] pub event_type: String,
     #[pyo3(get)] pub detail: Option<String>,
@@ -118,9 +155,9 @@ impl Simple {
 /// FPSS Trade tick. Mirrors `FpssData::Trade`.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
-#[derive(Clone)]
 pub(crate) struct Trade {
     #[pyo3(get)] pub contract_id: i32,
+    #[pyo3(get)] pub contract: Py<Contract>,
     #[pyo3(get)] pub ms_of_day: i32,
     #[pyo3(get)] pub sequence: i32,
     #[pyo3(get)] pub ext_condition1: i32,
@@ -155,6 +192,7 @@ pub(crate) fn buffered_event_to_typed(
     match event {
         BufferedEvent::Ohlcvc {
             contract_id,
+            contract,
             ms_of_day,
             open,
             high,
@@ -164,41 +202,51 @@ pub(crate) fn buffered_event_to_typed(
             count,
             date,
             received_at_ns,
-        } => Py::new(
-            py,
-            Ohlcvc {
-                contract_id: *contract_id,
-                ms_of_day: *ms_of_day,
-                open: *open,
-                high: *high,
-                low: *low,
-                close: *close,
-                volume: *volume,
-                count: *count,
-                date: *date,
-                received_at_ns: *received_at_ns,
-            },
-        )
-        .map(|p| p.into_any()),
+        } => {
+            let contract_py = Py::new(py, Contract::from_core(contract))?;
+            Py::new(
+                py,
+                Ohlcvc {
+                    contract_id: *contract_id,
+                    contract: contract_py.clone_ref(py),
+                    ms_of_day: *ms_of_day,
+                    open: *open,
+                    high: *high,
+                    low: *low,
+                    close: *close,
+                    volume: *volume,
+                    count: *count,
+                    date: *date,
+                    received_at_ns: *received_at_ns,
+                },
+            )
+            .map(|p| p.into_any())
+        }
         BufferedEvent::OpenInterest {
             contract_id,
+            contract,
             ms_of_day,
             open_interest,
             date,
             received_at_ns,
-        } => Py::new(
-            py,
-            OpenInterest {
-                contract_id: *contract_id,
-                ms_of_day: *ms_of_day,
-                open_interest: *open_interest,
-                date: *date,
-                received_at_ns: *received_at_ns,
-            },
-        )
-        .map(|p| p.into_any()),
+        } => {
+            let contract_py = Py::new(py, Contract::from_core(contract))?;
+            Py::new(
+                py,
+                OpenInterest {
+                    contract_id: *contract_id,
+                    contract: contract_py.clone_ref(py),
+                    ms_of_day: *ms_of_day,
+                    open_interest: *open_interest,
+                    date: *date,
+                    received_at_ns: *received_at_ns,
+                },
+            )
+            .map(|p| p.into_any())
+        }
         BufferedEvent::Quote {
             contract_id,
+            contract,
             ms_of_day,
             bid_size,
             bid_exchange,
@@ -210,24 +258,28 @@ pub(crate) fn buffered_event_to_typed(
             ask_condition,
             date,
             received_at_ns,
-        } => Py::new(
-            py,
-            Quote {
-                contract_id: *contract_id,
-                ms_of_day: *ms_of_day,
-                bid_size: *bid_size,
-                bid_exchange: *bid_exchange,
-                bid: *bid,
-                bid_condition: *bid_condition,
-                ask_size: *ask_size,
-                ask_exchange: *ask_exchange,
-                ask: *ask,
-                ask_condition: *ask_condition,
-                date: *date,
-                received_at_ns: *received_at_ns,
-            },
-        )
-        .map(|p| p.into_any()),
+        } => {
+            let contract_py = Py::new(py, Contract::from_core(contract))?;
+            Py::new(
+                py,
+                Quote {
+                    contract_id: *contract_id,
+                    contract: contract_py.clone_ref(py),
+                    ms_of_day: *ms_of_day,
+                    bid_size: *bid_size,
+                    bid_exchange: *bid_exchange,
+                    bid: *bid,
+                    bid_condition: *bid_condition,
+                    ask_size: *ask_size,
+                    ask_exchange: *ask_exchange,
+                    ask: *ask,
+                    ask_condition: *ask_condition,
+                    date: *date,
+                    received_at_ns: *received_at_ns,
+                },
+            )
+            .map(|p| p.into_any())
+        }
         BufferedEvent::RawData {
             code,
             payload,
@@ -254,6 +306,7 @@ pub(crate) fn buffered_event_to_typed(
         .map(|p| p.into_any()),
         BufferedEvent::Trade {
             contract_id,
+            contract,
             ms_of_day,
             sequence,
             ext_condition1,
@@ -270,33 +323,38 @@ pub(crate) fn buffered_event_to_typed(
             records_back,
             date,
             received_at_ns,
-        } => Py::new(
-            py,
-            Trade {
-                contract_id: *contract_id,
-                ms_of_day: *ms_of_day,
-                sequence: *sequence,
-                ext_condition1: *ext_condition1,
-                ext_condition2: *ext_condition2,
-                ext_condition3: *ext_condition3,
-                ext_condition4: *ext_condition4,
-                condition: *condition,
-                size: *size,
-                exchange: *exchange,
-                price: *price,
-                condition_flags: *condition_flags,
-                price_flags: *price_flags,
-                volume_type: *volume_type,
-                records_back: *records_back,
-                date: *date,
-                received_at_ns: *received_at_ns,
-            },
-        )
-        .map(|p| p.into_any()),
+        } => {
+            let contract_py = Py::new(py, Contract::from_core(contract))?;
+            Py::new(
+                py,
+                Trade {
+                    contract_id: *contract_id,
+                    contract: contract_py.clone_ref(py),
+                    ms_of_day: *ms_of_day,
+                    sequence: *sequence,
+                    ext_condition1: *ext_condition1,
+                    ext_condition2: *ext_condition2,
+                    ext_condition3: *ext_condition3,
+                    ext_condition4: *ext_condition4,
+                    condition: *condition,
+                    size: *size,
+                    exchange: *exchange,
+                    price: *price,
+                    condition_flags: *condition_flags,
+                    price_flags: *price_flags,
+                    volume_type: *volume_type,
+                    records_back: *records_back,
+                    date: *date,
+                    received_at_ns: *received_at_ns,
+                },
+            )
+            .map(|p| p.into_any())
+        }
     }
 }
 
 pub(crate) fn register_fpss_event_classes(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<Contract>()?;
     m.add_class::<Ohlcvc>()?;
     m.add_class::<OpenInterest>()?;
     m.add_class::<Quote>()?;

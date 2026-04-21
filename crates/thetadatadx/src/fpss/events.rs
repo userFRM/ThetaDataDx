@@ -13,14 +13,24 @@ use super::protocol::Contract;
 ///
 /// These are the hot-path events decoded from FIT wire format and
 /// delta-decompressed. All price fields are decoded to `f64` at parse time.
+///
+/// Every variant carries the fully parsed [`Contract`] as `Arc<Contract>`.
+/// The I/O thread populates an internal `contract_id -> Arc<Contract>` cache
+/// on [`FpssControl::ContractAssigned`] so each decoded event only pays a
+/// refcount bump — matching the Java terminal's behaviour where each
+/// event listener receives the full `net.thetadata.fpssclient.Contract`
+/// alongside the payload.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum FpssData {
     /// Decoded quote tick (code 21).
     Quote {
         contract_id: i32,
-        /// Resolved symbol string (e.g. "AAPL"). Empty if contract not yet assigned.
-        symbol: Arc<str>,
+        /// Full parsed contract resolved from `contract_id` via the FPSS
+        /// contract cache. Holds an empty-root placeholder (see
+        /// `Contract::root.is_empty()`) when the server has not yet sent
+        /// the matching `ContractAssigned` frame for this id.
+        contract: Arc<Contract>,
         ms_of_day: i32,
         bid_size: i32,
         bid_exchange: i32,
@@ -37,8 +47,10 @@ pub enum FpssData {
     /// Decoded trade tick (code 22).
     Trade {
         contract_id: i32,
-        /// Resolved symbol string (e.g. "AAPL"). Empty if contract not yet assigned.
-        symbol: Arc<str>,
+        /// Full parsed contract resolved from `contract_id` via the FPSS
+        /// contract cache. Holds an empty-root placeholder when the
+        /// matching `ContractAssigned` frame has not yet arrived.
+        contract: Arc<Contract>,
         ms_of_day: i32,
         sequence: i32,
         ext_condition1: i32,
@@ -60,8 +72,10 @@ pub enum FpssData {
     /// Decoded open interest tick (code 23).
     OpenInterest {
         contract_id: i32,
-        /// Resolved symbol string (e.g. "AAPL"). Empty if contract not yet assigned.
-        symbol: Arc<str>,
+        /// Full parsed contract resolved from `contract_id` via the FPSS
+        /// contract cache. Holds an empty-root placeholder when the
+        /// matching `ContractAssigned` frame has not yet arrived.
+        contract: Arc<Contract>,
         ms_of_day: i32,
         open_interest: i32,
         date: i32,
@@ -73,8 +87,10 @@ pub enum FpssData {
     /// `volume` and `count` are `i64` to avoid overflow on high-volume symbols.
     Ohlcvc {
         contract_id: i32,
-        /// Resolved symbol string (e.g. "AAPL"). Empty if contract not yet assigned.
-        symbol: Arc<str>,
+        /// Full parsed contract resolved from `contract_id` via the FPSS
+        /// contract cache. Holds an empty-root placeholder when the
+        /// matching `ContractAssigned` frame has not yet arrived.
+        contract: Arc<Contract>,
         ms_of_day: i32,
         open: f64,
         high: f64,
@@ -111,7 +127,11 @@ pub enum FpssControl {
     /// Treat this field as a log/diagnostic string only. Do not parse it.
     LoginSuccess { permissions: String },
     /// Server sent a CONTRACT assignment (code 20).
-    ContractAssigned { id: i32, contract: Contract },
+    ///
+    /// The `contract` is shared as `Arc<Contract>` so downstream consumers
+    /// and the I/O thread's contract cache hold the same heap allocation —
+    /// cloning the Arc is a refcount bump with no `String` allocation.
+    ContractAssigned { id: i32, contract: Arc<Contract> },
     /// Subscription response (code 40).
     ReqResponse {
         req_id: i32,
@@ -140,6 +160,31 @@ pub enum FpssControl {
     /// Server sent a frame with an unrecognized code. Raw bytes preserved
     /// for diagnostics / upstream bug reports.
     UnknownFrame { code: u8, payload: Vec<u8> },
+    /// Server connection ack (code 4, `StreamMsgType::Connected`).
+    ///
+    /// Decoded from the server→client CONNECTED frame. Previously fell
+    /// through to [`FpssControl::UnknownFrame`].
+    Connected,
+    /// Server heartbeat (code 10, `StreamMsgType::Ping`).
+    ///
+    /// The server emits PING frames (observed 1-byte payload `[0]`) that
+    /// client heartbeat logic does not have to answer. Payload preserved
+    /// for diagnostics — previously every heartbeat surfaced as
+    /// `UnknownFrame { code: 10, payload: [0] }`.
+    Ping { payload: Vec<u8> },
+    /// Server-side reconnect ack (code 13).
+    ///
+    /// Distinct from [`FpssControl::Reconnected`], which the client
+    /// emits from its auto-reconnect state machine once the new TLS
+    /// session is authenticated. `ReconnectedServer` is the server
+    /// telling the client that the server-side session has just
+    /// re-established.
+    ReconnectedServer,
+    /// Server stream restart (code 31, `StreamMsgType::Restart`).
+    ///
+    /// The server restarts the stream without dropping the TCP
+    /// connection. Delta decode state should be cleared on receipt.
+    Restart,
 }
 
 /// All FPSS events -- either data or control.
@@ -220,9 +265,10 @@ mod tests {
 
     #[test]
     fn fpss_event_split_data_control() {
+        let contract = Arc::new(Contract::stock("AAPL"));
         let data_evt = FpssEvent::Data(FpssData::Trade {
             contract_id: 42,
-            symbol: Arc::from(""),
+            contract: Arc::clone(&contract),
             ms_of_day: 0,
             sequence: 0,
             ext_condition1: 0,
@@ -242,14 +288,48 @@ mod tests {
         });
         match &data_evt {
             FpssEvent::Data(FpssData::Trade {
-                contract_id, price, ..
+                contract_id,
+                contract,
+                price,
+                ..
             }) => {
                 assert_eq!(*contract_id, 42);
+                assert_eq!(contract.root, "AAPL");
                 assert!((*price - 150.25).abs() < f64::EPSILON);
             }
             other => panic!("expected Data(Trade), got {other:?}"),
         }
         let ctrl = FpssEvent::Control(FpssControl::MarketOpen);
         assert!(matches!(&ctrl, FpssEvent::Control(FpssControl::MarketOpen)));
+    }
+
+    #[test]
+    fn fpss_control_connected_ping_reconnected_server_restart_variants() {
+        // Every new control variant must round-trip and expose its payload
+        // correctly — matching the Java terminal hand-off where codes
+        // 4 / 10 / 13 / 31 each land on their own typed listener.
+        let connected = FpssEvent::Control(FpssControl::Connected);
+        assert!(matches!(
+            &connected,
+            FpssEvent::Control(FpssControl::Connected)
+        ));
+
+        let ping = FpssEvent::Control(FpssControl::Ping {
+            payload: vec![0x00],
+        });
+        if let FpssEvent::Control(FpssControl::Ping { payload }) = &ping {
+            assert_eq!(payload.as_slice(), &[0x00]);
+        } else {
+            panic!("expected Ping");
+        }
+
+        let reconnected_server = FpssEvent::Control(FpssControl::ReconnectedServer);
+        assert!(matches!(
+            &reconnected_server,
+            FpssEvent::Control(FpssControl::ReconnectedServer)
+        ));
+
+        let restart = FpssEvent::Control(FpssControl::Restart);
+        assert!(matches!(&restart, FpssEvent::Control(FpssControl::Restart)));
     }
 }

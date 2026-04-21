@@ -110,6 +110,11 @@ fn render_data_match_arm(event_name: &str, def: &EventDef) -> String {
     for column in &def.columns {
         let rhs = match column.r#type.as_str() {
             "String" | "Vec<u8>" => format!("{field}.clone()", field = column.name),
+            // Contract arrives as `&Arc<fpss::protocol::Contract>`;
+            // the `BufferedEvent` field stores the contract by value
+            // so the per-language dispatcher can construct a fresh
+            // language-native object without holding the Arc.
+            "Contract" => format!("(**{field}).clone()", field = column.name),
             t if is_option(t) => format!("{field}.clone()", field = column.name),
             _ => format!("*{field}", field = column.name),
         };

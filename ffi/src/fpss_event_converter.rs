@@ -8,6 +8,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
     match event {
         FpssEvent::Data(FpssData::Ohlcvc {
             contract_id,
+            contract,
             ms_of_day,
             open,
             high,
@@ -18,11 +19,31 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
             date,
             received_at_ns,
             ..
-        }) => FfiBufferedEvent {
+        }) => {
+            let contract_root_cstring = if contract.root.is_empty() {
+                None
+            } else {
+                std::ffi::CString::new(contract.root.as_str()).ok()
+            };
+            let contract_root_ptr = contract_root_cstring
+                .as_ref()
+                .map_or(ptr::null(), |cs| cs.as_ptr());
+            let tdx_contract = TdxContract {
+                root: contract_root_ptr,
+                sec_type: contract.sec_type as i32,
+                has_exp_date: contract.exp_date.is_some(),
+                exp_date: contract.exp_date.unwrap_or(0),
+                has_is_call: contract.is_call.is_some(),
+                is_call: contract.is_call.unwrap_or(false),
+                has_strike: contract.strike.is_some(),
+                strike: contract.strike.unwrap_or(0),
+            };
+            FfiBufferedEvent {
             event: TdxFpssEvent {
                 kind: TdxFpssEventKind::Ohlcvc,
                 ohlcvc: TdxFpssOhlcvc {
                     contract_id: *contract_id,
+                    contract: tdx_contract,
                     ms_of_day: *ms_of_day,
                     open: *open,
                     high: *high,
@@ -39,22 +60,44 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                 control: ZERO_CONTROL,
                 raw_data: ZERO_RAW,
             },
-            _detail_string: None,
+            _detail_string: contract_root_cstring,
             _raw_payload: None,
-        },
+        }
+        }
 
         FpssEvent::Data(FpssData::OpenInterest {
             contract_id,
+            contract,
             ms_of_day,
             open_interest,
             date,
             received_at_ns,
             ..
-        }) => FfiBufferedEvent {
+        }) => {
+            let contract_root_cstring = if contract.root.is_empty() {
+                None
+            } else {
+                std::ffi::CString::new(contract.root.as_str()).ok()
+            };
+            let contract_root_ptr = contract_root_cstring
+                .as_ref()
+                .map_or(ptr::null(), |cs| cs.as_ptr());
+            let tdx_contract = TdxContract {
+                root: contract_root_ptr,
+                sec_type: contract.sec_type as i32,
+                has_exp_date: contract.exp_date.is_some(),
+                exp_date: contract.exp_date.unwrap_or(0),
+                has_is_call: contract.is_call.is_some(),
+                is_call: contract.is_call.unwrap_or(false),
+                has_strike: contract.strike.is_some(),
+                strike: contract.strike.unwrap_or(0),
+            };
+            FfiBufferedEvent {
             event: TdxFpssEvent {
                 kind: TdxFpssEventKind::OpenInterest,
                 open_interest: TdxFpssOpenInterest {
                     contract_id: *contract_id,
+                    contract: tdx_contract,
                     ms_of_day: *ms_of_day,
                     open_interest: *open_interest,
                     date: *date,
@@ -66,12 +109,14 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                 control: ZERO_CONTROL,
                 raw_data: ZERO_RAW,
             },
-            _detail_string: None,
+            _detail_string: contract_root_cstring,
             _raw_payload: None,
-        },
+        }
+        }
 
         FpssEvent::Data(FpssData::Quote {
             contract_id,
+            contract,
             ms_of_day,
             bid_size,
             bid_exchange,
@@ -84,11 +129,31 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
             date,
             received_at_ns,
             ..
-        }) => FfiBufferedEvent {
+        }) => {
+            let contract_root_cstring = if contract.root.is_empty() {
+                None
+            } else {
+                std::ffi::CString::new(contract.root.as_str()).ok()
+            };
+            let contract_root_ptr = contract_root_cstring
+                .as_ref()
+                .map_or(ptr::null(), |cs| cs.as_ptr());
+            let tdx_contract = TdxContract {
+                root: contract_root_ptr,
+                sec_type: contract.sec_type as i32,
+                has_exp_date: contract.exp_date.is_some(),
+                exp_date: contract.exp_date.unwrap_or(0),
+                has_is_call: contract.is_call.is_some(),
+                is_call: contract.is_call.unwrap_or(false),
+                has_strike: contract.strike.is_some(),
+                strike: contract.strike.unwrap_or(0),
+            };
+            FfiBufferedEvent {
             event: TdxFpssEvent {
                 kind: TdxFpssEventKind::Quote,
                 quote: TdxFpssQuote {
                     contract_id: *contract_id,
+                    contract: tdx_contract,
                     ms_of_day: *ms_of_day,
                     bid_size: *bid_size,
                     bid_exchange: *bid_exchange,
@@ -107,12 +172,14 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                 control: ZERO_CONTROL,
                 raw_data: ZERO_RAW,
             },
-            _detail_string: None,
+            _detail_string: contract_root_cstring,
             _raw_payload: None,
-        },
+        }
+        }
 
         FpssEvent::Data(FpssData::Trade {
             contract_id,
+            contract,
             ms_of_day,
             sequence,
             ext_condition1,
@@ -130,11 +197,31 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
             date,
             received_at_ns,
             ..
-        }) => FfiBufferedEvent {
+        }) => {
+            let contract_root_cstring = if contract.root.is_empty() {
+                None
+            } else {
+                std::ffi::CString::new(contract.root.as_str()).ok()
+            };
+            let contract_root_ptr = contract_root_cstring
+                .as_ref()
+                .map_or(ptr::null(), |cs| cs.as_ptr());
+            let tdx_contract = TdxContract {
+                root: contract_root_ptr,
+                sec_type: contract.sec_type as i32,
+                has_exp_date: contract.exp_date.is_some(),
+                exp_date: contract.exp_date.unwrap_or(0),
+                has_is_call: contract.is_call.is_some(),
+                is_call: contract.is_call.unwrap_or(false),
+                has_strike: contract.strike.is_some(),
+                strike: contract.strike.unwrap_or(0),
+            };
+            FfiBufferedEvent {
             event: TdxFpssEvent {
                 kind: TdxFpssEventKind::Trade,
                 trade: TdxFpssTrade {
                     contract_id: *contract_id,
+                    contract: tdx_contract,
                     ms_of_day: *ms_of_day,
                     sequence: *sequence,
                     ext_condition1: *ext_condition1,
@@ -158,9 +245,10 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                 control: ZERO_CONTROL,
                 raw_data: ZERO_RAW,
             },
-            _detail_string: None,
+            _detail_string: contract_root_cstring,
             _raw_payload: None,
-        },
+        }
+        }
 
         FpssEvent::RawData { code, payload } => {
             let owned = payload.clone();
@@ -211,6 +299,19 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                             .collect::<String>(),
                     ),
                 ),
+                FpssControl::Connected => (13, 0, None),
+                FpssControl::Ping { payload } => (
+                    14,
+                    0,
+                    Some(
+                        payload
+                            .iter()
+                            .map(|b| format!("{b:02x}"))
+                            .collect::<String>(),
+                    ),
+                ),
+                FpssControl::ReconnectedServer => (15, 0, None),
+                FpssControl::Restart => (16, 0, None),
                 _ => (99, 0, None), // unknown control
             };
             let cstring = detail_str.and_then(|s| std::ffi::CString::new(s).ok());
