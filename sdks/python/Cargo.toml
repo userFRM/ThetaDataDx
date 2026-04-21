@@ -10,8 +10,8 @@ documentation = "https://github.com/userFRM/ThetaDataDx/blob/main/docs/api-refer
 readme = "README.md"
 
 # Standalone package — deliberately NOT a member of the parent workspace.
-# When this crate lives inside a worktree (`.claude/worktrees/*/sdks/python`)
-# cargo walks up looking for a workspace root and finds the main repo's
+# When this crate is checked out inside a nested worktree directory, cargo
+# walks up looking for a workspace root and finds the main repo's
 # `Cargo.toml`, which only excludes `sdks/python` (the repo-root-relative
 # path), not the worktree-relative path. The empty `[workspace]` marker
 # tells cargo "I am my own workspace, stop walking."
