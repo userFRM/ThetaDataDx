@@ -95,7 +95,7 @@ All functions that can fail return null on error. Call `tdx_last_error()` to get
 
 - All functions check for null handles before dereferencing.
 - Mutex locks use poison recovery (`unwrap_or_else(|e| e.into_inner())`).
-- `TdxClient` is `#[repr(transparent)]` over `DirectClient` for safe pointer casting.
+- `TdxClient` is `#[repr(transparent)]` over `MddsClient` for safe pointer casting.
 
 ### Panic boundary
 

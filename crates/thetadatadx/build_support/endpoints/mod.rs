@@ -4,7 +4,7 @@
 //! for the normalized SDK surface, while still validating each declared
 //! endpoint against the upstream gRPC wire contract in `proto/external.proto`.
 //! The resulting joined model drives generated registry metadata, the shared
-//! endpoint runtime, and all `DirectClient` methods (list, parsed, and streaming).
+//! endpoint runtime, and all `MddsClient` methods (list, parsed, and streaming).
 //!
 //! Note: runtime parameter validation (date format, symbol format, interval,
 //! right, year) lives in `crate::validate`. The validators here operate at

@@ -14,7 +14,7 @@
 //!     |
 //! thetadatadx-server (this binary)
 //!     |
-//!     |--- DirectClient (MDDS gRPC) for historical data
+//!     |--- MddsClient (MDDS gRPC) for historical data
 //!     |--- FpssClient (FPSS TCP) for real-time streaming
 //!     |
 //! ThetaData upstream servers

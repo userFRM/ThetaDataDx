@@ -32,7 +32,7 @@ pub struct AppState {
 }
 
 struct Inner {
-    /// Unified client (historical via Deref to DirectClient, streaming via start_streaming).
+    /// Unified client (historical via Deref to MddsClient, streaming via start_streaming).
     tdx: ThetaDataDx,
     /// Whether MDDS is connected (true after successful init).
     mdds_connected: AtomicBool,

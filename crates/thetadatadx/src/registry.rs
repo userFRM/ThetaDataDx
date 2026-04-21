@@ -1,4 +1,4 @@
-//! Endpoint registry -- single source of truth for all `DirectClient` endpoints.
+//! Endpoint registry -- single source of truth for all `MddsClient` endpoints.
 //!
 //! Used by the CLI and MCP server to auto-generate commands and tool definitions.
 //! When `ThetaData` adds a new proto RPC, the build script parses
@@ -7,7 +7,7 @@
 //! # Design
 //!
 //! Each entry is a `const` descriptor (`EndpointMeta`) that captures:
-//! - Method name on `DirectClient` (e.g. `"stock_history_eod"`)
+//! - Method name on `MddsClient` (e.g. `"stock_history_eod"`)
 //! - Human description
 //! - Category / subcategory for grouping
 //! - Canonical REST path for terminal-compatible HTTP routing
@@ -16,7 +16,7 @@
 //!
 //! Streaming endpoints (`*_stream`) are excluded because they use a callback
 //! API (`FnMut(&[T])`) that does not map to CLI/MCP output semantics. They
-//! remain available on `DirectClient` for programmatic use.
+//! remain available on `MddsClient` for programmatic use.
 
 /// Parameter type for endpoint arguments.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -94,7 +94,7 @@ pub struct ParamMeta {
 /// Metadata for a single endpoint.
 #[derive(Debug, Clone)]
 pub struct EndpointMeta {
-    /// Method name on `DirectClient` (e.g. `"stock_history_eod"`).
+    /// Method name on `MddsClient` (e.g. `"stock_history_eod"`).
     pub name: &'static str,
     /// Human-readable description.
     pub description: &'static str,

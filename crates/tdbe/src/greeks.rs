@@ -785,13 +785,13 @@ mod tests {
     #[test]
     #[should_panic(expected = "invalid option right")]
     fn all_greeks_panics_on_garbage_right() {
-        all_greeks(100.0, 100.0, 0.05, 0.01, 0.25, 5.0, "xyz");
+        let _ = all_greeks(100.0, 100.0, 0.05, 0.01, 0.25, 5.0, "xyz");
     }
 
     #[test]
     #[should_panic(expected = "resolves to 'both'")]
     fn all_greeks_panics_on_both() {
-        all_greeks(100.0, 100.0, 0.05, 0.01, 0.25, 5.0, "both");
+        let _ = all_greeks(100.0, 100.0, 0.05, 0.01, 0.25, 5.0, "both");
     }
 
     #[test]

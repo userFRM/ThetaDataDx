@@ -172,7 +172,7 @@ impl EndpointArgs {
     /// Read a required expiration argument.
     ///
     /// Accepts `*` / `0` (wildcard sentinels), `YYYYMMDD`, or `YYYY-MM-DD`.
-    /// Wire-level canonicalization happens in `direct::normalize_expiration`.
+    /// Wire-level canonicalization happens in `mdds::normalize::normalize_expiration`.
     pub fn required_expiration(&self, key: &str) -> Result<&str, EndpointError> {
         let value = self.required_str(key)?;
         validate_expiration(value, key)?;
@@ -194,7 +194,7 @@ impl EndpointArgs {
     ///
     /// Accepts `*` / `0` / empty (wildcard sentinels) or a positive decimal
     /// (e.g. `"550"`, `"17.5"`). Wildcards become proto-unset on the wire
-    /// via `direct::wire_strike_opt` so the server applies its default.
+    /// via `mdds::normalize::wire_strike_opt` so the server applies its default.
     pub fn required_strike(&self, key: &str) -> Result<&str, EndpointError> {
         let value = self.required_str(key)?;
         validate_strike(value, key)?;
@@ -410,9 +410,9 @@ pub enum EndpointOutput {
 /// (`_permit`, `tonic::Streaming`) drop with it, releasing the request
 /// semaphore and cancelling the in-flight gRPC stream — and the call
 /// returns `EndpointError::Server(Error::Timeout { duration_ms })`.
-/// Subsequent calls on the same `DirectClient` succeed.
+/// Subsequent calls on the same `MddsClient` succeed.
 pub async fn invoke_endpoint(
-    client: &crate::direct::DirectClient,
+    client: &crate::mdds::MddsClient,
     name: &str,
     args: &EndpointArgs,
 ) -> Result<EndpointOutput, EndpointError> {

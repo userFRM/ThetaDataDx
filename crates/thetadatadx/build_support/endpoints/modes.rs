@@ -557,7 +557,7 @@ fn collapse_redundant_wires(endpoint: &GeneratedEndpoint, modes: Vec<TestMode>) 
             .map(|(k, v)| (k.clone(), canonicalize_wire_arg(k, v)))
             .collect();
         // Stock endpoints default `venue=nqb` at the runtime call site
-        // (`render/direct.rs`). Synthesize it here so modes that omit
+        // (`render/mdds.rs`). Synthesize it here so modes that omit
         // `venue` don't look distinct from modes that set it to `nqb`.
         if has_stock_venue_default && !pairs.iter().any(|(k, _)| k == "venue") {
             pairs.push((

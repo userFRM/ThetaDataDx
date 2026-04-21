@@ -1,7 +1,7 @@
 //! Macros invoked by generated endpoint code from `build_support/endpoints.rs`.
 //!
 //! These macro_rules drive the builder-pattern gRPC wrappers emitted at build
-//! time as well as the handwritten streaming endpoints in [`crate::direct`].
+//! time as well as the handwritten streaming endpoints in [`crate::mdds`].
 //! They are declared with `#[macro_use]` in `lib.rs` so every sibling module
 //! can reference them.
 //!
@@ -12,11 +12,11 @@
 //! [`tokio::time::timeout`]. On expiry the future is dropped: the local
 //! `_permit` releases the request-semaphore slot, the tonic `Streaming` is
 //! dropped (RST_STREAM on the underlying H2 stream), and the call returns
-//! `Err(Error::Timeout { duration_ms })`. The `DirectClient` is unaffected;
+//! `Err(Error::Timeout { duration_ms })`. The `MddsClient` is unaffected;
 //! a subsequent call on the same handle succeeds.
 //!
 //! List endpoints additionally expose a parallel `<name>_with_deadline(...)`
-//! async method on `DirectClient`: the existing `pub async fn <name>(...)`
+//! async method on `MddsClient`: the existing `pub async fn <name>(...)`
 //! signatures stay non-breaking, while the `_with_deadline` variant gives
 //! the same cancellation contract for the validator and registry dispatch.
 
@@ -48,7 +48,7 @@ where
 /// column from the response `DataTable`.
 ///
 /// Pattern: build request -> gRPC call -> collect stream -> extract text column.
-/// Emits two methods on `DirectClient`:
+/// Emits two methods on `MddsClient`:
 /// - `pub async fn <name>(...)` — no deadline.
 /// - `pub async fn <name>_with_deadline(deadline, ...)` — caps the call.
 macro_rules! list_endpoint {
@@ -73,7 +73,7 @@ macro_rules! list_endpoint {
             $(#[$meta])*
             #[doc = "Variant with a per-call deadline. On expiry the in-flight gRPC"]
             #[doc = "call is cancelled and `Err(Error::Timeout)` is returned; the"]
-            #[doc = "`DirectClient` is left intact for subsequent calls."]
+            #[doc = "`MddsClient` is left intact for subsequent calls."]
             #[doc = ""]
             #[doc = "`Duration::ZERO` is normalized to \"no deadline\" for parity with"]
             #[doc = "the builder-style endpoints; pass a positive `Duration` for"]
@@ -160,9 +160,9 @@ macro_rules! parsed_endpoint {
         $(dates: $($date_arg:ident),+ ;)?
         optional { $($opt_name:ident : $opt_kind:tt = $opt_default:expr),* $(,)? }
     ) => {
-        /// Builder for the [`DirectClient::$name`] endpoint.
+        /// Builder for the [`MddsClient::$name`] endpoint.
         pub struct $builder_name<'a> {
-            client: &'a DirectClient,
+            client: &'a MddsClient,
             $(pub(crate) $req_arg: req_field_type!($req_kind),)*
             $(pub(crate) $opt_name: opt_field_type!($opt_kind),)*
             pub(crate) deadline: Option<std::time::Duration>,
@@ -177,7 +177,7 @@ macro_rules! parsed_endpoint {
             ///
             /// On expiry the in-flight gRPC call is cancelled and the
             /// builder's future resolves to `Err(Error::Timeout)`. The
-            /// underlying `DirectClient` is unaffected; subsequent calls
+            /// underlying `MddsClient` is unaffected; subsequent calls
             /// on the same handle succeed.
             ///
             /// `Duration::ZERO` is normalized to "no deadline". The
@@ -242,7 +242,7 @@ macro_rules! parsed_endpoint {
             }
         }
 
-        impl DirectClient {
+        impl MddsClient {
             $(#[$meta])*
             pub fn $name(&self, $($req_arg: req_param_type!($req_kind)),*) -> $builder_name<'_> {
                 $builder_name {

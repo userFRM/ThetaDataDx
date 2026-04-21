@@ -265,7 +265,7 @@ type EventRx = Arc<Mutex<Option<Arc<Mutex<std::sync::mpsc::Receiver<BufferedEven
 
 #[pyclass]
 struct ThetaDataDx {
-    /// The underlying Rust unified client (Deref to DirectClient for historical).
+    /// The underlying Rust unified client (Deref to MddsClient for historical).
     tdx: thetadatadx::ThetaDataDx,
     /// Created lazily when `start_streaming()` is called.
     rx: EventRx,

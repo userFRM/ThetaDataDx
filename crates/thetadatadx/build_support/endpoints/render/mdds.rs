@@ -1,8 +1,11 @@
-//! Rust emitters for the `DirectClient` surface.
+//! Rust emitters for the MDDS gRPC [`MddsClient`] surface.
 //!
 //! Emits per-endpoint `list_endpoint!`, `parsed_endpoint!`, and streaming
 //! builder macro invocations into the `OUT_DIR`. Shared naming/type helpers
 //! live in [`super::super::helpers`]; this file only owns the code shape.
+//!
+//! The emitted artifacts are consumed at `include!` time by
+//! `crates/thetadatadx/src/mdds/endpoints.rs`.
 
 use std::fmt::Write as _;
 
@@ -15,7 +18,7 @@ use super::super::helpers::{
 };
 use super::super::model::{GeneratedEndpoint, ProtoField};
 
-pub(super) fn generate_direct_list_endpoint(out: &mut String, endpoint: &GeneratedEndpoint) {
+pub(super) fn generate_mdds_list_endpoint(out: &mut String, endpoint: &GeneratedEndpoint) {
     writeln!(out, "list_endpoint! {{").unwrap();
     writeln!(out, "    #[doc = {:?}]", endpoint.description).unwrap();
     writeln!(
@@ -62,7 +65,7 @@ pub(super) fn generate_direct_list_endpoint(out: &mut String, endpoint: &Generat
     } else {
         writeln!(out, "    query: {} {{", endpoint.query_type).unwrap();
         for field in &endpoint.fields {
-            let expr = direct_query_field_expr(endpoint, field, true);
+            let expr = mdds_query_field_expr(endpoint, field, true);
             writeln!(out, "        {}: {expr},", field.name).unwrap();
         }
         out.push_str("    };\n");
@@ -70,7 +73,7 @@ pub(super) fn generate_direct_list_endpoint(out: &mut String, endpoint: &Generat
     out.push_str("}\n\n");
 }
 
-pub(super) fn generate_direct_parsed_endpoint(out: &mut String, endpoint: &GeneratedEndpoint) {
+pub(super) fn generate_mdds_parsed_endpoint(out: &mut String, endpoint: &GeneratedEndpoint) {
     writeln!(out, "parsed_endpoint! {{").unwrap();
     writeln!(out, "    #[doc = {:?}]", endpoint.description).unwrap();
     writeln!(
@@ -117,7 +120,7 @@ pub(super) fn generate_direct_parsed_endpoint(out: &mut String, endpoint: &Gener
     } else {
         writeln!(out, "    query: {} {{", endpoint.query_type).unwrap();
         for field in &endpoint.fields {
-            let expr = direct_query_field_expr(endpoint, field, false);
+            let expr = mdds_query_field_expr(endpoint, field, false);
             writeln!(out, "        {}: {expr},", field.name).unwrap();
         }
         out.push_str("    };\n");
@@ -155,7 +158,7 @@ pub(super) fn generate_direct_parsed_endpoint(out: &mut String, endpoint: &Gener
     out.push_str("}\n\n");
 }
 
-pub(super) fn generate_direct_streaming_endpoint(out: &mut String, endpoint: &GeneratedEndpoint) {
+pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &GeneratedEndpoint) {
     let method_params = endpoint
         .params
         .iter()
@@ -172,12 +175,12 @@ pub(super) fn generate_direct_streaming_endpoint(out: &mut String, endpoint: &Ge
 
     writeln!(
         out,
-        "/// Builder for the [`DirectClient::{}`] streaming endpoint.",
+        "/// Builder for the [`MddsClient::{}`] streaming endpoint.",
         endpoint.name
     )
     .unwrap();
     writeln!(out, "pub struct {builder_name}<'a> {{").unwrap();
-    out.push_str("    client: &'a DirectClient,\n");
+    out.push_str("    client: &'a MddsClient,\n");
     for param in &method_params {
         writeln!(
             out,
@@ -219,7 +222,7 @@ pub(super) fn generate_direct_streaming_endpoint(out: &mut String, endpoint: &Ge
         out.push_str("    }\n");
     }
     out.push_str(
-        &include_str!("templates/direct/stream_method_header.rs.tmpl")
+        &include_str!("templates/mdds/stream_method_header.rs.tmpl")
             .replace("__TICK_TYPE__", tick_type),
     );
     writeln!(out, "        let {builder_name} {{").unwrap();
@@ -282,7 +285,7 @@ pub(super) fn generate_direct_streaming_endpoint(out: &mut String, endpoint: &Ge
         )
         .unwrap();
         for field in &endpoint.fields {
-            let expr = direct_query_field_expr(endpoint, field, false);
+            let expr = mdds_query_field_expr(endpoint, field, false);
             if expr == field.name {
                 writeln!(out, "                {expr},").unwrap();
             } else {
@@ -294,20 +297,20 @@ pub(super) fn generate_direct_streaming_endpoint(out: &mut String, endpoint: &Ge
     out.push_str("        };\n");
     let endpoint_name_literal = format!("{:?}", endpoint.name);
     out.push_str(
-        &include_str!("templates/direct/stub_call_error_arm.rs.tmpl")
+        &include_str!("templates/mdds/stub_call_error_arm.rs.tmpl")
             .replace("__GRPC_NAME__", &endpoint.grpc_name)
             .replace("__ENDPOINT_NAME_LITERAL__", &endpoint_name_literal),
     );
     out.push_str(
-        &include_str!("templates/direct/for_each_chunk_body.rs.tmpl")
+        &include_str!("templates/mdds/for_each_chunk_body.rs.tmpl")
             .replace("__PARSER_NAME__", parser_name),
     );
     out.push_str(
-        &include_str!("templates/direct/metrics_result_block.rs.tmpl")
+        &include_str!("templates/mdds/metrics_result_block.rs.tmpl")
             .replace("__ENDPOINT_NAME__", &endpoint_name_literal),
     );
 
-    writeln!(out, "impl DirectClient {{").unwrap();
+    writeln!(out, "impl MddsClient {{").unwrap();
     write!(out, "    pub fn {}(&self", endpoint.name).unwrap();
     for param in &method_params {
         write!(
@@ -339,7 +342,7 @@ pub(super) fn generate_direct_streaming_endpoint(out: &mut String, endpoint: &Ge
     out.push_str("}\n\n");
 }
 
-pub(super) fn direct_query_field_expr(
+pub(super) fn mdds_query_field_expr(
     endpoint: &GeneratedEndpoint,
     field: &ProtoField,
     list_context: bool,
