@@ -107,6 +107,13 @@ pub(super) struct SurfaceTemplate {
     pub(super) returns: Option<String>,
     #[serde(default)]
     pub(super) list_column: Option<String>,
+    /// Upstream vendor docstring lifted from the ThetaData Python SDK
+    /// (Apache-2.0). Single SSOT field feeding every target language's
+    /// docstring rendering (Python / TypeScript / Rust / C++ / Go /
+    /// fluent builders / async variants). Templates may set a default
+    /// (e.g. empty) which endpoints override.
+    #[serde(default)]
+    pub(super) vendor_docstring: Option<String>,
     #[serde(default)]
     pub(super) params: Vec<SurfaceParamEntry>,
 }
@@ -134,6 +141,12 @@ pub(super) struct SurfaceEndpoint {
     pub(super) returns: Option<String>,
     #[serde(default)]
     pub(super) list_column: Option<String>,
+    /// Upstream vendor docstring lifted from the ThetaData Python SDK
+    /// (Apache-2.0). Overrides any template-level `vendor_docstring`.
+    /// Appended after the DX-native `description` when emitting per-
+    /// language docs — single SSOT for sync, async, and builder paths.
+    #[serde(default)]
+    pub(super) vendor_docstring: Option<String>,
     #[serde(default)]
     pub(super) params: Vec<SurfaceParamEntry>,
 }
@@ -179,6 +192,7 @@ pub(super) struct ResolvedTemplate {
     pub(super) kind: Option<String>,
     pub(super) returns: Option<String>,
     pub(super) list_column: Option<String>,
+    pub(super) vendor_docstring: Option<String>,
     pub(super) params: Vec<SurfaceParam>,
 }
 
@@ -193,6 +207,10 @@ pub(super) struct ResolvedSurfaceEndpoint {
     pub(super) kind: String,
     pub(super) returns: String,
     pub(super) list_column: Option<String>,
+    /// Upstream vendor docstring (sourced from `vendor_docstring` in TOML).
+    /// Empty when the endpoint has no vendor counterpart (e.g. streaming
+    /// variants DX ships that the vendor SDK doesn't expose).
+    pub(super) vendor_docstring: Option<String>,
     pub(super) params: Vec<SurfaceParam>,
 }
 
@@ -238,6 +256,11 @@ pub(super) struct GeneratedEndpoint {
     pub(super) return_type: String,
     pub(super) kind: String,
     pub(super) list_column: Option<String>,
+    /// Upstream vendor docstring. Feeds the per-language doc emitters
+    /// so Python / TypeScript / Rust / C++ / Go (and the sync / async
+    /// / fluent-builder variants within each) all read from a single
+    /// TOML field and can never drift.
+    pub(super) vendor_docstring: Option<String>,
 }
 
 #[derive(Debug, Clone)]

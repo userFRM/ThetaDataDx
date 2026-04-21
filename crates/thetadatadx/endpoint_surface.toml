@@ -982,6 +982,9 @@ use = "date_range_optional"
 name = "stock_list_symbols"
 template = "stock_list"
 description = "List all available stock ticker symbols."
+vendor_docstring = """
+A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for stocks. This endpoint is updated overnight.
+"""
 rest_path = "/v3/stock/list/symbols"
 list_column = "symbol"
 
@@ -989,6 +992,9 @@ list_column = "symbol"
 name = "stock_list_dates"
 template = "stock_list"
 description = "List available dates for a stock by request type (EOD, TRADE, QUOTE, etc.)."
+vendor_docstring = """
+Lists all dates of data that are available for a stock with a given request type and symbol. This endpoint is updated overnight.
+"""
 rest_path = "/v3/stock/list/dates"
 list_column = "date"
 
@@ -1002,6 +1008,12 @@ use = "stock_symbol"
 name = "stock_snapshot_ohlc"
 template = "stock_snapshot"
 description = "Get the latest OHLC snapshot for one or more stocks."
+vendor_docstring = """
+Provides a real-time Open, High, Low, Close for the current day.
+* Returns a real-time session OHLC from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+* Returns a 15-minute delayed session OHLC from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs) if the account has the stocks value subscription.
+* Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+"""
 rest_path = "/v3/stock/snapshot/ohlc"
 returns = "OhlcTicks"
 
@@ -1009,6 +1021,11 @@ returns = "OhlcTicks"
 name = "stock_snapshot_trade"
 template = "stock_snapshot"
 description = "Get the latest trade snapshot for one or more stocks."
+vendor_docstring = """
+Returns a real-time last trade from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+
+- Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+"""
 rest_path = "/v3/stock/snapshot/trade"
 returns = "TradeTicks"
 
@@ -1016,6 +1033,11 @@ returns = "TradeTicks"
 name = "stock_snapshot_quote"
 template = "stock_snapshot"
 description = "Get the latest NBBO quote snapshot for one or more stocks."
+vendor_docstring = """
+* Returns a real-time last BBO quote from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+* Returns a 15-minute delayed NBBO quote from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs) account has the [stocks value subscription](https://www.thetadata.net/subscribe.html#stocks) subscription.
+- Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+"""
 rest_path = "/v3/stock/snapshot/quote"
 returns = "QuoteTicks"
 
@@ -1023,6 +1045,11 @@ returns = "QuoteTicks"
 name = "stock_snapshot_market_value"
 template = "stock_snapshot"
 description = "Get the latest market value snapshot for one or more stocks."
+vendor_docstring = """
+* Returns a real-time market value derived from the last BBO quote from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+* Returns a 15-minute delayed market value derived from an NBBO quote from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs) if the account has the [stocks value subscription](https://www.thetadata.net/subscribe.html#stocks) subscription.
+- Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+"""
 rest_path = "/v3/stock/snapshot/market_value"
 returns = "MarketValueTicks"
 
@@ -1030,6 +1057,9 @@ returns = "MarketValueTicks"
 name = "stock_history_eod"
 template = "stock_history_eod"
 description = "Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day."
+vendor_docstring = """
+Since [the equity SIPs](/Articles/Data-And-Requests/The-SIPs.html) only generate a partial EOD report, Theta Data generates a national EOD report at 17:15 ET each day. ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade. The quote in the response represents the last NBBO reported by [CTA or UTP](/Articles/Data-And-Requests/The-SIPs.html) at the time of report generation. You can read more about EOD & OHLC data [here](/Articles/Data-And-Requests/OHLC-EOD.html). Theta Data plans to avail SIP EOD reports in the near future.
+"""
 rest_path = "/v3/stock/history/eod"
 returns = "EodTicks"
 
@@ -1037,6 +1067,11 @@ returns = "EodTicks"
 name = "stock_history_ohlc"
 template = "stock_history_intraday_interval"
 description = "Fetch intraday OHLC bars for a stock on a single date."
+vendor_docstring = """
+- Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar. Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar time`` <= ``trade time`` < ``bar timestamp + ivl``, where ivl is the specified interval size in milliseconds. 
+- Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+- Multi-day requests are limited to 1 month of data.
+"""
 rest_path = "/v3/stock/history/ohlc"
 returns = "OhlcTicks"
 
@@ -1044,6 +1079,10 @@ returns = "OhlcTicks"
 name = "stock_history_trade"
 template = "stock_history_intraday_ticks"
 description = "Fetch all trades for a stock on a given date."
+vendor_docstring = """
+Returns every trade reported by [UTP & CTA](/Articles/Data-And-Requests/The-SIPs). Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+- Multi-day requests are limited to 1 month of data.
+"""
 rest_path = "/v3/stock/history/trade"
 returns = "TradeTicks"
 
@@ -1051,6 +1090,12 @@ returns = "TradeTicks"
 name = "stock_history_quote"
 template = "stock_history_intraday_interval"
 description = "Fetch NBBO quotes for a stock on a given date at a given interval."
+vendor_docstring = """
+- Returns every NBBO quote reported by [UTP and CTA](/Articles/Data-And-Requests/The-SIPs). 
+- If the ``interval`` parameter is specified, the quote for each interval represents the last quote prior to the interval's timestamp. 
+- Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+- Multi-day requests are limited to 1 month of data.
+"""
 rest_path = "/v3/stock/history/quote"
 returns = "QuoteTicks"
 
@@ -1058,6 +1103,10 @@ returns = "QuoteTicks"
 name = "stock_history_trade_quote"
 template = "stock_history_trade_quote"
 description = "Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable."
+vendor_docstring = """
+Returns every trade reported by [UTP & CTA](/Articles/Data-And-Requests/The-SIPs) paired with the last BBO quote reported by [UTP or CTA](/Articles/Data-And-Requests/The-SIPs) at the time of trade. A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. If you prefer to match quotes with timestamps that are ``<`` the trade timestamp, specify the ``exclusive`` parameter to ``true``. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+- Multi-day requests are limited to 1 month of data.
+"""
 rest_path = "/v3/stock/history/trade_quote"
 returns = "TradeQuoteTicks"
 
@@ -1065,6 +1114,15 @@ returns = "TradeQuoteTicks"
 name = "stock_at_time_trade"
 template = "stock_at_time"
 description = "Fetch the trade at a specific time of day across a date range."
+vendor_docstring = """
+#### Real-time request:
+- Returns a real-time session from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs.html#nasdaq-basic) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+- Returns a 15-minute delayed session from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) account has the [stocks value subscription](https://www.thetadata.net/subscribe.html#stocks) subscription.
+
+#### Historical request:
+Returns the last trade reported by [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) at a specified millisecond of the day.
+Trade condition mappings can be found [here](/Articles/Errors-Exchanges-Conditions/Trade-Conditions.html).
+"""
 rest_path = "/v3/stock/at_time/trade"
 returns = "TradeTicks"
 
@@ -1072,6 +1130,15 @@ returns = "TradeTicks"
 name = "stock_at_time_quote"
 template = "stock_at_time"
 description = "Fetch the quote at a specific time of day across a date range."
+vendor_docstring = """
+#### Real-time request:
+  - Subscription tier standard or higher will default to NQB.
+  - Real-time last BBO quote at-time_of_day-time from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs.html#nasdaq-basic) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+  - 15-minute delayed NBBO quote at-time_of_day-time from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) account has the [stocks value subscription](https://www.thetadata.net/subscribe.html#stocks) subscription.
+
+#### Historical request:
+  Returns the last NBBO quote reported by [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) at a specified millisecond of the day.
+"""
 rest_path = "/v3/stock/at_time/quote"
 returns = "QuoteTicks"
 
@@ -1079,6 +1146,9 @@ returns = "QuoteTicks"
 name = "option_list_symbols"
 template = "option_list"
 description = "List all available option underlying symbols."
+vendor_docstring = """
+A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
+"""
 rest_path = "/v3/option/list/symbols"
 list_column = "symbol"
 
@@ -1086,6 +1156,10 @@ list_column = "symbol"
 name = "option_list_dates"
 template = "option_list"
 description = "List available dates for an option contract by request type."
+vendor_docstring = """
+Lists all dates of data that are available for an option with a given symbol, request type, and expiration.
+This endpoint is updated overnight.
+"""
 rest_path = "/v3/option/list/dates"
 list_column = "date"
 
@@ -1099,6 +1173,10 @@ use = "contract_identity"
 name = "option_list_expirations"
 template = "option_list"
 description = "List available expiration dates for an option underlying."
+vendor_docstring = """
+Lists all dates of expirations that are available for an option with a given symbol.
+This endpoint is updated overnight.
+"""
 rest_path = "/v3/option/list/expirations"
 list_column = "expiration"
 
@@ -1109,6 +1187,10 @@ use = "stock_symbol"
 name = "option_list_strikes"
 template = "option_list"
 description = "List available strike prices for an option at a given expiration."
+vendor_docstring = """
+Lists all strikes that are available for an option with a given symbol and expiration date.
+This endpoint is updated overnight.
+"""
 rest_path = "/v3/option/list/strikes"
 list_column = "strike"
 
@@ -1122,6 +1204,13 @@ use = "expiration_param"
 name = "option_list_contracts"
 template = "option_list_parsed"
 description = "List all option contracts for a symbol on a given date."
+vendor_docstring = """
+Lists all contracts that were traded or quoted on a particular date.
+
+If the ``symbol`` parameter is specified, the returned contracts will be filtered to match the symbol.
+Multiple symbols can be specified by separating them with commas such as ``symbol=AAPL,SPY,AMD``
+This endpoint is updated real-time.
+"""
 rest_path = "/v3/option/list/contracts"
 returns = "OptionContracts"
 
@@ -1141,6 +1230,10 @@ use = "max_dte_filter"
 name = "option_snapshot_ohlc"
 template = "option_snapshot_standard"
 description = "Get the latest OHLC snapshot for an option contract."
+vendor_docstring = """
+- Retrieve a real-time last ohlc of an option contract for the trading day.
+- You might need to change the default expiration date to a different date if it is past the current date.
+"""
 rest_path = "/v3/option/snapshot/ohlc"
 returns = "OhlcTicks"
 
@@ -1148,6 +1241,11 @@ returns = "OhlcTicks"
 name = "option_snapshot_trade"
 template = "option_snapshot_trade"
 description = "Get the latest trade snapshot for an option contract."
+vendor_docstring = """
+- Retrieve the real-time last trade of an option contract.
+- You might need to change the default expiration date to a different date if it is past the current date.
+- This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+"""
 rest_path = "/v3/option/snapshot/trade"
 returns = "TradeTicks"
 
@@ -1155,6 +1253,11 @@ returns = "TradeTicks"
 name = "option_snapshot_quote"
 template = "option_snapshot_standard"
 description = "Get the latest NBBO quote snapshot for an option contract."
+vendor_docstring = """
+- Retrieve a real-time last NBBO quote of an option contract.
+- You might need to change the default expiration date to a different date if it is past the current date.
+- This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+"""
 rest_path = "/v3/option/snapshot/quote"
 returns = "QuoteTicks"
 
@@ -1162,6 +1265,12 @@ returns = "QuoteTicks"
 name = "option_snapshot_open_interest"
 template = "option_snapshot_standard"
 description = "Get the latest open interest snapshot for an option contract."
+vendor_docstring = """
+- Retrieve the last open interest message of an option contract.
+- Open interest is reported around 06:30 ET every morning by OPRA and reflects the open interest at the of the previous trading day. 
+- You might need to change the default expiration date to a different date if it is past the current date.
+- This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+"""
 rest_path = "/v3/option/snapshot/open_interest"
 returns = "OpenInterestTicks"
 
@@ -1169,6 +1278,9 @@ returns = "OpenInterestTicks"
 name = "option_snapshot_market_value"
 template = "option_snapshot_standard"
 description = "Get the latest market value snapshot for an option contract."
+vendor_docstring = """
+* Returns a real-time market value derived from the last NBBO quote of an option contract.
+"""
 rest_path = "/v3/option/snapshot/market_value"
 returns = "MarketValueTicks"
 
@@ -1176,6 +1288,12 @@ returns = "MarketValueTicks"
 name = "option_snapshot_greeks_implied_volatility"
 template = "option_snapshot_greeks"
 description = "Get implied volatility snapshot for an option contract (from ThetaData server)."
+vendor_docstring = """
+Returns implied volatilies calculated using the national best bid, mid, and ask price
+of the option respectively. The underlying price represents whatever the last underlying price was at the
+``underlying_timestamp`` field. You can read more about how Theta Data calculates greeks 
+[here](/Articles/Data-And-Requests/Option-Greeks.html).
+"""
 rest_path = "/v3/option/snapshot/greeks/implied_volatility"
 returns = "IvTicks"
 
@@ -1183,6 +1301,12 @@ returns = "IvTicks"
 name = "option_snapshot_greeks_all"
 template = "option_snapshot_greeks"
 description = "Get all Greeks snapshot for an option contract (from ThetaData server)."
+vendor_docstring = """
+- Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+- You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
+- Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
+> This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+"""
 rest_path = "/v3/option/snapshot/greeks/all"
 returns = "GreeksTicks"
 
@@ -1190,6 +1314,12 @@ returns = "GreeksTicks"
 name = "option_snapshot_greeks_first_order"
 template = "option_snapshot_greeks"
 description = "Get first-order Greeks snapshot (delta, theta, rho) for an option contract."
+vendor_docstring = """
+- Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+- You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
+- Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
+> This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+"""
 rest_path = "/v3/option/snapshot/greeks/first_order"
 returns = "GreeksTicks"
 
@@ -1197,6 +1327,12 @@ returns = "GreeksTicks"
 name = "option_snapshot_greeks_second_order"
 template = "option_snapshot_greeks"
 description = "Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract."
+vendor_docstring = """
+- Retrieve a real-time last second order greeks calculation for all option contracts that lie on a provided expiration.
+- You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
+- Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
+> This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+"""
 rest_path = "/v3/option/snapshot/greeks/second_order"
 returns = "GreeksTicks"
 
@@ -1204,6 +1340,12 @@ returns = "GreeksTicks"
 name = "option_snapshot_greeks_third_order"
 template = "option_snapshot_greeks"
 description = "Get third-order Greeks snapshot (speed, color, ultima) for an option contract."
+vendor_docstring = """
+- Retrieve a real-time last third order greeks calculation for all option contracts that lie on a provided expiration.
+- You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
+- Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
+> This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+"""
 rest_path = "/v3/option/snapshot/greeks/third_order"
 returns = "GreeksTicks"
 
@@ -1211,6 +1353,12 @@ returns = "GreeksTicks"
 name = "option_history_eod"
 template = "option_history_eod"
 description = "Fetch end-of-day option data for a contract over a date range."
+vendor_docstring = """
+- Since [OPRA](/Articles/Data-And-Requests/The-SIPs.html) does not provide a national EOD report for options, Theta Data generates a national EOD report at 17:15 ET each day.
+- ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade. 
+- The quote in the response represents the last NBBO reported by OPRA at the time of report generation. 
+- You can read more about EOD & OHLC data [here](/Articles/Data-And-Requests/OHLC-EOD.html).
+"""
 rest_path = "/v3/option/history/eod"
 returns = "EodTicks"
 
@@ -1218,6 +1366,11 @@ returns = "EodTicks"
 name = "option_history_ohlc"
 template = "option_history_ohlc"
 description = "Fetch intraday OHLC bars for an option contract."
+vendor_docstring = """
+- Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar. 
+- Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar timestamp`` <= ``trade time`` < ``bar timestamp + interval``.
+- Multi-day requests are limited to 1 month of data.
+"""
 rest_path = "/v3/option/history/ohlc"
 returns = "OhlcTicks"
 
@@ -1225,6 +1378,12 @@ returns = "OhlcTicks"
 name = "option_history_trade"
 template = "option_history_trade"
 description = "Fetch all trades for an option contract on a given date."
+vendor_docstring = """
+- Returns every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html). 
+- Trade condition mappings can be found [here](/Articles/Errors-Exchanges-Conditions/Trade-Conditions.html).
+- Extended trade conditions are not reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) for options, so they can be ignored.
+- Multi-day requests are limited to 1 month of data, and must specify an expiration.
+"""
 rest_path = "/v3/option/history/trade"
 returns = "TradeTicks"
 
@@ -1232,6 +1391,11 @@ returns = "TradeTicks"
 name = "option_history_quote"
 template = "option_history_quote"
 description = "Fetch NBBO quotes for an option contract on a given date."
+vendor_docstring = """
+- Returns every NBBO quote reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html). 
+- If the ``interval`` parameter is specified, the quote for each interval represents the last quote at the interval's timestamp.
+- Multi-day requests are limited to 1 month of data, and must specify an expiration.
+"""
 rest_path = "/v3/option/history/quote"
 returns = "QuoteTicks"
 
@@ -1239,6 +1403,12 @@ returns = "QuoteTicks"
 name = "option_history_trade_quote"
 template = "option_history_trade_quote"
 description = "Fetch combined trade + quote ticks for an option contract."
+vendor_docstring = """
+- Returns every [trade](/operations/option_history_trade.html) reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) paired with the last NBBO quote reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at the time of trade.
+- A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. 
+- To match trades with quotes timestamps that are ``<`` the trade timestamp, specify the ``exclusive``parameter to ``true``. After thorough testing, we have determined that using ``exclusive=true`` might yield better results for various applications.
+- Multi-day requests are limited to 1 month of data, and must specify an expiration.
+"""
 rest_path = "/v3/option/history/trade_quote"
 returns = "TradeQuoteTicks"
 
@@ -1246,6 +1416,11 @@ returns = "TradeQuoteTicks"
 name = "option_history_open_interest"
 template = "option_history_open_interest"
 description = "Fetch open interest history for an option contract."
+vendor_docstring = """
+- Open Interest is normally reported once per day by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at approximately 06:30 ET.
+- A new open interest message might not be sent by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) if there is no open interest for the option contract.
+- The reported open interest represents the open interest at the end of the previous trading day.
+"""
 rest_path = "/v3/option/history/open_interest"
 returns = "OpenInterestTicks"
 
@@ -1253,6 +1428,11 @@ returns = "OpenInterestTicks"
 name = "option_history_greeks_eod"
 template = "option_history_greeks_eod"
 description = "Fetch end-of-day Greeks history for an option contract."
+vendor_docstring = """
+- Returns the data for all contracts that share the same provided symbol and expiration. 
+- Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
+- **Set `expiration` to ``*`` if you want to retrieve data for every option that shares the same ``symbol``. (note: Any ``expiration=*`` must be requested day by day)**
+"""
 rest_path = "/v3/option/history/greeks/eod"
 returns = "GreeksTicks"
 
@@ -1260,6 +1440,12 @@ returns = "GreeksTicks"
 name = "option_history_greeks_all"
 template = "option_history_greeks"
 description = "Fetch all Greeks history for an option contract (intraday, sampled by interval)."
+vendor_docstring = """
+- Returns the data for all contracts that share the same provided symbol and expiration. 
+- Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint. 
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+- Multi-day requests are limited to 1 month of data.
+"""
 rest_path = "/v3/option/history/greeks/all"
 returns = "GreeksTicks"
 
@@ -1267,6 +1453,12 @@ returns = "GreeksTicks"
 name = "option_history_trade_greeks_all"
 template = "option_history_trade_greeks"
 description = "Fetch all Greeks on each trade for an option contract."
+vendor_docstring = """
+- Returns the data for all contracts that share the same provided symbol and expiration. 
+- Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+- Multi-day requests are limited to 1 month of data, and must specify an expiration.
+"""
 rest_path = "/v3/option/history/trade_greeks/all"
 returns = "GreeksTicks"
 
@@ -1274,6 +1466,12 @@ returns = "GreeksTicks"
 name = "option_history_greeks_first_order"
 template = "option_history_greeks"
 description = "Fetch first-order Greeks history (intraday, sampled by interval)."
+vendor_docstring = """
+- Returns the data for all contracts that share the same provided symbol and expiration. 
+- Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint. 
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+- Multi-day requests are limited to 1 month of data.
+"""
 rest_path = "/v3/option/history/greeks/first_order"
 returns = "GreeksTicks"
 
@@ -1281,6 +1479,12 @@ returns = "GreeksTicks"
 name = "option_history_trade_greeks_first_order"
 template = "option_history_trade_greeks"
 description = "Fetch first-order Greeks on each trade for an option contract."
+vendor_docstring = """
+- Returns the data for all contracts that share the same provided symbol and expiration.
+- Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+- Multi-day requests are limited to 1 month of data, and must specify an expiration.
+"""
 rest_path = "/v3/option/history/trade_greeks/first_order"
 returns = "GreeksTicks"
 
@@ -1288,6 +1492,12 @@ returns = "GreeksTicks"
 name = "option_history_greeks_second_order"
 template = "option_history_greeks"
 description = "Fetch second-order Greeks history (intraday, sampled by interval)."
+vendor_docstring = """
+- Returns the data for all contracts that share the same provided symbol and expiration. 
+- Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint. 
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+- Multi-day requests are limited to 1 month of data.
+"""
 rest_path = "/v3/option/history/greeks/second_order"
 returns = "GreeksTicks"
 
@@ -1295,6 +1505,12 @@ returns = "GreeksTicks"
 name = "option_history_trade_greeks_second_order"
 template = "option_history_trade_greeks"
 description = "Fetch second-order Greeks on each trade for an option contract."
+vendor_docstring = """
+- Returns the data for all contracts that share the same provided symbol and expiration.
+- Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+- Multi-day requests are limited to 1 month of data, and must specify an expiration.
+"""
 rest_path = "/v3/option/history/trade_greeks/second_order"
 returns = "GreeksTicks"
 
@@ -1302,6 +1518,12 @@ returns = "GreeksTicks"
 name = "option_history_greeks_third_order"
 template = "option_history_greeks"
 description = "Fetch third-order Greeks history (intraday, sampled by interval)."
+vendor_docstring = """
+- Returns the data for all contracts that share the same provided symbol and expiration. 
+- Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint. 
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+- Multi-day requests are limited to 1 month of data.
+"""
 rest_path = "/v3/option/history/greeks/third_order"
 returns = "GreeksTicks"
 
@@ -1309,6 +1531,12 @@ returns = "GreeksTicks"
 name = "option_history_trade_greeks_third_order"
 template = "option_history_trade_greeks"
 description = "Fetch third-order Greeks on each trade for an option contract."
+vendor_docstring = """
+- Returns the data for all contracts that share the same provided symbol and expiration.
+- Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+- Multi-day requests are limited to 1 month of data, and must specify an expiration.
+"""
 rest_path = "/v3/option/history/trade_greeks/third_order"
 returns = "GreeksTicks"
 
@@ -1316,6 +1544,11 @@ returns = "GreeksTicks"
 name = "option_history_greeks_implied_volatility"
 template = "option_history_greeks"
 description = "Fetch implied volatility history (intraday, sampled by interval)."
+vendor_docstring = """
+- Returns implied volatilies calculated using the national best bid, mid, and ask price of the option respectively. 
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+- Multi-day requests are limited to 1 month of data.
+"""
 rest_path = "/v3/option/history/greeks/implied_volatility"
 returns = "IvTicks"
 
@@ -1323,6 +1556,11 @@ returns = "IvTicks"
 name = "option_history_trade_greeks_implied_volatility"
 template = "option_history_trade_greeks"
 description = "Fetch implied volatility on each trade for an option contract."
+vendor_docstring = """
+- Returns implied volatilies calculated using the trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html). 
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+- Multi-day requests are limited to 1 month of data, and must specify an expiration.
+"""
 rest_path = "/v3/option/history/trade_greeks/implied_volatility"
 returns = "IvTicks"
 
@@ -1330,6 +1568,12 @@ returns = "IvTicks"
 name = "option_at_time_trade"
 template = "option_at_time"
 description = "Fetch the trade at a specific time of day across a date range for an option."
+vendor_docstring = """
+- Returns the last trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at a specified millisecond of the day.
+- Trade condition mappings can be found [here](/Articles/Errors-Exchanges-Conditions/Trade-Conditions.html).
+- Extended trade conditions are not reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) for options, so they can be ignored.
+- The ``time_of_day``parameter represents the 00:00:00.000 ET that the trade should be provided for.
+"""
 rest_path = "/v3/option/at_time/trade"
 returns = "TradeTicks"
 
@@ -1337,6 +1581,10 @@ returns = "TradeTicks"
 name = "option_at_time_quote"
 template = "option_at_time"
 description = "Fetch the quote at a specific time of day across a date range for an option."
+vendor_docstring = """
+- Returns the last NBBO quote reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at a specified millisecond of the day.
+- The ``time_of_day``parameter represents the 00:00:00.000 ET that the quote should be provided for.
+"""
 rest_path = "/v3/option/at_time/quote"
 returns = "QuoteTicks"
 
@@ -1344,6 +1592,9 @@ returns = "QuoteTicks"
 name = "index_list_symbols"
 template = "index_list"
 description = "List all available index symbols."
+vendor_docstring = """
+A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
+"""
 rest_path = "/v3/index/list/symbols"
 list_column = "symbol"
 
@@ -1351,6 +1602,9 @@ list_column = "symbol"
 name = "index_list_dates"
 template = "index_list"
 description = "List available dates for an index symbol."
+vendor_docstring = """
+Lists all dates of data that are available for a index with a given request type and symbol. This endpoint is updated overnight.
+"""
 rest_path = "/v3/index/list/dates"
 list_column = "date"
 
@@ -1361,6 +1615,10 @@ use = "stock_symbol"
 name = "index_snapshot_ohlc"
 template = "index_snapshot"
 description = "Get the latest OHLC snapshot for one or more indices."
+vendor_docstring = """
+- Retrieves the real-time current day OHLC.
+- [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+"""
 rest_path = "/v3/index/snapshot/ohlc"
 returns = "OhlcTicks"
 
@@ -1368,6 +1626,10 @@ returns = "OhlcTicks"
 name = "index_snapshot_price"
 template = "index_snapshot"
 description = "Get the latest price snapshot for one or more indices."
+vendor_docstring = """
+- Retrieves a real-time last index price.
+- [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+"""
 rest_path = "/v3/index/snapshot/price"
 returns = "PriceTicks"
 
@@ -1375,6 +1637,10 @@ returns = "PriceTicks"
 name = "index_snapshot_market_value"
 template = "index_snapshot"
 description = "Get the latest market value snapshot for one or more indices."
+vendor_docstring = """
+- Retrieves a real-time last index market value.
+- [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+"""
 rest_path = "/v3/index/snapshot/market_value"
 returns = "MarketValueTicks"
 
@@ -1382,6 +1648,9 @@ returns = "MarketValueTicks"
 name = "index_history_eod"
 template = "index_history_eod"
 description = "Fetch end-of-day index data for a date range."
+vendor_docstring = """
+- Since [the indices feeds](/Articles/Data-And-Requests/The-SIPs.html) do not provide a national EOD report, Theta Data generates a national EOD report at 17:15 each day.
+"""
 rest_path = "/v3/index/history/eod"
 returns = "EodTicks"
 
@@ -1389,6 +1658,11 @@ returns = "EodTicks"
 name = "index_history_ohlc"
 template = "index_history_ohlc"
 description = "Fetch intraday OHLC bars for an index."
+vendor_docstring = """
+- Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar.
+- Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar timestamp`` <= ``trade time`` < ``bar timestamp + interval``.
+- [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+"""
 rest_path = "/v3/index/history/ohlc"
 returns = "OhlcTicks"
 
@@ -1396,6 +1670,12 @@ returns = "OhlcTicks"
 name = "index_history_price"
 template = "index_history_price"
 description = "Fetch intraday price history for an index."
+vendor_docstring = """
+- Retrieves historical indices price reports. [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+- When the ``interval`` parameter is specified, the returned data represents the price at the exact time of each timestamp. If the timestamp in the response is 10:30:00, the price field represents the price at that exact time of the day.
+- A price update from the exchange is omitted if the price remained the same from the previous update.
+- Multi-day requests are limited to 1 month of data.
+"""
 rest_path = "/v3/index/history/price"
 returns = "PriceTicks"
 
@@ -1403,6 +1683,10 @@ returns = "PriceTicks"
 name = "index_at_time_price"
 template = "index_at_time"
 description = "Fetch the index price at a specific time of day across a date range."
+vendor_docstring = """
+- Retrieves historical indices price reports. [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+- The ``time_of_day`` parameter represents the 00:00:00.000 ET that the price should be provided for.
+"""
 rest_path = "/v3/index/at_time/price"
 returns = "PriceTicks"
 
@@ -1410,6 +1694,11 @@ returns = "PriceTicks"
 name = "calendar_open_today"
 template = "calendar_status"
 description = "Check whether the market is open today."
+vendor_docstring = """
+- Retrieves current day equity market schedule
+- *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
+- **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
+"""
 rest_path = "/v3/calendar/open_today"
 returns = "CalendarDays"
 
@@ -1417,6 +1706,12 @@ returns = "CalendarDays"
 name = "calendar_on_date"
 template = "calendar_query"
 description = "Get calendar information for a specific date."
+vendor_docstring = """
+- Retrieves equity market schedule for a given date
+- Note: Holiday data is available 01/01/2012 through the end of the calendar year that immediately follows the current year
+- *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
+- **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
+"""
 rest_path = "/v3/calendar/on_date"
 returns = "CalendarDays"
 
@@ -1427,6 +1722,12 @@ use = "required_date"
 name = "calendar_year"
 template = "calendar_query"
 description = "Get calendar information for an entire year."
+vendor_docstring = """
+- Retrieves equity market holidays for a given year
+- Note: Holiday data is available 01/01/2012 through the end of the calendar year that immediately follows the current year
+- *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
+- **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
+"""
 rest_path = "/v3/calendar/year"
 returns = "CalendarDays"
 
@@ -1437,6 +1738,9 @@ use = "year_param"
 name = "interest_rate_history_eod"
 template = "rate_history_eod"
 description = "Fetch end-of-day interest rate history."
+vendor_docstring = """
+- Returns the interest rate reported. Depending on the rate, reports can occur in the morning or the afternoon.
+"""
 rest_path = "/v3/rate/history/eod"
 returns = "InterestRateTicks"
 
