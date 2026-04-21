@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.0] - 2026-04-21
+
+Major release. Three headline groups land in one pass:
+
+1. **FPSS events now carry a parsed `Arc<Contract>`** (#389). Every `FpssData::{Quote,Trade,OpenInterest,Ohlcvc}` replaces the `symbol: Arc<str>` field with `contract: Arc<Contract>`, and the `contract_map` lifts from `HashMap<i32, Contract>` to `HashMap<i32, Arc<Contract>>`. Decoded events carry the full typed contract (`root`, `sec_type`, `exp_date?`, `is_call?`, `strike?`) at refcount cost rather than a bare symbol string; every language SDK exposes a matching typed `Contract`. `SecType::Unknown` is added as the sentinel for not-yet-assigned contract IDs so exhaustive matches stay sound.
+2. **`impl FromStr for Contract` plus twelve ergonomic subscribe shortcuts** (#389). `"AAPL".parse::<Contract>()?` yields a stock contract; `"SPY   260417C00550000".parse::<Contract>()?` parses the OCC 21-char option identifier (2000–2099 scope, trim-tolerant 20-char pad, every parse failure returns `Error::Config` with the offending input). `FpssClient` and `ThetaDataDx` gain `subscribe_{quotes,trades,open_interest}_stock` / `..._option` and matching unsubscribe counterparts — one-liners over the underlying typed subscribe machinery.
+3. **FPSS control codes 4 / 10 / 13 / 31 decode into typed variants** (#389). `FpssControl::{Connected, Ping { payload }, ReconnectedServer, Restart}` replace the `UnknownFrame` fallthrough these codes used to hit. The `Restart` arm clears delta decode state so subsequent ticks no longer decode against a stale baseline. FFI kind tags grow 13..=16; every SDK mirrors the new constants.
+
+### Breaking changes
+
+- **`FpssData::{Quote,Trade,OpenInterest,Ohlcvc}::symbol` removed** (#389) — migrate to `event.contract.root` for the symbol string; option fields `exp_date`, `strike`, `is_call` are now direct attribute access on `contract`.
+- **`FpssControl::ContractAssigned { contract: Contract }` → `{ contract: Arc<Contract> }`** (#389) — pattern matches that bind by value must bind by `Arc<Contract>` and clone via `Arc::clone` if owned value was previously expected.
+- **`contract_lookup()` / `contract_map()` return `Arc<Contract>` / `HashMap<i32, Arc<Contract>>`** (#389) — was by-value `Contract` / `HashMap<i32, Contract>` before. Call-site fix: drop one layer of `.clone()`.
+- **`Restart` (code 31) and `Connected` (code 4) frames no longer arrive as `UnknownFrame`** (#389) — handlers matching on `FpssControl::UnknownFrame { code: 4 | 10 | 13 | 31, .. }` need updated arms or a fallthrough on the new typed variants.
+- **`SecType::Unknown` variant added to `tdbe::types::enums::SecType`** (#389) — exhaustive `match` statements without a wildcard arm must add a branch.
+- **`FpssData::{Quote,Trade,OpenInterest,Ohlcvc}` no longer `derive(Clone)` on the Python SDK pyclasses** (#389) — `Py<Contract>` needs a GIL token for cloning; the derive was dead code (events flow one-way from Rust to Python).
+
 ### Changed
 
 - **License switched to Apache-2.0** across every `Cargo.toml`, `package.json`, `pyproject.toml`, and the top-level `LICENSE`. `deny.toml` allowlist cleaned up accordingly.
@@ -16,9 +33,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`DirectClient` renamed to `MddsClient`** (#383) — the historical-data gRPC client now carries the name of the service it actually speaks to (MDDS = Market Data Delivery Service). `use thetadatadx::DirectClient` call sites break; update to `use thetadatadx::MddsClient`. The `DirectConfig` associated config type keeps its name. High-level consumers of `ThetaDataDx` (Python / TypeScript / Go / C++ / Rust facade) are unaffected.
 - **`crates/thetadatadx/src/direct.rs` split into `crates/thetadatadx/src/mdds/` module** (#383) — 732-line monolith broken into six concern-separated files (`client`, `endpoints`, `endpoint_arg_ext`, `normalize`, `validate`, `mod`). Pure move; wire behavior unchanged; all 304 workspace tests pass.
 - **`crates/thetadatadx/proto/external.proto` renamed to `mdds.proto`** (#385) — the proto file described only MDDS (`BetaEndpoints`) messages; the filename now reflects that. `tonic::include_proto!("beta_endpoints")` and every downstream Rust import resolve unchanged (package declaration drove the module name, not the filename). `build.rs`, `proto_parser`, generated-header strings, `MAINTENANCE.md`, `CONTRIBUTING.md`, `ROADMAP.md`, and every `docs/` reference updated (17 files, 51 lines).
+- **`fpss_event_schema.toml` schema version bumped 2 → 3** (#389) — carries the new nested `Contract` column type for every data-event variant. Every SDK Contract type (Python pyclass, TypeScript `#[napi(object)]`, Go struct with `*int32`/`*bool` pointer optionals, C/C++ typedef with `has_*` tagged-optional flags, Rust FFI `#[repr(C)] TdxContract` with `CString`-backed root pointer) is generator-emitted from the updated schema.
 
 ### Added
 
+- **Parsed `Arc<Contract>` on every FPSS data event** (#389) — `FpssData::{Quote,Trade,OpenInterest,Ohlcvc}::contract: Arc<Contract>` replaces the former `symbol: Arc<str>`. Option events now expose `event.contract.exp_date`, `.strike`, `.is_call` without a second lookup; stock events read `event.contract.root`. Refcount-only per-event clone. Mirrors `net.thetadata.fpssclient.Contract` from the Java terminal without the JSON round-trip. `contract_lookup` and `contract_map` return `Arc<Contract>` / `HashMap<i32, Arc<Contract>>` on every SDK.
+- **`impl FromStr for Contract`** (#389) — `"AAPL".parse::<Contract>()?` yields a stock contract (1..=6 ASCII A-Z, `.` permitted); `"SPY   260417C00550000".parse::<Contract>()?` parses the OCC 21-char institutional option identifier (6-byte root right-padded with spaces, 6-byte YYMMDD century-adjusted to 2000–2099 YYYYMMDD, single-byte `C`/`P`, 8-byte strike in thousandths of a dollar). 20-byte inputs are tolerated with a trailing-space pad. Parse failures return `Error::Config` naming the offending input and the specific failure (length, root charset, expiration digits, right byte, strike digits).
+- **Twelve ergonomic FPSS subscribe shortcuts** (#389) — `subscribe_{quotes,trades,open_interest}_stock(symbol)`, `subscribe_{quotes,trades,open_interest}_option(root, exp, strike, right)`, and matching `unsubscribe_*` counterparts on `FpssClient` and `ThetaDataDx`. Each wraps the `Contract` builder plus the typed `subscribe` / `unsubscribe` call into one line; no duplicate request-ID or frame-build machinery.
+- **Typed decoding of FPSS control codes 4 / 10 / 13 / 31** (#389) — `FpssControl::Connected` (4), `FpssControl::Ping { payload }` (10), `FpssControl::ReconnectedServer` (13 — server-side ack, distinct from the client-side auto-reconnect `Reconnected` variant), and `FpssControl::Restart` (31) replace the `UnknownFrame` fallthrough these codes used to hit. The `Restart` arm clears delta decode state so subsequent ticks no longer decode against a stale baseline. FFI `TdxFpssControl` kind tags grow 13..=16; Go `FpssCtrl*` constants mirror them.
+- **`Contract` type surfaced on every language SDK** (#389) — Python pyclass (`Py<Contract>` embedded in each event, cloned via `clone_ref(py)`), TypeScript `#[napi(object)]`, Go struct with `*int32` / `*bool` pointer optional fields, C/C++ typedef with `has_*` tagged-optional flags, Rust FFI `#[repr(C)] TdxContract` with a `CString`-backed `root` pointer. `Contract.sec_type == SecType::Unknown` is the sentinel for not-yet-assigned contract IDs; every SDK exposes the new variant.
 - **`thetadatadx.to_arrow(ticks) -> pyarrow.Table`** (#379) — new public Python entry point that returns the Arrow table directly, for users wiring DuckDB / Arrow-Flight / cuDF / polars-arrow pipelines without a pandas or polars roundtrip. Requires `pip install thetadatadx[arrow]` (pyarrow only).
 - **`hint=` kwarg on `to_arrow` / `to_dataframe` / `to_polars`** (#380) — optional `hint: str` names the tick pyclass (e.g. `hint="EodTick"`) so the Arrow schema is materialised even when the input list is empty. Previous empty-list calls returned a zero-column table; downstream pipelines asserting a fixed schema now get the right columns on empty market-hours windows.
 - **Generated `#[new]` constructors on every tick pyclass** (#379) — `EodTick(ms_of_day=1, volume=1_000_000, ...)`, `OhlcTick(...)`, `TradeTick(...)`, etc. All fields are keyword-only with zero / empty-string defaults, so test fixtures and user-side data construction are possible from Python (previously pyclass instances could only be produced by Rust endpoints).
@@ -1014,7 +1037,8 @@ See `TODO.md` (as of the 1.2.0 release) for the production readiness checklist a
 - FIT decoder uses i64 accumulator with i32 saturation (no silent overflow)
 - Price type range enforced with `assert!` in release builds
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v7.3.1...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.0...HEAD
+[8.0.0]: https://github.com/userFRM/ThetaDataDx/compare/v7.3.1...v8.0.0
 [7.3.1]: https://github.com/userFRM/ThetaDataDx/compare/v7.3.0...v7.3.1
 [7.3.0]: https://github.com/userFRM/ThetaDataDx/compare/v7.2.1...v7.3.0
 [7.2.1]: https://github.com/userFRM/ThetaDataDx/compare/v7.2.0...v7.2.1

@@ -388,7 +388,8 @@ impl ThetaDataDx {
     /// per-drop log lines; this getter is the cheap path to sample the
     /// total without scraping logs.
     fn dropped_events(&self) -> u64 {
-        self.dropped_events.load(std::sync::atomic::Ordering::Relaxed)
+        self.dropped_events
+            .load(std::sync::atomic::Ordering::Relaxed)
     }
 }
 

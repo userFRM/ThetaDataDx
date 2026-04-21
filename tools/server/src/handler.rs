@@ -126,9 +126,7 @@ where
             if pair_count > N {
                 return Err(BoundedQueryError {
                     status: StatusCode::BAD_REQUEST,
-                    message: format!(
-                        "request has {pair_count} query parameters; max is {N}"
-                    ),
+                    message: format!("request has {pair_count} query parameters; max is {N}"),
                 });
             }
         }
@@ -477,10 +475,7 @@ mod tests {
             params.get("start_date").map(String::as_str),
             Some("20240101")
         );
-        assert_eq!(
-            params.get("end_date").map(String::as_str),
-            Some("20240201")
-        );
+        assert_eq!(params.get("end_date").map(String::as_str), Some("20240201"));
         assert_eq!(params.get("format").map(String::as_str), Some("json"));
     }
 }

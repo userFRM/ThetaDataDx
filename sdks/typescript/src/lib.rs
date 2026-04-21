@@ -125,7 +125,8 @@ impl ThetaDataDx {
     #[napi(js_name = "droppedEvents")]
     pub fn dropped_events(&self) -> napi::bindgen_prelude::BigInt {
         napi::bindgen_prelude::BigInt::from(
-            self.dropped_events.load(std::sync::atomic::Ordering::Relaxed),
+            self.dropped_events
+                .load(std::sync::atomic::Ordering::Relaxed),
         )
     }
 }
