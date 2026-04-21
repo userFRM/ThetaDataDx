@@ -183,25 +183,23 @@ int main() {
 
 ## With pandas DataFrames (Python)
 
-The Python SDK provides convenience methods that return pandas DataFrames directly:
+The Python SDK converts typed tick lists to pandas / polars frames or an Arrow table through a single generator-emitted adapter (zero-copy at the pyo3 boundary via the Arrow C Data Interface):
 
 ```python
-from thetadatadx import Credentials, Config, ThetaDataDx, to_dataframe
+from thetadatadx import Credentials, Config, ThetaDataDx, to_dataframe, to_polars, to_arrow
 
 creds = Credentials.from_file("creds.txt")
 client = ThetaDataDx(creds, Config.production())
 
-# Option 1: explicit conversion
 eod = client.stock_history_eod("AAPL", "20240101", "20240301")
-df = to_dataframe(eod)
-print(df.head())
+df  = to_dataframe(eod)   # pandas.DataFrame, zero-copy on pandas 2.x
+pdf = to_polars(eod)      # polars.DataFrame, zero-copy
+tbl = to_arrow(eod)       # pyarrow.Table for DuckDB / cuDF / Arrow-Flight
 
-# Option 2: _df convenience methods
-df = to_dataframe(client.stock_history_eod("AAPL", "20240101", "20240301"))
-df = to_dataframe(client.stock_history_ohlc("AAPL", "20240315", "60000"))
+print(df.head())
 ```
 
-Requires `pip install thetadatadx[pandas]`.
+Requires `pip install thetadatadx[pandas]`, `[polars]`, or `[arrow]` respectively.
 
 ## What's Next
 

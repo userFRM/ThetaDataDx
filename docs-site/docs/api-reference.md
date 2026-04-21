@@ -2836,7 +2836,7 @@ are the three terminal consumers. At 100k x 20 ticks the
 wall-clock is ~8ms (vs ~300-500ms for the legacy dict-of-lists
 path that this replaces).
 
-**Shortcut wrappers** for the four hot-path historical endpoints:
+**Unified recipe** for every historical endpoint:
 
 ```python
 df = to_dataframe(tdx.stock_history_eod("AAPL", "20240101", "20240301"))
@@ -2845,9 +2845,10 @@ df = to_dataframe(tdx.stock_history_trade("AAPL", "20240315"))
 df = to_dataframe(tdx.stock_history_quote("AAPL", "20240315", "60000"))
 ```
 
-These go through the Rust-tick-slice fast path (no pyclass-list
-walk) -- strictly faster than `to_dataframe(ticks)` on the same
-data. Requires `pip install thetadatadx[pandas]`.
+Call any endpoint, then hand the returned `list[TickClass]` to
+`to_dataframe` / `to_polars` / `to_arrow`. One path, one schema,
+one generator (`tick_schema.toml`). Requires
+`pip install thetadatadx[pandas]`.
 
 ### `to_dataframe(ticks) -> pandas.DataFrame`
 
@@ -2897,7 +2898,21 @@ con.sql("SELECT AVG(close) FROM eod").show()
 Requires `pip install thetadatadx[arrow]` (pyarrow only; no
 pandas/polars dep).
 
-Empty-list behaviour:
-- `to_arrow([])` returns a zero-column `pyarrow.Table`.
-- The `to_dataframe` / `to_polars` / `to_arrow` adapters return an empty DataFrame with
-  the typed schema (column names + Arrow dtypes) populated.
+### Empty-list behaviour and `hint=` kwarg
+
+All three adapters (`to_arrow` / `to_dataframe` / `to_polars`) accept
+an optional `hint: str` kwarg naming the pyclass so the Arrow schema
+is materialised even when the input list is empty:
+
+```python
+# No hint: empty list → zero-column table
+to_arrow([])                               # pyarrow.Table with 0 columns
+
+# With hint: empty list → typed schema preserved
+to_arrow([], hint="EodTick")               # pyarrow.Table with EodTick column schema
+to_dataframe([], hint="TradeTick")         # pandas DataFrame with TradeTick columns
+to_polars([], hint="OhlcTick")             # polars DataFrame with OhlcTick columns
+```
+
+This lets downstream pipelines that assert a fixed schema survive
+empty market-hours windows without branching on `len(ticks) == 0`.

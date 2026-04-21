@@ -882,7 +882,7 @@ paths:
           label: Python
           source: |
             eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
-            df = tdx.stock_history_eod_df("AAPL", "20240101", "20240301")
+            df = thetadatadx.to_dataframe(eod)
         - lang: go
           label: Go
           source: |

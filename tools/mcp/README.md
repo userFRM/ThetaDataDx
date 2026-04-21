@@ -5,7 +5,7 @@ MCP (Model Context Protocol) server for [ThetaDataDx](https://github.com/userFRM
 ## Architecture
 
 ```
-LLM (Claude / Cursor / any MCP-compatible client)
+LLM (any MCP-compatible client)
     |  JSON-RPC 2.0 over stdio
     v
 thetadatadx-mcp (long-running process)
@@ -47,9 +47,9 @@ thetadatadx-mcp --creds ~/creds.txt
 
 If no credentials are provided, the server starts in **offline mode** - only `ping`, `all_greeks`, and `implied_volatility` tools are available.
 
-### Claude Code
+### Stdio MCP clients (config file)
 
-Add to `.claude/settings.json`:
+Most MCP clients read an `mcpServers` block from a project-local or user-level settings file. The shape is identical across clients; consult your client's docs for the exact file path.
 
 ```json
 {
