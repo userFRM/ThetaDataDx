@@ -25,6 +25,22 @@ pub enum DecodeError {
     /// Row has fewer cells than the requested column index.
     #[error("column {column}: missing cell")]
     MissingCell { column: usize },
+    /// A required header (declared in `tick_schema.toml` under
+    /// `required = [...]`) is absent from a non-empty `DataTable`. Emitted by
+    /// the generated parsers when the server has added or renamed the column —
+    /// surfacing this as an error is the only way to prevent silent data loss
+    /// when the upstream schema drifts (see `HEADER_ALIASES` for known
+    /// synonyms). Empty `DataTable`s (no rows) still return `Ok(vec![])`
+    /// because "no trades today" is a legitimate outcome.
+    #[error(
+        "required column `{header}` missing from {rows}-row DataTable; \
+         available headers: {available}"
+    )]
+    MissingRequiredHeader {
+        header: &'static str,
+        rows: usize,
+        available: String,
+    },
 }
 
 /// Name the `DataType` variant for error messages. `None` is treated as a
@@ -42,13 +58,28 @@ pub(crate) fn observed_name(dt: Option<&proto::data_value::DataType>) -> &'stati
 
 /// Header aliases: v3 MDDS uses different column names than the tick schema.
 /// This maps schema names to their v3 equivalents so parsers work with both.
+///
+/// Validated against a real v3 MDDS response capture (see
+/// `tests/fixtures/captures/`). Each entry is `(schema_name, server_name)`:
+/// `find_header("ms_of_day", h)` returns the index of the first matching
+/// server column in `h`.
 const HEADER_ALIASES: &[(&str, &str)] = &[
+    // Generic time column: MDDS sends a proto `Timestamp`, the tick schema
+    // models it as an i32 ms-of-day. `row_number` handles the conversion.
     ("ms_of_day", "timestamp"),
     ("ms_of_day", "created"),
+    // Combined trade + quote responses split the two time columns into
+    // `trade_timestamp` (the trade side → `ms_of_day`) and `quote_timestamp`
+    // (the quote side → `quote_ms_of_day`). Without these aliases the
+    // `TradeQuoteTick` parser falls through the required-header guard and
+    // produces an empty Vec on ~1M-row responses (P11).
+    ("ms_of_day", "trade_timestamp"),
+    ("quote_ms_of_day", "quote_timestamp"),
     ("ms_of_day2", "timestamp2"),
     ("ms_of_day2", "last_trade"),
     ("date", "timestamp"),
     ("date", "created"),
+    ("date", "trade_timestamp"),
     // option_list_contracts returns "symbol" where the schema says "root"
     ("root", "symbol"),
     // v3 uses "implied_vol" where the schema says "implied_volatility"
@@ -636,8 +667,21 @@ pub fn parse_option_contracts_v3(
         .map(std::string::String::as_str)
         .collect();
 
-    let Some(root_idx) = find_header(&h, "root") else {
-        return Ok(vec![]);
+    // Same schema-drift guard as the generated parsers: "no contracts today"
+    // is legitimate, but a rows-present response missing the required `root`
+    // column is a silent data-loss trap.
+    let root_idx = match find_header(&h, "root") {
+        Some(i) => i,
+        None => {
+            if table.data_table.is_empty() {
+                return Ok(vec![]);
+            }
+            return Err(DecodeError::MissingRequiredHeader {
+                header: "root",
+                rows: table.data_table.len(),
+                available: h.join(","),
+            });
+        }
     };
     let exp_idx = find_header(&h, "expiration");
     let strike_idx = find_header(&h, "strike");

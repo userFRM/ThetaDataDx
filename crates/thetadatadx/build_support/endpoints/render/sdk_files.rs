@@ -109,6 +109,10 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
             contents: python::render_python_historical_methods(&parsed.endpoints),
         },
         GeneratedSourceFile {
+            relative_path: "sdks/python/src/decode_bench.rs",
+            contents: python::render_python_decode_bench(&parsed.endpoints),
+        },
+        GeneratedSourceFile {
             relative_path: "sdks/typescript/src/historical_methods.rs",
             contents: typescript::render_typescript_historical_methods(&parsed.endpoints),
         },

@@ -3,7 +3,7 @@
 //! This is NOT a reimplementation. Every call goes through the Rust crate,
 //! giving Python users native performance for ThetaData market data access.
 
-use pyo3::exceptions::{PyConnectionError, PyRuntimeError, PyTimeoutError, PyValueError};
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use std::sync::atomic::AtomicU64;
 use std::sync::OnceLock;
@@ -13,7 +13,19 @@ use thetadatadx::auth;
 use thetadatadx::config;
 use thetadatadx::fpss;
 
+mod chunking;
+mod errors;
+mod logging_bridge;
+
+use errors::to_py_err;
+
 /// Shared tokio runtime for running async Rust from sync Python.
+///
+/// The `pyo3-async-runtimes` layer consumes the same runtime handle via
+/// `pyo3_async_runtimes::tokio::init_with_runtime(...)` at module init
+/// time (see [`thetadatadx_py`]). No second runtime is ever constructed,
+/// so the sync and async code paths share worker threads, connection
+/// pools, and the request semaphore on the underlying `MddsClient`.
 fn runtime() -> &'static tokio::runtime::Runtime {
     static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
     RT.get_or_init(|| {
@@ -22,19 +34,6 @@ fn runtime() -> &'static tokio::runtime::Runtime {
             .build()
             .expect("failed to create tokio runtime")
     })
-}
-
-fn to_py_err(e: thetadatadx::Error) -> PyErr {
-    match e {
-        thetadatadx::Error::Auth { message, .. } => PyConnectionError::new_err(message),
-        thetadatadx::Error::Config(msg) => PyValueError::new_err(msg),
-        // `Error::Timeout` maps to Python's stdlib `builtins.TimeoutError`
-        // (which inherits from `OSError` in 3.3+) so callers can write
-        // `except TimeoutError`. Falls back through `except Exception`
-        // for backward compat.
-        thetadatadx::Error::Timeout { .. } => PyTimeoutError::new_err(e.to_string()),
-        _ => PyRuntimeError::new_err(e.to_string()),
-    }
 }
 
 /// Run an async future to completion while periodically honoring Python's
@@ -266,7 +265,14 @@ type EventRx = Arc<Mutex<Option<Arc<Mutex<std::sync::mpsc::Receiver<BufferedEven
 #[pyclass]
 struct ThetaDataDx {
     /// The underlying Rust unified client (Deref to MddsClient for historical).
-    tdx: thetadatadx::ThetaDataDx,
+    ///
+    /// Wrapped in `Arc<>` so the per-endpoint fluent builder pyclasses
+    /// emitted by the generator (`<Endpoint>Builder`) can clone a cheap
+    /// handle into the awaitable returned by `*_async()` terminals. The
+    /// inner `thetadatadx::ThetaDataDx` is not `Clone` — its FPSS mutex
+    /// and subscription-tier state forbid it — so the builder cannot
+    /// hold the value directly without Arc ref-counting.
+    tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     /// Created lazily when `start_streaming()` is called.
     rx: EventRx,
     /// Count of FPSS events dropped because the Python polling side
@@ -308,7 +314,7 @@ impl ThetaDataDx {
         })?;
 
         Ok(Self {
-            tdx,
+            tdx: std::sync::Arc::new(tdx),
             rx: Arc::new(Mutex::new(None)),
             dropped_events: Arc::new(AtomicU64::new(0)),
         })
@@ -406,6 +412,12 @@ include!("fpss_event_classes.rs");
 include!("streaming_methods.rs");
 
 include!("historical_methods.rs");
+
+// `decode_response_bytes(endpoint, chunks)` hook used by the external
+// parity bench harness. Generator-emitted from `endpoint_surface.toml`
+// so every new endpoint is auto-wired — no manual edits here. See
+// `crates/thetadatadx/build_support/endpoints/render/python.rs::render_python_decode_bench`.
+include!("decode_bench.rs");
 
 // ── DataFrame adapter: Arrow columnar pipeline ──
 //
@@ -546,6 +558,29 @@ fn to_dataframe(py: Python<'_>, ticks: Py<PyAny>, hint: Option<&str>) -> PyResul
     pyarrow_table_to_pandas(py, table)
 }
 
+/// Split a date range `(start, end)` into chunks that each fit under
+/// the server's 365-day cap.
+///
+/// Used internally by the auto-chunk pre-flight; exposed publicly so
+/// tooling / test harnesses can verify the split boundaries without
+/// reaching into Rust internals. Each chunk's boundaries are inclusive
+/// `YYYYMMDD` strings identical to the ones every history endpoint
+/// accepts.
+///
+/// Returns `[(start, end)]` unchanged when the span is ≤365 days.
+/// Raises `ValueError` on malformed input.
+///
+/// Example::
+///
+///     >>> import thetadatadx
+///     >>> thetadatadx.split_date_range("20200101", "20231231")
+///     [('20200101', '20201230'), ('20201231', '20211230'),
+///      ('20211231', '20221230'), ('20221231', '20231231')]
+#[pyfunction]
+fn split_date_range(start: &str, end: &str) -> PyResult<Vec<(String, String)>> {
+    chunking::split_date_range(start, end).map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
 /// Convert a list of typed tick pyclasses to a polars DataFrame via
 /// `polars.from_arrow` -- zero-copy at the Arrow boundary.
 ///
@@ -577,15 +612,42 @@ fn to_polars(py: Python<'_>, ticks: Py<PyAny>, hint: Option<&str>) -> PyResult<P
 /// happens in compiled Rust — Python is just the interface.
 #[pymodule]
 #[pyo3(name = "thetadatadx")]
-fn thetadatadx_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // Install the tracing → Python logging bridge FIRST so any `tracing`
+    // events emitted during the subsequent connect / config setup reach
+    // user-configured `logging.getLogger("thetadatadx")` handlers.
+    logging_bridge::install_logging_bridge();
+
+    // Teach pyo3-async-runtimes to reuse our shared tokio runtime. This is
+    // the critical coupling that keeps `runtime()` — the one the sync
+    // path uses — and the async path aligned: one runtime, one request
+    // semaphore, one connection pool. Failing to call this early would
+    // cause `pyo3_async_runtimes::tokio::future_into_py` to spin up its
+    // own runtime on first use.
+    //
+    // `init_with_runtime` requires a `&'static tokio::runtime::Runtime`
+    // handle. Our `runtime()` singleton satisfies that contract — the
+    // `OnceLock` leaks the runtime for the lifetime of the process, so
+    // the borrow holds.
+    let _ = pyo3_async_runtimes::tokio::init_with_runtime(runtime());
+
     m.add_class::<Credentials>()?;
     m.add_class::<Config>()?;
     m.add_class::<ThetaDataDx>()?;
     register_fpss_event_classes(m)?;
     register_tick_classes(m)?;
     register_generated_utility_functions(m)?;
+    register_generated_historical_builders(m)?;
+
+    // Typed exception hierarchy — exports `thetadatadx.ThetaDataError`,
+    // `thetadatadx.AuthenticationError`, etc. See [`errors`] for the
+    // full tree + mapping from `thetadatadx::Error` variants.
+    errors::register_exceptions(py, m)?;
+
     m.add_function(wrap_pyfunction!(to_arrow, m)?)?;
     m.add_function(wrap_pyfunction!(to_dataframe, m)?)?;
     m.add_function(wrap_pyfunction!(to_polars, m)?)?;
+    m.add_function(wrap_pyfunction!(decode_response_bytes, m)?)?;
+    m.add_function(wrap_pyfunction!(split_date_range, m)?)?;
     Ok(())
 }

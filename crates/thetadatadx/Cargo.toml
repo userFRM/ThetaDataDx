@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx"
-version = "8.0.1"
+version = "8.0.2"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
@@ -24,6 +24,10 @@ rustdoc-args = ["--cfg", "docsrs"]
 [features]
 default = []
 config-file = ["dep:toml"]
+# Optional Prometheus exporter. When enabled, a `metrics-exporter-prometheus`
+# HTTP listener binds to `DirectConfig::metrics_port` (see the
+# `observability` module) and serves recorder state on `/metrics`.
+metrics-prometheus = ["dep:metrics-exporter-prometheus"]
 
 [dependencies]
 tdbe = { version = "0.11.0", path = "../tdbe" }
@@ -72,6 +76,8 @@ tracing = "0.1.44"
 
 # Metrics
 metrics = "0.24.3"
+# Optional Prometheus exporter (enabled by the `metrics-prometheus` feature).
+metrics-exporter-prometheus = { version = "0.17", optional = true, default-features = false, features = ["http-listener"] }
 
 # Config file loading (optional)
 toml = { version = "1.1.2", optional = true }
@@ -87,6 +93,12 @@ zeroize = { version = "1.8.2", features = ["derive"] }
 
 [dev-dependencies]
 criterion = { version = "0.8.2", features = ["html_reports"] }
+# Test-only: load captured-response fixtures and their sidecar .meta.toml
+# files for the decoder-regression suite (`tests/test_decode_captures.rs`).
+# `toml` is already a build- and opt-dependency here; adding it to
+# dev-dependencies lets the tests pull the same version without the
+# `config-file` feature gate.
+toml = "1.1.2"
 
 [build-dependencies]
 # tonic 0.14 extracted build integration into tonic-prost-build

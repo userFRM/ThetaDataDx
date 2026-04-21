@@ -596,6 +596,13 @@ fn resolve_surface_endpoint(
             "returns",
         )?,
         list_column: endpoint.list_column.clone().or(template.list_column),
+        // Endpoint overrides template; neither is required (streaming-only
+        // DX endpoints like `stock_history_trade_stream` have no vendor
+        // counterpart and keep this as `None`).
+        vendor_docstring: endpoint
+            .vendor_docstring
+            .clone()
+            .or(template.vendor_docstring),
         params,
     })
 }
@@ -666,6 +673,9 @@ fn resolve_surface_template(
     }
     if let Some(value) = &template.list_column {
         resolved.list_column = Some(value.clone());
+    }
+    if let Some(value) = &template.vendor_docstring {
+        resolved.vendor_docstring = Some(value.clone());
     }
     resolved.params.extend(resolve_param_entries(
         &template.params,
@@ -938,5 +948,6 @@ fn merge_surface_and_wire(
         return_type: surface.returns,
         kind: surface.kind,
         list_column: surface.list_column,
+        vendor_docstring: surface.vendor_docstring,
     }
 }

@@ -94,6 +94,11 @@ impl ThetaDataDx {
     ///
     /// Returns an error on network, authentication, or parsing failure.
     pub async fn connect(creds: &Credentials, config: DirectConfig) -> Result<Self, Error> {
+        // Start the Prometheus exporter BEFORE opening the gRPC channel
+        // so the first `thetadatadx.grpc.requests` counter hit is already
+        // covered. No-op when the feature is disabled or `metrics_port`
+        // is `None` (the default).
+        crate::observability::try_install_exporter(&config)?;
         let historical = MddsClient::connect(creds, config).await?;
         Ok(Self {
             historical,
@@ -551,9 +556,14 @@ impl ThetaDataDx {
         }
     }
 
-    /// Access the session UUID from the initial auth.
-    pub fn session_uuid(&self) -> &str {
-        self.historical.session_uuid()
+    /// Access the current MDDS session UUID.
+    ///
+    /// Returns an owned `String` rather than `&str` because the UUID
+    /// lives behind a shared [`crate::auth::SessionToken`] that may be
+    /// refreshed mid-session. Reads through the token so callers always
+    /// see the current value.
+    pub async fn session_uuid(&self) -> String {
+        self.historical.session_uuid().await
     }
 
     /// Access the config.

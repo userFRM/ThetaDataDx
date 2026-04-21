@@ -98,6 +98,44 @@ pub(super) fn optional_getter_name(param_type: &str) -> &'static str {
     }
 }
 
+// ───────────────────────── Docstring composition ───────────────────────────
+//
+// SSOT: `endpoint.description` is the short DX-native sentence that already
+// drives every sync method's `///` line today. `endpoint.vendor_docstring`
+// is the upstream vendor's richer prose (feed-source notes, subscription
+// tier behavior, parameter defaults). We emit `description` first — the
+// typed-return description stays on top for grep-ability — then a blank
+// line and the vendor block. Both sync and async methods, and the fluent
+// builder's `arrow()` / `list()` / `polars()` / `pandas()` terminals,
+// pull from the same composed string so no variant can drift.
+
+/// Compose the full doc body for an endpoint: native description first,
+/// vendor block (if any) appended with a blank separator line.
+pub(super) fn compose_endpoint_doc(endpoint: &GeneratedEndpoint) -> String {
+    match endpoint.vendor_docstring.as_deref() {
+        Some(vendor) if !vendor.is_empty() => {
+            format!("{}\n\n{vendor}", endpoint.description)
+        }
+        _ => endpoint.description.clone(),
+    }
+}
+
+/// Format an endpoint doc body as a sequence of Rust `///` lines with the
+/// given indent. Used by the Python + TypeScript pymethod/napi emitters
+/// so that sync, async, and builder variants share one render path.
+pub(super) fn render_rust_doc_block(indent: &str, doc: &str) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    for line in doc.lines() {
+        if line.is_empty() {
+            writeln!(out, "{indent}///").unwrap();
+        } else {
+            writeln!(out, "{indent}/// {line}").unwrap();
+        }
+    }
+    out
+}
+
 // ───────────────────────── Casing ────────────────────────────────────────────
 
 pub(super) fn to_pascal_case(value: &str) -> String {
@@ -574,6 +612,31 @@ pub(super) fn python_pyclass_list_converter(return_type: &str) -> &'static str {
         "InterestRateTicks" => "interest_rate_ticks_to_pyclass_list",
         "OptionContracts" => "option_contracts_to_pyclass_list",
         other => panic!("unsupported Python pyclass-list converter: {other}"),
+    }
+}
+
+/// Map a collection return type (e.g. `TradeTicks`) to the generated
+/// slice-based Arrow converter in `tick_arrow::slice_arrow`. This is the
+/// fast path for builder `.arrow()` / `.pandas()` / `.polars()`
+/// terminals: feeds the decoder-owned `&[tick::T]` directly into the
+/// Arrow column builders, skipping the pyclass-list double-buffer that
+/// peaks RSS at ~2x the tick payload.
+pub(super) fn python_slice_arrow_converter(return_type: &str) -> &'static str {
+    match return_type {
+        "EodTicks" => "slice_arrow::eod_tick_slice_to_arrow_table",
+        "OhlcTicks" => "slice_arrow::ohlc_tick_slice_to_arrow_table",
+        "TradeTicks" => "slice_arrow::trade_tick_slice_to_arrow_table",
+        "QuoteTicks" => "slice_arrow::quote_tick_slice_to_arrow_table",
+        "TradeQuoteTicks" => "slice_arrow::trade_quote_tick_slice_to_arrow_table",
+        "OpenInterestTicks" => "slice_arrow::open_interest_tick_slice_to_arrow_table",
+        "MarketValueTicks" => "slice_arrow::market_value_tick_slice_to_arrow_table",
+        "GreeksTicks" => "slice_arrow::greeks_tick_slice_to_arrow_table",
+        "IvTicks" => "slice_arrow::iv_tick_slice_to_arrow_table",
+        "PriceTicks" => "slice_arrow::price_tick_slice_to_arrow_table",
+        "CalendarDays" => "slice_arrow::calendar_day_slice_to_arrow_table",
+        "InterestRateTicks" => "slice_arrow::interest_rate_tick_slice_to_arrow_table",
+        "OptionContracts" => "slice_arrow::option_contract_slice_to_arrow_table",
+        other => panic!("unsupported Python slice-arrow converter: {other}"),
     }
 }
 

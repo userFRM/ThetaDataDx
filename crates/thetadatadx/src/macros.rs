@@ -44,6 +44,120 @@ where
     }
 }
 
+/// Policy tick consumed by the retry / refresh loop driven from the
+/// endpoint macros. Each call returns either the completed value, a
+/// request for another attempt after backoff, or a terminal failure.
+pub(crate) enum AttemptStep<T> {
+    Ok(T),
+    Retry(crate::error::Error),
+    Terminal(crate::error::Error),
+}
+
+/// Single step evaluated by the macro-driven retry loop.
+///
+/// `out` is the result of the last attempt (future already awaited).
+/// `refreshed_already` tracks whether this call has already consumed
+/// its session-refresh budget — a second `Unauthenticated` becomes
+/// terminal.
+///
+/// Exists as a free function so the macros can call it with a plain
+/// `Result` produced by their owned request + stream + collect chain,
+/// avoiding the higher-ranked trait bounds that broke the previous
+/// closure-based helper.
+pub(crate) async fn classify_attempt<T>(
+    session: &crate::auth::SessionToken,
+    snap: &crate::auth::session::SessionSnapshot,
+    refreshed_already: &mut bool,
+    endpoint: &'static str,
+    out: Result<T, crate::error::Error>,
+) -> AttemptStep<T> {
+    use crate::retry::StatusClass;
+    match out {
+        Ok(v) => AttemptStep::Ok(v),
+        Err(err) => match classify_error(&err) {
+            StatusClass::Transient => {
+                metrics::counter!(
+                    "thetadatadx.grpc.errors",
+                    "endpoint" => endpoint.to_string()
+                )
+                .increment(1);
+                AttemptStep::Retry(err)
+            }
+            StatusClass::NeedsRefresh => {
+                if *refreshed_already {
+                    metrics::counter!(
+                        "thetadatadx.grpc.errors",
+                        "endpoint" => endpoint.to_string()
+                    )
+                    .increment(1);
+                    return AttemptStep::Terminal(err);
+                }
+                match session.refresh(snap).await {
+                    Ok(_new_snap) => {
+                        *refreshed_already = true;
+                        AttemptStep::Retry(err)
+                    }
+                    Err(refresh_err) => AttemptStep::Terminal(refresh_err),
+                }
+            }
+            StatusClass::Terminal => {
+                metrics::counter!(
+                    "thetadatadx.grpc.errors",
+                    "endpoint" => endpoint.to_string()
+                )
+                .increment(1);
+                AttemptStep::Terminal(err)
+            }
+        },
+    }
+}
+
+/// Sleep between retry attempts according to the client's policy.
+/// Split out of the macros so the per-endpoint expansion stays flat.
+pub(crate) async fn sleep_for_retry(
+    policy: &crate::config::RetryPolicy,
+    attempt: u32,
+    endpoint: &'static str,
+    err: &crate::error::Error,
+) {
+    let delay = policy.delay_for_attempt(attempt);
+    metrics::counter!(
+        "thetadatadx.grpc.retries",
+        "endpoint" => endpoint.to_string()
+    )
+    .increment(1);
+    tracing::warn!(
+        endpoint,
+        attempt,
+        delay_ms = delay.as_millis() as u64,
+        error = %err,
+        "transient gRPC error — retrying with backoff"
+    );
+    if !delay.is_zero() {
+        tokio::time::sleep(delay).await;
+    }
+}
+
+/// Classify an [`Error`] for retry / refresh routing.
+///
+/// `From<tonic::Status>` folds the tonic enum into `Error::Grpc { status, .. }`
+/// where `status` is the `Debug` rendering of `tonic::Code` (e.g.
+/// `"Unavailable"`, `"Unauthenticated"`). We re-derive the class from
+/// that string so the macro-emitted call path stays unchanged. The
+/// other `Error` variants are terminal — a `Decode` or `Decompress`
+/// failure won't fix itself on retry.
+fn classify_error(err: &crate::error::Error) -> crate::retry::StatusClass {
+    use crate::retry::StatusClass;
+    match err {
+        crate::error::Error::Grpc { status, .. } => match status.as_str() {
+            "Unavailable" | "DeadlineExceeded" | "ResourceExhausted" => StatusClass::Transient,
+            "Unauthenticated" => StatusClass::NeedsRefresh,
+            _ => StatusClass::Terminal,
+        },
+        _ => StatusClass::Terminal,
+    }
+}
+
 /// Generate a list endpoint that returns `Vec<String>` by extracting a text
 /// column from the response `DataTable`.
 ///
@@ -95,23 +209,43 @@ macro_rules! list_endpoint {
                     let _metrics_start = std::time::Instant::now();
                     let _permit = self.request_semaphore.acquire().await
                         .map_err(|_| Error::Config("request semaphore closed".into()))?;
-                    let request = proto::$req {
-                        query_info: Some(self.query_info()),
-                        params: Some(proto::$query { $($field : $val),* }),
-                    };
-                    let stream = match self.stub().$grpc(request).await {
-                        Ok(resp) => resp.into_inner(),
-                        Err(e) => {
-                            metrics::counter!("thetadatadx.grpc.errors", "endpoint" => stringify!($name)).increment(1);
-                            return Err::<Vec<String>, Error>(e.into());
+                    let policy = self.config().retry_policy;
+                    let budget = policy.max_attempts.max(1);
+                    let mut refreshed_already = false;
+                    let mut last_err: Option<Error> = None;
+                    let table: proto::DataTable = 'retry: loop {
+                        for attempt in 1..=budget {
+                            let snap = self.session().snapshot().await;
+                            let qi = self.build_query_info(snap.uuid.clone());
+                            let request = proto::$req {
+                                query_info: Some(qi),
+                                params: Some(proto::$query { $($field : $val),* }),
+                            };
+                            let attempt_result: Result<proto::DataTable, Error> = async {
+                                let stream = self.stub().$grpc(request).await
+                                    .map_err(|e| -> Error { e.into() })?;
+                                self.collect_stream(stream.into_inner()).await
+                            }.await;
+                            match $crate::macros::classify_attempt(
+                                self.session(),
+                                &snap,
+                                &mut refreshed_already,
+                                stringify!($name),
+                                attempt_result,
+                            ).await {
+                                $crate::macros::AttemptStep::Ok(t) => break 'retry t,
+                                $crate::macros::AttemptStep::Terminal(err) => return Err::<Vec<String>, Error>(err),
+                                $crate::macros::AttemptStep::Retry(err) => {
+                                    if attempt == budget {
+                                        last_err = Some(err);
+                                        break;
+                                    }
+                                    $crate::macros::sleep_for_retry(&policy, attempt, stringify!($name), &err).await;
+                                    last_err = Some(err);
+                                }
+                            }
                         }
-                    };
-                    let table = match self.collect_stream(stream).await {
-                        Ok(t) => t,
-                        Err(e) => {
-                            metrics::counter!("thetadatadx.grpc.errors", "endpoint" => stringify!($name)).increment(1);
-                            return Err(e);
-                        }
+                        return Err(last_err.unwrap_or_else(|| Error::Config("retry loop exited without result".into())));
                     };
                     metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
                         .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
@@ -213,23 +347,43 @@ macro_rules! parsed_endpoint {
                         let _metrics_start = std::time::Instant::now();
                         let _permit = client.request_semaphore.acquire().await
                             .map_err(|_| Error::Config("request semaphore closed".into()))?;
-                        let request = proto::$req {
-                            query_info: Some(client.query_info()),
-                            params: Some(proto::$query { $($field : $val),* }),
-                        };
-                        let stream = match client.stub().$grpc(request).await {
-                            Ok(resp) => resp.into_inner(),
-                            Err(e) => {
-                                metrics::counter!("thetadatadx.grpc.errors", "endpoint" => stringify!($name)).increment(1);
-                                return Err::<$ret, Error>(e.into());
+                        let policy = client.config().retry_policy;
+                        let budget = policy.max_attempts.max(1);
+                        let mut refreshed_already = false;
+                        let mut last_err: Option<Error> = None;
+                        let table: proto::DataTable = 'retry: loop {
+                            for attempt in 1..=budget {
+                                let snap = client.session().snapshot().await;
+                                let qi = client.build_query_info(snap.uuid.clone());
+                                let request = proto::$req {
+                                    query_info: Some(qi),
+                                    params: Some(proto::$query { $($field : $val),* }),
+                                };
+                                let attempt_result: Result<proto::DataTable, Error> = async {
+                                    let stream = client.stub().$grpc(request).await
+                                        .map_err(|e| -> Error { e.into() })?;
+                                    client.collect_stream(stream.into_inner()).await
+                                }.await;
+                                match $crate::macros::classify_attempt(
+                                    client.session(),
+                                    &snap,
+                                    &mut refreshed_already,
+                                    stringify!($name),
+                                    attempt_result,
+                                ).await {
+                                    $crate::macros::AttemptStep::Ok(t) => break 'retry t,
+                                    $crate::macros::AttemptStep::Terminal(err) => return Err::<$ret, Error>(err),
+                                    $crate::macros::AttemptStep::Retry(err) => {
+                                        if attempt == budget {
+                                            last_err = Some(err);
+                                            break;
+                                        }
+                                        $crate::macros::sleep_for_retry(&policy, attempt, stringify!($name), &err).await;
+                                        last_err = Some(err);
+                                    }
+                                }
                             }
-                        };
-                        let table = match client.collect_stream(stream).await {
-                            Ok(t) => t,
-                            Err(e) => {
-                                metrics::counter!("thetadatadx.grpc.errors", "endpoint" => stringify!($name)).increment(1);
-                                return Err(e);
-                            }
+                            return Err(last_err.unwrap_or_else(|| Error::Config("retry loop exited without result".into())));
                         };
                         metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
                             .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
@@ -328,4 +482,67 @@ macro_rules! opt_setter {
             self
         }
     };
+}
+
+// Tests live at the bottom of the file so `clippy::items-after-test-module`
+// stays clean: the macro_rules! blocks above are actual items, and clippy
+// forbids items after a `#[cfg(test)] mod tests`.
+#[cfg(test)]
+mod classify_error_tests {
+    use super::classify_error;
+    use crate::error::Error;
+    use crate::retry::StatusClass;
+
+    fn grpc(status: &str) -> Error {
+        Error::Grpc {
+            status: status.to_string(),
+            message: String::new(),
+        }
+    }
+
+    #[test]
+    fn transient_status_strings_map_to_transient() {
+        assert_eq!(classify_error(&grpc("Unavailable")), StatusClass::Transient);
+        assert_eq!(
+            classify_error(&grpc("DeadlineExceeded")),
+            StatusClass::Transient
+        );
+        assert_eq!(
+            classify_error(&grpc("ResourceExhausted")),
+            StatusClass::Transient
+        );
+    }
+
+    #[test]
+    fn unauthenticated_maps_to_needs_refresh() {
+        assert_eq!(
+            classify_error(&grpc("Unauthenticated")),
+            StatusClass::NeedsRefresh
+        );
+    }
+
+    #[test]
+    fn unknown_status_maps_to_terminal() {
+        assert_eq!(
+            classify_error(&grpc("PermissionDenied")),
+            StatusClass::Terminal
+        );
+        assert_eq!(classify_error(&grpc("NotFound")), StatusClass::Terminal);
+        assert_eq!(
+            classify_error(&grpc("InvalidArgument")),
+            StatusClass::Terminal
+        );
+    }
+
+    #[test]
+    fn non_grpc_errors_are_terminal() {
+        assert_eq!(
+            classify_error(&Error::Config("bad config".into())),
+            StatusClass::Terminal
+        );
+        assert_eq!(
+            classify_error(&Error::Decode("parse fail".into())),
+            StatusClass::Terminal
+        );
+    }
 }

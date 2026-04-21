@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.2] - 2026-04-21
+
+Bigger than a typical patch: ships a P0 decode-correctness fix alongside
+a feature-additive wave across the Rust SDK and the Python bindings.
+Every surface added here is backward-compatible — no method signatures
+change, no types are removed, no client code needs to migrate. The
+patch-level version reflects that existing callers continue to compile
+unchanged; the additive surface opens new opt-in paths.
+
+### Fixed
+
+- **P11 — `stock_history_trade_quote` / `option_history_trade_quote` silently returned `Ok(vec![])` on non-empty responses.** The v3 MDDS server emits the combined-row pair as `trade_timestamp` / `quote_timestamp`; `tick_schema.toml` declared them as `ms_of_day` / `quote_ms_of_day` with no aliases. `find_header` failed both required-header guards and the parser short-circuited before decoding any row. Added aliases `ms_of_day` ↔ `trade_timestamp`, `quote_ms_of_day` ↔ `quote_timestamp`, `date` ↔ `trade_timestamp`. Verified against a fresh prod capture: AAPL `stock_history_trade_quote` now returns 955 237 rows (matching the vendor reference exactly), SPY option returns 98. Captured-response regression fixtures ship for seven endpoints (`stock_history_trade_quote`, `option_history_trade_quote`, `stock_history_eod`, `option_history_greeks_all`, `option_history_trade`, `option_snapshot_ohlc`, `calendar_open_today`) so the same class of schema drift fails at PR time next release.
+- **Decoder audit — `parse_<tick>_ticks` guard no longer drops rows on schema drift.** Generator template and the hand-written `parse_option_contracts_v3` now raise `DecodeError::MissingRequiredHeader` when the `DataTable` carries rows but declares none of the expected columns. Empty responses continue to return `Ok(vec![])` (a holiday with no trades remains a legitimate outcome). Walked every `Vec::new()` / `unwrap_or_default()` call-site in `decode.rs` and `fpss/decode.rs` — the remaining ones are intentional soft-fail accessors (bench / macro) or per-event nibble buffers, flagged as such in the audit report.
+
+### Added
+
+- **Async Python surface — every historical endpoint gains an `_async` companion.** `client.stock_history_eod_async(...)` returns an awaitable built on `pyo3_async_runtimes::tokio::future_into_py`. Sync and async paths share the same `OnceLock<tokio::runtime::Runtime>` singleton — one runtime, one connection pool, one request semaphore.
+- **Fluent builders — `tdx.<endpoint>_builder(...)` returns a per-endpoint `#[pyclass]` with chainable setters and `.list()` / `.arrow()` / `.pandas()` / `.polars()` terminals plus `_async` companions.** Builder holds `Arc<thetadatadx::ThetaDataDx>` so every terminal drives the original client without re-authenticating.
+- **`decode_response_bytes(endpoint, chunks)`** — generator-emitted `#[pyfunction]` that feeds recorded `Vec<&[u8]>` `proto::ResponseData` frames through the Rust decoder and returns the typed pyclass list, so external parity benches can attribute wall-clock cost between network and decode without an MDDS round-trip. Auto-wired for every endpoint that has a typed decoder.
+- **Layered exception hierarchy** — `thetadatadx.ThetaDataError` root plus nine leaves: `AuthenticationError`, `InvalidCredentialsError`, `SubscriptionError`, `RateLimitError`, `SchemaMismatchError`, `NetworkError`, `TimeoutError`, `NoDataFoundError`, `StreamError`. `to_py_err` maps every `thetadatadx::Error` variant (plus gRPC status strings) onto the correct leaf. `#[non_exhaustive]` catch-all.
+- **Python logging bridge** — `tracing_subscriber::Layer` that forwards every `tracing` event to `logging.getLogger(target).log(...)`. Filter-first via `isEnabledFor(level)` so default WARN loggers pay a single bool check per event with no formatting. Installed at module init.
+- **Slice-based Arrow fast path on builder terminals** — `.arrow()` / `.pandas()` / `.polars()` (and their `_async` companions) feed the decoder-owned `Vec<tick::T>` straight into the Arrow column builders, skipping the pyclass-list double-buffer that peaked RSS at ~2× the tick payload. Schema is bit-identical to the pyclass-list path so downstream consumers alias either source interchangeably.
+- **`RetryPolicy`** — initial_delay 250 ms, max_delay 30 s, max_attempts 5, full jitter by default. Retries only on `Unavailable` / `DeadlineExceeded` / `ResourceExhausted`. Unit-tested backoff math, jitter bounds, and the `disabled()` shortcut.
+- **Session auto-refresh** — `auth::SessionToken` holds the session UUID behind a `tokio::sync::Mutex` + monotonic version counter. On `Unauthenticated` the retry loop snapshots the token, re-auths via Nexus, swaps the UUID in place, and retries exactly once. A second 401 fails permanently. Concurrent 401s dedupe into a single Nexus round-trip via version-check short-circuit.
+- **Environment-variable config matrix** — `DirectConfig::production()` layers env vars on the hardcoded defaults: `THETADATA_MDDS_HOST`, `THETADATA_MDDS_PORT` (upstream-compat), plus DX extensions `THETADATA_NEXUS_URL`, `THETADATA_FPSS_HOST`, `THETADATA_FPSS_PORT`, `THETADATA_CLIENT_TYPE`. Precedence: explicit builder setter > env var > hardcoded default.
+- **Optional `metrics-prometheus` cargo feature** — pulls `metrics-exporter-prometheus` and wires an HTTP `/metrics` listener on `DirectConfig::metrics_port`. Exporter starts inside `ThetaDataDx::connect` so the first RPC counter is already covered. Feature-gated; default build stays dep-free.
+- **Vendor docstring lift** — 60 endpoint docstrings threaded through `endpoint_surface.toml` → model → parser → generator so sync / async / builder variants share one SSOT. Attribution recorded in `docs/ATTRIBUTION.md`.
+- **`split_date_range(start, end)`** — pure Rust 365-day-window splitter exposed as `thetadatadx.split_date_range` for tooling and the auto-chunk pre-flight. Tested on single-day, exact boundary, multi-year contiguity, leap-day, and invalid input.
+- **Capture fixtures** — seven `tests/fixtures/captures/<endpoint>.{pb.zst,meta.toml}` pairs anchor expected row counts, exact server header lists, and first-row field values. `tests/test_decode_captures.rs` feeds each fixture through the same `decode_data_table` → tick-parser path the `MddsClient` uses and asserts three invariants per fixture. Two regression guards ensure `MissingRequiredHeader` fires on non-empty schema drift and empty responses still return `Ok(vec![])`.
+
+### Changed
+
+- **Regenerated SDK surfaces** — `historical_methods.rs`, `tick_arrow.rs`, `decode_bench.rs` rebuilt off the merged generator. Byte-identical check passes.
+- **Parser generator raises `MissingRequiredHeader` on schema drift** — the generated `parse_<tick>_ticks` template no longer silently returns `Ok(vec![])` when a required column is absent on a non-empty `DataTable`. Empty responses continue to pass through unchanged.
+
 ## [8.0.1] - 2026-04-21
 
 ### Fixed

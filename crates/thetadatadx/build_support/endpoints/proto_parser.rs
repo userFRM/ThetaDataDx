@@ -109,6 +109,10 @@ pub(super) fn load_proto_endpoints() -> Result<ParsedEndpoints, Box<dyn std::err
             return_type,
             kind: String::new(),
             list_column: None,
+            // Proto-derived entries never carry a vendor docstring — the
+            // surface spec (endpoint_surface.toml) is the SSOT; this field
+            // is merged in during `parser::merge_surface_and_wire`.
+            vendor_docstring: None,
         });
     }
 

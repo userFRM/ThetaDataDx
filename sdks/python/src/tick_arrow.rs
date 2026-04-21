@@ -3,6 +3,16 @@
 // pyarrow via the Arrow C Data Interface (`arrow_pyarrow::IntoPyArrow`).
 // Replaces the old dict-of-lists `PyDict` path; same schema, native Arrow
 // typing, ~6x wall-clock speedup at 100k ticks.
+//
+// Two entry shapes are emitted:
+//   * `pyclass_list_to_arrow_table(py, list, hint)` — called from the
+//     public `to_arrow` / `to_dataframe` / `to_polars` helpers when the
+//     caller hands us typed pyclass instances already materialised on the
+//     Python heap.
+//   * `<tick>_slice_to_arrow_table(py, &[tick::T])` — called from the
+//     historical-endpoint entry points so the decoder's `Vec<tick::T>`
+//     flows straight into an Arrow RecordBatch without the intermediate
+//     pyclass-list allocation. Skips double-buffering peak RSS.
 
 use arrow::array::{ArrayRef, Float64Array, Int32Array, Int64Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema};
@@ -1056,3 +1066,717 @@ impl ArrowFromPyclassList for TradeTick {
     }
 }
 
+
+pub(crate) mod slice_arrow {
+    use super::*;
+    use super::tick;
+    use arrow::array::{ArrayRef, Float64Array, Int32Array, Int64Array, StringArray};
+    use arrow::record_batch::RecordBatch;
+
+    fn read_arrow_batch_from_calendar_day_slice(ticks: &[tick::CalendarDay]) -> PyResult<RecordBatch> {
+        let schema = arrow_schema_for_qualname("CalendarDay").expect("generated schema must be present for CalendarDay");
+        let n = ticks.len();
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_is_open: Vec<i32> = Vec::with_capacity(n);
+        let mut col_open_time: Vec<i32> = Vec::with_capacity(n);
+        let mut col_close_time: Vec<i32> = Vec::with_capacity(n);
+        let mut col_status: Vec<i32> = Vec::with_capacity(n);
+        for t in ticks {
+            col_date.push(t.date);
+            col_is_open.push(t.is_open);
+            col_open_time.push(t.open_time);
+            col_close_time.push(t.close_time);
+            col_status.push(t.status);
+        }
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_is_open)) as ArrayRef,
+            Arc::new(Int32Array::from(col_open_time)) as ArrayRef,
+            Arc::new(Int32Array::from(col_close_time)) as ArrayRef,
+            Arc::new(Int32Array::from(col_status)) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::CalendarDay]` slice into a
+    /// `pyarrow.Table` without materialising typed pyclass instances.
+    /// Primary fast path for historical endpoints — avoids the
+    /// double-buffering RSS spike of the pyclass-list converter.
+    pub(crate) fn calendar_day_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::CalendarDay]) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_calendar_day_slice(ticks)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    fn read_arrow_batch_from_eod_tick_slice(ticks: &[tick::EodTick]) -> PyResult<RecordBatch> {
+        let schema = arrow_schema_for_qualname("EodTick").expect("generated schema must be present for EodTick");
+        let n = ticks.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ms_of_day2: Vec<i32> = Vec::with_capacity(n);
+        let mut col_open: Vec<f64> = Vec::with_capacity(n);
+        let mut col_high: Vec<f64> = Vec::with_capacity(n);
+        let mut col_low: Vec<f64> = Vec::with_capacity(n);
+        let mut col_close: Vec<f64> = Vec::with_capacity(n);
+        let mut col_volume: Vec<i64> = Vec::with_capacity(n);
+        let mut col_count: Vec<i64> = Vec::with_capacity(n);
+        let mut col_bid_size: Vec<i32> = Vec::with_capacity(n);
+        let mut col_bid_exchange: Vec<i32> = Vec::with_capacity(n);
+        let mut col_bid: Vec<f64> = Vec::with_capacity(n);
+        let mut col_bid_condition: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ask_size: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ask_exchange: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ask: Vec<f64> = Vec::with_capacity(n);
+        let mut col_ask_condition: Vec<i32> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
+        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
+        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        for t in ticks {
+            col_ms_of_day.push(t.ms_of_day);
+            col_ms_of_day2.push(t.ms_of_day2);
+            col_open.push(t.open);
+            col_high.push(t.high);
+            col_low.push(t.low);
+            col_close.push(t.close);
+            col_volume.push(t.volume);
+            col_count.push(t.count);
+            col_bid_size.push(t.bid_size);
+            col_bid_exchange.push(t.bid_exchange);
+            col_bid.push(t.bid);
+            col_bid_condition.push(t.bid_condition);
+            col_ask_size.push(t.ask_size);
+            col_ask_exchange.push(t.ask_exchange);
+            col_ask.push(t.ask);
+            col_ask_condition.push(t.ask_condition);
+            col_date.push(t.date);
+            col_expiration.push(t.expiration);
+            col_strike.push(t.strike);
+            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+        }
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ms_of_day2)) as ArrayRef,
+            Arc::new(Float64Array::from(col_open)) as ArrayRef,
+            Arc::new(Float64Array::from(col_high)) as ArrayRef,
+            Arc::new(Float64Array::from(col_low)) as ArrayRef,
+            Arc::new(Float64Array::from(col_close)) as ArrayRef,
+            Arc::new(Int64Array::from(col_volume)) as ArrayRef,
+            Arc::new(Int64Array::from(col_count)) as ArrayRef,
+            Arc::new(Int32Array::from(col_bid_size)) as ArrayRef,
+            Arc::new(Int32Array::from(col_bid_exchange)) as ArrayRef,
+            Arc::new(Float64Array::from(col_bid)) as ArrayRef,
+            Arc::new(Int32Array::from(col_bid_condition)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ask_size)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ask_exchange)) as ArrayRef,
+            Arc::new(Float64Array::from(col_ask)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ask_condition)) as ArrayRef,
+            Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
+            Arc::new(Float64Array::from(col_strike)) as ArrayRef,
+            Arc::new(StringArray::from(col_right)) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::EodTick]` slice into a
+    /// `pyarrow.Table` without materialising typed pyclass instances.
+    /// Primary fast path for historical endpoints — avoids the
+    /// double-buffering RSS spike of the pyclass-list converter.
+    pub(crate) fn eod_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::EodTick]) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_eod_tick_slice(ticks)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    fn read_arrow_batch_from_greeks_tick_slice(ticks: &[tick::GreeksTick]) -> PyResult<RecordBatch> {
+        let schema = arrow_schema_for_qualname("GreeksTick").expect("generated schema must be present for GreeksTick");
+        let n = ticks.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(n);
+        let mut col_delta: Vec<f64> = Vec::with_capacity(n);
+        let mut col_gamma: Vec<f64> = Vec::with_capacity(n);
+        let mut col_theta: Vec<f64> = Vec::with_capacity(n);
+        let mut col_vega: Vec<f64> = Vec::with_capacity(n);
+        let mut col_rho: Vec<f64> = Vec::with_capacity(n);
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(n);
+        let mut col_vanna: Vec<f64> = Vec::with_capacity(n);
+        let mut col_charm: Vec<f64> = Vec::with_capacity(n);
+        let mut col_vomma: Vec<f64> = Vec::with_capacity(n);
+        let mut col_veta: Vec<f64> = Vec::with_capacity(n);
+        let mut col_speed: Vec<f64> = Vec::with_capacity(n);
+        let mut col_zomma: Vec<f64> = Vec::with_capacity(n);
+        let mut col_color: Vec<f64> = Vec::with_capacity(n);
+        let mut col_ultima: Vec<f64> = Vec::with_capacity(n);
+        let mut col_d1: Vec<f64> = Vec::with_capacity(n);
+        let mut col_d2: Vec<f64> = Vec::with_capacity(n);
+        let mut col_dual_delta: Vec<f64> = Vec::with_capacity(n);
+        let mut col_dual_gamma: Vec<f64> = Vec::with_capacity(n);
+        let mut col_epsilon: Vec<f64> = Vec::with_capacity(n);
+        let mut col_lambda: Vec<f64> = Vec::with_capacity(n);
+        let mut col_vera: Vec<f64> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
+        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
+        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        for t in ticks {
+            col_ms_of_day.push(t.ms_of_day);
+            col_implied_volatility.push(t.implied_volatility);
+            col_delta.push(t.delta);
+            col_gamma.push(t.gamma);
+            col_theta.push(t.theta);
+            col_vega.push(t.vega);
+            col_rho.push(t.rho);
+            col_iv_error.push(t.iv_error);
+            col_vanna.push(t.vanna);
+            col_charm.push(t.charm);
+            col_vomma.push(t.vomma);
+            col_veta.push(t.veta);
+            col_speed.push(t.speed);
+            col_zomma.push(t.zomma);
+            col_color.push(t.color);
+            col_ultima.push(t.ultima);
+            col_d1.push(t.d1);
+            col_d2.push(t.d2);
+            col_dual_delta.push(t.dual_delta);
+            col_dual_gamma.push(t.dual_gamma);
+            col_epsilon.push(t.epsilon);
+            col_lambda.push(t.lambda);
+            col_vera.push(t.vera);
+            col_date.push(t.date);
+            col_expiration.push(t.expiration);
+            col_strike.push(t.strike);
+            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+        }
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
+            Arc::new(Float64Array::from(col_implied_volatility)) as ArrayRef,
+            Arc::new(Float64Array::from(col_delta)) as ArrayRef,
+            Arc::new(Float64Array::from(col_gamma)) as ArrayRef,
+            Arc::new(Float64Array::from(col_theta)) as ArrayRef,
+            Arc::new(Float64Array::from(col_vega)) as ArrayRef,
+            Arc::new(Float64Array::from(col_rho)) as ArrayRef,
+            Arc::new(Float64Array::from(col_iv_error)) as ArrayRef,
+            Arc::new(Float64Array::from(col_vanna)) as ArrayRef,
+            Arc::new(Float64Array::from(col_charm)) as ArrayRef,
+            Arc::new(Float64Array::from(col_vomma)) as ArrayRef,
+            Arc::new(Float64Array::from(col_veta)) as ArrayRef,
+            Arc::new(Float64Array::from(col_speed)) as ArrayRef,
+            Arc::new(Float64Array::from(col_zomma)) as ArrayRef,
+            Arc::new(Float64Array::from(col_color)) as ArrayRef,
+            Arc::new(Float64Array::from(col_ultima)) as ArrayRef,
+            Arc::new(Float64Array::from(col_d1)) as ArrayRef,
+            Arc::new(Float64Array::from(col_d2)) as ArrayRef,
+            Arc::new(Float64Array::from(col_dual_delta)) as ArrayRef,
+            Arc::new(Float64Array::from(col_dual_gamma)) as ArrayRef,
+            Arc::new(Float64Array::from(col_epsilon)) as ArrayRef,
+            Arc::new(Float64Array::from(col_lambda)) as ArrayRef,
+            Arc::new(Float64Array::from(col_vera)) as ArrayRef,
+            Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
+            Arc::new(Float64Array::from(col_strike)) as ArrayRef,
+            Arc::new(StringArray::from(col_right)) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::GreeksTick]` slice into a
+    /// `pyarrow.Table` without materialising typed pyclass instances.
+    /// Primary fast path for historical endpoints — avoids the
+    /// double-buffering RSS spike of the pyclass-list converter.
+    pub(crate) fn greeks_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::GreeksTick]) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_greeks_tick_slice(ticks)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    fn read_arrow_batch_from_interest_rate_tick_slice(ticks: &[tick::InterestRateTick]) -> PyResult<RecordBatch> {
+        let schema = arrow_schema_for_qualname("InterestRateTick").expect("generated schema must be present for InterestRateTick");
+        let n = ticks.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_rate: Vec<f64> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        for t in ticks {
+            col_ms_of_day.push(t.ms_of_day);
+            col_rate.push(t.rate);
+            col_date.push(t.date);
+        }
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
+            Arc::new(Float64Array::from(col_rate)) as ArrayRef,
+            Arc::new(Int32Array::from(col_date)) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::InterestRateTick]` slice into a
+    /// `pyarrow.Table` without materialising typed pyclass instances.
+    /// Primary fast path for historical endpoints — avoids the
+    /// double-buffering RSS spike of the pyclass-list converter.
+    pub(crate) fn interest_rate_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::InterestRateTick]) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_interest_rate_tick_slice(ticks)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    fn read_arrow_batch_from_iv_tick_slice(ticks: &[tick::IvTick]) -> PyResult<RecordBatch> {
+        let schema = arrow_schema_for_qualname("IvTick").expect("generated schema must be present for IvTick");
+        let n = ticks.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(n);
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
+        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
+        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        for t in ticks {
+            col_ms_of_day.push(t.ms_of_day);
+            col_implied_volatility.push(t.implied_volatility);
+            col_iv_error.push(t.iv_error);
+            col_date.push(t.date);
+            col_expiration.push(t.expiration);
+            col_strike.push(t.strike);
+            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+        }
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
+            Arc::new(Float64Array::from(col_implied_volatility)) as ArrayRef,
+            Arc::new(Float64Array::from(col_iv_error)) as ArrayRef,
+            Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
+            Arc::new(Float64Array::from(col_strike)) as ArrayRef,
+            Arc::new(StringArray::from(col_right)) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::IvTick]` slice into a
+    /// `pyarrow.Table` without materialising typed pyclass instances.
+    /// Primary fast path for historical endpoints — avoids the
+    /// double-buffering RSS spike of the pyclass-list converter.
+    pub(crate) fn iv_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::IvTick]) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_iv_tick_slice(ticks)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    fn read_arrow_batch_from_market_value_tick_slice(ticks: &[tick::MarketValueTick]) -> PyResult<RecordBatch> {
+        let schema = arrow_schema_for_qualname("MarketValueTick").expect("generated schema must be present for MarketValueTick");
+        let n = ticks.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_market_bid: Vec<f64> = Vec::with_capacity(n);
+        let mut col_market_ask: Vec<f64> = Vec::with_capacity(n);
+        let mut col_market_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
+        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
+        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        for t in ticks {
+            col_ms_of_day.push(t.ms_of_day);
+            col_market_bid.push(t.market_bid);
+            col_market_ask.push(t.market_ask);
+            col_market_price.push(t.market_price);
+            col_date.push(t.date);
+            col_expiration.push(t.expiration);
+            col_strike.push(t.strike);
+            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+        }
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
+            Arc::new(Float64Array::from(col_market_bid)) as ArrayRef,
+            Arc::new(Float64Array::from(col_market_ask)) as ArrayRef,
+            Arc::new(Float64Array::from(col_market_price)) as ArrayRef,
+            Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
+            Arc::new(Float64Array::from(col_strike)) as ArrayRef,
+            Arc::new(StringArray::from(col_right)) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::MarketValueTick]` slice into a
+    /// `pyarrow.Table` without materialising typed pyclass instances.
+    /// Primary fast path for historical endpoints — avoids the
+    /// double-buffering RSS spike of the pyclass-list converter.
+    pub(crate) fn market_value_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::MarketValueTick]) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_market_value_tick_slice(ticks)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    fn read_arrow_batch_from_ohlc_tick_slice(ticks: &[tick::OhlcTick]) -> PyResult<RecordBatch> {
+        let schema = arrow_schema_for_qualname("OhlcTick").expect("generated schema must be present for OhlcTick");
+        let n = ticks.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_open: Vec<f64> = Vec::with_capacity(n);
+        let mut col_high: Vec<f64> = Vec::with_capacity(n);
+        let mut col_low: Vec<f64> = Vec::with_capacity(n);
+        let mut col_close: Vec<f64> = Vec::with_capacity(n);
+        let mut col_volume: Vec<i64> = Vec::with_capacity(n);
+        let mut col_count: Vec<i64> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
+        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
+        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        for t in ticks {
+            col_ms_of_day.push(t.ms_of_day);
+            col_open.push(t.open);
+            col_high.push(t.high);
+            col_low.push(t.low);
+            col_close.push(t.close);
+            col_volume.push(t.volume);
+            col_count.push(t.count);
+            col_date.push(t.date);
+            col_expiration.push(t.expiration);
+            col_strike.push(t.strike);
+            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+        }
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
+            Arc::new(Float64Array::from(col_open)) as ArrayRef,
+            Arc::new(Float64Array::from(col_high)) as ArrayRef,
+            Arc::new(Float64Array::from(col_low)) as ArrayRef,
+            Arc::new(Float64Array::from(col_close)) as ArrayRef,
+            Arc::new(Int64Array::from(col_volume)) as ArrayRef,
+            Arc::new(Int64Array::from(col_count)) as ArrayRef,
+            Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
+            Arc::new(Float64Array::from(col_strike)) as ArrayRef,
+            Arc::new(StringArray::from(col_right)) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::OhlcTick]` slice into a
+    /// `pyarrow.Table` without materialising typed pyclass instances.
+    /// Primary fast path for historical endpoints — avoids the
+    /// double-buffering RSS spike of the pyclass-list converter.
+    pub(crate) fn ohlc_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::OhlcTick]) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_ohlc_tick_slice(ticks)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    fn read_arrow_batch_from_open_interest_tick_slice(ticks: &[tick::OpenInterestTick]) -> PyResult<RecordBatch> {
+        let schema = arrow_schema_for_qualname("OpenInterestTick").expect("generated schema must be present for OpenInterestTick");
+        let n = ticks.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_open_interest: Vec<i32> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
+        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
+        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        for t in ticks {
+            col_ms_of_day.push(t.ms_of_day);
+            col_open_interest.push(t.open_interest);
+            col_date.push(t.date);
+            col_expiration.push(t.expiration);
+            col_strike.push(t.strike);
+            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+        }
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
+            Arc::new(Int32Array::from(col_open_interest)) as ArrayRef,
+            Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
+            Arc::new(Float64Array::from(col_strike)) as ArrayRef,
+            Arc::new(StringArray::from(col_right)) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::OpenInterestTick]` slice into a
+    /// `pyarrow.Table` without materialising typed pyclass instances.
+    /// Primary fast path for historical endpoints — avoids the
+    /// double-buffering RSS spike of the pyclass-list converter.
+    pub(crate) fn open_interest_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::OpenInterestTick]) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_open_interest_tick_slice(ticks)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    fn read_arrow_batch_from_option_contract_slice(ticks: &[tick::OptionContract]) -> PyResult<RecordBatch> {
+        let schema = arrow_schema_for_qualname("OptionContract").expect("generated schema must be present for OptionContract");
+        let n = ticks.len();
+        let mut col_root: Vec<String> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
+        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
+        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        for t in ticks {
+            col_root.push(t.root.clone());
+            col_expiration.push(t.expiration);
+            col_strike.push(t.strike);
+            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+        }
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(StringArray::from(col_root)) as ArrayRef,
+            Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
+            Arc::new(Float64Array::from(col_strike)) as ArrayRef,
+            Arc::new(StringArray::from(col_right)) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::OptionContract]` slice into a
+    /// `pyarrow.Table` without materialising typed pyclass instances.
+    /// Primary fast path for historical endpoints — avoids the
+    /// double-buffering RSS spike of the pyclass-list converter.
+    pub(crate) fn option_contract_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::OptionContract]) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_option_contract_slice(ticks)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    fn read_arrow_batch_from_price_tick_slice(ticks: &[tick::PriceTick]) -> PyResult<RecordBatch> {
+        let schema = arrow_schema_for_qualname("PriceTick").expect("generated schema must be present for PriceTick");
+        let n = ticks.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        for t in ticks {
+            col_ms_of_day.push(t.ms_of_day);
+            col_price.push(t.price);
+            col_date.push(t.date);
+        }
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
+            Arc::new(Float64Array::from(col_price)) as ArrayRef,
+            Arc::new(Int32Array::from(col_date)) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::PriceTick]` slice into a
+    /// `pyarrow.Table` without materialising typed pyclass instances.
+    /// Primary fast path for historical endpoints — avoids the
+    /// double-buffering RSS spike of the pyclass-list converter.
+    pub(crate) fn price_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::PriceTick]) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_price_tick_slice(ticks)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    fn read_arrow_batch_from_quote_tick_slice(ticks: &[tick::QuoteTick]) -> PyResult<RecordBatch> {
+        let schema = arrow_schema_for_qualname("QuoteTick").expect("generated schema must be present for QuoteTick");
+        let n = ticks.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_bid_size: Vec<i32> = Vec::with_capacity(n);
+        let mut col_bid_exchange: Vec<i32> = Vec::with_capacity(n);
+        let mut col_bid: Vec<f64> = Vec::with_capacity(n);
+        let mut col_bid_condition: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ask_size: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ask_exchange: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ask: Vec<f64> = Vec::with_capacity(n);
+        let mut col_ask_condition: Vec<i32> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_midpoint: Vec<f64> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
+        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
+        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        for t in ticks {
+            col_ms_of_day.push(t.ms_of_day);
+            col_bid_size.push(t.bid_size);
+            col_bid_exchange.push(t.bid_exchange);
+            col_bid.push(t.bid);
+            col_bid_condition.push(t.bid_condition);
+            col_ask_size.push(t.ask_size);
+            col_ask_exchange.push(t.ask_exchange);
+            col_ask.push(t.ask);
+            col_ask_condition.push(t.ask_condition);
+            col_date.push(t.date);
+            col_midpoint.push(t.midpoint);
+            col_expiration.push(t.expiration);
+            col_strike.push(t.strike);
+            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+        }
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
+            Arc::new(Int32Array::from(col_bid_size)) as ArrayRef,
+            Arc::new(Int32Array::from(col_bid_exchange)) as ArrayRef,
+            Arc::new(Float64Array::from(col_bid)) as ArrayRef,
+            Arc::new(Int32Array::from(col_bid_condition)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ask_size)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ask_exchange)) as ArrayRef,
+            Arc::new(Float64Array::from(col_ask)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ask_condition)) as ArrayRef,
+            Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Float64Array::from(col_midpoint)) as ArrayRef,
+            Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
+            Arc::new(Float64Array::from(col_strike)) as ArrayRef,
+            Arc::new(StringArray::from(col_right)) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::QuoteTick]` slice into a
+    /// `pyarrow.Table` without materialising typed pyclass instances.
+    /// Primary fast path for historical endpoints — avoids the
+    /// double-buffering RSS spike of the pyclass-list converter.
+    pub(crate) fn quote_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::QuoteTick]) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_quote_tick_slice(ticks)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    fn read_arrow_batch_from_trade_quote_tick_slice(ticks: &[tick::TradeQuoteTick]) -> PyResult<RecordBatch> {
+        let schema = arrow_schema_for_qualname("TradeQuoteTick").expect("generated schema must be present for TradeQuoteTick");
+        let n = ticks.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(n);
+        let mut col_condition: Vec<i32> = Vec::with_capacity(n);
+        let mut col_size: Vec<i32> = Vec::with_capacity(n);
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(n);
+        let mut col_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_condition_flags: Vec<i32> = Vec::with_capacity(n);
+        let mut col_price_flags: Vec<i32> = Vec::with_capacity(n);
+        let mut col_volume_type: Vec<i32> = Vec::with_capacity(n);
+        let mut col_records_back: Vec<i32> = Vec::with_capacity(n);
+        let mut col_quote_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_bid_size: Vec<i32> = Vec::with_capacity(n);
+        let mut col_bid_exchange: Vec<i32> = Vec::with_capacity(n);
+        let mut col_bid: Vec<f64> = Vec::with_capacity(n);
+        let mut col_bid_condition: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ask_size: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ask_exchange: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ask: Vec<f64> = Vec::with_capacity(n);
+        let mut col_ask_condition: Vec<i32> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
+        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
+        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        for t in ticks {
+            col_ms_of_day.push(t.ms_of_day);
+            col_sequence.push(t.sequence);
+            col_ext_condition1.push(t.ext_condition1);
+            col_ext_condition2.push(t.ext_condition2);
+            col_ext_condition3.push(t.ext_condition3);
+            col_ext_condition4.push(t.ext_condition4);
+            col_condition.push(t.condition);
+            col_size.push(t.size);
+            col_exchange.push(t.exchange);
+            col_price.push(t.price);
+            col_condition_flags.push(t.condition_flags);
+            col_price_flags.push(t.price_flags);
+            col_volume_type.push(t.volume_type);
+            col_records_back.push(t.records_back);
+            col_quote_ms_of_day.push(t.quote_ms_of_day);
+            col_bid_size.push(t.bid_size);
+            col_bid_exchange.push(t.bid_exchange);
+            col_bid.push(t.bid);
+            col_bid_condition.push(t.bid_condition);
+            col_ask_size.push(t.ask_size);
+            col_ask_exchange.push(t.ask_exchange);
+            col_ask.push(t.ask);
+            col_ask_condition.push(t.ask_condition);
+            col_date.push(t.date);
+            col_expiration.push(t.expiration);
+            col_strike.push(t.strike);
+            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+        }
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
+            Arc::new(Int32Array::from(col_sequence)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition1)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition2)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition3)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition4)) as ArrayRef,
+            Arc::new(Int32Array::from(col_condition)) as ArrayRef,
+            Arc::new(Int32Array::from(col_size)) as ArrayRef,
+            Arc::new(Int32Array::from(col_exchange)) as ArrayRef,
+            Arc::new(Float64Array::from(col_price)) as ArrayRef,
+            Arc::new(Int32Array::from(col_condition_flags)) as ArrayRef,
+            Arc::new(Int32Array::from(col_price_flags)) as ArrayRef,
+            Arc::new(Int32Array::from(col_volume_type)) as ArrayRef,
+            Arc::new(Int32Array::from(col_records_back)) as ArrayRef,
+            Arc::new(Int32Array::from(col_quote_ms_of_day)) as ArrayRef,
+            Arc::new(Int32Array::from(col_bid_size)) as ArrayRef,
+            Arc::new(Int32Array::from(col_bid_exchange)) as ArrayRef,
+            Arc::new(Float64Array::from(col_bid)) as ArrayRef,
+            Arc::new(Int32Array::from(col_bid_condition)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ask_size)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ask_exchange)) as ArrayRef,
+            Arc::new(Float64Array::from(col_ask)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ask_condition)) as ArrayRef,
+            Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
+            Arc::new(Float64Array::from(col_strike)) as ArrayRef,
+            Arc::new(StringArray::from(col_right)) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::TradeQuoteTick]` slice into a
+    /// `pyarrow.Table` without materialising typed pyclass instances.
+    /// Primary fast path for historical endpoints — avoids the
+    /// double-buffering RSS spike of the pyclass-list converter.
+    pub(crate) fn trade_quote_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::TradeQuoteTick]) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_trade_quote_tick_slice(ticks)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    fn read_arrow_batch_from_trade_tick_slice(ticks: &[tick::TradeTick]) -> PyResult<RecordBatch> {
+        let schema = arrow_schema_for_qualname("TradeTick").expect("generated schema must be present for TradeTick");
+        let n = ticks.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(n);
+        let mut col_condition: Vec<i32> = Vec::with_capacity(n);
+        let mut col_size: Vec<i32> = Vec::with_capacity(n);
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(n);
+        let mut col_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_condition_flags: Vec<i32> = Vec::with_capacity(n);
+        let mut col_price_flags: Vec<i32> = Vec::with_capacity(n);
+        let mut col_volume_type: Vec<i32> = Vec::with_capacity(n);
+        let mut col_records_back: Vec<i32> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
+        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
+        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        for t in ticks {
+            col_ms_of_day.push(t.ms_of_day);
+            col_sequence.push(t.sequence);
+            col_ext_condition1.push(t.ext_condition1);
+            col_ext_condition2.push(t.ext_condition2);
+            col_ext_condition3.push(t.ext_condition3);
+            col_ext_condition4.push(t.ext_condition4);
+            col_condition.push(t.condition);
+            col_size.push(t.size);
+            col_exchange.push(t.exchange);
+            col_price.push(t.price);
+            col_condition_flags.push(t.condition_flags);
+            col_price_flags.push(t.price_flags);
+            col_volume_type.push(t.volume_type);
+            col_records_back.push(t.records_back);
+            col_date.push(t.date);
+            col_expiration.push(t.expiration);
+            col_strike.push(t.strike);
+            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+        }
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
+            Arc::new(Int32Array::from(col_sequence)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition1)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition2)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition3)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition4)) as ArrayRef,
+            Arc::new(Int32Array::from(col_condition)) as ArrayRef,
+            Arc::new(Int32Array::from(col_size)) as ArrayRef,
+            Arc::new(Int32Array::from(col_exchange)) as ArrayRef,
+            Arc::new(Float64Array::from(col_price)) as ArrayRef,
+            Arc::new(Int32Array::from(col_condition_flags)) as ArrayRef,
+            Arc::new(Int32Array::from(col_price_flags)) as ArrayRef,
+            Arc::new(Int32Array::from(col_volume_type)) as ArrayRef,
+            Arc::new(Int32Array::from(col_records_back)) as ArrayRef,
+            Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
+            Arc::new(Float64Array::from(col_strike)) as ArrayRef,
+            Arc::new(StringArray::from(col_right)) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::TradeTick]` slice into a
+    /// `pyarrow.Table` without materialising typed pyclass instances.
+    /// Primary fast path for historical endpoints — avoids the
+    /// double-buffering RSS spike of the pyclass-list converter.
+    pub(crate) fn trade_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::TradeTick]) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_trade_tick_slice(ticks)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+}
