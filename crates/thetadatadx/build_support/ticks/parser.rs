@@ -125,13 +125,33 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
         }
     }
 
-    // Required header guards (non-eod only).
+    // Required header guards (non-eod only). A missing required header on a
+    // non-empty response is a schema drift: silently returning `Ok(vec![])`
+    // masked real data loss for ~1M-row `TradeQuoteTick` responses (P11).
+    // Now we raise `DecodeError::MissingRequiredHeader` whenever the server
+    // returns rows without the declared header. Empty responses ("no trades
+    // today") still return `Ok(vec![])` because a vendor holiday / symbol
+    // with no activity is legitimate.
     if !def.eod_style {
         for req in &def.required {
             let var = format!("{req}_idx");
-            writeln!(out,
-                "    let Some({var}) = find_header(&h, \"{req}\") else {{\n        return Ok(vec![]);\n    }};"
-            ).unwrap();
+            writeln!(
+                out,
+                "    let {var} = match find_header(&h, \"{req}\") {{\n\
+                 \x20       Some(i) => i,\n\
+                 \x20       None => {{\n\
+                 \x20           if table.data_table.is_empty() {{\n\
+                 \x20               return Ok(vec![]);\n\
+                 \x20           }}\n\
+                 \x20           return Err(DecodeError::MissingRequiredHeader {{\n\
+                 \x20               header: \"{req}\",\n\
+                 \x20               rows: table.data_table.len(),\n\
+                 \x20               available: h.join(\",\"),\n\
+                 \x20           }});\n\
+                 \x20       }}\n\
+                 \x20   }};"
+            )
+            .unwrap();
         }
         if !def.required.is_empty() {
             out.push('\n');

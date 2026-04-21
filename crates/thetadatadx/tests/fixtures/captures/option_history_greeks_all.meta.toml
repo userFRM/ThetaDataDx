@@ -1,0 +1,27 @@
+# Captured from prod MDDS for SPY 2024-06-21 500 CALL 2024-06-14 via:
+#   tdx option history_greeks_all SPY 20240621 500 C 20240614 5m
+# Single chunk, 79 rows (market hours / 5 min).
+
+endpoint = "option_history_greeks_all"
+tick_type = "GreeksTick"
+expected_rows = 79
+expected_headers = [
+    "symbol", "expiration", "strike", "right",
+    "timestamp", "bid", "ask",
+    "delta", "theta", "vega", "rho",
+    "epsilon", "lambda", "gamma", "vanna", "charm",
+    "vomma", "veta", "vera", "speed", "zomma", "color", "ultima",
+    "d1", "d2", "dual_delta", "dual_gamma",
+    "implied_vol", "iv_error",
+    "underlying_timestamp", "underlying_price",
+]
+
+# First row = market open 09:30:00 EDT → 34_200_000.
+first_row_ms_of_day = 34200000
+first_row_expiration = 20240621
+first_row_strike = 500.0
+first_row_right = 67   # ASCII 'C'
+# Anchor a few invariants rather than every Greek — values are 0 except
+# a clamped delta sentinel of 0.99999 (deep ITM call, no quote at open).
+first_row_delta = 0.99999
+first_row_iv_error = 100.0

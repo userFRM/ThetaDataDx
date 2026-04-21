@@ -1,0 +1,32 @@
+# Captured from prod MDDS for AAPL 2024-01-02 via:
+#   tdx stock history_trade_quote AAPL 20240102
+# First chunk only (full-day response is ~117 chunks, 12 MB, 955_237 rows).
+# This is the fixture that would have caught P11 at PR time — before the
+# fix the TradeQuoteTick parser returned 0 rows because the server sends
+# `trade_timestamp` / `quote_timestamp`, not `ms_of_day` / `quote_ms_of_day`.
+
+endpoint = "stock_history_trade_quote"
+tick_type = "TradeQuoteTick"
+expected_rows = 8192
+expected_headers = [
+    "trade_timestamp", "quote_timestamp", "sequence",
+    "ext_condition1", "ext_condition2", "ext_condition3", "ext_condition4",
+    "condition", "size", "exchange", "price",
+    "bid_size", "bid_exchange", "bid", "bid_condition",
+    "ask_size", "ask_exchange", "ask", "ask_condition",
+]
+
+# First-row values anchored from the captured response. 09:30:00.011 ET
+# → ms_of_day = 34_200_011 (9 * 3600 + 30 * 60 seconds into the day,
+# plus 11 ms).
+first_row_ms_of_day = 34200011
+first_row_quote_ms_of_day = 34200011
+first_row_sequence = 14920
+first_row_size = 2
+first_row_exchange = 7
+first_row_price = 187.18
+first_row_bid = 187.10
+first_row_ask = 187.19
+first_row_bid_size = 31
+first_row_ask_size = 1
+first_row_condition = 1

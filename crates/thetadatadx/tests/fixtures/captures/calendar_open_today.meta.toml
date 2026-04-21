@@ -1,0 +1,16 @@
+# Captured from prod MDDS on 2026-04-21 (open day) via:
+#   tdx calendar open_today
+# Single-row response. The v3 server omits the `date` column; the
+# hand-written `parse_calendar_days_v3` decoder fills it with 0.
+
+endpoint = "calendar_open_today"
+tick_type = "CalendarDay"
+expected_rows = 1
+expected_headers = ["type", "open", "close"]
+
+# First row: regular open session, 09:30 - 16:00 ET.
+first_row_is_open = 1
+first_row_open_time = 34200000   # 09:30:00.000 ET in ms.
+first_row_close_time = 57600000  # 16:00:00.000 ET in ms.
+first_row_status = 0             # CALENDAR_STATUS_OPEN.
+first_row_date = 0               # server omits; parser defaults to 0.
