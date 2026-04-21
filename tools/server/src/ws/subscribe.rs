@@ -274,9 +274,8 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
                     right = got_str,
                     "WS subscribe: option 'right' must be one of C/CALL/P/PUT"
                 );
-                let err_msg = format!(
-                    "'right' must be one of 'C' / 'CALL' / 'P' / 'PUT' (got {got_str:?})"
-                );
+                let err_msg =
+                    format!("'right' must be one of 'C' / 'CALL' / 'P' / 'PUT' (got {got_str:?})");
                 let resp = sonic_rs::json!({
                     "header": {
                         "type": "REQ_RESPONSE",

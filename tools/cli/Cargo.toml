@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-cli"
-version = "7.3.1"
+version = "8.0.0"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
