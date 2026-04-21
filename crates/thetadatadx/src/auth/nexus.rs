@@ -94,9 +94,13 @@ pub struct AuthResponse {
 
 impl std::fmt::Debug for AuthResponse {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // `user` carries the caller's email; keep it behind the same
+        // `<redacted>` marker the `Credentials` Debug impl uses so
+        // panics / `tracing::error!("{:?}", resp)` / crash dumps cannot
+        // leak the email.
         f.debug_struct("AuthResponse")
             .field("session_id", &"***")
-            .field("user", &self.user)
+            .field("user", &"<redacted>")
             .field("session_created", &self.session_created)
             .finish()
     }
@@ -107,7 +111,11 @@ impl std::fmt::Debug for AuthResponse {
 /// The Nexus API returns per-asset subscription tiers. The Java terminal uses
 /// these to compute concurrency limits: `2^tier` where FREE=0, VALUE=1,
 /// STANDARD=2, PROFESSIONAL=3.
-#[derive(Debug, Deserialize)]
+///
+/// `Debug` is implemented manually so `email` never lands in panic
+/// output / tracing diagnostics / FFI `repr()`. The subscription
+/// tiers are safe to print (integers with no PII).
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthUser {
     pub email: Option<String>,
@@ -120,6 +128,21 @@ pub struct AuthUser {
     pub indices_subscription: Option<i32>,
     #[serde(default)]
     pub interest_rate_subscription: Option<i32>,
+}
+
+impl std::fmt::Debug for AuthUser {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AuthUser")
+            .field("email", &"<redacted>")
+            .field("stock_subscription", &self.stock_subscription)
+            .field("options_subscription", &self.options_subscription)
+            .field("indices_subscription", &self.indices_subscription)
+            .field(
+                "interest_rate_subscription",
+                &self.interest_rate_subscription,
+            )
+            .finish()
+    }
 }
 
 impl AuthUser {
@@ -147,6 +170,27 @@ impl AuthUser {
         let tier = usize::try_from(tier).unwrap_or(0);
         1usize << tier // 2^tier: 1, 2, 4, 8
     }
+}
+
+// -- Redaction helpers --
+
+/// Compute a diagnostic-safe prefix of `email` for log output.
+///
+/// Returns up to the first 3 characters of the local part followed by
+/// `...@<domain>`. Empty or malformed addresses yield `<redacted>`.
+///
+/// The prefix is enough for operators to correlate a request with a
+/// tenant without exposing the full address in structured logs /
+/// crash reports.
+fn redacted_email_prefix(email: &str) -> String {
+    let Some((local, domain)) = email.split_once('@') else {
+        return "<redacted>".to_string();
+    };
+    if local.is_empty() || domain.is_empty() {
+        return "<redacted>".to_string();
+    }
+    let prefix: String = local.chars().take(3).collect();
+    format!("{prefix}...@{domain}")
 }
 
 // -- Public API --
@@ -198,8 +242,13 @@ pub async fn authenticate(creds: &Credentials) -> Result<AuthResponse, Error> {
         password: &creds.password,
     };
 
+    // Log the email prefix rather than the full address: full emails in
+    // structured logs / crash reports are recoverable PII even when the
+    // password is zeroized. The prefix is enough for operators to
+    // correlate a request with a tenant without exposing the full
+    // address.
     tracing::debug!(
-        email = %creds.email,
+        email_prefix = %redacted_email_prefix(&creds.email),
         url = NEXUS_AUTH_URL,
         "authenticating against Nexus API"
     );
@@ -319,5 +368,98 @@ mod tests {
         let dbg = format!("{resp:?}");
         assert!(!dbg.contains("11111111"), "session_id leaked: {dbg}");
         assert!(dbg.contains("***"), "session_id not redacted: {dbg}");
+    }
+
+    /// Finding #5 coverage: the `AuthResponse` Debug impl must NOT leak
+    /// the caller's email even when a populated `user` is carried.
+    /// Before this fix the nested `AuthUser.email` field rendered
+    /// in-place, dumping the address into panic output / crash logs /
+    /// tracing diagnostics whenever `Debug::fmt(&resp)` ran.
+    #[test]
+    fn auth_response_debug_redacts_user_email() {
+        let resp = AuthResponse {
+            session_id: "22222222-3333-4444-5555-666666666666".to_string(),
+            user: Some(AuthUser {
+                email: Some("user@example.com".to_string()),
+                stock_subscription: Some(3),
+                options_subscription: Some(2),
+                indices_subscription: None,
+                interest_rate_subscription: None,
+            }),
+            session_created: None,
+        };
+        let dbg = format!("{resp:?}");
+        assert!(
+            !dbg.contains("user@example.com"),
+            "AuthResponse Debug leaked email: {dbg}"
+        );
+        assert!(
+            dbg.contains("<redacted>"),
+            "AuthResponse Debug missing redaction marker: {dbg}"
+        );
+    }
+
+    /// Finding #5 coverage: the `AuthUser` Debug impl must NOT leak
+    /// the caller's email when rendered standalone (e.g. when the
+    /// struct is placed inside a `#[derive(Debug)]` parent elsewhere
+    /// in the crate).
+    #[test]
+    fn auth_user_debug_redacts_email() {
+        let user = AuthUser {
+            email: Some("sensitive@test.com".to_string()),
+            stock_subscription: Some(1),
+            options_subscription: None,
+            indices_subscription: None,
+            interest_rate_subscription: None,
+        };
+        let dbg = format!("{user:?}");
+        assert!(
+            !dbg.contains("sensitive@test.com"),
+            "AuthUser Debug leaked email: {dbg}"
+        );
+        assert!(
+            dbg.contains("<redacted>"),
+            "AuthUser Debug missing redaction marker: {dbg}"
+        );
+        // Subscription tiers must still render (they're safe operator
+        // diagnostics and not PII).
+        assert!(
+            dbg.contains("stock_subscription"),
+            "AuthUser Debug must still expose subscription tiers: {dbg}"
+        );
+    }
+
+    /// Finding #5 coverage for the tracing path: `redacted_email_prefix`
+    /// is the helper that replaces the raw `email = %creds.email`
+    /// field. Returns at most 3 chars of the local part, then
+    /// `...@<domain>`. The local part is never rendered in full.
+    #[test]
+    fn redacted_email_prefix_truncates_local_part() {
+        let p = redacted_email_prefix("alice@example.com");
+        assert_eq!(p, "ali...@example.com");
+        assert!(
+            !p.contains("alice"),
+            "redacted prefix must not contain the full local part: {p}"
+        );
+    }
+
+    #[test]
+    fn redacted_email_prefix_handles_short_local_part() {
+        // Local parts shorter than 3 chars render in full; they carry
+        // so little identifying information that masking is wasted,
+        // but the domain is the load-bearing part for tenant
+        // correlation anyway.
+        let p = redacted_email_prefix("ab@test.com");
+        assert_eq!(p, "ab...@test.com");
+    }
+
+    #[test]
+    fn redacted_email_prefix_rejects_malformed_input() {
+        // No `@` -> not a recoverable address shape -> fall back to
+        // the same `<redacted>` marker the Debug impls use.
+        assert_eq!(redacted_email_prefix("no-at-sign"), "<redacted>");
+        assert_eq!(redacted_email_prefix("@missing-local"), "<redacted>");
+        assert_eq!(redacted_email_prefix("missing-domain@"), "<redacted>");
+        assert_eq!(redacted_email_prefix(""), "<redacted>");
     }
 }

@@ -252,12 +252,14 @@ impl FpssClient {
 
         // Wait for METADATA (success) or DISCONNECTED (failure)
         // Source: FPSSClient.connect() -- blocks until login response arrives.
-        // `pending_connected` is set to true if the server emits CONNECTED
-        // (code 4) during the handshake; the io_loop forwards it as
-        // `FpssControl::Connected` on the event bus so user callbacks see
-        // it alongside the regular post-METADATA event stream.
-        let mut pending_connected = false;
-        let login_result = wait_for_login(&mut stream, &mut pending_connected)?;
+        // `pending_control` collects every typed control frame (`Connected`,
+        // `Ping`, `ReconnectedServer`, `Restart`) that arrives BEFORE
+        // METADATA, preserving wire order. The io_loop drains the buffer
+        // onto the event bus before `LoginSuccess` so user callbacks see
+        // the same sequence the post-METADATA `decode_frame` dispatch
+        // emits.
+        let mut pending_control: Vec<FpssControl> = Vec::new();
+        let login_result = wait_for_login(&mut stream, &mut pending_control)?;
 
         let permissions = match login_result {
             LoginResult::Success(permissions) => {
@@ -339,7 +341,7 @@ impl FpssClient {
                     io_authenticated,
                     io_contract_map,
                     permissions,
-                    pending_connected,
+                    pending_control,
                     io_server_addr,
                     derive_ohlcvc,
                     flush_mode,

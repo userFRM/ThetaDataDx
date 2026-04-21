@@ -205,17 +205,33 @@ impl Contract {
     /// OCC-21 option identifier length (6 root + 6 YYMMDD + 1 side + 8 strike).
     const OCC21_LEN: usize = 21;
 
-    /// Validate that a candidate root ticker is 1..=6 ASCII uppercase letters
-    /// optionally containing a single `.` (e.g. `"BRK.B"`). Multiple dots
-    /// are rejected — industry-practice single-dot compound tickers like
-    /// `"BRK.A"` / `"BRK.B"` / `"RDS.A"` never carry more than one dot,
-    /// and allowing `"A..B"` would let callers sneak past the shape check
-    /// with unconventional symbols that fail downstream exchange lookups.
-    /// Returns an `Error::Config` with the offending input on failure.
+    /// Maximum root length the wire codec accepts
+    /// (`Contract::to_bytes` / `Contract::from_bytes`). The parser
+    /// matches this upper bound so `from_str` / `to_bytes` / `from_bytes`
+    /// round-trip symmetrically -- the wire format is the ground truth
+    /// for what the terminal can see. Widening from the previous 6-char
+    /// cap admits upstream sources that ship longer roots (14+ char
+    /// instrument identifiers observed on some non-equity feeds) without
+    /// requiring parser-side special-casing.
+    pub(crate) const MAX_ROOT_LEN: usize = 16;
+    /// Validate that a candidate root ticker is 1..=`MAX_ROOT_LEN` ASCII
+    /// uppercase letters optionally containing a single `.` (e.g.
+    /// `"BRK.B"`). Multiple dots are rejected -- industry-practice
+    /// single-dot compound tickers like `"BRK.A"` / `"BRK.B"` /
+    /// `"RDS.A"` never carry more than one dot, and allowing `"A..B"`
+    /// would let callers sneak past the shape check with unconventional
+    /// symbols that fail downstream exchange lookups.
+    ///
+    /// The length ceiling matches `Contract::to_bytes`, which accepts
+    /// roots up to 16 bytes; widening the parser to the wire limit
+    /// keeps `from_str` / `to_bytes` / `from_bytes` round-trip
+    /// symmetric. Returns an `Error::Config` with the offending input
+    /// on failure.
     fn validate_root(input: &str, root: &str) -> Result<(), Error> {
-        if root.is_empty() || root.len() > 6 {
+        if root.is_empty() || root.len() > Self::MAX_ROOT_LEN {
             return Err(Error::Config(format!(
-                "Contract::from_str: root must be 1..=6 chars, got {} chars in {input:?}",
+                "Contract::from_str: root must be 1..={} chars, got {} chars in {input:?}",
+                Self::MAX_ROOT_LEN,
                 root.len()
             )));
         }
@@ -1287,17 +1303,19 @@ mod tests {
     #[test]
     fn from_str_wrong_length_garbage() {
         use std::str::FromStr;
-        // 10 chars — neither a root (<=6) nor OCC-21 (21). The parser
-        // pads to 21 and the strict parse fails at the right-byte slot.
-        let err = Contract::from_str("APPLETREES").unwrap_err().to_string();
-        // Any specific failure is fine; spec says the error must name a
-        // specific failure, so assert it's not a generic pass-through.
+        // 18 chars -- outside both the widened 1..=16 bare-root range
+        // and the 21-char OCC-21 range. Must surface a specific
+        // Contract::from_str error (not a generic pass-through) that
+        // includes the offending input.
+        let err = Contract::from_str("APPLETREESARECUTEST")
+            .unwrap_err()
+            .to_string();
         assert!(
             err.contains("Contract::from_str"),
             "expected Contract::from_str-prefixed error, got: {err}"
         );
         assert!(
-            err.contains("APPLETREES"),
+            err.contains("APPLETREESARECUTEST"),
             "expected error to include the offending input, got: {err}"
         );
     }
@@ -1325,11 +1343,79 @@ mod tests {
     #[test]
     fn from_str_root_too_long() {
         use std::str::FromStr;
-        // 7-char non-space root: not a valid bare root and not OCC-21 length.
-        let err = Contract::from_str("ABCDEFG").unwrap_err().to_string();
+        // 17-char non-space root: exceeds the MAX_ROOT_LEN (16) cap
+        // that matches `Contract::to_bytes()` / `Contract::from_bytes()`.
+        let err = Contract::from_str("ABCDEFGHIJKLMNOPQ")
+            .unwrap_err()
+            .to_string();
         assert!(
             err.contains("Contract::from_str"),
             "expected Contract::from_str-prefixed error, got: {err}"
+        );
+        assert!(
+            err.contains("1..=16"),
+            "expected error to name the widened length bound, got: {err}"
+        );
+    }
+
+    // -- Finding #4: Contract::from_str wire-codec parity ---------------------
+    //
+    // `to_bytes()` accepts roots up to 16 bytes (Java
+    // `Contract.toBytes()` matches); `from_bytes()` round-trips
+    // whatever the wire delivers. The bare-root parser must accept the
+    // same 1..=16 range so `from_str` / `to_bytes` / `from_bytes`
+    // round-trip symmetrically. Widening keeps 1..=6 behaviour
+    // unchanged (existing tests still pass) and adds 7..=16 as valid.
+
+    #[test]
+    fn from_str_accepts_seven_char_root() {
+        use std::str::FromStr;
+        let c = Contract::from_str("ABCDEFG").expect("7-char root must parse");
+        assert_eq!(c.root, "ABCDEFG");
+        assert_eq!(c.sec_type, SecType::Stock);
+    }
+
+    #[test]
+    fn from_str_accepts_root_at_max_length() {
+        use std::str::FromStr;
+        // 16 A's is the exact MAX_ROOT_LEN boundary.
+        let sixteen = "AAAAAAAAAAAAAAAA";
+        assert_eq!(sixteen.len(), 16);
+        let c = Contract::from_str(sixteen).expect("16-char root must parse");
+        assert_eq!(c.root, sixteen);
+        assert_eq!(c.sec_type, SecType::Stock);
+    }
+
+    #[test]
+    fn from_str_round_trip_wire_codec_for_widened_roots() {
+        use std::str::FromStr;
+        // Every root length 7..=16 must parse AND round-trip through
+        // the wire codec byte-for-byte. A regression that
+        // re-narrows the parser but leaves `to_bytes` unchanged would
+        // fail this loop on the first call.
+        for n in 7usize..=16 {
+            let root: String = "A".repeat(n);
+            let parsed = Contract::from_str(&root)
+                .unwrap_or_else(|_| panic!("from_str must accept {n}-char root"));
+            assert_eq!(parsed.root, root);
+            let wire = parsed.to_bytes();
+            let (decoded, consumed) = Contract::from_bytes(&wire)
+                .unwrap_or_else(|_| panic!("from_bytes must decode {n}-char root"));
+            assert_eq!(decoded, parsed, "round-trip must preserve the contract");
+            assert_eq!(consumed, wire.len(), "consumed must equal wire length");
+        }
+    }
+
+    #[test]
+    fn from_str_rejects_root_over_max_length() {
+        use std::str::FromStr;
+        // 17 chars exceeds the MAX_ROOT_LEN cap.
+        let seventeen = "ABCDEFGHIJKLMNOPQ";
+        assert_eq!(seventeen.len(), 17);
+        let err = Contract::from_str(seventeen).unwrap_err().to_string();
+        assert!(
+            err.contains("1..=16"),
+            "expected error to name the 1..=16 bound, got: {err}"
         );
     }
 

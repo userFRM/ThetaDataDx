@@ -36,6 +36,80 @@ use super::protocol::READ_TIMEOUT_MS;
 /// Source: `PacketStream.java` -- the length field is one byte.
 pub const MAX_PAYLOAD_LEN: usize = 255;
 
+/// Wall-clock cap on the mid-frame retry budget.
+///
+/// The I/O loop drains outbound commands (ping heartbeats, subscribe /
+/// unsubscribe writes, shutdown) between `read_frame_into` returns. The
+/// 50 ms blocking-read timeout on the TLS socket is the primary drain
+/// cadence. A partial-frame arrival used to loop internally for up to
+/// `READ_TIMEOUT_MS` (10 s) — and indefinitely when bytes kept
+/// trickling in before each per-stall deadline — which stalled the
+/// command drain for seconds at a time.
+///
+/// This cap bounds the total wall-clock time the mid-frame reader will
+/// spend retrying before it yields control back to the I/O loop via
+/// `FpssErrorKind::ProtocolError` with a `DRAIN_YIELD_MARKER` substring.
+/// At 200 ms it is 4× the 50 ms drain cadence, generous enough for
+/// normal TCP gaps yet tight enough that a pathological trickler cannot
+/// block heartbeats past the 2 s Java-side ping grace.
+pub const MID_FRAME_DRAIN_WINDOW_MS: u64 = 200;
+
+/// Marker substring the I/O loop matches to recognise a drain-yield
+/// error. The full error is a regular `ProtocolError` so it fits the
+/// existing error taxonomy; the substring lets the loop pattern-match
+/// without plumbing a new enum variant through every downstream
+/// consumer (FFI / Python bindings / SDK surfaces).
+pub(crate) const DRAIN_YIELD_MARKER: &str = "drain-yield: bounded retry budget exceeded";
+
+/// Per-frame read resumption state.
+///
+/// Threaded through `read_frame_into` so the I/O loop can yield to
+/// drain outbound commands mid-frame and then re-enter the reader
+/// without losing the bytes already delivered by the TLS socket. Each
+/// call to `read_frame_into` reads zero or more bytes, updates the
+/// state in place, and either returns a fully decoded frame
+/// (`Ok(Some(...))`) or yields (`Err(ProtocolError)` carrying the
+/// `DRAIN_YIELD_MARKER` substring).
+///
+/// The state is sized with the wire layout: 2 header bytes then up to
+/// `MAX_PAYLOAD_LEN` payload bytes. No heap allocations on the hot
+/// path — the embedded `header_buf` is a fixed `[u8; 2]` and the
+/// payload bytes live in the caller-owned `Vec<u8>`.
+#[derive(Debug, Default, Clone)]
+pub struct FrameReadState {
+    /// Bytes read so far into the 2-byte header. 0, 1, or 2.
+    header_read: u8,
+    /// Decoded header bytes. Meaningful only once `header_read == 2`.
+    header_buf: [u8; 2],
+    /// `true` once the header is complete and we're reading payload.
+    payload_phase: bool,
+    /// Bytes read so far into the payload. 0..=payload_len.
+    payload_read: usize,
+    /// Expected payload length. Meaningful only during `payload_phase`.
+    payload_len: usize,
+    /// Count of consecutive unknown codes observed during this
+    /// resumption chain. Resets when a known frame is returned.
+    consecutive_unknown: usize,
+}
+
+impl FrameReadState {
+    /// Build a fresh resumption state for the start of a new frame.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// `true` when no bytes of the current frame have been read yet.
+    /// The I/O loop uses this to skip the drain-yield error re-entry
+    /// when the reader is idle (fresh frame boundary) -- in that
+    /// case the caller can treat the error as "try again later"
+    /// without worrying about desync.
+    #[must_use]
+    pub fn is_idle(&self) -> bool {
+        self.header_read == 0 && !self.payload_phase
+    }
+}
+
 /// A decoded FPSS frame: message code + payload bytes.
 ///
 /// The `code` is the raw `StreamMsgType` enum value. Payload is a `Vec<u8>`
@@ -70,38 +144,69 @@ const MAX_CONSECUTIVE_UNKNOWN_CODES: usize = 5;
 /// Read the 2-byte FPSS header.
 ///
 /// Thin wrapper that plugs the production [`READ_TIMEOUT_MS`] deadline
-/// into [`read_header_with_timeout`]. Splitting the function lets tests
-/// exercise the timeout/retry contract with a short deadline.
-fn read_header<R: Read>(reader: &mut R) -> Result<Option<[u8; 2]>, crate::error::Error> {
-    read_header_with_timeout(reader, Duration::from_millis(READ_TIMEOUT_MS))
+/// and the production [`MID_FRAME_DRAIN_WINDOW_MS`] drain budget into
+/// [`read_header_with_timeout`]. Splitting the function lets tests
+/// exercise the timeout/retry contract with a short deadline and a
+/// short drain budget independently.
+fn read_header<R: Read>(
+    reader: &mut R,
+    state: &mut FrameReadState,
+) -> Result<Option<[u8; 2]>, crate::error::Error> {
+    read_header_with_timeout(
+        reader,
+        state,
+        Duration::from_millis(READ_TIMEOUT_MS),
+        Duration::from_millis(MID_FRAME_DRAIN_WINDOW_MS),
+    )
 }
 
-/// Read the 2-byte FPSS header with a configurable per-stall timeout.
+/// Read the 2-byte FPSS header with configurable per-stall timeout
+/// and drain-yield budget.
 ///
 /// Byte-for-byte match with Java `PacketStream2.readCopy` +
-/// `socket.setSoTimeout(10_000)`:
+/// `socket.setSoTimeout(10_000)` on the per-stall half; a
+/// `drain_budget` yield on top. Contract:
 /// - EOF before any byte → `Ok(None)` (graceful server close).
-/// - Pre-header `WouldBlock` / `TimedOut` (n == 0) → propagate as `Error::Io`
-///   so `io_loop::is_read_timeout` drains pings + command queue.
-/// - Mid-header `WouldBlock` / `TimedOut` (n > 0) → retry. The stall
-///   deadline is **re-armed on every successful byte**, matching Java's
-///   per-`read()` `setSoTimeout` semantics. Only fatal if we go
-///   `stall_timeout` without any forward progress.
+/// - Pre-header `WouldBlock` / `TimedOut` (n == 0) → propagate as
+///   `Error::Io` so `io_loop::is_read_timeout` drains pings +
+///   command queue.
+/// - Mid-header `WouldBlock` / `TimedOut` (n > 0) → retry. The
+///   stall deadline is **re-armed on every successful byte**,
+///   matching Java's per-`read()` `setSoTimeout` semantics. Fatal
+///   if `stall_timeout` elapses without any forward progress.
+/// - Mid-header retries exceeding `drain_budget` of aggregate
+///   wall-clock time → return a `ProtocolError` carrying the
+///   [`DRAIN_YIELD_MARKER`] so the I/O loop recognizes the yield,
+///   drains outbound commands, and re-enters the reader. The
+///   partial header bytes are preserved on `state` so the next
+///   call resumes from byte `state.header_read` without desync.
 ///
-/// Earlier revisions treated the first mid-header `WouldBlock` as a fatal
-/// desync. Captured raw-byte dumps on both dev and prod showed the bytes
-/// were valid frames that arrived 50-76 ms after the first `WouldBlock`;
-/// aggressive escalation caused a reconnect storm whose downstream effects
-/// accounted for the spurious "unknown message code" reports (#192, #369).
+/// Earlier revisions treated the first mid-header `WouldBlock` as
+/// fatal desync. Captured raw-byte dumps on dev + prod showed the
+/// bytes were valid frames that arrived 50-76 ms after the first
+/// `WouldBlock`; aggressive escalation caused a reconnect storm
+/// whose downstream effects accounted for the spurious "unknown
+/// message code" reports (#192, #369).
 fn read_header_with_timeout<R: Read>(
     reader: &mut R,
+    state: &mut FrameReadState,
     stall_timeout: Duration,
+    drain_budget: Duration,
 ) -> Result<Option<[u8; 2]>, crate::error::Error> {
-    let mut header = [0u8; 2];
-    let mut n = 0usize;
     let mut stall_deadline: Option<Instant> = None;
+    let drain_deadline: Option<Instant> =
+        // Only arm the drain budget on the first call that makes any
+        // progress: a fresh invocation with zero bytes in flight must
+        // keep the pre-header WouldBlock semantics unchanged (the
+        // caller drains pings + commands on `Error::Io`).
+        if state.header_read > 0 {
+            Some(Instant::now() + drain_budget)
+        } else {
+            None
+        };
     loop {
-        match reader.read(&mut header[n..]) {
+        let n = state.header_read as usize;
+        match reader.read(&mut state.header_buf[n..]) {
             Ok(0) if n == 0 => return Ok(None),
             Ok(0) => {
                 return Err(crate::error::Error::Fpss {
@@ -112,9 +217,10 @@ fn read_header_with_timeout<R: Read>(
             Ok(read) => {
                 // Forward progress — re-arm the stall clock for the next gap.
                 stall_deadline = None;
-                n += read;
-                if n >= 2 {
-                    return Ok(Some(header));
+                let new_n = n + read;
+                state.header_read = u8::try_from(new_n).unwrap_or(2);
+                if new_n >= 2 {
+                    return Ok(Some(state.header_buf));
                 }
             }
             Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof && n == 0 => return Ok(None),
@@ -132,9 +238,26 @@ fn read_header_with_timeout<R: Read>(
                         std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
                     ) =>
             {
-                let deadline =
-                    *stall_deadline.get_or_insert_with(|| Instant::now() + stall_timeout);
-                if Instant::now() >= deadline {
+                // Drain-yield: the aggregate wall-clock cap exists so
+                // the command drain cannot be starved by a trickling
+                // sender. The partial header bytes are preserved on
+                // `state` so the next call resumes at byte
+                // `state.header_read`.
+                let now = Instant::now();
+                if let Some(db) = drain_deadline {
+                    if now >= db {
+                        return Err(crate::error::Error::Fpss {
+                            kind: crate::error::FpssErrorKind::ProtocolError,
+                            message: format!(
+                                "{DRAIN_YIELD_MARKER}: mid-header after {n} of 2 byte(s) \
+                                 (budget {} ms): {e}",
+                                drain_budget.as_millis()
+                            ),
+                        });
+                    }
+                }
+                let deadline = *stall_deadline.get_or_insert(now + stall_timeout);
+                if now >= deadline {
                     return Err(crate::error::Error::Fpss {
                         kind: crate::error::FpssErrorKind::ProtocolError,
                         message: format!(
@@ -153,35 +276,62 @@ fn read_header_with_timeout<R: Read>(
 /// Read exactly `buf.len()` bytes of payload.
 ///
 /// Thin wrapper that plugs the production [`READ_TIMEOUT_MS`] deadline
-/// into [`read_exact_payload_with_timeout`]. Splitting the function lets
+/// and the [`MID_FRAME_DRAIN_WINDOW_MS`] drain budget into
+/// [`read_exact_payload_with_timeout`]. Splitting the function lets
 /// tests exercise the timeout/retry contract with a short deadline.
-fn read_exact_payload<R: Read>(reader: &mut R, buf: &mut [u8]) -> Result<(), crate::error::Error> {
-    read_exact_payload_with_timeout(reader, buf, Duration::from_millis(READ_TIMEOUT_MS))
+fn read_exact_payload<R: Read>(
+    reader: &mut R,
+    buf: &mut [u8],
+    state: &mut FrameReadState,
+) -> Result<(), crate::error::Error> {
+    read_exact_payload_with_timeout(
+        reader,
+        buf,
+        state,
+        Duration::from_millis(READ_TIMEOUT_MS),
+        Duration::from_millis(MID_FRAME_DRAIN_WINDOW_MS),
+    )
 }
 
-/// Read exactly `buf.len()` bytes of payload with a configurable per-stall timeout.
+/// Read exactly `buf.len()` bytes of payload with configurable
+/// per-stall timeout and drain-yield budget.
 ///
-/// Matches Java `DataInputStream.readNBytes` + `setSoTimeout(10_000)`:
-/// every `WouldBlock` / `TimedOut` re-arms a fresh `stall_timeout` deadline
-/// **from the last successful byte of progress**, not from function entry.
-/// A stream that dribbles data in slowly but steadily is fine; only
+/// Matches Java `DataInputStream.readNBytes` +
+/// `setSoTimeout(10_000)` on the per-stall half: every `WouldBlock` /
+/// `TimedOut` re-arms a fresh `stall_timeout` deadline from the last
+/// successful byte of progress, not from function entry. A stream
+/// that dribbles data in slowly but steadily is fine; only
 /// `stall_timeout` of total silence fails.
 ///
-/// Earlier revisions treated the first `WouldBlock` as a fatal desync.
-/// Raw-byte tap captures on dev and prod showed every "corruption" event
-/// was a valid frame that finished arriving 50-76 ms after the first
-/// `WouldBlock`. Java tolerates that gap silently; so do we now.
+/// `drain_budget` is the aggregate wall-clock cap that bounds the
+/// total time this function can spend retrying before yielding
+/// control to the I/O loop. On yield the function returns a
+/// `ProtocolError` carrying [`DRAIN_YIELD_MARKER`] and updates
+/// `state.payload_read` so the next call resumes from the exact byte
+/// offset. Without this budget, a pathological sender dribbling one
+/// byte every `stall_timeout - 1 ms` could block the command drain
+/// for up to `stall_timeout * payload_len / byte` seconds -- the
+/// ping / subscribe / shutdown queue would stall behind it.
 ///
-/// `Interrupted` is retried (POSIX signal wakeups are benign). `EOF` and
-/// going `stall_timeout` without progress are still fatal.
+/// Earlier revisions treated the first `WouldBlock` as a fatal
+/// desync. Raw-byte tap captures on dev + prod showed every
+/// "corruption" event was a valid frame that finished arriving
+/// 50-76 ms after the first `WouldBlock`. Java tolerates that gap
+/// silently; so do we now, bounded by the drain-yield budget.
+///
+/// `Interrupted` is retried (POSIX signal wakeups are benign).
+/// `EOF` and going `stall_timeout` without progress are still fatal.
 fn read_exact_payload_with_timeout<R: Read>(
     reader: &mut R,
     buf: &mut [u8],
+    state: &mut FrameReadState,
     stall_timeout: Duration,
+    drain_budget: Duration,
 ) -> Result<(), crate::error::Error> {
-    let mut n = 0usize;
     let mut stall_deadline: Option<Instant> = None;
-    while n < buf.len() {
+    let drain_deadline: Instant = Instant::now() + drain_budget;
+    while state.payload_read < buf.len() {
+        let n = state.payload_read;
         match reader.read(&mut buf[n..]) {
             Ok(0) => {
                 return Err(crate::error::Error::Fpss {
@@ -192,7 +342,7 @@ fn read_exact_payload_with_timeout<R: Read>(
             Ok(k) => {
                 // Forward progress — re-arm the stall clock for the next gap.
                 stall_deadline = None;
-                n += k;
+                state.payload_read = n + k;
             }
             Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
             Err(e)
@@ -201,9 +351,25 @@ fn read_exact_payload_with_timeout<R: Read>(
                     std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
                 ) =>
             {
-                let deadline =
-                    *stall_deadline.get_or_insert_with(|| Instant::now() + stall_timeout);
-                if Instant::now() >= deadline {
+                // Drain-yield: the aggregate wall-clock cap exists so
+                // the command drain cannot be starved by a trickling
+                // sender. The partial payload bytes are preserved
+                // on `state.payload_read` so the next call resumes
+                // from the exact byte offset.
+                let now = Instant::now();
+                if now >= drain_deadline {
+                    return Err(crate::error::Error::Fpss {
+                        kind: crate::error::FpssErrorKind::ProtocolError,
+                        message: format!(
+                            "{DRAIN_YIELD_MARKER}: mid-payload after {n} of {} byte(s) \
+                             (budget {} ms): {e}",
+                            buf.len(),
+                            drain_budget.as_millis()
+                        ),
+                    });
+                }
+                let deadline = *stall_deadline.get_or_insert(now + stall_timeout);
+                if now >= deadline {
                     return Err(crate::error::Error::Fpss {
                         kind: crate::error::FpssErrorKind::ProtocolError,
                         message: format!(
@@ -240,6 +406,14 @@ pub(crate) fn is_binary_payload(payload: &[u8]) -> bool {
 /// calls with similarly-sized frames hit zero allocator calls after the
 /// first frame.
 ///
+/// # Resumable reads
+///
+/// The `state` argument carries partial-frame progress across calls.
+/// On a drain-yield error the state is updated to record the exact
+/// byte offset in the header or payload, so the next call resumes
+/// without desync. When a full frame is returned, the state is
+/// reset to idle for the next frame.
+///
 /// # Unknown message codes
 ///
 /// Frames with unrecognized codes are silently skipped (payload consumed
@@ -251,44 +425,67 @@ pub(crate) fn is_binary_payload(payload: &[u8]) -> bool {
 pub fn read_frame_into<R: Read>(
     reader: &mut R,
     buf: &mut Vec<u8>,
+    state: &mut FrameReadState,
 ) -> Result<Option<(StreamMsgType, usize)>, crate::error::Error> {
-    let mut consecutive_unknown = 0usize;
-
     loop {
-        buf.clear();
+        // Header phase: read bytes into `state.header_buf` until we
+        // have both. A drain-yield here preserves partial progress
+        // via `state.header_read`.
+        if !state.payload_phase {
+            let Some(header) = read_header(reader, state)? else {
+                // Clean EOF before any byte of this frame — reset the
+                // state to idle so the next caller-driven frame starts
+                // fresh if the stream reopens (reconnect path).
+                *state = FrameReadState::new();
+                return Ok(None);
+            };
 
-        let Some(header) = read_header(reader)? else {
-            return Ok(None);
-        };
+            let payload_len = header[0] as usize;
+            state.payload_len = payload_len;
+            state.payload_phase = true;
+            state.payload_read = 0;
 
-        let payload_len = header[0] as usize;
-        let code_byte = header[1];
-
-        // Always consume the payload to keep the stream aligned. A mid-payload
-        // timeout is fatal: the cursor is desynced and io_loop must reconnect
-        // (matches Java's PacketStream → IOException → reconnect path).
-        buf.resize(payload_len, 0);
-        if payload_len > 0 {
-            read_exact_payload(reader, buf)?;
+            // Always consume the payload to keep the stream aligned.
+            // The `buf.clear()` + `buf.resize()` is done here, at
+            // header completion, so we only allocate once per frame.
+            buf.clear();
+            buf.resize(payload_len, 0);
         }
+
+        // Payload phase: read bytes until `payload_len` are in buf.
+        // A drain-yield here preserves `state.payload_read`.
+        let payload_len = state.payload_len;
+        let code_byte = state.header_buf[1];
+        if payload_len > 0 {
+            read_exact_payload(reader, &mut buf[..payload_len], state)?;
+        }
+
+        // Frame complete — decide how to return based on the code.
+        // `state` is reset AFTER the code classification so a
+        // drain-yield above (pre-classification) would have carried
+        // the partial state through unchanged.
+        let consecutive_unknown = state.consecutive_unknown;
+        let reset_state = FrameReadState::new();
+        *state = reset_state;
 
         if let Some(code) = StreamMsgType::from_code(code_byte) {
             return Ok(Some((code, payload_len)));
         }
-        consecutive_unknown += 1;
-        if consecutive_unknown >= MAX_CONSECUTIVE_UNKNOWN_CODES {
+        let new_consecutive = consecutive_unknown + 1;
+        if new_consecutive >= MAX_CONSECUTIVE_UNKNOWN_CODES {
             return Err(crate::error::Error::Fpss {
                 kind: crate::error::FpssErrorKind::ProtocolError,
                 message: format!(
-                    "framing corruption: {consecutive_unknown} consecutive \
+                    "framing corruption: {new_consecutive} consecutive \
                      unknown message codes (last code: {code_byte})"
                 ),
             });
         }
+        state.consecutive_unknown = new_consecutive;
         tracing::debug!(
             code = code_byte,
             payload_len,
-            consecutive_unknown,
+            consecutive_unknown = new_consecutive,
             "skipping unknown FPSS message code"
         );
     }
@@ -296,20 +493,54 @@ pub fn read_frame_into<R: Read>(
 
 /// Read a single FPSS frame from a blocking reader.
 ///
-/// Convenience wrapper around [`read_frame_into`] that allocates a fresh
-/// `Vec<u8>` per call. Prefer `read_frame_into` on the hot path.
+/// Convenience wrapper that allocates a fresh `Vec<u8>` and
+/// `FrameReadState` per call, and **transparently retries on
+/// drain-yield**: the handshake and test paths that call this helper
+/// do not have a command drain to service, so the yield budget is
+/// not meaningful for them. A drain-yield here loops back into the
+/// reader with the same state so partial progress is preserved.
 ///
-/// Returns `None` on clean EOF (reader closed). Returns `Err` on partial reads
-/// or unknown message codes.
+/// Prefer `read_frame_into` on the hot path where the caller reuses
+/// the buffer and state across frames AND owns a command drain that
+/// needs to service yields.
+///
+/// Returns `None` on clean EOF (reader closed). Returns `Err` on
+/// partial reads, stall-timeouts, or unknown message codes.
 /// # Errors
 ///
 /// Returns an error on network, authentication, or parsing failure.
 pub fn read_frame<R: Read>(reader: &mut R) -> Result<Option<Frame>, crate::error::Error> {
     let mut buf = Vec::new();
-    match read_frame_into(reader, &mut buf)? {
-        Some((code, _len)) => Ok(Some(Frame { code, payload: buf })),
-        None => Ok(None),
+    let mut state = FrameReadState::new();
+    loop {
+        match read_frame_into(reader, &mut buf, &mut state) {
+            Ok(Some((code, _len))) => {
+                return Ok(Some(Frame { code, payload: buf }));
+            }
+            Ok(None) => return Ok(None),
+            Err(ref e) if is_drain_yield(e) => {
+                // No command drain to service on this path -- loop
+                // back immediately with the same resumption state so
+                // partial bytes are not lost.
+                continue;
+            }
+            Err(e) => return Err(e),
+        }
     }
+}
+
+/// `true` if an error is a drain-yield from a mid-frame reader. The
+/// I/O loop catches this in the read branch, drains outbound commands,
+/// and re-enters `read_frame_into` with the same `FrameReadState` so
+/// the partial frame resumes byte-for-byte.
+pub fn is_drain_yield(err: &crate::error::Error) -> bool {
+    matches!(
+        err,
+        crate::error::Error::Fpss {
+            kind: crate::error::FpssErrorKind::ProtocolError,
+            message,
+        } if message.contains(DRAIN_YIELD_MARKER)
+    )
 }
 
 /// Write a single FPSS frame to a blocking writer.
@@ -705,10 +936,18 @@ mod tests {
         std::io::Read::read_exact(&mut reader, &mut header).unwrap();
         assert_eq!(header, [0x04, StreamMsgType::Ping as u8]);
         let mut payload = [0u8; 4];
-        // First two payload bytes land; next reads stall forever.
-        let err =
-            read_exact_payload_with_timeout(&mut reader, &mut payload, Duration::from_millis(20))
-                .unwrap_err();
+        let mut state = FrameReadState::new();
+        // First two payload bytes land; next reads stall forever. Use a
+        // generous drain budget (1 s) so the stall-deadline escalation
+        // fires first -- this test asserts the per-stall failure path.
+        let err = read_exact_payload_with_timeout(
+            &mut reader,
+            &mut payload,
+            &mut state,
+            Duration::from_millis(20),
+            Duration::from_secs(1),
+        )
+        .unwrap_err();
         match err {
             crate::error::Error::Fpss { kind, message } => {
                 assert_eq!(kind, crate::error::FpssErrorKind::ProtocolError);
@@ -773,9 +1012,19 @@ mod tests {
             stalled_since_last_byte: false,
         };
         let mut payload = [0u8; 8];
+        let mut state = FrameReadState::new();
         let started = Instant::now();
-        read_exact_payload_with_timeout(&mut reader, &mut payload, Duration::from_millis(40))
-            .unwrap();
+        // Use a drain budget (500 ms) that's larger than the aggregate
+        // wall time (120 ms) so this test pins the per-stall reset
+        // semantics independently of the drain-yield path.
+        read_exact_payload_with_timeout(
+            &mut reader,
+            &mut payload,
+            &mut state,
+            Duration::from_millis(40),
+            Duration::from_millis(500),
+        )
+        .unwrap();
         let elapsed = started.elapsed();
         assert_eq!(payload, [1, 2, 3, 4, 5, 6, 7, 8]);
         assert!(
@@ -797,9 +1046,16 @@ mod tests {
         let mut header = [0u8; 2];
         std::io::Read::read_exact(&mut reader, &mut header).unwrap();
         let mut payload = [0u8; 3];
-        let err =
-            read_exact_payload_with_timeout(&mut reader, &mut payload, Duration::from_millis(20))
-                .unwrap_err();
+        let mut state = FrameReadState::new();
+        // Drain budget is generous (1 s) so the stall-deadline wins.
+        let err = read_exact_payload_with_timeout(
+            &mut reader,
+            &mut payload,
+            &mut state,
+            Duration::from_millis(20),
+            Duration::from_secs(1),
+        )
+        .unwrap_err();
         match err {
             crate::error::Error::Fpss { kind, message } => {
                 assert_eq!(kind, crate::error::FpssErrorKind::ProtocolError);
@@ -817,7 +1073,15 @@ mod tests {
             pos: 0,
             err_kind: std::io::ErrorKind::WouldBlock,
         };
-        let err = read_header_with_timeout(&mut reader, Duration::from_millis(20)).unwrap_err();
+        let mut state = FrameReadState::new();
+        // Drain budget generous (1 s) so the per-stall deadline trips first.
+        let err = read_header_with_timeout(
+            &mut reader,
+            &mut state,
+            Duration::from_millis(20),
+            Duration::from_secs(1),
+        )
+        .unwrap_err();
         match err {
             crate::error::Error::Fpss { kind, message } => {
                 assert_eq!(kind, crate::error::FpssErrorKind::ProtocolError);
@@ -858,5 +1122,283 @@ mod tests {
         assert_eq!(frame.payload.len(), 2);
         let reason = i16::from_be_bytes([frame.payload[0], frame.payload[1]]);
         assert_eq!(reason, 6);
+    }
+
+    // -- Finding #3 coverage: drain-yield + bounded retry budget -----------
+    //
+    // The mid-frame reader must not block the command drain for more than
+    // a small multiple of the 50 ms command-drain cadence. Previously a
+    // trickling sender could loop internally for up to 10 s (the full
+    // READ_TIMEOUT_MS) because the per-stall deadline reset on every
+    // successful byte. Now the aggregate drain-yield budget caps the total
+    // wall time in the reader; exceeding it returns a
+    // `ProtocolError` tagged with `DRAIN_YIELD_MARKER` so the I/O loop
+    // drains commands and re-enters with the preserved `FrameReadState`.
+
+    /// Bytes-at-a-time producer: delivers ONE byte, then WouldBlock
+    /// forever, then one more byte, etc. Each WouldBlock sleeps for
+    /// `sleep_per_stall` so the test can measure wall-clock behaviour
+    /// deterministically.
+    struct OneByteAtATime {
+        remaining: Vec<u8>,
+        sleep_per_stall: Duration,
+        stalled_since_last_byte: bool,
+    }
+
+    impl std::io::Read for OneByteAtATime {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            if self.remaining.is_empty() {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::WouldBlock,
+                    "exhausted; idle stall",
+                ));
+            }
+            if !self.stalled_since_last_byte {
+                self.stalled_since_last_byte = true;
+                std::thread::sleep(self.sleep_per_stall);
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::WouldBlock,
+                    "pre-byte stall",
+                ));
+            }
+            buf[0] = self.remaining.remove(0);
+            self.stalled_since_last_byte = false;
+            Ok(1)
+        }
+    }
+
+    /// Finding #3: a bytes-at-a-time producer with a 30 ms stall per
+    /// byte must NOT keep the mid-payload reader occupied past the
+    /// drain-yield budget. With an 80-byte payload and a 100 ms
+    /// drain budget, the reader must yield before consuming the
+    /// whole payload, preserving partial state. This is the exact
+    /// scenario the command drain needs to service heartbeats.
+    #[test]
+    fn mid_payload_bytes_at_a_time_yields_before_full_payload() {
+        let payload_size = 80;
+        let mut reader = OneByteAtATime {
+            remaining: (0..u8::try_from(payload_size).unwrap()).collect(),
+            sleep_per_stall: Duration::from_millis(30),
+            stalled_since_last_byte: false,
+        };
+        let mut payload = vec![0u8; payload_size];
+        let mut state = FrameReadState::new();
+        let started = Instant::now();
+        // Stall per-byte deadline = 60 ms (longer than the per-byte
+        // sleep so the stall-deadline alone would NOT trip).
+        // Drain budget = 100 ms (shorter than the aggregate 30 × 80 =
+        // 2400 ms wall time the trickler would otherwise burn).
+        let err = read_exact_payload_with_timeout(
+            &mut reader,
+            &mut payload,
+            &mut state,
+            Duration::from_millis(60),
+            Duration::from_millis(100),
+        )
+        .unwrap_err();
+        let elapsed = started.elapsed();
+
+        // The error must be a drain-yield, not a per-stall fatal.
+        match &err {
+            crate::error::Error::Fpss { kind, message } => {
+                assert_eq!(*kind, crate::error::FpssErrorKind::ProtocolError);
+                assert!(
+                    message.contains(DRAIN_YIELD_MARKER),
+                    "expected drain-yield marker, got: {message}"
+                );
+                assert!(
+                    message.contains("mid-payload"),
+                    "expected mid-payload context, got: {message}"
+                );
+            }
+            other => panic!("expected drain-yield Fpss error, got {other:?}"),
+        }
+        assert!(
+            is_drain_yield(&err),
+            "is_drain_yield helper must match the produced error"
+        );
+
+        // Wall time bound: must not exceed the budget by more than
+        // one stall (allow 30 ms slack for the per-byte sleep that
+        // was already in flight when the deadline tripped).
+        assert!(
+            elapsed < Duration::from_millis(160),
+            "drain-yield must fire promptly; elapsed = {elapsed:?}, \
+             budget was 100 ms + 30 ms stall slack"
+        );
+
+        // Partial progress must be preserved: at least SOME bytes
+        // should have landed (the stall completed at least one
+        // iteration before the deadline fired), and strictly less
+        // than the full payload (the yield MUST happen before
+        // completion).
+        assert!(
+            state.payload_read > 0,
+            "partial payload bytes must have landed before the yield"
+        );
+        assert!(
+            state.payload_read < payload_size,
+            "yield must happen BEFORE the full payload arrives; got \
+             {} of {}",
+            state.payload_read,
+            payload_size
+        );
+    }
+
+    /// Finding #3: after a drain-yield, the next call to
+    /// `read_exact_payload_with_timeout` with the SAME state must
+    /// resume from the exact byte offset. No bytes are lost, none
+    /// are re-read. This is the invariant that makes the yield
+    /// safe for the command-drain re-entry pattern.
+    #[test]
+    fn drain_yield_preserves_payload_read_for_resumption() {
+        // 4-byte payload delivered one byte at a time. First call
+        // yields after the drain budget; second call completes
+        // the payload without losing any bytes.
+        let mut reader = OneByteAtATime {
+            remaining: vec![0x11, 0x22, 0x33, 0x44],
+            sleep_per_stall: Duration::from_millis(25),
+            stalled_since_last_byte: false,
+        };
+        let mut payload = vec![0u8; 4];
+        let mut state = FrameReadState::new();
+
+        // First call: 60 ms drain budget -> yields somewhere
+        // between byte 2 and byte 3.
+        let err = read_exact_payload_with_timeout(
+            &mut reader,
+            &mut payload,
+            &mut state,
+            Duration::from_millis(100),
+            Duration::from_millis(60),
+        )
+        .unwrap_err();
+        assert!(is_drain_yield(&err), "first call must drain-yield");
+        let first_read = state.payload_read;
+        assert!(
+            first_read > 0 && first_read < 4,
+            "first call must land some but not all bytes; got {first_read}"
+        );
+
+        // Second call: finish the payload. The state carries the
+        // first-call progress so no bytes are re-read.
+        read_exact_payload_with_timeout(
+            &mut reader,
+            &mut payload,
+            &mut state,
+            Duration::from_millis(100),
+            Duration::from_secs(1),
+        )
+        .expect("second call must complete the payload without error");
+        assert_eq!(
+            state.payload_read, 4,
+            "state must reflect full payload completion"
+        );
+        assert_eq!(
+            payload,
+            vec![0x11, 0x22, 0x33, 0x44],
+            "every byte of the payload must land in the correct order"
+        );
+    }
+
+    /// Finding #3: the public `read_frame_into` entry point must
+    /// propagate drain-yields out to the caller (so the I/O loop
+    /// can service the command drain) and then resume cleanly on
+    /// the next call with the same state + buffer. This exercises
+    /// the full public API end-to-end.
+    ///
+    /// `OneByteAtATime` emits a `WouldBlock` before every byte; the
+    /// very first `WouldBlock` is pre-header (zero bytes in flight)
+    /// and surfaces as `Error::Io(WouldBlock)` -- the io_loop
+    /// treats this as a benign drain-cadence tick. Every subsequent
+    /// `WouldBlock` is mid-frame and may surface as a drain-yield
+    /// once the aggregate budget trips. The retry loop here accepts
+    /// both classes and spins until the full frame lands.
+    #[test]
+    fn read_frame_into_drain_yield_round_trip() {
+        // Build a 6-byte payload frame: [LEN=6, CODE=PING, 6 bytes...]
+        let mut wire = vec![0x06, StreamMsgType::Ping as u8];
+        wire.extend_from_slice(&[0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]);
+        let mut reader = OneByteAtATime {
+            remaining: wire,
+            sleep_per_stall: Duration::from_millis(25),
+            stalled_since_last_byte: false,
+        };
+        let mut buf: Vec<u8> = Vec::new();
+        let mut state = FrameReadState::new();
+
+        // Spin until the frame completes, treating both drain-yields
+        // (mid-frame yield to caller) and pre-header IO WouldBlocks
+        // (caller-drain cadence) as benign retries. This mirrors the
+        // production io_loop's read branch.
+        let mut yields = 0u32;
+        let mut idle_ticks = 0u32;
+        let started = Instant::now();
+        let frame = loop {
+            match read_frame_into(&mut reader, &mut buf, &mut state) {
+                Ok(Some(frame)) => break frame,
+                Ok(None) => panic!("unexpected EOF"),
+                Err(ref e) if is_drain_yield(e) => {
+                    yields += 1;
+                    if started.elapsed() > Duration::from_secs(5) {
+                        panic!("test timeout waiting for frame");
+                    }
+                    continue;
+                }
+                Err(crate::error::Error::Io(ref io_err))
+                    if io_err.kind() == std::io::ErrorKind::WouldBlock =>
+                {
+                    idle_ticks += 1;
+                    if started.elapsed() > Duration::from_secs(5) {
+                        panic!("test timeout waiting for frame");
+                    }
+                    continue;
+                }
+                Err(e) => panic!("unexpected error: {e:?}"),
+            }
+        };
+
+        assert_eq!(frame.0, StreamMsgType::Ping);
+        assert_eq!(frame.1, 6);
+        assert_eq!(buf, vec![0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]);
+        // Under production drain budget the yield may or may not
+        // fire depending on timer granularity; the key property
+        // the test pins is that ANY yield is followed by a clean
+        // resumption. So tolerate zero yields but assert the frame
+        // completed correctly.
+        assert!(
+            yields + idle_ticks <= 32,
+            "retries should not loop forever; yields={yields}, \
+             idle_ticks={idle_ticks}"
+        );
+    }
+
+    /// Finding #3: the `is_drain_yield` helper must correctly
+    /// classify every drain-yield error shape the readers produce,
+    /// and reject unrelated errors. The I/O loop relies on this
+    /// classifier to decide whether to drain-and-resume or
+    /// escalate to reconnect.
+    #[test]
+    fn is_drain_yield_classifier_is_precise() {
+        // Drain-yield with the expected marker -> true.
+        let dy = crate::error::Error::Fpss {
+            kind: crate::error::FpssErrorKind::ProtocolError,
+            message: format!("{DRAIN_YIELD_MARKER}: mid-payload after 3 of 8 byte(s)"),
+        };
+        assert!(is_drain_yield(&dy));
+
+        // Unrelated protocol error -> false.
+        let other = crate::error::Error::Fpss {
+            kind: crate::error::FpssErrorKind::ProtocolError,
+            message: "truncated FPSS header: got 1 byte(s), expected 2".to_string(),
+        };
+        assert!(!is_drain_yield(&other));
+
+        // IO error -> false (drain-yield is Fpss-kind only).
+        let io = crate::error::Error::Io(std::io::Error::new(
+            std::io::ErrorKind::WouldBlock,
+            "pre-header",
+        ));
+        assert!(!is_drain_yield(&io));
     }
 }
