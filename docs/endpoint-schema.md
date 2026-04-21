@@ -62,7 +62,7 @@ must stay aligned with the schema.
 5. Run `cargo build` - the parser is generated automatically
 6. Add or update the corresponding tick struct in `crates/tdbe/src/types/tick.rs`
 7. If the tick needs helper methods, add them in `tdbe`
-8. Wire the new layout into `endpoint_surface.toml` / `external.proto` as needed
+8. Wire the new layout into `endpoint_surface.toml` / `mdds.proto` as needed
 
 To add a column to an existing type, just add a new entry to that type's `columns` array.
 
@@ -89,7 +89,7 @@ If ThetaData adds new fields to an existing endpoint's DataTable:
 
 If ThetaData adds a completely new endpoint:
 
-1. Update `proto/external.proto`
+1. Update `proto/mdds.proto`
 2. Add the endpoint entry to `endpoint_surface.toml`
 3. Add the tick type to `tick_schema.toml`
 4. Add or update the corresponding tick struct in `crates/tdbe/src/types/tick.rs`

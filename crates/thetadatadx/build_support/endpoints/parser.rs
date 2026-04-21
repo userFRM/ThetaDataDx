@@ -66,7 +66,7 @@ pub(super) fn load_endpoint_specs() -> Result<ParsedEndpoints, Box<dyn std::erro
             && !synthetic.contains(&wire_name.as_str())
         {
             return Err(format!(
-                "wire endpoint '{}' from external.proto has no entry in endpoint_surface.toml",
+                "wire endpoint '{}' from mdds.proto has no entry in endpoint_surface.toml",
                 wire_name
             )
             .into());
@@ -127,7 +127,7 @@ const KNOWN_MODE_OVERRIDES: &[&str] = &[
 
 /// Cross-check the `[test_fixtures]` block against the resolved endpoint set.
 ///
-/// Prevents every silent-coverage-regression path Codex review has flagged:
+/// Prevents every silent-coverage-regression path prior review has flagged:
 ///
 ///   * **Round 1 / 2**: a missing `optional_defaults` row silently drops the
 ///     corresponding `with_<name>` cell and excludes the param from
@@ -450,7 +450,7 @@ fn compute_mode_emitters<'a>(
 /// given mode. This is the per-mode valid-key set used to detect dead keys
 /// under `mode_overrides.<mode>`. A key that's valid globally (it's a
 /// method-bound name on some endpoint somewhere) but unused under the
-/// specific mode is flagged as dead by Codex round-3.
+/// specific mode is flagged as dead.
 fn mode_override_valid_keys<'a>(
     endpoints: &[&'a GeneratedEndpoint],
     mode: &str,

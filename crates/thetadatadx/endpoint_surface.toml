@@ -3,7 +3,7 @@
 # This file is the normalized source of truth for endpoint metadata,
 # parameter semantics, REST paths, projection call-shapes, and reusable
 # endpoint families.
-# The build pipeline validates it against `proto/external.proto` and
+# The build pipeline validates it against `proto/mdds.proto` and
 # combines it with wire metadata extracted from the proto.
 
 version = 2

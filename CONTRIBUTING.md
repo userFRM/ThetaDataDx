@@ -137,7 +137,7 @@ feat(core)!: replace MddsClient with ThetaDataDx unified client
 > internal macro system and generated builder model.
 
 The endpoint-facing source of truth is now split across:
-- `crates/thetadatadx/proto/external.proto` for the wire contract
+- `crates/thetadatadx/proto/mdds.proto` for the wire contract
 - `crates/thetadatadx/endpoint_surface.toml` for the normalized SDK surface
 - `crates/thetadatadx/tick_schema.toml` for DataTable parser layouts
 
@@ -145,13 +145,13 @@ The build expands that metadata into the registry, shared endpoint runtime, and
 `MddsClient` declarations automatically.
 
 1. **Update the proto** (if the endpoint uses a new message type)
-   - Update `crates/thetadatadx/proto/external.proto`
+   - Update `crates/thetadatadx/proto/mdds.proto`
    - `cargo build` regenerates Rust types automatically
 
 2. **Add or update the endpoint surface**
    - Add an entry to `crates/thetadatadx/endpoint_surface.toml`
    - Reuse existing `param_groups` / `templates` where possible
-   - `cargo build` validates the declared surface against `external.proto` and generates the registry/runtime/mdds surfaces
+   - `cargo build` validates the declared surface against `mdds.proto` and generates the registry/runtime/mdds surfaces
 
 3. **Add the column schema** (if the response has a new layout)
    - Add a `[types.YourTick]` block to `crates/thetadatadx/tick_schema.toml`
@@ -192,7 +192,7 @@ Every PR must include:
 
 When ThetaData ships a new proto revision:
 
-1. Replace `crates/thetadatadx/proto/external.proto`
+1. Replace `crates/thetadatadx/proto/mdds.proto`
 2. Update `endpoint_surface.toml` when the normalized SDK surface changes
 3. Update `tick_schema.toml` if DataTable column layouts changed
 4. Run the relevant checks from the sections above

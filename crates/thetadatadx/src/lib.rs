@@ -76,7 +76,7 @@
 //!
 //! ## Wire protocol
 //!
-//! - **Proto definitions**: `crates/thetadatadx/proto/external.proto` — single
+//! - **Proto definitions**: `crates/thetadatadx/proto/mdds.proto` — single
 //!   `BetaEndpoints` package, 60 RPCs, `BetaThetaTerminal` service.
 //!
 //! - **Auth flow**: POST to `https://nexus-api.thetadata.us/identity/terminal/auth_user`
@@ -111,7 +111,7 @@ mod macros;
 
 pub mod mdds;
 
-/// Generated protobuf types from `external.proto` (package `BetaEndpoints`).
+/// Generated protobuf types from `mdds.proto` (package `BetaEndpoints`).
 #[allow(clippy::pedantic)]
 pub mod proto {
     tonic::include_proto!("beta_endpoints");

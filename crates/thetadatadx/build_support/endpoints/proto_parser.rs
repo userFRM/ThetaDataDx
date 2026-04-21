@@ -1,4 +1,4 @@
-//! Parse `proto/external.proto` into a wire-truth intermediate form.
+//! Parse `proto/mdds.proto` into a wire-truth intermediate form.
 //!
 //! Discovers `Get*` RPCs, extracts their `*RequestQuery` message fields,
 //! expands `ContractSpec` to (symbol, expiration, strike, right), derives the
@@ -11,7 +11,7 @@ use super::model::{
     GeneratedEndpoint, GeneratedParam, ParsedEndpoints, ProtoField, Rpc, TestFixtures,
 };
 
-/// Parse endpoint metadata from `external.proto` into a reusable intermediate form.
+/// Parse endpoint metadata from `mdds.proto` into a reusable intermediate form.
 ///
 /// This build-time parser performs several tightly-coupled passes over the same
 /// proto source: RPC discovery, request-query extraction, field expansion,
@@ -21,7 +21,7 @@ use super::model::{
 /// spec is validated against the wire contract.
 #[allow(clippy::too_many_lines)] // Reason: build-time endpoint parser coordinates multiple passes over one proto source.
 pub(super) fn load_proto_endpoints() -> Result<ParsedEndpoints, Box<dyn std::error::Error>> {
-    let proto = std::fs::read_to_string("proto/external.proto")?;
+    let proto = std::fs::read_to_string("proto/mdds.proto")?;
 
     // ── Parse RPCs ──────────────────────────────────────────────────────────
     let rpc_re = regex::Regex::new(r"rpc\s+(Get\w+)\s*\((\w+)\)\s*returns")?;

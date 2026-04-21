@@ -21,7 +21,7 @@ Artifact: `artifacts/validator_cli.json`.
 
 Tier column mirrors the `min_tier` declarations in `scripts/validate_cli.py`
 (which in turn reflect `endpoint_surface.toml`). No stock RPC in
-`proto/external.proto` is gated behind `professional` — the Stock Pro
+`proto/mdds.proto` is gated behind `professional` — the Stock Pro
 subscription upgrades data content, not the endpoint list.
 
 | Endpoint | Tier | Status |
