@@ -66,6 +66,31 @@
                 )),
                 id: Some(*code as i32),
             },
+            fpss::FpssControl::Connected => BufferedEvent::Simple {
+                event_type: "connected".to_string(),
+                detail: None,
+                id: None,
+            },
+            fpss::FpssControl::Ping { payload } => BufferedEvent::Simple {
+                event_type: "ping".to_string(),
+                detail: Some(
+                    payload
+                        .iter()
+                        .map(|b| format!("{b:02x}"))
+                        .collect::<String>(),
+                ),
+                id: None,
+            },
+            fpss::FpssControl::ReconnectedServer => BufferedEvent::Simple {
+                event_type: "reconnected_server".to_string(),
+                detail: None,
+                id: None,
+            },
+            fpss::FpssControl::Restart => BufferedEvent::Simple {
+                event_type: "restart".to_string(),
+                detail: None,
+                id: None,
+            },
             _ => BufferedEvent::Simple {
                 event_type: "unknown_control".to_string(),
                 detail: None,

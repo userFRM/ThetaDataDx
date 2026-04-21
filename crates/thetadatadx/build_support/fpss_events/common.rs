@@ -51,6 +51,11 @@ pub(super) fn python_rust_field_type(
         "Option<String>" => "Option<String>",
         "Option<i32>" => "Option<i32>",
         "Vec<u8>" => "Vec<u8>",
+        // `Contract` becomes `Py<Contract>` on the pyclass — pyo3 cannot
+        // expose a `Contract` struct by value through `#[pyo3(get)]` on a
+        // frozen pyclass without a runtime acquisition, so we store the
+        // Python handle directly. See `render_python_event_class_struct`.
+        "Contract" => "Py<Contract>",
         other => {
             panic!("unsupported FPSS event column type '{other}' in {event_name}.{column_name}")
         }
@@ -78,6 +83,10 @@ pub(super) fn ts_rust_field_type(
         "Option<String>" => "Option<String>",
         "Option<i32>" => "Option<i32>",
         "Vec<u8>" => "Vec<u8>",
+        // `Contract` lowers to a nested `#[napi(object)]` struct —
+        // emitted once at the top of `fpss_event_classes.rs` and
+        // embedded by value in every data event.
+        "Contract" => "Contract",
         other => {
             panic!("unsupported FPSS event column type '{other}' in {event_name}.{column_name}")
         }
@@ -114,6 +123,15 @@ pub(super) fn rust_field_type(
         "Option<String>" => "Option<String>",
         "Option<i32>" => "Option<i32>",
         "Vec<u8>" => "Vec<u8>",
+        // `Contract` on the `BufferedEvent` carries the full contract by
+        // value so the per-language dispatcher does not need to
+        // re-resolve it. `std::sync::Arc<fpss::protocol::Contract>`
+        // would be marginally cheaper to clone but the language
+        // dispatchers already construct new pyclass / napi objects from
+        // the contract fields anyway — cloning the wrapped Contract
+        // once on buffer is a single heap alloc amortised over the
+        // whole event.
+        "Contract" => "fpss::protocol::Contract",
         other => {
             panic!("unsupported FPSS event column type '{other}' in {event_name}.{column_name}")
         }
@@ -125,6 +143,9 @@ pub(super) fn rust_field_type(
 /// Schema primitive → Rust `#[repr(C)]` scalar. The Rust-FFI struct names
 /// each scalar exactly as the schema does; the C header mirror below uses
 /// the matching `<cstdint>` alias so both sides have the same layout.
+///
+/// `Contract` is a nested `#[repr(C)]` struct emitted once per language
+/// and embedded by value in every data event.
 pub(super) fn rust_ffi_scalar(
     column_type: &str,
     event_name: &str,
@@ -136,9 +157,10 @@ pub(super) fn rust_ffi_scalar(
         "u64" => "u64",
         "u8" => "u8",
         "f64" => "f64",
+        "Contract" => "TdxContract",
         other => panic!(
             "unsupported Rust FFI column type '{other}' in {event_name}.{column_name} \
-             (data variants must be pure scalars; strings/bytes belong on control/raw variants)"
+             (data variants must be pure scalars or Contract; strings/bytes belong on control/raw variants)"
         ),
     }
 }
@@ -148,6 +170,7 @@ pub(super) fn rust_ffi_zero_literal(column_type: &str) -> &'static str {
     match column_type {
         "i32" | "i64" | "u64" | "u8" => "0",
         "f64" => "0.0",
+        "Contract" => "ZERO_CONTRACT_STRUCT",
         other => panic!("no FFI zero literal for column type '{other}'"),
     }
 }
@@ -160,6 +183,7 @@ pub(super) fn c_ffi_scalar(column_type: &str, event_name: &str, column_name: &st
         "u64" => "uint64_t",
         "u8" => "uint8_t",
         "f64" => "double",
+        "Contract" => "TdxContract",
         other => panic!("unsupported C FFI column type '{other}' in {event_name}.{column_name}"),
     }
 }
@@ -174,8 +198,14 @@ pub(super) fn go_scalar(column_type: &str, event_name: &str, column_name: &str) 
         "u64" => "uint64",
         "u8" => "uint8",
         "f64" => "float64",
+        "Contract" => "*Contract",
         other => panic!("unsupported Go column type '{other}' in {event_name}.{column_name}"),
     }
+}
+
+/// True if a column's schema type is the structured `Contract` nested type.
+pub(super) fn is_contract(column_type: &str) -> bool {
+    column_type == "Contract"
 }
 
 /// snake_case column name → Go PascalCase field identifier.

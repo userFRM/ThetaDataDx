@@ -16,10 +16,46 @@ pub enum TdxFpssEventKind {
     RawData = 5,
 }
 
+/// FPSS `Contract` shared across every data event.
+/// 
+/// `root` is a NUL-terminated C string; may be null when the SDK has not
+/// yet resolved the server-assigned contract_id to a `ContractAssigned`
+/// frame. Optional option fields (`exp_date`, `is_call`, `strike`) use a
+/// tagged-present bool because `#[repr(C)]` cannot express `Option<T>`
+/// directly.
+#[repr(C)]
+pub struct TdxContract {
+/// Ticker root (e.g. "AAPL"). Null until ContractAssigned arrives.
+pub root: *const c_char,
+/// Security type code — matches `tdbe::types::enums::SecType`.
+pub sec_type: i32,
+/// Whether `exp_date` is meaningful (options only).
+pub has_exp_date: bool,
+pub exp_date: i32,
+/// Whether `is_call` is meaningful (options only).
+pub has_is_call: bool,
+pub is_call: bool,
+/// Whether `strike` is meaningful (options only).
+pub has_strike: bool,
+pub strike: i32,
+}
+
+pub(crate) const ZERO_CONTRACT_STRUCT: TdxContract = TdxContract {
+root: ptr::null(),
+sec_type: 0,
+has_exp_date: false,
+exp_date: 0,
+has_is_call: false,
+is_call: false,
+has_strike: false,
+strike: 0,
+};
+
 /// FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`.
 #[repr(C)]
 pub struct TdxFpssOhlcvc {
     pub contract_id: i32,
+    pub contract: TdxContract,
     pub ms_of_day: i32,
     pub open: f64,
     pub high: f64,
@@ -35,16 +71,18 @@ pub struct TdxFpssOhlcvc {
 #[repr(C)]
 pub struct TdxFpssOpenInterest {
     pub contract_id: i32,
+    pub contract: TdxContract,
     pub ms_of_day: i32,
     pub open_interest: i32,
     pub date: i32,
     pub received_at_ns: u64,
 }
 
-/// FPSS Quote tick. Mirrors `FpssData::Quote` (symbol-less — `contract_id` is the stable key).
+/// FPSS Quote tick. Mirrors `FpssData::Quote`.
 #[repr(C)]
 pub struct TdxFpssQuote {
     pub contract_id: i32,
+    pub contract: TdxContract,
     pub ms_of_day: i32,
     pub bid_size: i32,
     pub bid_exchange: i32,
@@ -62,6 +100,7 @@ pub struct TdxFpssQuote {
 #[repr(C)]
 pub struct TdxFpssTrade {
     pub contract_id: i32,
+    pub contract: TdxContract,
     pub ms_of_day: i32,
     pub sequence: i32,
     pub ext_condition1: i32,
@@ -87,7 +126,14 @@ pub struct TdxFpssTrade {
 ///   `3=market_open`, `4=market_close`, `5=server_error`,
 ///   `6=disconnected`, `8=reconnecting`, `9=reconnected`,
 ///   `10=error`, `11=unknown_frame`, `12=unknown_event` (non-Data /
-///   non-Control / non-RawData fallback; carries no payload).
+///   non-Control / non-RawData fallback; carries no payload),
+///   `13=connected` (server CONNECTED ack, wire code 4),
+///   `14=ping` (server heartbeat, wire code 10 — detail is the
+///   hex-encoded payload),
+///   `15=reconnected_server` (server RECONNECTED ack, wire code 13 —
+///   distinct from `9=reconnected` which is the client-side
+///   auto-reconnect completion),
+///   `16=restart` (server RESTART, wire code 31).
 ///   Value `7` is reserved for future use. `99` is an internal sentinel
 ///   for "unknown control-variant" — kept for backward compat; new
 ///   consumers should treat `12` as the canonical unknown marker.
@@ -130,6 +176,7 @@ pub struct TdxFpssEvent {
 // Zero-initialized defaults for inactive union-style fields.
 pub(crate) const ZERO_OHLCVC: TdxFpssOhlcvc = TdxFpssOhlcvc {
     contract_id: 0,
+    contract: ZERO_CONTRACT_STRUCT,
     ms_of_day: 0,
     open: 0.0,
     high: 0.0,
@@ -142,6 +189,7 @@ pub(crate) const ZERO_OHLCVC: TdxFpssOhlcvc = TdxFpssOhlcvc {
 };
 pub(crate) const ZERO_OI: TdxFpssOpenInterest = TdxFpssOpenInterest {
     contract_id: 0,
+    contract: ZERO_CONTRACT_STRUCT,
     ms_of_day: 0,
     open_interest: 0,
     date: 0,
@@ -149,6 +197,7 @@ pub(crate) const ZERO_OI: TdxFpssOpenInterest = TdxFpssOpenInterest {
 };
 pub(crate) const ZERO_QUOTE: TdxFpssQuote = TdxFpssQuote {
     contract_id: 0,
+    contract: ZERO_CONTRACT_STRUCT,
     ms_of_day: 0,
     bid_size: 0,
     bid_exchange: 0,
@@ -163,6 +212,7 @@ pub(crate) const ZERO_QUOTE: TdxFpssQuote = TdxFpssQuote {
 };
 pub(crate) const ZERO_TRADE: TdxFpssTrade = TdxFpssTrade {
     contract_id: 0,
+    contract: ZERO_CONTRACT_STRUCT,
     ms_of_day: 0,
     sequence: 0,
     ext_condition1: 0,

@@ -3,8 +3,53 @@
 
 use std::fmt::Write as _;
 
-use super::common::{python_rust_field_type, snake_case};
+use super::common::{is_contract, python_rust_field_type, snake_case};
 use super::schema::{sorted_event_names, ColumnDef, EventDef, Schema};
+
+/// Emit the `Contract` pyclass + helper constructor. Every data event
+/// carries a `Py<Contract>` field so Python code can read
+/// `event.contract.root`, `event.contract.strike`, etc. through the
+/// normal pyo3 getter machinery.
+fn render_contract_pyclass() -> &'static str {
+    "/// FPSS contract identifier. Surfaced on every decoded FPSS data\n\
+/// event as `event.contract`. Matches the shape of the Rust\n\
+/// `thetadatadx::fpss::protocol::Contract` struct one-for-one.\n\
+#[must_use]\n\
+#[pyclass(module = \"thetadatadx\", frozen, skip_from_py_object)]\n\
+#[derive(Clone)]\n\
+pub(crate) struct Contract {\n\
+    #[pyo3(get)] pub root: String,\n\
+    #[pyo3(get)] pub sec_type: i32,\n\
+    #[pyo3(get)] pub exp_date: Option<i32>,\n\
+    #[pyo3(get)] pub is_call: Option<bool>,\n\
+    #[pyo3(get)] pub strike: Option<i32>,\n\
+}\n\
+#[pymethods]\n\
+impl Contract {\n\
+    fn __repr__(&self) -> String {\n\
+        format!(\n\
+            \"Contract(root={:?}, sec_type={}, exp_date={:?}, is_call={:?}, strike={:?})\",\n\
+            self.root, self.sec_type, self.exp_date, self.is_call, self.strike\n\
+        )\n\
+    }\n\
+}\n\
+impl Contract {\n\
+    /// Build from the core `thetadatadx::fpss::protocol::Contract` value\n\
+    /// carried by each `BufferedEvent::*` Data arm. The `sec_type` enum\n\
+    /// is cast to its `#[repr(i32)]` discriminant; Python consumers get\n\
+    /// a plain int and can compare against `tdbe.types.enums.SecType`\n\
+    /// exports if they need a symbolic reading.\n\
+    pub(crate) fn from_core(c: &fpss::protocol::Contract) -> Self {\n\
+        Self {\n\
+            root: c.root.clone(),\n\
+            sec_type: c.sec_type as i32,\n\
+            exp_date: c.exp_date,\n\
+            is_call: c.is_call,\n\
+            strike: c.strike,\n\
+        }\n\
+    }\n\
+}\n\n"
+}
 
 pub(super) fn render_python_fpss_event_classes(schema: &Schema) -> String {
     let mut out = String::new();
@@ -16,6 +61,10 @@ pub(super) fn render_python_fpss_event_classes(schema: &Schema) -> String {
     out.push_str("// source of truth is `crates/thetadatadx/fpss_event_schema.toml`.\n\n");
 
     let names = sorted_event_names(schema);
+
+    // Contract pyclass — every data variant's `contract` field returns
+    // `Py<Contract>` on read.
+    out.push_str(render_contract_pyclass());
 
     // Structs.
     for event_name in &names {
@@ -44,6 +93,7 @@ pub(super) fn render_python_fpss_event_classes(schema: &Schema) -> String {
     out.push_str(
         "pub(crate) fn register_fpss_event_classes(m: &Bound<'_, PyModule>) -> PyResult<()> {\n",
     );
+    out.push_str("    m.add_class::<Contract>()?;\n");
     for event_name in &names {
         writeln!(out, "    m.add_class::<{}>()?;", event_name).unwrap();
     }
@@ -162,8 +212,15 @@ fn fpss_event_repr_fields<'a>(
         if fields.len() >= max_fields {
             break;
         }
-        // Skip noise fields (see doc comment above).
-        if column.r#type == "Vec<u8>" || column.name == "received_at_ns" {
+        // Skip noise fields (see doc comment above). `Vec<u8>` and
+        // `received_at_ns` are skipped per module docs; `Contract`
+        // because its own `__repr__` is nested and printing the full
+        // struct inside the event's one-line repr quickly exceeds the
+        // 6-field width budget.
+        if column.r#type == "Vec<u8>"
+            || column.name == "received_at_ns"
+            || column.r#type == "Contract"
+        {
             continue;
         }
         // `Option<..>` and `String` types render better with `{:?}`
@@ -190,9 +247,23 @@ fn render_python_buffered_match_arm(event_name: &str, def: &EventDef) -> String 
     // No `..` rest pattern: `BufferedEvent` itself is generator-emitted
     // from this same schema, so the variant arms are exhaustive by
     // construction. Any drift is a compile error, not silent data loss.
-    out.push_str("        } => Py::new(\n");
-    out.push_str("            py,\n");
-    writeln!(out, "            {event_name} {{").unwrap();
+    //
+    // If the variant carries a Contract field, stage it first so we can
+    // hand the `Py<Contract>` handle into the constructed pyclass.
+    let has_contract = def.columns.iter().any(|c| is_contract(&c.r#type));
+    if has_contract {
+        out.push_str(
+            "        } => {\n            let contract_py = Py::new(py, Contract::from_core(contract))?;\n            Py::new(\n                py,\n",
+        );
+    } else {
+        out.push_str("        } => Py::new(\n            py,\n");
+    }
+    let indent = if has_contract {
+        "                "
+    } else {
+        "            "
+    };
+    writeln!(out, "{indent}{event_name} {{").unwrap();
     for column in &def.columns {
         let rhs = match column.r#type.as_str() {
             // Owned non-`Copy` types + `Option<String>` clone through
@@ -202,12 +273,22 @@ fn render_python_buffered_match_arm(event_name: &str, def: &EventDef) -> String 
             "String" | "Vec<u8>" | "Option<String>" => {
                 format!("{field}.clone()", field = column.name)
             }
+            // Contract was staged above into `contract_py`; hand over the
+            // handle. `clone_ref(py)` because pyo3's `Py<T>` doesn't
+            // auto-clone without a Python token.
+            "Contract" => "contract_py.clone_ref(py)".to_string(),
             // `Copy` primitives (including `Option<i32>`) — explicit
             // deref of the reference binding.
             _ => format!("*{field}", field = column.name),
         };
-        writeln!(out, "                {field}: {rhs},", field = column.name).unwrap();
+        writeln!(out, "{indent}    {field}: {rhs},", field = column.name).unwrap();
     }
-    out.push_str("            },\n        )\n        .map(|p| p.into_any()),\n");
+    if has_contract {
+        out.push_str(
+            "                },\n            )\n            .map(|p| p.into_any())\n        }\n",
+        );
+    } else {
+        out.push_str("            },\n        )\n        .map(|p| p.into_any()),\n");
+    }
     out
 }

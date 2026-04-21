@@ -21,24 +21,41 @@ const (
 type FpssControlKind = int32
 
 const (
-	FpssCtrlLoginSuccess     FpssControlKind = 0
-	FpssCtrlContractAssigned FpssControlKind = 1
-	FpssCtrlReqResponse      FpssControlKind = 2
-	FpssCtrlMarketOpen       FpssControlKind = 3
-	FpssCtrlMarketClose      FpssControlKind = 4
-	FpssCtrlServerError      FpssControlKind = 5
-	FpssCtrlDisconnected     FpssControlKind = 6
-	FpssCtrlReconnecting     FpssControlKind = 8
-	FpssCtrlReconnected      FpssControlKind = 9
-	FpssCtrlError            FpssControlKind = 10
-	FpssCtrlUnknownFrame     FpssControlKind = 11 // ID = frame code, Detail = hex payload
-	FpssCtrlUnknownEvent     FpssControlKind = 12 // non-Data / non-Control / non-RawData fallback
+	FpssCtrlLoginSuccess      FpssControlKind = 0
+	FpssCtrlContractAssigned  FpssControlKind = 1
+	FpssCtrlReqResponse       FpssControlKind = 2
+	FpssCtrlMarketOpen        FpssControlKind = 3
+	FpssCtrlMarketClose       FpssControlKind = 4
+	FpssCtrlServerError       FpssControlKind = 5
+	FpssCtrlDisconnected      FpssControlKind = 6
+	FpssCtrlReconnecting      FpssControlKind = 8
+	FpssCtrlReconnected       FpssControlKind = 9
+	FpssCtrlError             FpssControlKind = 10
+	FpssCtrlUnknownFrame      FpssControlKind = 11 // ID = frame code, Detail = hex payload
+	FpssCtrlUnknownEvent      FpssControlKind = 12 // non-Data / non-Control / non-RawData fallback
+	FpssCtrlConnected         FpssControlKind = 13 // server CONNECTED ack (wire code 4)
+	FpssCtrlPing              FpssControlKind = 14 // server heartbeat (wire code 10); Detail = hex payload
+	FpssCtrlReconnectedServer FpssControlKind = 15 // server RECONNECTED ack (wire code 13); distinct from 9=reconnected
+	FpssCtrlRestart           FpssControlKind = 16 // server RESTART (wire code 31)
 	// Value 7 is reserved for future use.
 )
+
+// Contract identifies a subscribed instrument. Root is always present;
+// option fields (ExpDate, IsCall, Strike) are non-nil only for options.
+// The same Contract value is attached to every FPSS data event the SDK
+// emits for the matching contract_id.
+type Contract struct {
+	Root    string
+	SecType int32
+	ExpDate *int32
+	IsCall  *bool
+	Strike  *int32
+}
 
 // FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`.
 type FpssOhlcvc struct {
 	ContractID   int32
+	Contract     *Contract
 	MsOfDay      int32
 	Open         float64
 	High         float64
@@ -53,15 +70,17 @@ type FpssOhlcvc struct {
 // FPSS OpenInterest tick. Mirrors `FpssData::OpenInterest`.
 type FpssOpenInterest struct {
 	ContractID   int32
+	Contract     *Contract
 	MsOfDay      int32
 	OpenInterest int32
 	Date         int32
 	ReceivedAtNs uint64
 }
 
-// FPSS Quote tick. Mirrors `FpssData::Quote` (symbol-less — `contract_id` is the stable key).
+// FPSS Quote tick. Mirrors `FpssData::Quote`.
 type FpssQuote struct {
 	ContractID   int32
+	Contract     *Contract
 	MsOfDay      int32
 	BidSize      int32
 	BidExchange  int32
@@ -78,6 +97,7 @@ type FpssQuote struct {
 // FPSS Trade tick. Mirrors `FpssData::Trade`.
 type FpssTrade struct {
 	ContractID     int32
+	Contract       *Contract
 	MsOfDay        int32
 	Sequence       int32
 	ExtCondition1  int32

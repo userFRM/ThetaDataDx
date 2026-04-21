@@ -22,6 +22,19 @@
                             .collect::<String>(),
                     ),
                 ),
+                FpssControl::Connected => (13, 0, None),
+                FpssControl::Ping { payload } => (
+                    14,
+                    0,
+                    Some(
+                        payload
+                            .iter()
+                            .map(|b| format!("{b:02x}"))
+                            .collect::<String>(),
+                    ),
+                ),
+                FpssControl::ReconnectedServer => (15, 0, None),
+                FpssControl::Restart => (16, 0, None),
                 _ => (99, 0, None), // unknown control
             };
             let cstring = detail_str.and_then(|s| std::ffi::CString::new(s).ok());

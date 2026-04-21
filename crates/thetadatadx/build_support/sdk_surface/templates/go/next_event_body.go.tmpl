@@ -7,11 +7,38 @@
         Kind: FpssEventKind(raw.kind),
     }
 
+    // contractFromC converts a C TdxContract into the Go-idiomatic *Contract.
+    // Returns nil only when root is NULL, which indicates the SDK has not yet
+    // resolved the contract_id to a ContractAssigned frame.
+    contractFromC := func(c C.TdxContract) *Contract {
+        if c.root == nil {
+            return nil
+        }
+        out := &Contract{
+            Root:    C.GoString(c.root),
+            SecType: int32(c.sec_type),
+        }
+        if bool(c.has_exp_date) {
+            v := int32(c.exp_date)
+            out.ExpDate = &v
+        }
+        if bool(c.has_is_call) {
+            v := bool(c.is_call)
+            out.IsCall = &v
+        }
+        if bool(c.has_strike) {
+            v := int32(c.strike)
+            out.Strike = &v
+        }
+        return out
+    }
+
     switch event.Kind {
     case FpssQuoteEvent:
         q := raw.quote
         event.Quote = &FpssQuote{
             ContractID:   int32(q.contract_id),
+            Contract:     contractFromC(q.contract),
             MsOfDay:      int32(q.ms_of_day),
             BidSize:      int32(q.bid_size),
             BidExchange:  int32(q.bid_exchange),
@@ -28,6 +55,7 @@
         t := raw.trade
         event.Trade = &FpssTrade{
             ContractID:     int32(t.contract_id),
+            Contract:       contractFromC(t.contract),
             MsOfDay:        int32(t.ms_of_day),
             Sequence:       int32(t.sequence),
             ExtCondition1:  int32(t.ext_condition1),
@@ -49,6 +77,7 @@
         oi := raw.open_interest
         event.OpenInterest = &FpssOpenInterest{
             ContractID:   int32(oi.contract_id),
+            Contract:     contractFromC(oi.contract),
             MsOfDay:      int32(oi.ms_of_day),
             OpenInterest: int32(oi.open_interest),
             Date:         int32(oi.date),
@@ -58,6 +87,7 @@
         o := raw.ohlcvc
         event.Ohlcvc = &FpssOhlcvc{
             ContractID:   int32(o.contract_id),
+            Contract:     contractFromC(o.contract),
             MsOfDay:      int32(o.ms_of_day),
             Open:         float64(o.open),
             High:         float64(o.high),

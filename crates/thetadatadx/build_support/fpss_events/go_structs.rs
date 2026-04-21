@@ -6,6 +6,23 @@ use std::fmt::Write as _;
 use super::common::{go_scalar, snake_to_go_pascal};
 use super::schema::{sorted_data_events, Schema};
 
+/// Go Contract struct — optional fields use `*int32` / `*bool` pointers
+/// so nil represents `None` (Java-style). `Root` is always present as a
+/// string (empty when not yet resolved).
+fn render_contract_go() -> &'static str {
+    "// Contract identifies a subscribed instrument. Root is always present;\n\
+// option fields (ExpDate, IsCall, Strike) are non-nil only for options.\n\
+// The same Contract value is attached to every FPSS data event the SDK\n\
+// emits for the matching contract_id.\n\
+type Contract struct {\n\
+\tRoot    string\n\
+\tSecType int32\n\
+\tExpDate *int32\n\
+\tIsCall  *bool\n\
+\tStrike  *int32\n\
+}\n\n"
+}
+
 /// Lives next to `fpss.go` in the `thetadatadx` package; replaces the
 /// hand-written block that used to live there.
 ///
@@ -23,6 +40,7 @@ pub(super) fn render_go_fpss_event_structs(schema: &Schema) -> String {
     out.push_str(include_str!(
         "templates/go_structs/control_kind_consts.go.tmpl"
     ));
+    out.push_str(render_contract_go());
 
     for (event_name, def) in sorted_data_events(schema) {
         let doc_text = if def.doc.is_empty() {

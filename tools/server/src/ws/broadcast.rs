@@ -88,13 +88,13 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
             // panicked, the map state may be partial but that is strictly
             // less bad than losing every subsequent symbol assignment.
             let mut map = map_for_cb.lock().unwrap_or_else(|e| e.into_inner());
-            // One `Contract::clone` on INSERT (rare — only on contract
-            // assignment), then every subsequent per-event lookup is an
-            // `Arc::clone` (refcount bump). This is the key perf win
-            // vs the old `HashMap<i32, Contract>` that forced a
-            // `Contract::clone` (with `String::clone` of `root`) on every
-            // single event.
-            map.insert(*id, Arc::new(contract.clone()));
+            // Zero heap allocation on insert — `contract` is now
+            // `Arc<Contract>` straight from the SDK (v8+). The shared
+            // map, the SDK's own I/O-thread cache, and every decoded
+            // event all participate in the same refcount, so
+            // per-event lookup is a refcount bump with no `Contract`
+            // or `String` clone.
+            map.insert(*id, Arc::clone(contract));
         }
 
         // Update connection status.

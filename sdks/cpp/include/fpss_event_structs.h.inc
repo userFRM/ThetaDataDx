@@ -4,6 +4,8 @@
  * (C++ SDK). Plain C typedefs — both surfaces see byte-identical
  * layout. Do not hand-edit. */
 
+#include <stdbool.h>
+
 typedef enum {
     TDX_FPSS_QUOTE = 0,
     TDX_FPSS_TRADE = 1,
@@ -13,8 +15,25 @@ typedef enum {
     TDX_FPSS_RAW_DATA = 5,
 } TdxFpssEventKind;
 
+/* FPSS Contract shared across every data event. `root` is a
+* NUL-terminated C string (may be null when not yet resolved);
+* optional option fields use a tagged-present bool because C has no
+* Option<T>. Layout is byte-identical to Rust's #[repr(C)] TdxContract.
+*/
+typedef struct {
+const char *root;
+int32_t sec_type;
+bool has_exp_date;
+int32_t exp_date;
+bool has_is_call;
+bool is_call;
+bool has_strike;
+int32_t strike;
+} TdxContract;
+
 typedef struct {
     int32_t contract_id;
+    TdxContract contract;
     int32_t ms_of_day;
     double open;
     double high;
@@ -28,6 +47,7 @@ typedef struct {
 
 typedef struct {
     int32_t contract_id;
+    TdxContract contract;
     int32_t ms_of_day;
     int32_t open_interest;
     int32_t date;
@@ -36,6 +56,7 @@ typedef struct {
 
 typedef struct {
     int32_t contract_id;
+    TdxContract contract;
     int32_t ms_of_day;
     int32_t bid_size;
     int32_t bid_exchange;
@@ -51,6 +72,7 @@ typedef struct {
 
 typedef struct {
     int32_t contract_id;
+    TdxContract contract;
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;

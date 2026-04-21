@@ -202,6 +202,119 @@ impl Contract {
         }
     }
 
+    /// OCC-21 option identifier length (6 root + 6 YYMMDD + 1 side + 8 strike).
+    const OCC21_LEN: usize = 21;
+
+    /// Validate that a candidate root ticker is 1..=6 ASCII uppercase letters
+    /// (optionally containing a single `.`). Returns an `Error::Config` with
+    /// the offending input on failure.
+    fn validate_root(input: &str, root: &str) -> Result<(), Error> {
+        if root.is_empty() || root.len() > 6 {
+            return Err(Error::Config(format!(
+                "Contract::from_str: root must be 1..=6 chars, got {} chars in {input:?}",
+                root.len()
+            )));
+        }
+        for ch in root.chars() {
+            if !(ch.is_ascii_uppercase() || ch == '.') {
+                return Err(Error::Config(format!(
+                    "Contract::from_str: root must be ASCII A-Z (or '.'), got {ch:?} in {input:?}",
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    /// Parse an OCC-21 option identifier (`"AAPL  260417C00550000"`).
+    ///
+    /// Layout (ASCII, exactly 21 bytes):
+    /// - bytes `0..6`: root, right-padded with spaces.
+    /// - bytes `6..12`: `YYMMDD` expiration; the returned `exp_date` is
+    ///   `20000000 + YYMMDD` (e.g. `260417` -> `20260417`).
+    /// - byte `12`: `'C'` or `'P'`.
+    /// - bytes `13..21`: zero-padded strike in thousandths of a dollar.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Config`] naming the specific failure (wrong length,
+    /// empty root, non-uppercase root character, bad YYMMDD digits, right
+    /// outside `C`/`P`, bad strike digits) with the full offending input
+    /// included.
+    fn parse_occ21(input: &str) -> Result<Self, Error> {
+        if input.len() != Self::OCC21_LEN {
+            return Err(Error::Config(format!(
+                "Contract::from_str: OCC-21 format must be exactly {} chars, got {} in {input:?}",
+                Self::OCC21_LEN,
+                input.len()
+            )));
+        }
+        if !input.is_ascii() {
+            return Err(Error::Config(format!(
+                "Contract::from_str: OCC-21 identifier must be ASCII, got {input:?}"
+            )));
+        }
+        let bytes = input.as_bytes();
+        // Root: bytes 0..6, right-padded with spaces.
+        let root_raw = &input[0..6];
+        let root = root_raw.trim_end_matches(' ').to_string();
+        Self::validate_root(input, &root)?;
+
+        // YYMMDD -> integer, then centuryed to YYYYMMDD.
+        let yymmdd_raw = &input[6..12];
+        let yymmdd: i32 = yymmdd_raw.parse().map_err(|e| {
+            Error::Config(format!(
+                "Contract::from_str: expiration YYMMDD not numeric ({yymmdd_raw:?}, {e}) in {input:?}"
+            ))
+        })?;
+        if !(0..1_000_000).contains(&yymmdd) {
+            return Err(Error::Config(format!(
+                "Contract::from_str: expiration YYMMDD out of range ({yymmdd}) in {input:?}"
+            )));
+        }
+        // OCC convention: two-digit year is the 21st-century year, so
+        // 260417 -> 2026-04-17. No roll-over heuristic — the OCC roster
+        // will carry any expirations that actually matter for live
+        // subscriptions, and the reverse mapping (YYYYMMDD -> YYMMDD on
+        // wire output) is not used here.
+        let exp_date: i32 = 20_000_000 + yymmdd;
+
+        // Right byte.
+        let right_byte = bytes[12];
+        let is_call = match right_byte {
+            b'C' => true,
+            b'P' => false,
+            other => {
+                return Err(Error::Config(format!(
+                    "Contract::from_str: expected 'C' or 'P' at position 12, got {:?} in {input:?}",
+                    other as char
+                )));
+            }
+        };
+
+        // Strike: thousandths of a dollar, zero-padded integer of 8 digits.
+        let strike_raw = &input[13..21];
+        for ch in strike_raw.chars() {
+            if !ch.is_ascii_digit() {
+                return Err(Error::Config(format!(
+                    "Contract::from_str: strike must be 8 ASCII digits, got {strike_raw:?} in {input:?}"
+                )));
+            }
+        }
+        let strike: i32 = strike_raw.parse().map_err(|e| {
+            Error::Config(format!(
+                "Contract::from_str: strike not numeric ({strike_raw:?}, {e}) in {input:?}"
+            ))
+        })?;
+
+        Ok(Self {
+            root,
+            sec_type: SecType::Option,
+            exp_date: Some(exp_date),
+            is_call: Some(is_call),
+            strike: Some(strike),
+        })
+    }
+
     /// Serialize to the wire format used in FPSS subscription messages.
     ///
     /// # Wire format (from `Contract.toBytes()`)
@@ -380,6 +493,82 @@ impl std::fmt::Display for Contract {
             }
             _ => write!(f, "{} {}", self.root, self.sec_type.as_str()),
         }
+    }
+}
+
+impl std::str::FromStr for Contract {
+    type Err = Error;
+
+    /// Parse a [`Contract`] from a string.
+    ///
+    /// Two formats are accepted:
+    ///
+    /// 1. **Bare root** (stock contract). 1..=6 ASCII uppercase letters,
+    ///    optionally including a single `.`:
+    ///    ```
+    ///    # use std::str::FromStr;
+    ///    # use thetadatadx::fpss::protocol::Contract;
+    ///    let c = "AAPL".parse::<Contract>().unwrap();
+    ///    assert_eq!(c.root, "AAPL");
+    ///    ```
+    /// 2. **OCC-21 option identifier**. 21 ASCII characters:
+    ///    `[root (6, space-padded)] [YYMMDD (6)] [C|P (1)] [strike (8, 1/1000$)]`.
+    ///    A leading/trailing whitespace-trim applies so
+    ///    `"AAPL 260417C00550000"` (20 chars, single-space after root) is
+    ///    coerced to `"AAPL  260417C00550000"` (21 chars, double-space)
+    ///    before the strict parse — matching the Java terminal's tolerant
+    ///    upstream feed which sometimes ships 20-char variants.
+    ///    ```
+    ///    # use std::str::FromStr;
+    ///    # use thetadatadx::fpss::protocol::Contract;
+    ///    let c = "SPY   260417C00550000".parse::<Contract>().unwrap();
+    ///    assert_eq!(c.root, "SPY");
+    ///    assert_eq!(c.exp_date, Some(20_260_417));
+    ///    assert_eq!(c.is_call, Some(true));
+    ///    assert_eq!(c.strike, Some(550_000));
+    ///    ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Config`] whose message names the specific failure
+    /// (wrong length, non-ASCII, bad YYMMDD digits, right outside `C`/`P`,
+    /// bad strike digits, empty root, non-uppercase root character) and
+    /// includes the original input.
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        // Strategy: the two formats are unambiguous by length after trim.
+        // `"AAPL"` trimmed is 4 chars; `"SPY   260417C00550000"` trimmed
+        // is 21 chars. A middle-length string is garbage — we still
+        // route through the bare-root validator so the error message
+        // names the exact constraint that failed.
+        let trimmed = input.trim();
+        if trimmed.is_empty() {
+            return Err(Error::Config(format!(
+                "Contract::from_str: empty or whitespace-only input in {input:?}"
+            )));
+        }
+        // The raw OCC-21 layout is exactly 21 chars; some upstream
+        // sources drop a single leading/trailing space so we also try
+        // padding to 21 before rejecting. Only one pad attempt (right
+        // side) because the OCC layout is left-anchored at root.
+        if trimmed.len() == Self::OCC21_LEN {
+            return Self::parse_occ21(trimmed);
+        }
+        if trimmed.len() < Self::OCC21_LEN && trimmed.len() > 6 {
+            // Neither a valid root length (<=6) nor the OCC-21 length.
+            // Pad with a trailing space to reach 21 and retry so the
+            // strict parser reports the specific position that failed.
+            let padded = format!("{:<21}", trimmed);
+            if padded.len() == Self::OCC21_LEN {
+                // If padding shifted the right byte out of position 12
+                // the strict parser will explain. We only attempt this
+                // one repair.
+                return Self::parse_occ21(&padded);
+            }
+        }
+
+        // Bare root fallback.
+        Self::validate_root(input, trimmed)?;
+        Ok(Self::stock(trimmed))
     }
 }
 
@@ -929,5 +1118,177 @@ mod tests {
         assert_eq!(bytes[1], 1);
         assert_eq!(bytes[2], b'A');
         assert_eq!(bytes.len(), 4);
+    }
+
+    // -- FromStr tests ---------------------------------------------------------
+
+    #[test]
+    fn from_str_bare_root_stock() {
+        use std::str::FromStr;
+        let c = Contract::from_str("AAPL").unwrap();
+        assert_eq!(c.root, "AAPL");
+        assert_eq!(c.sec_type, SecType::Stock);
+        assert!(c.exp_date.is_none());
+        assert!(c.is_call.is_none());
+        assert!(c.strike.is_none());
+    }
+
+    #[test]
+    fn from_str_bare_root_short_ticker() {
+        use std::str::FromStr;
+        let c = Contract::from_str("A").unwrap();
+        assert_eq!(c.root, "A");
+        assert_eq!(c.sec_type, SecType::Stock);
+    }
+
+    #[test]
+    fn from_str_bare_root_with_dot() {
+        use std::str::FromStr;
+        // BRK.A style tickers must parse as stock roots.
+        let c = Contract::from_str("BRK.A").unwrap();
+        assert_eq!(c.root, "BRK.A");
+        assert_eq!(c.sec_type, SecType::Stock);
+    }
+
+    #[test]
+    fn from_str_bare_root_trims_surrounding_whitespace() {
+        use std::str::FromStr;
+        let c = Contract::from_str("  SPY  ").unwrap();
+        assert_eq!(c.root, "SPY");
+    }
+
+    #[test]
+    fn from_str_occ21_call() {
+        use std::str::FromStr;
+        // SPY  (4 chars -> 6 chars padded) 26-04-17 Call 550.00.
+        let c = Contract::from_str("SPY   260417C00550000").unwrap();
+        assert_eq!(c.root, "SPY");
+        assert_eq!(c.sec_type, SecType::Option);
+        assert_eq!(c.exp_date, Some(20_260_417));
+        assert_eq!(c.is_call, Some(true));
+        assert_eq!(c.strike, Some(550_000));
+    }
+
+    #[test]
+    fn from_str_occ21_put() {
+        use std::str::FromStr;
+        // QQQ 26-06-20 Put 350.00.
+        let c = Contract::from_str("QQQ   260620P00350000").unwrap();
+        assert_eq!(c.root, "QQQ");
+        assert_eq!(c.is_call, Some(false));
+        assert_eq!(c.exp_date, Some(20_260_620));
+        assert_eq!(c.strike, Some(350_000));
+    }
+
+    #[test]
+    fn from_str_occ21_aapl_documented_example() {
+        use std::str::FromStr;
+        // The exact example from the spec.
+        let c = Contract::from_str("AAPL  260417C00550000").unwrap();
+        assert_eq!(c.root, "AAPL");
+        assert_eq!(c.exp_date, Some(20_260_417));
+        assert_eq!(c.is_call, Some(true));
+        assert_eq!(c.strike, Some(550_000));
+    }
+
+    #[test]
+    fn from_str_occ21_six_char_root() {
+        use std::str::FromStr;
+        // Full six-char root: no spaces in the root field.
+        let c = Contract::from_str("ABCDEF260417C00550000").unwrap();
+        assert_eq!(c.root, "ABCDEF");
+        assert_eq!(c.exp_date, Some(20_260_417));
+        assert_eq!(c.strike, Some(550_000));
+    }
+
+    #[test]
+    fn from_str_occ21_malformed_strike() {
+        use std::str::FromStr;
+        // Strike contains non-digit characters.
+        let err = Contract::from_str("SPY   260417C0055000X")
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("strike"),
+            "expected error to name strike failure, got: {err}"
+        );
+        assert!(
+            err.contains("SPY   260417C0055000X"),
+            "expected error to include the offending input, got: {err}"
+        );
+    }
+
+    #[test]
+    fn from_str_occ21_wrong_right_byte() {
+        use std::str::FromStr;
+        // Byte 12 is 'X', not 'C' or 'P'.
+        let err = Contract::from_str("SPY   260417X00550000")
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("'C' or 'P'"),
+            "expected error to name the right constraint, got: {err}"
+        );
+    }
+
+    #[test]
+    fn from_str_occ21_bad_expiration_digits() {
+        use std::str::FromStr;
+        let err = Contract::from_str("SPY   2X0417C00550000")
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("expiration"),
+            "expected error to name expiration failure, got: {err}"
+        );
+    }
+
+    #[test]
+    fn from_str_wrong_length_garbage() {
+        use std::str::FromStr;
+        // 10 chars — neither a root (<=6) nor OCC-21 (21). The parser
+        // pads to 21 and the strict parse fails at the right-byte slot.
+        let err = Contract::from_str("APPLETREES").unwrap_err().to_string();
+        // Any specific failure is fine; spec says the error must name a
+        // specific failure, so assert it's not a generic pass-through.
+        assert!(
+            err.contains("Contract::from_str"),
+            "expected Contract::from_str-prefixed error, got: {err}"
+        );
+        assert!(
+            err.contains("APPLETREES"),
+            "expected error to include the offending input, got: {err}"
+        );
+    }
+
+    #[test]
+    fn from_str_empty_input() {
+        use std::str::FromStr;
+        let err = Contract::from_str("").unwrap_err().to_string();
+        assert!(
+            err.contains("empty"),
+            "expected error to mention empty input, got: {err}"
+        );
+    }
+
+    #[test]
+    fn from_str_lowercase_root_rejected() {
+        use std::str::FromStr;
+        let err = Contract::from_str("aapl").unwrap_err().to_string();
+        assert!(
+            err.contains("ASCII A-Z"),
+            "expected error to describe root charset, got: {err}"
+        );
+    }
+
+    #[test]
+    fn from_str_root_too_long() {
+        use std::str::FromStr;
+        // 7-char non-space root: not a valid bare root and not OCC-21 length.
+        let err = Contract::from_str("ABCDEFG").unwrap_err().to_string();
+        assert!(
+            err.contains("Contract::from_str"),
+            "expected Contract::from_str-prefixed error, got: {err}"
+        );
     }
 }

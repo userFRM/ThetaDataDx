@@ -6,6 +6,24 @@ use std::fmt::Write as _;
 use super::common::{snake_case, snake_to_camel, ts_rust_field_type};
 use super::schema::{load_schema, sorted_data_event_names, sorted_event_names, EventDef, Schema};
 
+/// Emit the Contract napi struct. Same shape across every language —
+/// `root` is always present (empty when not yet resolved), option fields
+/// are `Option<T>` on the Rust side / `?: T` on the TS side.
+fn render_contract_napi() -> &'static str {
+    "/// FPSS contract identifier. Surfaced on every decoded FPSS data\n\
+/// event as `event.quote.contract` / `event.trade.contract` / etc.\n\
+#[must_use]\n\
+#[napi(object)]\n\
+#[derive(Clone)]\n\
+pub struct Contract {\n\
+    pub root: String,\n\
+    pub sec_type: i32,\n\
+    pub exp_date: Option<i32>,\n\
+    pub is_call: Option<bool>,\n\
+    pub strike: Option<i32>,\n\
+}\n\n"
+}
+
 pub(super) fn render_ts_fpss_event_classes(schema: &Schema) -> String {
     let mut out = String::new();
     out.push_str(
@@ -29,6 +47,9 @@ pub(super) fn render_ts_fpss_event_classes(schema: &Schema) -> String {
     // `#[serde(rename = "simple" / "raw_data")]` in `BufferedEvent`.
     let data_names = sorted_data_event_names(schema);
     let names = sorted_event_names(schema);
+
+    // Contract struct — every data variant's `contract` field is of this type.
+    out.push_str(render_contract_napi());
 
     for event_name in &data_names {
         let def = &schema.events[*event_name];
@@ -132,6 +153,14 @@ pub(super) fn render_ts_fpss_event_classes(schema: &Schema) -> String {
                 "u64" | "i64" => writeln!(
                     out,
                     "                {name}: BigInt::from({name}),",
+                    name = column.name
+                )
+                .unwrap(),
+                // Contract is constructed explicitly — `root` clones, the
+                // option fields transfer by value.
+                "Contract" => writeln!(
+                    out,
+                    "                {name}: Contract {{\n                    root: {name}.root.clone(),\n                    sec_type: {name}.sec_type as i32,\n                    exp_date: {name}.exp_date,\n                    is_call: {name}.is_call,\n                    strike: {name}.strike,\n                }},",
                     name = column.name
                 )
                 .unwrap(),

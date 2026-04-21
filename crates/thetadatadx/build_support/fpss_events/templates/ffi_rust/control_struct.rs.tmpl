@@ -5,7 +5,14 @@
 ///   `3=market_open`, `4=market_close`, `5=server_error`,
 ///   `6=disconnected`, `8=reconnecting`, `9=reconnected`,
 ///   `10=error`, `11=unknown_frame`, `12=unknown_event` (non-Data /
-///   non-Control / non-RawData fallback; carries no payload).
+///   non-Control / non-RawData fallback; carries no payload),
+///   `13=connected` (server CONNECTED ack, wire code 4),
+///   `14=ping` (server heartbeat, wire code 10 — detail is the
+///   hex-encoded payload),
+///   `15=reconnected_server` (server RECONNECTED ack, wire code 13 —
+///   distinct from `9=reconnected` which is the client-side
+///   auto-reconnect completion),
+///   `16=restart` (server RESTART, wire code 31).
 ///   Value `7` is reserved for future use. `99` is an internal sentinel
 ///   for "unknown control-variant" — kept for backward compat; new
 ///   consumers should treat `12` as the canonical unknown marker.

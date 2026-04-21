@@ -37,7 +37,7 @@ mod tests {
     fn make_quote(contract_id: i32) -> FpssEvent {
         FpssEvent::Data(FpssData::Quote {
             contract_id,
-            symbol: Arc::from(""),
+            contract: Arc::new(Contract::stock("")),
             ms_of_day: 0,
             bid_size: 0,
             bid_exchange: 0,

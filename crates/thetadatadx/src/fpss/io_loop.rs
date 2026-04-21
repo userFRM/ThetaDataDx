@@ -126,7 +126,7 @@ pub(super) fn io_loop<F>(
     ring_size: usize,
     shutdown: Arc<AtomicBool>,
     authenticated: Arc<AtomicBool>,
-    contract_map: Arc<Mutex<HashMap<i32, Contract>>>,
+    contract_map: Arc<Mutex<HashMap<i32, Arc<Contract>>>>,
     permissions: String,
     _server_addr: String,
     derive_ohlcvc: bool,
@@ -171,12 +171,12 @@ pub(super) fn io_loop<F>(
     // Per-contract delta state for FIT decompression.
     let mut delta_state: DeltaState = DeltaState::new();
 
-    // Thread-local symbol cache: contract_id -> pre-rendered symbol string.
-    // Populated on ContractAssigned events, used by resolve_symbol() and
-    // warn_unknown_contract() on every tick -- zero Mutex locks on the hot path.
-    // The shared contract_map (Mutex-backed) is still updated for external callers
-    // (contract_map(), contract_lookup() public APIs).
-    let mut local_symbols: HashMap<i32, Arc<str>> = HashMap::new();
+    // Thread-local contract cache: contract_id -> Arc<Contract>.
+    // Populated on ContractAssigned events, used by the decode hot path to
+    // attach the parsed contract to every emitted data event with zero
+    // Mutex locks. The shared contract_map (Mutex-backed) is still updated
+    // for external callers (contract_map() / contract_lookup() public APIs).
+    let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
 
     // Reusable frame payload buffer.
     let mut frame_buf: Vec<u8> = Vec::with_capacity(framing::MAX_PAYLOAD_LEN);
@@ -209,7 +209,7 @@ pub(super) fn io_loop<F>(
                         &frame_buf[..payload_len],
                         &authenticated,
                         &contract_map,
-                        &mut local_symbols,
+                        &mut local_contracts,
                         &shutdown,
                         &mut delta_state,
                         derive_ohlcvc,
@@ -441,7 +441,7 @@ pub(super) fn io_loop<F>(
 
         // Clear delta state -- fresh connection means fresh deltas.
         delta_state.clear();
-        local_symbols.clear();
+        local_contracts.clear();
         contract_map
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
