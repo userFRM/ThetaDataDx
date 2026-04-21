@@ -15,15 +15,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::auth::{self, Credentials};
+use crate::auth::{self, Credentials, SessionToken};
 use crate::config::DirectConfig;
 use crate::error::Error;
 use crate::proto;
 use crate::proto::beta_theta_terminal_client::BetaThetaTerminalClient;
-
-/// Crate version embedded in `QueryInfo.terminal_version` so `ThetaData` can
-/// identify this client in server-side logs.
-const CLIENT_TYPE: &str = "rust-thetadatadx";
 
 /// Version string sent in `QueryInfo.terminal_version`.
 const TERMINAL_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -49,15 +45,24 @@ const TERMINAL_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// # }
 /// ```
 pub struct MddsClient {
-    /// Session UUID from Nexus auth (embedded in every request).
-    session_uuid: String,
+    /// Shared, mutable session token. Every request reads the current
+    /// UUID via this handle; `Unauthenticated` responses trigger a
+    /// single-shot refresh that swaps the UUID in place. See
+    /// [`crate::auth::SessionToken`].
+    session: SessionToken,
     /// gRPC channel to MDDS server.
     channel: tonic::transport::Channel,
     /// Configuration snapshot (retained for diagnostics/reconnect).
     config: DirectConfig,
-    /// Pre-built `QueryInfo` template — cloned per-request instead of allocating
-    /// new Strings each time.
-    query_info_template: proto::QueryInfo,
+    /// Reused `query_parameters` map. `client = "terminal"` is the only
+    /// static entry; we clone this into every `QueryInfo` so per-call
+    /// allocation stays flat instead of rebuilding the HashMap each time.
+    query_parameters: HashMap<String, String>,
+    /// `QueryInfo.client_type` value resolved at connect time (config
+    /// builder > env var > `rust-thetadatadx` default). Kept as an owned
+    /// `String` so it is cloned once per call — cheaper than rebuilding
+    /// from config every request.
+    client_type: String,
     /// Semaphore limiting concurrent in-flight gRPC requests.
     ///
     /// The Java terminal limits concurrent requests to `2^subscription_tier`
@@ -83,9 +88,11 @@ impl MddsClient {
     ///
     /// Returns an error on network, authentication, or parsing failure.
     pub async fn connect(creds: &Credentials, config: DirectConfig) -> Result<Self, Error> {
-        // Step 1: Authenticate against Nexus API.
-        tracing::info!("authenticating with Nexus API");
-        let auth_resp = auth::authenticate(creds).await?;
+        // Step 1: Authenticate against Nexus API using the configured URL
+        // (env-var / builder overridable). `config.nexus_url` already
+        // reflects that precedence via `DirectConfig::production()`.
+        tracing::info!(nexus_url = %config.nexus_url, "authenticating with Nexus API");
+        let auth_resp = auth::authenticate_at(&config.nexus_url, creds).await?;
         let session_uuid = auth_resp.session_id.clone();
 
         tracing::debug!(
@@ -124,20 +131,6 @@ impl MddsClient {
         // Source: MddsConnectionManager in decompiled terminal.
         query_parameters.insert("client".to_string(), "terminal".to_string());
 
-        let query_info_template = proto::QueryInfo {
-            auth_token: Some(proto::AuthToken {
-                session_uuid: session_uuid.clone(),
-            }),
-            query_parameters,
-            client_type: CLIENT_TYPE.to_string(),
-            // Intentional divergence from Java (see jvm-deviations.md):
-            // Java fills this with the terminal's build git commit hash.
-            // We are not the Java terminal and have no git commit to report,
-            // so we leave it empty. The server accepts empty strings here.
-            terminal_git_commit: String::new(),
-            terminal_version: TERMINAL_VERSION.to_string(),
-        };
-
         // Auto-detect concurrency from subscription tier when config is 0.
         // Source: Java terminal uses 2^subscription_tier (FREE=1, VALUE=2, STANDARD=4, PRO=8).
         let concurrent = if config.mdds_concurrent_requests == 0 {
@@ -160,24 +153,55 @@ impl MddsClient {
         let stock_tier = auth_resp.user.as_ref().and_then(|u| u.stock_subscription);
         let options_tier = auth_resp.user.as_ref().and_then(|u| u.options_subscription);
 
+        let session = SessionToken::new(session_uuid, config.nexus_url.clone(), creds.clone());
+        let client_type = config.client_type.clone();
+
         Ok(Self {
-            session_uuid,
+            session,
             channel,
             config,
-            query_info_template,
+            query_parameters,
+            client_type,
             request_semaphore,
             stock_tier,
             options_tier,
         })
     }
 
-    /// Return a clone of the pre-built `QueryInfo` template.
+    /// Build a fresh `QueryInfo` pinned to the current session UUID.
     ///
-    /// The template is constructed once at connection time, avoiding per-call
-    /// String allocations for session UUID, client type, and version.
-    #[inline]
-    pub(crate) fn query_info(&self) -> proto::QueryInfo {
-        self.query_info_template.clone()
+    /// Returned value is owned — every field is cloned from shared state.
+    /// The session UUID is read from [`SessionToken`] so a mid-session
+    /// refresh (see [`Self::session`]) automatically propagates to every
+    /// subsequent request without rebuilding the client.
+    pub(crate) async fn query_info(&self) -> proto::QueryInfo {
+        let uuid = self.session.current_uuid().await;
+        self.build_query_info(uuid)
+    }
+
+    /// Construct a `QueryInfo` around a caller-supplied UUID. Used by
+    /// the retry wrapper to pin an in-flight attempt to the exact UUID
+    /// seen by [`crate::auth::SessionToken::snapshot`] — so when a
+    /// concurrent refresh advances the token, we don't accidentally
+    /// mix old and new UUIDs on the same request.
+    pub(crate) fn build_query_info(&self, uuid: String) -> proto::QueryInfo {
+        proto::QueryInfo {
+            auth_token: Some(proto::AuthToken { session_uuid: uuid }),
+            query_parameters: self.query_parameters.clone(),
+            client_type: self.client_type.clone(),
+            // Intentional divergence from Java (see jvm-deviations.md):
+            // Java fills this with the terminal's build git commit hash.
+            // We are not the Java terminal and have no git commit to report,
+            // so we leave it empty. The server accepts empty strings here.
+            terminal_git_commit: String::new(),
+            terminal_version: TERMINAL_VERSION.to_string(),
+        }
+    }
+
+    /// Access the shared session token. Crate-internal — the retry
+    /// wrapper snapshots + refreshes through this.
+    pub(crate) fn session(&self) -> &SessionToken {
+        &self.session
     }
 
     /// Create a new gRPC stub from the shared channel.
@@ -198,10 +222,10 @@ impl MddsClient {
         &self.config
     }
 
-    /// Return the session UUID string.
-    #[must_use]
-    pub fn session_uuid(&self) -> &str {
-        &self.session_uuid
+    /// Return the session UUID. Reads through the shared
+    /// [`SessionToken`] so the value reflects any mid-session refresh.
+    pub async fn session_uuid(&self) -> String {
+        self.session.current_uuid().await
     }
 
     /// Stock subscription tier from Nexus auth response (0=Free, 1=Value, 2=Standard, 3=Pro).
@@ -234,9 +258,11 @@ impl MddsClient {
     }
 
     /// Get a `QueryInfo` for use with [`raw_query`](Self::raw_query).
-    #[must_use]
-    pub fn raw_query_info(&self) -> proto::QueryInfo {
-        self.query_info()
+    ///
+    /// Async because the session UUID lives behind an `async Mutex` so
+    /// mid-session refreshes can swap it atomically.
+    pub async fn raw_query_info(&self) -> proto::QueryInfo {
+        self.query_info().await
     }
 
     /// Get direct access to the underlying gRPC channel.
