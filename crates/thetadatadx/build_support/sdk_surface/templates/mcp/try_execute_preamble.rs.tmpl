@@ -1,0 +1,15 @@
+async fn try_execute_generated_utility(
+    client: &Option<ThetaDataDx>,
+    name: &str,
+    args: &Value,
+    start_time: std::time::Instant,
+) -> Option<Result<Value, ToolError>> {
+    macro_rules! param_or_return {
+        ($expr:expr) => {
+            match $expr {
+                Ok(value) => value,
+                Err(error) => return Some(Err(ToolError::InvalidParams(error))),
+            }
+        };
+    }
+    match name {

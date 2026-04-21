@@ -1,0 +1,20 @@
+// FpssControlKind identifies the sub-type of a control event.
+// Use with FpssControl.Kind.
+type FpssControlKind = int32
+
+const (
+	FpssCtrlLoginSuccess     FpssControlKind = 0
+	FpssCtrlContractAssigned FpssControlKind = 1
+	FpssCtrlReqResponse      FpssControlKind = 2
+	FpssCtrlMarketOpen       FpssControlKind = 3
+	FpssCtrlMarketClose      FpssControlKind = 4
+	FpssCtrlServerError      FpssControlKind = 5
+	FpssCtrlDisconnected     FpssControlKind = 6
+	FpssCtrlReconnecting     FpssControlKind = 8
+	FpssCtrlReconnected      FpssControlKind = 9
+	FpssCtrlError            FpssControlKind = 10
+	FpssCtrlUnknownFrame     FpssControlKind = 11 // ID = frame code, Detail = hex payload
+	FpssCtrlUnknownEvent     FpssControlKind = 12 // non-Data / non-Control / non-RawData fallback
+	// Value 7 is reserved for future use.
+)
+

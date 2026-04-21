@@ -108,13 +108,7 @@ fn cpp_fpss_decl(method: &MethodSpec) -> String {
 fn cpp_fpss_def(method: &MethodSpec) -> String {
     match method.kind {
         MethodKind::FpssConnect => {
-            r#"FpssClient::FpssClient(const Credentials& creds, const Config& config) {
-    auto h = tdx_fpss_connect(creds.get(), config.get());
-    if (!h) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
-    handle_.reset(h);
-}
-"#
-            .to_string()
+            include_str!("templates/cpp/fpss_connect_def.cpp.tmpl").to_string()
         }
         MethodKind::StockContractCall | MethodKind::FullCall => format!(
             "int FpssClient::{}({} {}) {{ return tdx_fpss_{}(handle_.get(), {}.c_str()); }}\n",
@@ -148,57 +142,16 @@ fn cpp_fpss_def(method: &MethodSpec) -> String {
                 .to_string()
         }
         MethodKind::ContractLookup => {
-            r#"std::optional<std::string> FpssClient::contract_lookup(int id) const {
-    detail::FfiString result(tdx_fpss_contract_lookup(handle_.get(), id));
-    if (!result.ok()) {
-        std::string err = detail::last_ffi_error();
-        if (!err.empty()) throw std::runtime_error("thetadatadx: " + err);
-        return std::nullopt;
-    }
-    return result.str();
-}
-"#
-            .to_string()
+            include_str!("templates/cpp/contract_lookup_def.cpp.tmpl").to_string()
         }
         MethodKind::ContractMap => {
-            r#"std::map<int32_t, std::string> FpssClient::contract_map() const {
-    auto* arr = tdx_fpss_contract_map(handle_.get());
-    if (!arr) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
-    std::map<int32_t, std::string> result;
-    if (arr->data != nullptr && arr->len > 0) {
-        for (size_t i = 0; i < arr->len; ++i) {
-            result.emplace(arr->data[i].id, arr->data[i].contract ? std::string(arr->data[i].contract) : std::string());
-        }
-    }
-    tdx_contract_map_array_free(arr);
-    return result;
-}
-"#
-            .to_string()
+            include_str!("templates/cpp/contract_map_def.cpp.tmpl").to_string()
         }
         MethodKind::ActiveSubscriptions => {
-            r#"std::vector<Subscription> FpssClient::active_subscriptions() const {
-    return detail::subscription_array_to_vector(tdx_fpss_active_subscriptions(handle_.get()));
-}
-"#
-            .to_string()
+            include_str!("templates/cpp/active_subscriptions_def.cpp.tmpl").to_string()
         }
-        MethodKind::NextEvent => {
-            r#"FpssEventPtr FpssClient::next_event(uint64_t timeout_ms) {
-    auto* raw = tdx_fpss_next_event(handle_.get(), timeout_ms);
-    return FpssEventPtr(raw);
-}
-"#
-            .to_string()
-        }
-        MethodKind::Reconnect => {
-            r#"void FpssClient::reconnect() {
-    int rc = tdx_fpss_reconnect(handle_.get());
-    if (rc < 0) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
-}
-"#
-            .to_string()
-        }
+        MethodKind::NextEvent => include_str!("templates/cpp/next_event_def.cpp.tmpl").to_string(),
+        MethodKind::Reconnect => include_str!("templates/cpp/reconnect_def.cpp.tmpl").to_string(),
         MethodKind::Shutdown => {
             "void FpssClient::shutdown() { tdx_fpss_shutdown(handle_.get()); }\n".to_string()
         }
@@ -239,64 +192,9 @@ fn cpp_utility_decl(utility: &UtilitySpec) -> String {
 
 fn cpp_utility_def(utility: &UtilitySpec) -> String {
     match utility.kind {
-        UtilityKind::AllGreeks => {
-            r#"Greeks all_greeks(double spot, double strike, double rate, double div_yield,
-                  double tte, double option_price, const std::string& right) {
-    TdxGreeksResult* raw = tdx_all_greeks(
-        spot,
-        strike,
-        rate,
-        div_yield,
-        tte,
-        option_price,
-        right.c_str()
-    );
-    if (raw == nullptr) {
-        throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
-    }
-
-    Greeks result{
-        raw->value,
-        raw->delta,
-        raw->gamma,
-        raw->theta,
-        raw->vega,
-        raw->rho,
-        raw->iv,
-        raw->iv_error,
-        raw->vanna,
-        raw->charm,
-        raw->vomma,
-        raw->veta,
-        raw->speed,
-        raw->zomma,
-        raw->color,
-        raw->ultima,
-        raw->d1,
-        raw->d2,
-        raw->dual_delta,
-        raw->dual_gamma,
-        raw->epsilon,
-        raw->lambda,
-    };
-    tdx_greeks_result_free(raw);
-    return result;
-}
-"#
-            .to_string()
-        }
+        UtilityKind::AllGreeks => include_str!("templates/cpp/all_greeks_def.cpp.tmpl").to_string(),
         UtilityKind::ImpliedVolatility => {
-            r#"std::pair<double, double> implied_volatility(double spot, double strike,
-                                              double rate, double div_yield,
-                                              double tte, double option_price,
-                                              const std::string& right) {
-    double iv = 0.0, err = 0.0;
-    int rc = tdx_implied_volatility(spot, strike, rate, div_yield, tte, option_price, right.c_str(), &iv, &err);
-    if (rc != 0) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
-    return {iv, err};
-}
-"#
-            .to_string()
+            include_str!("templates/cpp/implied_volatility_def.cpp.tmpl").to_string()
         }
         other => panic!("unsupported C++ utility kind: {other:?}"),
     }
@@ -305,35 +203,17 @@ fn cpp_utility_def(utility: &UtilitySpec) -> String {
 fn cpp_lifecycle_def(method: &MethodSpec) -> String {
     match method.kind {
         MethodKind::CredentialsFromFile => {
-            r#"Credentials Credentials::from_file(const std::string& path) {
-    auto h = tdx_credentials_from_file(path.c_str());
-    if (!h) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
-    return Credentials(h);
-}
-"#
-            .to_string()
+            include_str!("templates/cpp/credentials_from_file_def.cpp.tmpl").to_string()
         }
         MethodKind::CredentialsFromEmail => {
-            r#"Credentials Credentials::from_email(const std::string& email, const std::string& password) {
-    auto h = tdx_credentials_new(email.c_str(), password.c_str());
-    if (!h) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
-    return Credentials(h);
-}
-"#
-            .to_string()
+            include_str!("templates/cpp/credentials_from_email_def.cpp.tmpl").to_string()
         }
         MethodKind::ConfigConstructor => {
             let variant = method.config_variant.as_deref().unwrap();
             format!("Config Config::{variant}() {{ return Config(tdx_config_{variant}()); }}\n")
         }
         MethodKind::ClientConnect => {
-            r#"Client Client::connect(const Credentials& creds, const Config& config) {
-    auto h = tdx_client_connect(creds.get(), config.get());
-    if (!h) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
-    return Client(h);
-}
-"#
-            .to_string()
+            include_str!("templates/cpp/client_connect_def.cpp.tmpl").to_string()
         }
         other => panic!("unsupported C++ lifecycle kind: {other:?}"),
     }

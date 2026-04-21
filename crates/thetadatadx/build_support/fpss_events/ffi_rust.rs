@@ -25,17 +25,7 @@ pub(super) fn render_ffi_fpss_event_structs(schema: &Schema) -> String {
     out.push_str("// include site.\n\n");
 
     // Kind enum — order matches the C header + Go enum below.
-    out.push_str("/// FPSS event kind tag. Check this to determine which field of\n");
-    out.push_str("/// `TdxFpssEvent` is valid.\n");
-    out.push_str("#[repr(C)]\n");
-    out.push_str("pub enum TdxFpssEventKind {\n");
-    out.push_str("    Quote = 0,\n");
-    out.push_str("    Trade = 1,\n");
-    out.push_str("    OpenInterest = 2,\n");
-    out.push_str("    Ohlcvc = 3,\n");
-    out.push_str("    Control = 4,\n");
-    out.push_str("    RawData = 5,\n");
-    out.push_str("}\n\n");
+    out.push_str(include_str!("templates/ffi_rust/kind_enum.rs.tmpl"));
 
     // One #[repr(C)] struct per data variant.
     for (event_name, def) in sorted_data_events(schema) {
@@ -61,38 +51,8 @@ pub(super) fn render_ffi_fpss_event_structs(schema: &Schema) -> String {
     // surface keeps the Control-kind-integer + optional-`detail` pattern
     // that every downstream SDK already speaks. Documented inline to keep
     // the kind-integer mapping next to the struct definition.
-    out.push_str("/// `#[repr(C)]` FPSS control event.\n");
-    out.push_str("///\n");
-    out.push_str("/// `kind` encodes the control sub-type:\n");
-    out.push_str("///   `0=login_success`, `1=contract_assigned`, `2=req_response`,\n");
-    out.push_str("///   `3=market_open`, `4=market_close`, `5=server_error`,\n");
-    out.push_str("///   `6=disconnected`, `8=reconnecting`, `9=reconnected`,\n");
-    out.push_str("///   `10=error`, `11=unknown_frame`, `12=unknown_event` (non-Data /\n");
-    out.push_str("///   non-Control / non-RawData fallback; carries no payload).\n");
-    out.push_str("///   Value `7` is reserved for future use. `99` is an internal sentinel\n");
-    out.push_str("///   for \"unknown control-variant\" — kept for backward compat; new\n");
-    out.push_str("///   consumers should treat `12` as the canonical unknown marker.\n");
-    out.push_str("///\n");
-    out.push_str("/// `id` carries the `contract_id`, `req_id`, reconnect attempt number,\n");
-    out.push_str("/// or unknown-frame code where applicable (0 otherwise).\n");
-    out.push_str("/// `detail` is a NUL-terminated C string (may be null).\n");
-    out.push_str("#[repr(C)]\n");
-    out.push_str("pub struct TdxFpssControl {\n");
-    out.push_str("    pub kind: i32,\n");
-    out.push_str("    pub id: i32,\n");
-    out.push_str("    pub detail: *const c_char,\n");
-    out.push_str("}\n\n");
-
-    out.push_str("/// `#[repr(C)]` FPSS raw/undecoded data event.\n");
-    out.push_str("///\n");
-    out.push_str("/// `code` is the wire message code. `payload` is a pointer to the raw\n");
-    out.push_str("/// bytes and `payload_len` is the number of bytes.\n");
-    out.push_str("#[repr(C)]\n");
-    out.push_str("pub struct TdxFpssRawData {\n");
-    out.push_str("    pub code: u8,\n");
-    out.push_str("    pub payload: *const u8,\n");
-    out.push_str("    pub payload_len: usize,\n");
-    out.push_str("}\n\n");
+    out.push_str(include_str!("templates/ffi_rust/control_struct.rs.tmpl"));
+    out.push_str(include_str!("templates/ffi_rust/raw_data_struct.rs.tmpl"));
 
     // Tagged union-style wrapper. Flat struct (not a C union) so the
     // layout is trivially FFI-safe.
@@ -125,16 +85,7 @@ pub(super) fn render_ffi_fpss_event_structs(schema: &Schema) -> String {
         }
         out.push_str("};\n");
     }
-    out.push_str("pub(crate) const ZERO_CONTROL: TdxFpssControl = TdxFpssControl {\n");
-    out.push_str("    kind: 0,\n");
-    out.push_str("    id: 0,\n");
-    out.push_str("    detail: ptr::null(),\n");
-    out.push_str("};\n");
-    out.push_str("pub(crate) const ZERO_RAW: TdxFpssRawData = TdxFpssRawData {\n");
-    out.push_str("    code: 0,\n");
-    out.push_str("    payload: ptr::null(),\n");
-    out.push_str("    payload_len: 0,\n");
-    out.push_str("};\n");
+    out.push_str(include_str!("templates/ffi_rust/zero_consts.rs.tmpl"));
 
     out
 }
@@ -235,61 +186,10 @@ pub(super) fn render_ffi_fpss_event_converter(schema: &Schema) -> String {
     // divergence between the two would be a review finding.
     out.push_str("        FpssEvent::Control(ctrl) => {\n");
     out.push_str("            let (kind, id, detail_str) = match ctrl {\n");
-    out.push_str(
-        "                FpssControl::LoginSuccess { permissions } => (0, 0, Some(permissions.clone())),\n",
-    );
-    out.push_str(
-        "                FpssControl::ContractAssigned { id, contract } => (1, *id, Some(format!(\"{contract}\"))),\n",
-    );
-    out.push_str(
-        "                FpssControl::ReqResponse { req_id, result } => (2, *req_id, Some(format!(\"{result:?}\"))),\n",
-    );
-    out.push_str("                FpssControl::MarketOpen => (3, 0, None),\n");
-    out.push_str("                FpssControl::MarketClose => (4, 0, None),\n");
-    out.push_str(
-        "                FpssControl::ServerError { message } => (5, 0, Some(message.clone())),\n",
-    );
-    out.push_str(
-        "                FpssControl::Disconnected { reason } => (6, 0, Some(format!(\"{reason:?}\"))),\n",
-    );
-    out.push_str("                FpssControl::Reconnecting {\n");
-    out.push_str("                    reason,\n");
-    out.push_str("                    attempt,\n");
-    out.push_str("                    delay_ms,\n");
-    out.push_str(
-        "                } => (8, *attempt as i32, Some(format!(\"{reason:?} delay={delay_ms}ms\"))),\n",
-    );
-    out.push_str("                FpssControl::Reconnected => (9, 0, None),\n");
-    out.push_str(
-        "                FpssControl::Error { message } => (10, 0, Some(message.clone())),\n",
-    );
-    out.push_str("                FpssControl::UnknownFrame { code, payload } => (\n");
-    out.push_str("                    11,\n");
-    out.push_str("                    *code as i32,\n");
-    out.push_str("                    Some(\n");
-    out.push_str("                        payload\n");
-    out.push_str("                            .iter()\n");
-    out.push_str("                            .map(|b| format!(\"{b:02x}\"))\n");
-    out.push_str("                            .collect::<String>(),\n");
-    out.push_str("                    ),\n");
-    out.push_str("                ),\n");
+    out.push_str(include_str!(
+        "templates/ffi_rust/control_match_table.rs.tmpl"
+    ));
     // `FpssControl` is `#[non_exhaustive]`.
-    out.push_str("                _ => (99, 0, None), // unknown control\n");
-    out.push_str("            };\n");
-    out.push_str(
-        "            let cstring = detail_str.and_then(|s| std::ffi::CString::new(s).ok());\n",
-    );
-    out.push_str(
-        "            let detail_ptr = cstring.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());\n",
-    );
-    out.push_str("            FfiBufferedEvent {\n");
-    out.push_str("                event: TdxFpssEvent {\n");
-    out.push_str("                    kind: TdxFpssEventKind::Control,\n");
-    out.push_str("                    control: TdxFpssControl {\n");
-    out.push_str("                        kind,\n");
-    out.push_str("                        id,\n");
-    out.push_str("                        detail: detail_ptr,\n");
-    out.push_str("                    },\n");
     for (event_name, _) in &data_events {
         let field = snake_case(event_name);
         let zero = zero_const_name(event_name);
@@ -305,18 +205,9 @@ pub(super) fn render_ffi_fpss_event_converter(schema: &Schema) -> String {
     // Non-Data, non-Control, non-RawData fallback. `FpssEvent` itself is
     // `#[non_exhaustive]`, so a future variant lands here; kind=12 is the
     // canonical unknown-event sentinel (NOT 8 — 8 is Reconnecting).
-    out.push_str("        _ => {\n");
-    out.push_str("            // Empty / unknown event — surface as a control with kind=12.\n");
-    out.push_str("            // kind=12 is the canonical unknown-event sentinel; see doc\n");
-    out.push_str("            // comment on `TdxFpssControl` for the full mapping.\n");
-    out.push_str("            FfiBufferedEvent {\n");
-    out.push_str("                event: TdxFpssEvent {\n");
-    out.push_str("                    kind: TdxFpssEventKind::Control,\n");
-    out.push_str("                    control: TdxFpssControl {\n");
-    out.push_str("                        kind: 12,\n");
-    out.push_str("                        id: 0,\n");
-    out.push_str("                        detail: ptr::null(),\n");
-    out.push_str("                    },\n");
+    out.push_str(include_str!(
+        "templates/ffi_rust/unknown_event_arm_prelude.rs.tmpl"
+    ));
     for (event_name, _) in &data_events {
         let field = snake_case(event_name);
         let zero = zero_const_name(event_name);

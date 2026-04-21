@@ -1,0 +1,7 @@
+#[must_use]
+#[napi(object, object_from_js = false)]
+#[derive(Clone)]
+pub struct FpssEvent {
+    /// Discriminator matching one of the typed payload fields below.
+    /// Narrowed to a literal union in TS so `switch (event.kind)`
+    /// correctly narrows the optional payload fields.

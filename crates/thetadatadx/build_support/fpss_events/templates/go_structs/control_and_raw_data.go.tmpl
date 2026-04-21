@@ -1,0 +1,22 @@
+// FpssControl is a control/lifecycle event from FPSS.
+//
+// Kind encodes the sub-type; see the FpssCtrl* constants above for the
+// canonical numeric mapping (0..=6, 8..=12). Value 7 is currently
+// unassigned — use the named constants, not literals.
+//
+// ID carries the contract_id, req_id, or reconnect attempt number where
+// applicable (0 otherwise). Detail is a human-readable string (may be
+// empty).
+type FpssControl struct {
+	Kind   int32
+	ID     int32
+	Detail string
+}
+
+// FpssRawData is an undecoded frame from FPSS. Surfaced when the wire
+// message code does not match any known decoder.
+type FpssRawData struct {
+	Code    uint8
+	Payload []byte
+}
+

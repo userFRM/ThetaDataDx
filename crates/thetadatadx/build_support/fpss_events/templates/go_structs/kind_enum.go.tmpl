@@ -1,0 +1,12 @@
+// FpssEventKind identifies the type of an FPSS streaming event.
+type FpssEventKind int
+
+const (
+	FpssQuoteEvent        FpssEventKind = 0
+	FpssTradeEvent        FpssEventKind = 1
+	FpssOpenInterestEvent FpssEventKind = 2
+	FpssOhlcvcEvent       FpssEventKind = 3
+	FpssControlEvent      FpssEventKind = 4
+	FpssRawDataEvent      FpssEventKind = 5
+)
+

@@ -1,0 +1,36 @@
+                FpssControl::LoginSuccess { permissions } => (0, 0, Some(permissions.clone())),
+                FpssControl::ContractAssigned { id, contract } => (1, *id, Some(format!("{contract}"))),
+                FpssControl::ReqResponse { req_id, result } => (2, *req_id, Some(format!("{result:?}"))),
+                FpssControl::MarketOpen => (3, 0, None),
+                FpssControl::MarketClose => (4, 0, None),
+                FpssControl::ServerError { message } => (5, 0, Some(message.clone())),
+                FpssControl::Disconnected { reason } => (6, 0, Some(format!("{reason:?}"))),
+                FpssControl::Reconnecting {
+                    reason,
+                    attempt,
+                    delay_ms,
+                } => (8, *attempt as i32, Some(format!("{reason:?} delay={delay_ms}ms"))),
+                FpssControl::Reconnected => (9, 0, None),
+                FpssControl::Error { message } => (10, 0, Some(message.clone())),
+                FpssControl::UnknownFrame { code, payload } => (
+                    11,
+                    *code as i32,
+                    Some(
+                        payload
+                            .iter()
+                            .map(|b| format!("{b:02x}"))
+                            .collect::<String>(),
+                    ),
+                ),
+                _ => (99, 0, None), // unknown control
+            };
+            let cstring = detail_str.and_then(|s| std::ffi::CString::new(s).ok());
+            let detail_ptr = cstring.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
+            FfiBufferedEvent {
+                event: TdxFpssEvent {
+                    kind: TdxFpssEventKind::Control,
+                    control: TdxFpssControl {
+                        kind,
+                        id,
+                        detail: detail_ptr,
+                    },

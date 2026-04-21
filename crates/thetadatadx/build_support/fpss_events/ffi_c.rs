@@ -24,14 +24,7 @@ pub(super) fn render_c_fpss_event_header(schema: &Schema) -> String {
     out.push_str(" * (C++ SDK). Plain C typedefs — both surfaces see byte-identical\n");
     out.push_str(" * layout. Do not hand-edit. */\n\n");
 
-    out.push_str("typedef enum {\n");
-    out.push_str("    TDX_FPSS_QUOTE = 0,\n");
-    out.push_str("    TDX_FPSS_TRADE = 1,\n");
-    out.push_str("    TDX_FPSS_OPEN_INTEREST = 2,\n");
-    out.push_str("    TDX_FPSS_OHLCVC = 3,\n");
-    out.push_str("    TDX_FPSS_CONTROL = 4,\n");
-    out.push_str("    TDX_FPSS_RAW_DATA = 5,\n");
-    out.push_str("} TdxFpssEventKind;\n\n");
+    out.push_str(include_str!("templates/ffi_c/kind_enum.h.tmpl"));
 
     for (event_name, def) in sorted_data_events(schema) {
         out.push_str("typedef struct {\n");
@@ -42,17 +35,7 @@ pub(super) fn render_c_fpss_event_header(schema: &Schema) -> String {
         writeln!(out, "}} TdxFpss{event_name};\n").unwrap();
     }
 
-    out.push_str("typedef struct {\n");
-    out.push_str("    int32_t kind;\n");
-    out.push_str("    int32_t id;\n");
-    out.push_str("    const char* detail;\n");
-    out.push_str("} TdxFpssControl;\n\n");
-
-    out.push_str("typedef struct {\n");
-    out.push_str("    uint8_t code;\n");
-    out.push_str("    const uint8_t* payload;\n");
-    out.push_str("    size_t payload_len;\n");
-    out.push_str("} TdxFpssRawData;\n\n");
+    out.push_str(include_str!("templates/ffi_c/control_and_raw_data.h.tmpl"));
 
     out.push_str("typedef struct {\n");
     out.push_str("    TdxFpssEventKind kind;\n");

@@ -1,0 +1,11 @@
+        let rx_arc = {
+            let rx_outer = self.rx.lock().unwrap_or_else(|e| e.into_inner());
+            match rx_outer.as_ref() {
+                Some(arc) => Arc::clone(arc),
+                None => {
+                    return Err(napi::Error::from_reason(
+                        "streaming not started -- call startStreaming() first",
+                    ))
+                }
+            }
+        };

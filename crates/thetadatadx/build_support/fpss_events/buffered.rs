@@ -125,93 +125,11 @@ fn render_control_match_arms() -> String {
     // Stable — last changed by #368 when Reconnecting/Reconnected were
     // added. `FpssControl` is `#[non_exhaustive]`, so the trailing `_ =>`
     // catches any future variant the core crate adds.
-    let mut out = String::new();
-    out.push_str("        fpss::FpssEvent::Control(ctrl) => match ctrl {\n");
-    out.push_str(
-        "            fpss::FpssControl::LoginSuccess { permissions } => BufferedEvent::Simple {\n",
-    );
-    out.push_str("                event_type: \"login_success\".to_string(),\n");
-    out.push_str("                detail: Some(permissions.clone()),\n");
-    out.push_str("                id: None,\n");
-    out.push_str("            },\n");
-    out.push_str("            fpss::FpssControl::ContractAssigned { id, contract } => BufferedEvent::Simple {\n");
-    out.push_str("                event_type: \"contract_assigned\".to_string(),\n");
-    out.push_str("                detail: Some(format!(\"{contract}\")),\n");
-    out.push_str("                id: Some(*id),\n");
-    out.push_str("            },\n");
-    out.push_str("            fpss::FpssControl::ReqResponse { req_id, result } => BufferedEvent::Simple {\n");
-    out.push_str("                event_type: \"req_response\".to_string(),\n");
-    out.push_str("                detail: Some(format!(\"{result:?}\")),\n");
-    out.push_str("                id: Some(*req_id),\n");
-    out.push_str("            },\n");
-    out.push_str("            fpss::FpssControl::MarketOpen => BufferedEvent::Simple {\n");
-    out.push_str("                event_type: \"market_open\".to_string(),\n");
-    out.push_str("                detail: None,\n");
-    out.push_str("                id: None,\n");
-    out.push_str("            },\n");
-    out.push_str("            fpss::FpssControl::MarketClose => BufferedEvent::Simple {\n");
-    out.push_str("                event_type: \"market_close\".to_string(),\n");
-    out.push_str("                detail: None,\n");
-    out.push_str("                id: None,\n");
-    out.push_str("            },\n");
-    out.push_str(
-        "            fpss::FpssControl::ServerError { message } => BufferedEvent::Simple {\n",
-    );
-    out.push_str("                event_type: \"server_error\".to_string(),\n");
-    out.push_str("                detail: Some(message.clone()),\n");
-    out.push_str("                id: None,\n");
-    out.push_str("            },\n");
-    out.push_str(
-        "            fpss::FpssControl::Disconnected { reason } => BufferedEvent::Simple {\n",
-    );
-    out.push_str("                event_type: \"disconnected\".to_string(),\n");
-    out.push_str("                detail: Some(format!(\"{reason:?}\")),\n");
-    out.push_str("                id: None,\n");
-    out.push_str("            },\n");
-    out.push_str("            fpss::FpssControl::Reconnecting {\n");
-    out.push_str("                reason,\n");
-    out.push_str("                attempt,\n");
-    out.push_str("                delay_ms,\n");
-    out.push_str("            } => BufferedEvent::Simple {\n");
-    out.push_str("                event_type: \"reconnecting\".to_string(),\n");
-    out.push_str("                detail: Some(format!(\n");
-    out.push_str(
-        "                    \"reason={reason:?} attempt={attempt} delay_ms={delay_ms}\"\n",
-    );
-    out.push_str("                )),\n");
+    //
     // `attempt: u32` truncates silently with `as i32` above `i32::MAX`.
     // Saturate instead so the diagnostic id stays non-negative even in
     // the (implausible but allowed) case of a very long-lived reconnect
     // loop — the typed `FpssSimplePayload.id` field is `i32` on the SDK
     // surface and we cannot widen it without a breaking type change.
-    out.push_str("                id: Some(i32::try_from(*attempt).unwrap_or(i32::MAX)),\n");
-    out.push_str("            },\n");
-    out.push_str("            fpss::FpssControl::Reconnected => BufferedEvent::Simple {\n");
-    out.push_str("                event_type: \"reconnected\".to_string(),\n");
-    out.push_str("                detail: None,\n");
-    out.push_str("                id: None,\n");
-    out.push_str("            },\n");
-    out.push_str("            fpss::FpssControl::Error { message } => BufferedEvent::Simple {\n");
-    out.push_str("                event_type: \"error\".to_string(),\n");
-    out.push_str("                detail: Some(message.clone()),\n");
-    out.push_str("                id: None,\n");
-    out.push_str("            },\n");
-    out.push_str("            fpss::FpssControl::UnknownFrame { code, payload } => BufferedEvent::Simple {\n");
-    out.push_str("                event_type: \"unknown_frame\".to_string(),\n");
-    out.push_str("                detail: Some(format!(\n");
-    out.push_str("                    \"code={code} payload_hex={}\",\n");
-    out.push_str("                    payload\n");
-    out.push_str("                        .iter()\n");
-    out.push_str("                        .map(|b| format!(\"{b:02x}\"))\n");
-    out.push_str("                        .collect::<String>()\n");
-    out.push_str("                )),\n");
-    out.push_str("                id: Some(*code as i32),\n");
-    out.push_str("            },\n");
-    out.push_str("            _ => BufferedEvent::Simple {\n");
-    out.push_str("                event_type: \"unknown_control\".to_string(),\n");
-    out.push_str("                detail: None,\n");
-    out.push_str("                id: None,\n");
-    out.push_str("            },\n");
-    out.push_str("        },\n");
-    out
+    include_str!("templates/buffered/control_match_arms.rs.tmpl").to_string()
 }

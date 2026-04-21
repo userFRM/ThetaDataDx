@@ -1,0 +1,24 @@
+/// FPSS simple / diagnostic payload (login, disconnect, market open,
+/// unknown-data fallback, ...). Mirrors `BufferedEvent::Simple`.
+#[must_use]
+#[napi(object)]
+#[derive(Clone)]
+pub struct FpssSimplePayload {
+    /// Concrete event kind (e.g. "login_success", "disconnected",
+    /// "unknown_data", "unknown_control").
+    pub event_type: String,
+    /// Free-form diagnostic detail; empty when the event carries no payload.
+    pub detail: Option<String>,
+    /// Optional event id (req_id for ReqResponse, contract id for ContractAssigned).
+    pub id: Option<i32>,
+}
+
+/// FPSS raw-bytes payload for frames the decoder did not recognise.
+#[must_use]
+#[napi(object)]
+#[derive(Clone)]
+pub struct FpssRawDataPayload {
+    pub code: u32,
+    pub payload: Vec<u8>,
+}
+

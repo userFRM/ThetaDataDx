@@ -37,31 +37,7 @@ pub(super) fn render_ts_fpss_event_classes(schema: &Schema) -> String {
     }
 
     // Simple / diagnostic payload + raw payload.
-    out.push_str("/// FPSS simple / diagnostic payload (login, disconnect, market open,\n");
-    out.push_str("/// unknown-data fallback, ...). Mirrors `BufferedEvent::Simple`.\n");
-    out.push_str("#[must_use]\n");
-    out.push_str("#[napi(object)]\n");
-    out.push_str("#[derive(Clone)]\n");
-    out.push_str("pub struct FpssSimplePayload {\n");
-    out.push_str("    /// Concrete event kind (e.g. \"login_success\", \"disconnected\",\n");
-    out.push_str("    /// \"unknown_data\", \"unknown_control\").\n");
-    out.push_str("    pub event_type: String,\n");
-    out.push_str("    /// Free-form diagnostic detail; empty when the event carries no payload.\n");
-    out.push_str("    pub detail: Option<String>,\n");
-    out.push_str(
-        "    /// Optional event id (req_id for ReqResponse, contract id for ContractAssigned).\n",
-    );
-    out.push_str("    pub id: Option<i32>,\n");
-    out.push_str("}\n\n");
-
-    out.push_str("/// FPSS raw-bytes payload for frames the decoder did not recognise.\n");
-    out.push_str("#[must_use]\n");
-    out.push_str("#[napi(object)]\n");
-    out.push_str("#[derive(Clone)]\n");
-    out.push_str("pub struct FpssRawDataPayload {\n");
-    out.push_str("    pub code: u32,\n");
-    out.push_str("    pub payload: Vec<u8>,\n");
-    out.push_str("}\n\n");
+    out.push_str(include_str!("templates/typescript/payload_structs.rs.tmpl"));
 
     // Build the TS literal union for the `kind` field. Emitted as a
     // `ts_type` override on `pub kind: &'static str` — see below. Using a
@@ -93,20 +69,16 @@ pub(super) fn render_ts_fpss_event_classes(schema: &Schema) -> String {
     // `nextEvent()`), so losing the `JS -> Rust` direction is not a
     // regression and it lets `kind` be a `&'static str` bound to a
     // string literal — zero heap alloc per event.
-    out.push_str("#[must_use]\n");
-    out.push_str("#[napi(object, object_from_js = false)]\n");
-    out.push_str("#[derive(Clone)]\n");
-    out.push_str("pub struct FpssEvent {\n");
     // `kind` is the discriminator. Stored as `&'static str` so every
-    // assignment in `buffered_event_to_typed` is a literal (`\"ohlcvc\"`,
-    // `\"open_interest\"`, ...) — no `String::from` allocation on the
+    // assignment in `buffered_event_to_typed` is a literal (`"ohlcvc"`,
+    // `"open_interest"`, ...) — no `String::from` allocation on the
     // hot path. The `ts_type` override narrows it to the same literal
     // union the `nextEvent()` `ts_return_type` already uses, so
     // `switch (event.kind)` still narrows the optional payload fields in
     // TypeScript.
-    out.push_str("    /// Discriminator matching one of the typed payload fields below.\n");
-    out.push_str("    /// Narrowed to a literal union in TS so `switch (event.kind)`\n");
-    out.push_str("    /// correctly narrows the optional payload fields.\n");
+    out.push_str(include_str!(
+        "templates/typescript/fpss_event_attrs.rs.tmpl"
+    ));
     writeln!(out, "    #[napi(ts_type = \"{kind_ts_union}\")]").unwrap();
     out.push_str("    pub kind: &'static str,\n");
     // One optional typed payload per data variant.

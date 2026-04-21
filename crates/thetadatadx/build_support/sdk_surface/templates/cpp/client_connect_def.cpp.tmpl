@@ -1,0 +1,5 @@
+Client Client::connect(const Credentials& creds, const Config& config) {
+    auto h = tdx_client_connect(creds.get(), config.get());
+    if (!h) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+    return Client(h);
+}

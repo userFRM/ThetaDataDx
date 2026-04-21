@@ -1,0 +1,23 @@
+    // EOD date fields may arrive as Price, Number, or Timestamp cells.
+    fn eod_date(row: &crate::proto::DataValueList, idx: usize) -> Result<i32, DecodeError> {
+        let Some(dv) = row.values.get(idx) else {
+            return Err(DecodeError::MissingCell { column: idx });
+        };
+        match dv.data_type.as_ref() {
+            Some(crate::proto::data_value::DataType::Number(n)) => Ok(*n as i32),
+            Some(crate::proto::data_value::DataType::Price(p)) => Ok(p.value),
+            Some(crate::proto::data_value::DataType::Timestamp(ts)) => Ok(crate::decode::timestamp_to_date(ts.epoch_ms)),
+            Some(crate::proto::data_value::DataType::NullValue(_)) => Ok(0),
+            None => Err(DecodeError::TypeMismatch {
+                column: idx,
+                expected: "Number|Price|Timestamp",
+                observed: "Unset",
+            }),
+            other => Err(DecodeError::TypeMismatch {
+                column: idx,
+                expected: "Number|Price|Timestamp",
+                observed: crate::decode::observed_name(other),
+            }),
+        }
+    }
+

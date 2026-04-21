@@ -1,0 +1,11 @@
+/// Optional builder parameters for registry-driven endpoint requests over FFI.
+///
+/// Fields use simple C-friendly sentinels:
+/// - integer/boolean/float fields: check the companion `has_*` flag
+/// - string pointers: null means unset
+///
+/// `timeout_ms` is the cross-cutting per-call deadline (W3). Set with the
+/// companion `has_timeout_ms = 1`; on expiry the call returns an error and the
+/// underlying gRPC stream is cancelled, leaving the client handle reusable.
+#[repr(C)]
+pub struct TdxEndpointRequestOptions {

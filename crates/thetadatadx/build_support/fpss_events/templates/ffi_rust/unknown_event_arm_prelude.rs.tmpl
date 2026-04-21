@@ -1,0 +1,12 @@
+        _ => {
+            // Empty / unknown event — surface as a control with kind=12.
+            // kind=12 is the canonical unknown-event sentinel; see doc
+            // comment on `TdxFpssControl` for the full mapping.
+            FfiBufferedEvent {
+                event: TdxFpssEvent {
+                    kind: TdxFpssEventKind::Control,
+                    control: TdxFpssControl {
+                        kind: 12,
+                        id: 0,
+                        detail: ptr::null(),
+                    },

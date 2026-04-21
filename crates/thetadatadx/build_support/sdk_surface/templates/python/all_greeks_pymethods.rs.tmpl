@@ -1,0 +1,9 @@
+#[pymethods]
+impl AllGreeks {
+    fn __repr__(&self) -> String {
+        format!(
+"AllGreeks(value={}, iv={}, delta={}, gamma={}, theta={}, vega={})",
+self.value, self.iv, self.delta, self.gamma, self.theta, self.vega
+)
+    }
+}

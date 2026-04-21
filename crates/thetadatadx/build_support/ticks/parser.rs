@@ -61,120 +61,10 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
 
     // If eod_style, emit the local EOD helpers inline.
     if def.eod_style {
-        out.push_str(
-            "    // EOD numeric/time fields may arrive as Price, Number, or Timestamp cells.\n",
-        );
-        out.push_str("    fn eod_num(row: &crate::proto::DataValueList, idx: usize) -> Result<i32, DecodeError> {\n");
-        out.push_str("        let Some(dv) = row.values.get(idx) else {\n");
-        out.push_str("            return Err(DecodeError::MissingCell { column: idx });\n");
-        out.push_str("        };\n");
-        out.push_str("        match dv.data_type.as_ref() {\n");
-        out.push_str(
-            "            Some(crate::proto::data_value::DataType::Number(n)) => Ok(*n as i32),\n",
-        );
-        out.push_str(
-            "            Some(crate::proto::data_value::DataType::Price(p)) => Ok(p.value),\n",
-        );
-        out.push_str("            Some(crate::proto::data_value::DataType::Timestamp(ts)) => Ok(crate::decode::timestamp_to_ms_of_day(ts.epoch_ms)),\n");
-        out.push_str(
-            "            Some(crate::proto::data_value::DataType::NullValue(_)) => Ok(0),\n",
-        );
-        out.push_str("            None => Err(DecodeError::TypeMismatch {\n");
-        out.push_str("                column: idx,\n");
-        out.push_str("                expected: \"Number|Price|Timestamp\",\n");
-        out.push_str("                observed: \"Unset\",\n");
-        out.push_str("            }),\n");
-        out.push_str("            other => Err(DecodeError::TypeMismatch {\n");
-        out.push_str("                column: idx,\n");
-        out.push_str("                expected: \"Number|Price|Timestamp\",\n");
-        out.push_str("                observed: crate::decode::observed_name(other),\n");
-        out.push_str("            }),\n");
-        out.push_str("        }\n");
-        out.push_str("    }\n\n");
-
-        out.push_str("    // EOD numeric field widened to i64 (for volume/count) — same cell types as eod_num, i64 target.\n");
-        out.push_str("    fn eod_num64(row: &crate::proto::DataValueList, idx: usize) -> Result<i64, DecodeError> {\n");
-        out.push_str("        let Some(dv) = row.values.get(idx) else {\n");
-        out.push_str("            return Err(DecodeError::MissingCell { column: idx });\n");
-        out.push_str("        };\n");
-        out.push_str("        match dv.data_type.as_ref() {\n");
-        out.push_str(
-            "            Some(crate::proto::data_value::DataType::Number(n)) => Ok(*n),\n",
-        );
-        out.push_str(
-            "            Some(crate::proto::data_value::DataType::Price(p)) => Ok(i64::from(p.value)),\n",
-        );
-        out.push_str("            Some(crate::proto::data_value::DataType::Timestamp(ts)) => Ok(i64::from(crate::decode::timestamp_to_ms_of_day(ts.epoch_ms))),\n");
-        out.push_str(
-            "            Some(crate::proto::data_value::DataType::NullValue(_)) => Ok(0),\n",
-        );
-        out.push_str("            None => Err(DecodeError::TypeMismatch {\n");
-        out.push_str("                column: idx,\n");
-        out.push_str("                expected: \"Number|Price|Timestamp\",\n");
-        out.push_str("                observed: \"Unset\",\n");
-        out.push_str("            }),\n");
-        out.push_str("            other => Err(DecodeError::TypeMismatch {\n");
-        out.push_str("                column: idx,\n");
-        out.push_str("                expected: \"Number|Price|Timestamp\",\n");
-        out.push_str("                observed: crate::decode::observed_name(other),\n");
-        out.push_str("            }),\n");
-        out.push_str("        }\n");
-        out.push_str("    }\n\n");
-
-        out.push_str("    // EOD date fields may arrive as Price, Number, or Timestamp cells.\n");
-        out.push_str("    fn eod_date(row: &crate::proto::DataValueList, idx: usize) -> Result<i32, DecodeError> {\n");
-        out.push_str("        let Some(dv) = row.values.get(idx) else {\n");
-        out.push_str("            return Err(DecodeError::MissingCell { column: idx });\n");
-        out.push_str("        };\n");
-        out.push_str("        match dv.data_type.as_ref() {\n");
-        out.push_str(
-            "            Some(crate::proto::data_value::DataType::Number(n)) => Ok(*n as i32),\n",
-        );
-        out.push_str(
-            "            Some(crate::proto::data_value::DataType::Price(p)) => Ok(p.value),\n",
-        );
-        out.push_str("            Some(crate::proto::data_value::DataType::Timestamp(ts)) => Ok(crate::decode::timestamp_to_date(ts.epoch_ms)),\n");
-        out.push_str(
-            "            Some(crate::proto::data_value::DataType::NullValue(_)) => Ok(0),\n",
-        );
-        out.push_str("            None => Err(DecodeError::TypeMismatch {\n");
-        out.push_str("                column: idx,\n");
-        out.push_str("                expected: \"Number|Price|Timestamp\",\n");
-        out.push_str("                observed: \"Unset\",\n");
-        out.push_str("            }),\n");
-        out.push_str("            other => Err(DecodeError::TypeMismatch {\n");
-        out.push_str("                column: idx,\n");
-        out.push_str("                expected: \"Number|Price|Timestamp\",\n");
-        out.push_str("                observed: crate::decode::observed_name(other),\n");
-        out.push_str("            }),\n");
-        out.push_str("        }\n");
-        out.push_str("    }\n\n");
-
-        out.push_str("    // EOD price field: decode to f64 from Price or Number cell.\n");
-        out.push_str("    fn eod_price(row: &crate::proto::DataValueList, idx: usize) -> Result<f64, DecodeError> {\n");
-        out.push_str("        let Some(dv) = row.values.get(idx) else {\n");
-        out.push_str("            return Err(DecodeError::MissingCell { column: idx });\n");
-        out.push_str("        };\n");
-        out.push_str("        match dv.data_type.as_ref() {\n");
-        out.push_str("            Some(crate::proto::data_value::DataType::Price(p)) => Ok(tdbe::types::price::Price::new(p.value, p.r#type).to_f64()),\n");
-        out.push_str(
-            "            Some(crate::proto::data_value::DataType::Number(n)) => Ok(*n as f64),\n",
-        );
-        out.push_str(
-            "            Some(crate::proto::data_value::DataType::NullValue(_)) => Ok(0.0),\n",
-        );
-        out.push_str("            None => Err(DecodeError::TypeMismatch {\n");
-        out.push_str("                column: idx,\n");
-        out.push_str("                expected: \"Price|Number\",\n");
-        out.push_str("                observed: \"Unset\",\n");
-        out.push_str("            }),\n");
-        out.push_str("            other => Err(DecodeError::TypeMismatch {\n");
-        out.push_str("                column: idx,\n");
-        out.push_str("                expected: \"Price|Number\",\n");
-        out.push_str("                observed: crate::decode::observed_name(other),\n");
-        out.push_str("            }),\n");
-        out.push_str("        }\n");
-        out.push_str("    }\n\n");
+        out.push_str(include_str!("templates/parser/eod_num.rs.tmpl"));
+        out.push_str(include_str!("templates/parser/eod_num64.rs.tmpl"));
+        out.push_str(include_str!("templates/parser/eod_date.rs.tmpl"));
+        out.push_str(include_str!("templates/parser/eod_price.rs.tmpl"));
     }
 
     out.push_str("    let h: Vec<&str> = table.headers.iter().map(|s| s.as_str()).collect();\n");
@@ -438,73 +328,11 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
     // (ISO "2026-04-13") depending on upstream version — dispatch on the
     // cell's own type rather than coalescing silently.
     if def.contract_id {
-        out.push_str("                expiration: match _cid_exp_idx {\n");
-        out.push_str("                    Some(i) => {\n");
-        out.push_str("                        let dv = row.values.get(i).ok_or(DecodeError::MissingCell { column: i })?;\n");
-        out.push_str("                        match dv.data_type.as_ref() {\n");
-        out.push_str("                            Some(crate::proto::data_value::DataType::Number(n)) => *n as i32,\n");
-        out.push_str("                            Some(crate::proto::data_value::DataType::Text(s)) => parse_iso_date(s),\n");
-        out.push_str("                            Some(crate::proto::data_value::DataType::NullValue(_)) => 0,\n");
-        out.push_str(
-            "                            None => return Err(DecodeError::TypeMismatch {\n",
-        );
-        out.push_str("                                column: i,\n");
-        out.push_str("                                expected: \"Number|Text\",\n");
-        out.push_str("                                observed: \"Unset\",\n");
-        out.push_str("                            }),\n");
-        out.push_str(
-            "                            other => return Err(DecodeError::TypeMismatch {\n",
-        );
-        out.push_str("                                column: i,\n");
-        out.push_str("                                expected: \"Number|Text\",\n");
-        out.push_str(
-            "                                observed: crate::decode::observed_name(other),\n",
-        );
-        out.push_str("                            }),\n");
-        out.push_str("                        }\n");
-        out.push_str("                    }\n");
-        out.push_str("                    None => 0,\n");
-        out.push_str("                },\n");
+        out.push_str(include_str!("templates/parser/contract_expiration.rs.tmpl"));
         // strike: decode to f64
-        out.push_str("                strike: match _cid_strike_idx {\n");
-        out.push_str(
-            "                    Some(i) if _cid_strike_is_typed => row_price_f64(row, i)?.unwrap_or(0.0),\n",
-        );
-        out.push_str("                    Some(i) => row_number(row, i)?.unwrap_or(0) as f64,\n");
-        out.push_str("                    None => 0.0,\n");
-        out.push_str("                },\n");
+        out.push_str(include_str!("templates/parser/contract_strike.rs.tmpl"));
         // right: ASCII code (Number) or text (Text) — strict dispatch.
-        out.push_str("                right: match _cid_right_idx {\n");
-        out.push_str("                    Some(i) => {\n");
-        out.push_str("                        let dv = row.values.get(i).ok_or(DecodeError::MissingCell { column: i })?;\n");
-        out.push_str("                        match dv.data_type.as_ref() {\n");
-        out.push_str("                            Some(crate::proto::data_value::DataType::Number(n)) => *n as i32,\n");
-        out.push_str("                            Some(crate::proto::data_value::DataType::Text(s)) => match s.as_str() {\n");
-        out.push_str("                                \"CALL\" | \"C\" => 67,\n");
-        out.push_str("                                \"PUT\" | \"P\" => 80,\n");
-        out.push_str("                                _ => 0,\n");
-        out.push_str("                            },\n");
-        out.push_str("                            Some(crate::proto::data_value::DataType::NullValue(_)) => 0,\n");
-        out.push_str(
-            "                            None => return Err(DecodeError::TypeMismatch {\n",
-        );
-        out.push_str("                                column: i,\n");
-        out.push_str("                                expected: \"Number|Text\",\n");
-        out.push_str("                                observed: \"Unset\",\n");
-        out.push_str("                            }),\n");
-        out.push_str(
-            "                            other => return Err(DecodeError::TypeMismatch {\n",
-        );
-        out.push_str("                                column: i,\n");
-        out.push_str("                                expected: \"Number|Text\",\n");
-        out.push_str(
-            "                                observed: crate::decode::observed_name(other),\n",
-        );
-        out.push_str("                            }),\n");
-        out.push_str("                        }\n");
-        out.push_str("                    }\n");
-        out.push_str("                    None => 0,\n");
-        out.push_str("                },\n");
+        out.push_str(include_str!("templates/parser/contract_right.rs.tmpl"));
     }
 
     if is_quote_tick {
