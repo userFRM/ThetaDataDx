@@ -312,7 +312,7 @@ fn is_hex_token_at(bytes: &[u8], pos: usize) -> bool {
 fn tool_definitions() -> Vec<Value> {
     let mut tools = Vec::with_capacity(ENDPOINTS.len() + 3);
 
-    // Registry-driven: all 61 DirectClient endpoints
+    // Registry-driven: all 61 MddsClient endpoints
     for ep in ENDPOINTS {
         let mut props = sonic_rs::Object::new();
         let mut required = Vec::new();

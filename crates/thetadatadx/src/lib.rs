@@ -63,7 +63,7 @@
 //! ```
 //!
 //! For historical-only usage, just skip `start_streaming()` -- all 61 historical
-//! methods are available directly on `ThetaDataDx` via `Deref<Target = DirectClient>`:
+//! methods are available directly on `ThetaDataDx` via `Deref<Target = MddsClient>`:
 //!
 //! ```rust,ignore
 //! use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
@@ -104,12 +104,12 @@ pub(crate) mod validate;
 pub(crate) mod wire_semantics;
 
 // Macro definitions invoked by generated endpoint code and handwritten
-// streaming builders in `direct`. Declared with `#[macro_use]` so the
+// streaming builders in `mdds`. Declared with `#[macro_use]` so the
 // macro_rules are visible to all subsequent module declarations.
 #[macro_use]
 mod macros;
 
-pub mod direct;
+pub mod mdds;
 
 /// Generated protobuf types from `external.proto` (package `BetaEndpoints`).
 #[allow(clippy::pedantic)]
@@ -121,6 +121,7 @@ pub use auth::Credentials;
 pub use config::{DirectConfig, FpssFlushMode, ReconnectPolicy};
 pub use endpoint::{EndpointArgValue, EndpointArgs, EndpointError, EndpointOutput};
 pub use error::{AuthErrorKind, Error, FpssErrorKind};
+pub use mdds::MddsClient;
 pub use registry::{EndpointMeta, ParamMeta, ParamType, ReturnType, ENDPOINTS};
 pub use right::{parse_right, parse_right_strict, ParsedRight};
 pub use unified::{ConnectionStatus, SubscriptionInfo, ThetaDataDx};

@@ -107,7 +107,7 @@ pub enum Error {
     /// The in-flight future is dropped before this error is returned, so the
     /// underlying `tonic::transport::Channel` cancels the stream and the
     /// request-semaphore permit is released; subsequent calls on the same
-    /// `DirectClient` succeed.
+    /// `MddsClient` succeed.
     #[error("Request deadline exceeded after {duration_ms} ms")]
     Timeout {
         /// Configured budget in milliseconds.

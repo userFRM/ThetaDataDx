@@ -156,11 +156,11 @@ pub struct TdxCredentials {
 
 /// Opaque client handle.
 ///
-/// `repr(transparent)` guarantees `*const TdxClient` and `*const DirectClient`
+/// `repr(transparent)` guarantees `*const TdxClient` and `*const MddsClient`
 /// have identical layout, allowing safe pointer casts in `tdx_unified_historical()`.
 #[repr(transparent)]
 pub struct TdxClient {
-    inner: thetadatadx::direct::DirectClient,
+    inner: thetadatadx::mdds::MddsClient,
 }
 
 /// Opaque config handle.
@@ -529,7 +529,7 @@ pub unsafe extern "C" fn tdx_client_connect(
         }
         let creds = unsafe { &*creds };
         let config = unsafe { &*config };
-        match runtime().block_on(thetadatadx::direct::DirectClient::connect(
+        match runtime().block_on(thetadatadx::mdds::MddsClient::connect(
             &creds.inner,
             config.inner.clone(),
         )) {
@@ -2757,7 +2757,7 @@ pub unsafe extern "C" fn tdx_unified_next_event(
 /// # Safety
 ///
 /// This cast is sound because `TdxClient` is `#[repr(transparent)]` over
-/// `DirectClient`, and `ThetaDataDx` Derefs to `&DirectClient`.
+/// `MddsClient`, and `ThetaDataDx` Derefs to `&MddsClient`.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_unified_historical(handle: *const TdxUnified) -> *const TdxClient {
     ffi_boundary!(std::ptr::null(), {
@@ -2766,9 +2766,9 @@ pub unsafe extern "C" fn tdx_unified_historical(handle: *const TdxUnified) -> *c
             return ptr::null();
         }
         let handle = unsafe { &*handle };
-        // TdxClient is #[repr(transparent)] over DirectClient, so this cast is safe.
-        let direct_ref: &thetadatadx::direct::DirectClient = &handle.inner;
-        std::ptr::from_ref::<thetadatadx::direct::DirectClient>(direct_ref).cast::<TdxClient>()
+        // TdxClient is #[repr(transparent)] over MddsClient, so this cast is safe.
+        let direct_ref: &thetadatadx::mdds::MddsClient = &handle.inner;
+        std::ptr::from_ref::<thetadatadx::mdds::MddsClient>(direct_ref).cast::<TdxClient>()
     })
 }
 

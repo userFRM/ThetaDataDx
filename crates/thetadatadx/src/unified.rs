@@ -38,10 +38,10 @@ use std::sync::Mutex;
 
 use crate::auth::Credentials;
 use crate::config::DirectConfig;
-use crate::direct::DirectClient;
 use crate::error::Error;
 use crate::fpss::protocol::{Contract, SubscriptionKind};
 use crate::fpss::{FpssClient, FpssEvent};
+use crate::mdds::MddsClient;
 use tdbe::types::enums::SecType;
 
 /// Subscription tier information captured at authentication time.
@@ -74,9 +74,9 @@ pub enum ConnectionStatus {
 /// you call [`start_streaming`](Self::start_streaming).
 ///
 /// All 61 historical endpoint methods are available via `Deref` to
-/// [`DirectClient`]. Streaming methods are on this struct directly.
+/// [`MddsClient`]. Streaming methods are on this struct directly.
 pub struct ThetaDataDx {
-    historical: DirectClient,
+    historical: MddsClient,
     streaming: Mutex<Option<FpssClient>>,
     creds: Credentials,
     /// Set to `true` once `start_streaming()` succeeds; never cleared.
@@ -94,7 +94,7 @@ impl ThetaDataDx {
     ///
     /// Returns an error on network, authentication, or parsing failure.
     pub async fn connect(creds: &Credentials, config: DirectConfig) -> Result<Self, Error> {
-        let historical = DirectClient::connect(creds, config).await?;
+        let historical = MddsClient::connect(creds, config).await?;
         Ok(Self {
             historical,
             streaming: Mutex::new(None),
@@ -443,8 +443,8 @@ impl Drop for ThetaDataDx {
 
 // All 61 historical methods available directly via Deref.
 impl std::ops::Deref for ThetaDataDx {
-    type Target = DirectClient;
-    fn deref(&self) -> &DirectClient {
+    type Target = MddsClient;
+    fn deref(&self) -> &MddsClient {
         &self.historical
     }
 }

@@ -2,8 +2,8 @@
 //!
 //! Every runtime validation check (date format, symbol format, interval
 //! legality, option right, year) lives here as the single source of truth.
-//! Both the shared endpoint runtime ([`crate::endpoint`]) and the direct
-//! client macros ([`crate::direct`]) delegate to these functions.
+//! Both the shared endpoint runtime ([`crate::endpoint`]) and the MDDS
+//! client macros ([`crate::mdds`]) delegate to these functions.
 //!
 //! Build-time validators in `build_support/endpoints.rs` operate on the TOML
 //! surface spec and proto schema — a fundamentally different domain — so they
@@ -23,7 +23,7 @@ pub(crate) fn validate_date(value: &str, param_name: &str) -> Result<(), Endpoin
 
 /// Validate `expiration`: accepts `YYYY-MM-DD`, `YYYYMMDD`, `*`, or the
 /// legacy `"0"` wildcard (translated to `*` in
-/// [`crate::direct::normalize_expiration`]).
+/// [`crate::wire_semantics::normalize_expiration`]).
 pub(crate) fn validate_expiration(value: &str, param_name: &str) -> Result<(), EndpointError> {
     if matches!(value, "*" | "0") || is_iso_date(value) {
         return Ok(());
@@ -40,8 +40,9 @@ pub(crate) fn validate_expiration(value: &str, param_name: &str) -> Result<(), E
 /// Upstream documents `strike` as a decimal price string (e.g. `"550"`,
 /// `"17.5"`) or `*` for all strikes, with `*` as the documented default.
 /// We additionally accept `"0"` and the empty string as ergonomic wildcard
-/// forms. Wildcards become proto-unset in [`crate::direct::wire_strike_opt`]
-/// so the server applies its documented default.
+/// forms. Wildcards become proto-unset in
+/// [`crate::wire_semantics::wire_strike_opt`] so the server applies its
+/// documented default.
 pub(crate) fn validate_strike(value: &str, param_name: &str) -> Result<(), EndpointError> {
     if value.is_empty() || matches!(value, "*" | "0") {
         return Ok(());
@@ -75,7 +76,7 @@ pub(crate) fn validate_interval(value: &str, param_name: &str) -> Result<(), End
 pub(crate) fn validate_right(value: &str, param_name: &str) -> Result<(), EndpointError> {
     // Delegate to the canonical parser so the accepted vocabulary stays in
     // one place. The endpoint layer does not distinguish Call/Put/Both here
-    // -- per-endpoint logic in the direct client decides whether `both` /
+    // -- per-endpoint logic in the MDDS client decides whether `both` /
     // `*` is meaningful -- so we only care about "is this parseable at all".
     crate::right::parse_right(value).map(|_| ()).map_err(|_| {
         EndpointError::InvalidParams(format!(
