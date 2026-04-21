@@ -269,7 +269,7 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
         endpoint.request_type
     )
     .unwrap();
-    out.push_str("            query_info: Some(client.query_info()),\n");
+    out.push_str("            query_info: Some(client.query_info().await),\n");
     if endpoint.fields.is_empty() {
         writeln!(
             out,
