@@ -22,6 +22,7 @@ export default withMermaid(defineConfig({
     nav: [
       { text: 'Guide', link: '/getting-started/' },
       { text: 'API Reference', link: '/api-reference' },
+      { text: 'Performance', link: '/performance/benchmark' },
       { text: 'Query Builder', link: '/query-builder' },
       { text: 'Tools', link: '/tools/cli' },
       { text: 'Changelog', link: '/changelog' },
@@ -50,7 +51,25 @@ export default withMermaid(defineConfig({
           { text: 'Subscription Tiers', link: '/getting-started/subscriptions' },
           { text: 'Installation', link: '/getting-started/installation' },
           { text: 'Authentication', link: '/getting-started/authentication' },
-          { text: 'Quick Start', link: '/getting-started/quickstart' },
+          { text: 'First Query', link: '/getting-started/first-query' },
+          { text: 'Streaming (FPSS)', link: '/getting-started/streaming' },
+          { text: 'Greeks Calculator', link: '/getting-started/greeks' },
+          { text: 'DataFrames', link: '/getting-started/dataframes' },
+          { text: 'Error Handling', link: '/getting-started/errors' },
+          { text: 'Async Python', link: '/getting-started/async-python' },
+          { text: 'Performance', link: '/getting-started/performance' },
+          { text: 'Migration', link: '/getting-started/migration' },
+        ],
+      },
+      {
+        text: 'Quickstart by Language',
+        collapsed: false,
+        items: [
+          { text: 'Rust', link: '/quickstart/rust' },
+          { text: 'Python', link: '/quickstart/python' },
+          { text: 'TypeScript / Node.js', link: '/quickstart/typescript' },
+          { text: 'Go', link: '/quickstart/go' },
+          { text: 'C++', link: '/quickstart/cpp' },
         ],
       },
       {
@@ -235,6 +254,20 @@ export default withMermaid(defineConfig({
           { text: 'Handling Events', link: '/streaming/events' },
           { text: 'Reconnection & Errors', link: '/streaming/reconnection' },
           { text: 'Latency Measurement', link: '/streaming/latency' },
+        ],
+      },
+      {
+        text: 'Performance',
+        collapsed: true,
+        items: [
+          { text: 'Benchmark', link: '/performance/benchmark' },
+        ],
+      },
+      {
+        text: 'Migration',
+        collapsed: true,
+        items: [
+          { text: 'From the ThetaData Python SDK', link: '/migration/from-thetadata-python-sdk' },
         ],
       },
       {
