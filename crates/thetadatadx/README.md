@@ -23,7 +23,7 @@ tdx.subscribe_quotes(&Contract::stock("AAPL"))?;
 tdx.stop_streaming();
 ```
 
-`ThetaDataDx::connect()` authenticates once. Historical data (MDDS gRPC) is available immediately via `Deref` to the internal `DirectClient`. Streaming (FPSS TCP) connects lazily when you call `start_streaming()`.
+`ThetaDataDx::connect()` authenticates once. Historical data (MDDS gRPC) is available immediately via `Deref` to the internal `MddsClient`. Streaming (FPSS TCP) connects lazily when you call `start_streaming()`.
 
 ## Crate Layout
 
@@ -31,7 +31,7 @@ tdx.stop_streaming();
 src/
   lib.rs           - public re-exports (ThetaDataDx, Credentials, DirectConfig, Error)
   unified.rs       - ThetaDataDx: single entry point, lazy streaming
-  direct.rs        - DirectClient macros plus generated endpoint declarations
+  mdds/            - MddsClient module (client, stream, validate, normalize, endpoints)
   auth/            - Nexus API authentication, credential parsing
   fpss/            - FPSS streaming client (sync, LMAX Disruptor ring buffer)
   codec/           - FIT nibble encoder/decoder, delta compression
@@ -45,7 +45,7 @@ proto/
   external.proto       - canonical MDDS wire contract from ThetaData
   MAINTENANCE.md       - endpoint/proto maintenance guide
 tick_schema.toml   - single source of truth for tick type definitions
-endpoint_surface.toml  - explicit endpoint surface spec for registry/direct/runtime generation
+endpoint_surface.toml  - explicit endpoint surface spec for registry/mdds/runtime generation
 build.rs               - small build entrypoint
 build_support/         - build-time generators for tick decoding and endpoint surfaces
 ```
@@ -64,7 +64,7 @@ parameter groups, and endpoint templates. Templates support inheritance via
 same parameter blocks across every declaration.
 
 The build pipeline validates that surface spec against `proto/external.proto`
-before generating the registry, shared endpoint runtime, and `DirectClient`
+before generating the registry, shared endpoint runtime, and `MddsClient`
 endpoint declarations.
 
 ## Tick Types

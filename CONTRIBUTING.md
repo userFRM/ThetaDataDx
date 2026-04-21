@@ -128,7 +128,7 @@ perf(core): use precomputed pow10 table in price decoding
 Add `!` after the type or a `BREAKING CHANGE:` footer:
 
 ```
-feat(core)!: replace DirectClient with ThetaDataDx unified client
+feat(core)!: replace MddsClient with ThetaDataDx unified client
 ```
 
 ## How to Add a New Endpoint
@@ -142,7 +142,7 @@ The endpoint-facing source of truth is now split across:
 - `crates/thetadatadx/tick_schema.toml` for DataTable parser layouts
 
 The build expands that metadata into the registry, shared endpoint runtime, and
-`DirectClient` declarations automatically.
+`MddsClient` declarations automatically.
 
 1. **Update the proto** (if the endpoint uses a new message type)
    - Update `crates/thetadatadx/proto/external.proto`
@@ -151,7 +151,7 @@ The build expands that metadata into the registry, shared endpoint runtime, and
 2. **Add or update the endpoint surface**
    - Add an entry to `crates/thetadatadx/endpoint_surface.toml`
    - Reuse existing `param_groups` / `templates` where possible
-   - `cargo build` validates the declared surface against `external.proto` and generates the registry/runtime/direct surfaces
+   - `cargo build` validates the declared surface against `external.proto` and generates the registry/runtime/mdds surfaces
 
 3. **Add the column schema** (if the response has a new layout)
    - Add a `[types.YourTick]` block to `crates/thetadatadx/tick_schema.toml`
@@ -160,8 +160,8 @@ The build expands that metadata into the registry, shared endpoint runtime, and
    - Note: tick type structs, `Price`, enums, codecs, and Greeks live in `crates/tdbe/`.
      If you add a new tick type or modify existing types, edit `tdbe` first.
 
-4. **Review the generated direct/runtime surfaces**
-   - Most endpoint additions should not require hand-editing `direct.rs`
+4. **Review the generated mdds/runtime surfaces**
+   - Most endpoint additions should not require hand-editing files under `mdds/`
    - Only change `build_support/endpoints.rs` or the macro layer if the new endpoint shape cannot be expressed by the existing surface spec
 
 5. **Regenerate downstream SDK/tool surfaces**

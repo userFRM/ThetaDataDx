@@ -1,6 +1,6 @@
 # Macro Guide for Contributors
 
-This guide explains the macro system used by the generated `DirectClient`
+This guide explains the macro system used by the generated `MddsClient`
 surface.
 
 > [!IMPORTANT]
@@ -11,13 +11,15 @@ surface.
 > - update `crates/thetadatadx/tick_schema.toml` if a new `DataTable` layout is introduced
 >
 > The build then generates the registry, shared endpoint runtime, and
-> `DirectClient` declarations automatically. This guide is for understanding and
+> `MddsClient` declarations automatically. This guide is for understanding and
 > maintaining the macro layer that those generators target.
 
 ## `parsed_endpoint!` -- the core macro
 
-Every non-streaming `DirectClient` endpoint ultimately expands through
-`parsed_endpoint!` in `crates/thetadatadx/src/macros.rs`. A single invocation
+Every non-streaming `MddsClient` endpoint ultimately expands through
+`parsed_endpoint!` defined in `crates/thetadatadx/src/macros.rs`; the
+invocation sites live in `crates/thetadatadx/src/mdds/endpoints.rs`.
+A single invocation
 generates three things:
 
 1. **A builder struct** (e.g., `StockHistoryOhlcBuilder`) that holds required
@@ -26,7 +28,7 @@ generates three things:
 3. **An `IntoFuture` impl** so that `.await`-ing the builder executes the gRPC
    call, collects the response stream, and parses the `DataTable` into typed ticks.
 
-The `DirectClient` gets a method that constructs and returns the builder.
+The `MddsClient` gets a method that constructs and returns the builder.
 
 ### Invocation anatomy
 
@@ -61,7 +63,7 @@ parsed_endpoint! {
 ```rust
 // 1. Builder struct
 pub struct StockHistoryOhlcBuilder<'a> {
-    client: &'a DirectClient,
+    client: &'a MddsClient,
     pub(crate) symbol: String,       // required (str -> String)
     pub(crate) date: String,
     pub(crate) interval: String,
@@ -81,7 +83,7 @@ impl<'a> StockHistoryOhlcBuilder<'a> {
 impl<'a> IntoFuture for StockHistoryOhlcBuilder<'a> { ... }
 
 // 4. Client method
-impl DirectClient {
+impl MddsClient {
     pub fn stock_history_ohlc(&self, symbol: &str, date: &str, interval: &str)
         -> StockHistoryOhlcBuilder<'_> { ... }
 }
@@ -152,7 +154,7 @@ blocks.
 
 Run `cargo build`. The generator validates `endpoint_surface.toml` against
 `external.proto` and emits the registry, shared endpoint runtime, and
-`DirectClient` endpoint declarations.
+`MddsClient` endpoint declarations.
 
 You only need to edit the macro layer or `build_support/endpoints.rs` if the
 new endpoint cannot be expressed by the existing surface specification model.

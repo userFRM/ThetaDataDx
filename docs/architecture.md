@@ -57,7 +57,7 @@ MDDS is a standard gRPC service over TLS, operating on port 443.
 
 - **Package**: `BetaEndpoints`
 - **Service**: `BetaThetaTerminal`
-- **Methods**: 60 RPCs, all server-streaming (returning `stream ResponseData`). thetadatadx wraps all 60 gRPC RPCs plus 1 convenience range-query variant = **61 methods** on `ThetaDataDx`, generated from the checked-in endpoint surface spec (`endpoint_surface.toml`) validated against `external.proto`. The internal `DirectClient` still uses macro-generated builders, but endpoint declarations are no longer hand-maintained.
+- **Methods**: 60 RPCs, all server-streaming (returning `stream ResponseData`). thetadatadx wraps all 60 gRPC RPCs plus 1 convenience range-query variant = **61 methods** on `ThetaDataDx`, generated from the checked-in endpoint surface spec (`endpoint_surface.toml`) validated against `external.proto`. The internal `MddsClient` still uses macro-generated builders, but endpoint declarations are no longer hand-maintained.
 - **Categories**: Stock, Option, Index, Interest Rate, Calendar - each with List, History, Snapshot, AtTime, and Greeks sub-categories
 
 ### Request Structure
@@ -168,12 +168,12 @@ flowchart LR
     PARSERS["$OUT_DIR/decode_generated.rs<br/><i>parse_* functions</i>"]
     RUNTIME["$OUT_DIR/endpoint_generated.rs<br/><i>shared endpoint runtime</i>"]
     REGISTRY_GEN["$OUT_DIR/registry_generated.rs<br/><i>EndpointMeta static</i>"]
-    DIRECT_GEN["$OUT_DIR/direct_*_generated.rs<br/><i>DirectClient declarations</i>"]
+    DIRECT_GEN["$OUT_DIR/mdds_*_generated.rs<br/><i>MddsClient declarations</i>"]
     TICK["crates/tdbe/src/types/tick.rs<br/><i>typed tick structs</i>"]
     DECODE["decode.rs<br/><i>include!() + hand-written helpers</i>"]
     ENDPOINT["endpoint.rs<br/><i>include!() + runtime glue</i>"]
     REGISTRY["registry.rs<br/><i>include!() + lookup helpers</i>"]
-    DIRECT["direct.rs<br/><i>macro layer + generated declarations</i>"]
+    DIRECT["mdds/<br/><i>macro layer + generated declarations</i>"]
 
     TOML --> BUILD
     SURFACE --> BUILD
@@ -549,8 +549,8 @@ graph TD
             F_RING["ring.rs<br/><i>Disruptor ring buffer</i>"]
         end
 
-        UNIFIED["unified.rs<br/><i>ThetaDataDx — unified entry point<br/>Deref to DirectClient</i>"]
-        DIRECT["direct.rs<br/><i>DirectClient (internal) — generated endpoint declarations<br/>on top of builder macros</i>"]
+        UNIFIED["unified.rs<br/><i>ThetaDataDx — unified entry point<br/>Deref to MddsClient</i>"]
+        DIRECT["mdds/<br/><i>MddsClient (internal) — generated endpoint declarations<br/>on top of builder macros</i>"]
         ENDPOINT_RT["endpoint.rs<br/><i>shared endpoint runtime</i>"]
         CONFIG["config.rs<br/><i>DirectConfig</i>"]
         DECODE["decode.rs<br/><i>zstd + DataTable parsing<br/>(includes generated parsers)</i>"]

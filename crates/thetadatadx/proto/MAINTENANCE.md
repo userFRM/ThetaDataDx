@@ -44,11 +44,11 @@ proto/
 2. **Endpoint surface validation + generation**: the build loads
    `endpoint_surface.toml`, parses `external.proto` to extract wire metadata,
    validates the surface spec against the wire contract, and generates the
-   endpoint registry, shared endpoint runtime dispatch, and `DirectClient`
+   endpoint registry, shared endpoint runtime dispatch, and `MddsClient`
    endpoint declarations. Outputs: `$OUT_DIR/registry_generated.rs`,
    `$OUT_DIR/endpoint_generated.rs`,
-   `$OUT_DIR/direct_list_endpoints_generated.rs`,
-   `$OUT_DIR/direct_parsed_endpoints_generated.rs`.
+   `$OUT_DIR/mdds_list_endpoints_generated.rs`,
+   `$OUT_DIR/mdds_parsed_endpoints_generated.rs`.
 
 3. **Tick parser codegen**: the build reads `tick_schema.toml` and generates
    `DataTable` parser functions. Output: `$OUT_DIR/decode_generated.rs`.
@@ -150,7 +150,7 @@ cargo test         # verify nothing broke
 cargo clippy       # zero warnings
 ```
 
-The new endpoint is now available on `ThetaDataDx` via `Deref` to `DirectClient`.
+The new endpoint is now available on `ThetaDataDx` via `Deref` to `MddsClient`.
 
 ## How to: replace `external.proto`
 
