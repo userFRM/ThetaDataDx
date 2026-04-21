@@ -172,7 +172,7 @@ impl EndpointArgs {
     /// Read a required expiration argument.
     ///
     /// Accepts `*` / `0` (wildcard sentinels), `YYYYMMDD`, or `YYYY-MM-DD`.
-    /// Wire-level canonicalization happens in `mdds::normalize_expiration`.
+    /// Wire-level canonicalization happens in `mdds::normalize::normalize_expiration`.
     pub fn required_expiration(&self, key: &str) -> Result<&str, EndpointError> {
         let value = self.required_str(key)?;
         validate_expiration(value, key)?;
@@ -194,7 +194,7 @@ impl EndpointArgs {
     ///
     /// Accepts `*` / `0` / empty (wildcard sentinels) or a positive decimal
     /// (e.g. `"550"`, `"17.5"`). Wildcards become proto-unset on the wire
-    /// via `mdds::wire_strike_opt` so the server applies its default.
+    /// via `mdds::normalize::wire_strike_opt` so the server applies its default.
     pub fn required_strike(&self, key: &str) -> Result<&str, EndpointError> {
         let value = self.required_str(key)?;
         validate_strike(value, key)?;

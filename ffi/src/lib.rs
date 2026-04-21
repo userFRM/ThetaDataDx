@@ -2767,8 +2767,8 @@ pub unsafe extern "C" fn tdx_unified_historical(handle: *const TdxUnified) -> *c
         }
         let handle = unsafe { &*handle };
         // TdxClient is #[repr(transparent)] over MddsClient, so this cast is safe.
-        let direct_ref: &thetadatadx::mdds::MddsClient = &handle.inner;
-        std::ptr::from_ref::<thetadatadx::mdds::MddsClient>(direct_ref).cast::<TdxClient>()
+        let mdds_ref: &thetadatadx::mdds::MddsClient = &handle.inner;
+        std::ptr::from_ref::<thetadatadx::mdds::MddsClient>(mdds_ref).cast::<TdxClient>()
     })
 }
 

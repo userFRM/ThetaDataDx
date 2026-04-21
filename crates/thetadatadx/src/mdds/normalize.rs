@@ -176,9 +176,9 @@ macro_rules! contract_spec {
     ($symbol:expr, $expiration:expr, $strike:expr, $right:expr) => {
         Some(proto::ContractSpec {
             symbol: $symbol.to_string(),
-            expiration: normalize_expiration(&$expiration.to_string()),
-            strike: wire_strike_opt(&$strike.to_string()),
-            right: wire_right_opt(&$right.to_string())?,
+            expiration: normalize_expiration(&$expiration),
+            strike: wire_strike_opt(&$strike),
+            right: wire_right_opt(&$right)?,
         })
     };
 }

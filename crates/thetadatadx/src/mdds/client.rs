@@ -84,7 +84,7 @@ impl MddsClient {
     /// Returns an error on network, authentication, or parsing failure.
     pub async fn connect(creds: &Credentials, config: DirectConfig) -> Result<Self, Error> {
         // Step 1: Authenticate against Nexus API.
-        tracing::info!(mdds = %config.mdds_uri(), "authenticating with Nexus API");
+        tracing::info!("authenticating with Nexus API");
         let auth_resp = auth::authenticate(creds).await?;
         let session_uuid = auth_resp.session_id.clone();
 
