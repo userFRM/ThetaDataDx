@@ -34,6 +34,11 @@
 //! Functions that can fail return an empty array (data=null, len=0) on error and set
 //! a thread-local error string retrievable via `tdx_last_error`.
 
+// Reason: every `unsafe extern "C"` in this crate shares one safety
+// contract, documented in the crate-level docstring above (pointer
+// arguments null-or-valid, C-string NUL-terminated, caller frees every
+// non-null return). Per-fn `# Safety` sections would duplicate that
+// paragraph 145 times and drift from the centralized version.
 #![allow(clippy::missing_safety_doc)]
 
 use std::sync::OnceLock;

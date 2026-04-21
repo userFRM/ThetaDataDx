@@ -1266,7 +1266,7 @@ mod tests {
         let tick = payload
             .get("ticks")
             .and_then(|value: &Value| value.as_array())
-            .and_then(|rows| rows.get(0))
+            .and_then(|rows| rows.first())
             .expect("serialized tick row should exist");
 
         assert_eq!(
@@ -1331,7 +1331,7 @@ mod tests {
         let tick = payload
             .get("ticks")
             .and_then(|value: &Value| value.as_array())
-            .and_then(|rows| rows.get(0))
+            .and_then(|rows| rows.first())
             .expect("serialized tick row should exist");
 
         assert!(

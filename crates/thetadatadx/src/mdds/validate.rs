@@ -19,26 +19,42 @@ pub(super) fn validate_date(date: &str) -> Result<(), Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::Error;
 
     #[test]
     fn validate_date_valid() {
-        assert!(validate_date("20240101").is_ok());
-        assert!(validate_date("20231231").is_ok());
-        assert!(validate_date("00000000").is_ok());
+        assert_eq!(validate_date("20240101").unwrap(), ());
+        assert_eq!(validate_date("20231231").unwrap(), ());
+        assert_eq!(validate_date("00000000").unwrap(), ());
+    }
+
+    fn assert_validation_err(input: &str) {
+        match validate_date(input) {
+            // `validate::validate_date` returns `EndpointError::InvalidParams`,
+            // which converts to `Error::Config` (see `impl From<EndpointError>
+            // for Error` in `endpoint.rs`).
+            Err(Error::Config(message)) => {
+                assert!(
+                    message.contains("date"),
+                    "error message should name the 'date' param, got {message:?}"
+                );
+            }
+            other => panic!("expected Error::Config(..) for input {input:?}, got {other:?}"),
+        }
     }
 
     #[test]
     fn validate_date_invalid() {
         // Too short
-        assert!(validate_date("2024010").is_err());
+        assert_validation_err("2024010");
         // Too long
-        assert!(validate_date("202401011").is_err());
+        assert_validation_err("202401011");
         // Contains non-digit
-        assert!(validate_date("2024-101").is_err());
-        assert!(validate_date("2024Jan1").is_err());
+        assert_validation_err("2024-101");
+        assert_validation_err("2024Jan1");
         // Empty
-        assert!(validate_date("").is_err());
+        assert_validation_err("");
         // Whitespace
-        assert!(validate_date("2024 101").is_err());
+        assert_validation_err("2024 101");
     }
 }

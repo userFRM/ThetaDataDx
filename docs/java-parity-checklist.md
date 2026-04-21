@@ -90,8 +90,8 @@ All 21 `StreamMsgType` codes have byte-identical values. See
 
 | Aspect | Java | Rust |
 |--------|------|------|
-| Handler structure | Each of the 60 gRPC handlers hand-coded with per-endpoint request/response logic | All 61 methods generated from `endpoint_surface.toml` + `mdds.proto`; `DirectClient` macros remain an internal expansion target |
-| Source | `net.thetadata.providers.*` handler classes | `crates/thetadatadx/build_support/endpoints.rs`, `endpoint_surface.toml`, `direct.rs` macro layer |
+| Handler structure | Each of the 60 gRPC handlers hand-coded with per-endpoint request/response logic | All 61 methods generated from `endpoint_surface.toml` + `mdds.proto`; `MddsClient` macros remain an internal expansion target |
+| Source | `net.thetadata.providers.*` handler classes | `crates/thetadatadx/build_support/endpoints/`, `endpoint_surface.toml`, `mdds/endpoints.rs` macro layer |
 | Wire contract | Identical | Identical |
 
 Rationale: the Java terminal duplicates boilerplate (auth injection,
@@ -150,7 +150,7 @@ client projections from that data. Requests remain wire-identical.
 | Contract root length check | [✗] | Rust: `assert!(root.len() <= 244)`. Java: silent `as byte` truncation. |
 | Price-type range check | [✓] | Both enforce `0 <= type < 20`. |
 | Frame payload size | [✗] | Rust: `assert!(payload.len() <= 255)` in release. Java: implicit `u8` truncation. |
-| Date format validation (8 ASCII digits) | [✗] | Rust validates client-side in `direct.rs:validate_date()`. Java relies on server-side rejection. |
+| Date format validation (8 ASCII digits) | [✗] | Rust validates client-side in `mdds/validate.rs::validate_date()`. Java relies on server-side rejection. |
 
 ## Error handling
 
@@ -184,7 +184,7 @@ empty forms.
 |---------|:------:|-------|
 | `start_time="09:30:00"` / `end_time="16:00:00"` on interval endpoints | [✓] | Matches Java (added v4.2.0). |
 | `venue="nqb"` on stock snapshot + intraday history endpoints | [✓] | NASDAQ Basic / UTP SIP — matches Java (added v4.2.0). |
-| Interval shorthand normalization (`"60000"` -> `"1m"`) | [✗] | Server accepts both; wire value differs (`normalize_interval()` in `direct.rs`). |
+| Interval shorthand normalization (`"60000"` -> `"1m"`) | [✗] | Server accepts both; wire value differs (`normalize_interval()` in `mdds/normalize.rs`). |
 
 ## Response streaming
 
@@ -224,10 +224,10 @@ either v2-style or v3-style parameter values.
 
 | v2 (ms) | v3 | Where |
 |---------|----|-------|
-| `"60000"` | `"1m"` | `normalize_interval()` in `direct.rs` |
-| `"1000"` | `"1s"` | `normalize_interval()` in `direct.rs` |
-| `"300000"` | `"5m"` | `normalize_interval()` in `direct.rs` |
-| already shorthand | pass-through | `normalize_interval()` in `direct.rs` |
+| `"60000"` | `"1m"` | `normalize_interval()` in `mdds/normalize.rs` |
+| `"1000"` | `"1s"` | `normalize_interval()` in `mdds/normalize.rs` |
+| `"300000"` | `"5m"` | `normalize_interval()` in `mdds/normalize.rs` |
+| already shorthand | pass-through | `normalize_interval()` in `mdds/normalize.rs` |
 
 ### Symbol field
 
@@ -255,7 +255,7 @@ Rust SDK defaults to `"09:30:00"`/`"16:00:00"` on all interval endpoints.
 - **Zero-copy FFI across Python / TypeScript / Go / C++** — one `extern "C"`
   ABI shared by all non-Rust SDKs.
 - **Unified `ThetaDataDx` client** — auth, MDDS, and FPSS behind a single
-  long-lived handle with `Deref<Target=DirectClient>` for historical
+  long-lived handle with `Deref<Target=MddsClient>` for historical
   methods.
 - **Manual reconnect policy** — explicit control over retry policy, backoff
   strategy, and circuit breaking. `reconnect_delay()` helper matches Java's
@@ -294,15 +294,15 @@ equivalents (or why they're not needed), see the table below. It covers all
 | `fie/FITReader.java` | `tdbe::codec::fit` | FIT nibble decoder (738 LOC) |
 | `FIE.java` | `tdbe::codec::fie` | FIE nibble encoder |
 | `fie/TickIterator.java` | Inline in `fpss/mod.rs::decode_frame()` | Tick iteration over FIT-decoded rows |
-| `grpc/GrpcHttpStreamBridge.java` | `direct.rs` | gRPC response streaming (direct to typed structs, no HTTP bridge) |
-| `grpc/AbstractGrpcBridge.java` | `direct.rs::collect_stream()` | Base response collection |
+| `grpc/GrpcHttpStreamBridge.java` | `mdds/client.rs` | gRPC response streaming (direct to typed structs, no HTTP bridge) |
+| `grpc/AbstractGrpcBridge.java` | `mdds/client.rs::collect_stream()` | Base response collection |
 | `grpc/GrpcMcpBridge.java` | `tools/mcp/` (separate crate) | MCP integration |
 | `auth/UserAuthenticator.java` | `auth/nexus.rs` | Nexus API auth flow |
 | `config/CredentialFileParser.java` | `auth/creds.rs` | `creds.txt` parsing |
 | `config/ConfigurationManager.java` | `config.rs::DirectConfig` | Server addresses, timeouts |
 | `config/BuildInfo.java` | `CARGO_PKG_VERSION` constant | Version identification |
 | `math/Greeks.java` | `tdbe::greeks` | 22 Black-Scholes Greeks + IV solver |
-| `RestResource.java` | `direct.rs` | REST-to-gRPC bridge, contains all endpoint defaults (venue, start_time, interval) |
+| `RestResource.java` | `mdds/endpoints.rs` | REST-to-gRPC bridge, contains all endpoint defaults (venue, start_time, interval) |
 | `BetaThetaTerminalGrpc.java` | `proto::beta_theta_terminal_client` | v3 gRPC service stub |
 
 ### Enums (implemented)
@@ -408,8 +408,8 @@ but that's a standalone tool, not part of the core SDK.
 
 | Java class | Purpose | Why not needed |
 |------------|---------|----------------|
-| `providers/AuthTokenProvider.java` | CDI bean: session token singleton | `SessionToken` held in `DirectClient` |
-| `providers/ChannelProvider.java` | CDI bean: gRPC channel singleton | Channel held in `DirectClient` |
+| `providers/AuthTokenProvider.java` | CDI bean: session token singleton | `SessionToken` held in `MddsClient` |
+| `providers/ChannelProvider.java` | CDI bean: gRPC channel singleton | Channel held in `MddsClient` |
 | `providers/NonV3RequestFilter.java` | HTTP request filter | No HTTP server |
 | `providers/StringListParamConverterProvider.java` | JAX-RS parameter converter | No JAX-RS |
 | `providers/ZonedDateTimeConverterProvider.java` | JAX-RS date converter | No JAX-RS |

@@ -53,3 +53,14 @@ subtle = "2.6.1"
 # dump) would retain the plaintext for the lifetime of the process even
 # after `Credentials` internally moved it into its own `Zeroizing`.
 zeroize = "1.8.2"
+
+# Match the main workspace's strict bar. This crate declares its own
+# `[workspace]` table (line 15) so it's an independent workspace — it
+# can't inherit via `[lints] workspace = true` from the parent repo.
+# Mirror the rules locally to keep `cargo clippy` parity.
+[lints.rust]
+warnings = "deny"
+unsafe_op_in_unsafe_fn = "deny"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }

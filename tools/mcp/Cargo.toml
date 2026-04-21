@@ -18,3 +18,13 @@ serde = { version = "1.0.228", features = ["derive"] }
 sonic-rs = "0.5.8"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+
+# Match the main workspace's strict bar. This crate is `[workspace.exclude]`d
+# in the root `Cargo.toml` (standalone manifest, not a member), so it can't
+# inherit via `[lints] workspace = true` — mirror the rules locally.
+[lints.rust]
+warnings = "deny"
+unsafe_op_in_unsafe_fn = "deny"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }

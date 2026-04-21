@@ -124,7 +124,7 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
         // `tracing::debug!` with a monotonically-increasing counter so
         // soak tests can detect back-pressure / task death, matching the
         // observability pattern used by the SDK streaming callbacks
-        // (see `crates/thetadatadx/build_support/sdk_surface.rs`).
+        // (see `crates/thetadatadx/build_support/sdk_surface/`).
         if tx.send((event.clone(), peeked)).is_err() {
             let dropped = dropped_broadcast
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed)

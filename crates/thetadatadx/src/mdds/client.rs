@@ -52,16 +52,16 @@ pub struct MddsClient {
     /// Session UUID from Nexus auth (embedded in every request).
     session_uuid: String,
     /// gRPC channel to MDDS server.
-    pub(super) channel: tonic::transport::Channel,
+    channel: tonic::transport::Channel,
     /// Configuration snapshot (retained for diagnostics/reconnect).
-    pub(super) config: DirectConfig,
+    config: DirectConfig,
     /// Pre-built `QueryInfo` template — cloned per-request instead of allocating
     /// new Strings each time.
     query_info_template: proto::QueryInfo,
     /// Semaphore limiting concurrent in-flight gRPC requests.
     ///
     /// The Java terminal limits concurrent requests to `2^subscription_tier`
-    /// (Free=1, Value=2, Standard=4, Pro=16). This semaphore enforces the same
+    /// (Free=1, Value=2, Standard=4, Pro=8). This semaphore enforces the same
     /// bound to prevent server-side rate limiting / 429 disconnects.
     pub(crate) request_semaphore: Arc<tokio::sync::Semaphore>,
     /// Per-asset subscription tiers captured from the Nexus auth response.

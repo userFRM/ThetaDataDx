@@ -48,3 +48,20 @@ tokio = { version = "1.52.1", features = ["rt-multi-thread"] }
 # emission only — shutdown-time `tx.send` failures (Python rx dropped before
 # tx side) are normal and must not spam default logs.
 tracing = "0.1.44"
+
+# Match the main workspace's strict bar. This crate is `[workspace.exclude]`d
+# in the root `Cargo.toml` (it has its own toolchain / feature footprint), so
+# it can't inherit via `[lints] workspace = true` — mirror the rules locally.
+[lints.rust]
+warnings = "deny"
+unsafe_op_in_unsafe_fn = "deny"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+# PyO3 `#[pymethods]` become flat free-function signatures, one param per
+# optional kwarg. Generated endpoints expose every query parameter from
+# `endpoint_surface.toml` as a separate `Option<T>` arg, routinely hitting
+# 10-27 params. The "too many arguments" heuristic is a style lint built
+# for hand-written Rust APIs; it doesn't apply to generator-emitted binding
+# crates where the argument list is the language's public contract.
+too_many_arguments = "allow"
