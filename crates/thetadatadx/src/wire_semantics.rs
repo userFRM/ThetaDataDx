@@ -1,7 +1,7 @@
 //! Shared wire-level canonicalization rules.
 //!
 //! Consumed by:
-//! - runtime request building in `direct.rs`
+//! - runtime request building in `mdds/endpoints.rs` (via `mdds/normalize.rs`)
 //! - build-time mode collapsing in `build_support/endpoints/modes.rs` (via
 //!   `#[path]` reuse of this file)
 
