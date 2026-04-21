@@ -265,9 +265,30 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
             return;
         }
         let right_val = contract_obj.get("right").unwrap_or(&null_val);
-        let is_call = right_val
-            .as_str()
-            .is_some_and(|r| r.eq_ignore_ascii_case("C") || r.eq_ignore_ascii_case("CALL"));
+        let is_call = match right_val.as_str().map(str::trim) {
+            Some(r) if r.eq_ignore_ascii_case("C") || r.eq_ignore_ascii_case("CALL") => true,
+            Some(r) if r.eq_ignore_ascii_case("P") || r.eq_ignore_ascii_case("PUT") => false,
+            got => {
+                let got_str = got.unwrap_or("<missing>");
+                tracing::warn!(
+                    right = got_str,
+                    "WS subscribe: option 'right' must be one of C/CALL/P/PUT"
+                );
+                let err_msg = format!(
+                    "'right' must be one of 'C' / 'CALL' / 'P' / 'PUT' (got {got_str:?})"
+                );
+                let resp = sonic_rs::json!({
+                    "header": {
+                        "type": "REQ_RESPONSE",
+                        "response": "ERROR",
+                        "req_id": req_id,
+                        "error": err_msg.as_str(),
+                    }
+                });
+                send_response(socket, &resp, "bad_request_reply").await;
+                return;
+            }
+        };
         Contract::option_raw(root, exp, is_call, strike)
     } else {
         Contract::stock(root)
