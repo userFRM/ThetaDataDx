@@ -616,6 +616,31 @@ pub(super) fn python_pyclass_list_converter(return_type: &str) -> &'static str {
 }
 
 /// Map a collection return type (e.g. `TradeTicks`) to the generated
+/// slice-based Arrow converter in `tick_arrow::slice_arrow`. This is the
+/// fast path for builder `.arrow()` / `.pandas()` / `.polars()`
+/// terminals: feeds the decoder-owned `&[tick::T]` directly into the
+/// Arrow column builders, skipping the pyclass-list double-buffer that
+/// peaks RSS at ~2x the tick payload.
+pub(super) fn python_slice_arrow_converter(return_type: &str) -> &'static str {
+    match return_type {
+        "EodTicks" => "slice_arrow::eod_tick_slice_to_arrow_table",
+        "OhlcTicks" => "slice_arrow::ohlc_tick_slice_to_arrow_table",
+        "TradeTicks" => "slice_arrow::trade_tick_slice_to_arrow_table",
+        "QuoteTicks" => "slice_arrow::quote_tick_slice_to_arrow_table",
+        "TradeQuoteTicks" => "slice_arrow::trade_quote_tick_slice_to_arrow_table",
+        "OpenInterestTicks" => "slice_arrow::open_interest_tick_slice_to_arrow_table",
+        "MarketValueTicks" => "slice_arrow::market_value_tick_slice_to_arrow_table",
+        "GreeksTicks" => "slice_arrow::greeks_tick_slice_to_arrow_table",
+        "IvTicks" => "slice_arrow::iv_tick_slice_to_arrow_table",
+        "PriceTicks" => "slice_arrow::price_tick_slice_to_arrow_table",
+        "CalendarDays" => "slice_arrow::calendar_day_slice_to_arrow_table",
+        "InterestRateTicks" => "slice_arrow::interest_rate_tick_slice_to_arrow_table",
+        "OptionContracts" => "slice_arrow::option_contract_slice_to_arrow_table",
+        other => panic!("unsupported Python slice-arrow converter: {other}"),
+    }
+}
+
+/// Map a collection return type (e.g. `TradeTicks`) to the generated
 /// `#[napi(object)]` struct name emitted in `tick_classes.rs`. The TS SDK
 /// binds each Rust tick struct (from `tdbe::types::tick`) to this flat
 /// napi-object variant so `Vec<T>` surfaces as `T[]` in `index.d.ts`.

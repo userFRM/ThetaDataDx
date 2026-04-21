@@ -1067,26 +1067,11 @@ impl ArrowFromPyclassList for TradeTick {
 }
 
 
-// Reason: companion slice API consumed by historical_methods.rs via the Python-UX wrapper flip; kept under a single Reason-justified suppression until the dispatcher lands.
-#[allow(dead_code)]
 pub(crate) mod slice_arrow {
     use super::*;
     use super::tick;
     use arrow::array::{ArrayRef, Float64Array, Int32Array, Int64Array, StringArray};
     use arrow::record_batch::RecordBatch;
-
-    /// Trait implemented by every `tick::T` so endpoints can invoke the
-    /// slice-to-Arrow converter without hard-coding the tick name at the
-    /// call site. Each impl is generator-emitted from `tick_schema.toml`
-    /// so adding a new tick type does not require editing this trait.
-    pub(crate) trait ArrowFromSlice {
-        fn slice_to_arrow_table<'py>(
-            py: Python<'py>,
-            ticks: &[Self],
-        ) -> PyResult<Py<PyAny>>
-        where
-            Self: Sized;
-    }
 
     fn read_arrow_batch_from_calendar_day_slice(ticks: &[tick::CalendarDay]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("CalendarDay").expect("generated schema must be present for CalendarDay");
@@ -1120,18 +1105,6 @@ pub(crate) mod slice_arrow {
     pub(crate) fn calendar_day_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::CalendarDay]) -> PyResult<Py<PyAny>> {
         let batch = read_arrow_batch_from_calendar_day_slice(ticks)?;
         record_batch_to_pyarrow_table(py, batch)
-    }
-
-    impl ArrowFromSlice for tick::CalendarDay {
-        fn slice_to_arrow_table<'py>(
-            py: Python<'py>,
-            ticks: &[Self],
-        ) -> PyResult<Py<PyAny>>
-        where
-            Self: Sized,
-        {
-            calendar_day_slice_to_arrow_table(py, ticks)
-        }
     }
 
     fn read_arrow_batch_from_eod_tick_slice(ticks: &[tick::EodTick]) -> PyResult<RecordBatch> {
@@ -1211,18 +1184,6 @@ pub(crate) mod slice_arrow {
     pub(crate) fn eod_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::EodTick]) -> PyResult<Py<PyAny>> {
         let batch = read_arrow_batch_from_eod_tick_slice(ticks)?;
         record_batch_to_pyarrow_table(py, batch)
-    }
-
-    impl ArrowFromSlice for tick::EodTick {
-        fn slice_to_arrow_table<'py>(
-            py: Python<'py>,
-            ticks: &[Self],
-        ) -> PyResult<Py<PyAny>>
-        where
-            Self: Sized,
-        {
-            eod_tick_slice_to_arrow_table(py, ticks)
-        }
     }
 
     fn read_arrow_batch_from_greeks_tick_slice(ticks: &[tick::GreeksTick]) -> PyResult<RecordBatch> {
@@ -1325,18 +1286,6 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
-    impl ArrowFromSlice for tick::GreeksTick {
-        fn slice_to_arrow_table<'py>(
-            py: Python<'py>,
-            ticks: &[Self],
-        ) -> PyResult<Py<PyAny>>
-        where
-            Self: Sized,
-        {
-            greeks_tick_slice_to_arrow_table(py, ticks)
-        }
-    }
-
     fn read_arrow_batch_from_interest_rate_tick_slice(ticks: &[tick::InterestRateTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("InterestRateTick").expect("generated schema must be present for InterestRateTick");
         let n = ticks.len();
@@ -1363,18 +1312,6 @@ pub(crate) mod slice_arrow {
     pub(crate) fn interest_rate_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::InterestRateTick]) -> PyResult<Py<PyAny>> {
         let batch = read_arrow_batch_from_interest_rate_tick_slice(ticks)?;
         record_batch_to_pyarrow_table(py, batch)
-    }
-
-    impl ArrowFromSlice for tick::InterestRateTick {
-        fn slice_to_arrow_table<'py>(
-            py: Python<'py>,
-            ticks: &[Self],
-        ) -> PyResult<Py<PyAny>>
-        where
-            Self: Sized,
-        {
-            interest_rate_tick_slice_to_arrow_table(py, ticks)
-        }
     }
 
     fn read_arrow_batch_from_iv_tick_slice(ticks: &[tick::IvTick]) -> PyResult<RecordBatch> {
@@ -1415,18 +1352,6 @@ pub(crate) mod slice_arrow {
     pub(crate) fn iv_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::IvTick]) -> PyResult<Py<PyAny>> {
         let batch = read_arrow_batch_from_iv_tick_slice(ticks)?;
         record_batch_to_pyarrow_table(py, batch)
-    }
-
-    impl ArrowFromSlice for tick::IvTick {
-        fn slice_to_arrow_table<'py>(
-            py: Python<'py>,
-            ticks: &[Self],
-        ) -> PyResult<Py<PyAny>>
-        where
-            Self: Sized,
-        {
-            iv_tick_slice_to_arrow_table(py, ticks)
-        }
     }
 
     fn read_arrow_batch_from_market_value_tick_slice(ticks: &[tick::MarketValueTick]) -> PyResult<RecordBatch> {
@@ -1470,18 +1395,6 @@ pub(crate) mod slice_arrow {
     pub(crate) fn market_value_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::MarketValueTick]) -> PyResult<Py<PyAny>> {
         let batch = read_arrow_batch_from_market_value_tick_slice(ticks)?;
         record_batch_to_pyarrow_table(py, batch)
-    }
-
-    impl ArrowFromSlice for tick::MarketValueTick {
-        fn slice_to_arrow_table<'py>(
-            py: Python<'py>,
-            ticks: &[Self],
-        ) -> PyResult<Py<PyAny>>
-        where
-            Self: Sized,
-        {
-            market_value_tick_slice_to_arrow_table(py, ticks)
-        }
     }
 
     fn read_arrow_batch_from_ohlc_tick_slice(ticks: &[tick::OhlcTick]) -> PyResult<RecordBatch> {
@@ -1536,18 +1449,6 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
-    impl ArrowFromSlice for tick::OhlcTick {
-        fn slice_to_arrow_table<'py>(
-            py: Python<'py>,
-            ticks: &[Self],
-        ) -> PyResult<Py<PyAny>>
-        where
-            Self: Sized,
-        {
-            ohlc_tick_slice_to_arrow_table(py, ticks)
-        }
-    }
-
     fn read_arrow_batch_from_open_interest_tick_slice(ticks: &[tick::OpenInterestTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("OpenInterestTick").expect("generated schema must be present for OpenInterestTick");
         let n = ticks.len();
@@ -1585,18 +1486,6 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
-    impl ArrowFromSlice for tick::OpenInterestTick {
-        fn slice_to_arrow_table<'py>(
-            py: Python<'py>,
-            ticks: &[Self],
-        ) -> PyResult<Py<PyAny>>
-        where
-            Self: Sized,
-        {
-            open_interest_tick_slice_to_arrow_table(py, ticks)
-        }
-    }
-
     fn read_arrow_batch_from_option_contract_slice(ticks: &[tick::OptionContract]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("OptionContract").expect("generated schema must be present for OptionContract");
         let n = ticks.len();
@@ -1628,18 +1517,6 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
-    impl ArrowFromSlice for tick::OptionContract {
-        fn slice_to_arrow_table<'py>(
-            py: Python<'py>,
-            ticks: &[Self],
-        ) -> PyResult<Py<PyAny>>
-        where
-            Self: Sized,
-        {
-            option_contract_slice_to_arrow_table(py, ticks)
-        }
-    }
-
     fn read_arrow_batch_from_price_tick_slice(ticks: &[tick::PriceTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("PriceTick").expect("generated schema must be present for PriceTick");
         let n = ticks.len();
@@ -1666,18 +1543,6 @@ pub(crate) mod slice_arrow {
     pub(crate) fn price_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::PriceTick]) -> PyResult<Py<PyAny>> {
         let batch = read_arrow_batch_from_price_tick_slice(ticks)?;
         record_batch_to_pyarrow_table(py, batch)
-    }
-
-    impl ArrowFromSlice for tick::PriceTick {
-        fn slice_to_arrow_table<'py>(
-            py: Python<'py>,
-            ticks: &[Self],
-        ) -> PyResult<Py<PyAny>>
-        where
-            Self: Sized,
-        {
-            price_tick_slice_to_arrow_table(py, ticks)
-        }
     }
 
     fn read_arrow_batch_from_quote_tick_slice(ticks: &[tick::QuoteTick]) -> PyResult<RecordBatch> {
@@ -1739,18 +1604,6 @@ pub(crate) mod slice_arrow {
     pub(crate) fn quote_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::QuoteTick]) -> PyResult<Py<PyAny>> {
         let batch = read_arrow_batch_from_quote_tick_slice(ticks)?;
         record_batch_to_pyarrow_table(py, batch)
-    }
-
-    impl ArrowFromSlice for tick::QuoteTick {
-        fn slice_to_arrow_table<'py>(
-            py: Python<'py>,
-            ticks: &[Self],
-        ) -> PyResult<Py<PyAny>>
-        where
-            Self: Sized,
-        {
-            quote_tick_slice_to_arrow_table(py, ticks)
-        }
     }
 
     fn read_arrow_batch_from_trade_quote_tick_slice(ticks: &[tick::TradeQuoteTick]) -> PyResult<RecordBatch> {
@@ -1853,18 +1706,6 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
-    impl ArrowFromSlice for tick::TradeQuoteTick {
-        fn slice_to_arrow_table<'py>(
-            py: Python<'py>,
-            ticks: &[Self],
-        ) -> PyResult<Py<PyAny>>
-        where
-            Self: Sized,
-        {
-            trade_quote_tick_slice_to_arrow_table(py, ticks)
-        }
-    }
-
     fn read_arrow_batch_from_trade_tick_slice(ticks: &[tick::TradeTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("TradeTick").expect("generated schema must be present for TradeTick");
         let n = ticks.len();
@@ -1936,18 +1777,6 @@ pub(crate) mod slice_arrow {
     pub(crate) fn trade_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::TradeTick]) -> PyResult<Py<PyAny>> {
         let batch = read_arrow_batch_from_trade_tick_slice(ticks)?;
         record_batch_to_pyarrow_table(py, batch)
-    }
-
-    impl ArrowFromSlice for tick::TradeTick {
-        fn slice_to_arrow_table<'py>(
-            py: Python<'py>,
-            ticks: &[Self],
-        ) -> PyResult<Py<PyAny>>
-        where
-            Self: Sized,
-        {
-            trade_tick_slice_to_arrow_table(py, ticks)
-        }
     }
 
 }

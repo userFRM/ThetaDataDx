@@ -174,6 +174,12 @@ impl StockSnapshotOhlcBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbols = self.symbols.clone();
@@ -194,9 +200,7 @@ impl StockSnapshotOhlcBuilder {
             }
             request.await
         })?;
-        let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -258,9 +262,7 @@ impl StockSnapshotOhlcBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -286,9 +288,7 @@ impl StockSnapshotOhlcBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -315,9 +315,7 @@ impl StockSnapshotOhlcBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -389,6 +387,12 @@ impl StockSnapshotTradeBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbols = self.symbols.clone();
@@ -409,9 +413,7 @@ impl StockSnapshotTradeBuilder {
             }
             request.await
         })?;
-        let bound = trade_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -473,9 +475,7 @@ impl StockSnapshotTradeBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = trade_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -501,9 +501,7 @@ impl StockSnapshotTradeBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = trade_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -530,9 +528,7 @@ impl StockSnapshotTradeBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = trade_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -604,6 +600,12 @@ impl StockSnapshotQuoteBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbols = self.symbols.clone();
@@ -624,9 +626,7 @@ impl StockSnapshotQuoteBuilder {
             }
             request.await
         })?;
-        let bound = quote_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -688,9 +688,7 @@ impl StockSnapshotQuoteBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = quote_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -716,9 +714,7 @@ impl StockSnapshotQuoteBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = quote_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -745,9 +741,7 @@ impl StockSnapshotQuoteBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = quote_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -819,6 +813,12 @@ impl StockSnapshotMarketValueBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbols = self.symbols.clone();
@@ -839,9 +839,7 @@ impl StockSnapshotMarketValueBuilder {
             }
             request.await
         })?;
-        let bound = market_value_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -903,9 +901,7 @@ impl StockSnapshotMarketValueBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = market_value_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -931,9 +927,7 @@ impl StockSnapshotMarketValueBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = market_value_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -960,9 +954,7 @@ impl StockSnapshotMarketValueBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = market_value_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -1025,6 +1017,12 @@ impl StockHistoryEodBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -1038,9 +1036,7 @@ impl StockHistoryEodBuilder {
             }
             request.await
         })?;
-        let bound = eod_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -1088,9 +1084,7 @@ impl StockHistoryEodBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = eod_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -1109,9 +1103,7 @@ impl StockHistoryEodBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = eod_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -1131,9 +1123,7 @@ impl StockHistoryEodBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = eod_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -1253,6 +1243,12 @@ impl StockHistoryOhlcBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -1286,9 +1282,7 @@ impl StockHistoryOhlcBuilder {
             }
             request.await
         })?;
-        let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -1376,9 +1370,7 @@ impl StockHistoryOhlcBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -1417,9 +1409,7 @@ impl StockHistoryOhlcBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -1459,9 +1449,7 @@ impl StockHistoryOhlcBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -1572,6 +1560,12 @@ impl StockHistoryTradeBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -1604,9 +1598,7 @@ impl StockHistoryTradeBuilder {
             }
             request.await
         })?;
-        let bound = trade_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -1692,9 +1684,7 @@ impl StockHistoryTradeBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = trade_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -1732,9 +1722,7 @@ impl StockHistoryTradeBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = trade_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -1773,9 +1761,7 @@ impl StockHistoryTradeBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = trade_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -1896,6 +1882,12 @@ impl StockHistoryQuoteBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -1929,9 +1921,7 @@ impl StockHistoryQuoteBuilder {
             }
             request.await
         })?;
-        let bound = quote_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -2019,9 +2009,7 @@ impl StockHistoryQuoteBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = quote_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -2060,9 +2048,7 @@ impl StockHistoryQuoteBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = quote_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -2102,9 +2088,7 @@ impl StockHistoryQuoteBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = quote_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -2226,6 +2210,12 @@ impl StockHistoryTradeQuoteBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -2262,9 +2252,7 @@ impl StockHistoryTradeQuoteBuilder {
             }
             request.await
         })?;
-        let bound = trade_quote_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -2358,9 +2346,7 @@ impl StockHistoryTradeQuoteBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = trade_quote_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -2402,9 +2388,7 @@ impl StockHistoryTradeQuoteBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = trade_quote_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -2447,9 +2431,7 @@ impl StockHistoryTradeQuoteBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = trade_quote_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -2537,6 +2519,12 @@ impl StockAtTimeTradeBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -2555,9 +2543,7 @@ impl StockAtTimeTradeBuilder {
             }
             request.await
         })?;
-        let bound = trade_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -2615,9 +2601,7 @@ impl StockAtTimeTradeBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = trade_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -2641,9 +2625,7 @@ impl StockAtTimeTradeBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = trade_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -2668,9 +2650,7 @@ impl StockAtTimeTradeBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = trade_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -2758,6 +2738,12 @@ impl StockAtTimeQuoteBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -2776,9 +2762,7 @@ impl StockAtTimeQuoteBuilder {
             }
             request.await
         })?;
-        let bound = quote_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -2836,9 +2820,7 @@ impl StockAtTimeQuoteBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = quote_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -2862,9 +2844,7 @@ impl StockAtTimeQuoteBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = quote_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -2889,9 +2869,7 @@ impl StockAtTimeQuoteBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = quote_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -3224,6 +3202,12 @@ impl OptionListContractsBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let request_type = self.request_type.clone();
@@ -3241,9 +3225,7 @@ impl OptionListContractsBuilder {
             }
             request.await
         })?;
-        let bound = option_contracts_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::option_contract_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -3299,9 +3281,7 @@ impl OptionListContractsBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = option_contracts_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::option_contract_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -3324,9 +3304,7 @@ impl OptionListContractsBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = option_contracts_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::option_contract_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -3350,9 +3328,7 @@ impl OptionListContractsBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = option_contracts_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::option_contract_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -3457,6 +3433,12 @@ impl OptionSnapshotOhlcBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -3483,9 +3465,7 @@ impl OptionSnapshotOhlcBuilder {
             }
             request.await
         })?;
-        let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -3559,9 +3539,7 @@ impl OptionSnapshotOhlcBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -3593,9 +3571,7 @@ impl OptionSnapshotOhlcBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -3628,9 +3604,7 @@ impl OptionSnapshotOhlcBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -3725,6 +3699,12 @@ impl OptionSnapshotTradeBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -3747,9 +3727,7 @@ impl OptionSnapshotTradeBuilder {
             }
             request.await
         })?;
-        let bound = trade_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -3815,9 +3793,7 @@ impl OptionSnapshotTradeBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = trade_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -3845,9 +3821,7 @@ impl OptionSnapshotTradeBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = trade_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -3876,9 +3850,7 @@ impl OptionSnapshotTradeBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = trade_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -3984,6 +3956,12 @@ impl OptionSnapshotQuoteBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -4010,9 +3988,7 @@ impl OptionSnapshotQuoteBuilder {
             }
             request.await
         })?;
-        let bound = quote_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -4086,9 +4062,7 @@ impl OptionSnapshotQuoteBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = quote_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -4120,9 +4094,7 @@ impl OptionSnapshotQuoteBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = quote_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -4155,9 +4127,7 @@ impl OptionSnapshotQuoteBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = quote_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -4264,6 +4234,12 @@ impl OptionSnapshotOpenInterestBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -4290,9 +4266,7 @@ impl OptionSnapshotOpenInterestBuilder {
             }
             request.await
         })?;
-        let bound = open_interest_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -4366,9 +4340,7 @@ impl OptionSnapshotOpenInterestBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = open_interest_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -4400,9 +4372,7 @@ impl OptionSnapshotOpenInterestBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = open_interest_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -4435,9 +4405,7 @@ impl OptionSnapshotOpenInterestBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = open_interest_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -4541,6 +4509,12 @@ impl OptionSnapshotMarketValueBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -4567,9 +4541,7 @@ impl OptionSnapshotMarketValueBuilder {
             }
             request.await
         })?;
-        let bound = market_value_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -4643,9 +4615,7 @@ impl OptionSnapshotMarketValueBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = market_value_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -4677,9 +4647,7 @@ impl OptionSnapshotMarketValueBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = market_value_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -4712,9 +4680,7 @@ impl OptionSnapshotMarketValueBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = market_value_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -4887,6 +4853,12 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -4937,9 +4909,7 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
             }
             request.await
         })?;
-        let bound = iv_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -5061,9 +5031,7 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = iv_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -5119,9 +5087,7 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = iv_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -5178,9 +5144,7 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = iv_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -5353,6 +5317,12 @@ impl OptionSnapshotGreeksAllBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -5403,9 +5373,7 @@ impl OptionSnapshotGreeksAllBuilder {
             }
             request.await
         })?;
-        let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -5527,9 +5495,7 @@ impl OptionSnapshotGreeksAllBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -5585,9 +5551,7 @@ impl OptionSnapshotGreeksAllBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -5644,9 +5608,7 @@ impl OptionSnapshotGreeksAllBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -5819,6 +5781,12 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -5869,9 +5837,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
             }
             request.await
         })?;
-        let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -5993,9 +5959,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -6051,9 +6015,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -6110,9 +6072,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -6285,6 +6245,12 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -6335,9 +6301,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
             }
             request.await
         })?;
-        let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -6459,9 +6423,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -6517,9 +6479,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -6576,9 +6536,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -6751,6 +6709,12 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -6801,9 +6765,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
             }
             request.await
         })?;
-        let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -6925,9 +6887,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -6983,9 +6943,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -7042,9 +7000,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -7156,6 +7112,12 @@ impl OptionHistoryEodBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -7180,9 +7142,7 @@ impl OptionHistoryEodBuilder {
             }
             request.await
         })?;
-        let bound = eod_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -7252,9 +7212,7 @@ impl OptionHistoryEodBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = eod_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -7284,9 +7242,7 @@ impl OptionHistoryEodBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = eod_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -7317,9 +7273,7 @@ impl OptionHistoryEodBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = eod_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -7463,6 +7417,12 @@ impl OptionHistoryOhlcBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -7499,9 +7459,7 @@ impl OptionHistoryOhlcBuilder {
             }
             request.await
         })?;
-        let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -7595,9 +7553,7 @@ impl OptionHistoryOhlcBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -7639,9 +7595,7 @@ impl OptionHistoryOhlcBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -7684,9 +7638,7 @@ impl OptionHistoryOhlcBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -7834,6 +7786,12 @@ impl OptionHistoryTradeBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -7873,9 +7831,7 @@ impl OptionHistoryTradeBuilder {
             }
             request.await
         })?;
-        let bound = trade_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -7975,9 +7931,7 @@ impl OptionHistoryTradeBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = trade_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -8022,9 +7976,7 @@ impl OptionHistoryTradeBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = trade_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -8070,9 +8022,7 @@ impl OptionHistoryTradeBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = trade_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -8227,6 +8177,12 @@ impl OptionHistoryQuoteBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -8267,9 +8223,7 @@ impl OptionHistoryQuoteBuilder {
             }
             request.await
         })?;
-        let bound = quote_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -8371,9 +8325,7 @@ impl OptionHistoryQuoteBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = quote_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -8419,9 +8371,7 @@ impl OptionHistoryQuoteBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = quote_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -8468,9 +8418,7 @@ impl OptionHistoryQuoteBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = quote_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -8629,6 +8577,12 @@ impl OptionHistoryTradeQuoteBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -8672,9 +8626,7 @@ impl OptionHistoryTradeQuoteBuilder {
             }
             request.await
         })?;
-        let bound = trade_quote_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -8782,9 +8734,7 @@ impl OptionHistoryTradeQuoteBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = trade_quote_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -8833,9 +8783,7 @@ impl OptionHistoryTradeQuoteBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = trade_quote_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -8885,9 +8833,7 @@ impl OptionHistoryTradeQuoteBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = trade_quote_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -9012,6 +8958,12 @@ impl OptionHistoryOpenInterestBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -9043,9 +8995,7 @@ impl OptionHistoryOpenInterestBuilder {
             }
             request.await
         })?;
-        let bound = open_interest_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -9129,9 +9079,7 @@ impl OptionHistoryOpenInterestBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = open_interest_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -9168,9 +9116,7 @@ impl OptionHistoryOpenInterestBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = open_interest_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -9208,9 +9154,7 @@ impl OptionHistoryOpenInterestBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = open_interest_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -9376,6 +9320,12 @@ impl OptionHistoryGreeksEodBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -9420,9 +9370,7 @@ impl OptionHistoryGreeksEodBuilder {
             }
             request.await
         })?;
-        let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -9532,9 +9480,7 @@ impl OptionHistoryGreeksEodBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -9584,9 +9530,7 @@ impl OptionHistoryGreeksEodBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -9637,9 +9581,7 @@ impl OptionHistoryGreeksEodBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -9828,6 +9770,12 @@ impl OptionHistoryGreeksAllBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -9880,9 +9828,7 @@ impl OptionHistoryGreeksAllBuilder {
             }
             request.await
         })?;
-        let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -10008,9 +9954,7 @@ impl OptionHistoryGreeksAllBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -10068,9 +10012,7 @@ impl OptionHistoryGreeksAllBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -10129,9 +10071,7 @@ impl OptionHistoryGreeksAllBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -10323,6 +10263,12 @@ impl OptionHistoryTradeGreeksAllBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -10378,9 +10324,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
             }
             request.await
         })?;
-        let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -10512,9 +10456,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -10575,9 +10517,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -10639,9 +10579,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -10830,6 +10768,12 @@ impl OptionHistoryGreeksFirstOrderBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -10882,9 +10826,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
             }
             request.await
         })?;
-        let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -11010,9 +10952,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -11070,9 +11010,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -11131,9 +11069,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -11325,6 +11261,12 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -11380,9 +11322,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             }
             request.await
         })?;
-        let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -11514,9 +11454,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -11577,9 +11515,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -11641,9 +11577,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -11832,6 +11766,12 @@ impl OptionHistoryGreeksSecondOrderBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -11884,9 +11824,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
             }
             request.await
         })?;
-        let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -12012,9 +11950,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -12072,9 +12008,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -12133,9 +12067,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -12327,6 +12259,12 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -12382,9 +12320,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             }
             request.await
         })?;
-        let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -12516,9 +12452,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -12579,9 +12513,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -12643,9 +12575,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -12834,6 +12764,12 @@ impl OptionHistoryGreeksThirdOrderBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -12886,9 +12822,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
             }
             request.await
         })?;
-        let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -13014,9 +12948,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -13074,9 +13006,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -13135,9 +13065,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -13329,6 +13257,12 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -13384,9 +13318,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             }
             request.await
         })?;
-        let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -13518,9 +13450,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -13581,9 +13511,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -13645,9 +13573,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = greeks_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -13835,6 +13761,12 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -13887,9 +13819,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
             }
             request.await
         })?;
-        let bound = iv_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -14015,9 +13945,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = iv_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -14075,9 +14003,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = iv_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -14136,9 +14062,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = iv_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -14329,6 +14253,12 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -14384,9 +14314,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             }
             request.await
         })?;
-        let bound = iv_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -14518,9 +14446,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = iv_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -14581,9 +14507,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = iv_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -14645,9 +14569,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = iv_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -14767,6 +14689,12 @@ impl OptionAtTimeTradeBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -14792,9 +14720,7 @@ impl OptionAtTimeTradeBuilder {
             }
             request.await
         })?;
-        let bound = trade_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -14866,9 +14792,7 @@ impl OptionAtTimeTradeBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = trade_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -14899,9 +14823,7 @@ impl OptionAtTimeTradeBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = trade_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -14933,9 +14855,7 @@ impl OptionAtTimeTradeBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = trade_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -15053,6 +14973,12 @@ impl OptionAtTimeQuoteBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -15078,9 +15004,7 @@ impl OptionAtTimeQuoteBuilder {
             }
             request.await
         })?;
-        let bound = quote_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -15152,9 +15076,7 @@ impl OptionAtTimeQuoteBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = quote_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -15185,9 +15107,7 @@ impl OptionAtTimeQuoteBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = quote_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -15219,9 +15139,7 @@ impl OptionAtTimeQuoteBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = quote_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -15380,6 +15298,12 @@ impl IndexSnapshotOhlcBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbols = self.symbols.clone();
@@ -15396,9 +15320,7 @@ impl IndexSnapshotOhlcBuilder {
             }
             request.await
         })?;
-        let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -15452,9 +15374,7 @@ impl IndexSnapshotOhlcBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -15476,9 +15396,7 @@ impl IndexSnapshotOhlcBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -15501,9 +15419,7 @@ impl IndexSnapshotOhlcBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -15563,6 +15479,12 @@ impl IndexSnapshotPriceBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbols = self.symbols.clone();
@@ -15579,9 +15501,7 @@ impl IndexSnapshotPriceBuilder {
             }
             request.await
         })?;
-        let bound = price_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -15635,9 +15555,7 @@ impl IndexSnapshotPriceBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = price_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -15659,9 +15577,7 @@ impl IndexSnapshotPriceBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = price_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -15684,9 +15600,7 @@ impl IndexSnapshotPriceBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = price_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -15746,6 +15660,12 @@ impl IndexSnapshotMarketValueBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbols = self.symbols.clone();
@@ -15762,9 +15682,7 @@ impl IndexSnapshotMarketValueBuilder {
             }
             request.await
         })?;
-        let bound = market_value_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -15818,9 +15736,7 @@ impl IndexSnapshotMarketValueBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = market_value_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -15842,9 +15758,7 @@ impl IndexSnapshotMarketValueBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = market_value_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -15867,9 +15781,7 @@ impl IndexSnapshotMarketValueBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = market_value_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -15932,6 +15844,12 @@ impl IndexHistoryEodBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -15945,9 +15863,7 @@ impl IndexHistoryEodBuilder {
             }
             request.await
         })?;
-        let bound = eod_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -15995,9 +15911,7 @@ impl IndexHistoryEodBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = eod_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -16016,9 +15930,7 @@ impl IndexHistoryEodBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = eod_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -16038,9 +15950,7 @@ impl IndexHistoryEodBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = eod_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -16135,6 +16045,12 @@ impl IndexHistoryOhlcBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -16157,9 +16073,7 @@ impl IndexHistoryOhlcBuilder {
             }
             request.await
         })?;
-        let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -16225,9 +16139,7 @@ impl IndexHistoryOhlcBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -16255,9 +16167,7 @@ impl IndexHistoryOhlcBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -16286,9 +16196,7 @@ impl IndexHistoryOhlcBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -16398,6 +16306,12 @@ impl IndexHistoryPriceBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -16427,9 +16341,7 @@ impl IndexHistoryPriceBuilder {
             }
             request.await
         })?;
-        let bound = price_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -16509,9 +16421,7 @@ impl IndexHistoryPriceBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = price_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -16546,9 +16456,7 @@ impl IndexHistoryPriceBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = price_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -16584,9 +16492,7 @@ impl IndexHistoryPriceBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = price_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -16658,6 +16564,12 @@ impl IndexAtTimePriceBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -16672,9 +16584,7 @@ impl IndexAtTimePriceBuilder {
             }
             request.await
         })?;
-        let bound = price_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -16724,9 +16634,7 @@ impl IndexAtTimePriceBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = price_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -16746,9 +16654,7 @@ impl IndexAtTimePriceBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = price_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -16769,9 +16675,7 @@ impl IndexAtTimePriceBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = price_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -16812,6 +16716,12 @@ impl CalendarOpenTodayBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
@@ -16822,9 +16732,7 @@ impl CalendarOpenTodayBuilder {
             }
             request.await
         })?;
-        let bound = calendar_days_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -16866,9 +16774,7 @@ impl CalendarOpenTodayBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = calendar_days_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -16884,9 +16790,7 @@ impl CalendarOpenTodayBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = calendar_days_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -16903,9 +16807,7 @@ impl CalendarOpenTodayBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = calendar_days_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -16955,6 +16857,12 @@ impl CalendarOnDateBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let date = self.date.clone();
@@ -16966,9 +16874,7 @@ impl CalendarOnDateBuilder {
             }
             request.await
         })?;
-        let bound = calendar_days_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -17012,9 +16918,7 @@ impl CalendarOnDateBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = calendar_days_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -17031,9 +16935,7 @@ impl CalendarOnDateBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = calendar_days_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -17051,9 +16953,7 @@ impl CalendarOnDateBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = calendar_days_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -17103,6 +17003,12 @@ impl CalendarYearBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let year = self.year.clone();
@@ -17114,9 +17020,7 @@ impl CalendarYearBuilder {
             }
             request.await
         })?;
-        let bound = calendar_days_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -17160,9 +17064,7 @@ impl CalendarYearBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = calendar_days_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -17179,9 +17081,7 @@ impl CalendarYearBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = calendar_days_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -17199,9 +17099,7 @@ impl CalendarYearBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = calendar_days_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -17264,6 +17162,12 @@ impl InterestRateHistoryEodBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -17277,9 +17181,7 @@ impl InterestRateHistoryEodBuilder {
             }
             request.await
         })?;
-        let bound = interest_rate_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::interest_rate_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -17327,9 +17229,7 @@ impl InterestRateHistoryEodBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = interest_rate_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::interest_rate_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -17348,9 +17248,7 @@ impl InterestRateHistoryEodBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = interest_rate_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::interest_rate_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -17370,9 +17268,7 @@ impl InterestRateHistoryEodBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = interest_rate_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::interest_rate_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })
@@ -17474,6 +17370,12 @@ impl StockHistoryOhlcRangeBuilder {
     }
 
     /// Execute the request and return a `pyarrow.Table`.
+    ///
+    /// Builder `.arrow()` takes the slice-based fast path:
+    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
+    /// builders directly, skipping the typed pyclass-list
+    /// materialisation. Peak RSS is ~½ the pyclass path at
+    /// large N (no double-buffered pyclass allocations).
     fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -17500,9 +17402,7 @@ impl StockHistoryOhlcRangeBuilder {
             }
             request.await
         })?;
-        let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-        pyclass_list_to_arrow_table(py, &list, None)
+        slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
     }
 
     /// Execute the request and return a `pandas.DataFrame`.
@@ -17576,9 +17476,7 @@ impl StockHistoryOhlcRangeBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                pyclass_list_to_arrow_table(py, &list, None)
+                slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
             })
         })
     }
@@ -17610,9 +17508,7 @@ impl StockHistoryOhlcRangeBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_pandas(py, table)
             })
         })
@@ -17645,9 +17541,7 @@ impl StockHistoryOhlcRangeBuilder {
             }
             let ticks = request.await.map_err(to_py_err)?;
             Python::attach(|py| {
-                let bound = ohlc_ticks_to_pyclass_list(py, &ticks)?;
-                let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();
-                let table = pyclass_list_to_arrow_table(py, &list, None)?;
+                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
                 pyarrow_table_to_polars(py, table)
             })
         })

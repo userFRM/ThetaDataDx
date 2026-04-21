@@ -35,7 +35,7 @@ use std::fmt::Write as _;
 use super::super::helpers::{
     builder_params, compose_endpoint_doc, direct_parser_name, is_streaming_endpoint, method_params,
     python_method_arg_decl, python_optional_type, python_pyclass_list_converter,
-    render_rust_doc_block, sdk_method_arg_name, to_pascal_case,
+    python_slice_arrow_converter, render_rust_doc_block, sdk_method_arg_name, to_pascal_case,
 };
 use super::super::model::{GeneratedEndpoint, GeneratedParam};
 
@@ -753,6 +753,12 @@ fn render_python_endpoint_builder(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("    }\n\n");
 
     out.push_str("    /// Execute the request and return a `pyarrow.Table`.\n");
+    out.push_str("    ///\n");
+    out.push_str("    /// Builder `.arrow()` takes the slice-based fast path:\n");
+    out.push_str("    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column\n");
+    out.push_str("    /// builders directly, skipping the typed pyclass-list\n");
+    out.push_str("    /// materialisation. Peak RSS is ~½ the pyclass path at\n");
+    out.push_str("    /// large N (no double-buffered pyclass allocations).\n");
     out.push_str("    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {\n");
     write_sync_parsed_dispatch(
         &mut out,
@@ -764,12 +770,10 @@ fn render_python_endpoint_builder(endpoint: &GeneratedEndpoint) -> String {
     );
     writeln!(
         out,
-        "        let bound = {}(py, &ticks)?;",
-        python_pyclass_list_converter(&endpoint.return_type)
+        "        {}(py, &ticks)",
+        python_slice_arrow_converter(&endpoint.return_type)
     )
     .unwrap();
-    out.push_str("        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();\n");
-    out.push_str("        pyclass_list_to_arrow_table(py, &list, None)\n");
     out.push_str("    }\n\n");
 
     out.push_str("    /// Execute the request and return a `pandas.DataFrame`.\n");
@@ -1325,30 +1329,19 @@ fn write_async_parsed_dispatch(
             .unwrap();
         }
         TerminalKind::Arrow => {
+            // Slice-based Arrow fast path: skip pyclass-list materialisation.
             writeln!(
                 out,
-                "{indent}        let bound = {}(py, &ticks)?;",
-                python_pyclass_list_converter(&endpoint.return_type)
-            )
-            .unwrap();
-            writeln!(out, "{indent}        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();").unwrap();
-            writeln!(
-                out,
-                "{indent}        pyclass_list_to_arrow_table(py, &list, None)"
+                "{indent}        {}(py, &ticks)",
+                python_slice_arrow_converter(&endpoint.return_type)
             )
             .unwrap();
         }
         TerminalKind::Pandas => {
             writeln!(
                 out,
-                "{indent}        let bound = {}(py, &ticks)?;",
-                python_pyclass_list_converter(&endpoint.return_type)
-            )
-            .unwrap();
-            writeln!(out, "{indent}        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();").unwrap();
-            writeln!(
-                out,
-                "{indent}        let table = pyclass_list_to_arrow_table(py, &list, None)?;"
+                "{indent}        let table = {}(py, &ticks)?;",
+                python_slice_arrow_converter(&endpoint.return_type)
             )
             .unwrap();
             writeln!(out, "{indent}        pyarrow_table_to_pandas(py, table)").unwrap();
@@ -1356,14 +1349,8 @@ fn write_async_parsed_dispatch(
         TerminalKind::Polars => {
             writeln!(
                 out,
-                "{indent}        let bound = {}(py, &ticks)?;",
-                python_pyclass_list_converter(&endpoint.return_type)
-            )
-            .unwrap();
-            writeln!(out, "{indent}        let list = bound.bind(py).cast::<pyo3::types::PyList>().map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?.clone();").unwrap();
-            writeln!(
-                out,
-                "{indent}        let table = pyclass_list_to_arrow_table(py, &list, None)?;"
+                "{indent}        let table = {}(py, &ticks)?;",
+                python_slice_arrow_converter(&endpoint.return_type)
             )
             .unwrap();
             writeln!(out, "{indent}        pyarrow_table_to_polars(py, table)").unwrap();

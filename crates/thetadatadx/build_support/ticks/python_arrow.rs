@@ -88,15 +88,12 @@ pub(super) fn render_python_tick_arrow(schema: &Schema) -> String {
 
 fn render_python_slice_to_arrow_converters(schema: &Schema) -> String {
     let mut out = String::new();
-    // The slice-based API ships generator-emitted today; `historical_methods.rs`
-    // keeps the pyclass-list path until the Python-UX agent flips the
-    // dispatcher. Scope the dead-code suppression to a single nested
-    // `mod` so the lint comes back automatically once the dispatcher
-    // flip lands and call sites materialise.
-    out.push_str(
-        "// Reason: companion slice API consumed by historical_methods.rs via the Python-UX wrapper flip; kept under a single Reason-justified suppression until the dispatcher lands.\n",
-    );
-    out.push_str("#[allow(dead_code)]\n");
+    // Slice-based Arrow fast path: the fluent builder `.arrow()` /
+    // `.pandas()` / `.polars()` terminals in `historical_methods.rs`
+    // call these converters directly on the decoder-owned
+    // `Vec<tick::T>`, skipping the pyclass-list double-buffer. See
+    // `build_support/endpoints/render/python.rs::python_slice_arrow_converter`
+    // for the dispatch mapping.
     out.push_str("pub(crate) mod slice_arrow {\n");
     out.push_str("    use super::*;\n");
     out.push_str("    use super::tick;\n");
@@ -104,18 +101,13 @@ fn render_python_slice_to_arrow_converters(schema: &Schema) -> String {
         "    use arrow::array::{ArrayRef, Float64Array, Int32Array, Int64Array, StringArray};\n",
     );
     out.push_str("    use arrow::record_batch::RecordBatch;\n\n");
-    out.push_str("    /// Trait implemented by every `tick::T` so endpoints can invoke the\n");
-    out.push_str("    /// slice-to-Arrow converter without hard-coding the tick name at the\n");
-    out.push_str("    /// call site. Each impl is generator-emitted from `tick_schema.toml`\n");
-    out.push_str("    /// so adding a new tick type does not require editing this trait.\n");
-    out.push_str("    pub(crate) trait ArrowFromSlice {\n");
-    out.push_str("        fn slice_to_arrow_table<'py>(\n");
-    out.push_str("            py: Python<'py>,\n");
-    out.push_str("            ticks: &[Self],\n");
-    out.push_str("        ) -> PyResult<Py<PyAny>>\n");
-    out.push_str("        where\n");
-    out.push_str("            Self: Sized;\n");
-    out.push_str("    }\n\n");
+    // The fluent-builder Arrow terminals in `historical_methods.rs`
+    // dispatch on endpoint return type (via
+    // `build_support/endpoints/helpers.rs::python_slice_arrow_converter`)
+    // directly to the free helper functions below. No intermediate
+    // trait is needed — keeping the surface to the free functions
+    // means no unused-trait lint and the call sites stay visible in
+    // the generated `historical_methods.rs` diff.
 
     for type_name in sorted_type_names(schema) {
         let def = &schema.types[type_name];
@@ -130,13 +122,6 @@ fn render_python_slice_to_arrow_converters(schema: &Schema) -> String {
         out.push('\n');
         let helper = render_python_slice_public_helper(type_name);
         for line in helper.lines() {
-            out.push_str("    ");
-            out.push_str(line);
-            out.push('\n');
-        }
-        out.push('\n');
-        let trait_impl = render_python_slice_trait_impl(type_name);
-        for line in trait_impl.lines() {
             out.push_str("    ");
             out.push_str(line);
             out.push('\n');
@@ -320,23 +305,6 @@ fn render_python_slice_public_helper(type_name: &str) -> String {
     .unwrap();
     writeln!(out, "    let batch = {reader}(ticks)?;").unwrap();
     out.push_str("    record_batch_to_pyarrow_table(py, batch)\n");
-    out.push_str("}\n");
-    out
-}
-
-fn render_python_slice_trait_impl(type_name: &str) -> String {
-    let mut out = String::new();
-    let helper = python_slice_helper_fn_name(type_name);
-    writeln!(out, "impl ArrowFromSlice for tick::{type_name} {{").unwrap();
-    out.push_str("    fn slice_to_arrow_table<'py>(\n");
-    out.push_str("        py: Python<'py>,\n");
-    out.push_str("        ticks: &[Self],\n");
-    out.push_str("    ) -> PyResult<Py<PyAny>>\n");
-    out.push_str("    where\n");
-    out.push_str("        Self: Sized,\n");
-    out.push_str("    {\n");
-    writeln!(out, "        {helper}(py, ticks)").unwrap();
-    out.push_str("    }\n");
     out.push_str("}\n");
     out
 }
