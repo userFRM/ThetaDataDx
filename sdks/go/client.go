@@ -28,9 +28,7 @@ type Client struct {
 // Pins the goroutine to one OS thread across the cgo call + TLS error
 // read because the FFI's last-error slot is a Rust thread_local; without
 // the pin, Go's runtime could migrate the goroutine and the error read
-// would see an empty slot on the wrong thread. See
-// `docs/dev/w3-async-cancellation-design.md` "cgo thread-local
-// correctness".
+// would see an empty slot on the wrong thread.
 func Connect(creds *Credentials, config *Config) (*Client, error) {
 	if creds == nil || creds.handle == nil {
 		return nil, fmt.Errorf("thetadatadx: credentials handle is nil")

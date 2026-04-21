@@ -3,7 +3,7 @@ name = "thetadatadx-ffi"
 version = "7.3.1"
 edition = "2021"
 description = "C FFI layer for thetadatadx — used by Go and C++ SDKs"
-license = "GPL-3.0-or-later"
+license = "Apache-2.0"
 # Internal FFI shim — never published to crates.io. Only `tdbe` and
 # `thetadatadx` are published (see publish-crate job in ci.yml).
 publish = false

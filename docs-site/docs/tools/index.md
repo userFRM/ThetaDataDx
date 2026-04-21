@@ -15,7 +15,7 @@ Best for: ad-hoc queries, shell pipelines, cron jobs.
 
 ## [MCP Server (`thetadatadx-mcp`)](./mcp)
 
-Model Context Protocol server. Exposes ThetaData tools as JSON-RPC 2.0 over stdio so any MCP-capable LLM client (Claude Desktop, Claude Code, Cursor, etc.) can query market data directly. Install with `cargo install thetadatadx-mcp`.
+Model Context Protocol server. Exposes ThetaData tools as JSON-RPC 2.0 over stdio so any MCP-capable LLM client (Cursor, and other editors / agents implementing the MCP spec) can query market data directly. Install with `cargo install thetadatadx-mcp`.
 
 Best for: giving LLMs live access to ThetaData without writing an integration layer.
 

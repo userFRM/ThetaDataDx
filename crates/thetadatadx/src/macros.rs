@@ -19,8 +19,6 @@
 //! async method on `DirectClient`: the existing `pub async fn <name>(...)`
 //! signatures stay non-breaking, while the `_with_deadline` variant gives
 //! the same cancellation contract for the validator and registry dispatch.
-//!
-//! See [`docs/dev/w3-async-cancellation-design.md`].
 
 /// Run a future with an optional per-call deadline.
 ///

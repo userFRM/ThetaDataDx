@@ -18,7 +18,7 @@ info:
     name: ThetaDataDx
     url: https://github.com/userFRM/ThetaDataDx
   license:
-    name: GPL-3.0-or-later
+    name: Apache-2.0
     url: https://github.com/userFRM/ThetaDataDx/blob/main/LICENSE
 
 servers:

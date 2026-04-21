@@ -24,8 +24,6 @@ type FpssClient struct {
 //
 // Pins the goroutine to one OS thread across the cgo call + TLS error
 // read because the FFI's last-error slot is a Rust thread_local.
-// See `docs/dev/w3-async-cancellation-design.md` "cgo thread-local
-// correctness".
 func NewFpssClient(creds *Credentials, config *Config) (*FpssClient, error) {
 	if creds == nil || creds.handle == nil {
 		return nil, fmt.Errorf("thetadatadx: credentials handle is nil")

@@ -210,4 +210,4 @@ All logs go to **stderr**, never stdout (which is reserved for JSON-RPC).
 
 ## License
 
-GPL-3.0-or-later
+Apache-2.0 -- see [LICENSE](../../LICENSE).

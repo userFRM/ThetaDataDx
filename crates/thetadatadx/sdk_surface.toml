@@ -382,6 +382,6 @@ substring = "f.fpssCall("
 substring = "C.tdx_last_error("
 
 # Helper that itself reads LAST_ERROR — callers must pin before invoking
-# (the helper also self-pins defensively).
+# (the helper also self-pins as a safety net).
 [[go_ffi.tls_reader_markers]]
 substring = "stringArrayToGo("

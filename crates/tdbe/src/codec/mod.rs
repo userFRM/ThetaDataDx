@@ -1,6 +1,6 @@
 //! FIT/FIE codec for `ThetaData`'s FPSS streaming protocol.
 //!
-//! Reverse-engineered from decompiled Java sources:
+//! Mirrors the Java terminal implementation for byte-for-byte wire parity:
 //! - `FITReader.java` — nibble-oriented variable-length integer decoder (FIT)
 //! - `FIE.java` — string-to-nibble encoder for request building (FIE)
 //!

@@ -13,10 +13,10 @@ It owns normalized endpoint names, parameter semantics, REST paths, return kinds
 projection call-shapes, reusable parameter groups, and endpoint templates. The
 build validates that surface spec against the wire contract in `external.proto`.
 
-We used to maintain reverse-engineered protos (`endpoints.proto` + `v3_endpoints.proto`)
-extracted from `ThetaTerminalv3.jar` via `FileDescriptor` reflection. Those have been
-replaced by the official single-file definition. Do not reverse-engineer or hand-edit;
-request an updated `external.proto` from ThetaData when the wire protocol changes.
+Earlier revisions of this crate shipped two separate proto files extracted
+from the Java terminal (`endpoints.proto` + `v3_endpoints.proto`). Those have
+been superseded by the single-file definition. Do not hand-edit `external.proto`;
+request an updated file from ThetaData when the wire protocol changes.
 
 Package: `BetaEndpoints` (everything lives here — shared types, request/response
 messages, and the `BetaThetaTerminal` service). Production MDDS routes on this

@@ -14,7 +14,7 @@ import (
 // payload legitimately takes longer than a minute. The Rust SDK
 // enforces the deadline via tokio::time::timeout and cancels the
 // in-flight gRPC stream on expiry; the *Client handle stays usable.
-// See [docs/dev/w3-async-cancellation-design.md] (W3).
+// The *Client handle stays usable after a cancelled call.
 const (
 	perCellTimeoutMs  uint64 = 60_000
 	slowModeTimeoutMs uint64 = 180_000

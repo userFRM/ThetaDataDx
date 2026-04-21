@@ -37,9 +37,9 @@ yanked = "deny"
 ignore = []
 
 [licenses]
-# Workspace crates (tdbe, thetadatadx) are GPL-3.0-or-later. That is NOT
-# denied -- it is OUR license. The allowlist below determines which
-# *dependency* licenses we accept in the tree. Anything unlisted fails.
+# Workspace crates (tdbe, thetadatadx, FFI shim, SDK shims, tools) are
+# Apache-2.0. The allowlist below determines which *dependency* licenses
+# we accept in the tree. Anything unlisted fails.
 allow = [
     "MIT",
     "Apache-2.0",
@@ -57,10 +57,6 @@ allow = [
     # (Linux Foundation) with effectively no copyleft on output; rustls
     # uses it only for the static Mozilla CA bundle.
     "CDLA-Permissive-2.0",
-    # Our own workspace crates use GPL-3.0-or-later; allow it so the tree
-    # doesn't fail on the root packages themselves.
-    "GPL-3.0",
-    "GPL-3.0-or-later",
 ]
 confidence-threshold = 0.8
 exceptions = []

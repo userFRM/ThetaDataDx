@@ -244,7 +244,7 @@ pub async fn authenticate(creds: &Credentials) -> Result<AuthResponse, Error> {
                 }
             }
         }
-        // All retries exhausted (should not reach here, but handle defensively).
+        // All retries exhausted (should not reach here, but handle as a safety net).
         return Err(Error::Auth {
             kind: crate::error::AuthErrorKind::NetworkError,
             message: format!(

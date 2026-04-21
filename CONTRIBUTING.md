@@ -190,16 +190,13 @@ Every PR must include:
 
 ## How to Update After a ThetaData Protocol Update
 
-When ThetaData ships a new official proto revision:
+When ThetaData ships a new proto revision:
 
 1. Replace `crates/thetadatadx/proto/external.proto`
 2. Update `endpoint_surface.toml` when the normalized SDK surface changes
 3. Update `tick_schema.toml` if DataTable column layouts changed
 4. Run the relevant checks from the sections above
 5. See `crates/thetadatadx/proto/MAINTENANCE.md` for the detailed guide
-
-`docs/reverse-engineering.md` is kept as historical context for how the project
-was originally bootstrapped, not as the primary maintenance workflow.
 
 ## Community
 

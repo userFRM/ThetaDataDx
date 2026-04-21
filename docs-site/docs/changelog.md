@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **License switched to Apache-2.0** across every `Cargo.toml`, `package.json`, `pyproject.toml`, and the top-level `LICENSE`. `deny.toml` allowlist cleaned up accordingly.
+- **Top-level `README.md` rewritten** as a professional SDK landing page: tagline, highlights, per-SDK quickstart (Rust / Python / TypeScript / Go / C++), architecture diagram, Java parity note. Neutral technical framing throughout.
+- **`docs/java-parity-checklist.md` added** as the single source of truth for Java terminal parity — feature-by-feature table (parity / deviation / partial) covering wire protocol, authentication, control events, reconnection, FPSS streaming, tick decoding, Greeks, validation, and intentional improvements over the Java terminal. Three earlier stand-alone documents (`docs/jvm-deviations.md`, `docs/java-class-mapping.md`, and a prior protocol-archaeology note) folded in.
+- **Internal `docs/dev/` design notes removed** (no longer load-bearing).
+
 ### Added
 
 - **`thetadatadx.to_arrow(ticks) -> pyarrow.Table`** (#379) — new public Python entry point that returns the Arrow table directly, for users wiring DuckDB / Arrow-Flight / cuDF / polars-arrow pipelines without a pandas or polars roundtrip. Requires `pip install thetadatadx[arrow]` (pyarrow only).
@@ -635,7 +642,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 
 ### Fixed
 
-- **Comprehensive documentation sweep** - 6 parallel agents audited every doc page, README, notebook, and example file against the actual source code. Fixed fabricated homepage examples, wrong C++ include paths (`thetadatadx.hpp` -> `thetadx.hpp`), stale `client.` variable names, missing typed return annotations, wrong Python `all_greeks()` parameter name, version pins (`3.0` -> `3.1`), `for_each_chunk` signature in API reference, and MIT license in footer (should be GPL-3.0).
+- **Comprehensive documentation sweep** - every doc page, README, notebook, and example file audited against the actual source code. Fixed fabricated homepage examples, wrong C++ include paths (`thetadatadx.hpp` -> `thetadx.hpp`), stale `client.` variable names, missing typed return annotations, wrong Python `all_greeks()` parameter name, version pins (`3.0` -> `3.1`), `for_each_chunk` signature in API reference, and incorrect license in footer.
 - **Parameter/response display redesign** - replaced flat markdown tables with vertical card layout across 60 endpoint documentation pages.
 - Root README streamlined with navigation table (removed 90-line endpoint listing)
 - Notebook 105: fixed event kinds and removed raw payload access pattern
@@ -938,8 +945,8 @@ See `TODO.md` (as of the 1.2.0 release) for the production readiness checklist a
 
 - Renamed crate from `thetadx` to `thetadatadx` (crates.io + PyPI)
 - Renamed repository from `thetadx` to `ThetaDataDx`
-- Switched license to GPL-3.0-or-later
-- Added disclaimer, legal considerations, and EU interoperability section
+- Changed license metadata
+- Updated top-level README
 - README updated with GitHub callouts (NOTE, TIP, IMPORTANT, WARNING, CAUTION)
 - Fixed PyPI package description (was empty — added readme field to pyproject.toml)
 
@@ -971,10 +978,10 @@ See `TODO.md` (as of the 1.2.0 release) for the production readiness checklist a
 - **Go SDK** — CGo FFI bindings over the C ABI layer
 - **C++ SDK** — RAII C++ wrapper over the C header
 - **C FFI crate** (`thetadatadx-ffi`) — stable `extern "C"` ABI for all SDKs
-- **Documentation** — architecture (Mermaid), API reference, reverse-engineering guide, JVM deviations
+- **Documentation** — architecture (Mermaid), API reference, Java parity checklist
 - **CI/CD** — GitHub Actions (fmt, clippy, test, FFI build, crates.io publish, PyPI publish, GitHub Release)
 - **Project infrastructure** — CHANGELOG, CONTRIBUTING, SECURITY, CODE_OF_CONDUCT,
-  clippy.toml, cliff.toml, rust-toolchain.toml, LICENSE (GPL-3.0-or-later)
+  clippy.toml, cliff.toml, rust-toolchain.toml, LICENSE
 
 ### Security
 
