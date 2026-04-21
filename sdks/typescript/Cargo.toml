@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-napi"
-version = "8.0.0"
+version = "8.0.1"
 edition = "2021"
 description = "TypeScript/Node.js bindings for thetadatadx — native ThetaData SDK powered by Rust"
 license = "Apache-2.0"
@@ -13,7 +13,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 thetadatadx = { path = "../../crates/thetadatadx" }
-tdbe = { version = "0.10.0", path = "../../crates/tdbe" }
+tdbe = { version = "0.11.0", path = "../../crates/tdbe" }
 
 napi = { version = "3.8.5", features = ["async", "tokio_rt", "serde-json", "napi6"] }
 napi-derive = "3.5.4"

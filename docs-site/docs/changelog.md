@@ -7,8 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.1] - 2026-04-21
+
 ### Fixed
 
+- **`tdbe` bumped to 0.11.0 to publish the new `SecType::Unknown` variant to crates.io** — the 8.0.0 release added `SecType::Unknown` (empty-contract sentinel) but kept `tdbe` at `0.10.0`. `cargo publish --verify` for `thetadatadx 8.0.0` pulled `tdbe = 0.10.0` from the registry, which does not contain `Unknown`, and failed with `E0599`. The `thetadatadx`, `ffi`, `cli`, `mcp`, `server`, `py`, and `napi` crates bump to `8.0.1` so all three ecosystems (crates.io, PyPI, npm) end up on matching, publishable versions. npm and PyPI had already published 8.0.0 successfully; crates.io 8.0.0 was never materialized.
 - **FPSS handshake surfaces every typed control frame** — `wait_for_login` collects `Connected` (code 4), `Ping` (code 10), `ReconnectedServer` (code 13), and `Restart` (code 31) frames that arrive before `METADATA` into an ordered buffer; the I/O loop drains the buffer onto the event bus before emitting `LoginSuccess` so user callbacks see the exact wire order. Previously all typed control frames except `Connected` were silently dropped by the handshake's trace-and-continue branch. Applies to the initial login AND the reconnect-path login.
 - **Reconnect-path login short-circuits on permanent rejection** — `LoginResult::Disconnected(reason)` during the reconnect handshake now consults `reconnect_delay(reason)` as the single source of truth for "no retry will fix this" and exits the I/O loop with `shutdown = true` + a `FpssControl::Disconnected` event. Previously bad credentials burned `MAX_RECONNECT_ATTEMPTS` (5) cycles of `Reconnecting` / `Disconnected` noise before giving up.
 - **Mid-frame reader yields to the command drain on a bounded budget** — `FrameReadState` threads partial-frame progress across `read_frame_into` calls. A new `MID_FRAME_DRAIN_WINDOW_MS = 200` (4× the 50 ms drain cadence) caps the total wall time spent retrying a partial frame before the reader yields control to the I/O loop, which drains outbound commands and re-enters the reader with the preserved state. Previously a trickling sender could block heartbeats / user writes for up to `READ_TIMEOUT_MS` (10 s) because the per-stall deadline reset on every successful byte.

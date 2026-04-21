@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx"
-version = "8.0.0"
+version = "8.0.1"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
@@ -26,7 +26,7 @@ default = []
 config-file = ["dep:toml"]
 
 [dependencies]
-tdbe = { version = "0.10.0", path = "../tdbe" }
+tdbe = { version = "0.11.0", path = "../tdbe" }
 
 # gRPC + protobuf (tonic 0.14 extracted prost codec into tonic-prost)
 tonic = { version = "=0.14.5", features = ["tls-ring", "tls-native-roots", "channel", "transport"] }
@@ -95,7 +95,7 @@ prost-build = "=0.14.3"
 regex = "1.12.3"
 toml = "1.1.2"
 serde = { version = "1.0.228", features = ["derive"] }
-tdbe = { version = "0.10.0", path = "../tdbe" }
+tdbe = { version = "0.11.0", path = "../tdbe" }
 
 [[bench]]
 name = "bench_decode"

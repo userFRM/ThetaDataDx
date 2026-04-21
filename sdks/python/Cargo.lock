@@ -2254,7 +2254,7 @@ checksum = "adb6935a6f5c20170eeceb1a3835a49e12e19d792f6dd344ccc76a985ca5a6ca"
 
 [[package]]
 name = "tdbe"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "thiserror 2.0.18",
 ]
@@ -2274,7 +2274,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "8.0.0"
+version = "8.0.1"
 dependencies = [
  "disruptor",
  "metrics",
@@ -2307,7 +2307,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-py"
-version = "8.0.0"
+version = "8.0.1"
 dependencies = [
  "arrow",
  "arrow-array",
