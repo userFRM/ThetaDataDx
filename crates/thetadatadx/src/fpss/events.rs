@@ -20,6 +20,19 @@ use super::protocol::Contract;
 /// refcount bump — matching the Java terminal's behaviour where each
 /// event listener receives the full `net.thetadata.fpssclient.Contract`
 /// alongside the payload.
+///
+/// # Empty-contract sentinel
+///
+/// When a data frame arrives before the matching `ContractAssigned`
+/// frame, the `contract` field holds a shared empty-contract
+/// placeholder. Detect it via
+/// `contract.sec_type == tdbe::types::enums::SecType::Unknown` —
+/// this is the canonical check documented in `fpss::decode`. The
+/// secondary `contract.root.is_empty()` check is kept for
+/// backwards-compatibility, but the `SecType::Unknown` match survives
+/// future contract-root relaxations (e.g. unicode roots, numeric-prefix
+/// tickers) where an empty root might coincidentally appear on a real
+/// contract.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum FpssData {
@@ -27,9 +40,10 @@ pub enum FpssData {
     Quote {
         contract_id: i32,
         /// Full parsed contract resolved from `contract_id` via the FPSS
-        /// contract cache. Holds an empty-root placeholder (see
-        /// `Contract::root.is_empty()`) when the server has not yet sent
-        /// the matching `ContractAssigned` frame for this id.
+        /// contract cache. Holds the empty-contract sentinel
+        /// (`sec_type == SecType::Unknown`; secondary mention:
+        /// `root.is_empty()`) when the server has not yet sent the
+        /// matching `ContractAssigned` frame for this id.
         contract: Arc<Contract>,
         ms_of_day: i32,
         bid_size: i32,
@@ -48,8 +62,10 @@ pub enum FpssData {
     Trade {
         contract_id: i32,
         /// Full parsed contract resolved from `contract_id` via the FPSS
-        /// contract cache. Holds an empty-root placeholder when the
-        /// matching `ContractAssigned` frame has not yet arrived.
+        /// contract cache. Holds the empty-contract sentinel
+        /// (`sec_type == SecType::Unknown`; secondary mention:
+        /// `root.is_empty()`) when the matching `ContractAssigned`
+        /// frame has not yet arrived.
         contract: Arc<Contract>,
         ms_of_day: i32,
         sequence: i32,
@@ -73,8 +89,10 @@ pub enum FpssData {
     OpenInterest {
         contract_id: i32,
         /// Full parsed contract resolved from `contract_id` via the FPSS
-        /// contract cache. Holds an empty-root placeholder when the
-        /// matching `ContractAssigned` frame has not yet arrived.
+        /// contract cache. Holds the empty-contract sentinel
+        /// (`sec_type == SecType::Unknown`; secondary mention:
+        /// `root.is_empty()`) when the matching `ContractAssigned`
+        /// frame has not yet arrived.
         contract: Arc<Contract>,
         ms_of_day: i32,
         open_interest: i32,
@@ -88,8 +106,10 @@ pub enum FpssData {
     Ohlcvc {
         contract_id: i32,
         /// Full parsed contract resolved from `contract_id` via the FPSS
-        /// contract cache. Holds an empty-root placeholder when the
-        /// matching `ContractAssigned` frame has not yet arrived.
+        /// contract cache. Holds the empty-contract sentinel
+        /// (`sec_type == SecType::Unknown`; secondary mention:
+        /// `root.is_empty()`) when the matching `ContractAssigned`
+        /// frame has not yet arrived.
         contract: Arc<Contract>,
         ms_of_day: i32,
         open: f64,
