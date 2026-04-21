@@ -9,6 +9,14 @@ repository = "https://github.com/userFRM/ThetaDataDx"
 documentation = "https://github.com/userFRM/ThetaDataDx/blob/main/docs/api-reference.md"
 readme = "README.md"
 
+# Standalone package — deliberately NOT a member of the parent workspace.
+# When this crate lives inside a worktree (`.claude/worktrees/*/sdks/python`)
+# cargo walks up looking for a workspace root and finds the main repo's
+# `Cargo.toml`, which only excludes `sdks/python` (the repo-root-relative
+# path), not the worktree-relative path. The empty `[workspace]` marker
+# tells cargo "I am my own workspace, stop walking."
+[workspace]
+
 [lib]
 name = "thetadatadx"
 crate-type = ["cdylib"]
@@ -21,6 +29,11 @@ tdbe = { version = "0.11.0", path = "../../crates/tdbe" }
 # PyO3 bindings. We target the stable ABI so one wheel per platform supports
 # every Python version from 3.9 upward.
 pyo3 = { version = "=0.28.2", features = ["abi3-py39", "multiple-pymethods"] }
+
+# Bridge between pyo3 and tokio so generated `*_async` methods return real
+# awaitables backed by the shared runtime singleton (no second runtime is
+# spun up per call). Pin to the matching release for pyo3 0.28.
+pyo3-async-runtimes = { version = "=0.28.0", features = ["attributes", "tokio-runtime"] }
 
 # Apache Arrow columnar pipeline for the DataFrame adapter. We pick the
 # upstream `arrow` crate with the `pyarrow` feature over the third-party
@@ -44,10 +57,21 @@ arrow-schema = "58.1.0"
 # Async bridge: run tokio futures from sync Python
 tokio = { version = "1.52.1", features = ["rt-multi-thread"] }
 
+# Error derivation for the 365-day auto-chunk date-math module. Matches
+# the workspace crate's pin so we never drift on the trait surface.
+thiserror = "2.0.18"
+
 # Structured diagnostics for generator-emitted streaming helpers. Trace-level
 # emission only — shutdown-time `tx.send` failures (Python rx dropped before
 # tx side) are normal and must not spam default logs.
 tracing = "0.1.44"
+
+# `tracing_subscriber::Layer` trait + registry for the Python-logging
+# bridge (see `logging_bridge.rs`). The `registry` feature pulls in
+# `tracing_subscriber::registry::LookupSpan` which the `Layer` impl
+# requires. No `fmt` subscriber — we forward to Python's stdlib
+# logging, not to stderr.
+tracing-subscriber = { version = "0.3.20", default-features = false, features = ["registry"] }
 
 # Match the main workspace's strict bar. This crate is `[workspace.exclude]`d
 # in the root `Cargo.toml` (it has its own toolchain / feature footprint), so
