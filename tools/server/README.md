@@ -109,6 +109,24 @@ Send JSON commands to manage subscriptions:
 }
 ```
 
+## Hardening
+
+- **`POST /v3/system/shutdown`** requires a random-UUID `X-Shutdown-Token` header printed once to stderr at startup. Token is compared in constant time (`subtle::ConstantTimeEq`); no env var or CLI flag sets it externally. A route-scoped per-IP limiter caps attempts at roughly 3 per hour.
+- **Global per-IP rate limit** via `tower_governor::GovernorLayer` keyed on `PeerIpKeyExtractor` (peer TCP socket, **not** `X-Forwarded-For`): 20 rps burst 40. The server defaults to `127.0.0.1` and runs without a trusted reverse proxy, so forwarded-header extractors would let a local attacker cycle fake IPs.
+- **256 concurrent in-flight requests**, **64 KiB body limit**, **4 KiB WebSocket `Message::Text` cap**.
+- **`BoundedQuery<32>` extractor** counts `&`-delimited query-string pairs BEFORE `serde_urlencoded` runs, so a `?a=1&b=2&...` flood is rejected at parse time rather than after HashMap rehashing allocates MB+.
+- **CSV output defuses formula injection** — cells whose first byte is `=` / `+` / `-` / `@` / `\t` are prefixed with a single-quote `'` and CSV-quoted.
+- **FPSS TLS** verifies every peer against a captured SubjectPublicKeyInfo pin (`PinnedVerifier`, constant-time SHA-256 compare); MITM presenting any other cert is rejected even if it chains to a trusted CA. See `docs-site/docs/streaming/connection.md`.
+- **Dropped-events observability** — per-client mpsc channels surface a monotonic `AtomicU64` counter through every SDK (`tdx.dropped_events()` Python, `droppedEvents(): bigint` TS, `DroppedEvents() uint64` Go, `tdx_fpss_dropped_events` / `tdx_unified_dropped_events` FFI) plus `tracing::debug!` on `thetadatadx::sdk::streaming`.
+
+Example — initiating a graceful shutdown from the same machine:
+
+```bash
+# Server prints this line once at startup on stderr:
+#   thetadatadx-server: X-Shutdown-Token=<UUID>
+curl -X POST -H "X-Shutdown-Token: <UUID>" http://127.0.0.1:25503/v3/system/shutdown
+```
+
 ## Architecture
 
 ```

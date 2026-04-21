@@ -312,6 +312,21 @@ the Arrow-backed conversion. One code path, one schema, one place
 to audit. See the "DataFrame Conversion (Arrow-Backed)" section
 below for the recipe.
 
+### Empty lists and `hint=` kwarg
+All three adapters accept an optional `hint: str` kwarg naming the
+tick pyclass (e.g. `hint="EodTick"`) so the returned table or frame
+keeps its typed schema even when the input list is empty:
+
+```python
+empty_df    = thetadatadx.to_dataframe([], hint="EodTick")
+empty_table = thetadatadx.to_arrow([],    hint="TradeTick")
+```
+
+Without a hint, an empty list produces a zero-column output. With a
+hint, the column names and Arrow dtypes are materialised, so
+downstream pipelines that assert a fixed schema survive empty
+market-hours windows without branching.
+
 ### `all_greeks(spot, strike, rate, div_yield, tte, option_price, right)`
 `right` accepts `"C"`/`"P"` or `"call"`/`"put"` case-insensitively. Returns `AllGreeks` pyclass with 22 attribute fields (`g.iv`, `g.delta`, `g.gamma`, ...). All fields are `float` (f64). Consult `help(thetadatadx.AllGreeks)` for the full list.
 

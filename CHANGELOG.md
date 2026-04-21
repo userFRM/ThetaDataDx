@@ -7,15 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added (Python SDK)
+### Added
 
-- **`thetadatadx.to_arrow(ticks) -> pyarrow.Table`** — new public entry point that returns the Arrow table directly, for users wiring DuckDB / Arrow-Flight / cuDF / polars-arrow pipelines without a pandas or polars roundtrip. Requires `pip install thetadatadx[arrow]` (pyarrow only).
-- **Generated `#[new]` constructors on every tick pyclass** — `EodTick(ms_of_day=1, volume=1_000_000, ...)`, `OhlcTick(...)`, `TradeTick(...)`, etc. All fields are keyword-only with zero / empty-string defaults, so test fixtures and user-side data construction are possible from Python (previously pyclass instances could only be produced by Rust endpoints).
+- **`thetadatadx.to_arrow(ticks) -> pyarrow.Table`** (#379) — new public Python entry point that returns the Arrow table directly, for users wiring DuckDB / Arrow-Flight / cuDF / polars-arrow pipelines without a pandas or polars roundtrip. Requires `pip install thetadatadx[arrow]` (pyarrow only).
+- **`hint=` kwarg on `to_arrow` / `to_dataframe` / `to_polars`** (#380) — optional `hint: str` names the tick pyclass (e.g. `hint="EodTick"`) so the Arrow schema is materialised even when the input list is empty. Previous empty-list calls returned a zero-column table; downstream pipelines asserting a fixed schema now get the right columns on empty market-hours windows.
+- **Generated `#[new]` constructors on every tick pyclass** (#379) — `EodTick(ms_of_day=1, volume=1_000_000, ...)`, `OhlcTick(...)`, `TradeTick(...)`, etc. All fields are keyword-only with zero / empty-string defaults, so test fixtures and user-side data construction are possible from Python (previously pyclass instances could only be produced by Rust endpoints).
+- **`AllGreeks` pyclass** (#378) — `all_greeks(...)` now returns a frozen `AllGreeks` pyclass with 22 `#[pyo3(get)]` f64 fields (value / iv / delta / gamma / theta / vega / rho plus every second- and third-order Greek) and a `__repr__` showing the six most-referenced values. Replaces the untyped 22-key `PyDict` that was the sole remaining dict-typed public return in the Python SDK.
+- **`__repr__` on every FPSS event pyclass** (#380) — `Ohlcvc`, `Quote`, `Trade`, `OpenInterest`, `Simple`, `RawData` now render up to six live field values at the Jupyter / print boundary (matching the pattern already on tick pyclasses). Opaque `Vec<u8>` payloads and `received_at_ns` skipped as noise.
+- **`dropped_events()` counter on every streaming SDK** (#377) — `Arc<AtomicU64>` hoisted onto `ThetaDataDx` survives reconnect and is exposed as `tdx.dropped_events() -> int` (Python), `tdx.droppedEvents(): bigint` (TypeScript), `client.DroppedEvents() uint64` (Go), `client.dropped_events() -> uint64_t` (C++), `tdx_fpss_dropped_events(handle)` / `tdx_unified_dropped_events(handle)` (FFI). Previously silent `let _ = tx.send(buffered)` call-sites now bump the counter and emit `tracing::debug!` on target `thetadatadx::sdk::streaming`.
+- **`POST /v3/system/shutdown` endpoint on `thetadatadx-server`** (#377) — graceful shutdown over a privileged route gated by a per-startup random UUID `X-Shutdown-Token` header (constant-time compared via `subtle::ConstantTimeEq`). Prints the token to stderr at startup only; never into structured logs. Dedicated governor allows one attempt per hour, burst 3. Method is `POST` (not `GET`) so the action is neither cached nor prefetched.
 
 ### Changed — Performance (Python SDK)
 
-- **DataFrame adapter migrated to Apache Arrow columnar pipeline** — `to_dataframe` / `to_polars` / `to_arrow` and the `*_df` convenience wrappers on `ThetaDataDx` now build a single `arrow::RecordBatch` in Rust and hand it to pyarrow via the Arrow C Data Interface (zero-copy at the pyo3 boundary). pandas 2.x aliases the numeric columns in place; polars consumes via `polars.from_arrow`. At 100k x 20 EodTick rows wall-clock drops from ~300-500 ms (legacy dict-of-lists) to ~8 ms — roughly 40-60x. SSOT preserved: Arrow schema + converters are generated from `tick_schema.toml`; no hand-maintained Arrow code. Public `to_dataframe` / `to_polars` signatures are unchanged.
-- **Deleted** `sdks/python/src/tick_columnar.rs` (the old PyDict-based emission) — replaced end-to-end by the generator-emitted `sdks/python/src/tick_arrow.rs`. `pip install thetadatadx[pandas]` / `[polars]` now pull `pyarrow>=14.0` alongside the DataFrame library; `pip install thetadatadx[arrow]` is the pyarrow-only extras bundle.
+- **DataFrame adapter migrated to Apache Arrow columnar pipeline** (#379) — `to_dataframe(ticks)` / `to_polars(ticks)` / `to_arrow(ticks)` build a single `arrow::RecordBatch` in Rust and hand it to pyarrow via the Arrow C Data Interface (zero-copy at the pyo3 boundary). pandas 2.x aliases the numeric columns in place; polars consumes via `polars.from_arrow`. At 100k x 20 `EodTick` rows wall-clock drops from ~300-500 ms (legacy dict-of-lists) to ~8 ms — roughly 40-60x. SSOT preserved: Arrow schema + converters are generated from `tick_schema.toml`; no hand-maintained Arrow code.
+- **Per-endpoint DataFrame convenience wrappers removed** (#379) — the four per-endpoint `stock_history_{eod,ohlc,trade,quote}` Rust-tick-slice fast-path helpers on `ThetaDataDx` were deleted. The unified recipe is one extra line with identical performance:
+
+  ```python
+  ticks = client.stock_history_eod("AAPL", "20240101", "20240301")
+  df    = thetadatadx.to_dataframe(ticks)   # Arrow-backed, zero-copy on pandas 2.x
+  pdf   = thetadatadx.to_polars(ticks)      # Arrow-backed, zero-copy
+  table = thetadatadx.to_arrow(ticks)       # DuckDB / cuDF / Arrow-Flight
+  ```
+
+  Single code path, single generator, single test surface — 100% SSOT restored on the Python DataFrame surface.
+- **Deleted** `sdks/python/src/tick_columnar.rs` (the old PyDict-based emission) (#379) — replaced end-to-end by the generator-emitted `sdks/python/src/tick_arrow.rs`. `pip install thetadatadx[pandas]` / `[polars]` now pull `pyarrow>=14.0` alongside the DataFrame library; `pip install thetadatadx[arrow]` is the pyarrow-only extras bundle.
 
 ### Changed — BREAKING (Python SDK)
 
@@ -31,10 +46,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   close = ticks[i].close               # attribute access, typed
   ```
 
-  `to_dataframe(ticks)`, `to_polars(ticks)`, and the `*_df` convenience
-  wrappers (`stock_history_eod_df`, etc.) transparently pivot the new
-  shape into a pandas/polars frame — consumer code using those
-  helpers is unaffected.
+  `to_dataframe(ticks)`, `to_polars(ticks)`, and `to_arrow(ticks)` transparently pivot the new shape into a pandas / polars frame or a `pyarrow.Table`.
+
+### Changed — BREAKING (FFI / Go / C++)
+
+- **C++ `TdxFpssEvent` field order realigned with Rust + Go** (#376) — the hand-written `TdxFpssEvent` in `sdks/cpp/include/thetadx.h` declared `{ kind, quote, trade, open_interest, ohlcvc, control, raw_data }` while the Rust generator (and the Go C header) emits `{ kind, ohlcvc, open_interest, quote, trade, control, raw_data }`. Every `event->quote.*` / `event->trade.*` / `event->ohlcvc.*` access in existing C++ consumers was reading from the wrong offset — data corruption with no compile-time signal. `thetadx.h` now `#include`s the generator-emitted `fpss_event_structs.h.inc` (byte-identical to the Go C header) and `thetadx.hpp` gains `static_assert(offsetof / sizeof)` covering every field of every `TdxFpss*` struct. Any future drift is compile-fatal.
+- **Go `FpssControlData` renamed to `FpssControl`, `FpssOpenInterest*` → `FpssOpenInterest`** (#376) — Go-idiomatic naming on the mirror struct set. Callers referencing the old names will fail to compile; rename one-for-one. The nested field names on `FpssEvent` (`ev.RawData.Code`, `ev.RawData.Payload`) are unchanged.
+
+### Changed
+
+- **`thetadatadx-server`: governor layer is now outermost, rate-limited traffic short-circuits first** (#377) — axum `.layer(X).layer(Y)` makes Y the outer wrapper, so the previous `ConcurrencyLimit → BodyLimit → Governor` order had the per-IP limiter innermost. Every rate-limited request still consumed a concurrency permit and ran the body-length check before being rejected. Reordered so the governor runs first; body-limit and concurrency gates are only touched by allowed traffic.
+- **`thetadatadx-server`: `PeerIpKeyExtractor` on the REST + WS routers** (#377 / #378) — the per-IP rate limiter now keys on the real TCP socket source instead of the forwarded-header-trusting extractor used before. The server defaults to `127.0.0.1` without a trusted reverse proxy in front, so trusting `X-Forwarded-For` / `X-Real-IP` / `Forwarded` let a local attacker cycle fake IPs and bypass the per-IP rate limit. Module doc comment spells out the deployment policy.
+- **`thetadatadx-server`: `BoundedQuery<N>` extractor caps query-string params during parse** (#378) — the previous check ran after axum's `Query<HashMap<String, String>>` had already parsed the entire query string into a HashMap, so a `?a=1&b=2&...` flood still allocated MB+ before hitting the count check. `BoundedQuery<32>` counts `&`-delimited pairs on the raw URI before `serde_urlencoded::from_str`, rejects over-limit with 400, and caps HashMap capacity.
+- **`thetadatadx-server`: WS subscribe + every REST validator now run `ensure_no_control_chars` + per-field length caps** (#377) — symbol / root ≤ 16, expiration == 8 (YYYYMMDD), strike ≤ 10, right == 1, date == 8, venue ≤ 8. Returns 400 with a descriptive error, never 500. Unknown query-param names surface the real name in the error instead of an opaque `"parameter"` fallback.
+- **`thetadatadx-server`: REST global concurrency limit 256, per-IP governor 20 rps / burst 40, body limit 64 KiB, WS text-frame cap 4 KiB** (#377 / #378) — explicit layers on both routers. Legitimate subscribe commands are <200 B; 4 KiB is generous for pathological clients.
+- **`thetadatadx-server`: shutdown rate limit fixed — one token per hour, burst 3** (#377 follow-up) — `per_second(3600)` treats the argument as "requests per second", so the "3 attempts per hour" config was actually allowing ~3600 rps. Switched to `.period(Duration::from_secs(3600))`; constant renamed to `SHUTDOWN_REPLENISH_PERIOD`.
+- **`thetadatadx-server`: hot-path `String::clone` eliminated on FPSS TOCTOU contract map** (#378) — the broadcast path now holds `HashMap<i32, Arc<Contract>>` instead of `HashMap<i32, Contract>`; mpsc channel carries `(FpssEvent, Option<Arc<Contract>>)`. Hot-path clone is an `Arc` refcount bump instead of a `String` allocation. Micro-bench (100k lookups): 26 ns/op → 22 ns/op, zero hot-path heap allocations. Regression test `arc_contract_clone_is_refcount_bump_not_string_alloc` asserts `Arc::as_ptr` equality to prevent future regressions.
+- **TypeScript `const enum FpssEventKind` removed** (#376) — the generated enum broke downstream consumers with `"isolatedModules": true` in `tsconfig.json` (all modern Vite / esbuild / ts-jest / Next.js setups). `FpssEvent.kind` is now `pub kind: &'static str` with a `#[napi(ts_type = "'ohlcvc' | 'open_interest' | 'quote' | 'trade' | 'simple' | 'raw_data'")]` override. Zero-allocation preserved; discriminated-union narrowing unchanged.
+- **`go.mod` toolchain bumped to 1.23** (#378) — Go 1.21 released mid-2023; CI matrix already runs 1.23. Node.js `engines.node` bumped from `">= 18"` to `">= 20"` (Node 18 EOL 2025-04-30).
+- **`paste` crate replaced by `pastey`** (#377) — upstream `paste` was archived on 2024-10-07 (RUSTSEC-2024-0436). `pastey = "0.2.1"` is the actively-maintained successor; API compatible (`::paste::paste!` → `::pastey::paste!`). Single call-site in `crates/thetadatadx/src/macros.rs`.
+
+### Fixed
+
+- **FFI boundary catches Rust panics** (#380) — zero `catch_unwind` existed across the FFI crate before this change. A Rust panic crossing an `extern "C"` boundary on Rust 1.81+ aborts the host process — C / Go / Python / C++ callers died with no way to recover. New `ffi_boundary!` macro wraps every extern body in `std::panic::catch_unwind(AssertUnwindSafe(|| { ... }))`. Panic payloads are downcast to `&'static str` then `String`, routed to `tracing::error!` on target `thetadatadx::ffi::panic`, written to the thread-local `LAST_ERROR` slot via the existing `set_error`, and the fn returns the caller-declared default (`ptr::null_mut()` / `-1` / `0` / sentinel-empty-array). **Coverage: 145 production `extern "C"` functions wrapped** — 84 in `ffi/src/lib.rs` plus 61 in the generated `ffi/src/endpoint_with_options.rs`. Generator-emitted so future regeneration preserves parity. Regression tests at `ffi/tests/panic_boundary.rs`.
+- **Python `next_event(timeout_ms)` honours Ctrl+C within 100 ms** (#380) — previously the generator emitted a single `recv_timeout(Duration::from_millis(timeout_ms))` with the GIL released for the full user-supplied timeout (up to 5 minutes), so Ctrl+C was swallowed for the duration of the wait. `build_support/sdk_surface.rs` now emits a 100 ms polling loop that calls `Python::check_signals()?` per iteration and returns on deadline.
+- **`ThetaDataDx::new` constructor is cancellable** (#380) — swapped `run_in_tokio_blocking` for `run_blocking(py, async { connect(...).await })` so a TLS / auth handshake hang stays Ctrl+C-interruptible.
+- **FPSS TLS: SPKI pinning replaces `NoVerifier`** (#377) — `PinnedVerifier` parses the leaf cert via `x509-parser`, computes SHA-256 over the SubjectPublicKeyInfo DER bytes, and constant-time compares (`subtle::ConstantTimeEq`) against the captured `FPSS_SPKI_SHA256` (verified identical across prod `nj-a:20000` / `nj-b:20000`, dev `:20200`, stage `:20100` — single keypair across every FPSS environment). Rejects with `CertificateError::NotValidForName` on hostname mismatch (allowlist) or `RustlsError::General("FPSS SPKI pin mismatch: ...")` on pin mismatch. `verify_tls12_signature` / `verify_tls13_signature` delegate to rustls' proper signature verification. Previously any on-path attacker terminating TLS to `nj-a.thetadata.us:20000` could present any cert and harvest the plaintext `StreamMsgType::Credentials` frame.
+- **Password `Zeroizing<String>`** (#377) — `Credentials.password` wrapped in `zeroize::Zeroizing<String>`. Every clone (`ThetaDataDx`, `io_loop`, reconnect re-serialise) now wipes the backing buffer on drop. Core dump / `/proc/<pid>/mem` no longer recovers the password after `Credentials` drops. `Deref<Target = str>` means call-sites are unchanged.
+- **CSV formula injection defused on `thetadatadx-server` exports** (#377) — `escape_csv_field` now prefixes cells whose first byte is `=`, `+`, `-`, `@`, or `\t` with a single-quote `'` and encloses in CSV quotes. Defuses `=cmd|'/C calc'!A1`, `@SUM(A1:A10)`, `+1+cmd|...` etc from executing in Excel downloads. Regression test covers all five payload shapes.
+- **FPSS `io_loop`: Java-parity mid-frame read retry with per-read deadline reset** (#370) — previously a mid-frame read timeout desynced the decoder. The client now retries transparently with the per-read deadline reset, matching the Java terminal's reconnect behaviour.
+- **WS subscribe strike / expiration use `i32::try_from`** (#377) — client-supplied expiration / strike no longer silently narrow via `as i32`. Returns `REQ_RESPONSE { response: "ERROR", ... }` with a descriptive message on overflow. Validates `exp` against `[19000101, 21000101]` YYYYMMDD bounds and `strike > 0` before building the FPSS frame (#378).
+- **`validate_generic_named` sanitises parameter names in error messages** (#377 / follow-up) — ANSI escape sequences / control chars in a user-supplied param name can no longer escape into terminal-rendered log output. Names are passed through `sanitize_param_name` (ASCII alphanumeric + `_` + `-`).
+- **Shutdown token constant-time compare** (#377) — `tools/server/src/state.rs::validate_shutdown_token` swapped `==` for `subtle::ConstantTimeEq::ct_eq`. Timing oracle on UUID prefix closed.
+- **Reconnect-path write errors are surfaced, not masked** (#377) — `crates/thetadatadx/src/fpss/io_loop.rs` had `let _ = write_raw_frame_no_flush(...)` silently dropping write failures on reconnect command-drain. Now `tracing::warn!` with `error = %e, frame_code = ?frame.code`.
+- **FFI reconnect paths surface resubscribe errors** (#378) — unified + FPSS reconnect paths previously silent-dropped resubscribe errors; now `tracing::warn!` with `error`, `kind`, and contract context.
+- **Python `Credentials.__repr__` redacts the email** (#377 / #378) — was `Credentials(email="user@example.com")`; email leaked into Jupyter, pytest output, and crash logs. Now `Credentials(email=<redacted>)`. Matches the redacted `Debug` impl in `crates/thetadatadx/src/auth/creds.rs`.
+- **CSV headers union across rows** (#376) — `tools/server/src/format.rs` seeded column keys from the first row only; mixed-type queries (index rows without `expiration` / `strike` / `right` ahead of option rows with them) silently dropped those columns. Headers now union across every row via `BTreeSet` (sorted for free).
+- **FPSS `Simple` control events carry `event_type` + nullable `detail` / `id`** (#378) — OpenAPI `Control` variant was documenting the internal numeric `kind: int32`, which no SDK surfaces. Aligned to the client-facing shape (`kind: "simple"` + `event_type` enum + nullable `detail` / `id` + `received_at_ns`).
+- **Python `greeks.py` example + README quick-start use attribute access on `AllGreeks`** (#380) — `g['iv']` / `g['delta']` dict subscripts would have crashed at runtime because `AllGreeks` is a frozen pyclass without `__getitem__`. Rewritten to `g.iv`, `g.delta`, etc.
+- **Typed `list[TickClass]` examples across every endpoint page** (#378) — ~50 files under `docs-site/docs/historical/` had stale dict-key Python examples (subscript access on the old columnar shape). Switched to attribute access on the typed pyclass surface. `scripts/fpss_smoke.py` / `scripts/fpss_soak.py` likewise switched from dict subscript on streaming events to attribute access (both scripts are wired into live CI).
+
+### Security
+
+- **FPSS TLS authenticity anchored on captured SPKI pin, no longer trust-on-first-use** (#377) — see `Fixed` above. Cert rotation tolerated as long as the keypair stays; expiry sidestepped entirely (current ThetaData leaf expired 2024-01-12). Six new tests cover captured-leaf positive, hostname mismatch rejection, malformed-cert rejection, and openssl fingerprint reproducibility.
+- **Cargo-deny advisory / licence / drift gates in CI** (#377) — new `.github/workflows/security-audit.yml` runs RustSec `audit-check` on PR + push + weekly Monday 03:00 UTC cron + manual dispatch. New `cargo-deny` job reads policy from `deny.toml` (advisories deny, licences allowlist, bans duplicates warn, sources crates.io only). New `drift-injection` job runs `scripts/test_drift_injection.sh` which flips `bid` ↔ `ask` in the FPSS schema, regenerates, and verifies the C++ `static_assert(offsetof)` guards fail the cmake build.
+
+### Internal
+
+- **Generator audit cleanup** (#380) — `PYTHON_TICK_ARROW_DIRECT_TYPES` constant + `render_python_tick_arrow_batch_fn` (~70-line emitter) were orphaned by the `*_df` removal in #379 and survived only because of the module-level `#![allow(dead_code)]` umbrella. Deleted. The trait-driven `pyclass_list_to_arrow_table` path is the sole public DataFrame entry point, backed by `<T as ArrowFromPyclassList>::read_batch`. `render_python_tick_arrow` doc rewritten to describe the two still-emitted surfaces (`arrow_schema_for_qualname` + `pyclass_list_to_arrow_table`). `clippy::type_complexity` on a 4-tuple in `sdk_surface.rs` cleared via a `MethodShape<'a>` alias.
+- **Go layout regression: `TestTickFieldOffsets` covers every tick mirror field** (#376) — the previous `ffi_layout_test.go` only asserted total struct `sizeof`; same-size field reorders (e.g. swapping two i32 slots) passed the test while silently corrupting data. FPSS mirror types were not tested at all. cgo-typed FPSS offset asserts moved into `tick_ffi_mirrors.go::init()` (Go forbids cgo in `_test.go`).
+- **Full stale-data sweep + i64 widening across every doc surface** (#375 / #378) — `OhlcTick` / `EodTick` volume + count widened from `i32` to `i64` (#372 on the Rust side). Docs updated across `docs/api-reference.md`, `docs-site/docs/api-reference.md`, `docs-site/public/thetadatadx.yaml`, and every per-endpoint page. Stale `14 tick types` references corrected to 13. `[Unreleased]` compare link fixed from `v7.2.0...HEAD` to `v7.3.1...HEAD`; missing `v7.2.1` / `v7.3.0` / `v7.3.1` tag compares added.
+- **Toml crate metadata warning silenced** (#377) — `toml = "1.1.2+spec-1.1.0"` → `toml = "1.1.2"` in both `[dependencies]` and `[build-dependencies]`. Every `cargo build` invocation no longer warns about ignored semver metadata.
 
 ## [7.3.1] - 2026-04-16
 
@@ -584,7 +646,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 ### Fixed
 
 - **Go SDK: price encoding was fundamentally wrong** - `priceToFloat()` used a switch-case instead of `value * 10^(price_type - 10)`. Every price returned by the Go SDK was incorrect. Now matches Rust exactly.
-- **Python docs: streaming examples used wrong event key** - `event["type"]` changed to `event["kind"]` across README and all docs-site pages.
+- **Python docs: streaming examples used wrong event key** - streaming-event dict access changed from the legacy `type` key to the canonical `kind` key across README and all docs-site pages.
 - **`Price::new()` no longer panics in release** - `assert!` replaced with `debug_assert!` + `clamp(0, 19)` with `tracing::warn!`. A corrupt frame no longer crashes production.
 - **C++ `FpssClient`: added missing `unsubscribe_quotes()`** - was present in FFI but missing from C++ RAII wrapper.
 - **FFI FPSS: mutex poison safety** - all 12 `.lock().unwrap()` calls replaced with `.unwrap_or_else(|e| e.into_inner())`. Prevents undefined behavior (panic across `extern "C"`) on mutex poisoning.
@@ -628,7 +690,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
   Dynamically generated from endpoint registry. `cargo install thetadatadx-cli`
 - **MCP Server** (`tools/mcp/`) — Model Context Protocol server giving LLMs instant
   access to 64 tools (61 endpoints + ping + greeks + IV) over JSON-RPC stdio.
-  Works with Claude Code, Cursor, and other MCP-compatible clients.
+  Works with Cursor and every other MCP-compatible client.
 - **REST+WS Server** (`tools/server/`) — drop-in replacement for the Java terminal.
   v3 API on port 25503, WebSocket on 25520 with real FPSS bridge. sonic-rs JSON.
 - **VitePress documentation site** (`docs-site/`) — 33 pages covering API reference,
@@ -824,9 +886,9 @@ See `TODO.md` (as of the 1.2.0 release) for the production readiness checklist a
   Zelen & Severo Horner-form evaluation (~1e-7 accuracy, fewer multiplications)
 - **Python SDK: FPSS streaming** — `FpssClient` class with `subscribe()`, `next_event()`,
   and `shutdown()` methods for real-time market data in Python
-- **Python SDK: pandas DataFrame conversion** — `to_dataframe()` function and `_df` method
-  variants on DirectClient (e.g. `stock_history_eod_df()`); install with
-  `pip install thetadatadx[pandas]`
+- **Python SDK: pandas DataFrame conversion** — `to_dataframe()` function plus per-endpoint
+  DataFrame convenience methods on DirectClient (later superseded in #379 by the unified
+  `to_dataframe(ticks)` Arrow-backed path); install with `pip install thetadatadx[pandas]`
 - **FFI crate: FPSS support** — 7 new `extern "C"` functions for FPSS lifecycle
   (`fpss_connect`, `fpss_subscribe_quotes`, `fpss_subscribe_trades`,
   `fpss_subscribe_open_interest`, `fpss_next_event`, `fpss_shutdown`, `fpss_free_event`)

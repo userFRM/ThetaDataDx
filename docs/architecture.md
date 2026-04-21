@@ -487,6 +487,24 @@ FIE (Feed Interchange Encoding) is the complementary encoder used for building F
 
 Characters are packed pairwise: `byte = (nibble(c1) << 4) | nibble(c2)`. Odd-length strings pad the last byte with `0xD`. Even-length strings append a `0xDD` terminator.
 
+## Cross-Language SDK Surfaces
+
+Every SDK lives over the same Rust core (`thetadatadx` + `tdbe`) — Python via PyO3, TypeScript via napi-rs, Go via CGo over the C FFI, and C++ as an RAII wrapper over the same C FFI. None of the language SDKs reimplement the wire protocol; they expose the Rust parser output through their respective binding layers.
+
+### Typed pyclass surface (Python)
+
+All 61 historical endpoints return `list[TickClass]` — typed pyclass instances (`EodTick`, `OhlcTick`, `TradeTick`, `QuoteTick`, `TradeQuoteTick`, `OpenInterestTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`) with attribute access (`t.close`, `t.bid`, `t.volume`) and generated `__repr__` / `__new__` constructors. Streaming `next_event(timeout_ms)` returns one of `Quote` / `Trade` / `Ohlcvc` / `OpenInterest` / `Simple` / `RawData`, all typed pyclasses. `all_greeks(...)` returns an `AllGreeks` pyclass with 22 f64 fields. Zero `PyDict` allocations on the public surface.
+
+### Arrow columnar adapter (Python)
+
+`thetadatadx.to_arrow(ticks)` / `to_dataframe(ticks)` / `to_polars(ticks)` run a typed tick list through a single Rust-side `arrow::RecordBatch` builder (generated from `tick_schema.toml`) and hand the batch to pyarrow via the Arrow C Data Interface — zero-copy at the pyo3 boundary. pandas 2.x aliases the numeric columns in place; polars consumes via `polars.from_arrow`. 100k x 20 `EodTick` rows converts in ~8 ms (vs ~300-500 ms on the pre-#379 dict-of-lists path).
+
+All three adapters accept an optional `hint: str` kwarg naming the tick pyclass so the Arrow schema is materialised even on empty tick lists (post-hours windows stay schema-stable).
+
+### FFI panic safety
+
+Every `extern "C"` function in `thetadatadx-ffi` (145 production fns, including 61 generator-emitted endpoints in `ffi/src/endpoint_with_options.rs`) is wrapped in a `ffi_boundary!` macro that `catch_unwind`s the body, logs the panic to `tracing::error!` on target `thetadatadx::ffi::panic`, writes the panic payload to the thread-local `LAST_ERROR` slot, and returns the caller-declared default (`ptr::null_mut()` / `-1` / `0` / sentinel-empty-array). Rust panics crossing the boundary no longer abort the host process on Rust 1.81+.
+
 ## Module Architecture
 
 ```mermaid

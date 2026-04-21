@@ -96,3 +96,9 @@ All functions that can fail return null on error. Call `tdx_last_error()` to get
 - All functions check for null handles before dereferencing.
 - Mutex locks use poison recovery (`unwrap_or_else(|e| e.into_inner())`).
 - `TdxClient` is `#[repr(transparent)]` over `DirectClient` for safe pointer casting.
+
+### Panic boundary
+
+Every `extern "C"` function (145 fns — 84 in `ffi/src/lib.rs` plus 61 generator-emitted in `ffi/src/endpoint_with_options.rs`) is wrapped in the `ffi_boundary!` macro, which `std::panic::catch_unwind(AssertUnwindSafe(|| { ... }))`s the body. Rust panics no longer cross the C ABI — the payload is downcast to `String`, routed through `tracing::error!` on target `thetadatadx::ffi::panic`, stored in the thread-local `LAST_ERROR` slot accessed by `tdx_last_error()`, and the function returns the caller-declared default (`ptr::null_mut()` / `-1` / `0` / sentinel-empty-array). Before this wrapper every panic on Rust 1.81+ aborted the host process; pre-1.81 it was undefined behaviour.
+
+Regression tests live at `ffi/tests/panic_boundary.rs`; the `tdx_test_panic_{str,string}` symbols used for testing are gated behind a `testing-panic-boundary` cargo feature so the production `cdylib` never ships them.

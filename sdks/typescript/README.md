@@ -76,9 +76,19 @@ switch (event.kind) {
 
 The `kind` field is typed as the string-literal union
 `'ohlcvc' | 'open_interest' | 'quote' | 'trade' | 'simple' | 'raw_data'`
-— plain strings, not a TS `enum`, so it works in every toolchain
-(including `isolatedModules` setups like Vite, esbuild, ts-jest, and
-Next.js).
+— plain strings, not a TS `enum` (the previous `const enum FpssEventKind`
+was removed in #376 because it broke downstream consumers with
+`"isolatedModules": true`), so it works in every toolchain
+including Vite, esbuild, ts-jest, and Next.js.
+
+### `bigint` fields
+
+Anywhere a Rust `u64` or `i64` crosses the napi boundary it surfaces as
+JavaScript `bigint` (not `number`): `volume` and `count` on every
+OHLC / EOD tick, `dropped_events()` on the streaming client, and
+`received_at_ns` on every FPSS event. Use `bigint` literal syntax
+(`42n`) for comparisons or widen to `Number(x)` at the point of
+display (watch for loss of precision beyond 2^53).
 
 `FpssSimplePayload.eventType` carries the concrete control-event name
 (`"login_success"`, `"contract_assigned"`, `"disconnected"`,

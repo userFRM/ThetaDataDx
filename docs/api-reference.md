@@ -695,7 +695,7 @@ All 61 endpoints are exposed through the `thetadatadx-ffi` C ABI crate. Each met
 
 ### Python SDK Coverage
 
-All 61 endpoints are available in the Python SDK via PyO3 bindings (e.g., `tdx.stock_history_eod(...)`). Streaming is available via `tdx.start_streaming()` / `tdx.next_event()`. DataFrame conversion runs through an Apache Arrow columnar pipeline (zero-copy to pyarrow via the Arrow C Data Interface); `to_dataframe(ticks)` → pandas, `to_polars(ticks)` → polars, `to_arrow(ticks)` → `pyarrow.Table`. No per-endpoint `_df` wrappers — one unified typed path. Requires `pip install thetadatadx[pandas]` / `[polars]` / `[arrow]`.
+All 61 endpoints are available in the Python SDK via PyO3 bindings (e.g., `tdx.stock_history_eod(...)`). Streaming is available via `tdx.start_streaming()` / `tdx.next_event()`. DataFrame conversion runs through an Apache Arrow columnar pipeline (zero-copy to pyarrow via the Arrow C Data Interface); `to_dataframe(ticks)` → pandas, `to_polars(ticks)` → polars, `to_arrow(ticks)` → `pyarrow.Table`. No per-endpoint DataFrame convenience methods — one unified typed path. Requires `pip install thetadatadx[pandas]` / `[polars]` / `[arrow]`.
 
 ### TypeScript/Node.js SDK Coverage
 
@@ -741,10 +741,10 @@ df     = to_dataframe(eod)    # pandas.DataFrame (zero-copy on pandas 2.x)
 pdf    = to_polars(eod)       # polars.DataFrame via polars.from_arrow
 table  = to_arrow(eod)        # pyarrow.Table for DuckDB / Arrow-Flight / cuDF
 
-# Shortcut wrappers for the hot-path historical endpoints go
-# straight through the Rust-tick-slice fast path (no pyclass-list
-# walk):
-df = to_dataframe(tdx.stock_history_eod("AAPL", "20240101", "20240301"))
+# Empty-list schema preservation: pass `hint="EodTick"` (or any
+# tick pyclass name) so the returned frame keeps its column schema
+# even when `ticks` is empty.
+empty_df = to_dataframe([], hint="EodTick")
 ```
 
 Install:
@@ -769,13 +769,30 @@ Install:
 
 #### FPSS Event Types (C)
 
+The generator emits the layout below; the C++ header `thetadx.h` now
+`#include`s `fpss_event_structs.h.inc` (byte-identical to the Go C
+header) instead of hand-rolling the struct, and `thetadx.hpp` guards
+every field via `static_assert(offsetof / sizeof)` so a future drift
+is compile-fatal.
+
 ```c
 typedef enum { TDX_FPSS_QUOTE=0, TDX_FPSS_TRADE=1, TDX_FPSS_OPEN_INTEREST=2,
                TDX_FPSS_OHLCVC=3, TDX_FPSS_CONTROL=4, TDX_FPSS_RAW_DATA=5 } TdxFpssEventKind;
-typedef struct { TdxFpssEventKind kind; TdxFpssQuote quote; TdxFpssTrade trade;
-                 TdxFpssOpenInterest open_interest; TdxFpssOhlcvc ohlcvc;
-                 TdxFpssControl control; TdxFpssRawData raw_data; } TdxFpssEvent;
+typedef struct { TdxFpssEventKind kind;
+                 TdxFpssOhlcvc ohlcvc;
+                 TdxFpssOpenInterest open_interest;
+                 TdxFpssQuote quote;
+                 TdxFpssTrade trade;
+                 TdxFpssControl control;
+                 TdxFpssRawData raw_data; } TdxFpssEvent;
 ```
+
+Every `extern "C"` function across the FFI crate (145 production fns
+including the 61 generated endpoints in `endpoint_with_options.rs`) is
+wrapped in `ffi_boundary!`, a `catch_unwind` macro that intercepts Rust
+panics, writes the payload to `LAST_ERROR`, and returns the caller's
+declared default. Host processes no longer abort on Rust 1.81+ when a
+panic crosses the boundary.
 
 Check `event->kind` then read the corresponding field. Only the field matching `kind` is valid. All prices are `f64` (double) -- decoded during parsing. No `price_type` in the public API.
 

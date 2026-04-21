@@ -52,7 +52,7 @@ build_support/         - build-time generators for tick decoding and endpoint su
 
 ## TOML Codegen
 
-All 14 tick types and their DataTable parsers are generated at compile time from `tick_schema.toml`. Adding a new column is one line in the TOML. See [docs/endpoint-schema.md](../../docs/endpoint-schema.md).
+All 13 tick types and their DataTable parsers are generated at compile time from `tick_schema.toml`. Adding a new column is one line in the TOML. See [docs/endpoint-schema.md](../../docs/endpoint-schema.md).
 
 ## Endpoint Surface Spec
 
