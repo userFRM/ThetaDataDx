@@ -16,7 +16,7 @@ behavior. `[✓]` = parity, `[✗]` = intentional deviation (documented),
 
 | Feature | Parity | Notes |
 |---------|:------:|-------|
-| gRPC proto definitions (field numbers, types, service methods) | [✓] | Canonical `external.proto` from ThetaData engineering. |
+| gRPC proto definitions (field numbers, types, service methods) | [✓] | Canonical `mdds.proto` from ThetaData engineering. |
 | FPSS frame layout (`1-byte LEN` + `1-byte CODE` + `payload`) | [✓] | Byte-for-byte match of `PacketStream.readFrame()`. |
 | FPSS auth handshake (`CREDENTIALS` -> `METADATA`/`DISCONNECTED`) | [✓] | |
 | FIT nibble encoding (digit values, separators, `DATE` marker, `SPACING=5`) | [✓] | |
@@ -90,7 +90,7 @@ All 21 `StreamMsgType` codes have byte-identical values. See
 
 | Aspect | Java | Rust |
 |--------|------|------|
-| Handler structure | Each of the 60 gRPC handlers hand-coded with per-endpoint request/response logic | All 61 methods generated from `endpoint_surface.toml` + `external.proto`; `DirectClient` macros remain an internal expansion target |
+| Handler structure | Each of the 60 gRPC handlers hand-coded with per-endpoint request/response logic | All 61 methods generated from `endpoint_surface.toml` + `mdds.proto`; `DirectClient` macros remain an internal expansion target |
 | Source | `net.thetadata.providers.*` handler classes | `crates/thetadatadx/build_support/endpoints.rs`, `endpoint_surface.toml`, `direct.rs` macro layer |
 | Wire contract | Identical | Identical |
 
@@ -451,11 +451,11 @@ but that's a standalone tool, not part of the core SDK.
 The `generated/` and `generated/v3grpc/` directories in the Java terminal
 contain 497 protobuf-generated classes (Request/Response/OrBuilder types for
 every RPC). The Rust equivalent is `tonic::include_proto!()` output from
-`external.proto`.
+`mdds.proto`.
 
 | Package | Class count | Rust equivalent |
 |---------|-------------|-----------------|
-| `generated/` (v2 proto) | ~250 | Historical; superseded by `external.proto` |
+| `generated/` (v2 proto) | ~250 | Historical; superseded by `mdds.proto` |
 | `generated/v3grpc/` (v3 proto) | ~247 | `proto` module via `tonic::include_proto!("beta_endpoints")` |
 
 All 60 v3 gRPC RPCs are covered.

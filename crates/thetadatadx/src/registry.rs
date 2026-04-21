@@ -2,7 +2,7 @@
 //!
 //! Used by the CLI and MCP server to auto-generate commands and tool definitions.
 //! When `ThetaData` adds a new proto RPC, the build script parses
-//! `external.proto` and regenerates the registry automatically.
+//! `mdds.proto` and regenerates the registry automatically.
 //!
 //! # Design
 //!
@@ -112,7 +112,7 @@ pub struct EndpointMeta {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  Generated from external.proto by build.rs
+//  Generated from mdds.proto by build.rs
 // ═══════════════════════════════════════════════════════════════════════════
 
 include!(concat!(env!("OUT_DIR"), "/registry_generated.rs"));

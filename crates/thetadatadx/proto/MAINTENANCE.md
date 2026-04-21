@@ -6,16 +6,16 @@ type structs, and DataTable parsers across all languages.
 
 ## Source of truth
 
-**`external.proto` is the canonical wire contract, provided directly by ThetaData engineering.**
+**`mdds.proto` is the canonical wire contract, provided directly by ThetaData engineering.**
 
 **`endpoint_surface.toml` is the canonical endpoint surface contract inside this repository.**
 It owns normalized endpoint names, parameter semantics, REST paths, return kinds,
 projection call-shapes, reusable parameter groups, and endpoint templates. The
-build validates that surface spec against the wire contract in `external.proto`.
+build validates that surface spec against the wire contract in `mdds.proto`.
 
 Earlier revisions of this crate shipped two separate proto files extracted
 from the Java terminal (`endpoints.proto` + `v3_endpoints.proto`). Those have
-been superseded by the single-file definition. Do not hand-edit `external.proto`;
+been superseded by the single-file definition. Do not hand-edit `mdds.proto`;
 request an updated file from ThetaData when the wire protocol changes.
 
 Package: `BetaEndpoints` (everything lives here — shared types, request/response
@@ -26,7 +26,7 @@ package name; do not rename without confirming the server has been updated.
 
 ```
 proto/
-  external.proto    - canonical proto from ThetaData (60 RPCs, BetaEndpoints package)
+  mdds.proto    - canonical proto from ThetaData (60 RPCs, BetaEndpoints package)
   MAINTENANCE.md    - this file
 
 ../tick_schema.toml    - column schemas for all DataTable-returning endpoints
@@ -37,12 +37,12 @@ proto/
 
 ## What happens on `cargo build`
 
-1. **Proto compilation**: `tonic-prost-build` compiles `external.proto` into Rust gRPC
+1. **Proto compilation**: `tonic-prost-build` compiles `mdds.proto` into Rust gRPC
    client stubs and message types. Output: `$OUT_DIR/beta_endpoints.rs`, exposed
    at `crate::proto`.
 
 2. **Endpoint surface validation + generation**: the build loads
-   `endpoint_surface.toml`, parses `external.proto` to extract wire metadata,
+   `endpoint_surface.toml`, parses `mdds.proto` to extract wire metadata,
    validates the surface spec against the wire contract, and generates the
    endpoint registry, shared endpoint runtime dispatch, and `MddsClient`
    endpoint declarations. Outputs: `$OUT_DIR/registry_generated.rs`,
@@ -70,7 +70,7 @@ proto. It supports three layers:
    description, rest path, return kind, and any endpoint-specific overrides.
 
 The generator expands groups and templates first, then validates the fully
-resolved endpoint against `external.proto`. Cycles, unknown references, unused
+resolved endpoint against `mdds.proto`. Cycles, unknown references, unused
 groups/templates, and invalid overrides fail the build.
 
 ## How to: add a new column to an existing endpoint
@@ -90,7 +90,7 @@ Example: ThetaData adds a `vwap` column to the EOD response.
 
 Example: ThetaData adds `GetStockHistoryVwap` to the service.
 
-**Step 1 — Update `external.proto`** (usually via a new file from ThetaData):
+**Step 1 — Update `mdds.proto`** (usually via a new file from ThetaData):
 
 ```protobuf
 message StockHistoryVwapRequestQuery {
@@ -135,7 +135,7 @@ use the existing type.
 
 Add a new entry to `../endpoint_surface.toml` describing the normalized endpoint
 surface. The build will validate it against the wire contract in
-`external.proto` and generate the SDK-facing declarations automatically.
+`mdds.proto` and generate the SDK-facing declarations automatically.
 
 Prefer reusing existing `param_groups` and `templates` instead of copying whole
 parameter blocks. If the new endpoint introduces a new repeated family shape,
@@ -152,12 +152,12 @@ cargo clippy       # zero warnings
 
 The new endpoint is now available on `ThetaDataDx` via `Deref` to `MddsClient`.
 
-## How to: replace `external.proto`
+## How to: replace `mdds.proto`
 
 When ThetaData ships a new version:
 
-1. Back up the current file: `cp external.proto external.proto.bak`
-2. Drop in the new `external.proto`
+1. Back up the current file: `cp mdds.proto mdds.proto.bak`
+2. Drop in the new `mdds.proto`
 3. Run `cargo build` — if the proto is valid, stubs regenerate automatically
 4. If any RPCs were renamed or removed, `cargo build` will fail validation when
    `endpoint_surface.toml` no longer matches the wire contract. Fix the spec.
@@ -165,7 +165,7 @@ When ThetaData ships a new version:
 6. If column schemas changed, update `tick_schema.toml` to match.
 7. Run `cargo test` to verify everything works.
 
-Note: the single-file `external.proto` layout means you no longer need to worry
+Note: the single-file `mdds.proto` layout means you no longer need to worry
 about cross-package references. `ContractSpec`, `QueryInfo`, `DataTable` etc.
 are all in the same package as the request/response types.
 

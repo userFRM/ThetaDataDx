@@ -57,7 +57,7 @@ MDDS is a standard gRPC service over TLS, operating on port 443.
 
 - **Package**: `BetaEndpoints`
 - **Service**: `BetaThetaTerminal`
-- **Methods**: 60 RPCs, all server-streaming (returning `stream ResponseData`). thetadatadx wraps all 60 gRPC RPCs plus 1 convenience range-query variant = **61 methods** on `ThetaDataDx`, generated from the checked-in endpoint surface spec (`endpoint_surface.toml`) validated against `external.proto`. The internal `MddsClient` still uses macro-generated builders, but endpoint declarations are no longer hand-maintained.
+- **Methods**: 60 RPCs, all server-streaming (returning `stream ResponseData`). thetadatadx wraps all 60 gRPC RPCs plus 1 convenience range-query variant = **61 methods** on `ThetaDataDx`, generated from the checked-in endpoint surface spec (`endpoint_surface.toml`) validated against `mdds.proto`. The internal `MddsClient` still uses macro-generated builders, but endpoint declarations are no longer hand-maintained.
 - **Categories**: Stock, Option, Index, Interest Rate, Calendar - each with List, History, Snapshot, AtTime, and Greeks sub-categories
 
 ### Request Structure
@@ -156,13 +156,13 @@ Three response processing modes are available:
 
 ThetaDataDx has two generation pipelines at build time:
 - tick parser generation from `tick_schema.toml`
-- endpoint surface generation from `endpoint_surface.toml` validated against `external.proto`
+- endpoint surface generation from `endpoint_surface.toml` validated against `mdds.proto`
 
 ```mermaid
 flowchart LR
     TOML["tick_schema.toml<br/><i>13 tick type definitions<br/>with column schemas</i>"]
     SURFACE["endpoint_surface.toml<br/><i>endpoint spec<br/>groups + templates</i>"]
-    PROTO["external.proto<br/><i>official wire contract</i>"]
+    PROTO["mdds.proto<br/><i>official wire contract</i>"]
     BUILD["build.rs<br/><i>delegates to build_support/</i>"]
     SUPPORT["build_support/<br/><i>endpoints.rs + ticks.rs</i>"]
     PARSERS["$OUT_DIR/decode_generated.rs<br/><i>parse_* functions</i>"]
@@ -564,7 +564,7 @@ graph TD
         end
 
         subgraph proto["proto/"]
-            P_EXT["external.proto<br/><i>official MDDS wire contract<br/>60 server-streaming RPCs</i>"]
+            P_EXT["mdds.proto<br/><i>official MDDS wire contract<br/>60 server-streaming RPCs</i>"]
         end
     end
 

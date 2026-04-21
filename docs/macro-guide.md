@@ -6,7 +6,7 @@ surface.
 > [!IMPORTANT]
 > Most contributors should **not** add endpoints by hand with macro invocations.
 > The current endpoint workflow is:
-> - update `crates/thetadatadx/proto/external.proto` when the wire contract changes
+> - update `crates/thetadatadx/proto/mdds.proto` when the wire contract changes
 > - update `crates/thetadatadx/endpoint_surface.toml` for the normalized SDK surface
 > - update `crates/thetadatadx/tick_schema.toml` if a new `DataTable` layout is introduced
 >
@@ -140,7 +140,7 @@ contract identification fields (`expiration`/`strike`/`right`).
 
 ### 2. Add the protobuf types (if new message)
 
-Update `crates/thetadatadx/proto/external.proto` to add the request/params
+Update `crates/thetadatadx/proto/mdds.proto` to add the request/params
 messages. `cargo build` regenerates Rust types.
 
 ### 3. Add the endpoint surface entry
@@ -153,7 +153,7 @@ blocks.
 ### 4. Build and inspect the generated surfaces
 
 Run `cargo build`. The generator validates `endpoint_surface.toml` against
-`external.proto` and emits the registry, shared endpoint runtime, and
+`mdds.proto` and emits the registry, shared endpoint runtime, and
 `MddsClient` endpoint declarations.
 
 You only need to edit the macro layer or `build_support/endpoints.rs` if the

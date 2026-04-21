@@ -2,7 +2,7 @@
 //!
 //! This module treats `endpoint_surface.toml` as the checked-in source of truth
 //! for the normalized SDK surface, while still validating each declared
-//! endpoint against the upstream gRPC wire contract in `proto/external.proto`.
+//! endpoint against the upstream gRPC wire contract in `proto/mdds.proto`.
 //! The resulting joined model drives generated registry metadata, the shared
 //! endpoint runtime, and all `MddsClient` methods (list, parsed, and streaming).
 //!

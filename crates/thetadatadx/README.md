@@ -42,7 +42,7 @@ src/
   registry.rs      - Endpoint metadata (generated from the endpoint surface spec)
   error.rs         - Error enum
 proto/
-  external.proto       - canonical MDDS wire contract from ThetaData
+  mdds.proto           - canonical MDDS wire contract from ThetaData
   MAINTENANCE.md       - endpoint/proto maintenance guide
 tick_schema.toml   - single source of truth for tick type definitions
 endpoint_surface.toml  - explicit endpoint surface spec for registry/mdds/runtime generation
@@ -63,7 +63,7 @@ parameter groups, and endpoint templates. Templates support inheritance via
 `extends`, so the spec can model repeated endpoint families without copying the
 same parameter blocks across every declaration.
 
-The build pipeline validates that surface spec against `proto/external.proto`
+The build pipeline validates that surface spec against `proto/mdds.proto`
 before generating the registry, shared endpoint runtime, and `MddsClient`
 endpoint declarations.
 
