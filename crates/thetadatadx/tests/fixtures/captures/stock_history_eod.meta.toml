@@ -1,0 +1,30 @@
+# Captured from prod MDDS for AAPL EOD range 2024-01-02 to 2024-01-05 via:
+#   tdx stock history_eod AAPL 20240102 20240105
+# One chunk, 4 trading days.
+
+endpoint = "stock_history_eod"
+tick_type = "EodTick"
+expected_rows = 4
+expected_headers = [
+    "created", "last_trade",
+    "open", "high", "low", "close",
+    "volume", "count",
+    "bid_size", "bid_exchange", "bid", "bid_condition",
+    "ask_size", "ask_exchange", "ask", "ask_condition",
+]
+
+# First row = 2024-01-02.
+# created 1_704_233_873_606 ms UTC → 17:17:53.606 EST → 62_273_606 ms of day.
+first_row_ms_of_day = 62273606
+# last_trade 1_704_233_871_877 ms UTC → 17:17:51.877 EST → 62_271_877.
+first_row_ms_of_day2 = 62271877
+first_row_open = 187.03
+first_row_high = 188.44
+first_row_low = 183.885
+first_row_close = 185.64
+first_row_volume = 80680243
+first_row_count = 1003582
+first_row_bid = 185.34
+first_row_ask = 185.36
+first_row_bid_size = 2
+first_row_ask_size = 2

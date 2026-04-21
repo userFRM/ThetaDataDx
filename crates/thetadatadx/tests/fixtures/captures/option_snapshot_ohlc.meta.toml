@@ -1,0 +1,25 @@
+# Captured from prod MDDS for SPY 2026-05-15 500 CALL live snapshot via:
+#   tdx option snapshot_ohlc SPY 20260515 500 C
+# 1-row snapshot. Timestamp reflects capture time on 2026-04-21.
+
+endpoint = "option_snapshot_ohlc"
+tick_type = "OhlcTick"
+expected_rows = 1
+# Snapshot puts timestamp first, then the contract tuple, then OHLCV+count.
+expected_headers = [
+    "timestamp", "symbol", "expiration", "strike", "right",
+    "open", "high", "low", "close", "volume", "count",
+]
+
+# timestamp 1_776_782_510_718 UTC ms → 10:41:50.718 EDT on 2026-04-21
+# → 38_510_718 ms of day.
+first_row_ms_of_day = 38510718
+first_row_open = 211.74
+first_row_high = 211.74
+first_row_low = 211.74
+first_row_close = 211.74
+first_row_volume = 5
+first_row_count = 1
+first_row_expiration = 20260515
+first_row_strike = 500.0
+first_row_right = 67   # ASCII 'C'

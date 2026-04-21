@@ -1,0 +1,24 @@
+# Captured from prod MDDS for SPY 2024-06-21 500 CALL 2024-06-14 via:
+#   tdx option history_trade SPY 20240621 500 C 20240614
+# Single chunk, 98 trades.
+
+endpoint = "option_history_trade"
+tick_type = "TradeTick"
+expected_rows = 98
+expected_headers = [
+    "symbol", "expiration", "strike", "right",
+    "timestamp", "sequence",
+    "ext_condition1", "ext_condition2", "ext_condition3", "ext_condition4",
+    "condition", "size", "exchange", "price",
+]
+
+# First row: 09:55:03.122 EDT → 35_703_122 ms of day.
+first_row_ms_of_day = 35703122
+first_row_sequence = -1986932228
+first_row_size = 10
+first_row_exchange = 6
+first_row_price = 41.71
+first_row_condition = 130
+first_row_expiration = 20240621
+first_row_strike = 500.0
+first_row_right = 67   # ASCII 'C'
