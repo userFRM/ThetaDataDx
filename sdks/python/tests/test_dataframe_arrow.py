@@ -6,9 +6,9 @@ historical endpoint returns a `<TickName>List` / `StringList` wrapper,
 and DataFrame conversion happens via chained terminals (`.to_list()`,
 `.to_arrow()`, `.to_pandas()`, `.to_polars()`) on the wrapper.
 
-The free functions `thetadatadx.to_arrow(ticks)` / `to_dataframe(ticks)` /
-`to_polars(ticks)` that existed through v8.0.2 have been deleted; this
-suite verifies the chained path produces identical results.
+The free-function / client-method DataFrame surface that existed
+through v8.0.2 has been deleted; this suite verifies the chained
+path produces the expected schemas and values.
 
 What this suite covers:
 

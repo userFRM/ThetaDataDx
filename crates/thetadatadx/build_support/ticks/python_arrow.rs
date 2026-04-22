@@ -53,10 +53,9 @@ pub(super) fn render_python_tick_arrow(schema: &Schema) -> String {
 
     // Schema map + slice-to-Arrow converters. The pyclass-list dispatcher
     // and the `ArrowFromPyclassList` trait that used to live here have
-    // been removed along with the public `to_arrow(ticks, hint)` /
-    // `to_dataframe(ticks, hint)` / `to_polars(ticks, hint)` free
-    // functions in v8.0.3 — the chained `<TickName>List` terminals are
-    // the sole path from decoded ticks to DataFrame output.
+    // been removed along with every free-function DataFrame surface in
+    // v8.0.3 — the chained `<TickName>List` terminals are the sole path
+    // from decoded ticks to DataFrame output.
     out.push_str(&render_python_arrow_schema_map(schema));
     out.push('\n');
     out.push_str(&render_record_batch_to_pyarrow_helper());

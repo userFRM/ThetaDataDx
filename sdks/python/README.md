@@ -88,12 +88,21 @@ iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30/365, 8.50, "C")
 ### `ThetaDataDx(creds, config)`
 
 All 61 endpoints are available. The 53 tick-returning endpoints
-return lists of typed tick pyclass objects (e.g. `list[EodTick]`,
-`list[TradeTick]`, `list[QuoteTick]`, ...). Field access is by
-attribute — `tick.close`, `tick.price` — with IDE completion and
-typo-loud `AttributeError` on misuse. The remaining list endpoints
-(`*_list_symbols`, `*_list_dates`, `option_list_expirations`,
-`option_list_strikes`) return `list[str]` / `list[int]` unchanged.
+return typed `<TickName>List` wrappers (e.g. `EodTickList`,
+`TradeTickList`, `QuoteTickList`, ...), each implementing the
+Python sequence protocol (`len(...)`, `for tick in ...`,
+`lst[0]`, negative indexing) with typed-pyclass elements exposed
+via attribute access — `tick.close`, `tick.price` — with IDE
+completion and typo-loud `AttributeError` on misuse. Every
+wrapper also exposes the chainable DataFrame terminals covered
+in [Chained DataFrame terminals](#chained-dataframe-terminals).
+List-of-string endpoints (`*_list_symbols`, `*_list_dates`,
+`option_list_expirations`, `option_list_strikes`) return a
+`StringList` wrapper with the same chainable terminals; the
+single output column is named by the endpoint metadata (`symbol`,
+`date`, `expiration`, ...). `option_list_contracts` returns an
+`OptionContractList`; `calendar_on_date` / `calendar_year`
+return a `CalendarDayList`.
 
 #### Stock Methods (14)
 
