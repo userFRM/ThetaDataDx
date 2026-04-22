@@ -655,8 +655,8 @@ for strike in strikes:
                 **greeks[0],
             })
 
-from thetadatadx import to_dataframe
-df = to_dataframe(chain)
+import pandas as pd
+df = pd.DataFrame(chain)
 print(df[["strike", "right", "implied_volatility", "delta", "gamma", "theta", "vega"]].to_string())`
 
     case 'gamma_exposure': return `${h}
@@ -685,8 +685,8 @@ for strike in strikes:
                 "gex":    sign * gamma * open_interest * 100,
             })
 
-from thetadatadx import to_dataframe
-df = to_dataframe(gex_data)
+import pandas as pd
+df = pd.DataFrame(gex_data)
 print(df.sort_values("strike").to_string())
 print(f"\\nNet GEX: {df['gex'].sum():.2f}")`
 
@@ -710,8 +710,8 @@ for exp in exps[:8]:  # first 8 expirations for a manageable surface
                 "iv":         iv_data[0]["implied_volatility"],
             })
 
-from thetadatadx import to_dataframe
-df    = to_dataframe(surface)
+import pandas as pd
+df    = pd.DataFrame(surface)
 pivot = df.pivot(index="strike", columns="expiration", values="iv")
 print(pivot.to_string())`
 
@@ -746,8 +746,8 @@ for c in contracts:
                 "vol_oi_ratio": round(vol_oi, 2),
             })
 
-from thetadatadx import to_dataframe
-df = to_dataframe(unusual)
+import pandas as pd
+df = pd.DataFrame(unusual)
 if df.empty:
     print("No unusual activity found.")
 else:

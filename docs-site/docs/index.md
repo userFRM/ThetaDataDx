@@ -10,8 +10,8 @@ hero:
       text: Get Started
       link: /getting-started/
     - theme: alt
-      text: Benchmark
-      link: /performance/benchmark
+      text: Quick Start
+      link: /getting-started/quickstart
     - theme: alt
       text: GitHub
       link: https://github.com/userFRM/ThetaDataDx
@@ -150,6 +150,6 @@ for (const auto& q : quotes) {
 | Async Python surface | None | `*_async` variant of every endpoint |
 | DataFrame output | polars default | Arrow / polars / pandas via explicit conversion |
 
-Headline number: **5.60× faster wall-clock and up to 75× less peak RSS** on `option_history_greeks_all` (176k rows × 31 cols). [Full matrix](./performance/benchmark).
+The Rust decode core, typed-struct SDK surface, and Arrow-backed DataFrame path are designed to keep decode cost off the GIL and out of Python-object churn, which matters most on dense Greeks endpoints at 176k+ rows.
 
 </div>

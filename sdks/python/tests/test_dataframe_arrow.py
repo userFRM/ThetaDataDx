@@ -1,23 +1,29 @@
 """
-Arrow columnar DataFrame adapter -- correctness + schema-preservation tests.
+Typed `<Tick>List` wrapper + chained DataFrame terminals — correctness tests.
 
-These tests exercise the `to_arrow` / `to_dataframe` / `to_polars` public
-entry points end-to-end, plus the fast-path `read_arrow_batch_from_*_pyclass_list`
-Rust helpers indirectly via the `to_dataframe(ticks)` / `to_arrow(ticks)` / `to_polars(ticks)` adapters.
+These tests exercise the public surface introduced in v8.0.3: every
+historical endpoint returns a `<TickName>List` / `StringList` wrapper,
+and DataFrame conversion happens via chained terminals (`.to_list()`,
+`.to_arrow()`, `.to_pandas()`, `.to_polars()`) on the wrapper.
+
+The free functions `thetadatadx.to_arrow(ticks)` / `to_dataframe(ticks)` /
+`to_polars(ticks)` that existed through v8.0.2 have been deleted; this
+suite verifies the chained path produces identical results.
 
 What this suite covers:
 
-1. Schema preservation on empty input (non-empty qualname hint via the
-   non-empty tick list through `to_dataframe`; empty list + no hint for the public `to_arrow`).
+1. Python list protocol on `<Tick>List` (`__len__`, `__bool__`,
+   `__repr__`, `__getitem__` including negative indexing and out-of-range
+   behaviour, `__iter__` yields in order).
 2. Round-trip correctness for EodTick / OhlcTick / TradeTick / QuoteTick
-   -- values constructed in Python, checked after passing through
-   `to_arrow` / `to_dataframe` / `to_polars`.
+   — values constructed in Python, verified after chaining through
+   `.to_list()`, `.to_arrow()`, `.to_pandas()`, `.to_polars()`.
 3. i64 correctness: `volume` / `count` fields at the 40-bit mark
    preserve full precision (no silent narrowing to f64).
-4. `to_arrow()` dep: callable without pandas or polars -- the public
+4. `to_arrow()` dep: callable without pandas or polars — the Arrow
    path does not transitively pull either.
-5. Mixed-type inputs: `to_dataframe([eod_tick, ohlc_tick])` surfaces a
-   clear Python error, not silent column corruption.
+5. `StringList` (returned by `stock_list_symbols` etc.): list protocol
+   + single-column DataFrame materialisation with the right header.
 
 The Arrow C Data Interface handoff (zero-copy from Rust to pyarrow)
 is verified via an RSS-delta measurement in the benchmark harness
@@ -43,53 +49,118 @@ pyarrow = pytest.importorskip("pyarrow", reason="pyarrow is required for Arrow D
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Empty-list schema preservation
+# `<Tick>List` Python list protocol
 # ──────────────────────────────────────────────────────────────────────
 
 
-def test_to_arrow_empty_list_returns_zero_column_table():
-    """Empty list + no hint -> zero-column pyarrow.Table (documented contract)."""
-    table = thetadatadx.to_arrow([])
-    assert isinstance(table, pyarrow.Table)
-    assert table.num_columns == 0
-    assert table.num_rows == 0
+def _make_eod_ticks(n: int) -> "list[thetadatadx.EodTick]":
+    return [
+        thetadatadx.EodTick(
+            ms_of_day=1000 + i,
+            ms_of_day2=2000 + i,
+            open=100.0 + i,
+            high=101.0 + i,
+            low=99.0 + i,
+            close=100.5 + i,
+            volume=1_000_000 * (i + 1),
+            count=5_000 * (i + 1),
+            bid_size=10 + i,
+            bid_exchange=1,
+            bid=100.0 + i * 0.1,
+            ask_size=20 + i,
+            ask_exchange=2,
+            ask=100.1 + i * 0.1,
+            date=20260420,
+            expiration=20260517,
+            strike=100.0,
+            right="C" if i % 2 == 0 else "P",
+        )
+        for i in range(n)
+    ]
 
 
-def test_to_dataframe_empty_list_returns_empty_dataframe():
-    pandas = pytest.importorskip("pandas")
-    df = thetadatadx.to_dataframe([])
-    assert isinstance(df, pandas.DataFrame)
-    assert len(df) == 0
-    assert len(df.columns) == 0
+def test_empty_list_wrapper_len_bool_repr():
+    """Empty `EodTickList` reports len 0, is falsy, reprs with row count."""
+    lst = thetadatadx.EodTickList()
+    assert len(lst) == 0
+    assert bool(lst) is False
+    assert repr(lst) == "EodTickList(0 rows)"
 
 
-def test_to_polars_empty_list_returns_empty_dataframe():
-    polars = pytest.importorskip("polars")
-    df = thetadatadx.to_polars([])
-    assert isinstance(df, polars.DataFrame)
-    assert df.height == 0
-    assert df.width == 0
+def test_non_empty_list_wrapper_len_bool_repr():
+    ticks = _make_eod_ticks(3)
+    lst = thetadatadx.EodTickList(ticks)
+    assert len(lst) == 3
+    assert bool(lst) is True
+    assert repr(lst) == "EodTickList(3 rows)"
 
 
-def test_to_arrow_empty_list_with_hint_preserves_schema():
-    """Empty list + hint -> zero-row pyarrow.Table with the typed schema.
+def test_getitem_positive_indexing():
+    ticks = _make_eod_ticks(3)
+    lst = thetadatadx.EodTickList(ticks)
+    for i, original in enumerate(ticks):
+        fetched = lst[i]
+        assert fetched.ms_of_day == original.ms_of_day
+        assert fetched.open == original.open
+        assert fetched.volume == original.volume
 
-    Exercises the `hint=` kwarg so consumers relying on typed-column
-    schemas for empty historical results (e.g. feeding a zero-row
-    result into a schema-strict store) get the full EodTick layout
-    back instead of the zero-column fallback.
-    """
-    table = thetadatadx.to_arrow([], hint="EodTick")
-    assert isinstance(table, pyarrow.Table)
-    assert table.num_rows == 0
-    # EodTick has 20 columns per `tick_schema.toml`; the hint path must
-    # surface all of them (not the zero-column fallback).
-    assert table.num_columns > 0
-    assert set(EOD_SCHEMA.keys()).issubset({f.name for f in table.schema})
+
+def test_getitem_negative_indexing():
+    ticks = _make_eod_ticks(3)
+    lst = thetadatadx.EodTickList(ticks)
+    # lst[-1] -> last, lst[-2] -> middle, lst[-3] -> first
+    assert lst[-1].ms_of_day == ticks[2].ms_of_day
+    assert lst[-2].ms_of_day == ticks[1].ms_of_day
+    assert lst[-3].ms_of_day == ticks[0].ms_of_day
+
+
+def test_getitem_out_of_range_raises_index_error():
+    ticks = _make_eod_ticks(3)
+    lst = thetadatadx.EodTickList(ticks)
+    with pytest.raises(IndexError):
+        lst[3]
+    with pytest.raises(IndexError):
+        lst[-4]
+    with pytest.raises(IndexError):
+        lst[999]
+
+
+def test_iter_yields_in_order():
+    ticks = _make_eod_ticks(4)
+    lst = thetadatadx.EodTickList(ticks)
+    collected = [t for t in lst]
+    assert len(collected) == 4
+    for i, fetched in enumerate(collected):
+        assert fetched.ms_of_day == ticks[i].ms_of_day
+        assert fetched.open == ticks[i].open
+
+
+def test_iter_twice_yields_independent_sequences():
+    """`__iter__` produces a fresh iterator each time (Python sequence
+    protocol contract). Repeated `for ... in lst:` must re-visit every
+    row, not resume from the previous cursor position."""
+    ticks = _make_eod_ticks(3)
+    lst = thetadatadx.EodTickList(ticks)
+    first = [t.ms_of_day for t in lst]
+    second = [t.ms_of_day for t in lst]
+    assert first == second
+    assert len(first) == 3
+
+
+def test_to_list_round_trips_to_plain_list():
+    ticks = _make_eod_ticks(3)
+    lst = thetadatadx.EodTickList(ticks)
+    plain = lst.to_list()
+    assert isinstance(plain, list)
+    assert len(plain) == 3
+    for i, original in enumerate(ticks):
+        assert plain[i].ms_of_day == original.ms_of_day
+        assert plain[i].open == original.open
+        assert plain[i].right == original.right
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Schema fidelity for each supported tick type
+# `.to_arrow()` terminal: pyarrow.Table with expected schema
 # ──────────────────────────────────────────────────────────────────────
 
 
@@ -129,26 +200,34 @@ def _assert_arrow_types_match(table: "pyarrow.Table", expected: dict) -> None:
     )
 
 
-def test_eod_tick_to_arrow_schema_matches_tick_schema_toml():
-    """Schema on a single-row Arrow table matches `tick_schema.toml`."""
-    tick = thetadatadx.EodTick(
-        ms_of_day=1000,
-        open=100.5,
-        high=101.0,
-        low=99.75,
-        close=100.0,
-        volume=123_456,
-        count=7890,
-        bid=99.95,
-        ask=100.05,
-        date=20260420,
-        expiration=20260517,
-        strike=100.0,
-        right="C",
-    )
-    table = thetadatadx.to_arrow([tick])
+def test_to_arrow_returns_pyarrow_table_with_eod_schema():
+    ticks = _make_eod_ticks(3)
+    lst = thetadatadx.EodTickList(ticks)
+    table = lst.to_arrow()
+    assert isinstance(table, pyarrow.Table)
+    assert table.num_rows == 3
     _assert_arrow_types_match(table, EOD_SCHEMA)
-    assert table.num_rows == 1
+
+
+def test_to_arrow_preserves_values_round_trip():
+    ticks = _make_eod_ticks(3)
+    lst = thetadatadx.EodTickList(ticks)
+    table = lst.to_arrow()
+    for i, original in enumerate(ticks):
+        assert table.column("ms_of_day")[i].as_py() == original.ms_of_day
+        assert table.column("open")[i].as_py() == pytest.approx(original.open)
+        assert table.column("volume")[i].as_py() == original.volume
+        assert table.column("right")[i].as_py() == original.right
+
+
+def test_to_arrow_empty_list_returns_empty_table_with_schema():
+    """Empty wrapper still has a typed schema — the slice path emits the
+    full column layout with zero rows."""
+    lst = thetadatadx.EodTickList()
+    table = lst.to_arrow()
+    assert isinstance(table, pyarrow.Table)
+    assert table.num_rows == 0
+    _assert_arrow_types_match(table, EOD_SCHEMA)
 
 
 def test_ohlc_tick_to_arrow_schema():
@@ -162,7 +241,8 @@ def test_ohlc_tick_to_arrow_schema():
         count=500,
         date=20260420,
     )
-    table = thetadatadx.to_arrow([tick])
+    lst = thetadatadx.OhlcTickList([tick])
+    table = lst.to_arrow()
     expected = {
         "ms_of_day": "int32",
         "open": "double",
@@ -181,7 +261,8 @@ def test_ohlc_tick_to_arrow_schema():
 
 def test_quote_tick_to_arrow_has_midpoint():
     tick = thetadatadx.QuoteTick(ms_of_day=34_200_000, bid=99.95, ask=100.05, midpoint=100.0)
-    table = thetadatadx.to_arrow([tick])
+    lst = thetadatadx.QuoteTickList([tick])
+    table = lst.to_arrow()
     schema = {f.name: str(f.type) for f in table.schema}
     assert "midpoint" in schema
     assert schema["midpoint"] == "double"
@@ -189,45 +270,23 @@ def test_quote_tick_to_arrow_has_midpoint():
 
 def test_trade_tick_to_arrow_schema():
     tick = thetadatadx.TradeTick(ms_of_day=34_200_000, size=100, price=100.50, date=20260420)
-    table = thetadatadx.to_arrow([tick])
+    lst = thetadatadx.TradeTickList([tick])
+    table = lst.to_arrow()
     schema = {f.name: str(f.type) for f in table.schema}
     assert schema["price"] == "double"
     assert schema["size"] == "int32"
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Round-trip: values constructed in Python must survive the Arrow
-# pipeline byte-for-byte.
+# pandas round-trip via `.to_pandas()`
 # ──────────────────────────────────────────────────────────────────────
 
 
-def test_eod_tick_round_trip_byte_for_byte():
-    """Construct three EodTicks, convert to DataFrame, assert every value matches."""
+def test_eod_tick_round_trip_byte_for_byte_pandas():
+    """Construct three EodTicks, chain to DataFrame, assert every value matches."""
     pandas = pytest.importorskip("pandas")
-    ticks = [
-        thetadatadx.EodTick(
-            ms_of_day=1000 + i,
-            ms_of_day2=2000 + i,
-            open=100.0 + i,
-            high=101.0 + i,
-            low=99.0 + i,
-            close=100.5 + i,
-            volume=1_000_000 * (i + 1),
-            count=5_000 * (i + 1),
-            bid_size=10 + i,
-            bid_exchange=1,
-            bid=100.0 + i * 0.1,
-            ask_size=20 + i,
-            ask_exchange=2,
-            ask=100.1 + i * 0.1,
-            date=20260420,
-            expiration=20260517,
-            strike=100.0,
-            right="C" if i % 2 == 0 else "P",
-        )
-        for i in range(3)
-    ]
-    df = thetadatadx.to_dataframe(ticks)
+    ticks = _make_eod_ticks(3)
+    df = thetadatadx.EodTickList(ticks).to_pandas()
 
     assert len(df) == 3
     for i, t in enumerate(ticks):
@@ -245,7 +304,7 @@ def test_i64_volume_count_preserves_2_to_the_40():
     pandas = pytest.importorskip("pandas")
     big = 2**40
     tick = thetadatadx.EodTick(volume=big, count=big)
-    df = thetadatadx.to_dataframe([tick])
+    df = thetadatadx.EodTickList([tick]).to_pandas()
     assert str(df["volume"].dtype) == "int64"
     assert str(df["count"].dtype) == "int64"
     assert int(df["volume"].iloc[0]) == big
@@ -256,13 +315,13 @@ def test_i64_ohlc_tick_volume_count_preserves_2_to_the_40():
     pandas = pytest.importorskip("pandas")
     big = 2**40
     tick = thetadatadx.OhlcTick(volume=big, count=big)
-    df = thetadatadx.to_dataframe([tick])
+    df = thetadatadx.OhlcTickList([tick]).to_pandas()
     assert str(df["volume"].dtype) == "int64"
     assert int(df["volume"].iloc[0]) == big
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Polars round-trip
+# polars round-trip via `.to_polars()`
 # ──────────────────────────────────────────────────────────────────────
 
 
@@ -270,14 +329,14 @@ def test_polars_round_trip_preserves_int64():
     polars = pytest.importorskip("polars")
     big = 2**40
     tick = thetadatadx.EodTick(ms_of_day=1, volume=big, count=big)
-    df = thetadatadx.to_polars([tick])
+    df = thetadatadx.EodTickList([tick]).to_polars()
     assert df.height == 1
     assert df["volume"].dtype == polars.Int64
     assert df["volume"][0] == big
 
 
 # ──────────────────────────────────────────────────────────────────────
-# to_arrow has no pandas / polars dependency
+# `.to_arrow()` has no pandas / polars dependency
 # ──────────────────────────────────────────────────────────────────────
 
 
@@ -285,8 +344,8 @@ def test_to_arrow_does_not_need_pandas(monkeypatch):
     """to_arrow must work even when pandas is absent from sys.modules.
 
     We simulate pandas being unimportable by stubbing `pandas` with a
-    sentinel that raises on attribute access, then invoke `to_arrow`
-    on a list of one tick.  If the Arrow path silently pulls pandas,
+    sentinel that raises on attribute access, then invoke `.to_arrow`
+    on a `<Tick>List`. If the Arrow path silently pulls pandas,
     this test fails.
     """
     class _Denied:
@@ -298,7 +357,7 @@ def test_to_arrow_does_not_need_pandas(monkeypatch):
     monkeypatch.setitem(sys.modules, "pandas", _Denied())
 
     tick = thetadatadx.EodTick(ms_of_day=1, volume=1_000)
-    table = thetadatadx.to_arrow([tick])
+    table = thetadatadx.EodTickList([tick]).to_arrow()
     assert table.num_rows == 1
     assert table.column("volume")[0].as_py() == 1_000
 
@@ -311,35 +370,8 @@ def test_to_arrow_does_not_need_polars(monkeypatch):
     monkeypatch.setitem(sys.modules, "polars", _Denied())
 
     tick = thetadatadx.EodTick(ms_of_day=1, volume=1_000)
-    table = thetadatadx.to_arrow([tick])
+    table = thetadatadx.EodTickList([tick]).to_arrow()
     assert table.num_rows == 1
-
-
-# ──────────────────────────────────────────────────────────────────────
-# Mixed-type input produces a clear error (NOT silent column corruption).
-# ──────────────────────────────────────────────────────────────────────
-
-
-def test_mixed_types_in_list_raises_clear_error():
-    eod = thetadatadx.EodTick(ms_of_day=1)
-    ohlc = thetadatadx.OhlcTick(ms_of_day=2)
-    with pytest.raises(RuntimeError) as excinfo:
-        thetadatadx.to_dataframe([eod, ohlc])
-    # Error message should name the offending class so users can
-    # locate the bad element.
-    assert "OhlcTick" in str(excinfo.value) or "EodTick" in str(excinfo.value)
-
-
-def test_unknown_object_in_list_raises_value_error():
-    with pytest.raises(RuntimeError):
-        # Python ints are not tick pyclasses; the type check should
-        # reject the list before the Arrow builders run.
-        thetadatadx.to_dataframe([1, 2, 3])
-
-
-def test_non_list_input_raises_value_error():
-    with pytest.raises(ValueError):
-        thetadatadx.to_dataframe("not a list")
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -349,7 +381,19 @@ def test_non_list_input_raises_value_error():
 
 def test_option_contract_right_is_string_in_arrow_schema():
     oc = thetadatadx.OptionContract(root="AAPL", expiration=20260517, strike=100.0, right="C")
-    table = thetadatadx.to_arrow([oc])
+    lst = thetadatadx.OptionContractList([oc])
+    table = lst.to_arrow()
     schema = {f.name: str(f.type) for f in table.schema}
     assert schema["right"] == "string"
     assert table.column("right")[0].as_py() == "C"
+
+
+# ──────────────────────────────────────────────────────────────────────
+# StringList — wrapper around `Vec<String>` returned by list endpoints
+# (`stock_list_symbols`, `option_list_expirations`, ...)
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_string_list_class_is_exported():
+    """StringList is part of the public `thetadatadx` namespace."""
+    assert hasattr(thetadatadx, "StringList")

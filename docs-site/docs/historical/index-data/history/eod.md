@@ -109,4 +109,4 @@ for (const auto& t : data) {
 ## Notes
 
 - Returns one row per trading day in the range. Non-trading days are excluded.
-- Python users can pipe through `thetadatadx.to_dataframe(...)` for a pandas DataFrame.
+- Python users chain `.to_pandas()` on the return value for a pandas DataFrame.

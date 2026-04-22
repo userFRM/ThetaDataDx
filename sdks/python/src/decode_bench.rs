@@ -60,267 +60,267 @@ pub(crate) fn decode_response_bytes(py: Python<'_>, endpoint: &str, chunks: Vec<
         "calendar_on_date" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_calendar_days_v3(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            calendar_days_to_pyclass_list(py, &ticks)
+            Ok(calendar_days_to_pyclass_list(py, ticks)?.into_any())
         }
         "calendar_open_today" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_calendar_days_v3(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            calendar_days_to_pyclass_list(py, &ticks)
+            Ok(calendar_days_to_pyclass_list(py, ticks)?.into_any())
         }
         "calendar_year" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_calendar_days_v3(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            calendar_days_to_pyclass_list(py, &ticks)
+            Ok(calendar_days_to_pyclass_list(py, ticks)?.into_any())
         }
         "index_at_time_price" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_price_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            price_ticks_to_pyclass_list(py, &ticks)
+            Ok(price_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "index_history_eod" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_eod_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            eod_ticks_to_pyclass_list(py, &ticks)
+            Ok(eod_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "index_history_ohlc" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_ohlc_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            ohlc_ticks_to_pyclass_list(py, &ticks)
+            Ok(ohlc_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "index_history_price" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_price_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            price_ticks_to_pyclass_list(py, &ticks)
+            Ok(price_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "index_snapshot_market_value" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_market_value_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            market_value_ticks_to_pyclass_list(py, &ticks)
+            Ok(market_value_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "index_snapshot_ohlc" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_ohlc_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            ohlc_ticks_to_pyclass_list(py, &ticks)
+            Ok(ohlc_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "index_snapshot_price" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_price_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            price_ticks_to_pyclass_list(py, &ticks)
+            Ok(price_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "interest_rate_history_eod" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_interest_rate_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            interest_rate_ticks_to_pyclass_list(py, &ticks)
+            Ok(interest_rate_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_at_time_quote" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            quote_ticks_to_pyclass_list(py, &ticks)
+            Ok(quote_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_at_time_trade" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_trade_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            trade_ticks_to_pyclass_list(py, &ticks)
+            Ok(trade_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_eod" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_eod_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            eod_ticks_to_pyclass_list(py, &ticks)
+            Ok(eod_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_greeks_all" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_greeks_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            greeks_ticks_to_pyclass_list(py, &ticks)
+            Ok(greeks_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_greeks_eod" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_greeks_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            greeks_ticks_to_pyclass_list(py, &ticks)
+            Ok(greeks_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_greeks_first_order" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_greeks_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            greeks_ticks_to_pyclass_list(py, &ticks)
+            Ok(greeks_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_greeks_implied_volatility" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_iv_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            iv_ticks_to_pyclass_list(py, &ticks)
+            Ok(iv_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_greeks_second_order" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_greeks_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            greeks_ticks_to_pyclass_list(py, &ticks)
+            Ok(greeks_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_greeks_third_order" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_greeks_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            greeks_ticks_to_pyclass_list(py, &ticks)
+            Ok(greeks_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_ohlc" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_ohlc_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            ohlc_ticks_to_pyclass_list(py, &ticks)
+            Ok(ohlc_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_open_interest" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_open_interest_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            open_interest_ticks_to_pyclass_list(py, &ticks)
+            Ok(open_interest_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_quote" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            quote_ticks_to_pyclass_list(py, &ticks)
+            Ok(quote_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_trade" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_trade_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            trade_ticks_to_pyclass_list(py, &ticks)
+            Ok(trade_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_trade_greeks_all" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_greeks_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            greeks_ticks_to_pyclass_list(py, &ticks)
+            Ok(greeks_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_trade_greeks_first_order" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_greeks_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            greeks_ticks_to_pyclass_list(py, &ticks)
+            Ok(greeks_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_trade_greeks_implied_volatility" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_iv_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            iv_ticks_to_pyclass_list(py, &ticks)
+            Ok(iv_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_trade_greeks_second_order" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_greeks_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            greeks_ticks_to_pyclass_list(py, &ticks)
+            Ok(greeks_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_trade_greeks_third_order" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_greeks_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            greeks_ticks_to_pyclass_list(py, &ticks)
+            Ok(greeks_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_trade_quote" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_trade_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            trade_quote_ticks_to_pyclass_list(py, &ticks)
+            Ok(trade_quote_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_list_contracts" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_option_contracts_v3(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            option_contracts_to_pyclass_list(py, &ticks)
+            Ok(option_contracts_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_snapshot_greeks_all" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_greeks_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            greeks_ticks_to_pyclass_list(py, &ticks)
+            Ok(greeks_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_snapshot_greeks_first_order" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_greeks_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            greeks_ticks_to_pyclass_list(py, &ticks)
+            Ok(greeks_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_snapshot_greeks_implied_volatility" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_iv_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            iv_ticks_to_pyclass_list(py, &ticks)
+            Ok(iv_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_snapshot_greeks_second_order" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_greeks_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            greeks_ticks_to_pyclass_list(py, &ticks)
+            Ok(greeks_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_snapshot_greeks_third_order" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_greeks_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            greeks_ticks_to_pyclass_list(py, &ticks)
+            Ok(greeks_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_snapshot_market_value" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_market_value_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            market_value_ticks_to_pyclass_list(py, &ticks)
+            Ok(market_value_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_snapshot_ohlc" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_ohlc_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            ohlc_ticks_to_pyclass_list(py, &ticks)
+            Ok(ohlc_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_snapshot_open_interest" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_open_interest_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            open_interest_ticks_to_pyclass_list(py, &ticks)
+            Ok(open_interest_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_snapshot_quote" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            quote_ticks_to_pyclass_list(py, &ticks)
+            Ok(quote_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_snapshot_trade" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_trade_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            trade_ticks_to_pyclass_list(py, &ticks)
+            Ok(trade_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "stock_at_time_quote" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            quote_ticks_to_pyclass_list(py, &ticks)
+            Ok(quote_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "stock_at_time_trade" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_trade_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            trade_ticks_to_pyclass_list(py, &ticks)
+            Ok(trade_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "stock_history_eod" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_eod_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            eod_ticks_to_pyclass_list(py, &ticks)
+            Ok(eod_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "stock_history_ohlc" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_ohlc_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            ohlc_ticks_to_pyclass_list(py, &ticks)
+            Ok(ohlc_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "stock_history_ohlc_range" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_ohlc_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            ohlc_ticks_to_pyclass_list(py, &ticks)
+            Ok(ohlc_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "stock_history_quote" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            quote_ticks_to_pyclass_list(py, &ticks)
+            Ok(quote_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "stock_history_trade" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_trade_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            trade_ticks_to_pyclass_list(py, &ticks)
+            Ok(trade_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "stock_history_trade_quote" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_trade_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            trade_quote_ticks_to_pyclass_list(py, &ticks)
+            Ok(trade_quote_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "stock_snapshot_market_value" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_market_value_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            market_value_ticks_to_pyclass_list(py, &ticks)
+            Ok(market_value_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "stock_snapshot_ohlc" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_ohlc_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            ohlc_ticks_to_pyclass_list(py, &ticks)
+            Ok(ohlc_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "stock_snapshot_quote" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            quote_ticks_to_pyclass_list(py, &ticks)
+            Ok(quote_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "stock_snapshot_trade" => {
             let table = decode_chunks_into_table(&refs)?;
             let ticks = thetadatadx::decode::parse_trade_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            trade_ticks_to_pyclass_list(py, &ticks)
+            Ok(trade_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         other => Err(PyValueError::new_err(format!(
             "decode_response_bytes: unknown endpoint `{other}` — extend endpoint_surface.toml and regen `cargo run --bin generate_sdk_surfaces`"

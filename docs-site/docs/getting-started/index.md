@@ -11,6 +11,7 @@ The ThetaData Python SDK (`pip install thetadata`) is Python-only, has no stream
 
 ## What's on this page
 
+- [Quick Start](./quickstart) — install, authenticate, first historical call, first streaming call, tabbed across all five SDKs
 - [Installation](./installation) — install for your language
 - [Authentication](./authentication) — credentials file, environment variables, token lifecycle
 - [First query](./first-query) — one historical call in every language
@@ -18,19 +19,6 @@ The ThetaData Python SDK (`pip install thetadata`) is Python-only, has no stream
 - [Greeks calculator](./greeks) — 22 local Greeks + IV solver, no server round-trip
 - [DataFrames](./dataframes) — Arrow / Polars / Pandas output with the zero-copy scope
 - [Error handling](./errors) — `ThetaDataError` hierarchy, retry policy, session refresh
-- [Async Python](./async-python) — `asyncio.gather` over the async endpoint methods
-- [Performance](./performance) — benchmark headline; full data on the [benchmark page](../performance/benchmark)
-- [Migration from the ThetaData Python SDK](./migration) — side-by-side mapping; full migration guide at [migration/from-thetadata-python-sdk](../migration/from-thetadata-python-sdk)
-
-## Per-language quickstarts
-
-Each page keeps one language under ~150 lines: install → auth → one historical call → one streaming call → error handling → where to go next.
-
-- [Rust quickstart](../quickstart/rust)
-- [Python quickstart](../quickstart/python)
-- [TypeScript quickstart](../quickstart/typescript)
-- [Go quickstart](../quickstart/go)
-- [C++ quickstart](../quickstart/cpp)
 
 ## Prerequisites
 

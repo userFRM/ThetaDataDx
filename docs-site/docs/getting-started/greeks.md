@@ -79,11 +79,11 @@ Solver: bisection, up to 128 iterations. `iv_error` is the relative difference `
 
 ## Server-computed Greeks
 
-Where you need historical Greeks over a date range, ThetaData's servers pre-compute them; ThetaDataDx exposes them through the `option_*_greeks_*` endpoint family. Benchmarks on `option_history_greeks_all` (176,732 rows × 31 columns) show ThetaDataDx decoding 5.60× faster and using 11.9× less peak RSS than the ThetaData Python SDK — see the [benchmark page](../performance/benchmark) for the full matrix.
+Where you need historical Greeks over a date range, ThetaData's servers pre-compute them; ThetaDataDx exposes them through the `option_*_greeks_*` endpoint family. The Rust decode core and typed-struct surface keep dense Greeks pulls (176,732 rows × 31 cols on `option_history_greeks_all`) off the GIL and out of Python-object churn.
 
 Pair the server endpoints with the local calculator: pull a chain with server Greeks, then run the local solver for what-if scenarios that would otherwise require a second network round-trip.
 
 ## Next
 
 - [Options & Greeks](../options) — full reference: 22 Greeks formulas, chain workflow, wildcard queries
-- [DataFrames](./dataframes) — `to_polars(chain)` for scenario sweeps in columnar form
+- [DataFrames](./dataframes) — chain `.to_polars()` on an option chain for scenario sweeps in columnar form
