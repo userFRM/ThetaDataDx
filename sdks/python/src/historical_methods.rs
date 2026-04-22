@@ -34,14 +34,13 @@ impl StockListSymbolsBuilder {
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result = if let Some(ms) = timeout_ms {
+        spawn_awaitable(py, async move {
+            if let Some(ms) = timeout_ms {
                 tdx.stock_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
             } else {
                 tdx.stock_list_symbols().await
-            };
-            result.map_err(to_py_err)
-        })
+            }
+        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
     }
 }
 
@@ -97,14 +96,13 @@ impl StockListDatesBuilder {
         let request_type = self.request_type.clone();
         let symbol = self.symbol.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result = if let Some(ms) = timeout_ms {
+        spawn_awaitable(py, async move {
+            if let Some(ms) = timeout_ms {
                 tdx.stock_list_dates_with_deadline(std::time::Duration::from_millis(ms), &request_type, &symbol).await
             } else {
                 tdx.stock_list_dates(&request_type, &symbol).await
-            };
-            result.map_err(to_py_err)
-        })
+            }
+        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
     }
 }
 
@@ -222,7 +220,7 @@ impl StockSnapshotOhlcBuilder {
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.stock_snapshot_ohlc(&refs);
             if let Some(value) = &venue {
@@ -234,11 +232,8 @@ impl StockSnapshotOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                ohlc_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -248,7 +243,7 @@ impl StockSnapshotOhlcBuilder {
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.stock_snapshot_ohlc(&refs);
             if let Some(value) = &venue {
@@ -260,11 +255,8 @@ impl StockSnapshotOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -274,7 +266,7 @@ impl StockSnapshotOhlcBuilder {
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.stock_snapshot_ohlc(&refs);
             if let Some(value) = &venue {
@@ -286,11 +278,10 @@ impl StockSnapshotOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -301,7 +292,7 @@ impl StockSnapshotOhlcBuilder {
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.stock_snapshot_ohlc(&refs);
             if let Some(value) = &venue {
@@ -313,11 +304,10 @@ impl StockSnapshotOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -435,7 +425,7 @@ impl StockSnapshotTradeBuilder {
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.stock_snapshot_trade(&refs);
             if let Some(value) = &venue {
@@ -447,11 +437,8 @@ impl StockSnapshotTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                trade_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| trade_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -461,7 +448,7 @@ impl StockSnapshotTradeBuilder {
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.stock_snapshot_trade(&refs);
             if let Some(value) = &venue {
@@ -473,11 +460,8 @@ impl StockSnapshotTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -487,7 +471,7 @@ impl StockSnapshotTradeBuilder {
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.stock_snapshot_trade(&refs);
             if let Some(value) = &venue {
@@ -499,11 +483,10 @@ impl StockSnapshotTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -514,7 +497,7 @@ impl StockSnapshotTradeBuilder {
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.stock_snapshot_trade(&refs);
             if let Some(value) = &venue {
@@ -526,11 +509,10 @@ impl StockSnapshotTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -648,7 +630,7 @@ impl StockSnapshotQuoteBuilder {
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.stock_snapshot_quote(&refs);
             if let Some(value) = &venue {
@@ -660,11 +642,8 @@ impl StockSnapshotQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                quote_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| quote_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -674,7 +653,7 @@ impl StockSnapshotQuoteBuilder {
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.stock_snapshot_quote(&refs);
             if let Some(value) = &venue {
@@ -686,11 +665,8 @@ impl StockSnapshotQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -700,7 +676,7 @@ impl StockSnapshotQuoteBuilder {
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.stock_snapshot_quote(&refs);
             if let Some(value) = &venue {
@@ -712,11 +688,10 @@ impl StockSnapshotQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -727,7 +702,7 @@ impl StockSnapshotQuoteBuilder {
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.stock_snapshot_quote(&refs);
             if let Some(value) = &venue {
@@ -739,11 +714,10 @@ impl StockSnapshotQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -861,7 +835,7 @@ impl StockSnapshotMarketValueBuilder {
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.stock_snapshot_market_value(&refs);
             if let Some(value) = &venue {
@@ -873,11 +847,8 @@ impl StockSnapshotMarketValueBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                market_value_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| market_value_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -887,7 +858,7 @@ impl StockSnapshotMarketValueBuilder {
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.stock_snapshot_market_value(&refs);
             if let Some(value) = &venue {
@@ -899,11 +870,8 @@ impl StockSnapshotMarketValueBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -913,7 +881,7 @@ impl StockSnapshotMarketValueBuilder {
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.stock_snapshot_market_value(&refs);
             if let Some(value) = &venue {
@@ -925,11 +893,10 @@ impl StockSnapshotMarketValueBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -940,7 +907,7 @@ impl StockSnapshotMarketValueBuilder {
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.stock_snapshot_market_value(&refs);
             if let Some(value) = &venue {
@@ -952,11 +919,10 @@ impl StockSnapshotMarketValueBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -1058,16 +1024,13 @@ impl StockHistoryEodBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                eod_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| eod_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -1077,16 +1040,13 @@ impl StockHistoryEodBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -1096,16 +1056,15 @@ impl StockHistoryEodBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -1116,16 +1075,15 @@ impl StockHistoryEodBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -1309,7 +1267,7 @@ impl StockHistoryOhlcBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_ohlc(&symbol, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -1329,11 +1287,8 @@ impl StockHistoryOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                ohlc_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -1348,7 +1303,7 @@ impl StockHistoryOhlcBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_ohlc(&symbol, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -1368,11 +1323,8 @@ impl StockHistoryOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -1387,7 +1339,7 @@ impl StockHistoryOhlcBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_ohlc(&symbol, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -1407,11 +1359,10 @@ impl StockHistoryOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -1427,7 +1378,7 @@ impl StockHistoryOhlcBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_ohlc(&symbol, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -1447,11 +1398,10 @@ impl StockHistoryOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -1624,7 +1574,7 @@ impl StockHistoryTradeBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_trade(&symbol, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -1644,11 +1594,8 @@ impl StockHistoryTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                trade_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| trade_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -1662,7 +1609,7 @@ impl StockHistoryTradeBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_trade(&symbol, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -1682,11 +1629,8 @@ impl StockHistoryTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -1700,7 +1644,7 @@ impl StockHistoryTradeBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_trade(&symbol, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -1720,11 +1664,10 @@ impl StockHistoryTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -1739,7 +1682,7 @@ impl StockHistoryTradeBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_trade(&symbol, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -1759,11 +1702,10 @@ impl StockHistoryTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -1948,7 +1890,7 @@ impl StockHistoryQuoteBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_quote(&symbol, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -1968,11 +1910,8 @@ impl StockHistoryQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                quote_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| quote_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -1987,7 +1926,7 @@ impl StockHistoryQuoteBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_quote(&symbol, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -2007,11 +1946,8 @@ impl StockHistoryQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -2026,7 +1962,7 @@ impl StockHistoryQuoteBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_quote(&symbol, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -2046,11 +1982,10 @@ impl StockHistoryQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -2066,7 +2001,7 @@ impl StockHistoryQuoteBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_quote(&symbol, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -2086,11 +2021,10 @@ impl StockHistoryQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -2279,7 +2213,7 @@ impl StockHistoryTradeQuoteBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_trade_quote(&symbol, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -2302,11 +2236,8 @@ impl StockHistoryTradeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                trade_quote_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -2321,7 +2252,7 @@ impl StockHistoryTradeQuoteBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_trade_quote(&symbol, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -2344,11 +2275,8 @@ impl StockHistoryTradeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -2363,7 +2291,7 @@ impl StockHistoryTradeQuoteBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_trade_quote(&symbol, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -2386,11 +2314,10 @@ impl StockHistoryTradeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -2406,7 +2333,7 @@ impl StockHistoryTradeQuoteBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_trade_quote(&symbol, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -2429,11 +2356,10 @@ impl StockHistoryTradeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -2567,7 +2493,7 @@ impl StockAtTimeTradeBuilder {
         let time_of_day = self.time_of_day.clone();
         let venue = self.venue.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
@@ -2575,11 +2501,8 @@ impl StockAtTimeTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                trade_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| trade_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -2591,7 +2514,7 @@ impl StockAtTimeTradeBuilder {
         let time_of_day = self.time_of_day.clone();
         let venue = self.venue.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
@@ -2599,11 +2522,8 @@ impl StockAtTimeTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -2615,7 +2535,7 @@ impl StockAtTimeTradeBuilder {
         let time_of_day = self.time_of_day.clone();
         let venue = self.venue.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
@@ -2623,11 +2543,10 @@ impl StockAtTimeTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -2640,7 +2559,7 @@ impl StockAtTimeTradeBuilder {
         let time_of_day = self.time_of_day.clone();
         let venue = self.venue.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
@@ -2648,11 +2567,10 @@ impl StockAtTimeTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -2786,7 +2704,7 @@ impl StockAtTimeQuoteBuilder {
         let time_of_day = self.time_of_day.clone();
         let venue = self.venue.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
@@ -2794,11 +2712,8 @@ impl StockAtTimeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                quote_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| quote_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -2810,7 +2725,7 @@ impl StockAtTimeQuoteBuilder {
         let time_of_day = self.time_of_day.clone();
         let venue = self.venue.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
@@ -2818,11 +2733,8 @@ impl StockAtTimeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -2834,7 +2746,7 @@ impl StockAtTimeQuoteBuilder {
         let time_of_day = self.time_of_day.clone();
         let venue = self.venue.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
@@ -2842,11 +2754,10 @@ impl StockAtTimeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -2859,7 +2770,7 @@ impl StockAtTimeQuoteBuilder {
         let time_of_day = self.time_of_day.clone();
         let venue = self.venue.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
@@ -2867,11 +2778,10 @@ impl StockAtTimeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -2910,14 +2820,13 @@ impl OptionListSymbolsBuilder {
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result = if let Some(ms) = timeout_ms {
+        spawn_awaitable(py, async move {
+            if let Some(ms) = timeout_ms {
                 tdx.option_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
             } else {
                 tdx.option_list_symbols().await
-            };
-            result.map_err(to_py_err)
-        })
+            }
+        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
     }
 }
 
@@ -3001,14 +2910,13 @@ impl OptionListDatesBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result = if let Some(ms) = timeout_ms {
+        spawn_awaitable(py, async move {
+            if let Some(ms) = timeout_ms {
                 tdx.option_list_dates_with_deadline(std::time::Duration::from_millis(ms), &request_type, &symbol, &expiration, &strike, &right).await
             } else {
                 tdx.option_list_dates(&request_type, &symbol, &expiration, &strike, &right).await
-            };
-            result.map_err(to_py_err)
-        })
+            }
+        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
     }
 }
 
@@ -3056,14 +2964,13 @@ impl OptionListExpirationsBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result = if let Some(ms) = timeout_ms {
+        spawn_awaitable(py, async move {
+            if let Some(ms) = timeout_ms {
                 tdx.option_list_expirations_with_deadline(std::time::Duration::from_millis(ms), &symbol).await
             } else {
                 tdx.option_list_expirations(&symbol).await
-            };
-            result.map_err(to_py_err)
-        })
+            }
+        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
     }
 }
 
@@ -3120,14 +3027,13 @@ impl OptionListStrikesBuilder {
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result = if let Some(ms) = timeout_ms {
+        spawn_awaitable(py, async move {
+            if let Some(ms) = timeout_ms {
                 tdx.option_list_strikes_with_deadline(std::time::Duration::from_millis(ms), &symbol, &expiration).await
             } else {
                 tdx.option_list_strikes(&symbol, &expiration).await
-            };
-            result.map_err(to_py_err)
-        })
+            }
+        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
     }
 }
 
@@ -3248,7 +3154,7 @@ impl OptionListContractsBuilder {
         let date = self.date.clone();
         let max_dte = self.max_dte;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_list_contracts(&request_type, &symbol, &date);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -3256,11 +3162,8 @@ impl OptionListContractsBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                option_contracts_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| option_contracts_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -3271,7 +3174,7 @@ impl OptionListContractsBuilder {
         let date = self.date.clone();
         let max_dte = self.max_dte;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_list_contracts(&request_type, &symbol, &date);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -3279,11 +3182,8 @@ impl OptionListContractsBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::option_contract_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::option_contract_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -3294,7 +3194,7 @@ impl OptionListContractsBuilder {
         let date = self.date.clone();
         let max_dte = self.max_dte;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_list_contracts(&request_type, &symbol, &date);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -3302,11 +3202,10 @@ impl OptionListContractsBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::option_contract_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::option_contract_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -3318,7 +3217,7 @@ impl OptionListContractsBuilder {
         let date = self.date.clone();
         let max_dte = self.max_dte;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_list_contracts(&request_type, &symbol, &date);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -3326,11 +3225,10 @@ impl OptionListContractsBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::option_contract_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::option_contract_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -3491,7 +3389,7 @@ impl OptionSnapshotOhlcBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_ohlc(&symbol, &expiration, &strike, &right);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -3505,11 +3403,8 @@ impl OptionSnapshotOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                ohlc_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -3523,7 +3418,7 @@ impl OptionSnapshotOhlcBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_ohlc(&symbol, &expiration, &strike, &right);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -3537,11 +3432,8 @@ impl OptionSnapshotOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -3555,7 +3447,7 @@ impl OptionSnapshotOhlcBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_ohlc(&symbol, &expiration, &strike, &right);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -3569,11 +3461,10 @@ impl OptionSnapshotOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -3588,7 +3479,7 @@ impl OptionSnapshotOhlcBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_ohlc(&symbol, &expiration, &strike, &right);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -3602,11 +3493,10 @@ impl OptionSnapshotOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -3752,7 +3642,7 @@ impl OptionSnapshotTradeBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_trade(&symbol, &expiration, &strike, &right);
             if let Some(value) = &strike_range {
                 request = request.strike_range(*value);
@@ -3763,11 +3653,8 @@ impl OptionSnapshotTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                trade_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| trade_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -3780,7 +3667,7 @@ impl OptionSnapshotTradeBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_trade(&symbol, &expiration, &strike, &right);
             if let Some(value) = &strike_range {
                 request = request.strike_range(*value);
@@ -3791,11 +3678,8 @@ impl OptionSnapshotTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -3808,7 +3692,7 @@ impl OptionSnapshotTradeBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_trade(&symbol, &expiration, &strike, &right);
             if let Some(value) = &strike_range {
                 request = request.strike_range(*value);
@@ -3819,11 +3703,10 @@ impl OptionSnapshotTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -3837,7 +3720,7 @@ impl OptionSnapshotTradeBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_trade(&symbol, &expiration, &strike, &right);
             if let Some(value) = &strike_range {
                 request = request.strike_range(*value);
@@ -3848,11 +3731,10 @@ impl OptionSnapshotTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -4014,7 +3896,7 @@ impl OptionSnapshotQuoteBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_quote(&symbol, &expiration, &strike, &right);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -4028,11 +3910,8 @@ impl OptionSnapshotQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                quote_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| quote_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -4046,7 +3925,7 @@ impl OptionSnapshotQuoteBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_quote(&symbol, &expiration, &strike, &right);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -4060,11 +3939,8 @@ impl OptionSnapshotQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -4078,7 +3954,7 @@ impl OptionSnapshotQuoteBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_quote(&symbol, &expiration, &strike, &right);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -4092,11 +3968,10 @@ impl OptionSnapshotQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -4111,7 +3986,7 @@ impl OptionSnapshotQuoteBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_quote(&symbol, &expiration, &strike, &right);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -4125,11 +4000,10 @@ impl OptionSnapshotQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -4292,7 +4166,7 @@ impl OptionSnapshotOpenInterestBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_open_interest(&symbol, &expiration, &strike, &right);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -4306,11 +4180,8 @@ impl OptionSnapshotOpenInterestBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                open_interest_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| open_interest_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -4324,7 +4195,7 @@ impl OptionSnapshotOpenInterestBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_open_interest(&symbol, &expiration, &strike, &right);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -4338,11 +4209,8 @@ impl OptionSnapshotOpenInterestBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -4356,7 +4224,7 @@ impl OptionSnapshotOpenInterestBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_open_interest(&symbol, &expiration, &strike, &right);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -4370,11 +4238,10 @@ impl OptionSnapshotOpenInterestBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -4389,7 +4256,7 @@ impl OptionSnapshotOpenInterestBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_open_interest(&symbol, &expiration, &strike, &right);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -4403,11 +4270,10 @@ impl OptionSnapshotOpenInterestBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -4567,7 +4433,7 @@ impl OptionSnapshotMarketValueBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_market_value(&symbol, &expiration, &strike, &right);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -4581,11 +4447,8 @@ impl OptionSnapshotMarketValueBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                market_value_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| market_value_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -4599,7 +4462,7 @@ impl OptionSnapshotMarketValueBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_market_value(&symbol, &expiration, &strike, &right);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -4613,11 +4476,8 @@ impl OptionSnapshotMarketValueBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -4631,7 +4491,7 @@ impl OptionSnapshotMarketValueBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_market_value(&symbol, &expiration, &strike, &right);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -4645,11 +4505,10 @@ impl OptionSnapshotMarketValueBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -4664,7 +4523,7 @@ impl OptionSnapshotMarketValueBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_market_value(&symbol, &expiration, &strike, &right);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -4678,11 +4537,10 @@ impl OptionSnapshotMarketValueBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -4941,7 +4799,7 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_greeks_implied_volatility(&symbol, &expiration, &strike, &right);
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
@@ -4973,11 +4831,8 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                iv_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| iv_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -4997,7 +4852,7 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_greeks_implied_volatility(&symbol, &expiration, &strike, &right);
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
@@ -5029,11 +4884,8 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -5053,7 +4905,7 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_greeks_implied_volatility(&symbol, &expiration, &strike, &right);
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
@@ -5085,11 +4937,10 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -5110,7 +4961,7 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_greeks_implied_volatility(&symbol, &expiration, &strike, &right);
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
@@ -5142,11 +4993,10 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -5405,7 +5255,7 @@ impl OptionSnapshotGreeksAllBuilder {
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_greeks_all(&symbol, &expiration, &strike, &right);
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
@@ -5437,11 +5287,8 @@ impl OptionSnapshotGreeksAllBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -5461,7 +5308,7 @@ impl OptionSnapshotGreeksAllBuilder {
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_greeks_all(&symbol, &expiration, &strike, &right);
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
@@ -5493,11 +5340,8 @@ impl OptionSnapshotGreeksAllBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -5517,7 +5361,7 @@ impl OptionSnapshotGreeksAllBuilder {
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_greeks_all(&symbol, &expiration, &strike, &right);
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
@@ -5549,11 +5393,10 @@ impl OptionSnapshotGreeksAllBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -5574,7 +5417,7 @@ impl OptionSnapshotGreeksAllBuilder {
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_greeks_all(&symbol, &expiration, &strike, &right);
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
@@ -5606,11 +5449,10 @@ impl OptionSnapshotGreeksAllBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -5869,7 +5711,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_greeks_first_order(&symbol, &expiration, &strike, &right);
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
@@ -5901,11 +5743,8 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -5925,7 +5764,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_greeks_first_order(&symbol, &expiration, &strike, &right);
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
@@ -5957,11 +5796,8 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -5981,7 +5817,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_greeks_first_order(&symbol, &expiration, &strike, &right);
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
@@ -6013,11 +5849,10 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -6038,7 +5873,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_greeks_first_order(&symbol, &expiration, &strike, &right);
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
@@ -6070,11 +5905,10 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -6333,7 +6167,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_greeks_second_order(&symbol, &expiration, &strike, &right);
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
@@ -6365,11 +6199,8 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -6389,7 +6220,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_greeks_second_order(&symbol, &expiration, &strike, &right);
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
@@ -6421,11 +6252,8 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -6445,7 +6273,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_greeks_second_order(&symbol, &expiration, &strike, &right);
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
@@ -6477,11 +6305,10 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -6502,7 +6329,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_greeks_second_order(&symbol, &expiration, &strike, &right);
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
@@ -6534,11 +6361,10 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -6797,7 +6623,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_greeks_third_order(&symbol, &expiration, &strike, &right);
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
@@ -6829,11 +6655,8 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -6853,7 +6676,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_greeks_third_order(&symbol, &expiration, &strike, &right);
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
@@ -6885,11 +6708,8 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -6909,7 +6729,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_greeks_third_order(&symbol, &expiration, &strike, &right);
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
@@ -6941,11 +6761,10 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -6966,7 +6785,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_greeks_third_order(&symbol, &expiration, &strike, &right);
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
@@ -6998,11 +6817,10 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -7169,7 +6987,7 @@ impl OptionHistoryEodBuilder {
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -7180,11 +6998,8 @@ impl OptionHistoryEodBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                eod_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| eod_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -7199,7 +7014,7 @@ impl OptionHistoryEodBuilder {
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -7210,11 +7025,8 @@ impl OptionHistoryEodBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -7229,7 +7041,7 @@ impl OptionHistoryEodBuilder {
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -7240,11 +7052,10 @@ impl OptionHistoryEodBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -7260,7 +7071,7 @@ impl OptionHistoryEodBuilder {
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -7271,11 +7082,10 @@ impl OptionHistoryEodBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -7489,7 +7299,7 @@ impl OptionHistoryOhlcBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_ohlc(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -7509,11 +7319,8 @@ impl OptionHistoryOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                ohlc_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -7531,7 +7338,7 @@ impl OptionHistoryOhlcBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_ohlc(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -7551,11 +7358,8 @@ impl OptionHistoryOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -7573,7 +7377,7 @@ impl OptionHistoryOhlcBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_ohlc(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -7593,11 +7397,10 @@ impl OptionHistoryOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -7616,7 +7419,7 @@ impl OptionHistoryOhlcBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_ohlc(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -7636,11 +7439,10 @@ impl OptionHistoryOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -7861,7 +7663,7 @@ impl OptionHistoryTradeBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -7884,11 +7686,8 @@ impl OptionHistoryTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                trade_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| trade_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -7906,7 +7705,7 @@ impl OptionHistoryTradeBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -7929,11 +7728,8 @@ impl OptionHistoryTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -7951,7 +7747,7 @@ impl OptionHistoryTradeBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -7974,11 +7770,10 @@ impl OptionHistoryTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -7997,7 +7792,7 @@ impl OptionHistoryTradeBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -8020,11 +7815,10 @@ impl OptionHistoryTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -8254,7 +8048,7 @@ impl OptionHistoryQuoteBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_quote(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -8277,11 +8071,8 @@ impl OptionHistoryQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                quote_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| quote_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -8300,7 +8091,7 @@ impl OptionHistoryQuoteBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_quote(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -8323,11 +8114,8 @@ impl OptionHistoryQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -8346,7 +8134,7 @@ impl OptionHistoryQuoteBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_quote(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -8369,11 +8157,10 @@ impl OptionHistoryQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -8393,7 +8180,7 @@ impl OptionHistoryQuoteBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_quote(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -8416,11 +8203,10 @@ impl OptionHistoryQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -8657,7 +8443,7 @@ impl OptionHistoryTradeQuoteBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_quote(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -8683,11 +8469,8 @@ impl OptionHistoryTradeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                trade_quote_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -8706,7 +8489,7 @@ impl OptionHistoryTradeQuoteBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_quote(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -8732,11 +8515,8 @@ impl OptionHistoryTradeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -8755,7 +8535,7 @@ impl OptionHistoryTradeQuoteBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_quote(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -8781,11 +8561,10 @@ impl OptionHistoryTradeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -8805,7 +8584,7 @@ impl OptionHistoryTradeQuoteBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_quote(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -8831,11 +8610,10 @@ impl OptionHistoryTradeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -9023,7 +8801,7 @@ impl OptionHistoryOpenInterestBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_open_interest(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -9040,11 +8818,8 @@ impl OptionHistoryOpenInterestBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                open_interest_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| open_interest_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -9060,7 +8835,7 @@ impl OptionHistoryOpenInterestBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_open_interest(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -9077,11 +8852,8 @@ impl OptionHistoryOpenInterestBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -9097,7 +8869,7 @@ impl OptionHistoryOpenInterestBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_open_interest(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -9114,11 +8886,10 @@ impl OptionHistoryOpenInterestBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -9135,7 +8906,7 @@ impl OptionHistoryOpenInterestBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_open_interest(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -9152,11 +8923,10 @@ impl OptionHistoryOpenInterestBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -9402,7 +9172,7 @@ impl OptionHistoryGreeksEodBuilder {
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
@@ -9428,11 +9198,8 @@ impl OptionHistoryGreeksEodBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -9452,7 +9219,7 @@ impl OptionHistoryGreeksEodBuilder {
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
@@ -9478,11 +9245,8 @@ impl OptionHistoryGreeksEodBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -9502,7 +9266,7 @@ impl OptionHistoryGreeksEodBuilder {
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
@@ -9528,11 +9292,10 @@ impl OptionHistoryGreeksEodBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -9553,7 +9316,7 @@ impl OptionHistoryGreeksEodBuilder {
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
@@ -9579,11 +9342,10 @@ impl OptionHistoryGreeksEodBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -9862,7 +9624,7 @@ impl OptionHistoryGreeksAllBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_all(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -9894,11 +9656,8 @@ impl OptionHistoryGreeksAllBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -9920,7 +9679,7 @@ impl OptionHistoryGreeksAllBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_all(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -9952,11 +9711,8 @@ impl OptionHistoryGreeksAllBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -9978,7 +9734,7 @@ impl OptionHistoryGreeksAllBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_all(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -10010,11 +9766,10 @@ impl OptionHistoryGreeksAllBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -10037,7 +9792,7 @@ impl OptionHistoryGreeksAllBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_all(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -10069,11 +9824,10 @@ impl OptionHistoryGreeksAllBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -10358,7 +10112,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_greeks_all(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -10393,11 +10147,8 @@ impl OptionHistoryTradeGreeksAllBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -10419,7 +10170,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_greeks_all(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -10454,11 +10205,8 @@ impl OptionHistoryTradeGreeksAllBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -10480,7 +10228,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_greeks_all(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -10515,11 +10263,10 @@ impl OptionHistoryTradeGreeksAllBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -10542,7 +10289,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_greeks_all(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -10577,11 +10324,10 @@ impl OptionHistoryTradeGreeksAllBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -10860,7 +10606,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_first_order(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -10892,11 +10638,8 @@ impl OptionHistoryGreeksFirstOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -10918,7 +10661,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_first_order(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -10950,11 +10693,8 @@ impl OptionHistoryGreeksFirstOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -10976,7 +10716,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_first_order(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -11008,11 +10748,10 @@ impl OptionHistoryGreeksFirstOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -11035,7 +10774,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_first_order(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -11067,11 +10806,10 @@ impl OptionHistoryGreeksFirstOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -11356,7 +11094,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_greeks_first_order(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -11391,11 +11129,8 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -11417,7 +11152,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_greeks_first_order(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -11452,11 +11187,8 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -11478,7 +11210,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_greeks_first_order(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -11513,11 +11245,10 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -11540,7 +11271,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_greeks_first_order(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -11575,11 +11306,10 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -11858,7 +11588,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_second_order(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -11890,11 +11620,8 @@ impl OptionHistoryGreeksSecondOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -11916,7 +11643,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_second_order(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -11948,11 +11675,8 @@ impl OptionHistoryGreeksSecondOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -11974,7 +11698,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_second_order(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -12006,11 +11730,10 @@ impl OptionHistoryGreeksSecondOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -12033,7 +11756,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_second_order(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -12065,11 +11788,10 @@ impl OptionHistoryGreeksSecondOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -12354,7 +12076,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_greeks_second_order(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -12389,11 +12111,8 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -12415,7 +12134,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_greeks_second_order(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -12450,11 +12169,8 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -12476,7 +12192,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_greeks_second_order(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -12511,11 +12227,10 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -12538,7 +12253,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_greeks_second_order(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -12573,11 +12288,10 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -12856,7 +12570,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_third_order(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -12888,11 +12602,8 @@ impl OptionHistoryGreeksThirdOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -12914,7 +12625,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_third_order(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -12946,11 +12657,8 @@ impl OptionHistoryGreeksThirdOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -12972,7 +12680,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_third_order(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -13004,11 +12712,10 @@ impl OptionHistoryGreeksThirdOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -13031,7 +12738,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_third_order(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -13063,11 +12770,10 @@ impl OptionHistoryGreeksThirdOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -13352,7 +13058,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_greeks_third_order(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -13387,11 +13093,8 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -13413,7 +13116,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_greeks_third_order(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -13448,11 +13151,8 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -13474,7 +13174,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_greeks_third_order(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -13509,11 +13209,10 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -13536,7 +13235,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_greeks_third_order(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -13571,11 +13270,10 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -13853,7 +13551,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -13885,11 +13583,8 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                iv_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| iv_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -13911,7 +13606,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -13943,11 +13638,8 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -13969,7 +13661,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -14001,11 +13693,10 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -14028,7 +13719,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -14060,11 +13751,10 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -14348,7 +14038,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -14383,11 +14073,8 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                iv_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| iv_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -14409,7 +14096,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -14444,11 +14131,8 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -14470,7 +14154,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -14505,11 +14189,10 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -14532,7 +14215,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -14567,11 +14250,10 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -14748,7 +14430,7 @@ impl OptionAtTimeTradeBuilder {
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_at_time_trade(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -14759,11 +14441,8 @@ impl OptionAtTimeTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                trade_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| trade_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -14779,7 +14458,7 @@ impl OptionAtTimeTradeBuilder {
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_at_time_trade(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -14790,11 +14469,8 @@ impl OptionAtTimeTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -14810,7 +14486,7 @@ impl OptionAtTimeTradeBuilder {
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_at_time_trade(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -14821,11 +14497,10 @@ impl OptionAtTimeTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -14842,7 +14517,7 @@ impl OptionAtTimeTradeBuilder {
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_at_time_trade(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -14853,11 +14528,10 @@ impl OptionAtTimeTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -15032,7 +14706,7 @@ impl OptionAtTimeQuoteBuilder {
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_at_time_quote(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -15043,11 +14717,8 @@ impl OptionAtTimeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                quote_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| quote_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -15063,7 +14734,7 @@ impl OptionAtTimeQuoteBuilder {
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_at_time_quote(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -15074,11 +14745,8 @@ impl OptionAtTimeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -15094,7 +14762,7 @@ impl OptionAtTimeQuoteBuilder {
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_at_time_quote(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -15105,11 +14773,10 @@ impl OptionAtTimeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -15126,7 +14793,7 @@ impl OptionAtTimeQuoteBuilder {
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_at_time_quote(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -15137,11 +14804,10 @@ impl OptionAtTimeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -15180,14 +14846,13 @@ impl IndexListSymbolsBuilder {
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result = if let Some(ms) = timeout_ms {
+        spawn_awaitable(py, async move {
+            if let Some(ms) = timeout_ms {
                 tdx.index_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
             } else {
                 tdx.index_list_symbols().await
-            };
-            result.map_err(to_py_err)
-        })
+            }
+        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
     }
 }
 
@@ -15234,14 +14899,13 @@ impl IndexListDatesBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result = if let Some(ms) = timeout_ms {
+        spawn_awaitable(py, async move {
+            if let Some(ms) = timeout_ms {
                 tdx.index_list_dates_with_deadline(std::time::Duration::from_millis(ms), &symbol).await
             } else {
                 tdx.index_list_dates(&symbol).await
-            };
-            result.map_err(to_py_err)
-        })
+            }
+        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
     }
 }
 
@@ -15341,7 +15005,7 @@ impl IndexSnapshotOhlcBuilder {
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.index_snapshot_ohlc(&refs);
             if let Some(value) = &min_time {
@@ -15350,11 +15014,8 @@ impl IndexSnapshotOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                ohlc_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -15363,7 +15024,7 @@ impl IndexSnapshotOhlcBuilder {
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.index_snapshot_ohlc(&refs);
             if let Some(value) = &min_time {
@@ -15372,11 +15033,8 @@ impl IndexSnapshotOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -15385,7 +15043,7 @@ impl IndexSnapshotOhlcBuilder {
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.index_snapshot_ohlc(&refs);
             if let Some(value) = &min_time {
@@ -15394,11 +15052,10 @@ impl IndexSnapshotOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -15408,7 +15065,7 @@ impl IndexSnapshotOhlcBuilder {
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.index_snapshot_ohlc(&refs);
             if let Some(value) = &min_time {
@@ -15417,11 +15074,10 @@ impl IndexSnapshotOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -15522,7 +15178,7 @@ impl IndexSnapshotPriceBuilder {
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.index_snapshot_price(&refs);
             if let Some(value) = &min_time {
@@ -15531,11 +15187,8 @@ impl IndexSnapshotPriceBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                price_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| price_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -15544,7 +15197,7 @@ impl IndexSnapshotPriceBuilder {
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.index_snapshot_price(&refs);
             if let Some(value) = &min_time {
@@ -15553,11 +15206,8 @@ impl IndexSnapshotPriceBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::price_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -15566,7 +15216,7 @@ impl IndexSnapshotPriceBuilder {
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.index_snapshot_price(&refs);
             if let Some(value) = &min_time {
@@ -15575,11 +15225,10 @@ impl IndexSnapshotPriceBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -15589,7 +15238,7 @@ impl IndexSnapshotPriceBuilder {
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.index_snapshot_price(&refs);
             if let Some(value) = &min_time {
@@ -15598,11 +15247,10 @@ impl IndexSnapshotPriceBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -15703,7 +15351,7 @@ impl IndexSnapshotMarketValueBuilder {
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.index_snapshot_market_value(&refs);
             if let Some(value) = &min_time {
@@ -15712,11 +15360,8 @@ impl IndexSnapshotMarketValueBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                market_value_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| market_value_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -15725,7 +15370,7 @@ impl IndexSnapshotMarketValueBuilder {
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.index_snapshot_market_value(&refs);
             if let Some(value) = &min_time {
@@ -15734,11 +15379,8 @@ impl IndexSnapshotMarketValueBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -15747,7 +15389,7 @@ impl IndexSnapshotMarketValueBuilder {
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.index_snapshot_market_value(&refs);
             if let Some(value) = &min_time {
@@ -15756,11 +15398,10 @@ impl IndexSnapshotMarketValueBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -15770,7 +15411,7 @@ impl IndexSnapshotMarketValueBuilder {
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.index_snapshot_market_value(&refs);
             if let Some(value) = &min_time {
@@ -15779,11 +15420,10 @@ impl IndexSnapshotMarketValueBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -15885,16 +15525,13 @@ impl IndexHistoryEodBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.index_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                eod_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| eod_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -15904,16 +15541,13 @@ impl IndexHistoryEodBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.index_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -15923,16 +15557,15 @@ impl IndexHistoryEodBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.index_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -15943,16 +15576,15 @@ impl IndexHistoryEodBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.index_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -16098,7 +15730,7 @@ impl IndexHistoryOhlcBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.index_history_ohlc(&symbol, &start_date, &end_date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -16109,11 +15741,8 @@ impl IndexHistoryOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                ohlc_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -16126,7 +15755,7 @@ impl IndexHistoryOhlcBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.index_history_ohlc(&symbol, &start_date, &end_date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -16137,11 +15766,8 @@ impl IndexHistoryOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -16154,7 +15780,7 @@ impl IndexHistoryOhlcBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.index_history_ohlc(&symbol, &start_date, &end_date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -16165,11 +15791,10 @@ impl IndexHistoryOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -16183,7 +15808,7 @@ impl IndexHistoryOhlcBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.index_history_ohlc(&symbol, &start_date, &end_date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -16194,11 +15819,10 @@ impl IndexHistoryOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -16367,7 +15991,7 @@ impl IndexHistoryPriceBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.index_history_price(&symbol, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -16384,11 +16008,8 @@ impl IndexHistoryPriceBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                price_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| price_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -16402,7 +16023,7 @@ impl IndexHistoryPriceBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.index_history_price(&symbol, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -16419,11 +16040,8 @@ impl IndexHistoryPriceBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::price_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -16437,7 +16055,7 @@ impl IndexHistoryPriceBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.index_history_price(&symbol, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -16454,11 +16072,10 @@ impl IndexHistoryPriceBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -16473,7 +16090,7 @@ impl IndexHistoryPriceBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.index_history_price(&symbol, &date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -16490,11 +16107,10 @@ impl IndexHistoryPriceBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -16607,16 +16223,13 @@ impl IndexAtTimePriceBuilder {
         let end_date = self.end_date.clone();
         let time_of_day = self.time_of_day.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                price_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| price_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -16627,16 +16240,13 @@ impl IndexAtTimePriceBuilder {
         let end_date = self.end_date.clone();
         let time_of_day = self.time_of_day.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::price_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -16647,16 +16257,15 @@ impl IndexAtTimePriceBuilder {
         let end_date = self.end_date.clone();
         let time_of_day = self.time_of_day.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -16668,16 +16277,15 @@ impl IndexAtTimePriceBuilder {
         let end_date = self.end_date.clone();
         let time_of_day = self.time_of_day.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -16751,48 +16359,41 @@ impl CalendarOpenTodayBuilder {
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.calendar_open_today();
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                calendar_days_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| calendar_days_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
     fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.calendar_open_today();
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
     fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.calendar_open_today();
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -16800,16 +16401,15 @@ impl CalendarOpenTodayBuilder {
     fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.calendar_open_today();
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -16894,16 +16494,13 @@ impl CalendarOnDateBuilder {
         let tdx = self.tdx.clone();
         let date = self.date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.calendar_on_date(&date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                calendar_days_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| calendar_days_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -16911,16 +16508,13 @@ impl CalendarOnDateBuilder {
         let tdx = self.tdx.clone();
         let date = self.date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.calendar_on_date(&date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -16928,16 +16522,15 @@ impl CalendarOnDateBuilder {
         let tdx = self.tdx.clone();
         let date = self.date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.calendar_on_date(&date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -16946,16 +16539,15 @@ impl CalendarOnDateBuilder {
         let tdx = self.tdx.clone();
         let date = self.date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.calendar_on_date(&date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -17040,16 +16632,13 @@ impl CalendarYearBuilder {
         let tdx = self.tdx.clone();
         let year = self.year.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.calendar_year(&year);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                calendar_days_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| calendar_days_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -17057,16 +16646,13 @@ impl CalendarYearBuilder {
         let tdx = self.tdx.clone();
         let year = self.year.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.calendar_year(&year);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -17074,16 +16660,15 @@ impl CalendarYearBuilder {
         let tdx = self.tdx.clone();
         let year = self.year.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.calendar_year(&year);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -17092,16 +16677,15 @@ impl CalendarYearBuilder {
         let tdx = self.tdx.clone();
         let year = self.year.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.calendar_year(&year);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -17203,16 +16787,13 @@ impl InterestRateHistoryEodBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.interest_rate_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                interest_rate_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| interest_rate_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -17222,16 +16803,13 @@ impl InterestRateHistoryEodBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.interest_rate_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::interest_rate_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::interest_rate_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -17241,16 +16819,15 @@ impl InterestRateHistoryEodBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.interest_rate_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::interest_rate_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::interest_rate_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -17261,16 +16838,15 @@ impl InterestRateHistoryEodBuilder {
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.interest_rate_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::interest_rate_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::interest_rate_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -17428,7 +17004,7 @@ impl StockHistoryOhlcRangeBuilder {
         let end_time = self.end_time.clone();
         let venue = self.venue.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_ohlc_range(&symbol, &start_date, &end_date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -17442,11 +17018,8 @@ impl StockHistoryOhlcRangeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                ohlc_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Async companion to `arrow()`.
@@ -17460,7 +17033,7 @@ impl StockHistoryOhlcRangeBuilder {
         let end_time = self.end_time.clone();
         let venue = self.venue.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_ohlc_range(&symbol, &start_date, &end_date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -17474,11 +17047,8 @@ impl StockHistoryOhlcRangeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks))
     }
 
     /// Async companion to `pandas()`.
@@ -17492,7 +17062,7 @@ impl StockHistoryOhlcRangeBuilder {
         let end_time = self.end_time.clone();
         let venue = self.venue.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_ohlc_range(&symbol, &start_date, &end_date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -17506,11 +17076,10 @@ impl StockHistoryOhlcRangeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_pandas(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_pandas(py, table)
         })
     }
 
@@ -17525,7 +17094,7 @@ impl StockHistoryOhlcRangeBuilder {
         let end_time = self.end_time.clone();
         let venue = self.venue.clone();
         let timeout_ms = self.timeout_ms;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_ohlc_range(&symbol, &start_date, &end_date, &interval);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -17539,11 +17108,10 @@ impl StockHistoryOhlcRangeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-                pyarrow_table_to_polars(py, table)
-            })
+            request.await
+        }, |py, ticks| {
+            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
+            pyarrow_table_to_polars(py, table)
         })
     }
 }
@@ -17648,14 +17216,13 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result = if let Some(ms) = timeout_ms {
+        spawn_awaitable(py, async move {
+            if let Some(ms) = timeout_ms {
                 tdx.stock_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
             } else {
                 tdx.stock_list_symbols().await
-            };
-            result.map_err(to_py_err)
-        })
+            }
+        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
     }
 
     /// Create a fluent-builder for `stock_list_symbols`. Chain setters then call one of
@@ -17710,14 +17277,13 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result = if let Some(ms) = timeout_ms {
+        spawn_awaitable(py, async move {
+            if let Some(ms) = timeout_ms {
                 tdx.stock_list_dates_with_deadline(std::time::Duration::from_millis(ms), &request_type, &symbol).await
             } else {
                 tdx.stock_list_dates(&request_type, &symbol).await
-            };
-            result.map_err(to_py_err)
-        })
+            }
+        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
     }
 
     /// Create a fluent-builder for `stock_list_dates`. Chain setters then call one of
@@ -17790,7 +17356,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.stock_snapshot_ohlc(&refs);
             if let Some(value) = venue {
@@ -17802,11 +17368,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                ohlc_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `stock_snapshot_ohlc`. Chain setters then call one of
@@ -17877,7 +17440,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.stock_snapshot_trade(&refs);
             if let Some(value) = venue {
@@ -17889,11 +17452,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                trade_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| trade_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `stock_snapshot_trade`. Chain setters then call one of
@@ -17964,7 +17524,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.stock_snapshot_quote(&refs);
             if let Some(value) = venue {
@@ -17976,11 +17536,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                quote_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| quote_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `stock_snapshot_quote`. Chain setters then call one of
@@ -18051,7 +17608,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.stock_snapshot_market_value(&refs);
             if let Some(value) = venue {
@@ -18063,11 +17620,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                market_value_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| market_value_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `stock_snapshot_market_value`. Chain setters then call one of
@@ -18127,16 +17681,13 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                eod_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| eod_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `stock_history_eod`. Chain setters then call one of
@@ -18227,7 +17778,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_ohlc(&symbol, &date, &interval);
             if let Some(value) = start_time {
                 request = request.start_time(&value);
@@ -18247,11 +17798,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                ohlc_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `stock_history_ohlc`. Chain setters then call one of
@@ -18343,7 +17891,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_trade(&symbol, &date);
             if let Some(value) = start_time {
                 request = request.start_time(&value);
@@ -18363,11 +17911,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                trade_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| trade_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `stock_history_trade`. Chain setters then call one of
@@ -18463,7 +18008,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_quote(&symbol, &date, &interval);
             if let Some(value) = start_time {
                 request = request.start_time(&value);
@@ -18483,11 +18028,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                quote_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| quote_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `stock_history_quote`. Chain setters then call one of
@@ -18584,7 +18126,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_trade_quote(&symbol, &date);
             if let Some(value) = start_time {
                 request = request.start_time(&value);
@@ -18607,11 +18149,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                trade_quote_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `stock_history_trade_quote`. Chain setters then call one of
@@ -18696,7 +18235,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = venue {
                 request = request.venue(&value);
@@ -18704,11 +18243,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                trade_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| trade_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `stock_at_time_trade`. Chain setters then call one of
@@ -18792,7 +18328,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = venue {
                 request = request.venue(&value);
@@ -18800,11 +18336,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                quote_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| quote_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `stock_at_time_quote`. Chain setters then call one of
@@ -18864,14 +18397,13 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result = if let Some(ms) = timeout_ms {
+        spawn_awaitable(py, async move {
+            if let Some(ms) = timeout_ms {
                 tdx.option_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
             } else {
                 tdx.option_list_symbols().await
-            };
-            result.map_err(to_py_err)
-        })
+            }
+        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
     }
 
     /// Create a fluent-builder for `option_list_symbols`. Chain setters then call one of
@@ -18934,14 +18466,13 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result = if let Some(ms) = timeout_ms {
+        spawn_awaitable(py, async move {
+            if let Some(ms) = timeout_ms {
                 tdx.option_list_dates_with_deadline(std::time::Duration::from_millis(ms), &request_type, &symbol, &expiration, &strike, &right).await
             } else {
                 tdx.option_list_dates(&request_type, &symbol, &expiration, &strike, &right).await
-            };
-            result.map_err(to_py_err)
-        })
+            }
+        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
     }
 
     /// Create a fluent-builder for `option_list_dates`. Chain setters then call one of
@@ -19006,14 +18537,13 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result = if let Some(ms) = timeout_ms {
+        spawn_awaitable(py, async move {
+            if let Some(ms) = timeout_ms {
                 tdx.option_list_expirations_with_deadline(std::time::Duration::from_millis(ms), &symbol).await
             } else {
                 tdx.option_list_expirations(&symbol).await
-            };
-            result.map_err(to_py_err)
-        })
+            }
+        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
     }
 
     /// Create a fluent-builder for `option_list_expirations`. Chain setters then call one of
@@ -19072,14 +18602,13 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result = if let Some(ms) = timeout_ms {
+        spawn_awaitable(py, async move {
+            if let Some(ms) = timeout_ms {
                 tdx.option_list_strikes_with_deadline(std::time::Duration::from_millis(ms), &symbol, &expiration).await
             } else {
                 tdx.option_list_strikes(&symbol, &expiration).await
-            };
-            result.map_err(to_py_err)
-        })
+            }
+        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
     }
 
     /// Create a fluent-builder for `option_list_strikes`. Chain setters then call one of
@@ -19152,7 +18681,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_list_contracts(&request_type, &symbol, &date);
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -19160,11 +18689,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                option_contracts_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| option_contracts_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_list_contracts`. Chain setters then call one of
@@ -19246,7 +18772,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_ohlc(&symbol, &expiration, &strike, &right);
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -19260,11 +18786,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                ohlc_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_snapshot_ohlc`. Chain setters then call one of
@@ -19347,7 +18870,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_trade(&symbol, &expiration, &strike, &right);
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
@@ -19358,11 +18881,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                trade_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| trade_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_snapshot_trade`. Chain setters then call one of
@@ -19449,7 +18969,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_quote(&symbol, &expiration, &strike, &right);
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -19463,11 +18983,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                quote_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| quote_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_snapshot_quote`. Chain setters then call one of
@@ -19557,7 +19074,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_open_interest(&symbol, &expiration, &strike, &right);
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -19571,11 +19088,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                open_interest_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| open_interest_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_snapshot_open_interest`. Chain setters then call one of
@@ -19659,7 +19173,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_market_value(&symbol, &expiration, &strike, &right);
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -19673,11 +19187,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                market_value_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| market_value_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_snapshot_market_value`. Chain setters then call one of
@@ -19797,7 +19308,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_greeks_implied_volatility(&symbol, &expiration, &strike, &right);
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
@@ -19829,11 +19340,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                iv_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| iv_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_snapshot_greeks_implied_volatility`. Chain setters then call one of
@@ -19959,7 +19467,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_greeks_all(&symbol, &expiration, &strike, &right);
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
@@ -19991,11 +19499,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_snapshot_greeks_all`. Chain setters then call one of
@@ -20121,7 +19626,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_greeks_first_order(&symbol, &expiration, &strike, &right);
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
@@ -20153,11 +19658,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_snapshot_greeks_first_order`. Chain setters then call one of
@@ -20283,7 +19785,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_greeks_second_order(&symbol, &expiration, &strike, &right);
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
@@ -20315,11 +19817,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_snapshot_greeks_second_order`. Chain setters then call one of
@@ -20445,7 +19944,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_snapshot_greeks_third_order(&symbol, &expiration, &strike, &right);
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
@@ -20477,11 +19976,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_snapshot_greeks_third_order`. Chain setters then call one of
@@ -20576,7 +20072,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -20587,11 +20083,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                eod_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| eod_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_history_eod`. Chain setters then call one of
@@ -20696,7 +20189,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_ohlc(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = start_time {
                 request = request.start_time(&value);
@@ -20716,11 +20209,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                ohlc_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_history_ohlc`. Chain setters then call one of
@@ -20833,7 +20323,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = start_time {
                 request = request.start_time(&value);
@@ -20856,11 +20346,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                trade_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| trade_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_history_trade`. Chain setters then call one of
@@ -20972,7 +20459,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_quote(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = start_time {
                 request = request.start_time(&value);
@@ -20995,11 +20482,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                quote_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| quote_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_history_quote`. Chain setters then call one of
@@ -21118,7 +20602,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_quote(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = start_time {
                 request = request.start_time(&value);
@@ -21144,11 +20628,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                trade_quote_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_history_trade_quote`. Chain setters then call one of
@@ -21249,7 +20730,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_open_interest(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -21266,11 +20747,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                open_interest_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| open_interest_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_history_open_interest`. Chain setters then call one of
@@ -21385,7 +20863,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
@@ -21411,11 +20889,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_history_greeks_eod`. Chain setters then call one of
@@ -21547,7 +21022,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_all(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = start_time {
                 request = request.start_time(&value);
@@ -21579,11 +21054,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_history_greeks_all`. Chain setters then call one of
@@ -21720,7 +21192,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_greeks_all(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = start_time {
                 request = request.start_time(&value);
@@ -21755,11 +21227,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_history_trade_greeks_all`. Chain setters then call one of
@@ -21892,7 +21361,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_first_order(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = start_time {
                 request = request.start_time(&value);
@@ -21924,11 +21393,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_history_greeks_first_order`. Chain setters then call one of
@@ -22065,7 +21531,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_greeks_first_order(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = start_time {
                 request = request.start_time(&value);
@@ -22100,11 +21566,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_history_trade_greeks_first_order`. Chain setters then call one of
@@ -22237,7 +21700,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_second_order(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = start_time {
                 request = request.start_time(&value);
@@ -22269,11 +21732,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_history_greeks_second_order`. Chain setters then call one of
@@ -22410,7 +21870,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_greeks_second_order(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = start_time {
                 request = request.start_time(&value);
@@ -22445,11 +21905,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_history_trade_greeks_second_order`. Chain setters then call one of
@@ -22582,7 +22039,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_third_order(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = start_time {
                 request = request.start_time(&value);
@@ -22614,11 +22071,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_history_greeks_third_order`. Chain setters then call one of
@@ -22755,7 +22209,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_greeks_third_order(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = start_time {
                 request = request.start_time(&value);
@@ -22790,11 +22244,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                greeks_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_history_trade_greeks_third_order`. Chain setters then call one of
@@ -22925,7 +22376,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date, &interval);
             if let Some(value) = start_time {
                 request = request.start_time(&value);
@@ -22957,11 +22408,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                iv_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| iv_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_history_greeks_implied_volatility`. Chain setters then call one of
@@ -23096,7 +22544,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_history_trade_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date);
             if let Some(value) = start_time {
                 request = request.start_time(&value);
@@ -23131,11 +22579,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                iv_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| iv_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_history_trade_greeks_implied_volatility`. Chain setters then call one of
@@ -23235,7 +22680,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_at_time_trade(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -23246,11 +22691,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                trade_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| trade_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_at_time_trade`. Chain setters then call one of
@@ -23342,7 +22784,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.option_at_time_quote(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -23353,11 +22795,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                quote_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| quote_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `option_at_time_quote`. Chain setters then call one of
@@ -23424,14 +22863,13 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result = if let Some(ms) = timeout_ms {
+        spawn_awaitable(py, async move {
+            if let Some(ms) = timeout_ms {
                 tdx.index_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
             } else {
                 tdx.index_list_symbols().await
-            };
-            result.map_err(to_py_err)
-        })
+            }
+        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
     }
 
     /// Create a fluent-builder for `index_list_symbols`. Chain setters then call one of
@@ -23484,14 +22922,13 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result = if let Some(ms) = timeout_ms {
+        spawn_awaitable(py, async move {
+            if let Some(ms) = timeout_ms {
                 tdx.index_list_dates_with_deadline(std::time::Duration::from_millis(ms), &symbol).await
             } else {
                 tdx.index_list_dates(&symbol).await
-            };
-            result.map_err(to_py_err)
-        })
+            }
+        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
     }
 
     /// Create a fluent-builder for `index_list_dates`. Chain setters then call one of
@@ -23553,7 +22990,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.index_snapshot_ohlc(&refs);
             if let Some(value) = min_time {
@@ -23562,11 +22999,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                ohlc_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `index_snapshot_ohlc`. Chain setters then call one of
@@ -23629,7 +23063,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.index_snapshot_price(&refs);
             if let Some(value) = min_time {
@@ -23638,11 +23072,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                price_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| price_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `index_snapshot_price`. Chain setters then call one of
@@ -23705,7 +23136,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.index_snapshot_market_value(&refs);
             if let Some(value) = min_time {
@@ -23714,11 +23145,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                market_value_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| market_value_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `index_snapshot_market_value`. Chain setters then call one of
@@ -23777,16 +23205,13 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.index_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                eod_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| eod_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `index_history_eod`. Chain setters then call one of
@@ -23864,7 +23289,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.index_history_ohlc(&symbol, &start_date, &end_date, &interval);
             if let Some(value) = start_time {
                 request = request.start_time(&value);
@@ -23875,11 +23300,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                ohlc_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `index_history_ohlc`. Chain setters then call one of
@@ -23971,7 +23393,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.index_history_price(&symbol, &date, &interval);
             if let Some(value) = start_time {
                 request = request.start_time(&value);
@@ -23988,11 +23410,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                price_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| price_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `index_history_price`. Chain setters then call one of
@@ -24062,16 +23481,13 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                price_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| price_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `index_at_time_price`. Chain setters then call one of
@@ -24133,16 +23549,13 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.calendar_open_today();
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                calendar_days_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| calendar_days_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `calendar_open_today`. Chain setters then call one of
@@ -24200,16 +23613,13 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.calendar_on_date(&date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                calendar_days_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| calendar_days_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `calendar_on_date`. Chain setters then call one of
@@ -24269,16 +23679,13 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.calendar_year(&year);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                calendar_days_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| calendar_days_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `calendar_year`. Chain setters then call one of
@@ -24336,16 +23743,13 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.interest_rate_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                interest_rate_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| interest_rate_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `interest_rate_history_eod`. Chain setters then call one of
@@ -24419,7 +23823,7 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        spawn_awaitable(py, async move {
             let mut request = tdx.stock_history_ohlc_range(&symbol, &start_date, &end_date, &interval);
             if let Some(value) = start_time {
                 request = request.start_time(&value);
@@ -24433,11 +23837,8 @@ impl ThetaDataDx {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            let ticks = request.await.map_err(to_py_err)?;
-            Python::attach(|py| {
-                ohlc_ticks_to_pyclass_list(py, &ticks)
-            })
-        })
+            request.await
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
     }
 
     /// Create a fluent-builder for `stock_history_ohlc_range`. Chain setters then call one of

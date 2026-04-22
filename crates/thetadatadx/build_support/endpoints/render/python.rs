@@ -409,59 +409,13 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
     // pattern elsewhere in this file relies on the same contract.
     out.push_str("        let tdx = self.tdx.clone();\n");
 
-    // `future_into_py` wires the awaitable into asyncio's loop and uses our
-    // shared runtime (installed once at module init).
-    out.push_str("        pyo3_async_runtimes::tokio::future_into_py(py, async move {\n");
+    // `spawn_awaitable` is the hand-written async twin of `run_blocking` —
+    // it wraps `pyo3_async_runtimes::tokio::future_into_py`, routes
+    // `thetadatadx::Error` through `to_py_err`, and invokes `convert` with
+    // a held GIL. One call per `*_async` emit keeps the generator output
+    // symmetric with the sync path (one `run_blocking` per emit).
+    out.push_str("        spawn_awaitable(py, async move {\n");
 
-    if is_string_list {
-        // List endpoints: call the `_with_deadline` variant when caller set
-        // timeout_ms; otherwise the deadline-less call.
-        let has_symbols = method_params
-            .iter()
-            .any(|param| param.param_type == "Symbols");
-        if has_symbols {
-            out.push_str(
-                "            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();\n",
-            );
-        }
-        let positional_args = method_params
-            .iter()
-            .map(|param| {
-                if param.param_type == "Symbols" {
-                    "&refs".into()
-                } else {
-                    format!("&{}", param.name)
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(", ");
-        let leading_comma_args = if positional_args.is_empty() {
-            String::new()
-        } else {
-            format!(", {positional_args}")
-        };
-        out.push_str("            let result = if let Some(ms) = timeout_ms {\n");
-        writeln!(
-            out,
-            "                tdx.{}_with_deadline(std::time::Duration::from_millis(ms){}).await",
-            endpoint.name, leading_comma_args
-        )
-        .unwrap();
-        out.push_str("            } else {\n");
-        writeln!(
-            out,
-            "                tdx.{}({}).await",
-            endpoint.name, positional_args
-        )
-        .unwrap();
-        out.push_str("            };\n");
-        out.push_str("            result.map_err(to_py_err)\n");
-        out.push_str("        })\n");
-        out.push_str("    }\n");
-        return out;
-    }
-
-    // Builder-backed endpoints: chain optional setters on the owned future.
     let has_symbols = method_params
         .iter()
         .any(|param| param.param_type == "Symbols");
@@ -481,6 +435,42 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
         })
         .collect::<Vec<_>>()
         .join(", ");
+
+    if is_string_list {
+        // List endpoints: call the `_with_deadline` variant when caller set
+        // timeout_ms; otherwise the deadline-less call.
+        let leading_comma_args = if positional_args.is_empty() {
+            String::new()
+        } else {
+            format!(", {positional_args}")
+        };
+        out.push_str("            if let Some(ms) = timeout_ms {\n");
+        writeln!(
+            out,
+            "                tdx.{}_with_deadline(std::time::Duration::from_millis(ms){}).await",
+            endpoint.name, leading_comma_args
+        )
+        .unwrap();
+        out.push_str("            } else {\n");
+        writeln!(
+            out,
+            "                tdx.{}({}).await",
+            endpoint.name, positional_args
+        )
+        .unwrap();
+        out.push_str("            }\n");
+        // Vec<String> → Python list of str via the standard pyo3 conversion.
+        // This mirrors what `future_into_py` would have done inline before
+        // the DRY refactor, preserving the wire-compatible pyo3 default for
+        // list endpoints.
+        out.push_str(
+            "        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))\n",
+        );
+        out.push_str("    }\n");
+        return out;
+    }
+
+    // Builder-backed endpoints: chain optional setters on the owned future.
     writeln!(
         out,
         "            let mut request = tdx.{}({});",
@@ -505,36 +495,23 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("            }\n");
     if is_streaming_kind {
         // Async streaming endpoints collect the full stream into a Vec<T>
-        // and convert server-side. Matches the sync `streaming_dispatch`
-        // behavior but uses the shared async runtime.
+        // inside the future body; `spawn_awaitable` then runs `convert`
+        // with the GIL held. Same behavior as the pre-refactor emit — one
+        // fewer `Python::attach` seam, since the helper owns that step.
         out.push_str("            let mut collected = Vec::new();\n");
         out.push_str(
-            "            request.stream(|chunk| collected.extend_from_slice(chunk)).await.map_err(to_py_err)?;\n",
+            "            request.stream(|chunk| collected.extend_from_slice(chunk)).await?;\n",
         );
-        out.push_str("            Python::attach(|py| {\n");
-        writeln!(
-            out,
-            "                {}(py, &collected)",
-            python_pyclass_list_converter(&endpoint.return_type)
-        )
-        .unwrap();
-        out.push_str("            })\n");
-        out.push_str("        })\n");
-        out.push_str("    }\n");
-        return out;
+        out.push_str("            Ok(collected)\n");
+    } else {
+        out.push_str("            request.await\n");
     }
-    out.push_str("            let ticks = request.await.map_err(to_py_err)?;\n");
-    // Convert back on the Python thread with GIL held. Unbind so the
-    // returned PyAny outlives the closure lifetime.
-    out.push_str("            Python::attach(|py| {\n");
     writeln!(
         out,
-        "                {}(py, &ticks)",
+        "        }}, |py, ticks| {}(py, &ticks))",
         python_pyclass_list_converter(&endpoint.return_type)
     )
     .unwrap();
-    out.push_str("            })\n");
-    out.push_str("        })\n");
     out.push_str("    }\n");
     out
 }
@@ -1048,11 +1025,7 @@ fn write_async_list_dispatch(
         }
     }
     writeln!(out, "{indent}let timeout_ms = self.timeout_ms;").unwrap();
-    writeln!(
-        out,
-        "{indent}pyo3_async_runtimes::tokio::future_into_py(py, async move {{"
-    )
-    .unwrap();
+    writeln!(out, "{indent}spawn_awaitable(py, async move {{").unwrap();
     if has_symbols {
         writeln!(
             out,
@@ -1076,11 +1049,7 @@ fn write_async_list_dispatch(
     } else {
         format!(", {positional_args}")
     };
-    writeln!(
-        out,
-        "{indent}    let result = if let Some(ms) = timeout_ms {{"
-    )
-    .unwrap();
+    writeln!(out, "{indent}    if let Some(ms) = timeout_ms {{").unwrap();
     writeln!(
         out,
         "{indent}        tdx.{}_with_deadline(std::time::Duration::from_millis(ms){}).await",
@@ -1094,9 +1063,12 @@ fn write_async_list_dispatch(
         endpoint.name, positional_args
     )
     .unwrap();
-    writeln!(out, "{indent}    }};").unwrap();
-    writeln!(out, "{indent}    result.map_err(to_py_err)").unwrap();
-    writeln!(out, "{indent}}})").unwrap();
+    writeln!(out, "{indent}    }}").unwrap();
+    writeln!(
+        out,
+        "{indent}}}, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))"
+    )
+    .unwrap();
 }
 
 fn write_sync_parsed_dispatch(
@@ -1253,11 +1225,7 @@ fn write_async_parsed_dispatch(
         .unwrap();
     }
     writeln!(out, "{indent}let timeout_ms = self.timeout_ms;").unwrap();
-    writeln!(
-        out,
-        "{indent}pyo3_async_runtimes::tokio::future_into_py(py, async move {{"
-    )
-    .unwrap();
+    writeln!(out, "{indent}spawn_awaitable(py, async move {{").unwrap();
     let has_symbols = method_params
         .iter()
         .any(|param| param.param_type == "Symbols");
@@ -1307,23 +1275,18 @@ fn write_async_parsed_dispatch(
         writeln!(out, "{indent}    let mut collected = Vec::new();").unwrap();
         writeln!(
             out,
-            "{indent}    request.stream(|chunk| collected.extend_from_slice(chunk)).await.map_err(to_py_err)?;"
+            "{indent}    request.stream(|chunk| collected.extend_from_slice(chunk)).await?;"
         )
         .unwrap();
-        writeln!(out, "{indent}    let ticks = collected;").unwrap();
+        writeln!(out, "{indent}    Ok(collected)").unwrap();
     } else {
-        writeln!(
-            out,
-            "{indent}    let ticks = request.await.map_err(to_py_err)?;"
-        )
-        .unwrap();
+        writeln!(out, "{indent}    request.await").unwrap();
     }
-    writeln!(out, "{indent}    Python::attach(|py| {{").unwrap();
     match terminal {
         TerminalKind::List => {
             writeln!(
                 out,
-                "{indent}        {}(py, &ticks)",
+                "{indent}}}, |py, ticks| {}(py, &ticks))",
                 python_pyclass_list_converter(&endpoint.return_type)
             )
             .unwrap();
@@ -1332,30 +1295,32 @@ fn write_async_parsed_dispatch(
             // Slice-based Arrow fast path: skip pyclass-list materialisation.
             writeln!(
                 out,
-                "{indent}        {}(py, &ticks)",
+                "{indent}}}, |py, ticks| {}(py, &ticks))",
                 python_slice_arrow_converter(&endpoint.return_type)
             )
             .unwrap();
         }
         TerminalKind::Pandas => {
+            writeln!(out, "{indent}}}, |py, ticks| {{").unwrap();
             writeln!(
                 out,
-                "{indent}        let table = {}(py, &ticks)?;",
+                "{indent}    let table = {}(py, &ticks)?;",
                 python_slice_arrow_converter(&endpoint.return_type)
             )
             .unwrap();
-            writeln!(out, "{indent}        pyarrow_table_to_pandas(py, table)").unwrap();
+            writeln!(out, "{indent}    pyarrow_table_to_pandas(py, table)").unwrap();
+            writeln!(out, "{indent}}})").unwrap();
         }
         TerminalKind::Polars => {
+            writeln!(out, "{indent}}}, |py, ticks| {{").unwrap();
             writeln!(
                 out,
-                "{indent}        let table = {}(py, &ticks)?;",
+                "{indent}    let table = {}(py, &ticks)?;",
                 python_slice_arrow_converter(&endpoint.return_type)
             )
             .unwrap();
-            writeln!(out, "{indent}        pyarrow_table_to_polars(py, table)").unwrap();
+            writeln!(out, "{indent}    pyarrow_table_to_polars(py, table)").unwrap();
+            writeln!(out, "{indent}}})").unwrap();
         }
     }
-    writeln!(out, "{indent}    }})").unwrap();
-    writeln!(out, "{indent}}})").unwrap();
 }
