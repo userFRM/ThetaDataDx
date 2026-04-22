@@ -24,8 +24,6 @@
 //!    `Err`, NOT a panic — called from pre-flight code that already
 //!    validated, but defense-in-depth never hurt.
 
-use std::num::ParseIntError;
-
 // The `chunking` module is staged for the auto-chunk fan-out that lands
 // once the Rust-enhancements agent threads `DirectConfig::auto_chunk`
 // through `MddsClient`. The split math is correctness-critical, so the
@@ -40,8 +38,6 @@ pub enum ChunkError {
     InvalidDate(String, String),
     #[error("end date {end} is before start date {start}")]
     EndBeforeStart { start: String, end: String },
-    #[error("invalid date component")]
-    InvalidComponent(#[from] ParseIntError),
 }
 
 /// A single (inclusive) day.
@@ -54,22 +50,40 @@ struct Ymd {
 
 impl Ymd {
     fn from_yyyymmdd(s: &str) -> Result<Self, ChunkError> {
+        // Shape check first so chrono never has to think about non-ASCII
+        // or lengths other than 8 — the error message we produce here is
+        // the one the caller will see on malformed input from the wire.
         if s.len() != 8 || !s.chars().all(|c| c.is_ascii_digit()) {
             return Err(ChunkError::InvalidDate(
                 s.to_string(),
                 "must be 8 ASCII digits".into(),
             ));
         }
-        let year: u32 = s[0..4].parse()?;
-        let month: u32 = s[4..6].parse()?;
-        let day: u32 = s[6..8].parse()?;
-        if !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+        // Reason: the previous hand-rolled validator accepted
+        // Gregorian-impossible dates like "20230229" (Feb 29 outside a
+        // leap year) and "20240231" (Feb 31). `to_ord` then silently
+        // normalized them, producing wrong chunk boundaries. Delegate
+        // validity to chrono so leap-year + month-length rules are
+        // enforced by the canonical calendar implementation.
+        let parsed = chrono::NaiveDate::parse_from_str(s, "%Y%m%d")
+            .map_err(|e| ChunkError::InvalidDate(s.to_string(), e.to_string()))?;
+        // chrono returns `i32` for `year()` (BC dates are negative). The
+        // YYYYMMDD wire format only expresses 0001..=9999, and the shape
+        // check above already guarantees 4 ASCII digits, so a negative
+        // year cannot reach here. Still, guard against a narrowing cast
+        // explicitly rather than trusting an out-of-band invariant.
+        let year_i32 = chrono::Datelike::year(&parsed);
+        if !(0..=9999).contains(&year_i32) {
             return Err(ChunkError::InvalidDate(
                 s.to_string(),
-                format!("month={month} day={day} out of range"),
+                format!("year {year_i32} out of YYYY range"),
             ));
         }
-        Ok(Ymd { year, month, day })
+        Ok(Ymd {
+            year: year_i32 as u32,
+            month: chrono::Datelike::month(&parsed),
+            day: chrono::Datelike::day(&parsed),
+        })
     }
 
     fn to_yyyymmdd(self) -> String {
@@ -230,6 +244,149 @@ mod tests {
         assert_eq!(ymd.year, 2024);
         assert_eq!(ymd.month, 2);
         assert_eq!(ymd.day, 29);
+    }
+
+    // Gregorian-validation coverage added for v8.0.4. The pre-fix
+    // validator range-checked month 1..=12 and day 1..=31 in isolation
+    // and therefore accepted impossible Gregorian dates like 20230229
+    // (Feb 29 outside a leap year) and 20240231 (Feb 31). The fix
+    // delegates to `chrono::NaiveDate::parse_from_str(_, "%Y%m%d")` for
+    // canonical validity, and the tests below pin the contract.
+
+    /// Feb 29 in a non-leap year is Gregorian-impossible.
+    #[test]
+    fn feb_29_in_non_leap_year_is_rejected() {
+        // 2023 is not a leap year (not divisible by 4).
+        let err = Ymd::from_yyyymmdd("20230229").unwrap_err();
+        assert!(
+            matches!(err, ChunkError::InvalidDate(ref s, _) if s == "20230229"),
+            "expected InvalidDate for 20230229, got {err:?}"
+        );
+    }
+
+    /// Feb 29 in a leap year is valid (2024 is divisible by 4 and not 100).
+    #[test]
+    fn feb_29_in_leap_year_is_accepted() {
+        let ymd = Ymd::from_yyyymmdd("20240229").unwrap();
+        assert_eq!(ymd.year, 2024);
+        assert_eq!(ymd.month, 2);
+        assert_eq!(ymd.day, 29);
+    }
+
+    /// Feb 30 is Gregorian-impossible regardless of leap-year status.
+    #[test]
+    fn feb_30_is_rejected() {
+        let err_leap = Ymd::from_yyyymmdd("20240230").unwrap_err();
+        assert!(
+            matches!(err_leap, ChunkError::InvalidDate(ref s, _) if s == "20240230"),
+            "expected InvalidDate for 20240230, got {err_leap:?}"
+        );
+        let err_non_leap = Ymd::from_yyyymmdd("20230230").unwrap_err();
+        assert!(
+            matches!(err_non_leap, ChunkError::InvalidDate(ref s, _) if s == "20230230"),
+            "expected InvalidDate for 20230230, got {err_non_leap:?}"
+        );
+    }
+
+    /// April has 30 days; Apr 31 is Gregorian-impossible.
+    #[test]
+    fn apr_31_is_rejected() {
+        let err = Ymd::from_yyyymmdd("20240431").unwrap_err();
+        assert!(
+            matches!(err, ChunkError::InvalidDate(ref s, _) if s == "20240431"),
+            "expected InvalidDate for 20240431, got {err:?}"
+        );
+    }
+
+    /// Feb 31 is Gregorian-impossible — the poster child for the
+    /// pre-fix bug (day <= 31 and month <= 12 passed isolated checks).
+    #[test]
+    fn feb_31_is_rejected() {
+        let err = Ymd::from_yyyymmdd("20240231").unwrap_err();
+        assert!(
+            matches!(err, ChunkError::InvalidDate(ref s, _) if s == "20240231"),
+            "expected InvalidDate for 20240231, got {err:?}"
+        );
+    }
+
+    /// Every 30-day month rejects day 31.
+    #[test]
+    fn day_31_in_30_day_months_is_rejected() {
+        // Apr(4), Jun(6), Sep(9), Nov(11) all have 30 days.
+        for month in ["04", "06", "09", "11"] {
+            let s = format!("2024{month}31");
+            let err = Ymd::from_yyyymmdd(&s).unwrap_err();
+            assert!(
+                matches!(err, ChunkError::InvalidDate(ref msg, _) if msg == &s),
+                "expected {s} to be rejected; got {err:?}"
+            );
+        }
+    }
+
+    /// 1900 is divisible by 100 but NOT by 400 — NOT a leap year.
+    /// The hand-rolled validator accepted 19000229; chrono rejects it.
+    #[test]
+    fn century_non_leap_year_rejects_feb_29() {
+        let err = Ymd::from_yyyymmdd("19000229").unwrap_err();
+        assert!(
+            matches!(err, ChunkError::InvalidDate(ref s, _) if s == "19000229"),
+            "expected InvalidDate for 19000229 (century non-leap year), got {err:?}"
+        );
+    }
+
+    /// 2000 is divisible by 400 so it IS a leap year (exception to the
+    /// century rule). Feb 29 must round-trip cleanly.
+    #[test]
+    fn quadricentennial_leap_year_accepts_feb_29() {
+        let ymd = Ymd::from_yyyymmdd("20000229").unwrap();
+        assert_eq!(ymd.year, 2000);
+        assert_eq!(ymd.month, 2);
+        assert_eq!(ymd.day, 29);
+    }
+
+    /// Month 0 and month >12 are out of range.
+    #[test]
+    fn month_out_of_range_is_rejected() {
+        for s in ["20240001", "20241301", "20249901"] {
+            let err = Ymd::from_yyyymmdd(s).unwrap_err();
+            assert!(
+                matches!(err, ChunkError::InvalidDate(ref msg, _) if msg == s),
+                "expected {s} to be rejected; got {err:?}"
+            );
+        }
+    }
+
+    /// Day 0 is out of range for every month.
+    #[test]
+    fn day_zero_is_rejected() {
+        for s in ["20240100", "20240200", "20241200"] {
+            let err = Ymd::from_yyyymmdd(s).unwrap_err();
+            assert!(
+                matches!(err, ChunkError::InvalidDate(ref msg, _) if msg == s),
+                "expected {s} to be rejected; got {err:?}"
+            );
+        }
+    }
+
+    /// End-to-end: a Gregorian-impossible date fed to the public
+    /// `split_date_range` surface returns `InvalidDate`, not a
+    /// silently-normalized chunk list.
+    #[test]
+    fn split_date_range_rejects_impossible_start() {
+        let err = split_date_range("20230229", "20231231").unwrap_err();
+        assert!(
+            matches!(err, ChunkError::InvalidDate(ref s, _) if s == "20230229"),
+            "expected start-side rejection for 20230229, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn split_date_range_rejects_impossible_end() {
+        let err = split_date_range("20240101", "20240231").unwrap_err();
+        assert!(
+            matches!(err, ChunkError::InvalidDate(ref s, _) if s == "20240231"),
+            "expected end-side rejection for 20240231, got {err:?}"
+        );
     }
 
     #[test]
