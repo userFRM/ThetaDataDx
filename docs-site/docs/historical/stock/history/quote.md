@@ -124,5 +124,5 @@ for (const auto& t : data) {
 ## Notes
 
 - Setting `interval` to `"0"` returns every NBBO change, which can produce hundreds of thousands of rows for active symbols. Use the Rust `_stream` variant for large responses.
-- Python users can pipe through `thetadatadx.to_dataframe(tdx.stock_history_quote(...))` for a pandas DataFrame.
+- Python users chain `.to_pandas()` on the return value: `tdx.stock_history_quote(...).to_pandas()`.
 - Shorthand is supported: `"1m"`, `"5m"`, `"1h"`. Milliseconds (`"60000"`, `"300000"`, `"3600000"`) are auto-converted to the nearest valid preset.

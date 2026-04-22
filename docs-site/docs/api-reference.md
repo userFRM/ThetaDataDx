@@ -2828,68 +2828,64 @@ pub enum Error {
 
 ### DataFrame Support (Arrow-Backed)
 
-The DataFrame adapter is built on an Apache Arrow columnar
-pipeline. Every entry point goes through a single
-`Rust -> arrow::RecordBatch -> pyarrow.Table` handoff via the
-Arrow C Data Interface (zero-copy); pandas / polars / raw Arrow
-are the three terminal consumers. At 100k x 20 ticks the
-wall-clock is ~8ms (vs ~300-500ms for the legacy dict-of-lists
-path that this replaces).
+Every historical endpoint returns a typed list wrapper
+(`EodTickList`, `OhlcTickList`, `TradeTickList`, `QuoteTickList`,
+`StringList`, ...). DataFrame conversion happens via chained
+terminals on the wrapper — no free functions, no client methods.
+The shared Rust path walks the decoder-owned `Vec<Tick>` directly
+into an `arrow::RecordBatch` and hands it to `pyarrow.Table` via
+the Arrow C Data Interface (zero-copy at the pyo3 boundary);
+pandas / polars / raw Arrow are the three terminal consumers. At
+100k x 20 ticks the wall-clock is ~8ms (vs ~300-500ms for the
+legacy dict-of-lists path).
 
 **Unified recipe** for every historical endpoint:
 
 ```python
-df = to_dataframe(tdx.stock_history_eod("AAPL", "20240101", "20240301"))
-df = to_dataframe(tdx.stock_history_ohlc("AAPL", "20240315", "60000"))
-df = to_dataframe(tdx.stock_history_trade("AAPL", "20240315"))
-df = to_dataframe(tdx.stock_history_quote("AAPL", "20240315", "60000"))
+df = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_pandas()
+df = tdx.stock_history_ohlc("AAPL", "20240315", "60000").to_pandas()
+df = tdx.stock_history_trade("AAPL", "20240315").to_pandas()
+df = tdx.stock_history_quote("AAPL", "20240315", "60000").to_pandas()
 ```
 
-Call any endpoint, then hand the returned `list[TickClass]` to
-`to_dataframe` / `to_polars` / `to_arrow`. One path, one schema,
-one generator (`tick_schema.toml`). Requires
-`pip install thetadatadx[pandas]`.
+Call any endpoint, chain `.to_pandas()` / `.to_polars()` /
+`.to_arrow()` / `.to_list()` on the returned list wrapper. One
+path, one schema, one generator (`tick_schema.toml`). Requires
+`pip install thetadatadx[pandas]` / `[polars]` / `[arrow]` for
+the matching terminal.
 
-### `to_dataframe(ticks) -> pandas.DataFrame`
+### `<TickName>List.to_pandas() -> pandas.DataFrame`
 
-Generic pandas entry point. Pandas 2.x aliases the underlying
+Generic pandas terminal. Pandas 2.x aliases the underlying
 Arrow buffers in place for all numeric columns, so large result
 sets materialize at near-zero-copy cost:
 
 ```python
-from thetadatadx import to_dataframe
-
-eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
-df = to_dataframe(eod)
+df = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_pandas()
 ```
 
 Requires `pip install thetadatadx[pandas]`.
 
-### `to_polars(ticks) -> polars.DataFrame`
+### `<TickName>List.to_polars() -> polars.DataFrame`
 
 Same Arrow batch, routed through `polars.from_arrow`:
 
 ```python
-from thetadatadx import to_polars
-
-eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
-df = to_polars(eod)
+df = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_polars()
 ```
 
 Requires `pip install thetadatadx[polars]`.
 
-### `to_arrow(ticks) -> pyarrow.Table`
+### `<TickName>List.to_arrow() -> pyarrow.Table`
 
 The intermediate `pyarrow.Table` surfaced directly -- ideal for
 DuckDB / Arrow-Flight / cuDF / polars-arrow pipelines that want
 to consume Arrow without a pandas or polars roundtrip:
 
 ```python
-from thetadatadx import to_arrow
 import duckdb
 
-eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
-table = to_arrow(eod)              # pyarrow.Table, zero-copy
+table = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_arrow()
 con = duckdb.connect()
 con.register("eod", table)         # DuckDB reads the same buffers
 con.sql("SELECT AVG(close) FROM eod").show()
@@ -2898,21 +2894,29 @@ con.sql("SELECT AVG(close) FROM eod").show()
 Requires `pip install thetadatadx[arrow]` (pyarrow only; no
 pandas/polars dep).
 
-### Empty-list behaviour and `hint=` kwarg
+### `<TickName>List.to_list() -> list[TickClass]`
 
-All three adapters (`to_arrow` / `to_dataframe` / `to_polars`) accept
-an optional `hint: str` kwarg naming the pyclass so the Arrow schema
-is materialised even when the input list is empty:
+Return the wrapped rows as a plain Python `list[TickClass]` for
+callers that need a mutable container or a sequence API that
+insists on `list` rather than the frozen wrapper:
 
 ```python
-# No hint: empty list → zero-column table
-to_arrow([])                               # pyarrow.Table with 0 columns
-
-# With hint: empty list → typed schema preserved
-to_arrow([], hint="EodTick")               # pyarrow.Table with EodTick column schema
-to_dataframe([], hint="TradeTick")         # pandas DataFrame with TradeTick columns
-to_polars([], hint="OhlcTick")             # polars DataFrame with OhlcTick columns
+rows = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_list()
 ```
 
-This lets downstream pipelines that assert a fixed schema survive
-empty market-hours windows without branching on `len(ticks) == 0`.
+No extra dependency.
+
+### Empty-result behaviour
+
+An empty query returns an empty `<TickName>List`; the chainable
+terminals still emit a typed schema. `.to_arrow()` on an empty
+list produces a `pyarrow.Table` with zero rows and the full
+column layout for that tick type, so downstream pipelines that
+assert a fixed schema survive empty market-hours windows without
+branching on `len(ticks) == 0`:
+
+```python
+empty = tdx.stock_history_eod("AAPL", "20260101", "20260101")
+assert len(empty) == 0
+table = empty.to_arrow()          # zero rows, EodTick column schema
+```

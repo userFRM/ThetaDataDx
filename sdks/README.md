@@ -6,7 +6,7 @@ Multi-language SDKs for ThetaDataDx. All powered by the Rust core via FFI - thes
 
 | SDK | Install | Historical | Streaming | Greeks | README |
 |---|---|---|---|---|---|
-| **Python** | `pip install thetadatadx` | 61 endpoints | `ThetaDataDx` | `all_greeks()`, `to_polars()` / `to_dataframe()` | [sdks/python/](python/) |
+| **Python** | `pip install thetadatadx` | 61 endpoints | `ThetaDataDx` | `all_greeks()`, chainable `.to_polars()` / `.to_pandas()` / `.to_arrow()` | [sdks/python/](python/) |
 | **TypeScript/Node.js** | `npm install thetadatadx` | 61 endpoints | `ThetaDataDx` | `allGreeks()` | [sdks/typescript/](typescript/) |
 | **Go** | `go get github.com/userFRM/thetadatadx/sdks/go` | 61 endpoints | `FpssClient` | via FFI | [sdks/go/](go/) |
 | **C++** | CMake `find_library` | 61 endpoints | `FpssClient` | via FFI | [sdks/cpp/](cpp/) |

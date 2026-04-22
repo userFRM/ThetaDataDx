@@ -88,12 +88,21 @@ iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30/365, 8.50, "C")
 ### `ThetaDataDx(creds, config)`
 
 All 61 endpoints are available. The 53 tick-returning endpoints
-return lists of typed tick pyclass objects (e.g. `list[EodTick]`,
-`list[TradeTick]`, `list[QuoteTick]`, ...). Field access is by
-attribute — `tick.close`, `tick.price` — with IDE completion and
-typo-loud `AttributeError` on misuse. The remaining list endpoints
-(`*_list_symbols`, `*_list_dates`, `option_list_expirations`,
-`option_list_strikes`) return `list[str]` / `list[int]` unchanged.
+return typed `<TickName>List` wrappers (e.g. `EodTickList`,
+`TradeTickList`, `QuoteTickList`, ...), each implementing the
+Python sequence protocol (`len(...)`, `for tick in ...`,
+`lst[0]`, negative indexing) with typed-pyclass elements exposed
+via attribute access — `tick.close`, `tick.price` — with IDE
+completion and typo-loud `AttributeError` on misuse. Every
+wrapper also exposes the chainable DataFrame terminals covered
+in [Chained DataFrame terminals](#chained-dataframe-terminals).
+List-of-string endpoints (`*_list_symbols`, `*_list_dates`,
+`option_list_expirations`, `option_list_strikes`) return a
+`StringList` wrapper with the same chainable terminals; the
+single output column is named by the endpoint metadata (`symbol`,
+`date`, `expiration`, ...). `option_list_contracts` returns an
+`OptionContractList`; `calendar_on_date` / `calendar_year`
+return a `CalendarDayList`.
 
 #### Stock Methods (14)
 
@@ -276,56 +285,49 @@ You can also subscribe to per-contract streams if you only need specific symbols
 | `reconnect()` | Reconnect streaming and restore subscriptions |
 | `shutdown()` | Graceful shutdown |
 
-### `to_arrow(ticks)`
-Convert a `list[TickClass]` to a `pyarrow.Table` with a zero-copy
-handoff via the Arrow C Data Interface. The underlying Arrow buffers
-are the same ones Rust just filled -- nothing is copied at the
-pyo3 boundary. Requires `pip install thetadatadx[arrow]`.
+### Chained DataFrame terminals
 
-Use this to feed DuckDB, Arrow-Flight, cuDF, polars-arrow, or any
-other Arrow-native tool without an intermediate pandas step:
+Every historical endpoint returns a typed list wrapper (`EodTickList`,
+`OhlcTickList`, `StringList`, ...) whose terminals convert straight
+into columnar form:
+
+| Terminal | Returns | Extra |
+|----------|---------|-------|
+| `.to_list()` | Plain `list[TickClass]` | — |
+| `.to_arrow()` | `pyarrow.Table` | `pip install thetadatadx[arrow]` |
+| `.to_pandas()` | `pandas.DataFrame` | `pip install thetadatadx[pandas]` |
+| `.to_polars()` | `polars.DataFrame` | `pip install thetadatadx[polars]` |
+
+The `.to_arrow()` terminal hands the `RecordBatch` off to pyarrow via
+the Arrow C Data Interface — zero-copy at the pyo3 boundary, the
+underlying Arrow buffers are the same ones Rust just filled. `.to_pandas()`
+and `.to_polars()` chain through the Arrow table for the final dtype.
 
 ```python
 import duckdb
-table = thetadatadx.to_arrow(eod)          # pyarrow.Table
+table = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_arrow()
 con = duckdb.connect()
 con.register("eod", table)                  # zero-copy into DuckDB
 con.sql("SELECT AVG(close) FROM eod").show()
 ```
 
-### `to_dataframe(ticks)`
-Convert a `list[TickClass]` to a pandas DataFrame. Backed by the
-Arrow columnar pipeline -- on pandas 2.x the numeric columns alias
-the Arrow buffers in place (zero copy). Benchmarks at 100k rows /
-20 columns show ~8ms wall-clock (vs ~300-500ms for the legacy
-dict-of-lists path). Requires `pip install thetadatadx[pandas]`.
-
-### `to_polars(ticks)`
-Convert to a polars DataFrame via `polars.from_arrow` -- zero-copy
-at the Arrow boundary. Requires `pip install thetadatadx[polars]`.
-
-### Unified DataFrame path
-No per-endpoint `_df` / `_arrow` / `_polars` convenience wrappers.
-Every historical endpoint returns `list[TickClass]`; chain
-`to_dataframe(ticks)` / `to_polars(ticks)` / `to_arrow(ticks)` for
-the Arrow-backed conversion. One code path, one schema, one place
-to audit. See the "DataFrame Conversion (Arrow-Backed)" section
-below for the recipe.
-
-### Empty lists and `hint=` kwarg
-All three adapters accept an optional `hint: str` kwarg naming the
-tick pyclass (e.g. `hint="EodTick"`) so the returned table or frame
-keeps its typed schema even when the input list is empty:
+The list wrapper itself behaves like a Python sequence:
 
 ```python
-empty_df    = thetadatadx.to_dataframe([], hint="EodTick")
-empty_table = thetadatadx.to_arrow([],    hint="TradeTick")
+eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
+
+len(eod)                                   # row count
+bool(eod)                                  # False when empty
+eod[0]                                     # first EodTick
+eod[-1]                                    # last row, negative indexing supported
+for tick in eod:                           # iterate in decode order
+    process(tick)
 ```
 
-Without a hint, an empty list produces a zero-column output. With a
-hint, the column names and Arrow dtypes are materialised, so
-downstream pipelines that assert a fixed schema survive empty
-market-hours windows without branching.
+On empty results the wrapper still has `__len__ == 0`, `bool(...) == False`,
+and the `.to_arrow()` / `.to_pandas()` / `.to_polars()` terminals
+produce a zero-row frame with the full typed column schema — no
+`hint=` kwarg needed.
 
 ### `all_greeks(spot, strike, rate, div_yield, tte, option_price, right)`
 `right` accepts `"C"`/`"P"` or `"call"`/`"put"` case-insensitively. Returns `AllGreeks` pyclass with 22 attribute fields (`g.iv`, `g.delta`, `g.gamma`, ...). All fields are `float` (f64). Consult `help(thetadatadx.AllGreeks)` for the full list.
@@ -375,41 +377,38 @@ tdx.stop_streaming()
 ## DataFrame Conversion (Arrow-Backed)
 
 Every DataFrame entry point goes through a single Arrow columnar
-pipeline: Rust -> `arrow::RecordBatch` -> `pyarrow.Table` via the
-Arrow C Data Interface (zero-copy) -> pandas / polars / raw Arrow.
-On pandas 2.x the numeric DataFrame columns alias the Arrow
-buffers in place, so a 100k x 20 result set converts in ~8ms
-(vs ~300-500ms for the old dict-of-lists path).
+pipeline: Rust `Vec<Tick>` -> `arrow::RecordBatch` -> `pyarrow.Table`
+via the Arrow C Data Interface (zero-copy) -> pandas / polars / raw
+Arrow. On pandas 2.x the numeric DataFrame columns alias the Arrow
+buffers in place.
 
 ```python
-from thetadatadx import (
-    Credentials, Config, ThetaDataDx,
-    to_arrow, to_dataframe, to_polars,
-)
+from thetadatadx import Credentials, Config, ThetaDataDx
 
 creds = Credentials.from_file("creds.txt")
 tdx = ThetaDataDx(creds, Config.production())
 
-# One typed path: historical endpoints return `list[TickClass]`,
-# then chain the Arrow-backed adapter for pandas / polars / raw Arrow.
+# Pandas -- zero-copy numeric columns on pandas 2.x.
+df  = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_pandas()
 
-eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
+# Polars via polars.from_arrow -- zero-copy at the Arrow boundary.
+pdf = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_polars()
 
-# Pandas -- zero-copy numeric columns on pandas 2.x
-df = to_dataframe(eod)
+# Raw Arrow -- plug straight into DuckDB / Arrow-Flight / cuDF.
+tbl = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_arrow()
 
-# Polars via polars.from_arrow -- zero-copy
-pdf = to_polars(eod)
+# Same recipe for any tick-returning historical endpoint.
+df  = tdx.stock_history_ohlc("AAPL", "20240315", "1m").to_pandas()
+df  = tdx.option_history_trade("SPY", "20240620", "550", "C", "20240315").to_pandas()
+```
 
-# Raw Arrow -- plug straight into DuckDB / Arrow-Flight / cuDF
-table = to_arrow(eod)
+List endpoints (`stock_list_symbols`, `option_list_expirations`, ...)
+return a `StringList` wrapper with the same chainable terminals; the
+DataFrame column header matches the semantic name:
 
-# Same recipe for any of the 44 tick-returning historical endpoints:
-ohlc = tdx.stock_history_ohlc("AAPL", "20240315", "1m")
-df   = to_dataframe(ohlc)
-
-trd  = tdx.option_history_trade("SPY", "20240620", "550", "C", "20240315")
-df   = to_dataframe(trd)
+```python
+symbols = tdx.stock_list_symbols().to_polars()          # `symbol` column
+expirations = tdx.option_list_expirations("AAPL").to_pandas()
 ```
 
 See the Arrow project docs for the [C Data

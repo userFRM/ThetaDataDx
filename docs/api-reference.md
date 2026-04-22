@@ -695,7 +695,7 @@ All 61 endpoints are exposed through the `thetadatadx-ffi` C ABI crate. Each met
 
 ### Python SDK Coverage
 
-All 61 endpoints are available in the Python SDK via PyO3 bindings (e.g., `tdx.stock_history_eod(...)`). Streaming is available via `tdx.start_streaming()` / `tdx.next_event()`. DataFrame conversion runs through an Apache Arrow columnar pipeline (zero-copy to pyarrow via the Arrow C Data Interface); `to_dataframe(ticks)` → pandas, `to_polars(ticks)` → polars, `to_arrow(ticks)` → `pyarrow.Table`. No per-endpoint DataFrame convenience methods — one unified typed path. Requires `pip install thetadatadx[pandas]` / `[polars]` / `[arrow]`.
+All 61 endpoints are available in the Python SDK via PyO3 bindings (e.g., `tdx.stock_history_eod(...)`). Streaming is available via `tdx.start_streaming()` / `tdx.next_event()`. Every historical endpoint returns a typed `<TickName>List` / `StringList` / `OptionContractList` / `CalendarDayList` wrapper; chain `.to_pandas()` / `.to_polars()` / `.to_arrow()` / `.to_list()` on the returned wrapper for the matching representation. The shared Rust path walks the decoder-owned `Vec<Tick>` into an `arrow::RecordBatch` and hands it to pyarrow via the Arrow C Data Interface (zero-copy at the pyo3 boundary). No free-function or per-client DataFrame surface — one unified typed path. Requires `pip install thetadatadx[pandas]` / `[polars]` / `[arrow]`.
 
 ### TypeScript/Node.js SDK Coverage
 
@@ -722,29 +722,32 @@ tdx.stop_streaming()
 
 ### Python SDK: DataFrame Conversion (Arrow-Backed)
 
-Every DataFrame entry point is built on a single Apache Arrow
-columnar pipeline: Rust -> `arrow::RecordBatch` -> `pyarrow.Table`
-via the Arrow C Data Interface (zero-copy) -> pandas / polars /
-raw Arrow. At 100k x 20 ticks the conversion takes ~8 ms.
+Every historical endpoint returns a typed list wrapper
+(`EodTickList`, `OhlcTickList`, `TradeTickList`, `QuoteTickList`,
+`StringList`, `OptionContractList`, `CalendarDayList`, ...). Chain
+`.to_pandas()` / `.to_polars()` / `.to_arrow()` / `.to_list()` on
+the returned wrapper — the shared Rust path walks the decoder-owned
+`Vec<Tick>` into a single `arrow::RecordBatch` and hands it to
+pyarrow via the Arrow C Data Interface (zero-copy at the pyo3
+boundary). At 100k x 20 ticks the conversion takes ~8 ms.
 
 ```python
-from thetadatadx import (
-    Credentials, Config, ThetaDataDx,
-    to_arrow, to_dataframe, to_polars,
-)
+from thetadatadx import Credentials, Config, ThetaDataDx
 
 creds = Credentials.from_file("creds.txt")
 tdx = ThetaDataDx(creds, Config.production())
 
-eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
-df     = to_dataframe(eod)    # pandas.DataFrame (zero-copy on pandas 2.x)
-pdf    = to_polars(eod)       # polars.DataFrame via polars.from_arrow
-table  = to_arrow(eod)        # pyarrow.Table for DuckDB / Arrow-Flight / cuDF
+df     = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_pandas()
+pdf    = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_polars()
+table  = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_arrow()
+rows   = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_list()
 
-# Empty-list schema preservation: pass `hint="EodTick"` (or any
-# tick pyclass name) so the returned frame keeps its column schema
-# even when `ticks` is empty.
-empty_df = to_dataframe([], hint="EodTick")
+# Empty-result schema preservation: the list wrapper knows its
+# tick type at construction, so `.to_arrow()` on an empty wrapper
+# emits a zero-row `pyarrow.Table` with the full column schema.
+empty = tdx.stock_history_eod("AAPL", "20260101", "20260101")
+assert len(empty) == 0
+empty_table = empty.to_arrow()
 ```
 
 Install:

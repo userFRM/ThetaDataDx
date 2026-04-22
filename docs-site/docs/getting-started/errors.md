@@ -159,5 +159,5 @@ See [Configuration](../configuration) for the full struct.
 
 ## Next
 
-- [Async Python](./async-python) — `asyncio.gather` with structured retry
-- [Performance](./performance) — how error paths affect throughput at subscription caps
+- [Quick Start](./quickstart) — install + first call + first stream, tabbed per language
+- [DataFrames](./dataframes) — Arrow / Polars / Pandas output with the zero-copy scope

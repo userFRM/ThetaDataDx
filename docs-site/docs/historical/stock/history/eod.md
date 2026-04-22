@@ -122,6 +122,6 @@ for (const auto& t : data) {
 
 ## Notes
 
-- Python users can pipe the typed list through `thetadatadx.to_dataframe(tdx.stock_history_eod(...))` for a pandas DataFrame. Requires `pip install thetadatadx[pandas]`.
+- Python users chain `.to_pandas()` on the return value: `tdx.stock_history_eod(...).to_pandas()`. Requires `pip install thetadatadx[pandas]`.
 - EOD data includes the closing NBBO quote alongside OHLCV, making it suitable for strategies that need both price and spread information.
 - All dates use `YYYYMMDD` format. The range is inclusive on both ends.

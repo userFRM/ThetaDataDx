@@ -9,11 +9,12 @@ Usage::
     # Detailed pytest-benchmark run (statistics + histogram):
     pytest benches/bench_arrow_vs_dict.py --benchmark-only
 
-The harness constructs N EodTick instances in Python, then times:
+The harness constructs N EodTick instances in Python, wraps them in
+an `EodTickList`, then times each chainable DataFrame terminal:
 
-1. `to_arrow(ticks)`         -- the public Arrow entry point.
-2. `to_dataframe(ticks)`     -- pandas via pyarrow.Table.to_pandas().
-3. `to_polars(ticks)`        -- polars via polars.from_arrow().
+1. `.to_arrow()`    -- pyarrow.Table via Arrow C Data Interface.
+2. `.to_pandas()`   -- pandas via pyarrow.Table.to_pandas().
+3. `.to_polars()`   -- polars via polars.from_arrow().
 
 Also performs an RSS-delta probe around one 100k-row call to validate
 the Arrow C Data Interface handoff is zero-copy: RSS growth should be
@@ -84,25 +85,27 @@ def time_call(fn: Callable[[], object], repeats: int = 3) -> float:
 
 
 def run_size(n: int) -> None:
-    """Build `n` ticks, time each adapter, print in a consistent format."""
+    """Build `n` ticks, wrap in an `EodTickList`, time each terminal."""
     print(f"\n=== N = {n:,} ticks ===")
     t0 = time.perf_counter()
     ticks = build_eod_ticks(n)
     t1 = time.perf_counter()
     print(f"build Python list:     {(t1 - t0) * 1000:8.1f} ms")
 
-    t_arrow = time_call(lambda: thetadatadx.to_arrow(ticks))
-    print(f"to_arrow:              {t_arrow * 1000:8.1f} ms")
+    lst = thetadatadx.EodTickList(ticks)
 
-    t_df = time_call(lambda: thetadatadx.to_dataframe(ticks))
-    print(f"to_dataframe (pandas): {t_df * 1000:8.1f} ms")
+    t_arrow = time_call(lambda: lst.to_arrow())
+    print(f".to_arrow():           {t_arrow * 1000:8.1f} ms")
 
-    t_pl = time_call(lambda: thetadatadx.to_polars(ticks))
-    print(f"to_polars:             {t_pl * 1000:8.1f} ms")
+    t_df = time_call(lambda: lst.to_pandas())
+    print(f".to_pandas():          {t_df * 1000:8.1f} ms")
+
+    t_pl = time_call(lambda: lst.to_polars())
+    print(f".to_polars():          {t_pl * 1000:8.1f} ms")
 
 
 def run_rss_probe(n: int = 100_000) -> None:
-    """RSS-delta probe around a single `to_dataframe` call.
+    """RSS-delta probe around a single `.to_pandas()` call.
 
     For a zero-copy Arrow pipeline, RSS growth should approximately
     equal one copy of the buffer set (column-widths * N). A 2x or 3x
@@ -110,9 +113,10 @@ def run_rss_probe(n: int = 100_000) -> None:
     """
     gc.collect()
     ticks = build_eod_ticks(n)
+    lst = thetadatadx.EodTickList(ticks)
     gc.collect()
     rss_before = rss_kb()
-    df = thetadatadx.to_dataframe(ticks)
+    df = lst.to_pandas()
     gc.collect()
     rss_after = rss_kb()
     delta_bytes = (rss_after - rss_before) * 1024
