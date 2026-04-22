@@ -22,8 +22,12 @@
 //!    singleton; no second runtime is created per call.
 //! 3. **Fluent builder `fn name_builder(...)`** — returns a per-endpoint
 //!    `#[pyclass]` whose chainable setters mirror the builder on the Rust
-//!    side. Terminal methods: `.arrow()`, `.list()`, `.polars()`,
-//!    `.pandas()`, and their `_async` companions.
+//!    side. Single terminal: `.list()` (and its `_async` companion),
+//!    returning a typed list wrapper (`<TickName>List` / `StringList`).
+//!    DataFrame terminals (`to_polars`, `to_arrow`, `to_pandas`,
+//!    `to_list`) live on the wrapper, so builder users write
+//!    `tdx.stock_history_eod_builder(...).list().to_polars()` instead
+//!    of four parallel terminal methods.
 //!
 //! Every docstring in the three variants is produced by `compose_endpoint_doc`
 //! + `render_rust_doc_block`, sourcing from `endpoint.description`
@@ -34,8 +38,9 @@ use std::fmt::Write as _;
 
 use super::super::helpers::{
     builder_params, compose_endpoint_doc, direct_parser_name, is_streaming_endpoint, method_params,
-    python_method_arg_decl, python_optional_type, python_pyclass_list_converter,
-    python_slice_arrow_converter, render_rust_doc_block, sdk_method_arg_name, to_pascal_case,
+    python_method_arg_decl, python_optional_type, python_pyclass_list_class,
+    python_pyclass_list_converter, python_slice_arrow_converter, render_rust_doc_block,
+    sdk_method_arg_name, to_pascal_case,
 };
 use super::super::model::{GeneratedEndpoint, GeneratedParam};
 
@@ -134,7 +139,10 @@ pub(super) fn render_python_decode_bench(endpoints: &[GeneratedEndpoint]) -> Str
             "            let ticks = {parser}(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;"
         )
         .unwrap();
-        writeln!(out, "            {pyclass_fn}(py, &ticks)").unwrap();
+        // `*_to_pyclass_list` now returns `Py<<TickName>List>`; the public
+        // parity-bench hook keeps its `Py<PyAny>` signature, so erase the
+        // concrete class on the way out.
+        writeln!(out, "            Ok({pyclass_fn}(py, ticks)?.into_any())").unwrap();
         out.push_str("        }\n");
     }
 
@@ -158,8 +166,9 @@ pub(super) fn render_python_historical_methods(endpoints: &[GeneratedEndpoint]) 
     // impl block so `add_class::<HistoricalBuilder>()` at module-init time sees
     // the types. One struct per endpoint; each has chained setters for the
     // optional params, required params captured at construction time, and
-    // terminal `.arrow()` / `.list()` / `.polars()` / `.pandas()` +
-    // `*_async` companions.
+    // a single terminal `.list()` (+ `.list_async()`) that returns the
+    // typed list wrapper. DataFrame terminals (`to_polars`, `to_arrow`,
+    // `to_pandas`, `to_list`) live on the wrapper itself.
     for endpoint in endpoints
         .iter()
         .filter(|endpoint| !is_streaming_endpoint(endpoint))
@@ -256,9 +265,21 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("        timeout_ms: Option<u64>,\n");
     out.push_str("    ) -> PyResult<");
     if is_string_list {
-        out.push_str("Vec<String>> {\n");
+        // Chained return: `endpoint(...).to_polars()` — `StringList`
+        // carries both the `Vec<String>` payload and the DataFrame
+        // column name pulled from `endpoint_surface.toml::list_column`.
+        out.push_str("Py<StringList>> {\n");
     } else {
-        out.push_str("Py<PyAny>> {\n");
+        // Chained return: `endpoint(...).to_polars()` — typed list
+        // wrapper per tick type, holds the decoder-owned `Vec<tick::T>`
+        // and exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` /
+        // `.to_polars()` terminals.
+        writeln!(
+            out,
+            "Py<{}>> {{",
+            python_pyclass_list_class(&endpoint.return_type)
+        )
+        .unwrap();
     }
 
     let has_symbols = method_params
@@ -287,12 +308,32 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
         } else {
             format!(", {positional_args}")
         };
-        out.push_str(
-            &include_str!("templates/python/string_list_dispatch.py.tmpl")
-                .replace("__NAME__", &endpoint.name)
-                .replace("__LEADING_COMMA_ARGS__", &leading_comma_args)
-                .replace("__POSITIONAL_ARGS__", &positional_args),
-        );
+        let column = endpoint
+            .list_column
+            .as_deref()
+            .expect("list endpoint must declare list_column");
+        out.push_str("        let values: Vec<String> = run_blocking(py, async move {\n");
+        out.push_str("            if let Some(ms) = timeout_ms {\n");
+        writeln!(
+            out,
+            "                self.tdx.{}_with_deadline(std::time::Duration::from_millis(ms){}).await",
+            endpoint.name, leading_comma_args
+        )
+        .unwrap();
+        out.push_str("            } else {\n");
+        writeln!(
+            out,
+            "                self.tdx.{}({}).await",
+            endpoint.name, positional_args
+        )
+        .unwrap();
+        out.push_str("            }\n");
+        out.push_str("        })?;\n");
+        writeln!(
+            out,
+            "        strings_to_string_list(py, values, \"{column}\")"
+        )
+        .unwrap();
         out.push_str("    }\n");
         return out;
     }
@@ -326,13 +367,19 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("        }\n");
     if is_streaming_kind {
         out.push_str(include_str!("templates/python/streaming_dispatch.py.tmpl"));
+        writeln!(
+            out,
+            "        {}(py, ticks)",
+            python_pyclass_list_converter(&endpoint.return_type)
+        )
+        .unwrap();
         out.push_str("    }\n");
         return out;
     }
     out.push_str("        let ticks = run_blocking(py, async move { request.await })?;\n");
     writeln!(
         out,
-        "        {}(py, &ticks)",
+        "        {}(py, ticks)",
         python_pyclass_list_converter(&endpoint.return_type)
     )
     .unwrap();
@@ -409,13 +456,19 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
     // pattern elsewhere in this file relies on the same contract.
     out.push_str("        let tdx = self.tdx.clone();\n");
 
-    // `future_into_py` wires the awaitable into asyncio's loop and uses our
-    // shared runtime (installed once at module init).
-    out.push_str("        pyo3_async_runtimes::tokio::future_into_py(py, async move {\n");
+    // `spawn_awaitable` is the hand-written async twin of `run_blocking` —
+    // it wraps `pyo3_async_runtimes::tokio::future_into_py`, routes
+    // `thetadatadx::Error` through `to_py_err`, and invokes `convert` with
+    // a held GIL. One call per `*_async` emit keeps the generator output
+    // symmetric with the sync path (one `run_blocking` per emit).
+    out.push_str("        spawn_awaitable(py, async move {\n");
 
     if is_string_list {
         // List endpoints: call the `_with_deadline` variant when caller set
-        // timeout_ms; otherwise the deadline-less call.
+        // timeout_ms; otherwise the deadline-less call. The future returns
+        // `Result<Vec<String>, thetadatadx::Error>`; `spawn_awaitable`
+        // routes the error through `to_py_err` and hands the `Vec<String>`
+        // to the `convert` closure with the GIL held.
         let has_symbols = method_params
             .iter()
             .any(|param| param.param_type == "Symbols");
@@ -440,7 +493,11 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
         } else {
             format!(", {positional_args}")
         };
-        out.push_str("            let result = if let Some(ms) = timeout_ms {\n");
+        let column = endpoint
+            .list_column
+            .as_deref()
+            .expect("list endpoint must declare list_column");
+        out.push_str("            if let Some(ms) = timeout_ms {\n");
         writeln!(
             out,
             "                tdx.{}_with_deadline(std::time::Duration::from_millis(ms){}).await",
@@ -454,9 +511,17 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
             endpoint.name, positional_args
         )
         .unwrap();
-        out.push_str("            };\n");
-        out.push_str("            result.map_err(to_py_err)\n");
-        out.push_str("        })\n");
+        out.push_str("            }\n");
+        // Wrap the returned `Vec<String>` in a typed `StringList` with
+        // the semantic column name so the caller can chain `.to_polars()`
+        // into a single-column frame with a sensible header. `.into_any()`
+        // coerces the `Py<StringList>` up to the `Py<PyAny>` the helper
+        // signature demands.
+        writeln!(
+            out,
+            "        }}, |py, values| strings_to_string_list(py, values, \"{column}\").map(|p| p.into_any()))"
+        )
+        .unwrap();
         out.push_str("    }\n");
         return out;
     }
@@ -505,36 +570,28 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("            }\n");
     if is_streaming_kind {
         // Async streaming endpoints collect the full stream into a Vec<T>
-        // and convert server-side. Matches the sync `streaming_dispatch`
-        // behavior but uses the shared async runtime.
+        // inside the future body; `spawn_awaitable` then runs `convert`
+        // with the GIL held. The inner `?` on `request.stream(...).await`
+        // propagates `thetadatadx::Error` unchanged into the helper.
         out.push_str("            let mut collected = Vec::new();\n");
         out.push_str(
-            "            request.stream(|chunk| collected.extend_from_slice(chunk)).await.map_err(to_py_err)?;\n",
+            "            request.stream(|chunk| collected.extend_from_slice(chunk)).await?;\n",
         );
-        out.push_str("            Python::attach(|py| {\n");
-        writeln!(
-            out,
-            "                {}(py, &collected)",
-            python_pyclass_list_converter(&endpoint.return_type)
-        )
-        .unwrap();
-        out.push_str("            })\n");
-        out.push_str("        })\n");
-        out.push_str("    }\n");
-        return out;
+        out.push_str("            Ok(collected)\n");
+    } else {
+        out.push_str("            request.await\n");
     }
-    out.push_str("            let ticks = request.await.map_err(to_py_err)?;\n");
-    // Convert back on the Python thread with GIL held. Unbind so the
-    // returned PyAny outlives the closure lifetime.
-    out.push_str("            Python::attach(|py| {\n");
+    // Convert back on the Python thread with GIL held. The result is
+    // `Py<<TickName>List>`; `.into_any()` coerces it up to `Py<PyAny>`
+    // so the `spawn_awaitable` convert closure signature is satisfied.
+    // The asyncio caller receives the typed list wrapper directly and
+    // can chain `.to_polars()` off the awaited value.
     writeln!(
         out,
-        "                {}(py, &ticks)",
+        "        }}, |py, ticks| {}(py, ticks).map(|p| p.into_any()))",
         python_pyclass_list_converter(&endpoint.return_type)
     )
     .unwrap();
-    out.push_str("            })\n");
-    out.push_str("        })\n");
     out.push_str("    }\n");
     out
 }
@@ -712,30 +769,58 @@ fn render_python_endpoint_builder(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("        slf\n");
     out.push_str("    }\n\n");
 
-    // Terminals.
+    // Single terminal per builder: `.list()` (sync) + `.list_async()`.
+    // Returns the typed list wrapper (`StringList` or `<TickName>List`);
+    // callers chain `.to_arrow()` / `.to_pandas()` / `.to_polars()` /
+    // `.to_list()` off the wrapper to cross into the DataFrame world.
+    // One terminal, one SSOT path, no drift across four variants.
     if is_string_list {
-        out.push_str("    /// Execute the request and return `list[str]`.\n");
-        out.push_str("    fn list(&self, py: Python<'_>) -> PyResult<Vec<String>> {\n");
+        let column = endpoint
+            .list_column
+            .as_deref()
+            .expect("list endpoint must declare list_column");
+        out.push_str("    /// Execute the request and return a typed `StringList` wrapper.\n");
+        out.push_str("    ///\n");
+        out.push_str(
+            "    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`\n",
+        );
+        out.push_str("    /// on the result to convert to the downstream representation.\n");
+        out.push_str("    fn list(&self, py: Python<'_>) -> PyResult<Py<StringList>> {\n");
         write_sync_list_dispatch(&mut out, endpoint, &method_params, "        ");
+        out.push_str("?;\n");
+        writeln!(
+            out,
+            "        strings_to_string_list(py, values, \"{column}\")"
+        )
+        .unwrap();
         out.push_str("    }\n\n");
 
         out.push_str(
-            "    /// Async companion to `list()` — returns an awaitable yielding `list[str]`.\n",
+            "    /// Async companion to `list()` — awaitable yields the `StringList` wrapper.\n",
         );
         out.push_str(
             "    fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {\n",
         );
-        write_async_list_dispatch(&mut out, endpoint, &method_params, "        ");
+        write_async_list_dispatch(&mut out, endpoint, &method_params, column, "        ");
         out.push_str("    }\n");
         out.push_str("}\n");
         return out;
     }
 
-    // Parsed / streaming — terminals call the existing endpoint through
-    // the wrapped builder. All four terminals go through the SAME
-    // internal dispatch helpers so the four variants cannot drift.
-    out.push_str("    /// Execute the request and return a typed `list[TickClass]`.\n");
-    out.push_str("    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {\n");
+    // Parsed endpoint: builder runs the request and wraps the decoder-owned
+    // `Vec<tick::T>` in a `<TickName>List`. The wrapper owns the terminals
+    // (`to_list`, `to_arrow`, `to_pandas`, `to_polars`) so there is exactly
+    // one path from decoded ticks to DataFrame output; no four-way drift.
+    let list_class = python_pyclass_list_class(&endpoint.return_type);
+    out.push_str("    /// Execute the request and return a typed list wrapper.\n");
+    out.push_str("    ///\n");
+    out.push_str("    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`\n");
+    out.push_str("    /// on the result to convert to the downstream representation.\n");
+    writeln!(
+        out,
+        "    fn list(&self, py: Python<'_>) -> PyResult<Py<{list_class}>> {{"
+    )
+    .unwrap();
     write_sync_parsed_dispatch(
         &mut out,
         endpoint,
@@ -746,51 +831,17 @@ fn render_python_endpoint_builder(endpoint: &GeneratedEndpoint) -> String {
     );
     writeln!(
         out,
-        "        {}(py, &ticks)",
+        "        {}(py, ticks)",
         python_pyclass_list_converter(&endpoint.return_type)
     )
     .unwrap();
     out.push_str("    }\n\n");
 
-    out.push_str("    /// Execute the request and return a `pyarrow.Table`.\n");
-    out.push_str("    ///\n");
-    out.push_str("    /// Builder `.arrow()` takes the slice-based fast path:\n");
-    out.push_str("    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column\n");
-    out.push_str("    /// builders directly, skipping the typed pyclass-list\n");
-    out.push_str("    /// materialisation. Peak RSS is ~½ the pyclass path at\n");
-    out.push_str("    /// large N (no double-buffered pyclass allocations).\n");
-    out.push_str("    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {\n");
-    write_sync_parsed_dispatch(
-        &mut out,
-        endpoint,
-        &method_params,
-        &builder_params,
-        is_streaming_kind,
-        "        ",
+    // Async terminal. Clones the Arc + state into the future; the closure
+    // is `'static + Send` so no references survive.
+    out.push_str(
+        "    /// Async companion to `list()` — awaitable yields the typed list wrapper.\n",
     );
-    writeln!(
-        out,
-        "        {}(py, &ticks)",
-        python_slice_arrow_converter(&endpoint.return_type)
-    )
-    .unwrap();
-    out.push_str("    }\n\n");
-
-    out.push_str("    /// Execute the request and return a `pandas.DataFrame`.\n");
-    out.push_str("    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {\n");
-    out.push_str("        let table = self.arrow(py)?;\n");
-    out.push_str("        pyarrow_table_to_pandas(py, table)\n");
-    out.push_str("    }\n\n");
-
-    out.push_str("    /// Execute the request and return a `polars.DataFrame`.\n");
-    out.push_str("    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {\n");
-    out.push_str("        let table = self.arrow(py)?;\n");
-    out.push_str("        pyarrow_table_to_polars(py, table)\n");
-    out.push_str("    }\n\n");
-
-    // Async terminals. Clone the Arc into the future and all other state;
-    // the closure is `'static + Send` so no references survive.
-    out.push_str("    /// Async companion to `list()`.\n");
     out.push_str(
         "    fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {\n",
     );
@@ -800,52 +851,6 @@ fn render_python_endpoint_builder(endpoint: &GeneratedEndpoint) -> String {
         &method_params,
         &builder_params,
         is_streaming_kind,
-        TerminalKind::List,
-        "        ",
-    );
-    out.push_str("    }\n\n");
-
-    out.push_str("    /// Async companion to `arrow()`.\n");
-    out.push_str(
-        "    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {\n",
-    );
-    write_async_parsed_dispatch(
-        &mut out,
-        endpoint,
-        &method_params,
-        &builder_params,
-        is_streaming_kind,
-        TerminalKind::Arrow,
-        "        ",
-    );
-    out.push_str("    }\n\n");
-
-    out.push_str("    /// Async companion to `pandas()`.\n");
-    out.push_str(
-        "    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {\n",
-    );
-    write_async_parsed_dispatch(
-        &mut out,
-        endpoint,
-        &method_params,
-        &builder_params,
-        is_streaming_kind,
-        TerminalKind::Pandas,
-        "        ",
-    );
-    out.push_str("    }\n\n");
-
-    out.push_str("    /// Async companion to `polars()`.\n");
-    out.push_str(
-        "    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {\n",
-    );
-    write_async_parsed_dispatch(
-        &mut out,
-        endpoint,
-        &method_params,
-        &builder_params,
-        is_streaming_kind,
-        TerminalKind::Polars,
         "        ",
     );
     out.push_str("    }\n");
@@ -865,9 +870,10 @@ fn render_python_builder_constructor(endpoint: &GeneratedEndpoint) -> String {
     let mut out = String::new();
 
     let mut doc = format!(
-        "Create a fluent-builder for `{}`. Chain setters then call one of\n\
-         `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`\n\
-         companions) to execute the request.",
+        "Create a fluent-builder for `{}`. Chain setters then call `.list()`\n\
+         (or `.list_async()`) to execute the request; the returned typed list\n\
+         wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`\n\
+         / `.to_pandas()` / `.to_polars()`.",
         endpoint.name
     );
     doc.push_str("\n\nSee `");
@@ -924,14 +930,6 @@ fn render_python_builder_constructor(endpoint: &GeneratedEndpoint) -> String {
 
 // ───────────────────────── Shared dispatch writers ─────────────────────────
 
-#[derive(Copy, Clone)]
-enum TerminalKind {
-    List,
-    Arrow,
-    Pandas,
-    Polars,
-}
-
 fn write_sync_list_dispatch(
     out: &mut String,
     endpoint: &GeneratedEndpoint,
@@ -980,7 +978,14 @@ fn write_sync_list_dispatch(
             .unwrap();
         }
     }
-    writeln!(out, "{indent}run_blocking(py, async move {{").unwrap();
+    // Emits `let values: Vec<String> = run_blocking(...)` — no trailing
+    // `?;` or semicolon; the caller appends `?;` and chains the
+    // `strings_to_string_list` wrap.
+    writeln!(
+        out,
+        "{indent}let values: Vec<String> = run_blocking(py, async move {{"
+    )
+    .unwrap();
     if has_symbols {
         writeln!(
             out,
@@ -1022,13 +1027,14 @@ fn write_sync_list_dispatch(
     )
     .unwrap();
     writeln!(out, "{indent}    }}").unwrap();
-    writeln!(out, "{indent}}})").unwrap();
+    write!(out, "{indent}}})").unwrap();
 }
 
 fn write_async_list_dispatch(
     out: &mut String,
     endpoint: &GeneratedEndpoint,
     method_params: &[&GeneratedParam],
+    column_name: &str,
     indent: &str,
 ) {
     let has_symbols = method_params
@@ -1048,11 +1054,11 @@ fn write_async_list_dispatch(
         }
     }
     writeln!(out, "{indent}let timeout_ms = self.timeout_ms;").unwrap();
-    writeln!(
-        out,
-        "{indent}pyo3_async_runtimes::tokio::future_into_py(py, async move {{"
-    )
-    .unwrap();
+    // `spawn_awaitable` wraps `pyo3_async_runtimes::tokio::future_into_py`,
+    // routes `thetadatadx::Error` through `to_py_err`, and runs the convert
+    // closure under `Python::attach`. One call per builder `list_async`
+    // emit keeps this path symmetric with the free-function `_async` emit.
+    writeln!(out, "{indent}spawn_awaitable(py, async move {{").unwrap();
     if has_symbols {
         writeln!(
             out,
@@ -1076,11 +1082,7 @@ fn write_async_list_dispatch(
     } else {
         format!(", {positional_args}")
     };
-    writeln!(
-        out,
-        "{indent}    let result = if let Some(ms) = timeout_ms {{"
-    )
-    .unwrap();
+    writeln!(out, "{indent}    if let Some(ms) = timeout_ms {{").unwrap();
     writeln!(
         out,
         "{indent}        tdx.{}_with_deadline(std::time::Duration::from_millis(ms){}).await",
@@ -1094,9 +1096,14 @@ fn write_async_list_dispatch(
         endpoint.name, positional_args
     )
     .unwrap();
-    writeln!(out, "{indent}    }};").unwrap();
-    writeln!(out, "{indent}    result.map_err(to_py_err)").unwrap();
-    writeln!(out, "{indent}}})").unwrap();
+    writeln!(out, "{indent}    }}").unwrap();
+    // Convert the resolved `Vec<String>` into the typed `StringList` and
+    // coerce up to `Py<PyAny>` to satisfy the helper's convert signature.
+    writeln!(
+        out,
+        "{indent}}}, |py, values| strings_to_string_list(py, values, \"{column_name}\").map(|p| p.into_any()))"
+    )
+    .unwrap();
 }
 
 fn write_sync_parsed_dispatch(
@@ -1226,7 +1233,6 @@ fn write_async_parsed_dispatch(
     method_params: &[&GeneratedParam],
     builder_params: &[&GeneratedParam],
     is_streaming_kind: bool,
-    terminal: TerminalKind,
     indent: &str,
 ) {
     writeln!(out, "{indent}let tdx = self.tdx.clone();").unwrap();
@@ -1253,11 +1259,10 @@ fn write_async_parsed_dispatch(
         .unwrap();
     }
     writeln!(out, "{indent}let timeout_ms = self.timeout_ms;").unwrap();
-    writeln!(
-        out,
-        "{indent}pyo3_async_runtimes::tokio::future_into_py(py, async move {{"
-    )
-    .unwrap();
+    // `spawn_awaitable` owns the `future_into_py` + `to_py_err` + GIL-held
+    // convert plumbing; one call per builder `list_async` emit keeps this
+    // path symmetric with the free-function `_async` emit.
+    writeln!(out, "{indent}spawn_awaitable(py, async move {{").unwrap();
     let has_symbols = method_params
         .iter()
         .any(|param| param.param_type == "Symbols");
@@ -1304,58 +1309,25 @@ fn write_async_parsed_dispatch(
     .unwrap();
     writeln!(out, "{indent}    }}").unwrap();
     if is_streaming_kind {
+        // Streaming builders: collect the full stream in the future and let
+        // `spawn_awaitable` wrap the error + convert under the GIL.
         writeln!(out, "{indent}    let mut collected = Vec::new();").unwrap();
         writeln!(
             out,
-            "{indent}    request.stream(|chunk| collected.extend_from_slice(chunk)).await.map_err(to_py_err)?;"
+            "{indent}    request.stream(|chunk| collected.extend_from_slice(chunk)).await?;"
         )
         .unwrap();
-        writeln!(out, "{indent}    let ticks = collected;").unwrap();
+        writeln!(out, "{indent}    Ok(collected)").unwrap();
     } else {
-        writeln!(
-            out,
-            "{indent}    let ticks = request.await.map_err(to_py_err)?;"
-        )
-        .unwrap();
+        writeln!(out, "{indent}    request.await").unwrap();
     }
-    writeln!(out, "{indent}    Python::attach(|py| {{").unwrap();
-    match terminal {
-        TerminalKind::List => {
-            writeln!(
-                out,
-                "{indent}        {}(py, &ticks)",
-                python_pyclass_list_converter(&endpoint.return_type)
-            )
-            .unwrap();
-        }
-        TerminalKind::Arrow => {
-            // Slice-based Arrow fast path: skip pyclass-list materialisation.
-            writeln!(
-                out,
-                "{indent}        {}(py, &ticks)",
-                python_slice_arrow_converter(&endpoint.return_type)
-            )
-            .unwrap();
-        }
-        TerminalKind::Pandas => {
-            writeln!(
-                out,
-                "{indent}        let table = {}(py, &ticks)?;",
-                python_slice_arrow_converter(&endpoint.return_type)
-            )
-            .unwrap();
-            writeln!(out, "{indent}        pyarrow_table_to_pandas(py, table)").unwrap();
-        }
-        TerminalKind::Polars => {
-            writeln!(
-                out,
-                "{indent}        let table = {}(py, &ticks)?;",
-                python_slice_arrow_converter(&endpoint.return_type)
-            )
-            .unwrap();
-            writeln!(out, "{indent}        pyarrow_table_to_polars(py, table)").unwrap();
-        }
-    }
-    writeln!(out, "{indent}    }})").unwrap();
-    writeln!(out, "{indent}}})").unwrap();
+    // Single terminal path — wrap the decoder-owned Vec in the typed
+    // `<TickName>List` and coerce to `Py<PyAny>` for the helper signature.
+    // The caller chains `.to_polars()` / etc. off the awaited value.
+    writeln!(
+        out,
+        "{indent}}}, |py, ticks| {}(py, ticks).map(|p| p.into_any()))",
+        python_pyclass_list_converter(&endpoint.return_type)
+    )
+    .unwrap();
 }

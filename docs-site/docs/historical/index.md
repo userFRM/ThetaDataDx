@@ -66,22 +66,18 @@ Intervals are millisecond strings: `"60000"` for 1 minute, `"300000"` for 5 minu
 
 ## DataFrame Support (Python)
 
-Every historical method returns `list[TickClass]`; chain `thetadatadx.to_dataframe(...)` / `.to_polars(...)` / `.to_arrow(...)` for a DataFrame:
+Every historical method returns a typed list wrapper (`EodTickList`, `OhlcTickList`, `StringList`, ...). Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()` on the return value for the matching representation:
 
 ```python
-df = to_dataframe(tdx.stock_history_eod("AAPL", "20240101", "20240301"))
+df  = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_polars()
+pdf = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_pandas()
+tbl = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_arrow()
+lst = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_list()
 ```
 
-Or convert any result explicitly:
+The list wrapper itself behaves like a Python sequence (`len(ticks)`, `ticks[i]`, `for t in ticks:`), so most callers skip the terminal entirely.
 
-```python
-from thetadatadx import to_dataframe
-
-eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
-df = to_dataframe(eod)
-```
-
-Requires `pip install thetadatadx[pandas]`.
+Requires `pip install thetadatadx[pandas]` or `[polars]` / `[arrow]` depending on the terminal.
 
 ## Time Reference
 

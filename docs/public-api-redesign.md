@@ -209,8 +209,9 @@ Target features:
 - iterable result batches
 - `.records`
 - `.first()`
-- `.to_dataframe()`
+- `.to_pandas()`
 - `.to_polars()`
+- `.to_arrow()`
 - metadata access
 - replay helpers where applicable
 

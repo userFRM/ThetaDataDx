@@ -13,10 +13,12 @@ use thetadatadx::auth;
 use thetadatadx::config;
 use thetadatadx::fpss;
 
+mod async_runtime;
 mod chunking;
 mod errors;
 mod logging_bridge;
 
+use async_runtime::spawn_awaitable;
 use errors::to_py_err;
 
 /// Shared tokio runtime for running async Rust from sync Python.
@@ -321,11 +323,11 @@ impl ThetaDataDx {
     }
 
     // No per-endpoint `_df` / `_arrow` / `_polars` convenience wrappers.
-    // Every historical endpoint returns `list[TickClass]`; chain
-    // `thetadatadx.to_dataframe(ticks)` / `.to_polars(ticks)` /
-    // `.to_arrow(ticks)` for the Arrow-backed conversion. One code
-    // path, one SSOT, one place to audit. See `sdks/python/README.md`
-    // "Historical endpoints → DataFrames" for the usage recipe.
+    // Every historical endpoint returns `Py<<TickName>List>` (or
+    // `Py<StringList>` for list endpoints); chain `.to_polars()` /
+    // `.to_pandas()` / `.to_arrow()` / `.to_list()` on the return
+    // value for the Arrow-backed conversion. One code path, one SSOT,
+    // one place to audit.
 
     fn __repr__(&self) -> String {
         let streaming = if self.tdx.is_streaming() {
@@ -421,41 +423,24 @@ include!("decode_bench.rs");
 
 // ── DataFrame adapter: Arrow columnar pipeline ──
 //
-// The adapter is built on the schema-generated Arrow surface in
-// `tick_arrow.rs` (see `pyclass_list_to_arrow_table`,
-// `arrow_schema_for_qualname`, and the per-class Arrow readers).
-// Every user-facing entry point goes through that single
-// dispatcher; this file owns only the thin pyarrow->{pandas, polars}
-// bridges and the `to_arrow` / `to_dataframe` / `to_polars` pyo3
-// signatures.
+// Every historical endpoint returns a typed `<TickName>List` (or
+// `StringList` for list endpoints), generator-emitted from
+// `tick_schema.toml` + `endpoint_surface.toml`. Terminals live on the
+// wrapper: `ticks.to_list()`, `ticks.to_arrow()`, `ticks.to_pandas()`,
+// `ticks.to_polars()` — one surface, no free-function round-trip.
+//
+// This file owns only the thin pyarrow -> {pandas, polars} bridges
+// consumed by the generated terminals; the conversion machinery itself
+// (schema, per-tick Arrow builders, `StringList`, and the list wrappers)
+// lives in `tick_arrow.rs` + `tick_classes.rs`.
 //
 // Zero-copy path:
 //   Vec<tick::T>     -- Rust-side (historical endpoints)
-//     -> RecordBatch -- schema-generated arrow builders
+//     -> `<TickName>List` (decoder-owned Vec, no copy)
+//     -> RecordBatch  -- schema-generated arrow builders
 //     -> arrow_pyarrow::Table
-//     -> pyarrow.Table  (Arrow C Data Interface, zero-copy buffers)
+//     -> pyarrow.Table (Arrow C Data Interface, zero-copy buffers)
 //     -> pandas.DataFrame | polars.DataFrame | user code
-
-/// Cast a `Py<PyAny>` user input into a typed `PyList` of tick pyclasses.
-/// Shared by `to_arrow` / `to_dataframe` / `to_polars` so the error
-/// message is consistent across entry points.
-fn as_pyclass_list<'py>(
-    py: Python<'py>,
-    ticks: &'py Py<PyAny>,
-    entry_point: &str,
-) -> PyResult<Bound<'py, pyo3::types::PyList>> {
-    let bound = ticks.bind(py);
-    bound.cast::<pyo3::types::PyList>().cloned().map_err(|_| {
-        PyValueError::new_err(format!(
-            "{entry_point}() expects a list of typed tick objects (got `{}`)",
-            bound
-                .get_type()
-                .qualname()
-                .and_then(|q| q.extract::<String>())
-                .unwrap_or_else(|_| "<unknown>".to_string())
-        ))
-    })
-}
 
 /// pyarrow.Table -> pandas.DataFrame. pandas 2.x is required for the
 /// numpy-backed zero-copy path (see `pyproject.toml` extras for the
@@ -472,7 +457,7 @@ fn pyarrow_table_to_pandas(py: Python<'_>, table: Py<PyAny>) -> PyResult<Py<PyAn
         // untouched.
         if e.is_instance_of::<pyo3::exceptions::PyImportError>(py) {
             pyo3::exceptions::PyImportError::new_err(
-                "pandas is required for to_dataframe. Install with: pip install thetadatadx[pandas]",
+                "pandas is required for .to_pandas(). Install with: pip install thetadatadx[pandas]",
             )
         } else {
             e
@@ -491,71 +476,6 @@ fn pyarrow_table_to_polars(py: Python<'_>, table: Py<PyAny>) -> PyResult<Py<PyAn
     })?;
     let df = polars.call_method1("from_arrow", (table,))?;
     Ok(df.unbind())
-}
-
-/// Convert a list of typed tick pyclasses to a `pyarrow.Table` with a
-/// zero-copy Arrow C Data Interface handoff.
-///
-/// `to_arrow(ticks)` accepts a typed `list[TickClass]` returned by any
-/// historical endpoint (e.g. `client.stock_history_eod(...)`,
-/// `client.option_history_trade(...)`). The returned `pyarrow.Table`
-/// is backed by the Arrow C Data Interface, so downstream consumers
-/// (pandas 2.x, polars, DuckDB, Arrow-Flight, cuDF) alias the Rust
-/// buffers in place with zero copies at the pyo3 boundary.
-///
-/// Requires pyarrow: ``pip install thetadatadx[arrow]``
-///
-/// # Empty-list behaviour
-///
-/// * Non-empty list: schema is inferred from the pyclass qualname; all
-///   items must be the same type (mixed types raise `RuntimeError`).
-/// * Empty list + `hint`: schema is inferred from the `hint` pyclass
-///   qualname, producing a zero-row `pyarrow.Table` with the full
-///   schema — useful when downstream pandas / polars callers need the
-///   column dtypes even on empty results.
-/// * Empty list + no hint: returns a zero-column `pyarrow.Table`. For
-///   schema preservation materialise a single-row placeholder tick or
-///   pass the `hint=` kwarg.
-///
-/// Example::
-///
-///     ticks = client.stock_history_eod("AAPL", "20240101", "20240301")
-///     table = thetadatadx.to_arrow(ticks)  # pyarrow.Table
-///     con.register("eod", table)           # zero-copy into DuckDB
-///
-///     # Typed empty result
-///     empty = thetadatadx.to_arrow([], hint="EodTick")
-#[pyfunction]
-#[pyo3(signature = (ticks, hint = None))]
-fn to_arrow(py: Python<'_>, ticks: Py<PyAny>, hint: Option<&str>) -> PyResult<Py<PyAny>> {
-    let list = as_pyclass_list(py, &ticks, "to_arrow")?;
-    pyclass_list_to_arrow_table(py, &list, hint)
-}
-
-/// Convert a list of typed tick pyclasses to a pandas DataFrame.
-///
-/// Requires pandas + pyarrow: ``pip install thetadatadx[pandas]``
-///
-/// The DataFrame is backed by the Arrow columnar pipeline -- on pandas
-/// 2.x the numeric columns alias the underlying Arrow buffers (zero
-/// copy). Benchmarks at 100k EodTick rows show a ~6x wall-clock
-/// speedup over the legacy dict-of-lists path.
-///
-/// `hint` carries the pyclass qualname (e.g. `"EodTick"`) for empty
-/// inputs so the returned DataFrame preserves the typed column schema
-/// even with zero rows.
-///
-/// Example::
-///
-///     ticks = client.stock_history_eod("AAPL", "20240101", "20240301")
-///     df = thetadatadx.to_dataframe(ticks)
-///     empty = thetadatadx.to_dataframe([], hint="EodTick")
-#[pyfunction]
-#[pyo3(signature = (ticks, hint = None))]
-fn to_dataframe(py: Python<'_>, ticks: Py<PyAny>, hint: Option<&str>) -> PyResult<Py<PyAny>> {
-    let list = as_pyclass_list(py, &ticks, "to_dataframe")?;
-    let table = pyclass_list_to_arrow_table(py, &list, hint)?;
-    pyarrow_table_to_pandas(py, table)
 }
 
 /// Split a date range `(start, end)` into chunks that each fit under
@@ -579,28 +499,6 @@ fn to_dataframe(py: Python<'_>, ticks: Py<PyAny>, hint: Option<&str>) -> PyResul
 #[pyfunction]
 fn split_date_range(start: &str, end: &str) -> PyResult<Vec<(String, String)>> {
     chunking::split_date_range(start, end).map_err(|e| PyValueError::new_err(e.to_string()))
-}
-
-/// Convert a list of typed tick pyclasses to a polars DataFrame via
-/// `polars.from_arrow` -- zero-copy at the Arrow boundary.
-///
-/// Requires polars + pyarrow: ``pip install thetadatadx[polars]``
-///
-/// `hint` carries the pyclass qualname (e.g. `"EodTick"`) for empty
-/// inputs so the returned DataFrame preserves the typed column schema
-/// even with zero rows.
-///
-/// Example::
-///
-///     ticks = client.stock_history_eod("AAPL", "20240101", "20240301")
-///     df = thetadatadx.to_polars(ticks)
-///     empty = thetadatadx.to_polars([], hint="EodTick")
-#[pyfunction]
-#[pyo3(signature = (ticks, hint = None))]
-fn to_polars(py: Python<'_>, ticks: Py<PyAny>, hint: Option<&str>) -> PyResult<Py<PyAny>> {
-    let list = as_pyclass_list(py, &ticks, "to_polars")?;
-    let table = pyclass_list_to_arrow_table(py, &list, hint)?;
-    pyarrow_table_to_polars(py, table)
 }
 
 // ── Module ──
@@ -644,9 +542,6 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // full tree + mapping from `thetadatadx::Error` variants.
     errors::register_exceptions(py, m)?;
 
-    m.add_function(wrap_pyfunction!(to_arrow, m)?)?;
-    m.add_function(wrap_pyfunction!(to_dataframe, m)?)?;
-    m.add_function(wrap_pyfunction!(to_polars, m)?)?;
     m.add_function(wrap_pyfunction!(decode_response_bytes, m)?)?;
     m.add_function(wrap_pyfunction!(split_date_range, m)?)?;
     Ok(())

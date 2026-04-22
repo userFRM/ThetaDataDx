@@ -1,81 +1,98 @@
 ---
 title: DataFrames
-description: Convert ThetaDataDx tick lists to Arrow, Polars, or Pandas DataFrames, with the zero-copy scope explicitly documented.
+description: Convert ThetaDataDx endpoint results to Arrow, Polars, or Pandas DataFrames via chained terminals on the typed list wrapper, with the zero-copy scope explicitly documented.
 ---
 
 # DataFrames
 
-The Python SDK returns every historical endpoint as a `list[TickClass]` by default. Three single-step adapters convert that list to columnar form for pandas, polars, or Arrow-based downstreams (DuckDB, cuDF, Arrow Flight).
+Every historical endpoint on the Python SDK returns a typed list wrapper (`EodTickList`, `OhlcTickList`, `StringList`, ...). DataFrame conversion happens via chained terminals on the wrapper — no free-function round-trip.
 
 ```python
 from thetadatadx import Credentials, Config, ThetaDataDx
-from thetadatadx import to_dataframe, to_polars, to_arrow
 
 creds = Credentials.from_file("creds.txt")
 tdx = ThetaDataDx(creds, Config.production())
 
-eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
-df  = to_dataframe(eod)   # pandas.DataFrame
-pdf = to_polars(eod)      # polars.DataFrame
-tbl = to_arrow(eod)       # pyarrow.Table
+df  = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_polars()
+pdf = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_pandas()
+tbl = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_arrow()
+lst = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_list()
 ```
 
-The three adapters share one Rust implementation that walks the `Vec<Tick>` produced by the decoder, builds Arrow columnar buffers, and hands the `RecordBatch` off to `pyarrow.Table` via the Arrow C Data Interface. `to_dataframe` and `to_polars` then call through `pyarrow.Table` for the final dtype.
+The terminals share one Rust implementation that walks the decoder-owned `Vec<Tick>` directly into Arrow columnar buffers, then hands the `RecordBatch` off to `pyarrow.Table` via the Arrow C Data Interface. `.to_pandas()` and `.to_polars()` then call through `pyarrow.Table` for the final dtype.
 
 Install with the extra that matches your stack:
 
 ```bash
-pip install thetadatadx[pandas]   # pandas adapter
-pip install thetadatadx[polars]   # polars adapter
+pip install thetadatadx[pandas]   # pandas terminal
+pip install thetadatadx[polars]   # polars terminal
 pip install thetadatadx[arrow]    # pyarrow only
 pip install thetadatadx[all]      # all three
 ```
 
+## The list wrapper
+
+Before a terminal is called the list wrapper itself behaves like a regular Python sequence:
+
+```python
+ticks = tdx.stock_history_eod("AAPL", "20240101", "20240301")
+
+len(ticks)                # row count
+bool(ticks)               # False when empty
+ticks[0]                  # first row as EodTick
+ticks[-1]                 # last row, negative indexing supported
+for tick in ticks:        # iterate in decode order
+    process(tick)
+```
+
+`.to_list()` returns a plain `list[TickClass]` for callers that want a mutable container or need to feed an API that insists on `list`.
+
 ## Zero-copy scope
 
-The Arrow / polars / pandas handoff is zero-copy at the `pyarrow.Table` boundary — the `RecordBatch` memory is shared, not copied, when it crosses into Python. Upstream of that boundary, the `list[TickClass]` step still allocates Python objects; the Rust decoder writes the typed slice, then the Arrow builder reads from the slice to populate the buffers.
+The Arrow / polars / pandas handoff is zero-copy at the `pyarrow.Table` boundary — the `RecordBatch` memory is shared, not copied, when it crosses into Python. Upstream of that boundary, the list wrapper holds the decoder-owned `Vec<Tick>` without allocating a Python object per row; the Arrow builder reads from that slice directly to populate the buffers.
 
-In concrete terms, the benchmark matrix (see [performance page](../performance/benchmark)) measured the following peak RSS for `option_history_greeks_all` (176,732 rows × 31 columns):
-
-- Python SDK `list[dict]` output: 731 MB
-- ThetaDataDx `list[TickClass]` output: 19 MB
-- ThetaDataDx `to_arrow(ticks)` output: 61 MB
-
-The arrow path holds both the pyclass list and the Arrow buffers alive at peak, which is why RSS runs higher than the list-only path. If bulk RAM is the priority, take the list output and skip the Arrow conversion. If columnar compute is the priority, take the Arrow path and accept the peak RSS overhead; downstream libraries will still see real zero-copy semantics.
-
-Endpoint-direct Arrow variants (skip the pyclass list entirely) are tracked as a future work item — they would bring the arrow-path RSS down to pyclass-path levels or below.
+This makes the chained path strictly lighter than the `list[TickClass]` + free-function path in the previous SDK release: there is no double-buffering peak where both the pyclass list and the Arrow columns live simultaneously.
 
 ## Arrow consumers
 
-Because `to_arrow(ticks)` returns a `pyarrow.Table`, every Arrow-native tool reads it with zero copy:
+Because `.to_arrow()` returns a `pyarrow.Table`, every Arrow-native tool reads it with zero copy:
 
 ```python
 import duckdb
-tbl = to_arrow(chain)
-duckdb.sql("SELECT strike, avg(close) FROM tbl GROUP BY strike").show()
+tbl = tdx.option_history_quote(...).to_arrow()
+duckdb.sql("SELECT strike, avg(bid) FROM tbl GROUP BY strike").show()
 ```
 
 ```python
 import polars as pl
-pdf = pl.from_arrow(to_arrow(chain))   # alternative polars path; shares buffers
+pdf = pl.from_arrow(tdx.option_history_quote(...).to_arrow())
 ```
 
 ```python
 import cudf
-gdf = cudf.DataFrame.from_arrow(to_arrow(chain))  # GPU-side DataFrame
+gdf = cudf.DataFrame.from_arrow(tdx.option_history_quote(...).to_arrow())
+```
+
+## List endpoints
+
+Endpoints that return a `Vec<String>` (`stock_list_symbols`, `option_list_expirations`, `stock_list_dates`, ...) surface a `StringList` wrapper with the same chainable terminals. The DataFrame column header matches the semantic name on the wrapper (`symbol`, `expiration`, `date`, ...):
+
+```python
+symbols = tdx.stock_list_symbols().to_polars()   # single-column `symbol` frame
+expirations = tdx.option_list_expirations("AAPL").to_pandas()
 ```
 
 ## When to use which
 
 | Priority | Pick |
 |----------|------|
-| Bulk RAM (millions of rows, no columnar ops needed) | Keep the `list[TickClass]` output — do not call `to_*`. |
-| Columnar compute (aggregations, joins, scenario sweeps) | `to_polars` or `to_arrow` + downstream library. |
-| Pandas-only stack | `to_dataframe` (pandas). |
-| GPU pipelines | `to_arrow` then `cudf.DataFrame.from_arrow`. |
-| Simple dict iteration | The tick list already iterates — no conversion needed. |
+| Bulk RAM, row-at-a-time iteration | Keep the list wrapper — iterate directly, no terminal. |
+| Columnar compute (aggregations, joins, scenario sweeps) | `.to_polars()` or `.to_arrow()` + downstream library. |
+| Pandas-only stack | `.to_pandas()`. |
+| GPU pipelines | `.to_arrow()` then `cudf.DataFrame.from_arrow`. |
+| Plain list (mutability, API compatibility) | `.to_list()`. |
 
 ## Next
 
-- [Performance](./performance) — benchmark headline
-- [Error handling](./errors) — `ThetaDataError` hierarchy for `to_*` converters
+- [Quick Start](./quickstart) — install, authenticate, first call, tabbed per language
+- [Error handling](./errors) — `ThetaDataError` hierarchy for endpoint calls

@@ -1,5 +1,7 @@
+        let ticks: Vec<_> = {
             let mut collected = Vec::new();
             runtime()
                 .block_on(request.stream(|chunk| collected.extend_from_slice(chunk)))
                 .map_err(to_py_err)?;
-            pyo3::PyResult::Ok(collected)
+            collected
+        };

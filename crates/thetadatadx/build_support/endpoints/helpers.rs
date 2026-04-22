@@ -615,6 +615,31 @@ pub(super) fn python_pyclass_list_converter(return_type: &str) -> &'static str {
     }
 }
 
+/// Name of the generated `<TickName>List` pyclass wrapper (e.g.
+/// `EodTickList`). Historical endpoints return `Py<<TickName>List>`
+/// directly so callers can chain `.to_polars()` / `.to_arrow()` /
+/// `.to_pandas()` / `.to_list()` off the endpoint return value.
+///
+/// See `build_support/ticks/python_classes.rs::render_python_tick_list_struct`.
+pub(super) fn python_pyclass_list_class(return_type: &str) -> &'static str {
+    match return_type {
+        "EodTicks" => "EodTickList",
+        "OhlcTicks" => "OhlcTickList",
+        "TradeTicks" => "TradeTickList",
+        "QuoteTicks" => "QuoteTickList",
+        "TradeQuoteTicks" => "TradeQuoteTickList",
+        "OpenInterestTicks" => "OpenInterestTickList",
+        "MarketValueTicks" => "MarketValueTickList",
+        "GreeksTicks" => "GreeksTickList",
+        "IvTicks" => "IvTickList",
+        "PriceTicks" => "PriceTickList",
+        "CalendarDays" => "CalendarDayList",
+        "InterestRateTicks" => "InterestRateTickList",
+        "OptionContracts" => "OptionContractList",
+        other => panic!("unsupported Python pyclass-list class: {other}"),
+    }
+}
+
 /// Map a collection return type (e.g. `TradeTicks`) to the generated
 /// slice-based Arrow converter in `tick_arrow::slice_arrow`. This is the
 /// fast path for builder `.arrow()` / `.pandas()` / `.polars()`
