@@ -13,10 +13,12 @@ use thetadatadx::auth;
 use thetadatadx::config;
 use thetadatadx::fpss;
 
+mod async_runtime;
 mod chunking;
 mod errors;
 mod logging_bridge;
 
+use async_runtime::spawn_awaitable;
 use errors::to_py_err;
 
 /// Shared tokio runtime for running async Rust from sync Python.
